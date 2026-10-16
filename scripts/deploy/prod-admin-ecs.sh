@@ -67,7 +67,8 @@ case "$MODE" in
     fi
     unset A_PASS A_PASS2
     # Output that could carry the e-mail (lines with @) stays out of the logs.
-    CMD='node dist/prisma/seed.js >/tmp/seed.log 2>&1; rc=$?; grep -v @ /tmp/seed.log | tail -40; [ $rc -eq 0 ] || exit $rc; node dist/src/cli/set-admin-credentials.js >/dev/null && echo "super admin: credentials saved"'
+    # The seed writes ~400k translation rows the first time (15-40 min).
+    CMD='{ node dist/prisma/seed.js 2>&1; echo $? > /tmp/seed.rc; } | grep -v @; rc=$(cat /tmp/seed.rc); [ "$rc" -eq 0 ] || exit "$rc"; node dist/src/cli/set-admin-credentials.js >/dev/null && echo "super admin: credentials saved"'
     ;;
   i18n)
     echo "1/3 (no secret needed)"
@@ -99,14 +100,26 @@ if [ "${DRY_RUN:-}" = "1" ]; then
 fi
 TD_ARN="$(aws ecs register-task-definition --cli-input-json "file://$WORK/td.json" --query taskDefinition.taskDefinitionArn --output text)"
 
-echo "3/3 one-off task in the VPC (about 2-4 min)"
+echo "3/3 one-off task in the VPC (first seed: 15-40 min; you may close this window, the task keeps running)"
 SUBNETS="$(aws ec2 describe-subnets --filters "Name=tag:Name,Values=${CLUSTER}-private-*" --query 'Subnets[].SubnetId' --output text | tr '\t' ',')"
 SG="$(aws ec2 describe-security-groups --filters "Name=group-name,Values=${CLUSTER}-tasks" --query 'SecurityGroups[0].GroupId' --output text)"
 OVR="$(CMD="$CMD" node -e 'process.stdout.write(JSON.stringify({containerOverrides:[{name:"api",command:["sh","-c",process.env.CMD]}]}))')"
 ARN="$(aws ecs run-task --cluster "$CLUSTER" --launch-type FARGATE --task-definition "$TD_ARN" \
   --network-configuration "awsvpcConfiguration={subnets=[${SUBNETS}],securityGroups=[${SG}],assignPublicIp=DISABLED}" \
   --overrides "$OVR" --query 'tasks[0].taskArn' --output text)"
-aws ecs wait tasks-stopped --cluster "$CLUSTER" --tasks "$ARN"
+echo "  task: ${ARN##*/}"
+# Own wait (the CLI waiter gives up after 10 min). If the AWS login runs
+# out, the task still finishes in AWS: check it later with the line below.
+CHECK="aws ecs describe-tasks --cluster $CLUSTER --tasks $ARN --query 'tasks[0].[lastStatus,containers[0].exitCode]' --output text"
+for _ in $(seq 1 240); do
+  if ! ST="$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$ARN" --query 'tasks[0].lastStatus' --output text 2>/dev/null)"; then
+    echo "  AWS login ran out; the task keeps running. Later: aws login && $CHECK"
+    exit 3
+  fi
+  [ "$ST" = "STOPPED" ] && break
+  printf '.'; sleep 15
+done
+echo
 EXIT="$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$ARN" --query 'tasks[0].containers[0].exitCode' --output text)"
 REASON="$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$ARN" --query 'tasks[0].stoppedReason' --output text)"
 GROUP="$(node -e 'const t=require(process.argv[1]);process.stdout.write(t.containerDefinitions[0].logConfiguration.options["awslogs-group"])' "$WORK/td.json")"
