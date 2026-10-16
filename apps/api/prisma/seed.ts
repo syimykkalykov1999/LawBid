@@ -254,7 +254,14 @@ async function seedFeatureFlags(): Promise<void> {
   for (const flag of flags) {
     await prisma.featureFlag.upsert({
       where: { key: flag.key },
-      create: { ...flag, rollout_percent: 100 },
+      // Only the table's columns: catalog entries carry app-side fields
+      // (e.g. `app`) that are not columns (the first prod seed failed on it).
+      create: {
+        key: flag.key,
+        enabled: flag.enabled,
+        description: flag.description,
+        rollout_percent: 100,
+      },
       update: { enabled: flag.enabled, description: flag.description },
     });
   }
