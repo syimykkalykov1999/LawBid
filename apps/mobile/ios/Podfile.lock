@@ -1,27 +1,33 @@
 PODS:
   - Flutter (1.0.0)
+  - flutter_contacts (0.0.1):
+    - Flutter
   - flutter_secure_storage (6.0.0):
     - Flutter
-  - sign_in_with_apple (0.0.1):
+  - video_compress (0.3.0):
     - Flutter
 
 DEPENDENCIES:
   - Flutter (from `Flutter`)
+  - flutter_contacts (from `.symlinks/plugins/flutter_contacts/ios`)
   - flutter_secure_storage (from `.symlinks/plugins/flutter_secure_storage/ios`)
-  - sign_in_with_apple (from `.symlinks/plugins/sign_in_with_apple/ios`)
+  - video_compress (from `.symlinks/plugins/video_compress/ios`)
 
 EXTERNAL SOURCES:
   Flutter:
     :path: Flutter
+  flutter_contacts:
+    :path: ".symlinks/plugins/flutter_contacts/ios"
   flutter_secure_storage:
     :path: ".symlinks/plugins/flutter_secure_storage/ios"
-  sign_in_with_apple:
-    :path: ".symlinks/plugins/sign_in_with_apple/ios"
+  video_compress:
+    :path: ".symlinks/plugins/video_compress/ios"
 
 SPEC CHECKSUMS:
   Flutter: 71a624a5bc0c04062bf19101d501e466baf2fb47
+  flutter_contacts: 5383945387e7ca37cf963d4be57c21f2fc15ca9f
   flutter_secure_storage: 1ed9476fba7e7a782b22888f956cce43e2c62f13
-  sign_in_with_apple: c5dcc141574c8c54d5ac99dd2163c0c72ad22418
+  video_compress: f2133a07762889d67f0711ac831faa26f956980e
 
 PODFILE CHECKSUM: 76bc3394c960b37eca9b28313c7d4a1ec1fbcdf4
 

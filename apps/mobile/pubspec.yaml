@@ -177,6 +177,11 @@ flutter:
           weight: 600
 
 dependency_overrides:
+  # 2026-10-16: flutter_contacts 1.1.9+2 force-unwraps the app delegate's
+  # window when it registers; with the UIScene lifecycle that is nil and the
+  # iOS app crashed at launch. Patched copy (MIT): third_party/flutter_contacts.
+  flutter_contacts:
+    path: third_party/flutter_contacts
   # Riverpod bumped 2.x -> 3.x on 2026-09-22 specifically to escape this: riverpod_generator
   # 2.x's analyzer-touching chain (riverpod_analyzer_utils, custom_lint_core, analyzer_plugin)
   # was never updated for analyzer's Element -> Element2 migration and cannot build against any
