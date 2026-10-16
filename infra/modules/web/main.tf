@@ -276,6 +276,9 @@ resource "aws_cloudfront_distribution" "web" {
   comment             = "${var.name} web app"
   default_root_object = "index.html"
   price_class         = "PriceClass_100"
+  # Apply returns as soon as AWS accepted it (CloudFront then rolls out for
+  # 5-15 min on its own): a short AWS login can not lapse mid-apply.
+  wait_for_deployment = false
   is_ipv6_enabled     = true
   http_version        = "http2and3"
   aliases             = local.has_host ? concat([var.web_host], var.extra_hosts) : []
