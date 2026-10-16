@@ -153,8 +153,6 @@ const SEGMENT_AREA: Record<string, RouteArea> = {
   'case-payments': 'money', // client → attorney payments (Stripe Connect)
   // Owner 2026-10-05: «Прибыль и резерв» (the monthly split of the balance).
   treasury: 'money',
-  // Owner 2026-10-16: Система → Экономика (spend rule, ceilings, tiers).
-  economy: 'economy',
   integrations: 'keys',
   admins: 'admins',
   'audit-log': 'audit',
