@@ -1,6 +1,6 @@
 import 'dart:math' as math;
 
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 import 'package:lawbid/core/navigation/shell/shell_layout.dart';
 
 /// Owner 2026-10-16 (web): the sizes of instagram.com / threads.com.
@@ -87,7 +87,7 @@ class WebReelFrame extends StatelessWidget {
           child: ClipRRect(
             borderRadius: BorderRadius.circular(radius),
             child: ColoredBox(
-              color: const Color(0xFF000000),
+              color: Colors.black,
               child: SizedBox(width: w, height: h, child: child),
             ),
           ),
@@ -100,4 +100,4 @@ class WebReelFrame extends StatelessWidget {
 /// The backdrop behind the reels: black on a phone, the page's own colour on
 /// the web where only the 9:16 player is black (instagram.com/reels).
 Color reelsBackdrop(BuildContext context, Color pageColor) =>
-    adaptiveShellOn ? pageColor : const Color(0xFF000000);
+    adaptiveShellOn ? pageColor : Colors.black;
