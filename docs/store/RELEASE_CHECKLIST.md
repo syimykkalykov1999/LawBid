@@ -21,7 +21,7 @@ for SES production access. Owner-facing steps in Russian, field by field:
 | R8 rules for Stripe, WebRTC, CallKit | `android/app/proguard-rules.pro` |
 | Stripe pages (checkout, portal) open in Safari on iOS | `lib/shared/domain/payment_page_launch_mode.dart` |
 | AASA with Team ID 78T56RPM74, `/delete-account` page | LawBidSite PR #17 |
-| Release builds hide Sign in with Apple on Android and Google sign-in when its client id is not set (no button that only errors) | `AppConfig.appleSignInSupported` / `googleSignInConfigured`, welcome + account screens |
+| Sign-in is by phone number only: Apple/Google sign-in code, plugins, entitlement and URL scheme removed (owner 2026-10-16); e-mail flows stay off behind the admin flag `email_login` | `lib/features/auth`, `Runner.entitlements`, `Info.plist` |
 | Guard tests | `test/release/store_release_config_test.dart` |
 
 ## 2. The one final build (Mac; owner rule: build once, at the end)
@@ -31,15 +31,13 @@ Run only after `https://api.lawbid.dev/api/v1/health` answers.
 1. `git pull`, `flutter pub get`, `dart run build_runner build --delete-conflicting-outputs`.
 2. `config/prod.json` (gitignored): copy `config/prod.example.json`, then fill
    `STRIPE_PUBLISHABLE_KEY=pk_live_…` (same Stripe account as the server's
-   live key), `GOOGLE_IOS_CLIENT_ID`, `GOOGLE_SERVER_CLIENT_ID` (empty hides
-   Google sign-in in a release build; v1 ships without it). `APP_STORE_ID` stays empty until App Store Connect shows
+   live key). `APP_STORE_ID` stays empty until App Store Connect shows
    the app's Apple ID. Check that an older local `prod.json` does not still
    say `lawbid.app`.
 3. Firebase prod files (project `lawbid-6e5ff`, gitignored):
    `android/app/src/prod/google-services.json` and the iOS
    `GoogleService-Info.plist` for bundle `com.lawbid.lawbid`.
-4. `ios/Flutter/Secrets.xcconfig`: `DEVELOPMENT_TEAM = 78T56RPM74`,
-   `GOOGLE_REVERSED_CLIENT_ID = …`.
+4. `ios/Flutter/Secrets.xcconfig`: `DEVELOPMENT_TEAM = 78T56RPM74`.
 5. Android upload key (once): `keytool -genkey -v -keystore ~/lawbid-upload.jks -keyalg RSA -keysize 2048 -validity 10000 -alias upload`;
    export `ANDROID_KEYSTORE_PATH`, `ANDROID_KEYSTORE_PASSWORD`,
    `ANDROID_KEY_ALIAS=upload`, `ANDROID_KEY_PASSWORD`. Keep the .jks and the
@@ -72,8 +70,7 @@ Review notes (paste as is, codes filled in):
 > Sign-in is by SMS/e-mail code, so please use the demo mode: on the first
 > screen tap "I have a demo code" and enter CLIENT_CODE (client side) or
 > ATTORNEY_CODE (attorney side). Demo mode is a complete copy of the app with
-> sample data; payments are disabled there. Sign in with Apple also creates a
-> real client account. Attorney subscriptions are bought on our website
+> sample data; payments are disabled there. Attorney subscriptions are bought on our website
 > (Stripe) through a link that opens in Safari, as allowed for the US
 > storefront; the app is available in the United States only. Account
 > deletion: Settings → Account → Delete account.
@@ -83,14 +80,14 @@ Review notes (paste as is, codes filled in):
 "Do you or your third-party partners collect data?" → **Yes**. For every type:
 **Linked to the user: Yes**, **Used for tracking: No**, purpose **App Functionality** only.
 
-- Contact Info: Name, Email Address, Phone Number
+- Contact Info: Name, Email Address, Phone Number, **Contacts** (optional "Find people from your contacts": phone numbers are hashed on the device, only hashes are uploaded)
 - User Content: Photos or Videos, Audio Data, Emails or Text Messages (chat), Customer Support, Other User Content (cases, posts, reviews)
 - Identifiers: User ID, Device ID
 - Purchases: Purchase History
 - Usage Data: Product Interaction
 - Other Data: Other Data Types (attorney license / ID images, verification selfie)
 
-Not collected: location, contacts, health, financial info, browsing/search
+Not collected: location, health, financial info, browsing/search
 history, advertising data, diagnostics (the app has no analytics or crash SDK).
 
 ## 5. Google Play Data safety
@@ -105,8 +102,9 @@ history, advertising data, diagnostics (the app has no analytics or crash SDK).
   - Audio: Voice or sound recordings — optional
   - Files and docs — optional
   - App activity: App interactions, Other user-generated content — optional
+  - Contacts — optional (hashed phone numbers, App functionality)
   - Device or other IDs — required
-- Not collected: location, contacts, calendar, health, web browsing, crash logs, diagnostics.
+- Not collected: location, calendar, health, web browsing, crash logs, diagnostics.
 
 ## 6. Age rating
 

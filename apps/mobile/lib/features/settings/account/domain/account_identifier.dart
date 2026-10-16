@@ -10,9 +10,6 @@ enum IdentifierProvider {
 
   static IdentifierProvider? tryParse(String? raw) =>
       raw == null ? null : IdentifierProvider.values.asNameMap()[raw];
-
-  bool get isSocial =>
-      this == IdentifierProvider.apple || this == IdentifierProvider.google;
 }
 
 /// One row of `GET /users/me/identifiers`.
@@ -51,6 +48,3 @@ class AccountIdentifier {
   /// The account's phone/email contact (users.phone_e164 / users.email).
   final bool isPrimaryContact;
 }
-
-/// Outcome of connecting Apple/Google from Settings → Account.
-enum SocialLinkOutcome { linked, cancelled }

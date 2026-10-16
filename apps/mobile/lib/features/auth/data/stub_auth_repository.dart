@@ -4,7 +4,6 @@ import 'package:lawbid/features/auth/domain/account_deletion_result.dart';
 import 'package:lawbid/features/auth/domain/otp_verify_result.dart';
 import 'package:lawbid/features/auth/domain/password_auth_result.dart';
 import 'package:lawbid/features/auth/domain/reauth_result.dart';
-import 'package:lawbid/features/auth/domain/social_login_result.dart';
 
 /// Local-only stub kept for widget/golden tests (docs/CHANGELOG.md) — no
 /// longer `authRepositoryProvider`'s default as of the real-backend wiring
@@ -96,23 +95,6 @@ class StubAuthRepository implements AuthRepository {
   }) async {
     await Future<void>.delayed(const Duration(milliseconds: 500));
     return const OtpVerifyResult.success(isNewUser: true);
-  }
-
-  /// Phase 3 (docs/CHANGELOG.md): always succeeds as a new user, same
-  /// simulated-latency convention as [verifyOtp]/[requestOtp] above — kept
-  /// in sync with [AuthRepository]'s interface purely so widget/golden
-  /// tests that override `authRepositoryProvider` with this stub keep
-  /// compiling; no test exercises the social buttons today.
-  @override
-  Future<SocialLoginResult> signInWithApple() async {
-    await Future<void>.delayed(const Duration(milliseconds: 500));
-    return const SocialLoginResult.success(isNewUser: true);
-  }
-
-  @override
-  Future<SocialLoginResult> signInWithGoogle() async {
-    await Future<void>.delayed(const Duration(milliseconds: 500));
-    return const SocialLoginResult.success(isNewUser: true);
   }
 
   @override

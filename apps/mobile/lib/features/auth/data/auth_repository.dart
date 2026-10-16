@@ -3,7 +3,6 @@ import 'package:lawbid/features/auth/domain/account_deletion_result.dart';
 import 'package:lawbid/features/auth/domain/otp_verify_result.dart';
 import 'package:lawbid/features/auth/domain/password_auth_result.dart';
 import 'package:lawbid/features/auth/domain/reauth_result.dart';
-import 'package:lawbid/features/auth/domain/social_login_result.dart';
 
 /// Auth operations needed by the onboarding screens (file 01 §10/11) plus
 /// session teardown (file 01 §10.5 `POST /auth/logout`).
@@ -16,10 +15,6 @@ import 'package:lawbid/features/auth/domain/social_login_result.dart';
 /// is no longer wired by default — swap back via an explicit provider
 /// override in a test, never by editing this interface's default
 /// implementation pointer.
-///
-/// Phase 3 (docs/CHANGELOG.md, continuing directly after stage-1.7-auth,
-/// commit 152e193) added [signInWithApple]/[signInWithGoogle] — native
-/// Apple/Google sign-in against `POST /auth/social`.
 ///
 /// Phase 4 (docs/CHANGELOG.md, continuing directly after Phase 3 social
 /// login, commit 2bbeba5) added [logoutAll], [listSessions]/
@@ -60,16 +55,6 @@ abstract interface class AuthRepository {
     required String code,
     String channel = 'phone',
   });
-
-  /// Native Apple sign-in (`sign_in_with_apple`) + `POST /auth/social`
-  /// exchange (file 07 §6.1). Returns `.cancelled()` rather than throwing
-  /// when the user dismisses the native sheet — see
-  /// `SocialAuthNativeClient`'s doc comment (data/
-  /// social_auth_native_client.dart).
-  Future<SocialLoginResult> signInWithApple();
-
-  /// Same as [signInWithApple], via Google (`google_sign_in`) instead.
-  Future<SocialLoginResult> signInWithGoogle();
 
   /// Logs out the current session (`POST /auth/logout`). Callers should
   /// clear local session state (`SessionController.clear()`) regardless of

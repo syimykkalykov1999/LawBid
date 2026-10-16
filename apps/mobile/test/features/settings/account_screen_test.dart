@@ -33,7 +33,7 @@ import '../../helpers/onboarding_harness.dart';
 import '../../helpers/referral_overrides.dart';
 
 /// Settings → Account (docs/01 §10.3, §11 3A): identifier list with all
-/// screen states, linking Apple/Google/phone/email, and changing the
+/// screen states, linking phone/email, and changing the
 /// phone with reauth + code on the new contact.
 class FakeAccountRepository implements AccountRepository {
   FakeAccountRepository(this.onList);
@@ -41,7 +41,6 @@ class FakeAccountRepository implements AccountRepository {
   Future<List<AccountIdentifier>> Function() onList;
   final List<String> calls = [];
   Object? linkError;
-  SocialLinkOutcome socialOutcome = SocialLinkOutcome.linked;
 
   @override
   Future<List<AccountIdentifier>> listIdentifiers() {
@@ -59,14 +58,6 @@ class FakeAccountRepository implements AccountRepository {
     calls.add('linkContact:${type.name}:$value:$code');
     // ignore: only_throw_errors
     if (linkError != null) throw linkError!;
-  }
-
-  @override
-  Future<SocialLinkOutcome> linkSocial(IdentifierProvider provider) async {
-    calls.add('linkSocial:${provider.name}');
-    // ignore: only_throw_errors
-    if (linkError != null) throw linkError!;
-    return socialOutcome;
   }
 }
 
@@ -158,7 +149,7 @@ void main() {
     });
 
     testWidgets(
-        'data: contacts, identifiers with badges, only unlinked social providers offered',
+        'data: contacts, identifiers with badges, no social providers offered',
         (tester) async {
       _tallView(tester);
       final repo = FakeAccountRepository(
@@ -178,7 +169,7 @@ void main() {
       expect(find.text('second@example.com'), findsOneWidget);
       expect(find.text('Connected'), findsOneWidget); // Apple row
       expect(find.text('Connect Apple'), findsNothing);
-      expect(find.text('Connect Google'), findsOneWidget);
+      expect(find.text('Connect Google'), findsNothing);
       expect(find.text('Change'), findsNWidgets(2));
       await _tearDown(tester);
     });
@@ -209,8 +200,8 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('No sign-in methods yet.'), findsOneWidget);
-      expect(find.text('Connect Apple'), findsOneWidget);
-      expect(find.text('Connect Google'), findsOneWidget);
+      expect(find.text('Connect Apple'), findsNothing);
+      expect(find.text('Connect Google'), findsNothing);
       await _tearDown(tester);
     });
 
@@ -265,71 +256,6 @@ void main() {
       await tester.pumpWidget(wrap(const AccountScreen()));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
-      await _tearDown(tester);
-    });
-  });
-
-  group('linking Apple / Google (POST /auth/identifiers)', () {
-    testWidgets('Connect Google links, confirms and reloads the list',
-        (tester) async {
-      _tallView(tester);
-      var linked = false;
-      final repo = FakeAccountRepository(
-        () async => [
-          _phone,
-          if (linked)
-            const AccountIdentifier(
-              id: 'g',
-              provider: IdentifierProvider.google,
-              verified: true,
-              isPrimaryContact: false,
-            ),
-        ],
-      );
-      final wrap = await _wrap(repo);
-      await tester.pumpWidget(wrap(const AccountScreen()));
-      await tester.pumpAndSettle();
-
-      linked = true;
-      await tester.tap(find.text('Connect Google'));
-      await tester.pumpAndSettle();
-      expect(repo.calls, ['list', 'linkSocial:google', 'list']);
-      expect(find.text('Sign-in method added'), findsOneWidget);
-      expect(find.text('Connect Google'), findsNothing);
-      await _tearDown(tester);
-    });
-
-    testWidgets(
-        'already linked elsewhere shows the localized error, list unchanged',
-        (tester) async {
-      _tallView(tester);
-      final repo = FakeAccountRepository(() async => const [_phone])
-        ..linkError = const ApiException(
-          code: ApiErrorCodes.identifierAlreadyLinked,
-          message: 'linked',
-        );
-      final wrap = await _wrap(repo);
-      await tester.pumpWidget(wrap(const AccountScreen()));
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.text('Connect Apple'));
-      await tester.pumpAndSettle();
-      expect(repo.calls, ['list', 'linkSocial:apple']);
-      expect(find.byType(SnackBar), findsOneWidget);
-      expect(find.text('Connect Apple'), findsOneWidget);
-      await _tearDown(tester);
-    });
-
-    testWidgets('cancelling the native sheet is silent', (tester) async {
-      _tallView(tester);
-      final repo = FakeAccountRepository(() async => const [_phone])
-        ..socialOutcome = SocialLinkOutcome.cancelled;
-      final wrap = await _wrap(repo);
-      await tester.pumpWidget(wrap(const AccountScreen()));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Connect Apple'));
-      await tester.pumpAndSettle();
-      expect(find.byType(SnackBar), findsNothing);
       await _tearDown(tester);
     });
   });

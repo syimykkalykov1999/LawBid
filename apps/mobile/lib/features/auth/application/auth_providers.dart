@@ -11,7 +11,6 @@ import 'package:lawbid/features/auth/data/auth_dtos.dart';
 import 'package:lawbid/features/auth/data/auth_repository.dart';
 import 'package:lawbid/features/auth/data/magic_link_verifier_store.dart';
 import 'package:lawbid/features/auth/data/real_auth_repository.dart';
-import 'package:lawbid/features/auth/data/social_auth_native_client.dart';
 import 'package:lawbid/features/auth/presentation/other_device_dialog.dart';
 
 /// dio-backed [AuthApiClient], built from the shared [dioProvider].
@@ -32,13 +31,6 @@ final deviceInfoProvider = Provider<DeviceInfo>(
   ),
 );
 
-/// Native Apple/Google sign-in (Phase 3 of the auth networking work,
-/// docs/CHANGELOG.md) — `const`, so this is cheap to rebuild; swappable in
-/// tests the same way [authRepositoryProvider] is.
-final socialAuthNativeClientProvider = Provider<SocialAuthNativeClient>(
-  (ref) => const PlatformSocialAuthNativeClient(),
-);
-
 /// Swappable per the same pattern as `themeModeRepositoryProvider`
 /// (docs/CHANGELOG.md stage 1.5). Real-backend wiring pass
 /// (docs/CHANGELOG.md, stage-1.7-auth): `RealAuthRepository` is now the
@@ -52,7 +44,6 @@ final authRepositoryProvider = Provider<AuthRepository>(
     ref.watch(authApiClientProvider),
     ref.watch(sessionControllerProvider.notifier),
     ref.watch(deviceInfoProvider),
-    ref.watch(socialAuthNativeClientProvider),
     ref.watch(magicLinkVerifierStoreProvider),
     // Owner 2026-10-01: ask before signing another device out.
     confirmOtherDevice: (details) async {

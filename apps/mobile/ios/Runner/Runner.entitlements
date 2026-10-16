@@ -20,9 +20,5 @@
 	     Focus; iOS drops the level to "active" without this entitlement. -->
 	<key>com.apple.developer.usernotifications.time-sensitive</key>
 	<true/>
-	<key>com.apple.developer.applesignin</key>
-	<array>
-		<string>Default</string>
-	</array>
 </dict>
 </plist>

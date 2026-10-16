@@ -4,13 +4,10 @@ import 'package:lawbid/features/auth/data/auth_api_client.dart';
 import 'package:lawbid/features/auth/data/auth_dtos.dart';
 import 'package:lawbid/features/auth/data/auth_repository.dart';
 import 'package:lawbid/features/auth/data/magic_link_verifier_store.dart';
-import 'package:lawbid/features/auth/data/social_auth_native_client.dart';
 import 'package:lawbid/features/auth/domain/account_deletion_result.dart';
 import 'package:lawbid/features/auth/domain/otp_verify_result.dart';
 import 'package:lawbid/features/auth/domain/password_auth_result.dart';
 import 'package:lawbid/features/auth/domain/reauth_result.dart';
-import 'package:lawbid/features/auth/domain/social_login_result.dart';
-import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// Real dio-backed [AuthRepository] (docs/CHANGELOG.md, stage-1.7-auth —
 /// replaces `StubAuthRepository` as `authRepositoryProvider`'s default).
@@ -22,7 +19,6 @@ class RealAuthRepository implements AuthRepository {
     this._client,
     this._session,
     this._deviceInfo,
-    this._nativeClient,
     this._magicLink, {
     this.confirmOtherDevice,
   });
@@ -57,7 +53,6 @@ class RealAuthRepository implements AuthRepository {
   final AuthApiClient _client;
   final SessionController _session;
   final DeviceInfo _deviceInfo;
-  final SocialAuthNativeClient _nativeClient;
   final MagicLinkVerifierStore _magicLink;
 
   @override
@@ -251,78 +246,6 @@ class RealAuthRepository implements AuthRepository {
         return const OtpVerifyResult.networkError();
     }
   }
-
-  /// Phase 3 (docs/CHANGELOG.md): native sign-in via [_nativeClient],
-  /// exchanged against `POST /auth/social`. Shared by [signInWithApple]
-  /// and [signInWithGoogle] — the only difference between the two is
-  /// which native-client method [nativeSignIn] calls.
-  Future<SocialLoginResult> _signInWithSocial(
-    Future<SocialCredential> Function() nativeSignIn,
-  ) async {
-    final SocialCredential credential;
-    try {
-      credential = await nativeSignIn();
-    } on SocialAuthCancelledException {
-      return const SocialLoginResult.cancelled();
-    } on Object {
-      // Not configured on this build (no Google / Apple keys yet) or the
-      // native sheet failed: say so instead of spinning forever.
-      return const SocialLoginResult.providerDisabled();
-    }
-    try {
-      // Owner 2026-10-01: the same "open on another device" question.
-      final tokens = await _orContinue(
-        () => _client.socialLogin(
-          api.SocialLoginDto(
-            provider: api.SocialLoginDtoProvider.fromJson(credential.provider),
-            idToken: credential.idToken,
-            nonce: credential.nonce,
-            firstName: credential.firstName,
-            lastName: credential.lastName,
-            deviceInfo: _deviceInfo,
-          ),
-        ),
-      );
-      await _session.applyTokens(tokens);
-      return SocialLoginResult.success(isNewUser: tokens.isNewUser);
-    } on ApiException catch (e) {
-      if (e.message == _kCancelled) return const SocialLoginResult.cancelled();
-      switch (e.code) {
-        case ApiErrorCodes.authSocialTokenInvalid:
-          return const SocialLoginResult.invalidToken();
-        // Both map to the same UI-facing variant — from the app's
-        // perspective "the provider is off" and "the provider is
-        // temporarily unreachable" call for the same message (retry
-        // another method), even though the backend distinguishes them.
-        case ApiErrorCodes.authProviderDisabled:
-        case ApiErrorCodes.authSocialProviderUnavailable:
-          return const SocialLoginResult.providerDisabled();
-        case ApiErrorCodes.accountExistsUseOtherMethod:
-          final details = e.details;
-          final methods = details?['availableMethods'];
-          return SocialLoginResult.accountExists(
-            maskedIdentifier: details?['maskedIdentifier'] as String? ?? '',
-            availableMethods: methods is List
-                ? methods.map((m) => m.toString()).toList()
-                : const [],
-          );
-        case ApiErrorCodes.accountSuspended:
-          return const SocialLoginResult.suspended();
-        case ApiErrorCodes.accountDeleted:
-          return const SocialLoginResult.deleted();
-        default:
-          return const SocialLoginResult.networkError();
-      }
-    }
-  }
-
-  @override
-  Future<SocialLoginResult> signInWithApple() =>
-      _signInWithSocial(_nativeClient.signInWithApple);
-
-  @override
-  Future<SocialLoginResult> signInWithGoogle() =>
-      _signInWithSocial(_nativeClient.signInWithGoogle);
 
   @override
   Future<void> logout() => _client.logout();

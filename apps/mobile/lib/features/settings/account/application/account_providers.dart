@@ -17,7 +17,6 @@ final accountRepositoryProvider = Provider<AccountRepository>(
   (ref) => ApiAccountRepository(
     ref.watch(accountApiClientProvider),
     ref.watch(authApiClientProvider),
-    ref.watch(socialAuthNativeClientProvider),
   ),
 );
 
@@ -42,15 +41,6 @@ class AccountIdentifiersController
       () => ref.read(accountRepositoryProvider).listIdentifiers(),
     );
     if (ref.mounted) state = next;
-  }
-
-  /// Apple/Google: native sheet → `POST /auth/identifiers`. Throws
-  /// ApiException (e.g. IDENTIFIER_ALREADY_LINKED) for the screen to show.
-  Future<SocialLinkOutcome> linkSocial(IdentifierProvider provider) async {
-    final outcome =
-        await ref.read(accountRepositoryProvider).linkSocial(provider);
-    if (outcome == SocialLinkOutcome.linked) await reloadQuietly();
-    return outcome;
   }
 }
 

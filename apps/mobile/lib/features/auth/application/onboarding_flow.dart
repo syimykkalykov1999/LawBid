@@ -2,12 +2,10 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/auth/application/auth_providers.dart';
-import 'package:lawbid/features/auth/data/auth_repository.dart';
 import 'package:lawbid/features/auth/data/sms_code_retriever.dart';
 import 'package:lawbid/features/auth/domain/onboarding_flow_state.dart';
 import 'package:lawbid/features/auth/domain/onboarding_step.dart';
 import 'package:lawbid/features/auth/domain/otp_verify_result.dart';
-import 'package:lawbid/features/auth/domain/social_login_result.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/referrals/application/install_referrer.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
@@ -271,41 +269,6 @@ class OnboardingFlow extends _$OnboardingFlow {
       step: isNewUser ? OnboardingStep.role : OnboardingStep.completed,
     );
     return true;
-  }
-
-  /// Welcome screen's Apple button (file 07 §6.1). A cancelled native
-  /// sheet is not an error — no `errorMessage` is set for it.
-  Future<bool> signInWithApple() =>
-      _signInWithSocial((repo) => repo.signInWithApple());
-
-  /// Same as [signInWithApple], via Google.
-  Future<bool> signInWithGoogle() =>
-      _signInWithSocial((repo) => repo.signInWithGoogle());
-
-  Future<bool> _signInWithSocial(
-    Future<SocialLoginResult> Function(AuthRepository) signIn,
-  ) async {
-    state = state.copyWith(isSubmitting: true, errorMessage: null);
-    final result = await signIn(ref.read(authRepositoryProvider));
-    final t = ref.read(translatorProvider);
-    return result.when(
-      success: (isNewUser) => _afterSignIn(isNewUser: isNewUser),
-      cancelled: () async {
-        state = state.copyWith(isSubmitting: false);
-        return false;
-      },
-      invalidToken: () => _fail(t.t('auth.social.error.invalidToken')),
-      providerDisabled: () => _fail(t.t('auth.social.error.providerDisabled')),
-      accountExists: (maskedIdentifier, availableMethods) => _fail(
-        t.t('auth.social.error.accountExists', {
-          'identifier': maskedIdentifier,
-          'methods': availableMethods.join(', '),
-        }),
-      ),
-      suspended: () => _fail(t.t('auth.social.error.suspended')),
-      deleted: () => _fail(t.t('auth.social.error.deleted')),
-      networkError: () => _fail(t.t('auth.social.error.network')),
-    );
   }
 
   /// Role step's local card selection (before "Continue" posts it).
