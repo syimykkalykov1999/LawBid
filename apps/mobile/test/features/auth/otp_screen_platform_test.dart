@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/auth/application/auth_providers.dart';
 import 'package:lawbid/features/auth/application/onboarding_flow.dart';
@@ -283,6 +284,35 @@ void main() {
       );
       await tester.pump(const Duration(milliseconds: 10));
       await tester.pump(const Duration(milliseconds: 10));
+    });
+  });
+
+  group('double submit (owner bug 2026-10-16)', () {
+    testWidgets('two quick taps on Continue push the code screen once',
+        (tester) async {
+      final c = await container();
+      final router =
+          GoRouter(initialLocation: AuthRoutes.phone, routes: authRoutes());
+      addTearDown(router.dispose);
+      await tester.pumpWidget(routedApp(c, router));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(EditableText).first, '2025550123');
+      await tester.pump();
+      final button = find.byType(AppButton).first;
+      await tester.tap(button);
+      await tester.tap(button); // before the first submit has resolved
+      await tester.pump(const Duration(milliseconds: 600));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(OtpScreen), findsOneWidget);
+      expect(repo.requested, hasLength(1));
+
+      // One «back» must land on the phone screen, not on a second code screen.
+      router.pop();
+      await tester.pumpAndSettle();
+      expect(find.byType(OtpScreen), findsNothing);
+      expect(find.byType(PhoneScreen), findsOneWidget);
     });
   });
 }
