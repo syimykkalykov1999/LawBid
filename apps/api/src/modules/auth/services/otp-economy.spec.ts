@@ -20,7 +20,7 @@ function setup(limited: boolean) {
   const costGuard = { consume: jest.fn().mockResolvedValue(undefined) };
   const service = new OtpService(
     redis as never,
-    sms as never,
+    sms,
     {} as never,
     config as never,
     costGuard as never,

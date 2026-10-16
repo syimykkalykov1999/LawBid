@@ -209,3 +209,15 @@ UPDATE app_config SET value = '["US","PR"]' WHERE key = 'sms.allowed_country_cod
 Прикидка стоимости: SMS в США ≈ $0.008–0.01 за сообщение + сборы
 операторов, т. е. 300 SMS/сутки ≈ $3–5 в сутки, 5000/месяц ≈ $50–80.
 Уточните актуальные цены в кабинете Twilio.
+
+
+## Economy guard (owner 2026-10-16)
+
+The per-provider caps above stop one abuser; the **economy guard** stops the
+sum. Admin → Система → Экономика shows revenue (last 30 days) against the
+projected third-party spend and applies one rule: spend ≤ X % of revenue, not
+below $Y (defaults 50 % and $150). Over the rule the `economy.guard` job cuts
+every cap to its floor, pauses new video uploads, keeps SMS for sign-in and
+password reset only and holds autoscaling at the minimum; it lets go by itself
+below 90 % of the allowance. The switch `economy_guard` (Функции) turns the
+whole thing off and restores everything it changed.

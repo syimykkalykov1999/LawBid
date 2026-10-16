@@ -60,14 +60,14 @@ export class AdminEconomyController {
   @Get()
   @ApiOperation({ summary: 'Revenue vs third-party spend, ceiling, tiers' })
   @ApiEnvelopeResponse(EconomyReportDto)
-  report(): Promise<EconomyReportDto> {
+  getEconomy(): Promise<EconomyReportDto> {
     return this.economy.report();
   }
 
   @Patch('settings')
   @ApiOperation({ summary: 'The spend rule, ceiling mode, unit prices, flag' })
   @ApiEnvelopeResponse(EconomyReportDto)
-  async update(
+  async updateEconomySettings(
     @CurrentAdmin() admin: AdminActor,
     @Body() dto: UpdateEconomyDto,
   ): Promise<EconomyReportDto> {
@@ -99,7 +99,7 @@ export class AdminEconomyController {
   })
   @ApiEnvelopeResponse(EconomyReportDto)
   @ApiErrors({ 403: [E.ADMIN_STEP_UP_REQUIRED], 409: [E.FEATURE_DISABLED] })
-  async increase(
+  async increaseCapacity(
     @CurrentAdmin() admin: AdminActor,
     @Body() dto: IncreaseCapacityDto,
   ): Promise<EconomyReportDto> {

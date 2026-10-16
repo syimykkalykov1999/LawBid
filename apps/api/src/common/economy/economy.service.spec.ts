@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/require-await -- in-memory fakes */
 import { EconomyService } from './economy.service';
 import type {
   EconomyEvent,
@@ -123,7 +124,10 @@ function setup(o: Opts = {}) {
   };
   const cap = {
     available: !!o.capacityMetrics,
-    info: jest.fn(async () => ({ dbClass: 'db.t4g.medium', redisClass: 'cache.t4g.micro' })),
+    info: jest.fn(async () => ({
+      dbClass: 'db.t4g.medium',
+      redisClass: 'cache.t4g.micro',
+    })),
     metrics: jest.fn(async () => ({
       dbCpuPercent: null,
       dbConnections: null,
@@ -131,7 +135,10 @@ function setup(o: Opts = {}) {
       redisMemoryPercent: null,
       ...o.capacityMetrics,
     })),
-    increase: jest.fn(async () => ({ from: 'db.t4g.medium', to: 'db.t4g.large' })),
+    increase: jest.fn(async () => ({
+      from: 'db.t4g.medium',
+      to: 'db.t4g.large',
+    })),
   };
 
   const autoscale = {
@@ -152,12 +159,18 @@ function setup(o: Opts = {}) {
       ),
       stored,
     })),
-    effectiveCap: jest.fn((st: Record<string, unknown>, p: string, w: string) => {
-      const suffix =
-        w === 'minute' ? 'per_minute_max' : w === 'daily' ? 'daily_max' : 'monthly_max';
-      const v = st[`budget.${p}.${suffix}`];
-      return typeof v === 'number' ? v : 5000;
-    }),
+    effectiveCap: jest.fn(
+      (st: Record<string, unknown>, p: string, w: string) => {
+        const suffix =
+          w === 'minute'
+            ? 'per_minute_max'
+            : w === 'daily'
+              ? 'daily_max'
+              : 'monthly_max';
+        const v = st[`budget.${p}.${suffix}`];
+        return typeof v === 'number' ? v : 5000;
+      },
+    ),
   };
   const logger = { setContext: jest.fn(), warn: jest.fn(), info: jest.fn() };
 
@@ -204,7 +217,11 @@ describe('EconomyService.figures', () => {
     }).svc.figures(NOW);
     const aws = f.lines.find((l) => l.key === 'aws')!;
     const sms = f.lines.find((l) => l.key === 'sms')!;
-    expect(aws).toMatchObject({ monthToDateUsd: 80, projectedUsd: 160, source: 'actual' });
+    expect(aws).toMatchObject({
+      monthToDateUsd: 80,
+      projectedUsd: 160,
+      source: 'actual',
+    });
     // 1000 SMS × $0.01 = $10 in 16 days of 31 → $19.38 projected.
     expect(sms.monthToDateUsd).toBe(10);
     expect(sms.projectedUsd).toBeCloseTo(19.38, 1);
@@ -364,7 +381,11 @@ describe('EconomyService.tick', () => {
   });
 
   it('auto ceiling: a previous ceiling grows by at most 5 per tick', async () => {
-    const t = setup({ revenueCents: 10_000_000, awsActual: 50, awsForecast: 100 });
+    const t = setup({
+      revenueCents: 10_000_000,
+      awsActual: 50,
+      awsForecast: 100,
+    });
     await t.ops.setCeiling({
       api: 4,
       worker: 2,

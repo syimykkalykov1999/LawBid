@@ -22,7 +22,7 @@ describe('VideosService.createUpload under the economy guard', () => {
   it('refuses a new upload with a clear message and spends nothing', async () => {
     const { service, costGuard } = setup(true);
     const err = await service
-      .createUpload('u1', { durationSec: 10, sizeBytes: 1000 } as never)
+      .createUpload('u1', { durationSec: 10, sizeBytes: 1000 })
       .catch((e: unknown) => e);
     expect(err).toBeInstanceOf(ServiceUnavailableException);
     expect((err as ServiceUnavailableException).getResponse()).toMatchObject({

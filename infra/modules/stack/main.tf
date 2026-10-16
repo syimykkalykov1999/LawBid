@@ -382,10 +382,20 @@ locals {
     OPS_MIN_TASKS        = tostring(var.min_tasks)
     OPS_API_MAX_TASKS    = tostring(var.api_max_tasks)
     OPS_WORKER_MAX_TASKS = tostring(var.worker_max_tasks)
+    # Economy guard (owner 2026-10-16): monthly cost of one task (Fargate
+    # list price, us-east-1; ARM64 ≈ 20 % cheaper) and the names of the
+    # database and Redis the admin may raise one tier.
+    OPS_API_TASK_USD    = tostring(local.api_task_usd)
+    OPS_WORKER_TASK_USD = tostring(local.worker_task_usd)
+    OPS_DB_INSTANCE     = var.create_database ? "${local.name}-postgres" : ""
+    OPS_REDIS_GROUP     = "${local.name}-redis"
     OPS_BUDGET_NAME      = "${local.name}-monthly"
     OPS_AWS_ACCOUNT_ID   = data.aws_caller_identity.current.account_id
     AWS_REGION           = data.aws_region.current.name
   }
+  arm_factor      = var.cpu_architecture == "ARM64" ? 0.8 : 1
+  api_task_usd    = floor(730 * (var.api_cpu / 1024 * 0.04048 + var.api_memory / 1024 * 0.004445) * local.arm_factor * 100) / 100
+  worker_task_usd = floor(730 * (var.worker_cpu / 1024 * 0.04048 + var.worker_memory / 1024 * 0.004445) * local.arm_factor * 100) / 100
   app_secret_arns = merge(
     { for k in local.secret_names : k => module.secrets.arns[k] },
     { REDIS_URL = module.redis.redis_url_secret_arn },
@@ -467,6 +477,20 @@ data "aws_iam_policy_document" "task" {
   statement {
     actions   = ["budgets:ViewBudget"]
     resources = [module.budget.budget_arn]
+  }
+  # Economy guard (owner 2026-10-16): read database / Redis load and move
+  # them one tier up from the admin. Metrics have no resource-level scope.
+  statement {
+    actions   = ["cloudwatch:GetMetricStatistics"]
+    resources = ["*"]
+  }
+  statement {
+    actions   = ["rds:DescribeDBInstances", "rds:ModifyDBInstance"]
+    resources = ["arn:aws:rds:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:db:${local.name}-postgres"]
+  }
+  statement {
+    actions   = ["elasticache:DescribeReplicationGroups", "elasticache:ModifyReplicationGroup"]
+    resources = ["arn:aws:elasticache:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:replicationgroup:${local.name}-redis"]
   }
 }
 

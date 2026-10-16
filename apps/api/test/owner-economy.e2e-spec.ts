@@ -47,6 +47,18 @@ describe('Economy (e2e)', () => {
     economy = app.get(EconomyService);
     ops = app.get(OpsStateService);
     flags = app.get(FeatureFlagsService);
+    // The catalog row is created on boot outside the test environment.
+    await prisma.featureFlag.upsert({
+      where: { key: 'economy_guard' },
+      update: { enabled: true },
+      create: {
+        key: 'economy_guard',
+        enabled: true,
+        rollout_percent: 100,
+        description: 'e2e',
+      },
+    });
+    await flags.invalidate();
   });
 
   afterAll(async () => {
@@ -111,7 +123,12 @@ describe('Economy (e2e)', () => {
       await api()
         .patch('/api/v1/admin/economy/settings')
         .set(admin.auth)
-        .send({ percent: 40, thresholdUsd: 200, ceilingMode: 'manual', manualApi: 7 })
+        .send({
+          percent: 40,
+          thresholdUsd: 200,
+          ceilingMode: 'manual',
+          manualApi: 7,
+        })
         .expect(200),
     );
     expect(saved.settings).toMatchObject({
@@ -132,7 +149,12 @@ describe('Economy (e2e)', () => {
       await api()
         .patch('/api/v1/admin/economy/settings')
         .set(admin.auth)
-        .send({ guardEnabled: true, percent: 50, thresholdUsd: 150, ceilingMode: 'auto' })
+        .send({
+          guardEnabled: true,
+          percent: 50,
+          thresholdUsd: 150,
+          ceilingMode: 'auto',
+        })
         .expect(200),
     );
     expect(on.enabled).toBe(true);
@@ -168,11 +190,13 @@ describe('Economy (e2e)', () => {
 
   it('guard cycle: over the rule floors the caps, back under restores them', async () => {
     const admin = await adminSession(base, prisma, 'super_admin');
+    // The suite lifts the SMS caps to 1 000 000 (e2e-setup-env), which is
+    // the floor of the automatic cap; a cap above it is what the guard cuts.
     const key = 'budget.sms.daily_max';
     await prisma.appConfig.upsert({
       where: { key },
-      create: { key, value: 777 },
-      update: { value: 777 },
+      create: { key, value: 5_000_000 },
+      update: { value: 5_000_000 },
     });
     const set = (usd: number) =>
       api()
@@ -185,13 +209,13 @@ describe('Economy (e2e)', () => {
     const over = data(await set(400));
     expect(over.guard).toBe('limited');
     const floored = await prisma.appConfig.findUnique({ where: { key } });
-    expect(Number(floored?.value)).toBeLessThan(777);
+    expect(Number(floored?.value)).toBe(1_000_000);
     expect(await ops.isEconomyLimited(Date.now() + 60_000)).toBe(true);
 
     const under = data(await set(50));
     expect(under.guard).toBe('ok');
     const back = await prisma.appConfig.findUnique({ where: { key } });
-    expect(Number(back?.value)).toBe(777);
+    expect(Number(back?.value)).toBe(5_000_000);
 
     await prisma.appConfig.deleteMany({ where: { key } });
     await flags.invalidate();
