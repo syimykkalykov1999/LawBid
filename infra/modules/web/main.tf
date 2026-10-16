@@ -49,6 +49,12 @@ variable "extra_connect_src" {
   description = "More hosts the page may call (push, storage, video, socket)."
 }
 
+variable "cross_origin_isolation" {
+  type        = bool
+  default     = false
+  description = "Send COOP/COEP headers so the engine can render on a worker thread (faster, Chrome and Firefox). Off by default: turn on after checking images and video still load."
+}
+
 locals {
   has_host = var.web_host != "" && var.certificate_arn != ""
 }
@@ -99,6 +105,22 @@ resource "aws_cloudfront_origin_access_control" "web" {
 resource "aws_cloudfront_response_headers_policy" "web" {
   name    = "${var.name}-web-security"
   comment = "Security headers for the web app"
+
+  dynamic "custom_headers_config" {
+    for_each = var.cross_origin_isolation ? [1] : []
+    content {
+      items {
+        header   = "Cross-Origin-Opener-Policy"
+        value    = "same-origin"
+        override = true
+      }
+      items {
+        header   = "Cross-Origin-Embedder-Policy"
+        value    = "credentialless"
+        override = true
+      }
+    }
+  }
 
   security_headers_config {
     strict_transport_security {
@@ -159,6 +181,30 @@ resource "aws_cloudfront_function" "seo_index" {
   EOT
 }
 
+# Only the home page and the public pages are for search engines; every
+# other address is an app screen (the same index.html), so it is `noindex`.
+resource "aws_cloudfront_function" "app_noindex" {
+  name    = "${var.name}-app-noindex"
+  runtime = "cloudfront-js-2.0"
+  comment = "noindex for app screens, indexable home page and public pages"
+  publish = true
+  code    = <<-EOT
+    function handler(event) {
+      var response = event.response;
+      var uri = event.request.uri;
+      var indexable =
+        uri === '/' ||
+        /^\/(lawyers|attorneys|practice-areas)(\/|$)/.test(uri) ||
+        uri === '/sitemap.xml' || uri === '/robots.txt';
+      var isFile = /\.[a-z0-9]{2,5}$/i.test(uri);
+      if (!indexable && !isFile) {
+        response.headers['x-robots-tag'] = { value: 'noindex' };
+      }
+      return response;
+    }
+  EOT
+}
+
 # The engine and the page: always asked again (they change on every
 # release); the hashed assets, icons and CanvasKit are cached by the
 # `Cache-Control` the deploy writes on each object.
@@ -190,6 +236,10 @@ resource "aws_cloudfront_distribution" "web" {
     function_association {
       event_type   = "viewer-request"
       function_arn = aws_cloudfront_function.seo_index.arn
+    }
+    function_association {
+      event_type   = "viewer-response"
+      function_arn = aws_cloudfront_function.app_noindex.arn
     }
   }
 

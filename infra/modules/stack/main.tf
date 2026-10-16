@@ -59,6 +59,11 @@ variable "web_host" {
   default     = ""
   description = "Host of the web app (e.g. app.<domain>); empty = only the CloudFront address."
 }
+variable "web_cross_origin_isolation" {
+  type        = bool
+  default     = false
+  description = "COOP/COEP headers on the web app (the engine renders on a worker thread)."
+}
 variable "web_certificate_arn" {
   type        = string
   default     = ""
@@ -260,13 +265,14 @@ module "s3" {
 
 # Owner 2026-10-15: the web version of the app (S3 + CloudFront).
 module "web" {
-  source          = "../web"
-  name            = local.name
-  web_host        = var.web_host
-  certificate_arn = var.web_certificate_arn
-  hosted_zone_id  = coalesce(var.hosted_zone_id, "")
-  api_origin      = "https://${var.api_host}"
-  tags            = local.tags
+  source                 = "../web"
+  name                   = local.name
+  web_host               = var.web_host
+  certificate_arn        = var.web_certificate_arn
+  cross_origin_isolation = var.web_cross_origin_isolation
+  hosted_zone_id         = coalesce(var.hosted_zone_id, "")
+  api_origin             = "https://${var.api_host}"
+  tags                   = local.tags
 }
 
 module "ses" {
