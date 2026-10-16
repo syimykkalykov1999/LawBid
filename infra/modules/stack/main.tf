@@ -389,9 +389,9 @@ locals {
     OPS_WORKER_TASK_USD = tostring(local.worker_task_usd)
     OPS_DB_INSTANCE     = var.create_database ? "${local.name}-postgres" : ""
     OPS_REDIS_GROUP     = "${local.name}-redis"
-    OPS_BUDGET_NAME      = "${local.name}-monthly"
-    OPS_AWS_ACCOUNT_ID   = data.aws_caller_identity.current.account_id
-    AWS_REGION           = data.aws_region.current.name
+    OPS_BUDGET_NAME     = "${local.name}-monthly"
+    OPS_AWS_ACCOUNT_ID  = data.aws_caller_identity.current.account_id
+    AWS_REGION          = data.aws_region.current.name
   }
   arm_factor      = var.cpu_architecture == "ARM64" ? 0.8 : 1
   api_task_usd    = floor(730 * (var.api_cpu / 1024 * 0.04048 + var.api_memory / 1024 * 0.004445) * local.arm_factor * 100) / 100
