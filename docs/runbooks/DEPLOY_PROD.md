@@ -1,0 +1,170 @@
+# Деплой API и админки на прод (для Mac-треда)
+
+Для случая, когда прод-админка на AWS уже стоит, боевые ключи введены в её
+базу, а выкладка из GitHub не проходит (`Not authorized to perform
+sts:AssumeRoleWithWebIdentity`, диагноз: `/mnt/project-files/plan/deploy-oidc-diagnosis.md`).
+Первый запуск с нуля описан в [PROD_LAUNCH.md](PROD_LAUNCH.md). Ничего из
+этого не делает облачный тред: нужны ключи AWS владельца на Mac.
+
+## Что проверено по коду (почему деплой не трогает данные)
+
+| Что | Вывод | Где |
+|---|---|---|
+| База | Terraform `envs/prod` **не управляет** базой: `create_database` по умолчанию `false` и из `envs/prod` не передаётся. `apply` её не создаёт, не меняет, не удаляет. Если база всё же RDS из Terraform, у неё `deletion_protection = true` и финальный снимок | `modules/stack` (переменная), `modules/postgres` |
+| Секреты | Terraform создаёт только «оболочки» секретов Secrets Manager без значений (`aws_secretsmanager_secret`, нет `_version`). Значения (в т. ч. `SECRETS_MASTER_KEYS`) `apply` не перезаписывает; `prod-secrets.sh` существующее не заменяет | `modules/secrets`, `scripts/deploy/prod-secrets.sh` |
+| Деплой из GitHub | `roll-services.sh` берёт текущее описание задачи, меняет только образ и `APP_VERSION`; `secrets` и `environment` остаются как были | `scripts/deploy/roll-services.sh` |
+| Миграции | Только отдельной задачей `lawbid-prod-migrate` (`prisma migrate deploy`, роль `lawbid_migrator`) до выкладки сервисов. API и worker сами схему не меняют | `run-migrations.sh`, `Dockerfile` |
+| Откат | Circuit breaker ECS возвращает прошлую ревизию; вручную: Actions → Rollback production | `modules/ecs`, `rollback.yml` |
+
+**Ловушки (исправлены или описаны ниже):**
+
+1. `terraform apply` в `envs/prod` вернёт **старый образ** (тег из `terraform.tfvars`), потому что Deploy создаёт ревизии вне Terraform. Перед каждым `apply` — `scripts/deploy/current-tag.sh`, подставить теги в `terraform.tfvars`.
+2. Теги в ECR неизменяемые: повторный запуск Deploy на том же коммите раньше падал на push. Теперь `deploy.yml` пропускает сборку, если образы уже есть.
+3. Если окружение GitHub `production` не создано вручную, GitHub создаст его **без** проверяющих, и подтверждения перед выкладкой не будет. Создать заранее (шаг 4).
+4. Ключ `SECRETS_MASTER_KEYS` должен содержать идентификатор `k1` (так задано в `SECRETS_ACTIVE_KID`), иначе введённые в админке ключи не расшифруются. Проверка в шаге 1.
+5. Пока `DEPLOY_ENABLED=true`, каждый merge в `main` с изменениями в `apps/api`, `apps/admin`, `packages` запускает Deploy. Падающий OIDC даёт красные запуски и письма. После починки он идёт до ручного подтверждения.
+
+## Шаг 0. Вход
+
+```sh
+cd /Users/sima/Desktop/iT/Process/LawBid && git checkout main && git pull
+aws sts get-caller-identity   # Account должен быть 047754151252
+```
+
+## Шаг 1. Только чтение: что реально есть в AWS
+
+```sh
+aws iam list-open-id-connect-providers
+aws iam get-role --role-name lawbid-prod-github-deploy --query Role.AssumeRolePolicyDocument
+aws secretsmanager list-secrets --query "SecretList[?starts_with(Name,'lawbid-prod/')].Name" --output text
+# значения не печатаем, только идентификаторы ключей (до двоеточия):
+for N in SECRETS_MASTER_KEYS JWT_KEYS MESSAGE_ENC_KEYS; do
+  printf '%s: ' $N; aws secretsmanager get-secret-value --secret-id lawbid-prod/$N --query SecretString --output text | cut -d: -f1
+done                          # ждём: k1, j1, m1
+aws rds describe-db-instances --query 'DBInstances[].[DBInstanceIdentifier,DBInstanceStatus,DeletionProtection]' --output text
+aws ecs describe-services --cluster lawbid-prod --services api worker admin --query 'services[].[serviceName,runningCount,taskDefinition]' --output text
+```
+
+Сверка: провайдер `token.actions.githubusercontent.com` есть; в доверии роли
+`aud = sts.amazonaws.com` и `sub` содержит `repo:syimykkalykov1999/LawBid:ref:refs/heads/main`
+и `...:environment:production`. Расхождение = причина ошибки. Если секреты
+`lawbid-prod/*` называются иначе или `k1/j1/m1` не совпали, остановиться и
+написать в тред: деплой возможен, но ключи админки придётся вводить заново.
+
+**Снимок базы перед любыми изменениями** (бесплатная страховка):
+
+```sh
+aws rds create-db-snapshot --db-instance-identifier <id из вывода выше> --db-snapshot-identifier before-first-deploy-$(date +%Y%m%d)
+```
+
+## Шаг 2. Починить OIDC-роль (bootstrap)
+
+Состояние `infra/bootstrap` локальное (`terraform.tfstate` рядом с `main.tf`, в git его нет).
+
+```sh
+cd infra/bootstrap && ls terraform.tfstate   # есть файл? тогда просто plan
+terraform init
+terraform plan -out=plan.bin -target=aws_iam_openid_connect_provider.github -target=aws_iam_role.deploy -target=aws_iam_role_policy.deploy
+terraform show plan.bin | grep -E "will be|must be|Plan:"
+```
+
+- Файла состояния **нет**, а роль/провайдер в AWS есть: сначала импорт, иначе `apply` упадёт с `EntityAlreadyExists`:
+  ```sh
+  terraform import aws_iam_openid_connect_provider.github arn:aws:iam::047754151252:oidc-provider/token.actions.githubusercontent.com
+  terraform import aws_iam_role.deploy lawbid-prod-github-deploy
+  ```
+  затем снова `plan`.
+- Допустимо в плане: создание/изменение провайдера, роли (`assume_role_policy`) и её политики. **Стоп**, если в плане есть `destroy` или `replace` чего-либо, кроме `aws_iam_role_policy.deploy`.
+- Применение: `terraform apply plan.bin`. Ничего, кроме выбранных трёх ресурсов, не меняется (`-target`), бакеты, ECR и сертификат не трогаются.
+
+```sh
+terraform output deploy_role_arn ecr_registry
+```
+
+## Шаг 3. Секреты и переменные GitHub
+
+GitHub → `syimykkalykov1999/LawBid` → Settings → Secrets and variables → Actions
+(на Mac через `gh secret set`, значения не печатать):
+
+| Тип | Имя | Значение |
+|---|---|---|
+| Secret | `AWS_DEPLOY_ROLE_PROD` | `deploy_role_arn` (`arn:aws:iam::047754151252:role/lawbid-prod-github-deploy`) |
+| Secret | `AWS_REGION` | `us-east-1` |
+| Secret | `ECR_REGISTRY` | `047754151252.dkr.ecr.us-east-1.amazonaws.com` |
+| Secret | `PROD_API_URL` | `https://api.lawbid.dev` |
+| Secret | `PROD_ADMIN_URL` | `https://admin.lawbid.dev` |
+| Variable | `DEPLOY_ENABLED` | `true` |
+| Variable | `STAGING_ENABLED` | не задавать (staging нет) |
+
+## Шаг 4. Окружение `production` с подтверждением
+
+Settings → Environments → New environment → `production` → Required reviewers
+= владелец. Без этого выкладка пойдёт без подтверждения (ловушка 3).
+
+## Шаг 5. Деплой
+
+Сначала должен быть смержен PR с этим runbook и #180 (Deploy берёт `main`).
+
+```sh
+gh workflow run Deploy --ref main          # или Actions → Deploy → Run workflow
+gh run watch
+```
+
+В логе шаг `OIDC diagnostics` печатает `sub` токена; `configure-aws-credentials`
+должен пройти. Дальше job `Deploy production` ждёт кнопки владельца (Review
+deployments), затем: проверка бэкапа (только предупреждение), миграции
+(задача `lawbid-prod-migrate`), rolling-выкладка api/worker/admin, smoke.
+
+Если `sub` в логе отличается от доверия роли, поправить `github_repo` в
+`infra/bootstrap` или переменную и повторить шаг 2.
+
+## Шаг 6. Проверка
+
+```sh
+curl -fsS https://api.lawbid.dev/health/ready
+curl -fsS https://api.lawbid.dev/api/v1/config/bootstrap | head -c 300
+curl -sS -o /dev/null -w "%{http_code}\n" https://admin.lawbid.dev/login
+aws ecs describe-services --cluster lawbid-prod --services api worker admin --query 'services[].[serviceName,runningCount,desiredCount,deployments[0].rolloutState]' --output text
+aws logs tail /lawbid/lawbid-prod/migrate --since 30m
+```
+
+Затем в админке (шаг-чеклист ниже): карточки ключей не серые, вход работает.
+
+## Чеклист прод-переменных и настроек
+
+**Задаёт Terraform/Secrets Manager (проверить, не вводить):**
+
+| Что | Где | Значение |
+|---|---|---|
+| `NODE_ENV` | `modules/stack` | `production` (при другом значении API требует TLS, MESSAGE_ENC_KEYS и запрещает mock) |
+| `SECRETS_MASTER_KEYS` | секрет `lawbid-prod/SECRETS_MASTER_KEYS` | `k1:<≥32 симв.>` |
+| `SECRETS_ACTIVE_KID` | `modules/stack` | `k1` (без пары с мастер-ключом кнопки «Добавить ключи» серые) |
+| `MESSAGE_ENC_KEYS` / `JWT_KEYS` | секреты | `m1:…` / `j1:…`, не менять: чаты станут нечитаемыми |
+| `DATABASE_URL` и др. | секреты | `sslmode=verify-full`; их создаёт `prod-db-setup.sh` |
+| `TRUST_PROXY_HOPS` | `modules/stack` | `1` |
+| `CLAMAV_HOST` | worker task | `127.0.0.1` (сайдкар ClamAV) |
+| `S3_CORS_ALLOWED_ORIGINS` | `s3_cors_allowed_origins` в tfvars | добавить `https://lawbid.dev` и хост веба, когда он появится |
+
+**Не API-переменная:** `WEB_ENABLED` — флаг сборки Flutter-веба
+(`--dart-define=WEB_ENABLED=true`), уже включён в `web-deploy.yml`. Для прода
+он включается публикацией веба на lawbid.dev, а не переменной API.
+
+**Вводит владелец в админке** (Безопасность → Ключи и сервисы), в чат не присылать:
+Twilio, Stripe `sk_live_…` + `whsec_…` (оба вебхука), Firebase JSON (проект `lawbid-6e5ff`), Bunny, Sentry DSN, Stripe `pk_…` (своя страница оплаты). Если база админки прежняя, ключи уже там; после шага 6 открыть карточки и убедиться, что они «заполнены». Сбросились → вводить заново по списку выше.
+
+**Настройки (app_config), проверить в админке после деплоя:**
+
+- `fraud.enabled = true`. Умолчание в коде `true` (`app-settings.defaults.ts`), но в старой базе строка могла остаться `false`. Админка → антифрод → включить.
+- Лимиты SMS/видео/хранилища: Настройки → бюджетные лимиты (`budget.<provider>.<window>`).
+- Роли тестовых аккаунтов и демо-данные в прод не переносить; прод-данные пользователей не удалять без явного «да».
+
+## Повторные `terraform apply` в envs/prod
+
+```sh
+cd infra/envs/prod
+../../../scripts/deploy/current-tag.sh        # подставить api_image / admin_image в terraform.tfvars
+terraform init -backend-config=backend.hcl
+terraform plan -out=plan.bin
+../../../scripts/deploy/plan-guard.sh plan.bin   # падает, если удаляются база, секреты, KMS, Redis, S3
+terraform apply plan.bin
+```

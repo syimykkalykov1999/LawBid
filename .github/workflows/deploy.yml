@@ -50,13 +50,30 @@ jobs:
     if: ${{ vars.DEPLOY_ENABLED == 'true' && !inputs.image_tag }}
     steps:
       - uses: actions/checkout@v4
+      - name: OIDC diagnostics (prints the token's sub, never the token)
+        continue-on-error: true
+        run: scripts/deploy/oidc-sub.sh
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ vars.STAGING_ENABLED == 'true' && secrets.AWS_DEPLOY_ROLE_STAGING || secrets.AWS_DEPLOY_ROLE_PROD }}
           aws-region: ${{ env.AWS_REGION }}
       - uses: aws-actions/amazon-ecr-login@v2
+      # ECR tags are IMMUTABLE (infra/bootstrap): re-running Deploy on a
+      # commit whose images are already pushed would fail on the push.
+      - name: Images already in ECR?
+        id: have
+        run: |
+          if aws ecr describe-images --repository-name lawbid-api --image-ids imageTag="$IMAGE_TAG" >/dev/null 2>&1 \
+            && aws ecr describe-images --repository-name lawbid-admin --image-ids imageTag="$IMAGE_TAG" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::images for $IMAGE_TAG already in ECR, build skipped"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
       - uses: docker/setup-buildx-action@v3
+        if: steps.have.outputs.exists != 'true'
       - name: Build & push api
+        if: steps.have.outputs.exists != 'true'
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -68,6 +85,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Build & push admin
+        if: steps.have.outputs.exists != 'true'
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -109,6 +127,9 @@ jobs:
       name: production
     steps:
       - uses: actions/checkout@v4
+      - name: OIDC diagnostics (prints the token's sub, never the token)
+        continue-on-error: true
+        run: scripts/deploy/oidc-sub.sh
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_PROD }}
