@@ -1,16 +1,8 @@
-import { HttpException, HttpStatus } from '@nestjs/common';
 import type { PinoLogger } from 'nestjs-pino';
-import type { CostGuardService } from '../../../common/cost-guard/cost-guard.service';
-import { ErrorCode } from '../../../common/errors/error-code.enum';
-import type { FeatureFlagsService } from '../../feature-flags/services/feature-flags.service';
 import { AutoBarLookupProvider } from './bar-lookup/auto-bar-lookup.provider';
 import type { ResolvedRegistry } from './bar-lookup/state-bar-adapter';
 import type { StateRegistryService } from '../services/state-registry.service';
 import type { CheckOutcome } from './verification-providers';
-import {
-  PersonaIdVerificationProvider,
-  StripeIdentityProvider,
-} from './id/paid-id-verification.providers';
 import {
   ManualBarLookupProvider,
   ManualIdVerificationProvider,
@@ -94,46 +86,9 @@ describe('AutoBarLookupProvider (per-state registries, owner 2026-10-05)', () =>
   });
 });
 
-describe('paid identity providers (CostGuard id_check)', () => {
-  it.each([
-    ['stripe_identity', StripeIdentityProvider],
-    ['persona', PersonaIdVerificationProvider],
-  ] as const)(
-    '%s reserves one id_check unit before verifying',
-    async (name, Provider) => {
-      const consume = jest.fn().mockResolvedValue(undefined);
-      const p = new Provider({ consume } as unknown as CostGuardService);
-      const out = await p.verify({ requestId: 'r', attorneyId: 'a' });
-      expect(consume).toHaveBeenCalledWith('id_check');
-      expect(out.details.provider).toBe(name);
-      await p.matchFace({ requestId: 'r', attorneyId: 'a' });
-      expect(consume).toHaveBeenCalledTimes(1);
-    },
-  );
-
-  it('an exhausted budget propagates (caller records manual_review)', async () => {
-    const err = new HttpException(
-      { code: ErrorCode.PROVIDER_BUDGET_EXCEEDED },
-      HttpStatus.SERVICE_UNAVAILABLE,
-    );
-    const p = new StripeIdentityProvider({
-      consume: jest.fn().mockRejectedValue(err),
-    } as unknown as CostGuardService);
-    await expect(p.verify({ requestId: 'r', attorneyId: 'a' })).rejects.toBe(
-      err,
-    );
-  });
-});
-
-describe('VerificationProviderSelector (feature flags)', () => {
-  const build = (flags: Record<string, boolean>) => {
-    const ff = {
-      isEnabled: (key: string, def: boolean) =>
-        Promise.resolve(flags[key] ?? def),
-    } as unknown as FeatureFlagsService;
-    const cost = { consume: jest.fn() } as unknown as CostGuardService;
-    return new VerificationProviderSelector(
-      ff,
+describe('VerificationProviderSelector', () => {
+  it('ID checks are always manual; bar lookups route per state', async () => {
+    const s = new VerificationProviderSelector(
       new AutoBarLookupProvider(
         {
           resolve: () => Promise.resolve(null),
@@ -141,28 +96,8 @@ describe('VerificationProviderSelector (feature flags)', () => {
         logger,
       ),
       new ManualIdVerificationProvider(),
-      new StripeIdentityProvider(cost),
-      new PersonaIdVerificationProvider(cost),
     );
-  };
-
-  it('all flags off → manual ID checks; bar lookups route per state', async () => {
-    const s = build({});
     expect((await s.barLookup()).name).toBe('auto');
     expect((await s.idVerification()).provider).toBe('manual');
-  });
-
-  it('stripe_identity wins over persona; persona alone → persona', async () => {
-    expect(
-      (
-        await build({
-          stripe_identity: true,
-          persona_verification: true,
-        }).idVerification()
-      ).provider,
-    ).toBe('stripe_identity');
-    expect(
-      (await build({ persona_verification: true }).idVerification()).provider,
-    ).toBe('persona');
   });
 });

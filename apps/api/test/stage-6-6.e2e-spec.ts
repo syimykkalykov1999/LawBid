@@ -55,9 +55,9 @@ describe('stage 6.6 — flags, config, localization, legal documents (e2e)', () 
     // are created here the way prisma/seed.ts does.
     for (const f of [
       {
-        key: 'persona_verification',
+        key: 'chat_translate',
         enabled: false,
-        description: 'Persona identity checks (paid)',
+        description: 'Chat translation (paid)',
       },
       { key: 'apple_login', enabled: true, description: 'Sign in with Apple' },
     ]) {
@@ -139,11 +139,11 @@ describe('stage 6.6 — flags, config, localization, legal documents (e2e)', () 
       .set(sup.auth)
       .expect(200);
     const flags = (list.body as { data: Array<Record<string, unknown>> }).data;
-    const persona = flags.find((f) => f.key === 'persona_verification');
-    expect(persona).toMatchObject({
+    const translate = flags.find((f) => f.key === 'chat_translate');
+    expect(translate).toMatchObject({
       paid: true,
-      requiredKeys: ['PERSONA_API_KEY'],
-      missingKeys: ['PERSONA_API_KEY'],
+      requiredKeys: ['GOOGLE_TRANSLATE_API_KEY'],
+      missingKeys: ['GOOGLE_TRANSLATE_API_KEY'],
     });
     expect(flags.find((f) => f.key === 'apple_login')).toMatchObject({
       paid: false,
@@ -151,18 +151,17 @@ describe('stage 6.6 — flags, config, localization, legal documents (e2e)', () 
     });
 
     const denied = await api()
-      .patch('/api/v1/admin/feature-flags/persona_verification')
+      .patch('/api/v1/admin/feature-flags/chat_translate')
       .set(sup.auth)
       .send({ enabled: true })
       .expect(409);
     expect((denied.body as Body).error).toMatchObject({
       code: 'FLAG_PROVIDER_KEYS_MISSING',
-      // persona_verification is not built yet (UNBUILT_FLAGS).
-      details: { missingKeys: [], notBuilt: true },
+      details: { missingKeys: ['GOOGLE_TRANSLATE_API_KEY'] },
     });
     // Rollout percent alone is fine even for a paid flag.
     await api()
-      .patch('/api/v1/admin/feature-flags/persona_verification')
+      .patch('/api/v1/admin/feature-flags/chat_translate')
       .set(sup.auth)
       .send({ rolloutPercent: 10 })
       .expect(200);

@@ -380,9 +380,6 @@ export const envSchema = z
       'FCM_PRIVATE_KEY must be the PEM "private_key" field of the service-account JSON',
     ),
 
-    // --- Stage 1.4: fraud/attestation seam (flag-gated, no-op today) ---
-    FEATURE_ATTESTATION: envBoolean(false),
-
     // --- Background jobs (docs/01 §5.2 BullMQ; docs/06 §6 `worker`
     // service; src/jobs/) ---
     // true: this API process also runs the `cron` queue scheduler and

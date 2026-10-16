@@ -50,15 +50,6 @@ export const PAID_FLAGS: Record<
   string,
   { integration?: string; keys: string[] }
 > = {
-  stripe_identity: { integration: 'stripe', keys: ['STRIPE_SECRET_KEY'] },
-  persona_verification: {
-    integration: 'persona',
-    keys: ['PERSONA_API_KEY'],
-  },
-  profile_promotion: {
-    integration: 'stripe',
-    keys: ['STRIPE_SECRET_KEY', 'STRIPE_PRICE_ID'],
-  },
   video_posts: {
     integration: 'bunny_stream',
     keys: [
@@ -85,18 +76,6 @@ export const PAID_FLAGS: Record<
     keys: ['TURN_URLS', 'TURN_SECRET'],
   },
 };
-
-/**
- * Audit 2026-10-02: flags whose feature is not built yet — switching one on
- * would do nothing (or, for device_attestation, lock every user out), so
- * the admin can't enable them until the code ships.
- */
-export const UNBUILT_FLAGS: ReadonlySet<string> = new Set([
-  'device_attestation',
-  'stripe_identity',
-  'persona_verification',
-  'profile_promotion',
-]);
 
 /**
  * docs/06 §2.3 items 7–10: feature flags (with the paid-service guard),
@@ -134,13 +113,6 @@ export class AdminConfigService {
     const before = await this.prisma.featureFlag.findUnique({ where: { key } });
     if (!before) throw notFound('Feature flag');
     const enabling = dto.enabled === true && !before.enabled;
-    if (enabling && UNBUILT_FLAGS.has(key)) {
-      throw new ConflictException({
-        code: ErrorCode.FLAG_PROVIDER_KEYS_MISSING,
-        message: 'This feature is not built yet and cannot be switched on.',
-        details: { missingKeys: [], notBuilt: true },
-      });
-    }
     const missing = await this.missingKeys(key);
     if (enabling && missing.length > 0) {
       throw new ConflictException({
@@ -214,7 +186,6 @@ export class AdminConfigService {
       paid: required.length > 0,
       requiredKeys: required,
       missingKeys: await this.missingKeys(r.key),
-      notBuilt: UNBUILT_FLAGS.has(r.key),
       updatedBy: r.updated_by,
       updatedAt: r.updated_at.toISOString(),
     };
