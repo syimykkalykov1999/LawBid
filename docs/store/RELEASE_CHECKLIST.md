@@ -21,7 +21,7 @@ for SES production access. Owner-facing steps in Russian, field by field:
 | R8 rules for Stripe, WebRTC, CallKit | `android/app/proguard-rules.pro` |
 | Stripe pages (checkout, portal) open in Safari on iOS | `lib/shared/domain/payment_page_launch_mode.dart` |
 | AASA with Team ID 78T56RPM74, `/delete-account` page | LawBidSite PR #17 |
-| Release builds hide Sign in with Apple on Android and Google sign-in when its client id is not set (no button that only errors) | `AppConfig.appleSignInSupported` / `googleSignInConfigured`, welcome + account screens |
+| No Sign in with Apple (entitlement and Settings row removed 2026-10-16); Google sign-in hidden in release when its client id is not set | `AppConfig.googleSignInConfigured`, welcome + account screens |
 | Guard tests | `test/release/store_release_config_test.dart` |
 
 ## 2. The one final build (Mac; owner rule: build once, at the end)
@@ -72,8 +72,7 @@ Review notes (paste as is, codes filled in):
 > Sign-in is by SMS/e-mail code, so please use the demo mode: on the first
 > screen tap "I have a demo code" and enter CLIENT_CODE (client side) or
 > ATTORNEY_CODE (attorney side). Demo mode is a complete copy of the app with
-> sample data; payments are disabled there. Sign in with Apple also creates a
-> real client account. Attorney subscriptions are bought on our website
+> sample data; payments are disabled there. Attorney subscriptions are bought on our website
 > (Stripe) through a link that opens in Safari, as allowed for the US
 > storefront; the app is available in the United States only. Account
 > deletion: Settings → Account → Delete account.

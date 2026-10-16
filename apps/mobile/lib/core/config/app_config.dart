@@ -55,11 +55,6 @@ abstract final class AppConfig {
         _ => false,
       };
 
-  /// Sign in with Apple runs natively on iOS only; Android would need an
-  /// Apple Services ID + web redirect, which this app does not configure.
-  static bool appleSignInSupported(TargetPlatform platform) =>
-      platform == TargetPlatform.iOS;
-
   /// `null` for an empty define, so callers can pass it straight to SDKs
   /// that treat `null` as "not provided".
   static String? orNull(String value) => value.isEmpty ? null : value;

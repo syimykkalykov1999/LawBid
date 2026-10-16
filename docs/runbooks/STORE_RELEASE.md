@@ -104,7 +104,7 @@ texts of all 87 languages.
 ## 3. iOS
 
 1. Apple Developer → Identifiers: App ID `com.lawbid.lawbid` with
-   capabilities Push Notifications, Associated Domains, Sign in with Apple
+   capabilities Push Notifications, Associated Domains
    (the entitlement file declares it; the profile must include it or the
    archive fails to sign).
 2. App Store Connect → New app: name LawBid, bundle id above, SKU `lawbid`,
@@ -143,15 +143,12 @@ texts of all 87 languages.
 4. Screenshots: iPhone 6.9" (1320×2868) and Android phone (1080×1920+),
    in the order of RELEASE_CHECKLIST §8; Play icon and feature graphic.
 5. Two demo codes (client, attorney) from the admin for the reviewers.
-6. Apple: enable Push, Associated Domains, Sign in with Apple on the App ID.
+6. Apple: enable Push and Associated Domains on the App ID.
 
 ## 5. Things to decide before submitting
 
 - **Contacts.** Declared as collected (hashed, optional) in the privacy manifest and in RELEASE_CHECKLIST §4–5; answer Play Data safety and App Privacy the same way.
-- **Sign in with Apple.** The owner's decision is "no Google/Apple sign-in",
-  but `Runner.entitlements` still declares it and the review notes mention
-  it. If the feature is off in v1, remove the entitlement and that sentence
-  (Apple 4.8 only requires it when another third-party login is offered).
+- **Sign in with Apple.** Removed (owner 2026-10-16): no entitlement, no "Connect Apple" row in Settings → Account. No third-party login is offered, so Apple 4.8 does not apply.
 - **Shorebird.** There is no `shorebird.yaml` in the repo. To enable patches:
   `shorebird login`, `shorebird init` in `apps/mobile` (creates the app id,
   commit `shorebird.yaml`), then build with `shorebird release android|ios

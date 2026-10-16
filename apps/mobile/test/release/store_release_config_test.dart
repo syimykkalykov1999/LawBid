@@ -119,8 +119,6 @@ void main() {
   });
 
   test('release builds offer only social logins they can complete', () {
-    expect(AppConfig.appleSignInSupported(TargetPlatform.iOS), isTrue);
-    expect(AppConfig.appleSignInSupported(TargetPlatform.android), isFalse);
     // No GOOGLE_* dart-defines in `flutter test`: not configured anywhere.
     expect(AppConfig.googleSignInConfigured(TargetPlatform.iOS), isFalse);
     expect(AppConfig.googleSignInConfigured(TargetPlatform.android), isFalse);

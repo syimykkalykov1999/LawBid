@@ -275,17 +275,9 @@ class _AccountBody extends StatelessWidget {
                             : AccountContactMode.primary,
                       ),
             ),
-          // Store release 2026-10-06: release builds offer only the
-          // social logins this build can complete (see welcome_screen).
-          if (!_has(IdentifierProvider.apple) &&
-              (!kReleaseMode ||
-                  AppConfig.appleSignInSupported(Theme.of(context).platform)))
-            AccountTile(
-              glyph: const AppleGlyph(),
-              title: t.t('account.link.apple'),
-              loading: linking == IdentifierProvider.apple,
-              onTap: busy ? null : () => onLinkSocial(IdentifierProvider.apple),
-            ),
+          // Owner 2026-10-16: no Sign in with Apple in the product (the
+          // welcome screen offers none either); only already-linked Apple
+          // identifiers are listed below.
           if (!_has(IdentifierProvider.google) &&
               (!kReleaseMode ||
                   AppConfig.googleSignInConfigured(

@@ -209,7 +209,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('No sign-in methods yet.'), findsOneWidget);
-      expect(find.text('Connect Apple'), findsOneWidget);
+      expect(find.text('Connect Apple'), findsNothing);
       expect(find.text('Connect Google'), findsOneWidget);
       await _tearDown(tester);
     });
@@ -312,11 +312,11 @@ void main() {
       await tester.pumpWidget(wrap(const AccountScreen()));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Connect Apple'));
+      await tester.tap(find.text('Connect Google'));
       await tester.pumpAndSettle();
-      expect(repo.calls, ['list', 'linkSocial:apple']);
+      expect(repo.calls, ['list', 'linkSocial:google']);
       expect(find.byType(SnackBar), findsOneWidget);
-      expect(find.text('Connect Apple'), findsOneWidget);
+      expect(find.text('Connect Google'), findsOneWidget);
       await _tearDown(tester);
     });
 
@@ -327,7 +327,7 @@ void main() {
       final wrap = await _wrap(repo);
       await tester.pumpWidget(wrap(const AccountScreen()));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Connect Apple'));
+      await tester.tap(find.text('Connect Google'));
       await tester.pumpAndSettle();
       expect(find.byType(SnackBar), findsNothing);
       await _tearDown(tester);
