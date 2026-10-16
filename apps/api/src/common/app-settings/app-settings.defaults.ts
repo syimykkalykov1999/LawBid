@@ -209,6 +209,14 @@ export const OWNER_TASKS_SETTINGS = {
 // and to reset a password; a registered number signs in with its password.
 // All values are editable in the admin (Настройки); `login_code_enabled` is
 // the rollback switch for the old passwordless sign-in code.
+// Owner 2026-10-16: an attorney who loses verification stops paying: the
+// subscription ends and the unused part is refunded (rollback: off).
+export const OWNER_BILLING_GATE_SETTINGS = {
+  'billing.cancel_on_verification_loss': true,
+  // Offer packs and Boost are for verified attorneys only (rollback: off).
+  'billing.require_verified_for_purchases': true,
+} as const;
+
 export const OWNER_SMS_SETTINGS = {
   /** true = a registered number may still get a sign-in code (the old way). */
   'sms.login_code_enabled': false,
@@ -340,7 +348,8 @@ export const OWNER_TRUST_SETTINGS = {
 // trial). Applies to new trials; running ones keep their end date (an
 // admin extends one attorney's trial from their subscription card).
 export const OWNER_TRIAL_SETTINGS = {
-  'billing.trial_days': 14,
+  // Owner 2026-10-16: the owner's plan says 7 days (was 14 in code).
+  'billing.trial_days': 7,
 } as const;
 
 // Owner 2026-10-05: sections where admins other than the super admin must
@@ -550,6 +559,7 @@ export const APP_SETTINGS = {
   ...OWNER_TASKS_SETTINGS,
   ...OWNER_WEB_SETTINGS,
   ...OWNER_SMS_SETTINGS,
+  ...OWNER_BILLING_GATE_SETTINGS,
   ...OWNER_AUTOMATION_SETTINGS,
   ...OWNER_INVITE_SETTINGS,
   ...OWNER_SEAT_SETTINGS,

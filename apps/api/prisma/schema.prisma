@@ -3592,7 +3592,7 @@ model Refund {
   status           String   @db.VarChar(16)
   stripe_refund_id String?  @unique
   failure_reason   String?
-  admin_id         String   @db.Uuid
+  admin_id         String?  @db.Uuid
   created_at       DateTime @default(now()) @db.Timestamptz
   updated_at       DateTime @updatedAt @db.Timestamptz
 

@@ -123,6 +123,16 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     description:
       'On: a license in a state without an automatic registry (or with an unusual number shape) needs a photo of the bar card; a person approves it. Off: only when «require_bar_document» is on.',
   };
+  out['billing.cancel_on_verification_loss'] = {
+    ...out['billing.cancel_on_verification_loss'],
+    description:
+      'An attorney who loses verification (rejected / suspended): the subscription ends now and the unused part of the period, offer packs and Boost is refunded. Off: nothing is canceled automatically.',
+  };
+  out['billing.require_verified_for_purchases'] = {
+    ...out['billing.require_verified_for_purchases'],
+    description:
+      'Only a verified attorney can buy offer packs and Boost. Off: anyone can (rollback).',
+  };
   // Owner 2026-10-16: fewer SMS.
   out['sms.login_code_enabled'] = {
     ...out['sms.login_code_enabled'],
