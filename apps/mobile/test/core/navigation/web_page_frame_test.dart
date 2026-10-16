@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/widgets/bars/app_side_nav.dart';
 import 'package:lawbid/core/navigation/shell/shell_layout.dart';
 import 'package:lawbid/core/navigation/shell/web_page_frame.dart';
 
@@ -48,5 +49,28 @@ void main() {
   testWidgets('a phone-sized window is left as it is', (t) async {
     final r = await bodyRect(t, '/chats', const Size(390, 844));
     expect(r.width, 390);
+  });
+
+  testWidgets('webPageRoute keeps the side menu on a Navigator.push screen',
+      (t) async {
+    const size = Size(1400, 900);
+    t.view.physicalSize = size;
+    t.view.devicePixelRatio = 1;
+    addTearDown(t.view.reset);
+    adaptiveShellOverride = true;
+    addTearDown(() => adaptiveShellOverride = null);
+    await t.pumpWidget(
+      uxApp(
+        Scaffold(
+          body: webPageRoute(const SizedBox.expand(key: Key('page'))),
+        ),
+        theme: AppTheme.dark(),
+        size: size,
+        overrides: uxOverrides(),
+      ),
+    );
+    await t.pump();
+    expect(find.byType(AppSideNav), findsOneWidget);
+    expect(t.getRect(find.byKey(const Key('page'))).width, 680);
   });
 }
