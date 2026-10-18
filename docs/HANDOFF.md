@@ -103,9 +103,15 @@ row + topic hint; budget step no jump.
   photo decode, keepAlive for feeds/chats, caption_fit.dart cache, parallel
   startup, stable image cache keys. Open: profile posts as slivers (skipped,
   needs AppPaginatedListView rework), chat video posters (server has none).
-  Waiting for the owner: Glass card blur, tab fade, economy guard on the Mac
-  (video 503 «paused»: AWS fallback $150 > $150 floor locally; options A/B/C
-  asked).
+  Owner answers (2026-10-18): Glass cards without blur (DONE, 3be3fff9; if
+  scrolling still freezes on Glass the owner wants the Glass theme REMOVED —
+  ask before deleting); tabs instant (DONE); economy guard: in
+  NODE_ENV=development the assumed AWS bill is not counted (DONE — video
+  works on the Mac again; production unchanged).
+- Never touch third-party integrations (AWS, Stripe, Firebase, Bunny, APNs…):
+  the project already runs on the production AWS server with all keys in the
+  production admin; local work = updates and fixes only. apps/api/.env is
+  local and gitignored (DEV_FAKE_BUNNY is for the Mac only).
 - APK: build ONLY when the owner says (he checks the iPhone first).
 - iPhone: install a RELEASE build (`flutter run --release …`) — a debug build
   stops working when the cable/session drops.
