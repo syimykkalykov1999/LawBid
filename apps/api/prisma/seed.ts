@@ -431,6 +431,12 @@ async function seedAdmin(): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  // Owner 2026-10-18: `npm run seed:i18n` loads only the translations —
+  // the full seed resets the feature flags the admin switched.
+  if (process.argv.includes('--i18n-only')) {
+    await seedI18nTranslations();
+    return;
+  }
   console.log('Seeding LawBid...');
   // Order per docs/02_DATABASE.md §7.2.
   await seedStates();

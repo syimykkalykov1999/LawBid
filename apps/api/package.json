@@ -135,6 +135,7 @@
     ]
   },
   "prisma": {
-    "seed": "ts-node --transpile-only prisma/seed.ts"
+    "seed": "ts-node --transpile-only prisma/seed.ts",
+    "seed:i18n": "ts-node --transpile-only prisma/seed.ts --i18n-only"
   }
 }
