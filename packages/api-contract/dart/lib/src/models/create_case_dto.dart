@@ -19,6 +19,7 @@ class CreateCaseDto {
     required this.primaryStateCode,
     required this.budgetMode,
     this.extraPracticeAreaIds,
+    this.privateDetails,
     this.additionalStateCodes,
     this.city,
     this.photoFileIds,
@@ -41,6 +42,9 @@ class CreateCaseDto {
   final List<String>? extraPracticeAreaIds;
   final String title;
   final String description;
+
+  /// Owner 2026-10-18: private details; only the owner and the accepted attorney read them.
+  final String? privateDetails;
   final String primaryStateCode;
 
   /// 0-2 more states, distinct from the primary and each other.

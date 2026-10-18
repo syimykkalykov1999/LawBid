@@ -240,6 +240,25 @@ export class FollowsService {
     };
   }
 
+  /** Mixed people rows (attorneys and clients) for [ids], in that order;
+   * unavailable ids drop out. Used by the reposters list. */
+  async peopleByIds(ids: string[], viewerId: string): Promise<PersonItemDto[]> {
+    const [attorneys, clients] = await Promise.all([
+      this.present(ids, viewerId),
+      this.clients.presentMany(ids, viewerId),
+    ]);
+    const byAttorney = new Map(attorneys.map((a) => [a.id, a]));
+    const byClient = new Map(clients.map((x) => [x.id, x]));
+    const items: PersonItemDto[] = [];
+    for (const id of ids) {
+      const a = byAttorney.get(id);
+      const x = byClient.get(id);
+      if (a) items.push({ role: 'attorney', attorney: a, client: null });
+      else if (x) items.push({ role: 'client', attorney: null, client: x });
+    }
+    return items;
+  }
+
   /** GET /attorneys/:id/following — public list of attorneys. */
   following(
     viewerId: string,

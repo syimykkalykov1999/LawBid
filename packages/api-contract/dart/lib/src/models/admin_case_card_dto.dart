@@ -45,8 +45,9 @@ class AdminCaseCardDto {
     required this.lastActivityAt,
     required this.createdAt,
     required this.description,
-    required this.city,
+    required this.privateDetails,
     required this.promotedUntil,
+    required this.budgetMode,
     required this.budgetCents,
     required this.client,
     required this.states,
@@ -59,7 +60,7 @@ class AdminCaseCardDto {
     required this.contactIssueIds,
     required this.archivedAt,
     required this.closedAt,
-    required this.budgetMode,
+    required this.city,
   });
 
   factory AdminCaseCardDto.fromJson(Map<String, Object?> json) =>
@@ -97,6 +98,7 @@ class AdminCaseCardDto {
   final DateTime lastActivityAt;
   final DateTime createdAt;
   final String description;
+  final String? privateDetails;
   final String? city;
   final AdminCaseCardDtoBudgetMode budgetMode;
   final int? budgetCents;

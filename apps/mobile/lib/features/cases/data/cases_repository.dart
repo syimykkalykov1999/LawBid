@@ -47,6 +47,8 @@ class CaseFeedExtras {
     this.budgetMin,
     this.budgetMax,
     this.budgetUnknown = false,
+    this.budgetPercent = false,
+    this.percentMax,
     this.noBids = false,
     this.minUrgency,
     this.hasDeadline = false,
@@ -58,6 +60,10 @@ class CaseFeedExtras {
   final int? budgetMin;
   final int? budgetMax;
   final bool budgetUnknown;
+
+  /// Owner 2026-10-18: percent budgets too (up to [percentMax] percent).
+  final bool budgetPercent;
+  final int? percentMax;
   final bool noBids;
 
   /// Owner 2026-10-05: `soon` · `urgent` · `very_urgent` (at least), or
@@ -78,6 +84,8 @@ class CaseFeedExtras {
       other.budgetMin == budgetMin &&
       other.budgetMax == budgetMax &&
       other.budgetUnknown == budgetUnknown &&
+      other.budgetPercent == budgetPercent &&
+      other.percentMax == percentMax &&
       other.noBids == noBids;
 
   @override
@@ -86,6 +94,8 @@ class CaseFeedExtras {
         budgetMin,
         budgetMax,
         budgetUnknown,
+        budgetPercent,
+        percentMax,
         noBids,
         minUrgency,
         hasDeadline,
@@ -134,6 +144,12 @@ abstract interface class CasesRepository {
   Future<void> deleteCase(String caseId);
   Future<void> restoreCase(String caseId);
   Future<void> keepAlive(String caseId);
+
+  /// OQ-054: the answer to «Вам ещё нужен адвокат?».
+  Future<void> answerStillNeeded(String caseId, StillNeededAnswer answer);
+
+  /// OQ-054: bring a paused case back into the attorneys' feed.
+  Future<void> resumeCase(String caseId);
   Future<void> completeCase(String caseId);
 
   // --- both parties of a bid ---
@@ -228,6 +244,9 @@ class ApiCasesRepository implements CasesRepository {
               : [for (final p in draft.extraPractices) p.id],
           title: draft.title.trim(),
           description: draft.description.trim(),
+          privateDetails: draft.privateDetails.trim().isEmpty
+              ? null
+              : draft.privateDetails.trim(),
           primaryStateCode: draft.primaryStateCode!,
           additionalStateCodes: draft.additionalStateCodes,
           city: draft.city.trim().isEmpty ? null : draft.city.trim(),
@@ -274,6 +293,11 @@ class ApiCasesRepository implements CasesRepository {
         body: api.UpdateCaseDto(
           title: draft.title.trim(),
           description: draft.description.trim(),
+          // Sent only when changed; an empty string clears it.
+          privateDetails:
+              draft.privateDetails.trim() != (original.privateDetails ?? '')
+                  ? draft.privateDetails.trim()
+                  : null,
           practiceAreaId: draft.practiceAreaId != original.practice.id
               ? draft.practiceAreaId
               : null,
@@ -424,6 +448,19 @@ class ApiCasesRepository implements CasesRepository {
       guardApiCall(() => _cases.keepCaseAlive(id: caseId));
 
   @override
+  Future<void> answerStillNeeded(String caseId, StillNeededAnswer answer) =>
+      guardApiCall(
+        () => _cases.answerStillNeeded(
+          id: caseId,
+          body: api.StillNeededAnswerDto(answer: answer),
+        ),
+      );
+
+  @override
+  Future<void> resumeCase(String caseId) =>
+      guardApiCall(() => _cases.resumeCase(id: caseId));
+
+  @override
   Future<void> completeCase(String caseId) =>
       guardApiCall(() => _cases.completeCase(id: caseId));
 
@@ -505,6 +542,8 @@ class ApiCasesRepository implements CasesRepository {
         budgetMin: extras.budgetMin,
         budgetMax: extras.budgetMax,
         budgetUnknown: extras.budgetUnknown ? true : null,
+        budgetPercent: extras.budgetPercent ? true : null,
+        percentMax: extras.budgetPercent ? extras.percentMax : null,
         noBids: extras.noBids ? true : null,
         minUrgency: extras.minUrgency == null
             ? null

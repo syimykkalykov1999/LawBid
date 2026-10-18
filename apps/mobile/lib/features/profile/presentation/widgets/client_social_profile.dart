@@ -27,7 +27,7 @@ import 'package:lawbid/features/profile/presentation/widgets/review_widgets.dart
 import 'package:lawbid/features/social/application/social_providers.dart'
     show currentUserIdProvider;
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart'
-    show ProfilePostsGrid;
+    show ProfilePostsGrid, ProfileRepostsList;
 import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart'
     show FollowButton, TrustAvatarBadge;
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
@@ -36,7 +36,7 @@ import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/shared/presentation/share_sheet.dart';
 
-enum _Tab { posts, reviews }
+enum _Tab { posts, reposts, reviews }
 
 /// Owner 2026-09-30 (OQ-038): the client profile like Instagram, for the
 /// client and for anyone opening it — avatar with posts / followers /
@@ -81,7 +81,7 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final name = p.fullName.isEmpty ? '@${p.username}' : p.fullName;
-    final tab = p.canSeeReviews ? _tab : _Tab.posts;
+    final tab = p.canSeeReviews || _tab != _Tab.reviews ? _tab : _Tab.posts;
     final blocked = p.isBlocked || p.hasBlockedMe;
 
     Widget counter(String value, String label, {VoidCallback? onTap}) =>
@@ -297,6 +297,12 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
                 AppIcons.gridOnRounded,
                 t.t('client.tab.posts'),
               ),
+              // Owner 2026-10-18: the same «Репосты» tab as an attorney's.
+              tabButton(
+                _Tab.reposts,
+                AppIcons.autoModeRounded,
+                t.t('profile.tab.reposts'),
+              ),
               if (p.canSeeReviews)
                 tabButton(
                   _Tab.reviews,
@@ -312,7 +318,7 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
 
     return TabSwipe<_Tab>(
       value: tab,
-      values: p.canSeeReviews ? _Tab.values : const [_Tab.posts],
+      values: p.canSeeReviews ? _Tab.values : const [_Tab.posts, _Tab.reposts],
       onChanged: (v) => setState(() => _tab = v),
       child: RefreshIndicator(
         color: colors.gold,
@@ -332,6 +338,8 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
                 emptyTitle: t.t('client.posts.empty'),
                 emptyMessage: '',
               )
+            else if (tab == _Tab.reposts)
+              ProfileRepostsList(userId: p.id, isSelf: p.isSelf)
             else
               _ReviewsList(clientId: p.id),
           ],

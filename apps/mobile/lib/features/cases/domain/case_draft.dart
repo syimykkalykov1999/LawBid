@@ -10,6 +10,8 @@ abstract final class CaseLimits {
   static int get titleMax => TextLimits.of(TextLimit.caseTitle);
   static const descriptionMin = 30;
   static int get descriptionMax => TextLimits.of(TextLimit.caseDescription);
+  static int get privateDetailsMax =>
+      TextLimits.of(TextLimit.casePrivateDetails);
   static const cityMax = 80;
   static const maxAdditionalStates = 2;
   static const budgetMinDollars = 1;
@@ -77,6 +79,7 @@ class CaseDraft {
     this.practiceNameEn,
     this.title = '',
     this.description = '',
+    this.privateDetails = '',
     this.primaryStateCode,
     this.additionalStateCodes = const [],
     this.city = '',
@@ -120,6 +123,9 @@ class CaseDraft {
   final String? practiceNameEn;
   final String title;
   final String description;
+
+  /// Owner 2026-10-18: seen only by the attorney whose bid is accepted.
+  final String privateDetails;
   final String? primaryStateCode;
   final List<String> additionalStateCodes;
   final String city;
@@ -140,6 +146,7 @@ class CaseDraft {
       extraPractices.isEmpty &&
       title.trim().isEmpty &&
       description.trim().isEmpty &&
+      privateDetails.trim().isEmpty &&
       city.trim().isEmpty &&
       additionalStateCodes.isEmpty &&
       budgetDollars == null &&
@@ -152,6 +159,9 @@ class CaseDraft {
     final n = title.trim().length;
     return n >= CaseLimits.titleMin && n <= CaseLimits.titleMax;
   }
+
+  bool get privateDetailsValid =>
+      privateDetails.trim().length <= CaseLimits.privateDetailsMax;
 
   bool get descriptionValid {
     final n = description.trim().length;
@@ -186,6 +196,7 @@ class CaseDraft {
     String? practiceNameEn,
     String? title,
     String? description,
+    String? privateDetails,
     String? primaryStateCode,
     List<String>? additionalStateCodes,
     String? city,
@@ -217,6 +228,7 @@ class CaseDraft {
         extraPractices: extraPractices ?? this.extraPractices,
         title: title ?? this.title,
         description: description ?? this.description,
+        privateDetails: privateDetails ?? this.privateDetails,
         primaryStateCode: primaryStateCode ?? this.primaryStateCode,
         additionalStateCodes: additionalStateCodes ?? this.additionalStateCodes,
         city: city ?? this.city,
@@ -244,6 +256,7 @@ class CaseDraft {
         'practiceNameEn': practiceNameEn,
         'title': title,
         'description': description,
+        'privateDetails': privateDetails,
         'primaryStateCode': primaryStateCode,
         'additionalStateCodes': additionalStateCodes,
         'city': city,
@@ -273,6 +286,7 @@ class CaseDraft {
         practiceNameEn: m['practiceNameEn'] as String?,
         title: (m['title'] as String?) ?? '',
         description: (m['description'] as String?) ?? '',
+        privateDetails: (m['privateDetails'] as String?) ?? '',
         primaryStateCode: m['primaryStateCode'] as String?,
         additionalStateCodes: [
           for (final s in (m['additionalStateCodes'] as List<dynamic>? ?? []))

@@ -74,11 +74,22 @@ class CasePhotosPicker extends ConsumerWidget {
         Row(
           children: [
             Expanded(
-              child: Text(
-                t.t('cases.photos.title'),
-                style: type.body.copyWith(
-                  color: colors.text,
-                  fontWeight: FontWeight.w600,
+              child: Text.rich(
+                TextSpan(
+                  text: t.t('cases.photos.title'),
+                  style: type.body.copyWith(
+                    color: colors.text,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  children: [
+                    TextSpan(
+                      text: ' ${t.t('cases.photos.optional')}',
+                      style: type.body.copyWith(
+                        color: colors.textSecondary,
+                        fontWeight: FontWeight.w400,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -90,7 +101,7 @@ class CasePhotosPicker extends ConsumerWidget {
         ),
         const SizedBox(height: AppSpacing.xs),
         Text(
-          t.t('cases.photos.privacy'),
+          t.t('cases.photos.privacy', {'max': '$maxFiles'}),
           style: type.caption.copyWith(color: colors.textSecondary),
         ),
         const SizedBox(height: AppSpacing.sm),
@@ -182,9 +193,9 @@ class CasePhotosPicker extends ConsumerWidget {
                       borderRadius: BorderRadius.circular(AppRadii.field),
                       border: Border.all(color: colors.border),
                     ),
-                    child: AppIcon(
-                      AppIcons.addPhotoAlternateOutlined,
-                      color: colors.textSecondary,
+                    child: _TileLabel(
+                      icon: AppIcons.addPhotoAlternateOutlined,
+                      label: t.t('cases.photos.tilePhoto'),
                     ),
                   ),
                 ),
@@ -204,9 +215,9 @@ class CasePhotosPicker extends ConsumerWidget {
                       borderRadius: BorderRadius.circular(AppRadii.field),
                       border: Border.all(color: colors.border),
                     ),
-                    child: AppIcon(
-                      AppIcons.noteAddOutlined,
-                      color: colors.textSecondary,
+                    child: _TileLabel(
+                      icon: AppIcons.noteAddOutlined,
+                      label: t.t('cases.photos.tileFile'),
                     ),
                   ),
                 ),
@@ -223,6 +234,32 @@ class CasePhotosPicker extends ConsumerWidget {
             ),
           ),
         ],
+      ],
+    );
+  }
+}
+
+/// Icon with a short caption under it, centred in an add tile.
+class _TileLabel extends StatelessWidget {
+  const _TileLabel({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        AppIcon(icon, color: colors.textSecondary),
+        const SizedBox(height: AppSpacing.xs),
+        Text(
+          label,
+          textAlign: TextAlign.center,
+          style: type.caption.copyWith(color: colors.textSecondary),
+        ),
       ],
     );
   }

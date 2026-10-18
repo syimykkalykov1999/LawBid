@@ -182,7 +182,11 @@ export class CaseAccessPolicy {
     attorneyId: string,
     caseIds: string[],
     db: Db = this.prisma,
+    /** OQ-054: Search drops PAUSED cases (a ranked list kept for a few
+     * minutes may still hold one); participants keep theirs. */
+    opts: { hidePaused?: boolean } = {},
   ): Promise<Set<string>> {
+    const hidePaused = opts.hidePaused ?? false;
     if (caseIds.length === 0) return new Set();
     const a = attorneyId;
     const rows = await db.$queryRaw<{ id: string }[]>`
@@ -196,6 +200,7 @@ export class CaseAccessPolicy {
           OR EXISTS (SELECT 1 FROM conversations v
                      WHERE v.case_id = c.id AND v.attorney_id = ${a}::UUID)
           OR (c.status = 'open'
+              AND (NOT ${hidePaused} OR c.paused_at IS NULL)
               AND EXISTS (SELECT 1 FROM attorney_profiles p
                           WHERE p.user_id = ${a}::UUID
                             AND p.verification_status = 'verified')

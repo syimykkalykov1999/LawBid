@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -10,8 +12,11 @@ import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/cases/presentation/screens/attorney_cases_tab.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/onboarding/presentation/widgets/option_picker_sheet.dart';
+import 'package:lawbid/features/practice/practice_options.dart'
+    show practiceCodeOf;
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
+import 'package:lawbid/features/search/application/search_providers.dart';
 
 /// Tree + current selection, loaded together for the editor.
 typedef PracticesData = ({
@@ -149,9 +154,23 @@ class _PracticesEditorState extends ConsumerState<PracticesEditor> {
   late Set<String> _selected = {..._saved};
   final Set<String> _expanded = {};
   bool _saving = false;
+  // Audit 2026-10-18: the typed text after a pause (any-language search).
+  String _remoteQuery = '';
+  Timer? _debounce;
+
+  void _onQuery() {
+    setState(() {});
+    _debounce?.cancel();
+    final q = _search.text.trim();
+    _debounce = Timer(
+      const Duration(milliseconds: 300),
+      () => mounted ? setState(() => _remoteQuery = q) : null,
+    );
+  }
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _search.dispose();
     super.dispose();
   }
@@ -254,13 +273,25 @@ class _PracticesEditorState extends ConsumerState<PracticesEditor> {
     String catName(PracticeCategory c) => localizedName(t, c.i18nKey, c.nameEn);
 
     // Search: a category matches as a whole, otherwise its matching leaves.
+    // Audit 2026-10-18: also by the topic's name in ANY language (the server
+    // names the codes): "divorce" in a Russian app, "развод" in an English one.
+    final remote = query.length < 2
+        ? const <String, String?>{}
+        : (ref.watch(practiceMatchesProvider(_remoteQuery)).value ??
+            const <String, String?>{});
     final visible = <(PracticeCategory, List<PracticeLeaf>)>[];
     for (final c in widget.tree) {
-      if (query.isEmpty || catName(c).toLowerCase().contains(query)) {
+      final catHit = remote.containsKey(practiceCodeOf(c.i18nKey)) &&
+          !c.children.any((l) => remote.containsKey(practiceCodeOf(l.i18nKey)));
+      if (query.isEmpty || catName(c).toLowerCase().contains(query) || catHit) {
         visible.add((c, c.children));
       } else {
         final leaves = c.children
-            .where((l) => leafName(l).toLowerCase().contains(query))
+            .where(
+              (l) =>
+                  leafName(l).toLowerCase().contains(query) ||
+                  remote.containsKey(practiceCodeOf(l.i18nKey)),
+            )
             .toList();
         if (leaves.isNotEmpty) visible.add((c, leaves));
       }
@@ -295,7 +326,7 @@ class _PracticesEditorState extends ConsumerState<PracticesEditor> {
             size: AppSizes.iconSm,
           ),
           textInputAction: TextInputAction.search,
-          onChanged: (_) => setState(() {}),
+          onChanged: (_) => _onQuery(),
         ),
         const SizedBox(height: AppSpacing.lg),
         _SelectedCount(count: selectedCount, t: t),

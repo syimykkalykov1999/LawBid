@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { UsageLimitsModule } from '../../common/usage-limits/usage-limits.module';
 import { FeatureFlagsModule } from '../feature-flags/feature-flags.module';
 import { FilesModule } from '../files/files.module';
+import { FollowsModule } from '../follows/follows.module';
 import { PromotionsCoreModule } from '../promotions/promotions.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { VideosModule } from '../videos/videos.module';
@@ -20,6 +21,7 @@ import { PostsService } from './posts.service';
 @Module({
   imports: [
     FilesModule,
+    FollowsModule,
     UsageLimitsModule,
     NotificationsModule,
     VideosModule,

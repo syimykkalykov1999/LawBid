@@ -425,6 +425,13 @@ export class ConversationCounterpartDto {
   @ApiPropertyOptional({ type: String, nullable: true })
   avatarUrl!: string | null;
 
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description: 'Owner 2026-10-18: the full-size photo (full-screen view).',
+  })
+  avatarFullUrl!: string | null;
+
   @ApiProperty()
   verifiedBadge!: boolean;
 

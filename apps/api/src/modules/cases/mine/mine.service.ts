@@ -1,7 +1,7 @@
 import { assertNoBlockBetween } from '../../blocks/block-check';
 import {
   hasMineFilter,
-  mineCaseWhere,
+  mineWhere,
   type MineFilterFields,
 } from './mine-filters';
 import { FilesService } from '../../files/files.service';
@@ -34,6 +34,7 @@ import {
   caseNotAvailable,
 } from '../policies/case-access.policy';
 import { CasesFeedService } from '../services/cases-feed.service';
+import { touchClientActive } from '../domain/client-activity';
 import {
   MINE_PAGE_DEFAULT,
   type CaseConversationDto,
@@ -99,6 +100,8 @@ export class MineService {
     if (user.role !== 'client') throw caseNotFound();
     const kase = await this.prisma.case.findUnique({ where: { id: caseId } });
     if (!kase || kase.client_id !== user.sub) throw caseNotFound();
+    // OQ-054: opening the case is the client's own action on it.
+    await touchClientActive(this.prisma, caseId, user.sub);
     const [dto, acceptedBid, conversation, media] = await Promise.all([
       this.cases.toFullDto(kase),
       this.caseBids.acceptedFor(kase.accepted_bid_id),
@@ -132,7 +135,9 @@ export class MineService {
       where: {
         attorney_id: user.sub,
         // Owner 2026-09-30: search and filters in "Mine".
-        ...(hasMineFilter(search) ? { case: mineCaseWhere(search) } : {}),
+        ...(hasMineFilter(search)
+          ? { case: await mineWhere(this.prisma, search) }
+          : {}),
         AND: [
           filter === 'completed'
             ? {
@@ -219,7 +224,7 @@ export class MineService {
           status: 'accepted',
           accepted_for_case: {
             status: { in: WORK_STATUSES[filter] },
-            ...mineCaseWhere(search),
+            ...(await mineWhere(this.prisma, search)),
           },
           ...(c
             ? {
@@ -342,7 +347,7 @@ export class MineService {
                   })
                 ).map((s) => s.item_id),
               },
-              ...mineCaseWhere(search),
+              ...(await mineWhere(this.prisma, search)),
             },
             select: { id: true },
           })

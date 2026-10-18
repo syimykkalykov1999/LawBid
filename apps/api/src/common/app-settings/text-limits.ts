@@ -40,6 +40,13 @@ export const TEXT_LIMIT_DEFS = {
     max: 20_000,
     label: 'The description of a case',
   },
+  'limits.case_private_details_chars': {
+    def: 10_000,
+    min: 1,
+    max: 50_000,
+    label:
+      'The private details of a case (only the accepted attorney sees them)',
+  },
   'limits.bid_message_chars': {
     def: 2000,
     min: 1,

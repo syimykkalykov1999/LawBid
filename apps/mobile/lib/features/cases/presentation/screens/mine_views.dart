@@ -254,6 +254,11 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
       search: _search,
       onChanged: (v) => setState(() => _search = v),
       action: saved,
+      hintKey: _saved
+          ? 'mine.search.saved'
+          : _section == _BidsSection.active
+              ? 'mine.search.hint'
+              : 'mine.search.bids',
       chips: _saved
           ? null
           : FilterChips<_BidsSection>(

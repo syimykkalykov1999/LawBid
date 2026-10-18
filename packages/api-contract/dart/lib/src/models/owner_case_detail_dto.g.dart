@@ -11,6 +11,7 @@ OwnerCaseDetailDto _$OwnerCaseDetailDtoFromJson(Map<String, dynamic> json) =>
       status: CaseStatus.fromJson(json['status'] as String),
       title: json['title'] as String,
       description: json['description'] as String,
+      privateDetails: json['privateDetails'] as String?,
       practiceArea: PracticeAreaRefDto.fromJson(
         json['practiceArea'] as Map<String, dynamic>,
       ),
@@ -69,6 +70,7 @@ Map<String, dynamic> _$OwnerCaseDetailDtoToJson(OwnerCaseDetailDto instance) =>
       'id': instance.id,
       'title': instance.title,
       'description': instance.description,
+      'privateDetails': ?instance.privateDetails,
       'practiceArea': instance.practiceArea.toJson(),
       'extraPracticeAreas': instance.extraPracticeAreas
           .map((e) => e.toJson())

@@ -1024,7 +1024,7 @@ Replaces the "attorney ↔ client only" part of OQ-043.
   contingency there; a code covers its subtopics). The option is hidden
   there in the app and refused by the API (`CONTINGENCY_NOT_ALLOWED`).
 
-## OQ-054 — Stale cases in the attorney feed (owner, 2026-10-17) — DRAFT, not built yet
+## OQ-054 — Stale cases in the attorney feed (owner, 2026-10-17) — BUILT 2026-10-18 (see CHANGELOG)
 
 Decided:
 - Activity = the client's own actions only (open the case, view bids,
@@ -1060,3 +1060,26 @@ Reminders (E, owner answers 2026-10-17):
   reaching the client.
 - The launch cleanup follows the same rules (one push per client at most,
   no SMS), sent when each case's own timer has run out.
+
+Built 2026-10-18 (details and the few small choices in the CHANGELOG):
+- Timers are the admin settings `cases.stale_ask_days_<urgency>` /
+  `cases.stale_pause_days_<urgency>` (by date: `…_by_date` days after the
+  date) and `cases.stale_archive_after_pause_days` (30).
+- «Уже не нужен» closes the case as the client withdrawing it (bids
+  rejected, chats closed) — the existing «Закрыть кейс» path.
+- The question waits for the client's daytime (09:00–21:00 in the time
+  zone of their quiet-hours setting, else US Eastern) and for the case to
+  have no new bids in the silent window (as long as the first timer; for a
+  date case: since the date passed).
+
+## OQ-055 — Support: attachments, device info, macros (owner, 2026-10-18)
+
+Owner decisions (built 2026-10-18, see CHANGELOG):
+- Support takes photos, videos and documents both ways: ticket, reply, admin reply. Same safe formats as a chat; the number per message and the MB per file are set in «Загрузки и файлы» → «Поддержка» (default 5 files, 25 MB).
+- Every new ticket carries the app version and build, platform, OS, phone model, app language, theme, time zone and the screen the user came from. Admins see it in an «Устройство» card; the user is told in one line.
+- Ready answers work: `{name}` and `{ticket}` are filled by the server; one answer has an English and a Russian text, picked by the user's language (English when there is no Russian one).
+- The support list has «Непрочитанные».
+Open (not decided, not built):
+- «Скриншот последнего экрана» next to the paperclip — needs a screenshot boundary at the root of the app; only if the owner wants it.
+- A third language for ready answers (today EN + RU; other languages get English).
+- Whether the files of a deleted account's tickets are erased with the account (today they stay with the ticket history).

@@ -371,6 +371,10 @@ export class PostReposterDto {
   @ApiProperty()
   username!: string;
 
+  /** Display name ("First Last"), empty when none is set. */
+  @ApiProperty()
+  name!: string;
+
   @ApiProperty({ enum: ['attorney', 'client'] })
   role!: 'attorney' | 'client';
 }
@@ -602,6 +606,9 @@ export class SavedPostsQueryDto {
   @MaxLength(300)
   cursor?: string;
 }
+
+/** Owner 2026-10-18: /posts/:id/reposts and /users/:id/reposts. */
+export class RepostsQueryDto extends SavedPostsQueryDto {}
 
 /** Owner 2026-10-13: can the caller attach files to a new post / reel. */
 export class PostAttachmentsAllowedDto {

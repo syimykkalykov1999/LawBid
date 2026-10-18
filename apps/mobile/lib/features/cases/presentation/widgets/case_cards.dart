@@ -176,7 +176,8 @@ class FeedCaseCard extends StatelessWidget {
     super.key,
   });
 
-  /// OQ-054 (mockup): how active the client is; null = no line.
+  /// OQ-054: how active the client is; null = [FeedCase.clientActivity]
+  /// (the API sends it only when the client's activity status is shown).
   final ClientActivity? activity;
 
   final FeedCase item;
@@ -325,9 +326,9 @@ class FeedCaseCard extends StatelessWidget {
                       ),
                     ),
                   ),
-                  if (activity != null)
+                  if ((activity ?? item.clientActivity) != null)
                     ClientActivityLine(
-                      activity: activity!,
+                      activity: (activity ?? item.clientActivity)!,
                       t: t,
                       padding: const EdgeInsets.fromLTRB(
                         AppSpacing.lg,
@@ -384,24 +385,6 @@ class FeedCaseCard extends StatelessWidget {
       ),
     );
   }
-}
-
-/// OQ-054: the client's activity on an attorney's card.
-@immutable
-class ClientActivity {
-  const ClientActivity({
-    this.online = false,
-    this.lastSeenDays,
-    this.respondsWithinDay = false,
-  });
-
-  final bool online;
-
-  /// Days since the client was last in the app (null = unknown / today).
-  final int? lastSeenDays;
-
-  /// The client usually answers bids and messages within a day.
-  final bool respondsWithinDay;
 }
 
 /// One thin line under the title: a dot and «В сети» / «Был 2 дня назад»,

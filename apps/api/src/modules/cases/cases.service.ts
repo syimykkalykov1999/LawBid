@@ -7,7 +7,7 @@ import {
   Injectable,
   Optional,
 } from '@nestjs/common';
-import { mineCaseWhere } from './mine/mine-filters';
+import { mineWhere } from './mine/mine-filters';
 import { ClientFraudService } from '../client-fraud/client-fraud.service';
 import { SubscriptionAlertsService } from '../notifications/subscription-alerts.service';
 import type { BudgetMode, Case, CaseState, Prisma } from '@prisma/client';
@@ -24,6 +24,7 @@ import { BidStateMachine } from '../bids/domain/bid-state-machine';
 import { NotificationsService } from '../notifications/notifications.service';
 import { OnboardingService } from '../users/services/onboarding.service';
 import { CaseStateMachine, caseNotFound } from './domain/case-state-machine';
+import { canMakeNotUrgent } from './domain/case-staleness';
 import {
   DEFAULT_URGENCY_THRESHOLDS,
   hasUrgencyInput,
@@ -53,6 +54,7 @@ import {
   type CreateCaseDto,
   type ListMyCasesQueryDto,
   type MyCasesFilter,
+  type StillNeededAnswer,
   type UpdateCaseDto,
 } from './dto/case-requests.dto';
 import type {
@@ -216,6 +218,9 @@ function toCaseDto(
     id: kase.id,
     title: kase.title,
     description: kase.description,
+    // Owner 2026-10-18: only ever built for the owner, the accepted
+    // attorney or an admin (never for the feed / search).
+    privateDetails: kase.private_details ?? null,
     practiceArea: {
       id: kase.practice_area.id,
       code: kase.practice_area.code,
@@ -251,6 +256,24 @@ function toCaseDto(
     closedAt: kase.closed_at?.toISOString() ?? null,
     deletedAt: kase.deleted_at?.toISOString() ?? null,
     stalePromptSentAt: kase.stale_prompt_sent_at?.toISOString() ?? null,
+    ...stillNeededFields(kase),
+  };
+}
+
+/** OQ-054: what the client's screens need to draw the question / pause. */
+function stillNeededFields(kase: Case): {
+  pausedAt: string | null;
+  stillNeededPending: boolean;
+  canMakeNotUrgent: boolean;
+} {
+  const open = kase.status === 'open';
+  return {
+    pausedAt: kase.paused_at?.toISOString() ?? null,
+    // The question waits for an answer (a paused case shows «Вернуть»).
+    stillNeededPending:
+      open && !kase.paused_at && kase.stale_prompt_sent_at !== null,
+    canMakeNotUrgent:
+      open && canMakeNotUrgent(kase.urgency, kase.created_at, new Date()),
   };
 }
 
@@ -280,6 +303,7 @@ function toSummaryDto(
     bidsCount: kase.bids_count,
     createdAt: kase.created_at.toISOString(),
     lastActivityAt: kase.last_activity_at.toISOString(),
+    ...stillNeededFields(kase),
   };
 }
 
@@ -374,6 +398,8 @@ export class CasesService {
           client_id: user.sub,
           title: dto.title,
           description: dto.description,
+          // Owner 2026-10-18: private; empty means none.
+          private_details: dto.privateDetails?.trim() || null,
           practice_area_id: dto.practiceAreaId,
           primary_state_code: dto.primaryStateCode,
           city: dto.city ?? null,
@@ -551,6 +577,17 @@ export class CasesService {
       ) {
         extra.description = dto.description;
         diff.description = { old: current.description, new: dto.description };
+      }
+      // Owner 2026-10-18: private details; the journal never gets the text.
+      if (dto.privateDetails !== undefined) {
+        const next = dto.privateDetails.trim() || null;
+        if (next !== current.private_details) {
+          extra.private_details = next;
+          diff.privateDetailsChanged = {
+            old: current.private_details !== null,
+            new: next !== null,
+          };
+        }
       }
       if (dto.city !== undefined && dto.city !== current.city) {
         extra.city = dto.city;
@@ -778,7 +815,8 @@ export class CasesService {
       const { case: afterCase, plan } = await this.caseMachine.apply(tx, {
         caseId,
         action: 'set_urgency',
-        extra,
+        // OQ-054: only the client's own change counts as their activity.
+        extra: isClient ? { ...extra, client_active_at: new Date() } : extra,
       });
       if (Object.keys(diff).length === 0) return afterCase;
       await this.journal.append(tx, {
@@ -871,8 +909,47 @@ export class CasesService {
     return this.toFullDto(updated);
   }
 
-  /** POST /cases/:id/keep-alive (§10.2 "Да, актуален"). */
+  /** POST /cases/:id/keep-alive (§10.2 "Да, актуален") — same as the
+   * OQ-054 answer `still_needed`. */
   async keepAlive(user: RequestUser, caseId: string): Promise<CaseDto> {
+    return this.resetSilence(user, caseId, { keepAlive: true });
+  }
+
+  /**
+   * POST /cases/:id/still-needed (OQ-054, owner only): the client's answer
+   * to «Вам ещё нужен адвокат?».
+   * - `still_needed` («Да, нужен») and `wait_better` («Жду предложений
+   *   получше»): a fresh silent period; the question and a pause are
+   *   cleared.
+   * - `not_needed` («Уже не нужен»): the client withdraws the case — the
+   *   normal close path (bids rejected, chats closed).
+   * - `make_not_urgent` («Сменить на «Не срочно»»): urgent / very urgent
+   *   cases older than 7 days only; urgency becomes flexible, same reset.
+   */
+  async answerStillNeeded(
+    user: RequestUser,
+    caseId: string,
+    answer: StillNeededAnswer,
+  ): Promise<CaseDto> {
+    this.assertClientRole(user);
+    switch (answer) {
+      case 'not_needed':
+        return this.close(user, caseId);
+      case 'make_not_urgent':
+        return this.resetSilence(
+          user,
+          caseId,
+          { stillNeeded: answer },
+          { toFlexible: true },
+        );
+      default:
+        return this.resetSilence(user, caseId, { stillNeeded: answer });
+    }
+  }
+
+  /** POST /cases/:id/resume (OQ-054, owner only): bring a paused case back
+   * into the feed; the silent period starts over. */
+  async resume(user: RequestUser, caseId: string): Promise<CaseDto> {
     this.assertClientRole(user);
     const updated = await withTxRetry(this.prisma, async (tx) => {
       const current = await tx.case.findUnique({
@@ -882,14 +959,69 @@ export class CasesService {
       if (!current || current.client_id !== user.sub) throw caseNotFound();
       const { case: afterCase, plan } = await this.caseMachine.apply(tx, {
         caseId,
-        action: 'client_keep_alive',
+        action: 'client_resume',
       });
       await this.journal.append(tx, {
         caseId,
         clientId: user.sub,
         actor: { userId: user.sub, role: 'client' },
         event: plan.event,
-        payload: { keepAlive: true },
+        payload: { resumed: true },
+      });
+      return afterCase;
+    });
+    return this.toFullDto(updated);
+  }
+
+  /** The shared body of «Да, нужен» / «Жду…» / «Сменить на «Не срочно»»:
+   * client_keep_alive, optionally with urgency → flexible. */
+  private async resetSilence(
+    user: RequestUser,
+    caseId: string,
+    payload: Prisma.InputJsonObject,
+    opts: { toFlexible?: boolean } = {},
+  ): Promise<CaseDto> {
+    this.assertClientRole(user);
+    const updated = await withTxRetry(this.prisma, async (tx) => {
+      const current = await tx.case.findUnique({
+        where: { id: caseId },
+        select: {
+          client_id: true,
+          urgency: true,
+          deadline_at: true,
+          deadline_kind: true,
+          created_at: true,
+          status: true,
+        },
+      });
+      if (!current || current.client_id !== user.sub) throw caseNotFound();
+      const diff: Record<string, { old: unknown; new: unknown }> = {};
+      let extra: Partial<ReturnType<typeof resolveUrgencyInput>> = {};
+      if (opts.toFlexible) {
+        if (
+          current.status === 'open' &&
+          !canMakeNotUrgent(current.urgency, current.created_at, new Date())
+        ) {
+          throw new ConflictException({
+            code: ErrorCode.CASE_INVALID_STATE,
+            message:
+              'Only an urgent case older than a week can be changed to not urgent.',
+            details: { reason: 'not_offered' },
+          });
+        }
+        extra = urgencyDiff({ urgency: 'flexible' }, current, diff);
+      }
+      const { case: afterCase, plan } = await this.caseMachine.apply(tx, {
+        caseId,
+        action: 'client_keep_alive',
+        extra,
+      });
+      await this.journal.append(tx, {
+        caseId,
+        clientId: user.sub,
+        actor: { userId: user.sub, role: 'client' },
+        event: plan.event,
+        payload: { ...payload, ...(diff as unknown as Prisma.InputJsonObject) },
       });
       return afterCase;
     });
@@ -910,7 +1042,7 @@ export class CasesService {
         client_id: user.sub,
         status: FILTER_STATUSES[filter],
         // Owner 2026-09-30: search and filters in "Mine".
-        ...mineCaseWhere(query),
+        ...(await mineWhere(this.prisma, query)),
         ...(cursor
           ? {
               OR: [

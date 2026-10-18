@@ -40,7 +40,8 @@ const tasksPlannerRu = <String, String>{
   'tasks.filter.emptyBody': 'Измените фильтр или сбросьте его.',
   // Archive.
   'tasks.archive.title': 'Архив задач',
-  'tasks.archive.search': 'Поиск в архиве',
+  'tasks.archive.search': 'Поиск в архиве задач',
+  'tasks.search': 'Поиск по задачам',
   'tasks.archive.empty': 'Архив пуст',
   'tasks.archive.emptyBody': 'Сюда попадают выполненные и отменённые задачи.',
   'tasks.archive.noteYear':
@@ -197,7 +198,8 @@ const tasksPlannerEn = <String, String>{
   'tasks.filter.emptyBody': 'Change the filter or reset it.',
   // Archive.
   'tasks.archive.title': 'Task archive',
-  'tasks.archive.search': 'Search the archive',
+  'tasks.archive.search': 'Search archived tasks',
+  'tasks.search': 'Search tasks',
   'tasks.archive.empty': 'The archive is empty',
   'tasks.archive.emptyBody': 'Finished and cancelled tasks go here.',
   'tasks.archive.noteYear':

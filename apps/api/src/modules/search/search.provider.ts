@@ -30,6 +30,8 @@ export interface CaseSearchParams {
   budgetMinCents?: number;
   budgetMaxCents?: number;
   budgetUnknown?: boolean;
+  budgetPercent?: boolean;
+  percentMax?: number;
   noBids?: boolean;
   /** Owner 2026-10-05: urgency filters (see urgencyFilterSql). */
   minUrgency?: CaseMinUrgency;

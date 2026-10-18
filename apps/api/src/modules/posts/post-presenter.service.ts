@@ -61,6 +61,8 @@ export class PostPresenter {
       select: {
         id: true,
         role: true,
+        first_name: true,
+        last_name: true,
         client_profile: { select: { username: true } },
         attorney_profile: { select: { username: true } },
       },
@@ -68,6 +70,7 @@ export class PostPresenter {
     for (const u of users) {
       out.set(u.id, {
         id: u.id,
+        name: [u.first_name, u.last_name].filter(Boolean).join(' ').trim(),
         username:
           (u.role === 'client'
             ? u.client_profile?.username

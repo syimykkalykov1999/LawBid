@@ -22,6 +22,57 @@ const kSearchMinChars = 2;
 String normalizeSearch(String raw) =>
     raw.trim().replaceAll(RegExp(r'\s+'), ' ');
 
+/// Audit 2026-10-18: the server drops a leading '@'/'#' and then needs
+/// [kSearchMinChars] letters ("@a" used to reach it and come back as a
+/// "too short" error instead of waiting for the next letter). The Topics
+/// tab keeps its own one-letter rule for '#x' (a tag prefix).
+bool isSearchable(String raw, {bool tagPrefix = false}) {
+  final q = normalizeSearch(raw);
+  final bare = q.replaceFirst(RegExp('^[@#]+'), '').trim();
+  if (tagPrefix && q.startsWith('#')) return bare.isNotEmpty;
+  return bare.length >= kSearchMinChars;
+}
+
+/// Audit 2026-10-18: the Topics tab's practice rows for [query] (no '#'):
+/// a category whose name in the app language, its English name or its tag
+/// contains the text — or that the server names for it in ANY language
+/// ("развод", "divorce", a subtopic's name → its category) via
+/// [remoteCategories].
+List<String> matchingPracticeCategories({
+  required List<String> codes,
+  required String query,
+  required String Function(String code) localName,
+  required String Function(String code) englishName,
+  required String Function(String code) tag,
+  Set<String> remoteCategories = const {},
+}) {
+  final q = query.toLowerCase().replaceAll('#', '').trim();
+  if (q.isEmpty) return const [];
+  return [
+    for (final c in codes)
+      if (localName(c).toLowerCase().contains(q) ||
+          englishName(c).toLowerCase().contains(q) ||
+          tag(c).contains(q) ||
+          remoteCategories.contains(c))
+        c,
+  ];
+}
+
+/// Audit 2026-10-18: a client's own case matches [query] by title or by the
+/// topic's names (any of [names]: app language, English, category) —
+/// case-insensitive, every typed word must appear somewhere ("развод", "family
+/// law", "divorce nyc"). Empty query matches everything.
+bool myCaseMatches(String title, List<String> names, String query) {
+  final words = query
+      .toLowerCase()
+      .split(RegExp(r'\s+'))
+      .where((w) => w.isNotEmpty)
+      .toList();
+  if (words.isEmpty) return true;
+  final hay = '${title.toLowerCase()} ${names.join(' ').toLowerCase()}';
+  return words.every(hay.contains);
+}
+
 typedef SearchKey = ({String q, SearchFilters filters});
 
 class AttorneySearchNotifier extends PagedNotifier<AttorneyRow> {
@@ -137,7 +188,7 @@ class RecentSearches extends AsyncNotifier<List<String>> {
   Future<void> remember(String query) async {
     final owner = ref.read(currentUserIdProvider);
     final q = normalizeSearch(query);
-    if (owner == null || q.length < kSearchMinChars) return;
+    if (owner == null || !isSearchable(q, tagPrefix: tab == 'tags')) return;
     await ref.read(socialLocalDatabaseProvider).remember(owner, tab, q);
     ref.invalidateSelf();
   }

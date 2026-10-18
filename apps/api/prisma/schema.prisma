@@ -1516,6 +1516,10 @@ model Case {
   // ≤120 / ≤5000 chars (§6.1), CHECK in the migration.
   title                 String
   description           String
+  // Owner 2026-10-18: the client's private details (names, addresses, case
+  // number…): only the owner and the accepted attorney read it. CHECK in
+  // the migration.
+  private_details       String?
   // Leaf specialization only (enforced in the case service, file 04).
   practice_area_id      String                   @db.Uuid
   practice_area         PracticeArea             @relation(fields: [practice_area_id], references: [id], onDelete: Restrict)

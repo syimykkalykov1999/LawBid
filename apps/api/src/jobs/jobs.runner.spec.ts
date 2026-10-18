@@ -21,10 +21,10 @@ import type { LicenseExpiryJob } from './handlers/license-expiry.job';
 import type { LicenseRegistryRecheckJob } from './handlers/license-registry-recheck.job';
 import type { BidSubscriptionLapseJob } from './handlers/bid-subscription-lapse.job';
 import {
-  CaseAutoArchiveJob,
+  CaseStalePauseJob,
   CaseAutoCloseJob,
   CaseCompletionReminderJob,
-  CaseStalePromptJob,
+  CaseStaleAskJob,
 } from './handlers/case-lifecycle.jobs';
 import type { CaseDeadlineReminderJob } from './handlers/case-deadline-reminder.job';
 import { CountersReconcileJob } from './handlers/counters-reconcile.job';
@@ -136,8 +136,8 @@ function processor() {
       registryRecheck as unknown as LicenseRegistryRecheckJob,
       bidLapse as unknown as BidSubscriptionLapseJob,
       { run: jest.fn() } as unknown as VerificationLossBillingJob,
-      stale as unknown as CaseStalePromptJob,
-      archive as unknown as CaseAutoArchiveJob,
+      stale as unknown as CaseStaleAskJob,
+      archive as unknown as CaseStalePauseJob,
       autoClose as unknown as CaseAutoCloseJob,
       completion as unknown as CaseCompletionReminderJob,
       countersRecon as unknown as CountersReconcileJob,
@@ -392,8 +392,8 @@ describe('CronProcessor', () => {
     ).resolves.toEqual({ attorneysChecked: 5, bidsWithdrawn: 1 });
     expect(p.bidLapse.run).toHaveBeenCalledTimes(1);
     for (const [name, job] of [
-      [CRON_JOBS.caseStalePrompt, p.stale],
-      [CRON_JOBS.caseAutoArchive, p.archive],
+      [CRON_JOBS.caseStaleAsk, p.stale],
+      [CRON_JOBS.caseStalePause, p.archive],
       [CRON_JOBS.caseAutoClose, p.autoClose],
       [CRON_JOBS.caseCompletionReminder, p.completion],
     ] as const) {

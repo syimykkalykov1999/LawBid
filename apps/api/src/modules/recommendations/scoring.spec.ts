@@ -1,6 +1,9 @@
 import {
   ALREADY_BID_FACTOR,
   CASE_WEIGHTS,
+  clientActiveScore,
+  dateNearScore,
+  urgentActiveScore,
   type CaseCandidate,
   type CaseViewer,
   caseScore,
@@ -208,6 +211,7 @@ describe('case score', () => {
     commentCount: 0,
     urgency: 'soon',
     deadlineAt: null,
+    clientActiveAt: new Date(NOW - HOUR_MS),
     clientRatingAvg: 0,
     clientRatingCount: 0,
   };
@@ -244,5 +248,48 @@ describe('case score', () => {
     expect(urgencyScore('very_urgent', null, NOW)).toBe(1);
     expect(urgencyScore(null, null, NOW)).toBe(0.3);
     expect(urgencyScore('by_date', new Date(NOW - DAY_MS), NOW)).toBe(0.1);
+  });
+
+  it('OQ-054: a silent client lowers the case', () => {
+    const silent = new Date(NOW - 30 * DAY_MS);
+    expect(score({ clientActiveAt: silent })).toBeLessThan(score({}));
+    expect(clientActiveScore(new Date(NOW), NOW)).toBe(1);
+    expect(clientActiveScore(silent, NOW)).toBeLessThan(0.05);
+  });
+
+  it('OQ-054: urgent with an active client first, a silent urgent one drops', () => {
+    const active = new Date(NOW - DAY_MS);
+    const silent = new Date(NOW - 10 * DAY_MS);
+    for (const level of ['urgent', 'very_urgent'] as const) {
+      const first = score({ urgency: level, clientActiveAt: active });
+      expect(first).toBeGreaterThan(
+        score({ urgency: 'flexible', clientActiveAt: active }),
+      );
+      expect(first).toBeGreaterThan(
+        score({ urgency: level, clientActiveAt: silent }),
+      );
+      // A silent urgent case falls below an active non-urgent one.
+      expect(score({ urgency: level, clientActiveAt: silent })).toBeLessThan(
+        score({ urgency: 'flexible', clientActiveAt: active }),
+      );
+    }
+    expect(urgentActiveScore('urgent', active, NOW)).toBe(0.85);
+    expect(urgentActiveScore('very_urgent', active, NOW)).toBe(1);
+    expect(urgentActiveScore('soon', active, NOW)).toBe(0);
+    expect(
+      urgentActiveScore('urgent', new Date(NOW - 3 * DAY_MS), NOW),
+    ).toBeLessThan(0.5);
+  });
+
+  it('OQ-054: a «по дате» case rises as the date gets closer', () => {
+    const at = (days: number) => new Date(NOW + days * DAY_MS);
+    const s = (days: number) =>
+      score({ urgency: 'by_date', deadlineAt: at(days) });
+    expect(s(3)).toBeGreaterThan(s(14));
+    expect(s(14)).toBeGreaterThan(s(45));
+    expect(s(45)).toBeGreaterThan(s(120));
+    expect(dateNearScore('by_date', at(0), NOW)).toBe(1);
+    expect(dateNearScore('by_date', at(-5), NOW)).toBe(0);
+    expect(dateNearScore('urgent', at(3), NOW)).toBe(0);
   });
 });

@@ -26920,6 +26920,26 @@
             }
           },
           {
+            "name": "budgetPercent",
+            "required": false,
+            "in": "query",
+            "description": "Include cases with a percent (contingency) budget. Combined with a dollar range or \"clarify later\" the options are OR-ed.",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "percentMax",
+            "required": false,
+            "in": "query",
+            "description": "With budgetPercent: only percent budgets up to this whole percent.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "type": "number"
+            }
+          },
+          {
             "name": "noBids",
             "required": false,
             "in": "query",
@@ -28037,7 +28057,7 @@
             "name": "q",
             "required": false,
             "in": "query",
-            "description": "Words of the case title.",
+            "description": "Words of the case: title, description, city, state, topic (any language).",
             "schema": {
               "type": "string"
             }
@@ -28466,7 +28486,7 @@
             "name": "q",
             "required": false,
             "in": "query",
-            "description": "Words of the case title.",
+            "description": "Words of the case: title, description, city, state, topic (any language).",
             "schema": {
               "type": "string"
             }
@@ -32019,7 +32039,7 @@
             "name": "q",
             "required": false,
             "in": "query",
-            "description": "Words of the case title.",
+            "description": "Words of the case: title, description, city, state, topic (any language).",
             "schema": {
               "type": "string"
             }
@@ -32169,7 +32189,7 @@
             "name": "q",
             "required": false,
             "in": "query",
-            "description": "Words of the case title.",
+            "description": "Words of the case: title, description, city, state, topic (any language).",
             "schema": {
               "type": "string"
             }
@@ -38386,6 +38406,26 @@
             "description": "Only cases with \"clarify later\".",
             "schema": {
               "type": "boolean"
+            }
+          },
+          {
+            "name": "budgetPercent",
+            "required": false,
+            "in": "query",
+            "description": "Include cases with a percent (contingency) budget. Combined with a dollar range or \"clarify later\" the options are OR-ed.",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "percentMax",
+            "required": false,
+            "in": "query",
+            "description": "With budgetPercent: only percent budgets up to this whole percent.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "type": "number"
             }
           },
           {
@@ -90439,6 +90479,10 @@
           "description": {
             "type": "string"
           },
+          "privateDetails": {
+            "type": "string",
+            "nullable": true
+          },
           "city": {
             "type": "string",
             "nullable": true
@@ -90547,6 +90591,7 @@
           "lastActivityAt",
           "createdAt",
           "description",
+          "privateDetails",
           "city",
           "budgetMode",
           "budgetCents",
@@ -98814,6 +98859,11 @@
           "description": {
             "type": "string"
           },
+          "privateDetails": {
+            "type": "string",
+            "nullable": true,
+            "description": "Owner 2026-10-18: the private details — only for the owner and the accepted attorney."
+          },
           "practiceArea": {
             "$ref": "#/components/schemas/PracticeAreaRefDto"
           },
@@ -98960,6 +99010,7 @@
           "id",
           "title",
           "description",
+          "privateDetails",
           "practiceArea",
           "extraPracticeAreas",
           "primaryStateCode",
@@ -99000,6 +99051,11 @@
             "type": "string",
             "minLength": 30,
             "maxLength": 5000
+          },
+          "privateDetails": {
+            "type": "string",
+            "maxLength": 50000,
+            "description": "Owner 2026-10-18: private details; only the owner and the accepted attorney read them."
           },
           "primaryStateCode": {
             "type": "string",
@@ -99121,6 +99177,11 @@
             "type": "string",
             "minLength": 30,
             "maxLength": 5000
+          },
+          "privateDetails": {
+            "type": "string",
+            "maxLength": 50000,
+            "description": "Private details; an empty string clears them."
           },
           "practiceAreaId": {
             "type": "string",
@@ -99556,12 +99617,17 @@
           "descriptionLength": {
             "type": "integer",
             "description": "Length of the full description, in characters."
+          },
+          "privateDetailsLength": {
+            "type": "integer",
+            "description": "Owner 2026-10-18: length of the private details (0 = none); the text itself is for the accepted attorney only."
           }
         },
         "required": [
           "imagesCount",
           "documentsCount",
-          "descriptionLength"
+          "descriptionLength",
+          "privateDetailsLength"
         ]
       },
       "CaseFeedItemDto": {
@@ -99983,6 +100049,11 @@
             "type": "number",
             "description": "OQ-031: how many photos the case has (shown to every attorney)."
           },
+          "privateDetails": {
+            "type": "string",
+            "nullable": true,
+            "description": "Owner 2026-10-18: private details — only when THIS attorney's bid was accepted (null otherwise; the length is in dossier)."
+          },
           "inMyPractice": {
             "type": "boolean",
             "description": "Owner 2026-09-30: the case's practice is one of this attorney's —\notherwise \"Bid\" warns that the client will be told."
@@ -100021,6 +100092,7 @@
           "acceptedBidIsMine",
           "photos",
           "photosCount",
+          "privateDetails",
           "inMyPractice",
           "inMyLicensedStates",
           "bidAllowed"
@@ -101519,6 +101591,11 @@
           "description": {
             "type": "string"
           },
+          "privateDetails": {
+            "type": "string",
+            "nullable": true,
+            "description": "Owner 2026-10-18: the private details — only for the owner and the accepted attorney."
+          },
           "practiceArea": {
             "$ref": "#/components/schemas/PracticeAreaRefDto"
           },
@@ -101686,6 +101763,7 @@
           "id",
           "title",
           "description",
+          "privateDetails",
           "practiceArea",
           "extraPracticeAreas",
           "primaryStateCode",

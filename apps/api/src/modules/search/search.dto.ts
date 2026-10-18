@@ -147,6 +147,34 @@ export class SearchCasesQueryDto extends SearchTextQueryDto {
   @IsBoolean()
   budgetUnknown?: boolean;
 
+  @ApiPropertyOptional({
+    description:
+      'Include cases with a percent (contingency) budget. Combined with a dollar range or "clarify later" the options are OR-ed.',
+  })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === true || value === 'true'
+      ? true
+      : value === false || value === 'false'
+        ? false
+        : value,
+  )
+  @IsBoolean()
+  budgetPercent?: boolean;
+
+  @ApiPropertyOptional({
+    minimum: 1,
+    maximum: 100,
+    description:
+      'With budgetPercent: only percent budgets up to this whole percent.',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  percentMax?: number;
+
   @ApiPropertyOptional({ description: 'Only cases nobody has bid on yet.' })
   @IsOptional()
   @Transform(({ value }: { value: unknown }) =>

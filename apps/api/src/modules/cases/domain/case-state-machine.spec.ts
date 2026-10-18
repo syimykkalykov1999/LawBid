@@ -61,6 +61,8 @@ const ALLOWED: [CaseStatus, CaseAction, CaseStatus, string][] = [
   ['pending_completion', 'set_urgency', 'pending_completion', 'updated'],
   ['open', 'client_keep_alive', 'open', 'updated'],
   ['open', 'system_stale_prompt', 'open', 'updated'],
+  ['open', 'system_stale_pause', 'open', 'updated'],
+  ['open', 'client_resume', 'open', 'updated'],
   ['open', 'client_delete', 'open', 'deleted'],
   ['archived', 'client_delete', 'archived', 'deleted'],
 ];
@@ -85,9 +87,9 @@ describe('CaseStateMachine (docs/04 §10.1)', () => {
     CASE_ACTIONS.map((a) => [s, a] as const),
   );
 
-  it('covers every status × action pair (6 × 22)', () => {
-    expect(CASE_ACTIONS).toHaveLength(22);
-    expect(pairs).toHaveLength(132);
+  it('covers every status × action pair (6 × 24)', () => {
+    expect(CASE_ACTIONS).toHaveLength(24);
+    expect(pairs).toHaveLength(144);
   });
 
   it.each(pairs)('%s + %s', (from, action) => {
@@ -175,6 +177,24 @@ describe('CaseStateMachine (docs/04 §10.1)', () => {
       archived_at: null,
       last_activity_at: now,
       stale_prompt_sent_at: null,
+      client_active_at: now,
+      paused_at: null,
+    });
+    // OQ-054: only the client's own actions move client_active_at.
+    expect(planCaseTransition('open', 'client_edit', ctx).data).toEqual({
+      last_activity_at: now,
+      client_active_at: now,
+    });
+    expect(planCaseTransition('open', 'client_resume', ctx).data).toEqual({
+      client_active_at: now,
+      stale_prompt_sent_at: null,
+      paused_at: null,
+    });
+    expect(planCaseTransition('open', 'system_stale_prompt', ctx).data).toEqual(
+      { stale_prompt_sent_at: now },
+    );
+    expect(planCaseTransition('open', 'system_stale_pause', ctx).data).toEqual({
+      paused_at: now,
     });
     expect(
       planCaseTransition('pending_completion', 'attorney_confirm', ctx).data,
@@ -249,7 +269,11 @@ describe('CaseStateMachine (docs/04 §10.1)', () => {
       });
       expect(tx.case.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: { title: 'New title', last_activity_at: now },
+          data: {
+            title: 'New title',
+            last_activity_at: now,
+            client_active_at: now,
+          },
         }),
       );
     });

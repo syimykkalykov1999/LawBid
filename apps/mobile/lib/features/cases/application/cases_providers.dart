@@ -416,6 +416,19 @@ class CaseActions {
     _clientCase(id);
   }
 
+  /// OQ-054: «Да, нужен» / «Жду предложений получше» / «Уже не нужен» /
+  /// «Сменить на «Не срочно»».
+  Future<void> answerStillNeeded(String id, StillNeededAnswer answer) async {
+    await _repo.answerStillNeeded(id, answer);
+    _clientCase(id);
+  }
+
+  /// OQ-054: «Вернуть» — a paused case is visible to attorneys again.
+  Future<void> resume(String id) async {
+    await _repo.resumeCase(id);
+    _clientCase(id);
+  }
+
   Future<void> complete(String id) async {
     await _repo.completeCase(id);
     _clientCase(id);

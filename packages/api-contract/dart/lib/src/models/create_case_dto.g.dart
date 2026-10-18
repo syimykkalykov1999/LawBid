@@ -16,6 +16,7 @@ CreateCaseDto _$CreateCaseDtoFromJson(Map<String, dynamic> json) =>
       extraPracticeAreaIds: (json['extraPracticeAreaIds'] as List<dynamic>?)
           ?.map((e) => e as String)
           .toList(),
+      privateDetails: json['privateDetails'] as String?,
       additionalStateCodes: (json['additionalStateCodes'] as List<dynamic>?)
           ?.map((e) => e as String)
           .toList(),
@@ -44,6 +45,7 @@ Map<String, dynamic> _$CreateCaseDtoToJson(CreateCaseDto instance) =>
       'extraPracticeAreaIds': ?instance.extraPracticeAreaIds,
       'title': instance.title,
       'description': instance.description,
+      'privateDetails': ?instance.privateDetails,
       'primaryStateCode': instance.primaryStateCode,
       'additionalStateCodes': ?instance.additionalStateCodes,
       'city': ?instance.city,

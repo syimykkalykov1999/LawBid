@@ -92,15 +92,35 @@ String caseStatusLabel(Translator t, CaseStatus s) => switch (s) {
       _ => t.t('cases.status.closed'),
     };
 
+/// OQ-054: an open case that is paused (hidden from the attorneys' feed)
+/// reads «На паузе».
+String caseStatusLabelOf(Translator t, CaseStatus s, {bool paused = false}) =>
+    paused && s == CaseStatus.open
+        ? t.t('cases.stale.pausedPill')
+        : caseStatusLabel(t, s);
+
 class CaseStatusPill extends StatelessWidget {
-  const CaseStatusPill({required this.status, required this.t, super.key});
+  const CaseStatusPill({
+    required this.status,
+    required this.t,
+    this.paused = false,
+    super.key,
+  });
 
   final CaseStatus status;
   final Translator t;
 
+  /// OQ-054: show «На паузе» for an open case hidden from the feed.
+  final bool paused;
+
   @override
-  Widget build(BuildContext context) =>
-      StatusPill(label: caseStatusLabel(t, status), tone: caseTone(status));
+  Widget build(BuildContext context) {
+    final onPause = paused && status == CaseStatus.open;
+    return StatusPill(
+      label: caseStatusLabelOf(t, status, paused: paused),
+      tone: onPause ? StatusTone.neutral : caseTone(status),
+    );
+  }
 }
 
 /// docs/04 §11.2 bid status chips: "Ваш ход" / "Ожидает …" while active,

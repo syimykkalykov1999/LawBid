@@ -399,6 +399,7 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
       int? count,
       VoidCallback onTap, {
       Color? color,
+      VoidCallback? onCountTap,
     }) =>
         Padding(
           // Owner 2026-10-13: small, Instagram-like rail — a 22 icon, the
@@ -417,13 +418,17 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                     AppIcon(icon, size: 22, color: color ?? Colors.white),
                     if (count != null && count > 0) ...[
                       const SizedBox(height: 2),
-                      Text(
-                        SocialFormat.count(f, count),
-                        style: type.caption.copyWith(
-                          fontSize: 13,
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600,
-                          shadows: shadow,
+                      GestureDetector(
+                        onTap: onCountTap ?? onTap,
+                        behavior: HitTestBehavior.opaque,
+                        child: Text(
+                          SocialFormat.count(f, count),
+                          style: type.caption.copyWith(
+                            fontSize: 13,
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                            shadows: shadow,
+                          ),
                         ),
                       ),
                     ],
@@ -545,6 +550,15 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                             commentsEnabled: p.commentsEnabled,
                           ),
                         ),
+                      // Owner 2026-10-18: the same ↻ flow as in the feed.
+                      rail(
+                        AppIcons.autoModeRounded,
+                        t.t(p.repostedByMe ? 'post.unrepost' : 'post.repost'),
+                        p.repostCount,
+                        () => showRepostSheet(context, ref, p),
+                        color: p.repostedByMe ? colors.success : null,
+                        onCountTap: () => showRepostersList(context, p.id),
+                      ),
                       rail(
                         AppIcons.sendOutlined,
                         t.t('post.share'),

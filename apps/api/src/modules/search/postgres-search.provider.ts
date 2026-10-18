@@ -18,6 +18,7 @@ import {
 import { parseSearchQuery } from '../../common/search/search-query';
 import { SearchSynonymsService } from './search-synonyms.service';
 import { urgencyFilterSql } from '../cases/domain/case-urgency';
+import { budgetFilterSql } from '../cases/queries/budget-filter.sql';
 import {
   buildPracticeCasesSql,
   buildVisibleCasesSql,
@@ -56,6 +57,22 @@ function practiceWordsMatch(norm: string): Prisma.Sql {
       Prisma.sql`public.f_unaccent(' ' || replace(lower(t.value), ',', ' ')) LIKE ${`% ${escapeLike(w)}%`}`,
   );
   return conds.length ? Prisma.join(conds, ' AND ') : Prisma.sql`FALSE`;
+}
+
+/**
+ * Audit 2026-10-18: SQL condition "the case is in the state/city [norm]
+ * names": a state code (2 letters), a state name or a city word starting
+ * with the query. Cases only (alias `c`).
+ */
+export function casePlaceMatch(norm: string): Prisma.Sql {
+  if (norm.length < 2) return Prisma.sql`FALSE`;
+  const like = `${escapeLike(norm)}%`;
+  return Prisma.sql`(
+    ${norm.length === 2 ? Prisma.sql`c.primary_state_code = ${norm.toUpperCase()} OR` : Prisma.empty}
+    EXISTS (SELECT 1 FROM states s WHERE s.code = c.primary_state_code
+               AND lower(s.name) LIKE ${like})
+    OR lower(c.city) LIKE ${like}
+    OR lower(c.city) LIKE ${`% ${escapeLike(norm)}%`})`;
 }
 
 export function escapeLike(s: string): string {
@@ -273,9 +290,13 @@ export class PostgresSearchProvider implements SearchProvider {
     // query, which the time budget runs inside a transaction.
     const textPractices = p.textPractices ?? [];
     const extra = Prisma.sql`
-          ${p.budgetMinCents !== undefined ? Prisma.sql`AND c.budget_cents >= ${p.budgetMinCents}` : Prisma.empty}
-          ${p.budgetMaxCents !== undefined ? Prisma.sql`AND c.budget_cents <= ${p.budgetMaxCents}` : Prisma.empty}
-          ${p.budgetUnknown ? Prisma.sql`AND c.budget_mode = 'clarify_later'` : Prisma.empty}
+          ${budgetFilterSql({
+            minCents: p.budgetMinCents,
+            maxCents: p.budgetMaxCents,
+            unknown: p.budgetUnknown,
+            percent: p.budgetPercent,
+            percentMax: p.percentMax,
+          })}
           ${p.noBids ? Prisma.sql`AND c.bids_count = 0` : Prisma.empty}
           ${urgencyFilterSql(p.minUrgency, p.hasDeadline, p.urgencyThresholds)}
           ${p.extraSql ?? Prisma.empty}`;
@@ -524,6 +545,17 @@ export class PostgresSearchProvider implements SearchProvider {
       );
       rows = [...new Map([...exact, ...more].map((r) => [r.id, r])).values()];
     }
+    // Audit 2026-10-18: "new york", "NY" or "brooklyn" name WHERE a case is,
+    // which is not in its title/description: the whole query as a state
+    // code/name or a city word also finds the cases there.
+    const place = await this.budget(SEARCH_BUDGET_MS, () =>
+      this.searchCases('', {
+        ...p,
+        limit: CASE_CANDIDATES,
+        extraSql: Prisma.sql`${p.extraSql ?? Prisma.empty} AND ${casePlaceMatch(parsed.plain)}`,
+      }),
+    );
+    rows = [...new Map([...rows, ...place].map((r) => [r.id, r])).values()];
     const ids = rows.map((r) => r.id);
     if (ids.length > 0) {
       const ranked = await this.prisma.$queryRaw<{ id: string }[]>`

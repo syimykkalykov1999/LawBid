@@ -123,16 +123,21 @@ export class CasePhotosService {
   async forViewer(
     caseId: string,
     viewerId: string,
-  ): Promise<{ photos: CasePhotoDto[]; photosCount: number }> {
+  ): Promise<{
+    photos: CasePhotoDto[];
+    photosCount: number;
+    privateDetails: string | null;
+  }> {
     const kase = await this.prisma.case.findUnique({
       where: { id: caseId },
       select: {
         client_id: true,
+        private_details: true,
         accepted_bid: { select: { attorney_id: true } },
         photos: { orderBy: { position: 'asc' }, select: { file_id: true } },
       },
     });
-    if (!kase) return { photos: [], photosCount: 0 };
+    if (!kase) return { photos: [], photosCount: 0, privateDetails: null };
     const allowed =
       kase.client_id === viewerId ||
       kase.accepted_bid?.attorney_id === viewerId;
@@ -140,6 +145,8 @@ export class CasePhotosService {
     return {
       photos: allowed ? await this.files.casePhotoUrls(ids) : [],
       photosCount: ids.length,
+      // Owner 2026-10-18: private details follow the same rule as the files.
+      privateDetails: allowed ? kase.private_details : null,
     };
   }
 }

@@ -62,7 +62,11 @@ class ClientCasesGrid extends ConsumerWidget {
                             Expanded(
                               child: Align(
                                 alignment: AlignmentDirectional.centerEnd,
-                                child: CaseStatusPill(status: c.status, t: t),
+                                child: CaseStatusPill(
+                                  status: c.status,
+                                  t: t,
+                                  paused: c.paused,
+                                ),
                               ),
                             ),
                           ],

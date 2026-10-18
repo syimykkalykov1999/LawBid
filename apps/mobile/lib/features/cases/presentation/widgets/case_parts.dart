@@ -318,14 +318,22 @@ class CaseFileLine extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    final empty = dossier.documentsCount + dossier.imagesCount == 0;
+    final empty = dossier.documentsCount + dossier.imagesCount == 0 &&
+        dossier.privateDetailsLength == 0;
     final parts = [
       if (dossier.documentsCount > 0)
         t.plural('cases.dossier.docs', dossier.documentsCount),
       if (dossier.imagesCount > 0)
         t.plural('cases.dossier.photos', dossier.imagesCount),
     ];
-    final label = empty ? t.t('cases.dossier.noFiles') : parts.join(' · ');
+    // Owner 2026-10-18: the client's private details count as locked too.
+    final hasPrivate = dossier.privateDetailsLength > 0;
+    final privateParts = [t.t('cases.dossier.privateText'), ...parts];
+    final label = hasPrivate
+        ? t.t('cases.dossier.privateLine', {'items': privateParts.join(', ')})
+        : empty
+            ? t.t('cases.dossier.noFiles')
+            : parts.join(' · ');
     return Padding(
       padding: padding,
       child: Row(
@@ -340,7 +348,9 @@ class CaseFileLine extends StatelessWidget {
           const SizedBox(width: AppSpacing.sm),
           Flexible(
             child: Text(
-              !empty && locked ? '$label · ${t.t('cases.card.locked')}' : label,
+              !empty && locked && dossier.privateDetailsLength == 0
+                  ? '$label · ${t.t('cases.card.locked')}'
+                  : label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: type.bodySmall.copyWith(

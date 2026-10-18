@@ -52,12 +52,16 @@ abstract final class CasesMappers {
           deadlineAt: c.deadlineAt,
           kind: c.deadlineKind,
         ),
+        pausedAt: _dateOrNull(c.pausedAt),
+        stillNeededPending: c.stillNeededPending,
+        canMakeNotUrgent: c.canMakeNotUrgent,
       );
 
   static OwnerCase ownerCase(api.OwnerCaseDetailDto c) => OwnerCase(
         id: c.id,
         title: c.title,
         description: c.description,
+        privateDetails: c.privateDetails,
         practice: practiceRef(c.practiceArea),
         extraPractices: [for (final p in c.extraPracticeAreas) practiceRef(p)],
         primaryStateCode: c.primaryStateCode,
@@ -93,6 +97,9 @@ abstract final class CasesMappers {
           deadlineAt: c.deadlineAt,
           kind: c.deadlineKind,
         ),
+        pausedAt: _dateOrNull(c.pausedAt),
+        stillNeededPending: c.stillNeededPending,
+        canMakeNotUrgent: c.canMakeNotUrgent,
       );
 
   static CasePhoto casePhoto(api.CasePhotoDto p) => CasePhoto(
@@ -207,12 +214,23 @@ abstract final class CasesMappers {
           kind: c.deadlineKind,
         ),
         dossier: dossier(c.dossier),
+        clientActivity: clientActivity(c.clientActivity),
       );
+
+  /// OQ-054: null when the client's activity status is hidden.
+  static ClientActivity? clientActivity(api.ClientActivityDto? a) => a == null
+      ? null
+      : ClientActivity(
+          online: a.online,
+          lastSeenDays: a.lastSeenDays,
+          respondsWithinDay: a.respondsWithinDay,
+        );
 
   static CaseDossier dossier(api.CaseDossierDto d) => CaseDossier(
         imagesCount: d.imagesCount,
         documentsCount: d.documentsCount,
         descriptionLength: d.descriptionLength,
+        privateDetailsLength: d.privateDetailsLength,
       );
 
   static FeedCase attorneyCase(api.CaseDetailForAttorneyDto c) => FeedCase(
@@ -236,6 +254,7 @@ abstract final class CasesMappers {
         isNew: c.isNew,
         hasOwnBid: c.hasOwnBid,
         description: c.description,
+        privateDetails: c.privateDetails,
         isSaved: c.isSaved,
         ownBidId: c.ownBidId,
         completionRequestedBy: c.completionRequestedBy?.json,
@@ -256,6 +275,7 @@ abstract final class CasesMappers {
           kind: c.deadlineKind,
         ),
         dossier: dossier(c.dossier),
+        clientActivity: clientActivity(c.clientActivity),
       );
 
   static MyBid myBid(api.MyBidItemDto b) => MyBid(

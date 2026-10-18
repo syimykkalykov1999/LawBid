@@ -76,6 +76,7 @@ class CaseDossierScore {
         imagesCount: images,
         documentsCount: c.photos.length - images,
         descriptionLength: c.description.length,
+        privateDetailsLength: c.privateDetails?.length ?? 0,
       ),
       city: c.city,
       urgency: c.urgency,

@@ -581,6 +581,119 @@ class FollowListScreen extends ConsumerWidget {
   }
 }
 
+/// Owner 2026-10-18: people who reposted a post (avatar, name, follow).
+class RepostersScreen extends ConsumerWidget {
+  const RepostersScreen({required this.postId, super.key});
+
+  final String postId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final value = ref.watch(postRepostersProvider(postId));
+    final n = ref.read(postRepostersProvider(postId).notifier);
+    return Scaffold(
+      backgroundColor: colors.bg,
+      appBar: AppTopBar(
+        leading: AppBackButton(
+          semanticLabel: t.t('common.back'),
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
+        title: Text(t.t('post.reposters.title')),
+      ),
+      body: PagedListBody<PersonRow>(
+        value: value,
+        t: t,
+        itemKey: (r) => r.id,
+        itemBuilder: (context, r, _) => PersonTile(row: r),
+        empty: AppEmptyState(
+          icon: AppIcons.autoModeRounded,
+          message: t.t('post.reposters.empty'),
+        ),
+        onRefresh: n.refresh,
+        onLoadMore: n.loadMore,
+        onRetryMore: n.retryLoadMore,
+      ),
+    );
+  }
+}
+
+/// Owner 2026-10-18: the profile's «Репосты» tab — one widget for every
+/// role. Newest first; every card carries the "↻ … сделал(а) репост" header
+/// and a green ↻ whose sheet undoes it (the card then leaves the list).
+class ProfileRepostsList extends ConsumerWidget {
+  const ProfileRepostsList({
+    required this.userId,
+    required this.isSelf,
+    super.key,
+  });
+
+  final String userId;
+  final bool isSelf;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    final deleted = ref.watch(deletedPostsProvider);
+    final overrides = ref.watch(postOverridesProvider);
+    final value = ref.watch(userRepostsProvider(userId));
+    return value.when(
+      skipLoadingOnReload: true,
+      loading: () => Column(
+        children: List.generate(
+          2,
+          (_) => const Padding(
+            padding: EdgeInsets.all(AppSpacing.lg),
+            child: AppSkeleton(height: 96, borderRadius: AppRadii.card),
+          ),
+        ),
+      ),
+      error: (_, __) => Center(
+        child: TextButton(
+          onPressed: () => ref.invalidate(userRepostsProvider(userId)),
+          child: Text(t.t('error.retry')),
+        ),
+      ),
+      data: (page) {
+        // Undone from here (or from the post's own ↻): gone at once.
+        final posts = page.items
+            .where(
+              (p) =>
+                  !deleted.contains(p.id) &&
+                  !(isSelf && overrides[p.id]?.repostedByMe == false),
+            )
+            .toList();
+        if (posts.isEmpty) {
+          return SizedBox(
+            height: 280,
+            child: AppEmptyState(
+              icon: AppIcons.autoModeRounded,
+              title: t.t('profile.reposts.empty.title'),
+              message: t.t(
+                isSelf
+                    ? 'profile.reposts.empty.self'
+                    : 'profile.reposts.empty.other',
+              ),
+            ),
+          );
+        }
+        return Column(
+          children: [
+            for (final p in posts) PostCard(key: ValueKey(p.id), post: p),
+            if (page.canLoadMore)
+              TextButton(
+                onPressed: () =>
+                    ref.read(userRepostsProvider(userId).notifier).loadMore(),
+                child: Text(t.t('pagination.loadingMore')),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
 /// "Моё → Сохранённое" posts (docs/05 §4); a post deleted or hidden since
 /// shows as "Пост недоступен".
 class SavedPostsList extends ConsumerWidget {

@@ -17,6 +17,7 @@ const LIMITS: { key: string; label: string }[] = [
   { key: 'limits.post_title_chars', label: 'Заголовок поста или рилса' },
   { key: 'limits.case_title_chars', label: 'Заголовок кейса' },
   { key: 'limits.case_description_chars', label: 'Описание кейса' },
+  { key: 'limits.case_private_details_chars', label: 'Закрытые подробности кейса' },
   { key: 'limits.bid_message_chars', label: 'Текст отклика адвоката' },
   { key: 'limits.counter_message_chars', label: 'Текст встречного предложения' },
   { key: 'limits.review_chars', label: 'Текст отзыва' },

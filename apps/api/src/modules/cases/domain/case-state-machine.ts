@@ -65,8 +65,14 @@ export type CaseAction =
   | 'set_urgency'
   | 'client_keep_alive'
   | 'client_delete'
-  // §10.2 "Напоминание об актуальности" job: stale_prompt_sent_at = now().
-  | 'system_stale_prompt';
+  // OQ-054: the stale-case job asked «Вам ещё нужен адвокат?»
+  // (stale_prompt_sent_at = now()); not client activity.
+  | 'system_stale_prompt'
+  // OQ-054: no answer in time — the case is hidden from the attorneys'
+  // feed and search (paused_at = now(), status stays open), silently.
+  | 'system_stale_pause'
+  // OQ-054: the client brings a paused case back.
+  | 'client_resume';
 
 export interface CaseTransitionRule {
   readonly from: readonly CaseStatus[];
@@ -146,6 +152,8 @@ export const CASE_TRANSITIONS: Readonly<
   // §3.5 / §10.1: deletion only from open and archived.
   client_delete: { from: ['open', 'archived'], to: null, event: 'deleted' },
   system_stale_prompt: { from: ['open'], to: null, event: 'updated' },
+  system_stale_pause: { from: ['open'], to: null, event: 'updated' },
+  client_resume: { from: ['open'], to: null, event: 'updated' },
 };
 
 export const CASE_ACTIONS = Object.keys(CASE_TRANSITIONS) as CaseAction[];
@@ -217,6 +225,9 @@ export function planCaseTransition(
         archived_at: null,
         last_activity_at: now,
         stale_prompt_sent_at: null,
+        // OQ-054: the client is back — a fresh silent period, visible.
+        client_active_at: now,
+        paused_at: null,
       };
       break;
     case 'client_complete':
@@ -259,15 +270,37 @@ export function planCaseTransition(
       };
       break;
     case 'client_edit':
+      // OQ-054: editing the case is the client's own action.
+      data = { last_activity_at: now, client_active_at: now };
+      break;
     case 'set_urgency':
+      // The attorney may change it too: the caller adds client_active_at
+      // through `extra` when the client does.
       data = { last_activity_at: now };
       break;
     case 'client_keep_alive':
-      data = { last_activity_at: now, stale_prompt_sent_at: null };
+      // OQ-054 «Да, нужен» / «Жду предложений получше»: a fresh silent
+      // period; the question and the pause are cleared.
+      data = {
+        last_activity_at: now,
+        client_active_at: now,
+        stale_prompt_sent_at: null,
+        paused_at: null,
+      };
+      break;
+    case 'client_resume':
+      data = {
+        client_active_at: now,
+        stale_prompt_sent_at: null,
+        paused_at: null,
+      };
       break;
     case 'system_stale_prompt':
-      // Not client activity: last_activity_at stays as it is.
+      // Not client activity: last_activity_at / client_active_at stay.
       data = { stale_prompt_sent_at: now };
+      break;
+    case 'system_stale_pause':
+      data = { paused_at: now };
       break;
     case 'client_delete':
       data = { deleted_at: now };

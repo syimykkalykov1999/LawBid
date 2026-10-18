@@ -348,16 +348,14 @@ const file06Ru = <String, String>{
   'profile.nameMismatch.action': 'Подтвердить новое имя',
   // OQ-031 case photos.
   'cases.photos.title': 'Фото и файлы',
-  'cases.photos.privacy':
-      'До {max} фото или файлов (PDF, Word).',
+  'cases.photos.privacy': 'До {max} фото или файлов (PDF, Word).',
   'cases.photos.optional': '· необязательно',
   'cases.photos.tilePhoto': 'Фото',
   'cases.photos.tileFile': 'Файл',
   'cases.field.noContacts':
       'Без паспорта, SSN, номеров счетов, имён и адресов.',
   'cases.field.brief': 'Кратко о деле',
-  'cases.field.briefHint':
-      'Суть в 2–3 предложениях: что случилось и что нужно',
+  'cases.field.briefHint': 'Суть в 2–3 предложениях: что случилось и что нужно',
   'cases.field.privateDetails': 'Подробности (необязательно)',
   'cases.field.privateDetailsHint':
       'Полная история, имена сторон, номер дела, адреса, даты — всё, что нельзя показывать всем',
@@ -810,8 +808,7 @@ const file06En = <String, String>{
   'profile.nameMismatch.action': 'Confirm new name',
   // OQ-031 case photos.
   'cases.photos.title': 'Photos and files',
-  'cases.photos.privacy':
-      'Up to {max} photos or files (PDF, Word).',
+  'cases.photos.privacy': 'Up to {max} photos or files (PDF, Word).',
   'cases.photos.optional': '· optional',
   'cases.photos.tilePhoto': 'Photo',
   'cases.photos.tileFile': 'File',

@@ -33,7 +33,6 @@ class CaseDetailForAttorneyDto {
     required this.viewCount,
     required this.bidsCount,
     required this.createdAt,
-    required this.acceptedBidIsMine,
     required this.hasOwnBid,
     required this.commentCount,
     required this.shareCount,
@@ -41,22 +40,24 @@ class CaseDetailForAttorneyDto {
     required this.promoted,
     required this.bidAllowed,
     required this.priorityClient,
-    required this.photosCount,
-    required this.inMyLicensedStates,
-    required this.photos,
-    required this.description,
-    required this.inMyPractice,
     required this.dossier,
+    required this.inMyPractice,
+    required this.privateDetails,
+    required this.inMyLicensedStates,
+    required this.acceptedBidIsMine,
+    required this.photosCount,
+    required this.description,
+    required this.photos,
     this.clientActivity,
-    this.deadlineKind,
     this.ownBidId,
-    this.promotedUntil,
+    this.urgencyLevel,
     this.completionRequestedBy,
+    this.deadlineKind,
     this.deadlineAt,
     this.urgency,
     this.coverKey,
     this.city,
-    this.urgencyLevel,
+    this.promotedUntil,
   });
 
   factory CaseDetailForAttorneyDto.fromJson(Map<String, Object?> json) =>
@@ -142,6 +143,9 @@ class CaseDetailForAttorneyDto {
 
   /// OQ-031: how many photos the case has (shown to every attorney).
   final num photosCount;
+
+  /// Owner 2026-10-18: private details — only when THIS attorney's bid was accepted (null otherwise; the length is in dossier).
+  final String? privateDetails;
 
   /// Owner 2026-09-30: the case's practice is one of this attorney's —.
   /// otherwise "Bid" warns that the client will be told.

@@ -171,6 +171,12 @@ abstract interface class SocialRepository {
     String? state,
   });
 
+  /// Owner 2026-10-18: the "Reposts" profile tab of any user.
+  Future<CursorPage<Post>> userReposts(String userId, {String? cursor});
+
+  /// Owner 2026-10-18: who reposted a post (avatar, name, follow).
+  Future<CursorPage<PersonRow>> postReposters(String postId, {String? cursor});
+
   /// OQ-034: newest posts (of attorneys licensed in [state] when given);
   /// owner 2026-09-30: of a qualification ([practice], a category with its
   /// subcategories; older posts by their topic [tag]) and only News.
@@ -377,6 +383,31 @@ class ApiSocialRepository implements SocialRepository {
     );
     return CursorPage(
       items: env.data.map(SocialMappers.post).toList(),
+      nextCursor: env.meta?.nextCursor,
+    );
+  }
+
+  @override
+  Future<CursorPage<Post>> userReposts(String userId, {String? cursor}) async {
+    final env = await guardApiCall(
+      () => _posts.listUserReposts(id: userId, cursor: cursor),
+    );
+    return CursorPage(
+      items: env.data.map(SocialMappers.post).toList(),
+      nextCursor: env.meta?.nextCursor,
+    );
+  }
+
+  @override
+  Future<CursorPage<PersonRow>> postReposters(
+    String postId, {
+    String? cursor,
+  }) async {
+    final env = await guardApiCall(
+      () => _posts.listReposters(id: postId, cursor: cursor),
+    );
+    return CursorPage(
+      items: env.data.map(SocialMappers.person).whereType<PersonRow>().toList(),
       nextCursor: env.meta?.nextCursor,
     );
   }
@@ -1008,6 +1039,7 @@ abstract final class SocialMappers {
             : PostReposter(
                 id: d.repostedBy!.id,
                 username: d.repostedBy!.username,
+                name: d.repostedBy!.name,
                 isClient: d.repostedBy!.role == api.PostReposterDtoRole.client,
               ),
         likedByMe: d.likedByMe,

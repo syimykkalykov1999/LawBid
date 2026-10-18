@@ -358,8 +358,13 @@ class MineSearchBar extends ConsumerStatefulWidget {
     this.action,
     this.onClose,
     this.padded = true,
+    this.hintKey = 'mine.search.hint',
     super.key,
   });
+
+  /// Audit 2026-10-18: the placeholder says what this box searches (my
+  /// cases / my bids / saved cases) — the screen picks the key.
+  final String hintKey;
 
   final MineSearch search;
   final ValueChanged<MineSearch> onChanged;
@@ -472,6 +477,7 @@ class _MineSearchBarState extends ConsumerState<MineSearchBar> {
         context,
         title: t.t('mine.search.practice'),
         searchHint: t.t('practice.search.hint'),
+        remoteSearch: practiceRemoteSearch(ref),
         initial: {if (s.practice != null) s.practice!},
         options: [
           PickerOption(value: '', label: t.t('mine.search.any')),
@@ -522,11 +528,11 @@ class _MineSearchBarState extends ConsumerState<MineSearchBar> {
               key: const ValueKey('mine-search'),
               controller: _text,
               focusNode: _focus,
-              semanticLabel: t.t('mine.search.hint'),
+              semanticLabel: t.t(widget.hintKey),
               cancelLabel: t.t('common.cancel'),
               clearLabel: t.t('search.clear'),
               showCancel: false,
-              hints: [t.t('mine.search.hint')],
+              hints: [t.t(widget.hintKey)],
               leading: Badge(
                 isLabelVisible: count > 0,
                 label: Text(ref.watch(l10nFormatsProvider).number(count)),
@@ -551,7 +557,7 @@ class _MineSearchBarState extends ConsumerState<MineSearchBar> {
                         AppIcons.searchRounded,
                         color: colors.goldDark,
                       ),
-                      semanticLabel: t.t('mine.search.hint'),
+                      semanticLabel: t.t(widget.hintKey),
                       onPressed: _focus.requestFocus,
                     ),
             ),
@@ -579,8 +585,12 @@ class MineChipsSearchRow extends ConsumerStatefulWidget {
     required this.onChanged,
     this.chips,
     this.action,
+    this.hintKey = 'mine.search.hint',
     super.key,
   });
+
+  /// What this row's search box searches (placeholder key).
+  final String hintKey;
 
   /// The chips, built without their own outer padding.
   final Widget? chips;
@@ -619,6 +629,7 @@ class _MineChipsSearchRowState extends ConsumerState<MineChipsSearchRow> {
                         ? null
                         : () => setState(() => _open = false),
                     padded: false,
+                    hintKey: widget.hintKey,
                   )
                 : chips,
           ),
@@ -626,7 +637,7 @@ class _MineChipsSearchRowState extends ConsumerState<MineChipsSearchRow> {
             AppIconButton(
               key: const ValueKey('mine-search-open'),
               icon: AppIcon(AppIcons.searchRounded, color: colors.goldDark),
-              semanticLabel: t.t('mine.search.hint'),
+              semanticLabel: t.t(widget.hintKey),
               onPressed: () => setState(() => _open = true),
             ),
           if (widget.action != null) ...[

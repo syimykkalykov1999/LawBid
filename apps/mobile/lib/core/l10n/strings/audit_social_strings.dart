@@ -11,8 +11,17 @@ const auditSocialRu = <String, String>{
   'post.repost': 'Сделать репост',
   'post.unrepost': 'Отменить репост',
   'post.repostedBy': '{username} сделал(а) репост',
+  'post.repostedByMe': 'Вы сделали репост',
+  'post.repost.action': 'Репост',
+  'post.reposters.title': 'Репосты',
+  'post.reposters.empty': 'Пока никто не сделал репост.',
+  'profile.tab.reposts': 'Репосты',
+  'profile.reposts.empty.title': 'Репостов пока нет',
+  'profile.reposts.empty.self':
+      'Нажмите ↻ под публикацией, и она появится здесь.',
+  'profile.reposts.empty.other': 'Этот пользователь пока ничего не репостил.',
   'error.api.REPOST_OWN_POST': 'Свой пост нельзя репостнуть.',
-  'notif.list.post_repost': '{name} сделал(а) репост вашего поста',
+  'notif.list.post_repost': '{name} сделал(а) репост вашей публикации',
 };
 
 const auditSocialEn = <String, String>{
@@ -25,6 +34,14 @@ const auditSocialEn = <String, String>{
   'post.repost': 'Repost',
   'post.unrepost': 'Undo repost',
   'post.repostedBy': '{username} reposted',
+  'post.repostedByMe': 'You reposted',
+  'post.repost.action': 'Repost',
+  'post.reposters.title': 'Reposts',
+  'post.reposters.empty': 'Nobody has reposted this yet.',
+  'profile.tab.reposts': 'Reposts',
+  'profile.reposts.empty.title': 'No reposts yet',
+  'profile.reposts.empty.self': 'Tap ↻ under a post and it will appear here.',
+  'profile.reposts.empty.other': "This user hasn't reposted anything yet.",
   'error.api.REPOST_OWN_POST': "You can't repost your own post.",
   'notif.list.post_repost': '{name} reposted your post',
 };

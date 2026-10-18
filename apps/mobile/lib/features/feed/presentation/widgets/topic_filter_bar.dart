@@ -91,6 +91,7 @@ class TopicFilterBar extends ConsumerWidget {
       multi: true,
       back: true,
       searchHint: t.t('practice.search.hint'),
+      remoteSearch: practiceRemoteSearch(ref),
       initial: {
         ...ref.read(feedTopicsProvider),
         if (showNews && scope == FeedLegalScope.mine)

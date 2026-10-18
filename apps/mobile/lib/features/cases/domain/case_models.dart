@@ -23,7 +23,8 @@ export 'package:lawbid_api/lawbid_api.dart'
         FeeType,
         OfferStatus,
         PartyRole,
-        StartAvailability;
+        StartAvailability,
+        StillNeededAnswer;
 
 /// docs/04 §6.1: at most 5 counter-offers per bid.
 const int kMaxNegotiationRounds = 5;
@@ -76,6 +77,25 @@ class CaseBudget {
       !isPercent && (mode != BudgetMode.amount || amountCents == null);
 }
 
+/// OQ-054: the client's activity on an attorney's card. Absent when the
+/// client's activity status is hidden (reciprocal).
+@immutable
+class ClientActivity {
+  const ClientActivity({
+    this.online = false,
+    this.lastSeenDays,
+    this.respondsWithinDay = false,
+  });
+
+  final bool online;
+
+  /// Days since the client was last in the app (null = unknown / today).
+  final int? lastSeenDays;
+
+  /// The client usually answers bids and messages within a day.
+  final bool respondsWithinDay;
+}
+
 /// "Мои кейсы" card (docs/04 §11.1).
 @immutable
 class CaseSummary {
@@ -96,7 +116,20 @@ class CaseSummary {
     this.urgency,
     this.urgencyDetail,
     this.extraPracticeCount = 0,
+    this.pausedAt,
+    this.stillNeededPending = false,
+    this.canMakeNotUrgent = false,
   });
+
+  /// OQ-054: the case is hidden from the attorneys' feed («На паузе»).
+  final DateTime? pausedAt;
+  bool get paused => pausedAt != null;
+
+  /// OQ-054: «Вам ещё нужен адвокат?» waits for an answer.
+  final bool stillNeededPending;
+
+  /// OQ-054: «Сменить на «Не срочно»» is offered.
+  final bool canMakeNotUrgent;
 
   /// Owner 2026-10-15: topics besides the first — «+N» on the card.
   final int extraPracticeCount;
@@ -176,12 +209,30 @@ class OwnerCase {
     this.acceptedBid,
     this.conversationId,
     this.photos = const [],
+    this.privateDetails,
     this.stalePromptSentAt,
     this.coverKey,
     this.urgency,
     this.urgencyDetail,
     this.extraPractices = const [],
+    this.pausedAt,
+    this.stillNeededPending = false,
+    this.canMakeNotUrgent = false,
   });
+
+  /// Owner 2026-10-18: the client's private details (null = none).
+  final String? privateDetails;
+
+  /// OQ-054: the case is hidden from the attorneys' feed; «Вернуть» brings
+  /// it back.
+  final DateTime? pausedAt;
+  bool get paused => pausedAt != null;
+
+  /// OQ-054: «Вам ещё нужен адвокат?» waits for an answer.
+  final bool stillNeededPending;
+
+  /// OQ-054: «Сменить на «Не срочно»» is offered (urgent, older than 7 days).
+  final bool canMakeNotUrgent;
 
   /// Owner 2026-10-15: topics 2..N of the case (the first is [practice]).
   final List<PracticeRef> extraPractices;
@@ -379,6 +430,7 @@ class CaseDossier {
     this.imagesCount = 0,
     this.documentsCount = 0,
     this.descriptionLength = 0,
+    this.privateDetailsLength = 0,
   });
 
   static const empty = CaseDossier();
@@ -386,6 +438,10 @@ class CaseDossier {
   final int imagesCount;
   final int documentsCount;
   final int descriptionLength;
+
+  /// Owner 2026-10-18: length of the client's private details (0 = none);
+  /// the text opens to the accepted attorney only.
+  final int privateDetailsLength;
 }
 
 /// Attorney feed card and detail (docs/04 §4.2, §4.3). No client field
@@ -407,6 +463,7 @@ class FeedCase {
     required this.isNew,
     required this.hasOwnBid,
     this.description,
+    this.privateDetails,
     this.excerpt = '',
     this.isSaved = false,
     this.ownBidId,
@@ -427,7 +484,11 @@ class FeedCase {
     this.urgency,
     this.urgencyDetail,
     this.dossier = CaseDossier.empty,
+    this.clientActivity,
   });
+
+  /// OQ-054: the card's «В сети / Был …» line; null = hidden by privacy.
+  final ClientActivity? clientActivity;
 
   /// Audit 2026-10-04 (detail only): this attorney's bid is the accepted
   /// one — the case belongs on the work screen.
@@ -504,6 +565,10 @@ class FeedCase {
   final int photosCount;
   final String? description;
 
+  /// Owner 2026-10-18: the client's private details — only once this
+  /// attorney's bid was accepted (null otherwise).
+  final String? privateDetails;
+
   /// Owner 2026-09-30: short description preview for the feed card.
   final String excerpt;
   final bool isSaved;
@@ -526,6 +591,7 @@ class FeedCase {
         isNew: isNew,
         hasOwnBid: hasOwnBid,
         description: description,
+        privateDetails: privateDetails,
         isSaved: isSaved ?? this.isSaved,
         ownBidId: ownBidId,
         excerpt: excerpt,

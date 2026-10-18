@@ -302,6 +302,8 @@ export class SearchService {
       budgetMaxCents:
         dto.budgetMax === undefined ? undefined : dto.budgetMax * 100,
       budgetUnknown: dto.budgetUnknown,
+      budgetPercent: dto.budgetPercent,
+      percentMax: dto.percentMax,
       noBids: dto.noBids,
       minUrgency: dto.minUrgency,
       hasDeadline: dto.hasDeadline,

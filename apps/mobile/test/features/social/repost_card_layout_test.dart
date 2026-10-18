@@ -58,7 +58,11 @@ void main() {
         final line = t.getTopLeft(find.textContaining('james.whitfield'));
         expect(line.dy, greaterThan(name.dy));
         expect(line.dy - name.dy, lessThan(40 * scale));
-        expect(line.dx, name.dx);
+        // Owner 2026-10-18: the line starts with a small ↻; it sits on the
+        // name's edge and the text follows it.
+        final icon = t.getTopLeft(find.byIcon(AppIcons.autoModeRounded).first);
+        expect(icon.dx, name.dx);
+        expect(line.dx, greaterThan(name.dx));
       });
     }
   }

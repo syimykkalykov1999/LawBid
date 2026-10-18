@@ -1125,18 +1125,22 @@ class _ThreadsPost extends ConsumerWidget {
           large: inDetail,
         );
 
-    Widget action(Widget icon, int count) => Row(
+    Widget action(Widget icon, int count, {VoidCallback? onCountTap}) => Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             icon,
             if (count > 0)
-              Padding(
-                padding: const EdgeInsetsDirectional.only(end: AppSpacing.sm),
-                child: Text(
-                  SocialFormat.count(f, count),
-                  style: type.bodySmall.copyWith(
-                    color: colors.textSecondary,
-                    fontSize: 13,
+              GestureDetector(
+                onTap: onCountTap,
+                behavior: HitTestBehavior.opaque,
+                child: Padding(
+                  padding: const EdgeInsetsDirectional.only(end: AppSpacing.sm),
+                  child: Text(
+                    SocialFormat.count(f, count),
+                    style: type.bodySmall.copyWith(
+                      color: colors.textSecondary,
+                      fontSize: 13,
+                    ),
                   ),
                 ),
               ),
@@ -1254,11 +1258,26 @@ class _ThreadsPost extends ConsumerWidget {
               username: who.username,
               isClient: who.isClient,
             ),
-            child: Text(
-              t.t('post.repostedBy', {'username': who.username}),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: type.caption.copyWith(color: colors.textSecondary),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AppIcon(
+                  AppIcons.autoModeRounded,
+                  size: 12,
+                  color: colors.textSecondary,
+                ),
+                const SizedBox(width: AppSpacing.xs),
+                Flexible(
+                  child: Text(
+                    who.id == ref.read(currentUserIdProvider)
+                        ? t.t('post.repostedByMe')
+                        : t.t('post.repostedBy', {'username': who.label}),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: type.caption.copyWith(color: colors.textSecondary),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -1344,9 +1363,11 @@ class _ThreadsPost extends ConsumerWidget {
                       extent: 34,
                       label:
                           t.t(p.repostedByMe ? 'post.unrepost' : 'post.repost'),
-                      onTap: () => run(() => actions.toggleRepost(p)),
+                      onTap: () => showRepostSheet(context, ref, p),
                     ),
                     p.repostCount,
+                    // Owner 2026-10-18: the counter opens who reposted.
+                    onCountTap: () => showRepostersList(context, p.id),
                   ),
                   action(
                     BounceIcon(

@@ -518,6 +518,7 @@ export class RecommendationsService {
               comment_count: true,
               urgency: true,
               deadline_at: true,
+              client_active_at: true,
             },
           }),
           this.caseViewer(attorneyId, candidates),
@@ -552,6 +553,7 @@ export class RecommendationsService {
               commentCount: r.comment_count,
               urgency: r.urgency,
               deadlineAt: r.deadline_at,
+              clientActiveAt: r.client_active_at,
               clientRatingAvg: Number(client?.rating_avg ?? 0),
               clientRatingCount: client?.rating_count ?? 0,
             };

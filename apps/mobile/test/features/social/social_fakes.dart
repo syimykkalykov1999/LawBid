@@ -129,6 +129,20 @@ class FakeSocialRepository implements SocialRepository {
     return CursorPage(items: posts);
   }
 
+  List<Post> reposts = const [];
+  List<PersonRow> reposters = const [];
+
+  @override
+  Future<CursorPage<Post>> userReposts(String userId, {String? cursor}) async =>
+      CursorPage(items: reposts);
+
+  @override
+  Future<CursorPage<PersonRow>> postReposters(
+    String postId, {
+    String? cursor,
+  }) async =>
+      CursorPage(items: reposters);
+
   @override
   Future<CursorPage<SavedPost>> savedPosts({String? cursor}) async =>
       const CursorPage(items: []);

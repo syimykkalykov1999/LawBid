@@ -22,6 +22,7 @@ import 'package:lawbid/features/cases/presentation/widgets/case_header.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_invites_section.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_parts.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_photos.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_stale_banner.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_urgency_picker.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_wizard_steps.dart';
@@ -280,22 +281,6 @@ class _OwnerCaseScreenState extends ConsumerState<OwnerCaseScreen> {
             sort: _sort,
             bidsKey: _bidsKey,
             onSort: (s) => setState(() => _sort = s),
-            onKeepAlive: _busy
-                ? null
-                : () => _run(
-                      () => ref.read(caseActionsProvider).keepAlive(c.id),
-                      doneKey: 'cases.owner.keptAlive',
-                    ),
-            onClose: _busy
-                ? null
-                : () => _confirm(
-                      title: 'cases.owner.closeTitle',
-                      message: 'cases.owner.closeMessage',
-                      confirm: 'cases.owner.close',
-                      action: () =>
-                          ref.read(caseActionsProvider).closeCase(c.id),
-                      doneKey: 'cases.owner.closed',
-                    ),
           ),
         ),
       ),
@@ -345,12 +330,8 @@ class _OwnerCaseBody extends ConsumerWidget {
     required this.sort,
     required this.bidsKey,
     required this.onSort,
-    required this.onKeepAlive,
-    required this.onClose,
   });
 
-  final VoidCallback? onKeepAlive;
-  final VoidCallback? onClose;
   final OwnerCase kase;
   final Translator t;
   final L10nFormats formats;
@@ -489,8 +470,6 @@ class _OwnerCaseBody extends ConsumerWidget {
       sort: sort,
       bidsKey: bidsKey,
       onSort: onSort,
-      onKeepAlive: onKeepAlive,
-      onClose: onClose,
     );
   }
 }
@@ -505,8 +484,6 @@ class _OwnerOpenCase extends ConsumerStatefulWidget {
     required this.sort,
     required this.bidsKey,
     required this.onSort,
-    required this.onKeepAlive,
-    required this.onClose,
   });
 
   final OwnerCase kase;
@@ -515,8 +492,6 @@ class _OwnerOpenCase extends ConsumerStatefulWidget {
   final BidsSort sort;
   final CaseBidsKey bidsKey;
   final ValueChanged<BidsSort> onSort;
-  final VoidCallback? onKeepAlive;
-  final VoidCallback? onClose;
 
   @override
   ConsumerState<_OwnerOpenCase> createState() => _OwnerOpenCaseState();
@@ -533,8 +508,6 @@ class _OwnerOpenCaseState extends ConsumerState<_OwnerOpenCase> {
     final sort = widget.sort;
     final bidsKey = widget.bidsKey;
     final onSort = widget.onSort;
-    final onKeepAlive = widget.onKeepAlive;
-    final onClose = widget.onClose;
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final bids = ref.watch(caseBidsProvider(bidsKey));
@@ -588,8 +561,10 @@ class _OwnerOpenCaseState extends ConsumerState<_OwnerOpenCase> {
                 CaseFormat.practice(t, p.i18nKey, p.nameEn),
             ].join(' · '),
             categoryCode: c.practice.artCode,
-            statusLabel: caseStatusLabel(t, c.status),
-            statusTone: caseTone(c.status),
+            statusLabel: caseStatusLabelOf(t, c.status, paused: c.paused),
+            statusTone: c.paused && c.status == CaseStatus.open
+                ? StatusTone.neutral
+                : caseTone(c.status),
             title: c.title,
             states: [c.primaryStateCode, ...c.additionalStateCodes],
             budget: c.budget,
@@ -639,17 +614,18 @@ class _OwnerOpenCaseState extends ConsumerState<_OwnerOpenCase> {
                       message: t.t('cases.owner.archivedNotice'),
                     ),
                   ],
-                  // Audit 2026-10-04: the "still relevant?" prompt.
+                  // OQ-054: «Вам ещё нужен адвокат?» / «Кейс скрыт · Вернуть».
                   if (c.status == CaseStatus.open &&
-                      c.stalePromptSentAt != null) ...[
+                      CaseStaleBanner.needed(
+                        paused: c.paused,
+                        pending: c.stillNeededPending,
+                      )) ...[
                     const SizedBox(height: AppSpacing.lg),
-                    _StaleStrip(
-                      key: const ValueKey('stale-prompt'),
-                      label: t.t('cases.owner.staleShort'),
-                      action: t.t('cases.owner.keepAliveShort'),
-                      onTap: onKeepAlive,
-                      closeLabel: t.t('cases.owner.closeShort'),
-                      onClose: onClose,
+                    CaseStaleBanner(
+                      caseId: c.id,
+                      paused: c.paused,
+                      pending: c.stillNeededPending,
+                      canMakeNotUrgent: c.canMakeNotUrgent,
                     ),
                   ],
                   // Owner 2026-10-05: attorneys the client offered the case to.
@@ -948,89 +924,3 @@ class _AcceptedAttorneyCard extends StatelessWidget {
     );
   }
 }
-
-/// Owner 2026-10-07: «Кейс ещё актуален?» + a small «Да» — no card.
-class _StaleStrip extends StatelessWidget {
-  const _StaleStrip({
-    required this.label,
-    required this.action,
-    required this.onTap,
-    required this.closeLabel,
-    required this.onClose,
-    super.key,
-  });
-
-  final String label;
-  final String action;
-  final VoidCallback? onTap;
-  final String closeLabel;
-  final VoidCallback? onClose;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    return Row(
-      children: [
-        AppIcon(
-          AppIcons.hourglassTopRounded,
-          size: AppSizes.iconSm,
-          color: colors.goldDark,
-        ),
-        const SizedBox(width: AppSpacing.sm),
-        Expanded(
-          child: Text(
-            label,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: type.bodySmall.copyWith(color: colors.text),
-          ),
-        ),
-        const SizedBox(width: AppSpacing.sm),
-        _pill(colors, type, action, onTap, filled: true),
-        const SizedBox(width: AppSpacing.xs),
-        _pill(colors, type, closeLabel, onClose, filled: false),
-      ],
-    );
-  }
-}
-
-Widget _pill(
-  AppColorTokens colors,
-  AppTypographyTokens type,
-  String label,
-  VoidCallback? onTap, {
-  required bool filled,
-}) =>
-    Semantics(
-      button: true,
-      child: AppPressable(
-        onTap: onTap,
-        child: Container(
-          constraints: const BoxConstraints(minHeight: 32),
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.md,
-            vertical: AppSpacing.xs,
-          ),
-          decoration: BoxDecoration(
-            color: filled ? colors.goldTint : null,
-            borderRadius: BorderRadius.circular(AppRadii.pill),
-            border: Border.all(
-              color: filled ? colors.goldStroke : colors.border,
-            ),
-          ),
-          child: Align(
-            widthFactor: 1,
-            heightFactor: 1,
-            child: Text(
-              label,
-              maxLines: 1,
-              style: type.bodySmall.copyWith(
-                color: filled ? colors.goldDark : colors.text,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );

@@ -42,10 +42,13 @@ AdminCaseCardDto _$AdminCaseCardDtoFromJson(Map<String, dynamic> json) =>
       lastActivityAt: DateTime.parse(json['lastActivityAt'] as String),
       createdAt: DateTime.parse(json['createdAt'] as String),
       description: json['description'] as String,
-      city: json['city'] as String?,
+      privateDetails: json['privateDetails'] as String?,
       promotedUntil: json['promotedUntil'] == null
           ? null
           : DateTime.parse(json['promotedUntil'] as String),
+      budgetMode: AdminCaseCardDtoBudgetMode.fromJson(
+        json['budgetMode'] as String,
+      ),
       budgetCents: (json['budgetCents'] as num?)?.toInt(),
       client: AdminPartyDto.fromJson(json['client'] as Map<String, dynamic>),
       states: (json['states'] as List<dynamic>)
@@ -74,9 +77,7 @@ AdminCaseCardDto _$AdminCaseCardDtoFromJson(Map<String, dynamic> json) =>
       closedAt: json['closedAt'] == null
           ? null
           : DateTime.parse(json['closedAt'] as String),
-      budgetMode: AdminCaseCardDtoBudgetMode.fromJson(
-        json['budgetMode'] as String,
-      ),
+      city: json['city'] as String?,
     );
 
 Map<String, dynamic> _$AdminCaseCardDtoToJson(AdminCaseCardDto instance) =>
@@ -105,6 +106,7 @@ Map<String, dynamic> _$AdminCaseCardDtoToJson(AdminCaseCardDto instance) =>
       'lastActivityAt': instance.lastActivityAt.toIso8601String(),
       'createdAt': instance.createdAt.toIso8601String(),
       'description': instance.description,
+      'privateDetails': ?instance.privateDetails,
       'city': ?instance.city,
       'budgetMode': instance.budgetMode.toJson(),
       'budgetCents': ?instance.budgetCents,

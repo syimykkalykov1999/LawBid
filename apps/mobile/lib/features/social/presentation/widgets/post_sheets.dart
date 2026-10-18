@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -19,6 +21,8 @@ import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/data/social_repository.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/screens/create_post_screen.dart';
+import 'package:lawbid/features/social/presentation/screens/social_screens.dart'
+    show RepostersScreen;
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
@@ -41,6 +45,67 @@ Future<void> sharePost(BuildContext context, WidgetRef ref, Post post) async {
   // OQ-037: count it unless the sheet was just closed.
   if (shared) await ref.read(socialActionsProvider).recordShare(post);
 }
+
+/// Owner 2026-10-18: the ↻ button. Not reposted yet → a sheet with
+/// «Репост» (quote posts do not exist in the app, so there is only the
+/// plain repost); already reposted → a sheet with «Отменить репост».
+/// Haptic, optimistic counter, rolled back (with a message) on an error.
+Future<void> showRepostSheet(
+  BuildContext context,
+  WidgetRef ref,
+  Post post,
+) async {
+  final t = ref.read(translatorProvider);
+  final current = ref.read(postOverridesProvider)[post.id] ?? post;
+  if (current.isMine) {
+    // One's own post is never reposted (server rule REPOST_OWN_POST): the
+    // button shows who reposted it, or says why there is nothing to do.
+    if (current.repostCount > 0) {
+      await showRepostersList(context, current.id);
+      return;
+    }
+    final error = await ref.read(socialActionsProvider).toggleRepost(current);
+    if (error != null && context.mounted) {
+      showAppSnackBar(context, errorText(t, error));
+    }
+    return;
+  }
+  final undo = current.repostedByMe;
+  final go = await showAppBottomSheet<bool>(
+    context: context,
+    builder: (sheet) => SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: AppSpacing.md),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const AppSheetHandle(),
+            AppListRow(
+              key: ValueKey(undo ? 'repost-sheet-undo' : 'repost-sheet-do'),
+              icon: AppIcons.autoModeRounded,
+              label: t.t(undo ? 'post.unrepost' : 'post.repost.action'),
+              destructive: undo,
+              showChevron: false,
+              onTap: () => Navigator.of(sheet).pop(true),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+  if (go != true) return;
+  unawaited(HapticFeedback.mediumImpact());
+  final error = await ref.read(socialActionsProvider).toggleRepost(current);
+  if (error != null && context.mounted) {
+    showAppSnackBar(context, errorText(t, error));
+  }
+}
+
+/// The list of people who reposted a post (the counter's tap).
+Future<void> showRepostersList(BuildContext context, String postId) =>
+    Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(builder: (_) => RepostersScreen(postId: postId)),
+    );
 
 /// Opens a person's public profile; your own goes to the Profile tab
 /// instead of a second copy of it on the stack.

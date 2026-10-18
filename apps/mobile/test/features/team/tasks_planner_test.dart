@@ -309,6 +309,21 @@ void main() {
       expect(find.text('Task n'), findsNothing);
     });
 
+    testWidgets('the task search box searches the tasks of the view shown',
+        (tester) async {
+      repo.active = [makeTask('a1'), makeTask('b2')];
+      await pump(tester, const TasksTab());
+      await tester.pumpAndSettle();
+      expect(find.text('Search tasks'), findsOneWidget);
+      await tester.enterText(
+        find.byKey(const ValueKey('tasks-search')),
+        'B2',
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Task a1'), findsNothing);
+      expect(find.text('Task b2'), findsOneWidget);
+    });
+
     testWidgets('the archive tells about the yearly cleanup', (tester) async {
       final at = DateTime.now().subtract(const Duration(days: 10));
       repo.done = [

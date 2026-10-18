@@ -344,6 +344,14 @@ export class FeedService implements FeedProvider {
         const who = names.get(r.userId);
         if (who) reposters.set(r.post.id, who);
       }
+      // Owner 2026-10-18: a post that is already on the page is shown once,
+      // with the header of the most recent reposter the viewer follows.
+      const heads = await this.reposterHeaders(
+        viewer,
+        authorIds,
+        page.map((p) => p.id).filter((id) => !reposters.has(id)),
+      );
+      for (const [postId, who] of heads) reposters.set(postId, who);
     }
 
     await this.markSeen(
@@ -366,6 +374,37 @@ export class FeedService implements FeedProvider {
       items: await this.presenter.present(page, viewer.sub, reposters),
       nextCursor,
     };
+  }
+
+  /** postId → the most recent repost by someone the viewer follows, for
+   * posts already on the page (no new items are added). */
+  private async reposterHeaders(
+    viewer: RequestUser,
+    authorIds: string[],
+    postIds: string[],
+  ): Promise<Map<string, PostReposterDto>> {
+    const out = new Map<string, PostReposterDto>();
+    const followed = authorIds.filter((id) => id !== viewer.sub);
+    if (postIds.length === 0 || followed.length === 0) return out;
+    const blocked = await this.blockedAuthors(viewer);
+    const rows = await this.prisma.postRepost.findMany({
+      where: {
+        post_id: { in: postIds },
+        user_id: {
+          in: followed.filter((id) => !blocked.includes(id)),
+        },
+      },
+      select: { post_id: true, user_id: true },
+      orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+    });
+    const names = await this.presenter.reposterNames(
+      rows.map((r) => r.user_id),
+    );
+    for (const r of rows) {
+      const who = names.get(r.user_id);
+      if (who && !out.has(r.post_id)) out.set(r.post_id, who);
+    }
+    return out;
   }
 
   /** Reposts by [authorIds] made inside (lower, upper): newest first, at

@@ -164,6 +164,34 @@ export class ListCasesFeedQueryDto {
   @IsBoolean()
   budgetUnknown?: boolean;
 
+  @ApiPropertyOptional({
+    description:
+      'Include cases with a percent (contingency) budget. Combined with a dollar range or "clarify later" the options are OR-ed.',
+  })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === true || value === 'true'
+      ? true
+      : value === false || value === 'false'
+        ? false
+        : value,
+  )
+  @IsBoolean()
+  budgetPercent?: boolean;
+
+  @ApiPropertyOptional({
+    minimum: 1,
+    maximum: 100,
+    description:
+      'With budgetPercent: only percent budgets up to this whole percent.',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  percentMax?: number;
+
   @ApiPropertyOptional({ description: 'Only cases nobody has bid on yet.' })
   @IsOptional()
   @Transform(({ value }: { value: unknown }) =>
@@ -264,6 +292,27 @@ export class CaseBudgetDto {
  * can judge it before bidding. Counts and lengths only — the files
  * themselves still open to the accepted attorney alone (OQ-031).
  */
+/** Owner 2026-10-18 (OQ-054): the card's «В сети / Был …» / «Отвечает за
+ * день» line. Absent (null) when the client's activity status is hidden
+ * (reciprocal: or the viewer's own is). */
+export class ClientActivityDto {
+  @ApiProperty({ description: 'In the app right now.' })
+  online!: boolean;
+
+  @ApiPropertyOptional({
+    type: 'integer',
+    nullable: true,
+    description: 'Whole days since the client was last seen; null when online.',
+  })
+  lastSeenDays!: number | null;
+
+  @ApiProperty({
+    description:
+      'Median answer to bids / messages within 24 h over the last 30 days (≥ 3 samples).',
+  })
+  respondsWithinDay!: boolean;
+}
+
 export class CaseDossierDto {
   @ApiProperty({ type: 'integer', description: 'Attached photos (image/*).' })
   imagesCount!: number;
@@ -279,6 +328,13 @@ export class CaseDossierDto {
     description: 'Length of the full description, in characters.',
   })
   descriptionLength!: number;
+
+  @ApiProperty({
+    type: 'integer',
+    description:
+      'Owner 2026-10-18: length of the private details (0 = none); the text itself is for the accepted attorney only.',
+  })
+  privateDetailsLength!: number;
 }
 
 /**
@@ -399,6 +455,10 @@ export class CaseFeedItemDto {
       "Owner 2026-10-05: the client's plan puts the case first in the feed (shown on top of the first page).",
   })
   priorityClient!: boolean;
+  /** Owner 2026-10-18 (OQ-054): the client's activity line. */
+  @ApiPropertyOptional({ type: ClientActivityDto, nullable: true })
+  clientActivity!: ClientActivityDto | null;
+
   /** Owner 2026-10-05: how complete the case is (counts only). */
   @ApiProperty({ type: CaseDossierDto })
   dossier!: CaseDossierDto;
@@ -440,6 +500,14 @@ export class CaseDetailForAttorneyDto extends CaseFeedItemDto {
   /** OQ-031: how many photos the case has (shown to every attorney). */
   @ApiProperty()
   photosCount!: number;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description:
+      "Owner 2026-10-18: private details — only when THIS attorney's bid was accepted (null otherwise; the length is in dossier).",
+  })
+  privateDetails!: string | null;
 
   /** Owner 2026-09-30: the case's practice is one of this attorney's —
    * otherwise "Bid" warns that the client will be told. */

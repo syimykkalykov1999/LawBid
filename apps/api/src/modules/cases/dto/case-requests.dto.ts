@@ -102,6 +102,17 @@ export class CreateCaseDto {
   @MaxTextChars('limits.case_description_chars')
   description!: string;
 
+  @ApiPropertyOptional({
+    maxLength: 50_000,
+    description:
+      'Owner 2026-10-18: private details; only the owner and the accepted attorney read them.',
+  })
+  @IsOptional()
+  @Transform(tidy)
+  @IsString()
+  @MaxTextChars('limits.case_private_details_chars')
+  privateDetails?: string;
+
   @ApiProperty({ pattern: '^[A-Z0-9]{2}$', example: 'NY' })
   @IsString()
   @Matches(STATE_CODE_RE)
@@ -249,6 +260,16 @@ export class UpdateCaseDto {
   @MinLength(DESCRIPTION_MIN)
   @MaxTextChars('limits.case_description_chars')
   description?: string;
+
+  @ApiPropertyOptional({
+    maxLength: 50_000,
+    description: 'Private details; an empty string clears them.',
+  })
+  @IsOptional()
+  @Transform(tidy)
+  @IsString()
+  @MaxTextChars('limits.case_private_details_chars')
+  privateDetails?: string;
 
   @ApiPropertyOptional({
     format: 'uuid',
@@ -423,6 +444,28 @@ export class ListMyCasesQueryDto extends MineFilterFields {
   @Min(1)
   @Max(MY_CASES_PAGE_MAX)
   limit?: number;
+}
+
+export const STILL_NEEDED_ANSWERS = [
+  'still_needed',
+  'wait_better',
+  'not_needed',
+  'make_not_urgent',
+] as const;
+export type StillNeededAnswer = (typeof STILL_NEEDED_ANSWERS)[number];
+
+/** POST /cases/:id/still-needed (OQ-054): the answer to «Вам ещё нужен
+ * адвокат?». `make_not_urgent` is only accepted for an urgent / very urgent
+ * case older than 7 days. */
+export class StillNeededAnswerDto {
+  @ApiProperty({
+    enum: STILL_NEEDED_ANSWERS,
+    enumName: 'StillNeededAnswer',
+    description:
+      '«Да, нужен» / «Жду предложений получше» / «Уже не нужен» (closes the case) / «Сменить на «Не срочно»».',
+  })
+  @IsIn(STILL_NEEDED_ANSWERS)
+  answer!: StillNeededAnswer;
 }
 
 /** PATCH /cases/:id/urgency (owner 2026-10-05): the urgency or the date

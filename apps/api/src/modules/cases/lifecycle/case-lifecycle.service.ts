@@ -23,6 +23,30 @@ import {
   caseNotFound,
   type CaseAction,
 } from '../domain/case-state-machine';
+import {
+  bidWindowStart,
+  shouldArchive,
+  shouldAsk,
+  shouldPause,
+  type StaleFacts,
+  type StaleTimers,
+} from '../domain/case-staleness';
+
+function staleFacts(row: {
+  urgency: string | null;
+  deadline_at: Date | null;
+  client_active_at: Date;
+  stale_prompt_sent_at: Date | null;
+  paused_at: Date | null;
+}): StaleFacts {
+  return {
+    urgency: row.urgency,
+    deadlineAt: row.deadline_at,
+    clientActiveAt: row.client_active_at,
+    promptSentAt: row.stale_prompt_sent_at,
+    pausedAt: row.paused_at,
+  };
+}
 
 /** Actor of a system transition (jobs): no user, no role. */
 const SYSTEM = { userId: null, role: null } as const;
@@ -43,7 +67,7 @@ type Actor = {
  * docs/04_CASES_BIDS.md §10 (stage 4.6): the case lifecycle after a bid is
  * accepted — "Выполнено", confirm / dispute, the admin dispute decision
  * (API stub with a role; the admin screen is docs/06) — plus the system
- * transitions the §10.2 jobs run (stale prompt, auto-archive, auto-close).
+ * transitions the §10.2 jobs run (OQ-054 stale question / pause / archive, auto-close).
  *
  * Every status change goes through CaseStateMachine; bids through
  * BidStateMachine; case_journal via CaseJournalService.append() in the same
@@ -322,26 +346,85 @@ export class CaseLifecycleService {
     return resolved;
   }
 
-  /** §10.2 "Напоминание об актуальности" for one case. Returns false when
-   * the case is no longer due (raced with the client or another run). */
-  async sendStalePrompt(
+  /**
+   * OQ-054: «Вам ещё нужен адвокат?» for one client's due cases, as ONE
+   * in-app notification + push ("2 ваших кейса ждут ответа"), never SMS.
+   * Every case is re-checked under its row lock: still open and visible,
+   * still silent past its timer, not asked in this silent period, and no
+   * new bids in the silent window (a new bid already reminds the client).
+   * Returns the case ids that were asked.
+   */
+  async askStillNeeded(
+    clientId: string,
+    caseIds: string[],
+    now: Date,
+    timers: StaleTimers,
+  ): Promise<string[]> {
+    return withTxRetry(this.prisma, async (tx) => {
+      const asked: string[] = [];
+      for (const caseId of caseIds) {
+        const row = await this.lockCase(tx, caseId);
+        if (
+          !row ||
+          row.client_id !== clientId ||
+          row.status !== 'open' ||
+          !shouldAsk(staleFacts(row), timers, now)
+        ) {
+          continue;
+        }
+        const since = bidWindowStart(staleFacts(row), timers, now);
+        const bid = await tx.bid.findFirst({
+          where: { case_id: caseId, created_at: { gte: since } },
+          select: { id: true },
+        });
+        if (bid) continue;
+        const { plan } = await this.caseMachine.apply(tx, {
+          caseId,
+          action: 'system_stale_prompt',
+          now,
+        });
+        await this.journal.append(tx, {
+          caseId,
+          clientId,
+          actor: SYSTEM,
+          event: plan.event,
+          payload: { stalePrompt: true },
+        });
+        asked.push(caseId);
+      }
+      if (asked.length > 0) {
+        await this.notifications.emit(
+          {
+            type: 'case_still_needed',
+            recipientId: clientId,
+            payload: { caseId: asked[0], caseIds: asked, count: asked.length },
+          },
+          tx,
+        );
+      }
+      return asked;
+    });
+  }
+
+  /** OQ-054: no answer in time — pause one case (silent: no push). Returns
+   * false when the case is no longer due (raced with the client). */
+  async pauseStale(
     caseId: string,
     now: Date,
-    inactiveBefore: Date,
+    timers: StaleTimers,
   ): Promise<boolean> {
     return withTxRetry(this.prisma, async (tx) => {
       const row = await this.lockCase(tx, caseId);
       if (
         !row ||
         row.status !== 'open' ||
-        row.stale_prompt_sent_at ||
-        row.last_activity_at >= inactiveBefore
+        !shouldPause(staleFacts(row), timers, now)
       ) {
         return false;
       }
       const { plan } = await this.caseMachine.apply(tx, {
         caseId,
-        action: 'system_stale_prompt',
+        action: 'system_stale_pause',
         now,
       });
       await this.journal.append(tx, {
@@ -349,27 +432,19 @@ export class CaseLifecycleService {
         clientId: row.client_id,
         actor: SYSTEM,
         event: plan.event,
-        payload: { stalePrompt: true },
+        payload: { stalePause: true },
       });
-      await this.notifications.emit(
-        {
-          type: 'case_stale_prompt',
-          recipientId: row.client_id,
-          payload: { caseId },
-        },
-        tx,
-      );
       return true;
     });
   }
 
-  /** §10.2 auto-archive for one case: archived, active bids rejected_auto
-   * (reason case_archived), pre-acceptance chats closed (§9), client gets
-   * `case_archived`. Re-checks the due condition under the row lock. */
-  async autoArchive(
+  /** OQ-054: paused for `cases.stale_archive_after_pause_days` → archived
+   * like the old auto-archive (active bids rejected_auto with reason
+   * case_archived, chats closed, the client told). */
+  async archivePaused(
     caseId: string,
     now: Date,
-    promptedBefore: Date,
+    timers: StaleTimers,
   ): Promise<boolean> {
     const chat: ChatChange[] = [];
     const done = await withTxRetry(this.prisma, async (tx) => {
@@ -378,9 +453,7 @@ export class CaseLifecycleService {
       if (
         !row ||
         row.status !== 'open' ||
-        !row.stale_prompt_sent_at ||
-        row.stale_prompt_sent_at >= promptedBefore ||
-        row.last_activity_at > row.stale_prompt_sent_at
+        !shouldArchive({ pausedAt: row.paused_at }, timers, now)
       ) {
         return false;
       }
@@ -655,9 +728,14 @@ export class CaseLifecycleService {
         stale_prompt_sent_at: Date | null;
         last_activity_at: Date;
         auto_close_at: Date | null;
+        client_active_at: Date;
+        paused_at: Date | null;
+        urgency: string | null;
+        deadline_at: Date | null;
       }[]
     >`SELECT client_id::TEXT AS client_id, status, stale_prompt_sent_at,
-             last_activity_at, auto_close_at
+             last_activity_at, auto_close_at, client_active_at, paused_at,
+             urgency, deadline_at
       FROM cases WHERE id = ${caseId}::UUID AND deleted_at IS NULL
       FOR UPDATE`;
     return rows[0] ?? null;

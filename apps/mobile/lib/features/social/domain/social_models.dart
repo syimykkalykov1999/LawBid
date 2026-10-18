@@ -206,12 +206,19 @@ class PostReposter {
   const PostReposter({
     required this.id,
     required this.username,
+    this.name = '',
     this.isClient = false,
   });
 
   final String id;
   final String username;
+
+  /// Display name ("First Last"); empty when the person has none.
+  final String name;
   final bool isClient;
+
+  /// What the header shows: the name, else the @username.
+  String get label => name.isEmpty ? username : name;
 }
 
 class Post {

@@ -704,7 +704,10 @@ class _TasksTabState extends ConsumerState<TasksTab> {
           ),
           child: header,
         ),
-        if (_view == TasksView.archive) ...[
+        // Audit 2026-10-18: the search box of this screen looks only in the
+        // tasks of the view shown (today / all / archive): title, notes, case,
+        // place, person, step. Its label says so.
+        if (_view != TasksView.results) ...[
           Padding(
             padding: const EdgeInsets.fromLTRB(
               AppSpacing.screenSide,
@@ -713,14 +716,22 @@ class _TasksTabState extends ConsumerState<TasksTab> {
               0,
             ),
             child: AppTextField(
-              key: const ValueKey('tasks-archive-search'),
+              key: ValueKey(
+                _view == TasksView.archive
+                    ? 'tasks-archive-search'
+                    : 'tasks-search',
+              ),
               controller: _search,
-              label: t.t('tasks.archive.search'),
+              label: t.t(
+                _view == TasksView.archive
+                    ? 'tasks.archive.search'
+                    : 'tasks.search',
+              ),
               leading: const AppIcon(AppIcons.searchRounded),
               onChanged: (_) => setState(() {}),
             ),
           ),
-          _ArchiveNote(t: t, tasks: all),
+          if (_view == TasksView.archive) _ArchiveNote(t: t, tasks: all),
         ],
         const SizedBox(height: AppSpacing.sm),
         Expanded(
@@ -741,7 +752,7 @@ class _TasksTabState extends ConsumerState<TasksTab> {
                     listKey: _key,
                     view: _view,
                     filter: _filter,
-                    query: _view == TasksView.archive ? _search.text : '',
+                    query: _search.text,
                     canAdd: canAdd,
                     onAdd: _add,
                     picked: _choosing ? _picked : null,

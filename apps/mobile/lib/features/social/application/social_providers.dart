@@ -211,6 +211,46 @@ final attorneyNewsProvider = AsyncNotifierProvider.autoDispose
   retry: _noRetry,
 );
 
+/// Owner 2026-10-18: the profile's "Reposts" tab (any role).
+class UserRepostsNotifier extends PagedNotifier<Post> {
+  UserRepostsNotifier(this.userId);
+
+  final String userId;
+
+  @override
+  Future<CursorPage<Post>> fetch(String? cursor) =>
+      ref.read(socialRepositoryProvider).userReposts(userId, cursor: cursor);
+
+  @override
+  Object idOf(Post item) => item.id;
+}
+
+final userRepostsProvider = AsyncNotifierProvider.autoDispose
+    .family<UserRepostsNotifier, PaginatedList<Post>, String>(
+  UserRepostsNotifier.new,
+  retry: _noRetry,
+);
+
+/// Owner 2026-10-18: people who reposted a post.
+class PostRepostersNotifier extends PagedNotifier<PersonRow> {
+  PostRepostersNotifier(this.postId);
+
+  final String postId;
+
+  @override
+  Future<CursorPage<PersonRow>> fetch(String? cursor) =>
+      ref.read(socialRepositoryProvider).postReposters(postId, cursor: cursor);
+
+  @override
+  Object idOf(PersonRow item) => item.id;
+}
+
+final postRepostersProvider = AsyncNotifierProvider.autoDispose
+    .family<PostRepostersNotifier, PaginatedList<PersonRow>, String>(
+  PostRepostersNotifier.new,
+  retry: _noRetry,
+);
+
 /// `state` (OQ-034): only posts of attorneys licensed there.
 typedef TagPostsKey = ({String tag, TagSort sort, String? state});
 
@@ -564,6 +604,10 @@ class SocialActions {
           );
       try {
         await _repo.setReposted(post.id, reposted: reposted);
+        // The "Reposts" tab and the reposters list follow at once.
+        final me = _ref.read(currentUserIdProvider);
+        if (me != null) _ref.invalidate(userRepostsProvider(me));
+        _ref.invalidate(postRepostersProvider(post.id));
       } on Object {
         _ref.read(postOverridesProvider.notifier).put(before);
         rethrow;

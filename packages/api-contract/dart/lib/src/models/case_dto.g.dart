@@ -10,6 +10,7 @@ CaseDto _$CaseDtoFromJson(Map<String, dynamic> json) => CaseDto(
   id: json['id'] as String,
   title: json['title'] as String,
   description: json['description'] as String,
+  privateDetails: json['privateDetails'] as String?,
   practiceArea: PracticeAreaRefDto.fromJson(
     json['practiceArea'] as Map<String, dynamic>,
   ),
@@ -58,6 +59,7 @@ Map<String, dynamic> _$CaseDtoToJson(CaseDto instance) => <String, dynamic>{
   'id': instance.id,
   'title': instance.title,
   'description': instance.description,
+  'privateDetails': ?instance.privateDetails,
   'practiceArea': instance.practiceArea.toJson(),
   'extraPracticeAreas': instance.extraPracticeAreas
       .map((e) => e.toJson())

@@ -158,7 +158,7 @@ cases.field.titleError,From {min} to {max} characters,От {min} до {max} си
 cases.field.description,Description,Описание
 cases.field.descriptionHint,"What happened, when, and what you'd like to achieve","Что произошло, когда и чего вы хотите добиться"
 cases.field.descriptionError,At least {min} characters,Не меньше {min} символов
-cases.field.noContacts,Don't add contacts: they're shared automatically with the attorney you choose.,Не указывайте контакты: они автоматически передаются выбранному адвокату.
+cases.field.noContacts,"No passport, SSN, account numbers, names or addresses.","Без паспорта, SSN, номеров счетов, имён и адресов."
 cases.field.place,Location,Место
 cases.field.primaryState,Main state,Основной штат
 cases.field.state,State,Штат

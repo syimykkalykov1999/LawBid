@@ -119,14 +119,20 @@ export const OWNER_MEDIA_SETTINGS = {
   // Owner 2026-10-15: the recommendation weights of Search (cases for
   // attorneys, people and «you may know», posts and reels) — editable in
   // the admin panel; the sum need not be 1.
-  'reco.case.practice': 0.28,
-  'reco.case.state': 0.18,
-  'reco.case.fresh': 0.16,
-  'reco.case.budget': 0.1,
-  'reco.case.competition': 0.1,
-  'reco.case.urgency': 0.08,
-  'reco.case.client': 0.06,
-  'reco.case.demand': 0.04,
+  'reco.case.practice': 0.2,
+  'reco.case.state': 0.12,
+  'reco.case.fresh': 0.1,
+  'reco.case.budget': 0.06,
+  'reco.case.competition': 0.06,
+  'reco.case.urgency': 0.06,
+  'reco.case.client': 0.04,
+  'reco.case.demand': 0.02,
+  // OQ-054: the client is around (opened / answered lately).
+  'reco.case.clientActive': 0.1,
+  // OQ-054: urgent + an active client first; a silent urgent one drops.
+  'reco.case.urgentActive': 0.17,
+  // OQ-054: «по дате» cases rise as the date gets closer.
+  'reco.case.dateNear': 0.07,
   'reco.people.contact': 0.2,
   'reco.people.state': 0.144,
   'reco.people.practice': 0.176,
@@ -304,6 +310,29 @@ export const OWNER_URGENCY_SETTINGS = {
   'cases.urgency_days_within_month': 31,
   'cases.deadline_reminder_days': [7, 3, 1, 0],
   'cases.deadline_reminders_auto': true,
+} as const;
+
+// Owner 2026-10-17/18 (OQ-054): stale cases in the attorney feed. A case's
+// client is "silent" for `now - client_active_at` (only the client's own
+// actions count, never attorney bids). Silent for `stale_ask_days_<urgency>`
+// → one «Вам ещё нужен адвокат?» (push + in-app, never SMS); unanswered for
+// `stale_pause_days_<urgency>` more → paused (hidden from the feed, one tap
+// brings it back); paused `stale_archive_after_pause_days` → archived.
+// «По дате»: asked once the date has passed, paused
+// `stale_pause_days_by_date` days after the date.
+export const OWNER_STALE_SETTINGS = {
+  'cases.stale_ask_days_very_urgent': 2,
+  'cases.stale_pause_days_very_urgent': 1,
+  'cases.stale_ask_days_urgent': 4,
+  'cases.stale_pause_days_urgent': 2,
+  'cases.stale_ask_days_soon': 7,
+  'cases.stale_pause_days_soon': 3,
+  'cases.stale_ask_days_within_month': 30,
+  'cases.stale_pause_days_within_month': 4,
+  'cases.stale_ask_days_flexible': 30,
+  'cases.stale_pause_days_flexible': 14,
+  'cases.stale_pause_days_by_date': 3,
+  'cases.stale_archive_after_pause_days': 30,
 } as const;
 
 // Owner 2026-10-05: attorney trust levels (docs/ATTORNEY_TRUST.md). The
@@ -605,6 +634,7 @@ export const APP_SETTINGS = {
   ...OWNER_INVITE_SETTINGS,
   ...OWNER_SEAT_SETTINGS,
   ...OWNER_URGENCY_SETTINGS,
+  ...OWNER_STALE_SETTINGS,
   ...OWNER_CONTINGENCY_SETTINGS,
   ...OWNER_TRUST_SETTINGS,
   ...OWNER_TRIAL_SETTINGS,

@@ -15,6 +15,7 @@ class UpdateCaseDto {
   const UpdateCaseDto({
     this.title,
     this.description,
+    this.privateDetails,
     this.practiceAreaId,
     this.extraPracticeAreaIds,
     this.primaryStateCode,
@@ -35,6 +36,9 @@ class UpdateCaseDto {
 
   final String? title;
   final String? description;
+
+  /// Private details; an empty string clears them.
+  final String? privateDetails;
 
   /// A leaf (specialization).
   final String? practiceAreaId;

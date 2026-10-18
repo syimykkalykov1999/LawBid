@@ -16,10 +16,10 @@ import { LicenseRegistryRecheckJob } from './handlers/license-registry-recheck.j
 import { BidSubscriptionLapseJob } from './handlers/bid-subscription-lapse.job';
 import { VerificationLossBillingJob } from './handlers/verification-loss-billing.job';
 import {
-  CaseAutoArchiveJob,
+  CaseStalePauseJob,
   CaseAutoCloseJob,
   CaseCompletionReminderJob,
-  CaseStalePromptJob,
+  CaseStaleAskJob,
 } from './handlers/case-lifecycle.jobs';
 import { CaseDeadlineReminderJob } from './handlers/case-deadline-reminder.job';
 import { CountersReconcileJob } from './handlers/counters-reconcile.job';
@@ -69,8 +69,8 @@ export class CronProcessor {
     private readonly licenseRegistryRecheck: LicenseRegistryRecheckJob,
     private readonly bidSubscriptionLapse: BidSubscriptionLapseJob,
     private readonly verificationLossBilling: VerificationLossBillingJob,
-    private readonly caseStalePrompt: CaseStalePromptJob,
-    private readonly caseAutoArchive: CaseAutoArchiveJob,
+    private readonly caseStaleAsk: CaseStaleAskJob,
+    private readonly caseStalePause: CaseStalePauseJob,
     private readonly caseAutoClose: CaseAutoCloseJob,
     private readonly caseCompletionReminder: CaseCompletionReminderJob,
     private readonly countersReconcile: CountersReconcileJob,
@@ -140,10 +140,10 @@ export class CronProcessor {
         return this.bidSubscriptionLapse.run();
       case CRON_JOBS.verificationLossBilling:
         return this.verificationLossBilling.run();
-      case CRON_JOBS.caseStalePrompt:
-        return this.caseStalePrompt.run();
-      case CRON_JOBS.caseAutoArchive:
-        return this.caseAutoArchive.run();
+      case CRON_JOBS.caseStaleAsk:
+        return this.caseStaleAsk.run();
+      case CRON_JOBS.caseStalePause:
+        return this.caseStalePause.run();
       case CRON_JOBS.caseAutoClose:
         return this.caseAutoClose.run();
       case CRON_JOBS.caseCompletionReminder:

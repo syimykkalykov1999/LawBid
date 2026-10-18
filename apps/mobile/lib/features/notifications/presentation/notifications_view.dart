@@ -69,6 +69,8 @@ String? notificationRoute({
       if (caseId == null) return null;
       return attorney ? AppRoutes.workCase(caseId) : AppRoutes.myCase(caseId);
     case 'case_stale_prompt' ||
+          // Owner 2026-10-18 (OQ-054): the client answers on the case.
+          'case_still_needed' ||
           'completion_requested' ||
           'completion_reminder' ||
           'case_closed' ||
@@ -307,6 +309,15 @@ String notificationText(Translator t, AppNotification n) {
       if (title is String) title,
       if (body is String) body,
     ].join(' — ');
+  }
+  // Owner 2026-10-18 (OQ-054): one question for several cases.
+  if (n.type == 'case_still_needed') {
+    final count = n.payload['count'];
+    return t.plural(
+      'notif.list.case_still_needed',
+      count is num ? count : 1,
+      {'count': '${count is num ? count.toInt() : 1}'},
+    );
   }
   // Owner 2026-10-05: "N days until the case's date".
   if (n.type == 'case_deadline_soon') {

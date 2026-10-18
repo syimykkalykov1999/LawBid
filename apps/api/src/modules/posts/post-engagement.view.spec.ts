@@ -30,6 +30,7 @@ describe('PostEngagementService views', () => {
       { bump } as never,
       {} as never,
       {} as never,
+      {} as never,
     );
     return { service, createMany, bump };
   }

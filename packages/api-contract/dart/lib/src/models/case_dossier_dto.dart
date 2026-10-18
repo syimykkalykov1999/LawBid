@@ -12,6 +12,7 @@ class CaseDossierDto {
     required this.imagesCount,
     required this.documentsCount,
     required this.descriptionLength,
+    required this.privateDetailsLength,
   });
 
   factory CaseDossierDto.fromJson(Map<String, Object?> json) =>
@@ -25,6 +26,9 @@ class CaseDossierDto {
 
   /// Length of the full description, in characters.
   final int descriptionLength;
+
+  /// Owner 2026-10-18: length of the private details (0 = none); the text itself is for the accepted attorney only.
+  final int privateDetailsLength;
 
   Map<String, Object?> toJson() => _$CaseDossierDtoToJson(this);
 }

@@ -152,6 +152,19 @@ export const NOTIFICATION_TEMPLATES: Partial<
       body: 'Другая сторона изменила дату или срочность дела.',
     },
   },
+  // Owner 2026-10-18 (OQ-054): one question per client per run, several
+  // cases grouped ({count|форма|…} = «2 кейса»). Never SMS.
+  case_still_needed: {
+    group: 'cases',
+    en: {
+      title: 'Do you still need an attorney?',
+      body: 'Waiting for your answer: {count|case|cases}. Open and answer in one tap.',
+    },
+    ru: {
+      title: 'Вам ещё нужен адвокат?',
+      body: 'Ждут ответа: {count|кейс|кейса|кейсов}. Откройте и ответьте в одно касание.',
+    },
+  },
   case_stale_prompt: {
     group: 'cases',
     en: {
@@ -609,7 +622,10 @@ export const NOTIFICATION_TEMPLATES: Partial<
   post_repost: {
     group: 'social',
     en: { title: 'New repost', body: 'Someone reposted your post.' },
-    ru: { title: 'Новый репост', body: 'Вашим постом поделились.' },
+    ru: {
+      title: 'Новый репост',
+      body: 'Кто-то сделал репост вашей публикации.',
+    },
   },
   comment_like: {
     group: 'social',
@@ -731,9 +747,30 @@ export function fillTemplate(
   payload: Record<string, unknown>,
 ): TemplateText {
   const fill = (s: string) =>
-    s.replace(/\{([a-zA-Z0-9_]+)\}/g, (m, k: string) => {
-      const v = payload[k];
-      return typeof v === 'number' || typeof v === 'string' ? String(v) : m;
-    });
+    s
+      // `{count|кейс|кейса|кейсов}` → «2 кейса»: three forms follow the
+      // Russian rule (1 / 2–4 / 5+), two forms are one / other.
+      .replace(
+        /\{([a-zA-Z0-9_]+)\|([^{}|]+(?:\|[^{}|]+){1,2})\}/g,
+        (m, k: string, forms: string) => {
+          const n = payload[k];
+          if (typeof n !== 'number') return m;
+          return `${n} ${pluralForm(n, forms.split('|'))}`;
+        },
+      )
+      .replace(/\{([a-zA-Z0-9_]+)\}/g, (m, k: string) => {
+        const v = payload[k];
+        return typeof v === 'number' || typeof v === 'string' ? String(v) : m;
+      });
   return { title: fill(text.title), body: fill(text.body) };
+}
+
+function pluralForm(n: number, forms: string[]): string {
+  const abs = Math.abs(Math.trunc(n));
+  if (forms.length === 2) return abs === 1 ? forms[0] : forms[1];
+  const mod10 = abs % 10;
+  const mod100 = abs % 100;
+  if (mod10 === 1 && mod100 !== 11) return forms[0];
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return forms[1];
+  return forms[2];
 }

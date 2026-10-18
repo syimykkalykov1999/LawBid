@@ -52,6 +52,7 @@ import {
   OrganizeConversationDto,
 } from './chat.dto';
 import { MessageBodyCipher } from '../../common/secrets/message-body-cipher';
+import { touchClientActive } from '../cases/domain/client-activity';
 
 const CONVERSATIONS_PAGE = 20;
 const MESSAGES_PAGE = 30;
@@ -685,6 +686,11 @@ export class ChatService {
       throw error;
     }
 
+    // OQ-054: the client writing in their case's chat is their own action
+    // on that case (the attorney writing never is).
+    if (conv.case_id && user.sub === conv.client_id) {
+      await touchClientActive(this.prisma, conv.case_id, user.sub);
+    }
     const other =
       user.sub === conv.client_id ? conv.attorney_id : conv.client_id;
     const urls = await this.mediaLinks([message]);
@@ -1217,6 +1223,12 @@ export class ChatService {
               : other.avatar_file_id
                 ? (avatars.get(other.avatar_file_id)?.url256 ?? null)
                 : null,
+          // Owner 2026-10-18: the full-size photo for the full-screen view
+          // (the 256 px one looked blurry there).
+          avatarFullUrl:
+            hidden || !other || !other.avatar_file_id
+              ? null
+              : (avatars.get(other.avatar_file_id)?.url ?? null),
           verifiedBadge: other?.attorney_profile?.trust_badge ?? false,
           ...(() => {
             const p = hidden || seenHidden ? undefined : presence.get(otherId);

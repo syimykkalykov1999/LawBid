@@ -24,6 +24,7 @@ import {
   AUTHENTICATED_ERRORS,
 } from '../../common/dto/api-docs.decorators';
 import { ErrorCode } from '../../common/errors/error-code.enum';
+import { PersonItemDto, type PeoplePage } from '../follows/follows.dto';
 import { IdempotencyInterceptor } from '../../idempotency/idempotency.interceptor';
 import { RequireIdempotencyKeyGuard } from '../../idempotency/require-idempotency-key.guard';
 import {
@@ -37,6 +38,7 @@ import {
   PinPostDto,
   PostIdParamDto,
   PostsPageQueryDto,
+  RepostsQueryDto,
   SavedPostItemDto,
   SavedPostsQueryDto,
   UpdatePostDto,
@@ -270,6 +272,34 @@ export class PostsController {
     @Param() p: PostIdParamDto,
   ): Promise<void> {
     return this.engagement.unrepost(user.sub, p.id);
+  }
+
+  @Get('posts/:id/reposts')
+  @ApiOperation({
+    summary: 'Who reposted a post, newest first (owner 2026-10-18)',
+  })
+  @ApiEnvelopeResponse(PersonItemDto, { isArray: true })
+  @ApiErrors({ 403: [E.USER_BLOCKED], 404: [E.POST_NOT_FOUND] })
+  listReposters(
+    @CurrentUser() user: RequestUser,
+    @Param() p: PostIdParamDto,
+    @Query() q: RepostsQueryDto,
+  ): Promise<PeoplePage> {
+    return this.engagement.listReposters(user.sub, p.id, q.cursor);
+  }
+
+  @Get('users/:id/reposts')
+  @ApiOperation({
+    summary: "A user's Reposts profile tab, newest first (owner 2026-10-18)",
+  })
+  @ApiEnvelopeResponse(PostDto, { isArray: true })
+  @ApiErrors({ 403: [E.USER_BLOCKED], 404: [E.NOT_FOUND] })
+  listUserReposts(
+    @CurrentUser() user: RequestUser,
+    @Param() p: PostIdParamDto,
+    @Query() q: RepostsQueryDto,
+  ): Promise<PostPage> {
+    return this.engagement.listUserReposts(user.sub, p.id, q.cursor);
   }
 
   @Get('saved-items/posts')

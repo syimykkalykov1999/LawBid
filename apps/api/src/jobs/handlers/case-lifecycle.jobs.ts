@@ -1,7 +1,13 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import type Redis from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import {
+  isClientDaytime,
+  loadStaleTimers,
+  shouldAsk,
+} from '../../modules/cases/domain/case-staleness';
 import { CaseLifecycleService } from '../../modules/cases/lifecycle/case-lifecycle.service';
 import { NotificationsService } from '../../modules/notifications/notifications.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -9,16 +15,13 @@ import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { withJobLock } from './job-lock';
 import { emitOnce } from './reminder-claim';
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 /** docs/04 §10.2: "работают батчами (500 кейсов за прогон)". */
 export const CASE_JOB_BATCH = 500;
-/** §10.2: no activity for 30 days → "Кейс ещё актуален?". */
-export const STALE_AFTER_DAYS = 30;
-/** §10.2: 14 days after the prompt without activity → archived. */
-export const ARCHIVE_AFTER_PROMPT_DAYS = 14;
 /** §10.2: remind the attorney when ≤ 24 h remain before auto_close_at. */
 export const COMPLETION_REMINDER_WINDOW_MS = 24 * 60 * 60 * 1000;
 
-const DAY_MS = 24 * 60 * 60 * 1000;
 /** Hourly jobs: a lock outliving one run, released at the end. */
 const LOCK_TTL_MS = 55 * 60 * 1000;
 const ZERO_UUID = '00000000-0000-0000-0000-000000000000';
@@ -75,83 +78,202 @@ function logFailure(logger: PinoLogger, job: string) {
     );
 }
 
-/** §10.2 "Напоминание об актуальности" (hourly). */
+interface AskRow {
+  id: string;
+  client_id: string;
+  urgency: string | null;
+  deadline_at: Date | null;
+  client_active_at: Date;
+  stale_prompt_sent_at: Date | null;
+  at: Date;
+}
+
+/**
+ * Owner 2026-10-17/18 (OQ-054), hourly: «Вам ещё нужен адвокат?».
+ *
+ * A case is due when its client has been silent (no action of their own,
+ * attorney bids never count) for the first timer of its urgency
+ * (`cases.stale_ask_days_*`; a «по дате» case: the date has passed).
+ * Per client at most ONE notification per run, grouping their due cases
+ * ("2 ваших кейса ждут ответа"); only in the client's daytime (09:00–21:00
+ * in their time zone, else US Eastern; otherwise the next hourly run
+ * takes it); not when the case got new bids in the silent window; never
+ * twice for the same silent period. In-app + push only, never SMS.
+ * Also the launch cleanup: the same rules, sent when each case's own
+ * timer has run out.
+ */
 @Injectable()
-export class CaseStalePromptJob {
+export class CaseStaleAskJob {
   constructor(
     private readonly prisma: PrismaService,
     private readonly lifecycle: CaseLifecycleService,
     private readonly logger: PinoLogger,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    @Optional() private readonly settings?: AppSettingsService,
   ) {
-    this.logger.setContext(CaseStalePromptJob.name);
+    this.logger.setContext(CaseStaleAskJob.name);
   }
 
   async run(now: Date = new Date()): Promise<CaseJobResult> {
-    const inactiveBefore = new Date(now.getTime() - STALE_AFTER_DAYS * DAY_MS);
+    const timers = await loadStaleTimers(this.settings);
+    const minAsk = Math.min(...Object.values(timers.askDays));
+    const silentBefore = new Date(now.getTime() - minAsk * DAY_MS);
+    const today = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+    );
     const processed = await withJobLock(
       this.redis,
-      'cases.stale-prompt',
+      'cases.stale-ask',
       LOCK_TTL_MS,
-      () =>
-        walk(
-          (after) =>
-            this.prisma.$queryRaw<KeyRow[]>(Prisma.sql`
-              SELECT id::TEXT AS id, last_activity_at AS at
-              FROM cases
-              WHERE status = 'open' AND deleted_at IS NULL
-                AND stale_prompt_sent_at IS NULL
-                AND last_activity_at < ${inactiveBefore}
-                AND (last_activity_at, id) > (${after.at}, ${after.id}::UUID)
-              ORDER BY last_activity_at, id
-              LIMIT ${CASE_JOB_BATCH}`),
-          (id) => this.lifecycle.sendStalePrompt(id, now, inactiveBefore),
-          logFailure(this.logger, 'cases.stale-prompt'),
-        ),
+      async () => {
+        // 1. Due cases, grouped by client.
+        const byClient = new Map<string, string[]>();
+        let cursor: KeyRow = { id: ZERO_UUID, at: new Date(0) };
+        for (;;) {
+          const rows = await this.prisma.$queryRaw<AskRow[]>(Prisma.sql`
+            SELECT id::TEXT AS id, client_id::TEXT AS client_id, urgency,
+                   deadline_at, client_active_at, stale_prompt_sent_at,
+                   client_active_at AS at
+            FROM cases
+            WHERE status = 'open' AND deleted_at IS NULL AND paused_at IS NULL
+              AND (stale_prompt_sent_at IS NULL
+                   OR stale_prompt_sent_at < client_active_at)
+              AND (client_active_at < ${silentBefore}
+                   OR (urgency = 'by_date' AND deadline_at < ${today}))
+              AND (client_active_at, id) > (${cursor.at}, ${cursor.id}::UUID)
+            ORDER BY client_active_at, id
+            LIMIT ${CASE_JOB_BATCH}`);
+          for (const r of rows) {
+            const due = shouldAsk(
+              {
+                urgency: r.urgency,
+                deadlineAt: r.deadline_at,
+                clientActiveAt: r.client_active_at,
+                promptSentAt: r.stale_prompt_sent_at,
+                pausedAt: null,
+              },
+              timers,
+              now,
+            );
+            if (!due) continue;
+            const list = byClient.get(r.client_id) ?? [];
+            list.push(r.id);
+            byClient.set(r.client_id, list);
+          }
+          const last = rows[rows.length - 1];
+          if (rows.length < CASE_JOB_BATCH || !last) break;
+          cursor = last;
+        }
+        // 2. Only clients in their daytime.
+        const zones = await this.timeZones([...byClient.keys()]);
+        let asked = 0;
+        for (const [clientId, caseIds] of byClient) {
+          if (!isClientDaytime(now, zones.get(clientId))) continue;
+          try {
+            asked += (
+              await this.lifecycle.askStillNeeded(
+                clientId,
+                caseIds,
+                now,
+                timers,
+              )
+            ).length;
+          } catch (error) {
+            this.logger.error(
+              {
+                job: 'cases.stale-ask',
+                clientId,
+                err: error instanceof Error ? error.message : String(error),
+              },
+              'stale question failed; skipped',
+            );
+          }
+        }
+        return asked;
+      },
     );
-    this.logger.info({ processed }, 'case stale prompts');
+    this.logger.info({ processed }, 'case stale questions');
     return { processed: processed ?? 0, ran: processed !== null };
+  }
+
+  /** The clients' own time zone (their quiet-hours setting), if any. */
+  private async timeZones(clientIds: string[]): Promise<Map<string, string>> {
+    const out = new Map<string, string>();
+    for (let i = 0; i < clientIds.length; i += 1000) {
+      const rows = await this.prisma.notificationQuietHours.findMany({
+        where: { user_id: { in: clientIds.slice(i, i + 1000) } },
+        select: { user_id: true, timezone: true },
+      });
+      for (const r of rows) out.set(r.user_id, r.timezone);
+    }
+    return out;
   }
 }
 
-/** §10.2 "Автоархивация" (hourly). */
+/**
+ * OQ-054 (hourly): the silent part. A case whose question went unanswered
+ * (and nothing happened since) for the second timer
+ * (`cases.stale_pause_days_*`; «по дате»: N days after the date) is
+ * paused — hidden from the attorneys' feed and search, no push. A case
+ * paused for `cases.stale_archive_after_pause_days` is archived like the
+ * old auto-archive.
+ */
 @Injectable()
-export class CaseAutoArchiveJob {
+export class CaseStalePauseJob {
   constructor(
     private readonly prisma: PrismaService,
     private readonly lifecycle: CaseLifecycleService,
     private readonly logger: PinoLogger,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    @Optional() private readonly settings?: AppSettingsService,
   ) {
-    this.logger.setContext(CaseAutoArchiveJob.name);
+    this.logger.setContext(CaseStalePauseJob.name);
   }
 
   async run(now: Date = new Date()): Promise<CaseJobResult> {
-    const promptedBefore = new Date(
-      now.getTime() - ARCHIVE_AFTER_PROMPT_DAYS * DAY_MS,
+    const timers = await loadStaleTimers(this.settings);
+    const pausedBefore = new Date(
+      now.getTime() - timers.archiveAfterPauseDays * DAY_MS,
     );
     const processed = await withJobLock(
       this.redis,
-      'cases.auto-archive',
+      'cases.stale-pause',
       LOCK_TTL_MS,
-      () =>
-        walk(
+      async () => {
+        const paused = await walk(
           (after) =>
             this.prisma.$queryRaw<KeyRow[]>(Prisma.sql`
               SELECT id::TEXT AS id, stale_prompt_sent_at AS at
               FROM cases
               WHERE status = 'open' AND deleted_at IS NULL
+                AND paused_at IS NULL
                 AND stale_prompt_sent_at IS NOT NULL
-                AND stale_prompt_sent_at < ${promptedBefore}
-                AND last_activity_at <= stale_prompt_sent_at
+                AND stale_prompt_sent_at >= client_active_at
+                AND stale_prompt_sent_at <= ${now}
                 AND (stale_prompt_sent_at, id) > (${after.at}, ${after.id}::UUID)
               ORDER BY stale_prompt_sent_at, id
               LIMIT ${CASE_JOB_BATCH}`),
-          (id) => this.lifecycle.autoArchive(id, now, promptedBefore),
-          logFailure(this.logger, 'cases.auto-archive'),
-        ),
+          (id) => this.lifecycle.pauseStale(id, now, timers),
+          logFailure(this.logger, 'cases.stale-pause'),
+        );
+        const archived = await walk(
+          (after) =>
+            this.prisma.$queryRaw<KeyRow[]>(Prisma.sql`
+              SELECT id::TEXT AS id, paused_at AS at
+              FROM cases
+              WHERE status = 'open' AND deleted_at IS NULL
+                AND paused_at IS NOT NULL
+                AND paused_at <= ${pausedBefore}
+                AND (paused_at, id) > (${after.at}, ${after.id}::UUID)
+              ORDER BY paused_at, id
+              LIMIT ${CASE_JOB_BATCH}`),
+          (id) => this.lifecycle.archivePaused(id, now, timers),
+          logFailure(this.logger, 'cases.stale-archive'),
+        );
+        this.logger.info({ paused, archived }, 'case stale pause / archive');
+        return paused + archived;
+      },
     );
-    this.logger.info({ processed }, 'cases auto-archived');
     return { processed: processed ?? 0, ran: processed !== null };
   }
 }

@@ -10,6 +10,7 @@ import type { RequestUser } from '../../auth/decorators/current-user.decorator';
 import { FilesService } from '../../files/files.service';
 import { caseNotFound } from '../domain/case-state-machine';
 import { CaseAccessPolicy } from '../policies/case-access.policy';
+import { touchClientActive } from '../domain/client-activity';
 import {
   CASE_BIDS_PAGE_DEFAULT,
   type BidAttorneySummaryDto,
@@ -139,6 +140,8 @@ export class CaseBidsService {
       caseId,
     );
     if (access?.kind !== 'owner') throw caseNotFound();
+    // OQ-054: viewing its bids is the client's own action on the case.
+    await touchClientActive(this.prisma, caseId, user.sub);
 
     const sort = query.sort ?? 'newest';
     const limit = query.limit ?? CASE_BIDS_PAGE_DEFAULT;

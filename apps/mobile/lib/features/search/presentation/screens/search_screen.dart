@@ -10,6 +10,7 @@ import 'package:lawbid/features/cases/data/cases_repository.dart'
     show CaseFeedExtras;
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/contacts_sync/presentation/contacts_section.dart';
 import 'package:lawbid/features/feed/application/feed_topics.dart';
@@ -119,7 +120,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   void _onMagnifier() {
     _timer?.cancel();
     final next = normalizeSearch(_controller.text);
-    if (next.length >= kSearchMinChars) {
+    if (isSearchable(next, tagPrefix: _tab == SearchTab.tags)) {
       setState(() => _query = next);
       _recentOf(_tab).remember(next);
     }
@@ -137,7 +138,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     _suggestTimer = Timer(const Duration(milliseconds: 150), () {
       if (mounted && next != _suggestQ) setState(() => _suggestQ = next);
     });
-    if (next.length < kSearchMinChars) {
+    if (!isSearchable(next, tagPrefix: _tab == SearchTab.tags)) {
       if (_query.isNotEmpty) setState(() => _query = '');
       return;
     }
@@ -438,17 +439,29 @@ class _Results extends ConsumerWidget {
         );
       case SearchTab.tags:
         // Practices whose name matches come first, then hashtags.
-        final lower = query.toLowerCase().replaceAll('#', '');
+        final lower = query.toLowerCase().replaceAll('#', '').trim();
+        // Audit 2026-10-18: any language and subtopic names (the server).
+        final remote = filters.topicKind == TopicKind.hashtags ||
+                lower.length < kSearchMinChars
+            ? const <String, String?>{}
+            : (ref.watch(practiceMatchesProvider(lower)).value ??
+                const <String, String?>{});
         final practices = filters.topicKind == TopicKind.hashtags
             ? const <String>[]
-            : _sortedPractices(ref, filters, [
-                for (final c in kPracticeCategoryCodes)
-                  if ((kPracticeCategoryNamesEn[c] ?? c)
-                          .toLowerCase()
-                          .contains(lower) ||
-                      topicTagFor(c).contains(lower))
-                    c,
-              ]);
+            : _sortedPractices(
+                ref,
+                filters,
+                matchingPracticeCategories(
+                  codes: kPracticeCategoryCodes,
+                  query: lower,
+                  localName: (c) => topicName(ref, c),
+                  englishName: (c) => kPracticeCategoryNamesEn[c] ?? c,
+                  tag: topicTagFor,
+                  remoteCategories: {
+                    for (final k in remote.keys) k.split('.').first,
+                  },
+                ),
+              );
         return AsyncDetailBody<List<TagInfo>>(
           value: ref.watch(tagSearchProvider(query)),
           t: t,
@@ -799,7 +812,7 @@ class _BeforeTyping extends ConsumerWidget {
 /// A client's own cases matching [query] (title or practice) and the
 /// "My cases" filters (status, practice area); '' = all.
 List<CaseSummary> _myCases(WidgetRef ref, String query, SearchFilters f) {
-  final q = query.toLowerCase();
+  final t = ref.read(translatorProvider);
   final statuses = f.caseStatus == null
       ? const [
           MyCasesFilter.active,
@@ -812,10 +825,22 @@ List<CaseSummary> _myCases(WidgetRef ref, String query, SearchFilters f) {
   ];
   return [
     for (final c in all)
-      if ((q.isEmpty ||
-              c.title.toLowerCase().contains(q) ||
-              c.practice.nameEn.toLowerCase().contains(q) ||
-              (c.practice.categoryNameEn ?? '').toLowerCase().contains(q)) &&
+      if (myCaseMatches(
+            c.title,
+            [
+              CaseFormat.practice(t, c.practice.i18nKey, c.practice.nameEn),
+              c.practice.nameEn,
+              if (c.practice.categoryNameEn != null) ...[
+                CaseFormat.practice(
+                  t,
+                  c.practice.categoryI18nKey ?? '',
+                  c.practice.categoryNameEn!,
+                ),
+                c.practice.categoryNameEn!,
+              ],
+            ],
+            query,
+          ) &&
           (f.practiceCategory == null ||
               c.practice.artCode == f.practiceCategory))
         c,
@@ -838,6 +863,8 @@ ExploreCasesKey _casesKey(SearchFilters f) => (
         budgetMin: f.budgetMin,
         budgetMax: f.budgetMax,
         budgetUnknown: f.budgetUnknown,
+        budgetPercent: f.budgetPercent,
+        percentMax: f.percentMax,
         noBids: f.noBids,
         minUrgency: f.minUrgency,
         hasDeadline: f.hasDeadline,

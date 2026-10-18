@@ -375,6 +375,7 @@ CaseDraft draftFromCase(OwnerCase c) => CaseDraft(
       practiceNameEn: c.practice.nameEn,
       title: c.title,
       description: c.description,
+      privateDetails: c.privateDetails ?? '',
       primaryStateCode: c.primaryStateCode,
       additionalStateCodes: c.additionalStateCodes,
       city: c.city ?? '',

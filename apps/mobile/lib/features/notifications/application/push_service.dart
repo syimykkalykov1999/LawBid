@@ -176,9 +176,7 @@ class PushService {
     _voipToken = null;
     if (voip != null) {
       try {
-        await _ref
-            .read(notificationsRepositoryProvider)
-            .deleteVoipToken(voip);
+        await _ref.read(notificationsRepositoryProvider).deleteVoipToken(voip);
       } on Object {
         // The server also drops tokens of signed-out sessions.
       }

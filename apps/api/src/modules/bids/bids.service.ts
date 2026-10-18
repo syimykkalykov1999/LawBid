@@ -30,6 +30,7 @@ import {
 import { BidStateMachine, bidNotFound } from './domain/bid-state-machine';
 import type { BidDto } from './dto/bid-responses.dto';
 import type { CounterOfferDto, CreateBidDto } from './dto/bid-requests.dto';
+import { touchClientActive } from '../cases/domain/client-activity';
 
 export type BidWithOffers = Bid & { offers: BidOffer[] };
 type BidWithCase = Bid & { case: { client_id: string; status: string } };
@@ -409,6 +410,8 @@ export class BidsService {
   /** POST /bids/:id/decline (§6.3) — client only. */
   async decline(user: RequestUser, bidId: string): Promise<BidDto> {
     const bid = await this.loadForActor(bidId, user, 'client');
+    // OQ-054: declining is the client's own action on the case.
+    await touchClientActive(this.prisma, bid.case_id, user.sub);
     return this.applyAndRespond(bid.id, 'decline', 'client', {});
   }
 
@@ -420,6 +423,10 @@ export class BidsService {
     dto: CounterOfferDto,
   ): Promise<BidDto> {
     const { bid, by } = await this.loadForEitherParty(bidId, user);
+    // OQ-054: a counter from the client is their own action on the case.
+    if (by === 'client') {
+      await touchClientActive(this.prisma, bid.case_id, user.sub);
+    }
     // Owner 2026-10-17: a contingency bid is negotiated in percent.
     if (bid.fee_type === 'contingency') {
       const policy = await contingencyPolicy(this.settings);

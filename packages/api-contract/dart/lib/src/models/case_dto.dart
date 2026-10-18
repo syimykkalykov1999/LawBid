@@ -20,6 +20,7 @@ class CaseDto {
     required this.id,
     required this.title,
     required this.description,
+    required this.privateDetails,
     required this.practiceArea,
     required this.extraPracticeAreas,
     required this.primaryStateCode,
@@ -56,6 +57,9 @@ class CaseDto {
   final String id;
   final String title;
   final String description;
+
+  /// Owner 2026-10-18: the private details — only for the owner and the accepted attorney.
+  final String? privateDetails;
   final PracticeAreaRefDto practiceArea;
 
   /// Topics 2..N of the case (owner 2026-10-15).

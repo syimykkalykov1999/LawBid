@@ -175,6 +175,7 @@ class _PromoteSheetState extends ConsumerState<PromoteSheet> {
       initial: _audience.topics.toSet(),
       // The server matches by category (a viewer's practice areas).
       options: practiceOptions(ref).where((o) => !o.nested).toList(),
+      remoteSearch: practiceRemoteSearch(ref),
     );
     if (picked != null && mounted) {
       setState(() => _audience = _audience.copyWith(topics: picked.toList()));
