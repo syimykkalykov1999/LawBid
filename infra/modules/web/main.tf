@@ -61,6 +61,45 @@ variable "extra_connect_src" {
   description = "More hosts the page may call (push, storage, video, socket)."
 }
 
+# Owner 2026-10-18 (release check): on the live site the page could call only
+# the API, so the browser blocked photo/file uploads (presigned S3 POST),
+# video uploads (Bunny TUS), images and videos the engine reads through
+# fetch, the engine's fallback fonts for Chinese/Arabic/Hindi/…
+# (fonts.gstatic.com) and the card page's Stripe script and frames.
+variable "media_origins" {
+  type        = list(string)
+  default     = []
+  description = "Origins of the media CDN / custom media domain (https://<id>.cloudfront.net)."
+}
+
+variable "app_connect_src" {
+  type = list(string)
+  default = [
+    "https://*.amazonaws.com",   # uploads (presigned POST) and signed links
+    "https://*.cloudfront.net",  # media CDN
+    "https://video.bunnycdn.com", # video uploads (TUS)
+    "https://*.b-cdn.net",       # video playback
+    "https://fonts.gstatic.com", # engine fallback fonts
+    "https://api.stripe.com",    # card page (/pay.html)
+    "https://*.stripe.com",
+    "https://*.stripe.network",
+    "https://maps.googleapis.com",
+  ]
+  description = "Hosts the app itself calls besides the API (storage, media, video, fonts, Stripe)."
+}
+
+variable "stripe_script_src" {
+  type        = list(string)
+  default     = ["https://js.stripe.com", "https://*.js.stripe.com", "https://maps.googleapis.com"]
+  description = "Stripe.js for the card page (/pay.html)."
+}
+
+variable "stripe_frame_src" {
+  type        = list(string)
+  default     = ["https://js.stripe.com", "https://*.js.stripe.com", "https://hooks.stripe.com"]
+  description = "Stripe card fields and 3-D Secure frames on the card page."
+}
+
 variable "cross_origin_isolation" {
   type        = bool
   default     = false
@@ -184,13 +223,14 @@ resource "aws_cloudfront_response_headers_policy" "web" {
     content_security_policy {
       content_security_policy = join("; ", [
         "default-src 'self'",
-        "script-src 'self' 'wasm-unsafe-eval' 'unsafe-inline' https://www.gstatic.com",
+        "script-src ${join(" ", concat(["'self'", "'wasm-unsafe-eval'", "'unsafe-inline'", "https://www.gstatic.com"], var.stripe_script_src))}",
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
         "font-src 'self' data: https://fonts.gstatic.com https://www.gstatic.com",
         "img-src 'self' data: blob: https:",
         "media-src 'self' blob: https:",
         "worker-src 'self' blob:",
-        "connect-src ${join(" ", concat(["'self'", var.api_origin, "wss://${replace(var.api_origin, "https://", "")}"], var.extra_connect_src))}",
+        "connect-src ${join(" ", concat(["'self'", var.api_origin, "wss://${replace(var.api_origin, "https://", "")}"], var.extra_connect_src, var.app_connect_src, var.media_origins))}",
+        "frame-src ${join(" ", concat(["'self'"], var.stripe_frame_src))}",
         "frame-ancestors 'none'",
         "base-uri 'self'",
       ])

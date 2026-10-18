@@ -283,6 +283,7 @@ module "web" {
   cross_origin_isolation = var.web_cross_origin_isolation
   hosted_zone_id         = var.hosted_zone_id == null ? "" : var.hosted_zone_id
   api_origin             = "https://${var.api_host}"
+  media_origins          = ["https://${module.s3.media_cdn_domain}"]
   tags                   = local.tags
 }
 
