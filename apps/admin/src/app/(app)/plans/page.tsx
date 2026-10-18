@@ -478,7 +478,7 @@ function BidPacksCard({ canWrite }: { canWrite: boolean }) {
       </p>
       <div className="mt-3 grid gap-2">
         {current.map((r, i) => (
-          <div key={i} className="grid grid-cols-[1fr_1fr_1fr_auto] items-end gap-2">
+          <div key={i} className="grid grid-cols-2 items-end gap-2 sm:grid-cols-[1fr_1fr_1fr_auto]">
             <Field label="Код">
               <Input value={r.id} disabled={!canWrite} onChange={(e) => set(i, { id: e.target.value.toLowerCase() })} />
             </Field>
@@ -1063,7 +1063,7 @@ function PlanDialog({
           </div>
           {d.highlights.length === 0 ? <p className="text-xs text-muted">Пока пусто — приложение покажет список возможностей из каталога.</p> : null}
           {d.highlights.map((h, i) => (
-            <div key={i} className="grid grid-cols-[1fr_1fr_auto] items-center gap-2">
+            <div key={i} className="grid grid-cols-[1fr_auto] items-center gap-2 sm:grid-cols-[1fr_1fr_auto]">
               <Input aria-label={`Преимущество ${i + 1}, по-русски`} placeholder="По-русски" maxLength={300} value={h.ru ?? ''} onChange={(e) => set('highlights', d.highlights.map((x, j) => (j === i ? { ...x, ru: e.target.value } : x)))} />
               <Input aria-label={`Преимущество ${i + 1}, по-английски`} placeholder="In English" maxLength={300} value={h.en ?? ''} onChange={(e) => set('highlights', d.highlights.map((x, j) => (j === i ? { ...x, en: e.target.value } : x)))} />
               <Button type="button" size="icon" variant="ghost" aria-label="Убрать" onClick={() => set('highlights', d.highlights.filter((_, j) => j !== i))}>

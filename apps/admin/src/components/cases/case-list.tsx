@@ -115,7 +115,7 @@ export function CaseList() {
             }}
           >
             <MagnifyingGlass size={16} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-faint" />
-            <Input className="w-72 pl-9" placeholder="Название кейса, Enter — искать" value={draft} onChange={(e) => setDraft(e.target.value)} />
+            <Input className="w-full pl-9 sm:w-72" placeholder="Название кейса, Enter — искать" value={draft} onChange={(e) => setDraft(e.target.value)} />
           </form>
           <form
             onSubmit={(e) => {

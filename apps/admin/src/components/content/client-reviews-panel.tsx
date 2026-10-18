@@ -141,7 +141,7 @@ export function ClientReviewsPanel() {
         />
         <div className="relative">
           <MagnifyingGlass size={16} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-faint" />
-          <Input className="w-72 pl-9" placeholder="Текст, автор или клиент" value={input} onChange={(e) => setInput(e.target.value)} />
+          <Input className="w-full pl-9 sm:w-72" placeholder="Текст, автор или клиент" value={input} onChange={(e) => setInput(e.target.value)} />
         </div>
       </div>
       <div className="mb-4 flex flex-wrap items-end gap-3">

@@ -52,7 +52,7 @@ export function ErrorNote({ text }: { text: string | null | undefined }) {
 /** Section title inside a page. */
 export function SectionTitle({ children, action }: { children: React.ReactNode; action?: React.ReactNode }) {
   return (
-    <div className="mt-9 mb-3.5 flex items-center justify-between gap-3">
+    <div className="mt-9 mb-3.5 flex flex-wrap items-center justify-between gap-3">
       <h2 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-faint">{children}</h2>
       {action}
     </div>

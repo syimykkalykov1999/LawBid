@@ -41,7 +41,7 @@ export default function BidsPage() {
         actions={<CsvButton entity="bids" />}
       />
       <div className="mb-4 flex flex-wrap items-end gap-3">
-        <div className="w-80 space-y-1">
+        <div className="w-full space-y-1 sm:w-80">
           <Label htmlFor="bq">Кейс</Label>
           <div className="relative">
             <MagnifyingGlass size={16} weight="light" className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-faint" />

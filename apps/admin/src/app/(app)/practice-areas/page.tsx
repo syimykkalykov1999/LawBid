@@ -117,11 +117,11 @@ export default function PracticeAreasPage() {
           if (code.trim() && name.trim()) create.mutate();
         }}
       >
-        <div className="w-72 space-y-1">
+        <div className="w-full space-y-1 sm:w-72">
           <Label htmlFor="nc">Код новой</Label>
           <Input id="nc" value={code} onChange={(e) => setCode(e.target.value)} placeholder="family_law.surrogacy" />
         </div>
-        <div className="w-72 space-y-1">
+        <div className="w-full space-y-1 sm:w-72">
           <Label htmlFor="nn">Название (EN)</Label>
           <Input id="nn" value={name} onChange={(e) => setName(e.target.value)} placeholder="Surrogacy" />
         </div>
@@ -129,7 +129,7 @@ export default function PracticeAreasPage() {
           <Plus size={16} weight="light" />
           Добавить
         </Button>
-        <div className="ml-auto w-72 space-y-1">
+        <div className="w-full space-y-1 sm:ml-auto sm:w-72">
           <Label htmlFor="pf">Фильтр</Label>
           <div className="relative">
             <MagnifyingGlass size={16} weight="light" className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-faint" />
