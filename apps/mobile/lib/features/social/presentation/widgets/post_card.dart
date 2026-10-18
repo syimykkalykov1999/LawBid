@@ -3300,8 +3300,9 @@ class FeedCaption extends ConsumerStatefulWidget {
 }
 
 class FeedCaptionState extends ConsumerState<FeedCaption> {
-  /// Lines of the title before it is cut (owner 2026-10-18).
-  static const _titleLines = 2;
+  /// The title is ONE line (owner 2026-10-18, final): a longer one is cut
+  /// and the single «ещё» opens it whole.
+  static const _titleLines = 1;
 
   bool _expanded = false;
   final _more = TapGestureRecognizer();
@@ -3458,10 +3459,11 @@ class FeedCaptionState extends ConsumerState<FeedCaption> {
       padding: const EdgeInsets.fromLTRB(AppSpacing.md, 8, AppSpacing.md, 0),
       child: LayoutBuilder(
         builder: (context, outer) {
-          // The title is cut when it does not fit its two lines (measured,
-          // text scale included): then «ещё» shows even if the text below
-          // is short or empty (owner 2026-10-18: a long title must be
-          // readable — two lines, and the one «ещё» opens all of it).
+          // Owner 2026-10-18 (final rule): the title is one line, the text
+          // at most two, and ONE «ещё» opens the sheet with everything:
+          // at the end of the text whenever there is text and anything is
+          // cut (the title or the text); at the end of the title's line
+          // when there is no text; none when everything fits.
           final titleCut = widget.title.isNotEmpty &&
               !_expanded &&
               _overflows(
@@ -3471,14 +3473,8 @@ class FeedCaptionState extends ConsumerState<FeedCaption> {
                 context,
                 _titleLines,
               );
-          final textCut = hasText &&
-              !_expanded &&
-              (hasTags ||
-                  _lines(widget.text, bodyStyle, outer.maxWidth, context) > 2);
-          // ONE «ещё» per caption: at the end of the cut text, else after
-          // the cut title.
           final force = widget.forceMore && !_expanded;
-          final titleMore = (titleCut || (force && !hasText)) && !textCut;
+          final titleMore = (titleCut || force) && !hasText;
           void openMore() {
             if (widget.inPlaceOnly) {
               widget.onMore?.call();
@@ -3543,9 +3539,11 @@ class FeedCaptionState extends ConsumerState<FeedCaption> {
                     // cached (only "> 2" and "> 4" are asked below).
                     final lines =
                         _lines(widget.text, bodyStyle, box.maxWidth, context);
-                    final collapsed =
-                        (lines > 2 || hasTags || widget.forceMore) &&
-                            !_expanded;
+                    final collapsed = (lines > 2 ||
+                            hasTags ||
+                            widget.forceMore ||
+                            titleCut) &&
+                        !_expanded;
                     _more.onTap = () {
                       if (widget.inPlaceOnly) {
                         // Owner 2026-10-13: no inner card — «ещё» always opens

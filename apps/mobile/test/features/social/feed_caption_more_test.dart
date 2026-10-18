@@ -1,6 +1,5 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/static_translator.dart';
@@ -79,7 +78,8 @@ void main() {
       (t) async {
     await pump(t, title: longTitle, text: 'Short text');
     expect(more(), findsOneWidget);
-    expect(find.text(longTitle), findsNothing);
+    // Owner 2026-10-18: the title stays one line; «ещё» ends the text.
+    expect(t.widget<Text>(find.text(longTitle)).maxLines, 1);
     await tapMore(t);
     expect(more(), findsNothing);
     expect(find.text(longTitle), findsOneWidget);
@@ -135,16 +135,19 @@ void main() {
     expect(find.text('Short title'), findsOneWidget);
   });
 
-  testWidgets('a title of two lines is shown whole, no «…» (photo post)',
+  testWidgets('the title is one line; with text, «ещё» ends the text',
       (t) async {
-    const title = 'Marriage green card, step by step: the evidence file';
-    await pump(t, title: title, text: longText);
+    const title = 'Marriage green card, step by step: the evidence file, the '
+        'interview and what to bring';
+    await pump(t, title: title, text: 'Short text');
     final text = t.widget<Text>(find.text(title));
-    expect(text.maxLines, 2);
-    final box = t.renderObject<RenderParagraph>(
-      find.descendant(of: find.text(title), matching: find.byType(RichText)),
-    );
-    expect(box.didExceedMaxLines, isFalse);
+    expect(text.maxLines, 1);
+    expect(more(), findsOneWidget);
+    final rich = t
+        .widgetList<RichText>(find.byType(RichText))
+        .map((r) => r.text.toPlainText())
+        .firstWhere((s) => s.contains('ещё'));
+    expect(rich, startsWith('Short text'));
   });
 
   testWidgets('a post with files: «ещё» even when nothing is cut',
