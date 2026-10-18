@@ -19,6 +19,7 @@ import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
 import 'package:lawbid/features/feed/application/news_flag.dart';
 import 'package:lawbid/features/onboarding/presentation/widgets/option_picker_sheet.dart';
 import 'package:lawbid/features/plans/presentation/plan_offer.dart';
+import 'package:lawbid/features/practice/practice_matches.dart';
 import 'package:lawbid/features/practice/practice_options.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/reels/application/reel_publish_job.dart';
@@ -28,7 +29,6 @@ import 'package:lawbid/features/reels/domain/reel_cut.dart';
 import 'package:lawbid/features/reels/presentation/reel_video.dart'
     show formatReelDuration;
 import 'package:lawbid/features/reels/presentation/video_editor_screen.dart';
-import 'package:lawbid/features/search/application/search_providers.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/data/social_repository.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';

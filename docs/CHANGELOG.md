@@ -5,6 +5,11 @@ All notable changes to this project are documented here, per
 .cursorrules (each stage ends with a CHANGELOG update + commit on
 branch cursor/stage-X-Y-description).
 
+## Tech debt: topic pickers no longer depend on Search (2026-10-18)
+
+- `practiceMatchesProvider` moved from `features/search/application/search_providers.dart` to `features/practice/practice_matches.dart` (its own `SearchClient.practices` call); `SearchRepository.practices` removed. Practice options, the practices screen, the case wizard, the new-post screen and Search all read it from the practice feature.
+- Feature-boundary baseline lowered back: practice 5→4, profile 21→20.
+
 ## Stale-case prompt explains itself (2026-10-18, OQ-054 follow-up)
 
 Owner: "I did not understand why «Вам ещё нужен адвокат?» appeared and when the case disappears".

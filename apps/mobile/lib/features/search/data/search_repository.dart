@@ -221,10 +221,6 @@ abstract interface class SearchRepository {
   /// names starting with [q].
   Future<List<SearchSuggestion>> suggest(String q);
 
-  /// Owner 2026-10-15: practices whose name in ANY language starts with
-  /// [q] (code → the word that matched, when not the English name).
-  Future<Map<String, String?>> practices(String q);
-
   /// Owner 2026-10-15: the person opened a result of [q] — the search
   /// learns "query → topic" from it. Never throws and never waits.
   void opened(String q, SearchOpened type, String id);
@@ -243,12 +239,6 @@ class SearchSuggestion {
 
 class ApiSearchRepository implements SearchRepository {
   ApiSearchRepository(Dio dio) : _search = api.SearchClient(dio);
-
-  @override
-  Future<Map<String, String?>> practices(String q) async {
-    final env = await guardApiCall(() => _search.practices(q: q));
-    return {for (final m in env.data) m.code: m.hit};
-  }
 
   @override
   Future<List<SearchSuggestion>> suggest(String q) async {
