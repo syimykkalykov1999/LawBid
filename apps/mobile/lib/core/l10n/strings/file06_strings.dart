@@ -20,7 +20,9 @@ const file06Ru = <String, String>{
       'Файлы можно отправлять после принятия ставки.',
   // --- Owner 2026-09-30 (OQ-046) ---
   'post.create.practice': 'Квалификация',
-  'post.create.practicePick': 'Тема (необязательно)',
+  'post.create.practicePick': 'Тема поста (необязательно)',
+  'post.create.topicHint':
+      'Это публичный пост, не кейс. Тема — чтобы пост увидели те, кому она интересна.',
   'practice.search.hint': 'Начните вводить: арбитраж, виза, развод…',
   'state.search.hint': 'Начните вводить штат',
   'post.create.titleField': 'Заголовок',
@@ -87,7 +89,9 @@ const file06Ru = <String, String>{
   'mine.tab.open': 'Открытые',
   'mine.tab.completed': 'Завершённые',
   'mine.filter.open': 'Открытые',
-  'mine.search.hint': 'Поиск по названию',
+  'mine.search.hint': 'Поиск по моим делам',
+  'mine.search.bids': 'Поиск по моим ставкам',
+  'mine.search.saved': 'Поиск по сохранённым делам',
   'mine.search.filters': 'Фильтры',
   'mine.search.practice': 'Квалификация',
   'mine.search.state': 'Штат',
@@ -345,7 +349,30 @@ const file06Ru = <String, String>{
   // OQ-031 case photos.
   'cases.photos.title': 'Фото и файлы',
   'cases.photos.privacy':
-      'Необязательно: до 9 фото или файлов (PDF, Word). Их увидит только адвокат, чей бид вы примете.',
+      'До {max} фото или файлов (PDF, Word).',
+  'cases.photos.optional': '· необязательно',
+  'cases.photos.tilePhoto': 'Фото',
+  'cases.photos.tileFile': 'Файл',
+  'cases.field.noContacts':
+      'Без паспорта, SSN, номеров счетов, имён и адресов.',
+  'cases.field.brief': 'Кратко о деле',
+  'cases.field.briefHint':
+      'Суть в 2–3 предложениях: что случилось и что нужно',
+  'cases.field.privateDetails': 'Подробности (необязательно)',
+  'cases.field.privateDetailsHint':
+      'Полная история, имена сторон, номер дела, адреса, даты — всё, что нельзя показывать всем',
+  'cases.block.public.title': 'Видят все адвокаты',
+  'cases.block.public.note': '· без вашего имени',
+  'cases.block.private.title': 'Увидит только адвокат, чей бид вы примете',
+  'cases.block.private.footer':
+      'Откроется только после того, как вы примете бид.',
+  'cases.visibility.legal':
+      'LawBid не юридическая фирма и не даёт консультаций.',
+  'cases.review.privateDetails':
+      'Подробности: {n} знаков (видит только принятый адвокат)',
+  'cases.dossier.privateLine': 'Закрытые детали: {items}',
+  'cases.dossier.privateText': 'подробное описание',
+  'cases.private.title': 'Подробности от клиента',
   'cases.photos.add': 'Добавить фото',
   'cases.photos.remove': 'Убрать фото',
   'cases.photos.locked':
@@ -396,6 +423,9 @@ const file06Ru = <String, String>{
   'search.filter.verifiedOnly': 'Только с галочкой',
   'search.filter.budget': 'Бюджет',
   'search.filter.budgetUnknown': 'Бюджет не указан («уточнить позже»)',
+  'search.filter.budgetPercent': 'Проценты',
+  'search.filter.percentMax': 'Процент от компенсации',
+  'search.filter.percentUpTo': 'до {n}%',
   'search.filter.noBids': 'Ещё без бидов',
   'search.filter.status': 'Статус',
   'search.filter.status.active': 'Активные',
@@ -454,7 +484,9 @@ const file06En = <String, String>{
       'Files can be sent once the bid is accepted.',
   // --- Owner 2026-09-30 (OQ-046) ---
   'post.create.practice': 'Qualification',
-  'post.create.practicePick': 'Topic (optional)',
+  'post.create.practicePick': 'Post topic (optional)',
+  'post.create.topicHint':
+      'This is a public post, not a case. The topic helps people who follow it find your post.',
   'practice.search.hint': 'Start typing: arbitration, visa, divorce…',
   'state.search.hint': 'Start typing a state',
   'post.create.titleField': 'Title',
@@ -521,7 +553,9 @@ const file06En = <String, String>{
   'mine.tab.open': 'Open',
   'mine.tab.completed': 'Completed',
   'mine.filter.open': 'Open',
-  'mine.search.hint': 'Search by title',
+  'mine.search.hint': 'Search my cases',
+  'mine.search.bids': 'Search my bids',
+  'mine.search.saved': 'Search saved cases',
   'mine.search.filters': 'Filters',
   'mine.search.practice': 'Qualification',
   'mine.search.state': 'State',
@@ -777,7 +811,30 @@ const file06En = <String, String>{
   // OQ-031 case photos.
   'cases.photos.title': 'Photos and files',
   'cases.photos.privacy':
-      'Optional: up to 9 photos or files (PDF, Word). Only the attorney whose bid you accept will see them.',
+      'Up to {max} photos or files (PDF, Word).',
+  'cases.photos.optional': '· optional',
+  'cases.photos.tilePhoto': 'Photo',
+  'cases.photos.tileFile': 'File',
+  'cases.field.noContacts':
+      'No passport, SSN, account numbers, names or addresses.',
+  'cases.field.brief': 'Case in brief',
+  'cases.field.briefHint':
+      'The point in 2–3 sentences: what happened and what you need',
+  'cases.field.privateDetails': 'Details (optional)',
+  'cases.field.privateDetailsHint':
+      "The full story, names of the parties, case number, addresses, dates — anything you don't want everyone to see",
+  'cases.block.public.title': 'Every attorney sees this',
+  'cases.block.public.note': '· without your name',
+  'cases.block.private.title':
+      'Only the attorney whose bid you accept sees this',
+  'cases.block.private.footer': 'Opens only after you accept a bid.',
+  'cases.visibility.legal':
+      'LawBid is not a law firm and gives no legal advice.',
+  'cases.review.privateDetails':
+      'Details: {n} characters (only the accepted attorney sees them)',
+  'cases.dossier.privateLine': 'Private details: {items}',
+  'cases.dossier.privateText': 'full description',
+  'cases.private.title': 'Details from the client',
   'cases.photos.add': 'Add photo',
   'cases.photos.remove': 'Remove photo',
   'cases.photos.locked':
@@ -829,6 +886,9 @@ const file06En = <String, String>{
   'search.filter.verifiedOnly': 'Verified only',
   'search.filter.budget': 'Budget',
   'search.filter.budgetUnknown': 'No budget ("clarify later")',
+  'search.filter.budgetPercent': 'Percent',
+  'search.filter.percentMax': 'Percent of the recovery',
+  'search.filter.percentUpTo': 'up to {n}%',
   'search.filter.noBids': 'No bids yet',
   'search.filter.status': 'Status',
   'search.filter.status.active': 'Active',

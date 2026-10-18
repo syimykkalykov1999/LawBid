@@ -111,7 +111,7 @@ void main() {
           expect(find.text(t.t('cases.create.exitTitle')), findsOneWidget);
         });
 
-        testWidgets('post form with 9 photos has no add cards, $tag', (
+        testWidgets('post form with 9 photos disables the add cards, $tag', (
           tester,
         ) async {
           await pump(
@@ -122,7 +122,10 @@ void main() {
             dir: dir,
           );
           expect(tester.takeException(), isNull);
-          expect(find.byKey(const ValueKey('post-add-gallery')), findsNothing);
+          expect(
+            find.byKey(const ValueKey('post-add-gallery')),
+            findsOneWidget,
+          );
           expect(find.textContaining('9 / 9'), findsOneWidget);
         });
 
@@ -171,8 +174,7 @@ void main() {
                       ('cases.status.open', 'mine.next.waitingBids', false),
                     ])
                       ActiveCaseCard(
-                        title:
-                            'Demo active: long title for the card in every '
+                        title: 'Demo active: long title for the card in every '
                             'language and every font size',
                         practiceName: t.t('practice.real_estate'),
                         statusLabel: t.t(status),

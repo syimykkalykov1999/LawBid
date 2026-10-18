@@ -640,92 +640,72 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                         onCover: () => _editVideo(1),
                         onRemove: () => setState(() => _video = null),
                       )
-                    else if (video && _photos.isEmpty)
+                    else ...[
+                      // Owner 2026-10-18: the photos strip scrolls on its own;
+                      // Gallery / Camera sit in a fixed row below it.
+                      if (_photos.isNotEmpty) ...[
+                        SizedBox(
+                          key: const ValueKey('post-photo-strip'),
+                          height: 112,
+                          child: ReorderableListView(
+                            scrollDirection: Axis.horizontal,
+                            buildDefaultDragHandles: false,
+                            proxyDecorator: (child, _, __) => Material(
+                              color: Colors.transparent,
+                              child: child,
+                            ),
+                            // ignore: deprecated_member_use
+                            onReorder: (from, to) => setState(() {
+                              final p = _photos.removeAt(from);
+                              _photos.insert(to > from ? to - 1 : to, p);
+                            }),
+                            children: [
+                              for (var i = 0; i < _photos.length; i++)
+                                ReorderableDelayedDragStartListener(
+                                  key: _photos[i].key,
+                                  index: i,
+                                  child: _PhotoTile(
+                                    photo: _photos[i],
+                                    index: i,
+                                    removeLabel: t.t('post.create.removePhoto'),
+                                    retryLabel: t.t('error.retry'),
+                                    onRemove: () =>
+                                        setState(() => _photos.removeAt(i)),
+                                    onRetry: () => _upload(_photos[i]),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+                      ],
                       Row(
                         children: [
                           Expanded(
                             child: _SourceButton(
+                              key: const ValueKey('post-add-gallery'),
                               icon: AppIcons.photoLibraryOutlined,
                               label: t.t('post.src.gallery'),
                               hint: t.t('post.src.galleryHint'),
                               tint: AppColorsFixed.sourceGalleryBlue,
-                              onTap: _pick,
+                              onTap: _photos.length < _maxMedia ? _pick : null,
                             ),
                           ),
                           const SizedBox(width: AppSpacing.md),
                           Expanded(
                             child: _SourceButton(
+                              key: const ValueKey('post-add-camera'),
                               icon: AppIcons.photoCameraOutlined,
                               label: t.t('post.src.camera'),
                               hint: t.t('post.src.cameraHint'),
                               tint: AppColorsFixed.sourceCameraTeal,
-                              onTap: _camera,
+                              onTap:
+                                  _photos.length < _maxMedia ? _camera : null,
                             ),
                           ),
                         ],
-                      )
-                    else
-                      SizedBox(
-                        height: 112,
-                        child: ReorderableListView(
-                          scrollDirection: Axis.horizontal,
-                          buildDefaultDragHandles: false,
-                          proxyDecorator: (child, _, __) => Material(
-                            color: Colors.transparent,
-                            child: child,
-                          ),
-                          // ignore: deprecated_member_use
-                          onReorder: (from, to) => setState(() {
-                            final p = _photos.removeAt(from);
-                            _photos.insert(to > from ? to - 1 : to, p);
-                          }),
-                          // Owner 2026-10-16: the same Gallery / Camera cards
-                          // as the empty state, compact, until the post
-                          // holds its photos.
-                          footer: _photos.length < _maxMedia
-                              ? Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    _SourceButton(
-                                      key: const ValueKey('post-add-gallery'),
-                                      compact: true,
-                                      icon: AppIcons.photoLibraryOutlined,
-                                      label: t.t('post.src.gallery'),
-                                      hint: t.t('post.src.galleryHint'),
-                                      tint: AppColorsFixed.sourceGalleryBlue,
-                                      onTap: _pick,
-                                    ),
-                                    const SizedBox(width: AppSpacing.sm),
-                                    _SourceButton(
-                                      key: const ValueKey('post-add-camera'),
-                                      compact: true,
-                                      icon: AppIcons.photoCameraOutlined,
-                                      label: t.t('post.src.camera'),
-                                      hint: t.t('post.src.cameraHint'),
-                                      tint: AppColorsFixed.sourceCameraTeal,
-                                      onTap: _camera,
-                                    ),
-                                  ],
-                                )
-                              : null,
-                          children: [
-                            for (var i = 0; i < _photos.length; i++)
-                              ReorderableDelayedDragStartListener(
-                                key: _photos[i].key,
-                                index: i,
-                                child: _PhotoTile(
-                                  photo: _photos[i],
-                                  index: i,
-                                  removeLabel: t.t('post.create.removePhoto'),
-                                  retryLabel: t.t('error.retry'),
-                                  onRemove: () =>
-                                      setState(() => _photos.removeAt(i)),
-                                  onRetry: () => _upload(_photos[i]),
-                                ),
-                              ),
-                          ],
-                        ),
                       ),
+                    ],
                     const SizedBox(height: AppSpacing.xs),
                     if (_video != null || _photos.isNotEmpty || !video)
                       Text(
@@ -771,6 +751,12 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                     empty: practice == null && !_unknownTopic,
                     error: false,
                     onTap: _pickPractice,
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(
+                    t.t('post.create.topicHint'),
+                    key: const ValueKey('post-topic-hint'),
+                    style: type.caption.copyWith(color: colors.textSecondary),
                   ),
                   // Owner 2026-10-05: no topic = a general (personal) post
                   // unless the author says it is about law.
@@ -1151,83 +1137,71 @@ class _SourceButton extends StatelessWidget {
     required this.tint,
     required this.onTap,
     super.key,
-    this.compact = false,
   });
 
   final IconData icon;
   final String label;
   final String hint;
   final Color tint;
-  final VoidCallback onTap;
 
-  /// Next to the thumbnails: the same card, narrower, without the hint.
-  final bool compact;
+  /// Null = disabled (the post already holds the maximum).
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    // On a light theme the same hue is darkened to stay readable.
     final dark = Theme.of(context).brightness == Brightness.dark;
-    final base = practiceCardBase(colors);
-    final tile = Color.alphaBlend(tint.withValues(alpha: 0.16), base);
-    // The icon keeps >= 3:1 against its soft square in every theme.
+    // The icon keeps >= 3:1 against the chip in every theme.
     final accent = readableOn(
       dark ? tint : Color.lerp(tint, Colors.black, 0.45)!,
-      tile,
+      colors.chip,
       min: 3,
     );
+    final enabled = onTap != null;
     return Semantics(
       button: true,
+      enabled: enabled,
       label: '$label. $hint',
       excludeSemantics: true,
-      child: AppPressable(
-        onTap: onTap,
-        child: Container(
-          height: compact ? 112 : 100,
-          width: compact ? 96 : null,
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Color.alphaBlend(
-                  accent.withValues(alpha: 0.12),
-                  colors.surface,
-                ),
-                colors.surface,
-              ],
+      child: Opacity(
+        opacity: enabled ? 1 : 0.4,
+        child: AppPressable(
+          onTap: onTap,
+          child: Container(
+            height: 100,
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+            decoration: BoxDecoration(
+              color: colors.chip,
+              borderRadius: BorderRadius.circular(AppRadii.roleCard),
+              border: Border.all(color: colors.border),
             ),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: accent.withValues(alpha: 0.22)),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: accent.withValues(alpha: 0.16),
-                  borderRadius: BorderRadius.circular(14),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: AppIcon(icon, color: accent, size: 24),
                 ),
-                child: AppIcon(icon, color: accent, size: 24),
-              ),
-              const SizedBox(height: 6),
-              FitText(
-                label,
-                style: type.body.copyWith(
-                  color: colors.text,
-                  fontWeight: FontWeight.w600,
+                const SizedBox(height: 6),
+                FitText(
+                  label,
+                  style: type.body.copyWith(
+                    color: colors.text,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-              ),
-              if (!compact)
                 FitText(
                   hint,
                   style: type.caption.copyWith(color: colors.textSecondary),
                 ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
