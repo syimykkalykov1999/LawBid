@@ -138,6 +138,17 @@ row + topic hint; budget step no jump.
 - Simulator «LawBid Web Test» (iPhone 17 Pro, iOS 27) was created for Safari
   checks; Claude needs «Let Claude use it» in the simulator panel to tap.
 
+## Release checks for web/admin (session 3, 2026-10-18 night)
+- Web CSP (infra/modules/web): S3, media CDN, Bunny, fonts.gstatic.com
+  (engine fallback fonts: without it Chinese/Arabic/Hindi showed as boxes)
+  and Stripe for /pay.html are allowed. Live only after `terraform apply`.
+- Translations: deploy.yml imports translations_seed.xlsx after migrations
+  with `--missing-only` (adds new keys/languages/empty cells, never
+  overwrites DB texts such as admin uploads). Whole-table re-import by
+  hand: `scripts/deploy/prod-admin-ecs.sh <tag> i18n-full`.
+- Both builds pass from the branch: `flutter build web --wasm -t
+  lib/main_prod.dart` (all required files) and `next build` (admin).
+
 ## Open / do next (in this order)
 1. DONE (session 2). Stale banner is confusing (owner didn't understand when/why it appeared).
    Rework the whole stale UX (case_stale_banner.dart, My cases, owner case,
