@@ -38,65 +38,69 @@ class ChatFolderPills extends ConsumerWidget {
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenSide),
         children: [
-          for (final f in ChatListFolder.values) ...[
-            Semantics(
-              selected: f == value,
-              button: true,
-              child: GestureDetector(
-                key: ValueKey('chat-folder-${f.name}'),
-                onTap: () {
-                  HapticFeedback.selectionClick();
-                  onChanged(f);
-                },
-                child: AnimatedContainer(
-                  duration: dur,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: f == value ? colors.navy : colors.surface,
-                    borderRadius: BorderRadius.circular(AppRadii.pill),
-                    border: Border.all(
-                      color: f == value ? colors.gold : colors.border,
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        t.t('chat.folder.${f.name}'),
-                        style: type.bodySmall.copyWith(
-                          color: f == value ? AppColorsDark.text : colors.text,
-                          fontWeight: FontWeight.w600,
-                        ),
+          // "General" tab is hidden: it meant the same as "All".
+          for (final f in ChatListFolder.values)
+            if (f != ChatListFolder.general) ...[
+              Semantics(
+                selected: f == value,
+                button: true,
+                child: GestureDetector(
+                  key: ValueKey('chat-folder-${f.name}'),
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    onChanged(f);
+                  },
+                  child: AnimatedContainer(
+                    duration: dur,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: f == value ? colors.navy : colors.surface,
+                      borderRadius: BorderRadius.circular(AppRadii.pill),
+                      border: Border.all(
+                        color: f == value ? colors.gold : colors.border,
                       ),
-                      if ((countOf(f) ?? 0) > 0) ...[
-                        const SizedBox(width: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 1,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          t.t('chat.folder.${f.name}'),
+                          style: type.bodySmall.copyWith(
+                            color:
+                                f == value ? AppColorsDark.text : colors.text,
+                            fontWeight: FontWeight.w600,
                           ),
-                          decoration: BoxDecoration(
-                            color: colors.gold,
-                            borderRadius: BorderRadius.circular(AppRadii.pill),
-                          ),
-                          child: Text(
-                            context.digits(countOf(f) ?? 0),
-                            style: type.caption.copyWith(
-                              color: AppColorsLight.navy,
-                              fontWeight: FontWeight.w700,
+                        ),
+                        if ((countOf(f) ?? 0) > 0) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 1,
+                            ),
+                            decoration: BoxDecoration(
+                              color: colors.gold,
+                              borderRadius:
+                                  BorderRadius.circular(AppRadii.pill),
+                            ),
+                            child: Text(
+                              context.digits(countOf(f) ?? 0),
+                              style: type.caption.copyWith(
+                                color: AppColorsLight.navy,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
                           ),
-                        ),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
                 ),
               ),
-            ),
-            const SizedBox(width: AppSpacing.sm),
-          ],
+              const SizedBox(width: AppSpacing.sm),
+            ],
         ],
       ),
     );
@@ -167,9 +171,8 @@ class _OrganizeSheetState extends ConsumerState<_OrganizeSheet> {
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final c = widget.conversation;
     final repo = ref.read(chatRepositoryProvider);
-    final other = c.folder == ChatFolder.primary
-        ? ChatFolder.general
-        : ChatFolder.primary;
+    // Only "move to Primary" is offered; the General folder is not shown.
+    const other = ChatFolder.primary;
     return Padding(
       padding: EdgeInsets.fromLTRB(
         AppSpacing.screenSide,
@@ -198,28 +201,27 @@ class _OrganizeSheetState extends ConsumerState<_OrganizeSheet> {
                             : 'chat.organize.pinned',
                       ),
             ),
-            AppListRow(
-              key: const ValueKey('organize-move'),
-              icon: other == ChatFolder.primary
-                  ? AppIcons.starOutlineRounded
-                  : AppIcons.inboxOutlined,
-              label: t.t('chat.organize.moveTo', {
-                'folder': t.t('chat.folder.${other.name}'),
-              }),
-              subtitle: c.folderAuto ? t.t('chat.organize.autoHint') : null,
-              onTap: _busy
-                  ? null
-                  : () => _run(
-                        // Audit 2026-10-04: as in the bulk move, moving
-                        // takes the "waiting" mark off.
-                        () => repo.organize(
-                          c.id,
-                          folder: other,
-                          waiting: false,
+            if (c.folder != ChatFolder.primary)
+              AppListRow(
+                key: const ValueKey('organize-move'),
+                icon: AppIcons.starOutlineRounded,
+                label: t.t('chat.organize.moveTo', {
+                  'folder': t.t('chat.folder.${other.name}'),
+                }),
+                subtitle: c.folderAuto ? t.t('chat.organize.autoHint') : null,
+                onTap: _busy
+                    ? null
+                    : () => _run(
+                          // Audit 2026-10-04: as in the bulk move, moving
+                          // takes the "waiting" mark off.
+                          () => repo.organize(
+                            c.id,
+                            folder: other,
+                            waiting: false,
+                          ),
+                          done: 'chat.organize.moved',
                         ),
-                        done: 'chat.organize.moved',
-                      ),
-            ),
+              ),
             if (!c.folderAuto)
               AppListRow(
                 key: const ValueKey('organize-auto'),

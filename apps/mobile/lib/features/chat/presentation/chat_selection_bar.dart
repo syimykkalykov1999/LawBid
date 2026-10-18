@@ -79,11 +79,6 @@ class _ChatSelectionBarState extends ConsumerState<ChatSelectionBar> {
               onTap: () => Navigator.of(ctx).pop(ChatListFolder.primary),
             ),
             AppListRow(
-              icon: AppIcons.inboxOutlined,
-              label: t.t('chat.folder.general'),
-              onTap: () => Navigator.of(ctx).pop(ChatListFolder.general),
-            ),
-            AppListRow(
               icon: AppIcons.hourglassEmptyRounded,
               label: t.t('chat.folder.waiting'),
               onTap: () => Navigator.of(ctx).pop(ChatListFolder.waiting),
@@ -99,11 +94,8 @@ class _ChatSelectionBarState extends ConsumerState<ChatSelectionBar> {
     await _each(
       (c) => ref.read(chatRepositoryProvider).organize(
             c.id,
-            folder: target == ChatListFolder.waiting
-                ? null
-                : target == ChatListFolder.primary
-                    ? ChatFolder.primary
-                    : ChatFolder.general,
+            folder:
+                target == ChatListFolder.waiting ? null : ChatFolder.primary,
             waiting: target == ChatListFolder.waiting,
           ),
       done: 'chat.organize.moved',

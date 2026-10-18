@@ -149,25 +149,31 @@ class AppPaginationFooter extends StatelessWidget {
       AppPaginationStatus.end => Padding(
           key: const ValueKey(AppPaginationStatus.end),
           padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl),
-          child: Row(
-            children: [
-              Expanded(child: _Hairline(color: colors.goldStroke)),
-              // Flexible: a long translation wraps between the hairlines.
-              Flexible(
-                flex: 4,
-                child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-                  child: Text(
-                    labels.end,
-                    textAlign: TextAlign.center,
-                    style: typography.bodySmall
-                        .copyWith(color: colors.textSecondary),
+          // Centered: equal lines on both sides, the text capped at 60%
+          // of the width so a long translation wraps instead of shifting.
+          child: LayoutBuilder(
+            builder: (context, box) => Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Expanded(child: _Hairline(color: colors.goldStroke)),
+                ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: box.maxWidth * 0.6),
+                  child: Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                    child: Text(
+                      labels.end,
+                      textAlign: TextAlign.center,
+                      style: typography.bodySmall
+                          .copyWith(color: colors.textSecondary),
+                    ),
                   ),
                 ),
-              ),
-              Expanded(child: _Hairline(color: colors.goldStroke, flip: true)),
-            ],
+                Expanded(
+                  child: _Hairline(color: colors.goldStroke, flip: true),
+                ),
+              ],
+            ),
           ),
         ),
     };
