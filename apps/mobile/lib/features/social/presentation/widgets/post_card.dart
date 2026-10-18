@@ -561,7 +561,7 @@ class PostCard extends ConsumerWidget {
             PostPracticeChips(post: p),
           if (p.video == null &&
               (title.isNotEmpty || text.isNotEmpty || hashtags.isNotEmpty))
-            _FeedCaption(
+            FeedCaption(
               // A new text (translation) starts collapsed again.
               key: ValueKey('${p.id}:${title.hashCode}:${text.hashCode}'),
               title: title,
@@ -3163,8 +3163,9 @@ class PostPracticeChips extends ConsumerWidget {
 /// Owner 2026-10-12: the title (one line) and two lines of text with a
 /// grey "more" at the end of the second line. A short text (up to 4 lines)
 /// opens in place and then shows the hashtags; a longer one opens the post.
-class _FeedCaption extends ConsumerStatefulWidget {
-  const _FeedCaption({
+@visibleForTesting
+class FeedCaption extends ConsumerStatefulWidget {
+  const FeedCaption({
     required this.title,
     required this.text,
     required this.hashtags,
@@ -3191,10 +3192,10 @@ class _FeedCaption extends ConsumerStatefulWidget {
   final VoidCallback? onExpand;
 
   @override
-  ConsumerState<_FeedCaption> createState() => _FeedCaptionState();
+  ConsumerState<FeedCaption> createState() => FeedCaptionState();
 }
 
-class _FeedCaptionState extends ConsumerState<_FeedCaption> {
+class FeedCaptionState extends ConsumerState<FeedCaption> {
   bool _expanded = false;
   final _more = TapGestureRecognizer();
   final _tagTaps = <TapGestureRecognizer>[];
@@ -3214,8 +3215,9 @@ class _FeedCaptionState extends ConsumerState<_FeedCaption> {
     String tail,
     TextStyle style,
     double width,
-    BuildContext context,
-  ) {
+    BuildContext context, {
+    int maxLines = 2,
+  }) {
     bool fits(int n) {
       final p = TextPainter(
         text: TextSpan(
@@ -3224,7 +3226,7 @@ class _FeedCaptionState extends ConsumerState<_FeedCaption> {
               : '${text.substring(0, n).trimRight()}$tail',
           style: DefaultTextStyle.of(context).style.merge(style),
         ),
-        maxLines: 2,
+        maxLines: maxLines,
         textDirection: Directionality.of(context),
         textScaler: MediaQuery.textScalerOf(context),
       )..layout(maxWidth: width);
@@ -3296,92 +3298,173 @@ class _FeedCaptionState extends ConsumerState<_FeedCaption> {
             ),
           )
         : const SizedBox.shrink();
+    final moreLabel = t.t('post.more');
     return Padding(
       padding: const EdgeInsets.fromLTRB(AppSpacing.md, 8, AppSpacing.md, 0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (widget.title.isNotEmpty)
-            AppPressable(
+      child: LayoutBuilder(
+        builder: (context, outer) {
+          // The title is cut when it does not fit its one line (measured,
+          // text scale included): then «ещё» shows even if the text below
+          // is short or empty (owner 2026-10-18).
+          final titleMeasured =
+              DefaultTextStyle.of(context).style.merge(titleStyle);
+          final titleCut = widget.title.isNotEmpty &&
+              !_expanded &&
+              (TextPainter(
+                text: TextSpan(text: widget.title, style: titleMeasured),
+                maxLines: 1,
+                textDirection: Directionality.of(context),
+                textScaler: MediaQuery.textScalerOf(context),
+              )..layout(maxWidth: outer.maxWidth))
+                  .didExceedMaxLines;
+          final textCut = hasText &&
+              !_expanded &&
+              (hasTags ||
+                  (TextPainter(
+                        text: TextSpan(
+                          text: widget.text,
+                          style: DefaultTextStyle.of(context)
+                              .style
+                              .merge(bodyStyle),
+                        ),
+                        textDirection: Directionality.of(context),
+                        textScaler: MediaQuery.textScalerOf(context),
+                      )..layout(maxWidth: outer.maxWidth))
+                          .computeLineMetrics()
+                          .length >
+                      2);
+          // ONE «ещё» per caption: at the end of the cut text, else after
+          // the cut title.
+          final titleMore = titleCut && !textCut;
+          void openMore() {
+            if (widget.inPlaceOnly) {
+              widget.onMore?.call();
+            } else {
+              widget.onExpand?.call();
+              setState(() => _expanded = true);
+            }
+          }
+
+          Widget titleWidget() {
+            if (titleMore) {
+              // No text: «ещё» ends the title's own line.
+              _more.onTap = openMore;
+              final cut = _fit(
+                widget.title,
+                '… $moreLabel',
+                titleStyle,
+                outer.maxWidth - 4,
+                context,
+                maxLines: 1,
+              );
+              return AppPressable(
+                onTap: widget.onOpen,
+                child: Text.rich(
+                  TextSpan(
+                    style: titleStyle,
+                    children: [
+                      TextSpan(
+                        text: '${widget.title.substring(0, cut).trimRight()}… ',
+                      ),
+                      TextSpan(
+                        text: moreLabel,
+                        style: moreStyle,
+                        recognizer: _more,
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+            return AppPressable(
               onTap: widget.onOpen,
               child: Text(
                 widget.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+                maxLines: _expanded ? null : 1,
+                overflow:
+                    _expanded ? TextOverflow.visible : TextOverflow.ellipsis,
                 style: titleStyle,
               ),
-            ),
-          if (hasText)
-            LayoutBuilder(
-              builder: (context, box) {
-                final painter = TextPainter(
-                  text: TextSpan(
-                    text: widget.text,
-                    style: DefaultTextStyle.of(context).style.merge(bodyStyle),
-                  ),
-                  textDirection: Directionality.of(context),
-                  textScaler: MediaQuery.textScalerOf(context),
-                )..layout(maxWidth: box.maxWidth);
-                final lines = painter.computeLineMetrics().length;
-                final collapsed = (lines > 2 || hasTags) && !_expanded;
-                _more.onTap = () {
-                  if (widget.inPlaceOnly) {
-                    // Owner 2026-10-13: no inner card — «ещё» always opens
-                    // the text sheet; the card keeps its height.
-                    widget.onMore?.call();
-                  } else if (lines > 4) {
-                    widget.onOpen();
-                  } else {
-                    widget.onExpand?.call();
-                    setState(() => _expanded = true);
-                  }
-                };
-                final moreLabel = t.t('post.more');
-                final cut = collapsed
-                    ? _fit(
-                        widget.text,
-                        '… $moreLabel',
-                        bodyStyle,
-                        box.maxWidth - 4,
-                        context,
-                      )
-                    : widget.text.length;
-                final shown = !collapsed
-                    ? widget.text
-                    : cut < widget.text.length
-                        ? '${widget.text.substring(0, cut).trimRight()}… '
-                        : '${widget.text} ';
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(top: 3),
-                      child: GestureDetector(
-                        onTap: widget.onOpen,
-                        child: Text.rich(
-                          TextSpan(
-                            style: bodyStyle,
-                            children: [
-                              TextSpan(text: shown),
-                              if (collapsed)
-                                TextSpan(
-                                  text: moreLabel,
-                                  style: moreStyle,
-                                  recognizer: _more,
-                                ),
-                            ],
+            );
+          }
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (widget.title.isNotEmpty) titleWidget(),
+              if (hasText)
+                LayoutBuilder(
+                  builder: (context, box) {
+                    final painter = TextPainter(
+                      text: TextSpan(
+                        text: widget.text,
+                        style:
+                            DefaultTextStyle.of(context).style.merge(bodyStyle),
+                      ),
+                      textDirection: Directionality.of(context),
+                      textScaler: MediaQuery.textScalerOf(context),
+                    )..layout(maxWidth: box.maxWidth);
+                    final lines = painter.computeLineMetrics().length;
+                    final collapsed = (lines > 2 || hasTags) && !_expanded;
+                    _more.onTap = () {
+                      if (widget.inPlaceOnly) {
+                        // Owner 2026-10-13: no inner card — «ещё» always opens
+                        // the text sheet; the card keeps its height.
+                        widget.onMore?.call();
+                      } else if (lines > 4) {
+                        widget.onOpen();
+                      } else {
+                        widget.onExpand?.call();
+                        setState(() => _expanded = true);
+                      }
+                    };
+                    final cut = collapsed
+                        ? _fit(
+                            widget.text,
+                            '… $moreLabel',
+                            bodyStyle,
+                            box.maxWidth - 4,
+                            context,
+                          )
+                        : widget.text.length;
+                    final shown = !collapsed
+                        ? widget.text
+                        : cut < widget.text.length
+                            ? '${widget.text.substring(0, cut).trimRight()}… '
+                            : '${widget.text} ';
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(top: 3),
+                          child: GestureDetector(
+                            onTap: widget.onOpen,
+                            child: Text.rich(
+                              TextSpan(
+                                style: bodyStyle,
+                                children: [
+                                  TextSpan(text: shown),
+                                  if (collapsed)
+                                    TextSpan(
+                                      text: moreLabel,
+                                      style: moreStyle,
+                                      recognizer: _more,
+                                    ),
+                                ],
+                              ),
+                            ),
                           ),
                         ),
-                      ),
-                    ),
-                    if (_expanded) tags,
-                  ],
-                );
-              },
-            )
-          else
-            tags,
-        ],
+                        if (_expanded) tags,
+                      ],
+                    );
+                  },
+                )
+              else
+                tags,
+            ],
+          );
+        },
       ),
     );
   }
