@@ -747,7 +747,9 @@ class ConversationRow extends ConsumerWidget {
                     key: ValueKey('chat-avatar-${c.id}'),
                     onTap: () => showPhotoGallery(
                       context,
-                      urls: [c.counterpart.avatarUrl!],
+                      urls: [
+                        c.counterpart.avatarFullUrl ?? c.counterpart.avatarUrl!,
+                      ],
                       closeLabel: t.t('common.close'),
                     ),
                     child: CounterpartAvatar(

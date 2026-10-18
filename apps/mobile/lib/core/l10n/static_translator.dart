@@ -13,6 +13,7 @@ import 'package:lawbid/core/l10n/strings/case_payments_strings.dart';
 import 'package:lawbid/core/l10n/strings/case_urgency_strings.dart';
 import 'package:lawbid/core/l10n/strings/case_workspace_strings.dart';
 import 'package:lawbid/core/l10n/strings/client_fraud_strings.dart';
+import 'package:lawbid/core/l10n/strings/contact_info_strings.dart';
 import 'package:lawbid/core/l10n/strings/contingency_strings.dart';
 import 'package:lawbid/core/l10n/strings/demo_strings.dart';
 import 'package:lawbid/core/l10n/strings/email_flows_strings.dart';
@@ -30,7 +31,9 @@ import 'package:lawbid/core/l10n/strings/plan_strings.dart';
 import 'package:lawbid/core/l10n/strings/post_inner_strings.dart';
 import 'package:lawbid/core/l10n/strings/reels_docs_strings.dart';
 import 'package:lawbid/core/l10n/strings/reels_strings.dart';
+import 'package:lawbid/core/l10n/strings/stale_case_strings.dart';
 import 'package:lawbid/core/l10n/strings/storage_strings.dart';
+import 'package:lawbid/core/l10n/strings/support_strings.dart';
 import 'package:lawbid/core/l10n/strings/tasks_planner_strings.dart';
 import 'package:lawbid/core/l10n/strings/templates_strings.dart';
 import 'package:lawbid/core/l10n/strings/theme_strings.dart';
@@ -1144,6 +1147,8 @@ class StaticTranslatorRu extends _MapTranslator {
         ...file05Ru,
         ...file06Ru,
         ...contingencyRu,
+        ...staleCaseRu,
+        ...contactInfoRu,
         ...file07Ru,
         ...reelsRu,
         ...auditCasesRu,
@@ -1154,6 +1159,7 @@ class StaticTranslatorRu extends _MapTranslator {
         ...reelsDocsRu,
         ...templatesRu,
         ...storageRu,
+        ...supportRu,
         ...caseCoverRu,
         ...caseUrgencyRu,
         ...tasksPlannerRu,
@@ -1736,8 +1742,6 @@ class StaticTranslatorEn extends _MapTranslator {
         'cases.field.descriptionHint':
             "What happened, when, and what you'd like to achieve",
         'cases.field.descriptionError': 'At least {min} characters',
-        'cases.field.noContacts':
-            "Don't add contacts: they're shared automatically with the attorney you choose.",
         'cases.field.place': 'Location',
         'cases.field.primaryState': 'Main state',
         'cases.field.state': 'State',
@@ -2563,6 +2567,8 @@ class StaticTranslatorEn extends _MapTranslator {
         ...file05En,
         ...file06En,
         ...contingencyEn,
+        ...staleCaseEn,
+        ...contactInfoEn,
         ...file07En,
         ...reelsEn,
         ...auditCasesEn,
@@ -2573,6 +2579,7 @@ class StaticTranslatorEn extends _MapTranslator {
         ...reelsDocsEn,
         ...templatesEn,
         ...storageEn,
+        ...supportEn,
         ...caseCoverEn,
         ...caseUrgencyEn,
         ...tasksPlannerEn,

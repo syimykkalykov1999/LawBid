@@ -21,6 +21,7 @@ class Counterpart {
     this.displayName,
     this.username,
     this.avatarUrl,
+    this.avatarFullUrl,
     this.online,
     this.lastSeenAt,
   });
@@ -30,6 +31,9 @@ class Counterpart {
   final String? displayName;
   final String? username;
   final String? avatarUrl;
+
+  /// Owner 2026-10-18: the full-size photo (full-screen view).
+  final String? avatarFullUrl;
   final bool verified;
 
   /// Owner 2026-10-01: online now; null = not shown (hidden activity

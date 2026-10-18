@@ -17,8 +17,12 @@ class ChatVideoTile extends StatefulWidget {
     required this.sending,
     required this.playLabel,
     super.key,
+    this.fill = false,
   });
 
+  /// A square cell of the media grid: fills its box, small play badge,
+  /// no rounded corners of its own.
+  final bool fill;
   final ChatAttachment attachment;
   final bool sending;
   final String playLabel;
@@ -92,11 +96,11 @@ class _ChatVideoTileState extends State<ChatVideoTile> {
                   ),
                 ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(widget.fill ? 0 : 12),
           child: SizedBox(
-            width: 220,
+            width: widget.fill ? null : 220,
             child: AspectRatio(
-              aspectRatio: ratio,
+              aspectRatio: widget.fill ? 1 : ratio,
               child: Stack(
                 fit: StackFit.expand,
                 children: [
@@ -113,8 +117,8 @@ class _ChatVideoTileState extends State<ChatVideoTile> {
                     ),
                   Center(
                     child: Container(
-                      width: 48,
-                      height: 48,
+                      width: widget.fill ? 32 : 48,
+                      height: widget.fill ? 32 : 48,
                       decoration: const BoxDecoration(
                         color: Colors.black54,
                         shape: BoxShape.circle,
@@ -129,17 +133,17 @@ class _ChatVideoTileState extends State<ChatVideoTile> {
                                 color: Colors.white,
                               ),
                             )
-                          : const AppIcon(
+                          : AppIcon(
                               AppIcons.playArrowRounded,
                               color: Colors.white,
-                              size: 32,
+                              size: widget.fill ? 22 : 32,
                             ),
                     ),
                   ),
                   if (_ready)
                     Positioned(
-                      left: 8,
-                      bottom: 8,
+                      left: widget.fill ? 4 : 8,
+                      bottom: widget.fill ? 4 : 8,
                       child: Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 6,

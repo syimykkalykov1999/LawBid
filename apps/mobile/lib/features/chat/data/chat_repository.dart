@@ -675,6 +675,7 @@ abstract final class ChatMappers {
           displayName: d.counterpart.displayName,
           username: d.counterpart.username,
           avatarUrl: d.counterpart.avatarUrl,
+          avatarFullUrl: d.counterpart.avatarFullUrl,
           verified: d.counterpart.verifiedBadge,
           online: d.counterpart.online,
           lastSeenAt: d.counterpart.lastSeenAt,

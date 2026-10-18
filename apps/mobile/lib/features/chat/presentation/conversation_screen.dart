@@ -18,7 +18,6 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/limits/text_limits.dart';
 import 'package:lawbid/core/media/video_compression.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
-import 'package:lawbid/core/navigation/shell/web_page_frame.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/features/blocks/application/blocks_providers.dart';
 import 'package:lawbid/features/blocks/presentation/block_actions.dart';
@@ -33,13 +32,13 @@ import 'package:lawbid/features/chat/application/voice_player.dart';
 import 'package:lawbid/features/chat/application/voice_recorder.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/presentation/attachment_widgets.dart';
+import 'package:lawbid/features/chat/presentation/chat_folders.dart';
+import 'package:lawbid/features/chat/presentation/contact_info_screen.dart';
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart';
 import 'package:lawbid/features/chat/presentation/voice_widgets.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/plans/presentation/plan_offer.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
-import 'package:lawbid/features/social/domain/social_models.dart';
-import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart';
 import 'package:lawbid/features/stickers/presentation/sticker_widgets.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
@@ -227,21 +226,30 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
           mainAxisSize: MainAxisSize.min,
           children: [
             const AppSheetHandle(),
-            // OQ-047: every photo and document of this chat.
-            if (c.contactsUnlocked)
-              AppListRow(
-                icon: AppIcons.folderOpenRounded,
-                label: t.t('chat.files.title'),
-                onTap: () {
-                  Navigator.of(sheet).pop();
-                  Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) =>
-                          webPageRoute(ChatFilesScreen(conversationId: c.id)),
-                    ),
-                  );
-                },
-              ),
+            // Owner 2026-10-18: the contact screen holds the media, mute,
+            // block and report rows; the menu keeps what it does not.
+            AppListRow(
+              key: const ValueKey('chat-menu-contact'),
+              icon: AppIcons.personOutlineRounded,
+              label: t.t('contact.menu'),
+              onTap: () {
+                Navigator.of(sheet).pop();
+                openContactInfo(
+                  context,
+                  conversationId: c.id,
+                  onCall: () => _call(c),
+                );
+              },
+            ),
+            AppListRow(
+              key: const ValueKey('chat-menu-organize'),
+              icon: AppIcons.pushPinOutlined,
+              label: t.t('contact.menuOrganize'),
+              onTap: () {
+                Navigator.of(sheet).pop();
+                showChatOrganizeSheet(context, ref, c);
+              },
+            ),
             // Owner 2026-10-05: a task about this chat — linked to it (and
             // its case), with this person already on it.
             if (ref.read(actsAsAttorneyProvider) &&
@@ -267,53 +275,6 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                       personRole:
                           c.counterpart.isAttorney ? 'attorney' : 'client',
                     ),
-                  );
-                },
-              ),
-            AppListRow(
-              icon: c.muted
-                  ? AppIcons.notificationsActiveOutlined
-                  : AppIcons.notificationsOffOutlined,
-              label: t.t(c.muted ? 'chat.unmute' : 'chat.mute'),
-              showChevron: false,
-              onTap: () async {
-                Navigator.of(sheet).pop();
-                try {
-                  await _thread.setMuted(!c.muted);
-                } on Object catch (e) {
-                  if (mounted) showAppSnackBar(context, errorText(t, e));
-                }
-              },
-            ),
-            // OQ-028: block / unblock the other party. Audit 2026-10-04: not
-            // inside an active case (the work goes through the case).
-            if (c.counterpart.id != null &&
-                !(c.caseId != null && c.contactsUnlocked && !c.closed))
-              BlockListRow(
-                userId: c.counterpart.id!,
-                displayName: c.counterpart.displayName ??
-                    (c.counterpart.username == null
-                        ? ''
-                        : '@${c.counterpart.username}'),
-                currentlyBlocked: ref.read(blockedIdsProvider).value?.contains(
-                          c.counterpart.id,
-                        ) ??
-                    false,
-                onChanged: () =>
-                    ref.invalidate(chatThreadProvider(widget.conversationId)),
-              ),
-            if (c.counterpart.id != null)
-              AppListRow(
-                icon: AppIcons.flagOutlined,
-                label: t.t('post.menu.report'),
-                showChevron: false,
-                onTap: () {
-                  Navigator.of(sheet).pop();
-                  showReportSheet(
-                    context,
-                    ref,
-                    ReportTarget.user,
-                    c.counterpart.id!,
                   );
                 },
               ),
@@ -347,7 +308,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
           semanticLabel: t.t('common.back'),
           onPressed: () => Navigator.of(context).maybePop(),
         ),
-        title: c == null ? null : _Header(conversation: c),
+        title:
+            c == null ? null : _Header(conversation: c, onCall: () => _call(c)),
         actions: [
           // OQ-041: an in-app audio call (after acceptance).
           // OQ-043: a direct chat gets calls once the request is accepted.
@@ -355,19 +317,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
           // Audit 2026-10-02: no call button across a block or for an
           // assistant without the "calls" duty (the server refuses both).
           // Audit 2026-10-04: nor in a case chat before acceptance.
-          if (c != null &&
-              !c.closed &&
-              c.contactsUnlocked &&
-              !c.blockedHere &&
-              !c.myRequestPending &&
-              !c.awaitingMyAnswer &&
-              !c.myRequestDeclined &&
-              ref.watch(canDoProvider(AssistantDuty.calls)) &&
-              !(ref
-                      .watch(blockedIdsProvider)
-                      .value
-                      ?.contains(c.counterpart.id) ??
-                  false))
+          if (c != null && chatAudioCallAllowed(ref, c))
             AppIconButton(
               icon: AppIcon(
                 AppIcons.callOutlined,
@@ -507,9 +457,10 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
 }
 
 class _Header extends ConsumerWidget {
-  const _Header({required this.conversation});
+  const _Header({required this.conversation, this.onCall});
 
   final Conversation conversation;
+  final VoidCallback? onCall;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -517,67 +468,27 @@ class _Header extends ConsumerWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final c = conversation;
-    final attorney = ref.watch(actsAsAttorneyProvider);
-    final caseId = c.caseId;
     final formats = ref.watch(l10nFormatsProvider);
     // Owner 2026-10-01: online / last seen, live while the chat is open.
-    final otherId = c.counterpart.id;
-    final live = otherId == null || c.counterpart.online == null
-        ? null
-        : ref.watch(presenceProvider(otherId));
-    final presence = live ??
-        (c.counterpart.online == null
-            ? null
-            : PresenceView(
-                online: c.counterpart.online!,
-                lastSeenAt: c.counterpart.lastSeenAt,
-              ));
-    final context2 = c.caseTitle ??
-        (c.counterpart.username == null
-            ? t.t('chat.direct')
-            : '@${c.counterpart.username}');
+    final presence = chatPresenceOf(ref, c);
+    // Owner 2026-10-18 (WhatsApp): the name and the status only; the
+    // "@username" and the case live on the contact screen.
     return Semantics(
-      button: caseId != null,
-      label: caseId != null ? t.t('chat.openCase') : counterpartName(t, c),
+      button: true,
+      label: t.t('contact.title'),
       child: AppPressable(
-        // Without a case (reserved) the header opens the attorney's profile.
-        onTap: () {
-          if (caseId != null) {
-            // Audit 2026-10-04: the hired attorney opens the work card —
-            // the case card's "Message client" would push this chat again.
-            context.push(
-              !attorney
-                  ? AppRoutes.myCase(caseId)
-                  : c.contactsUnlocked
-                      ? AppRoutes.workCase(caseId)
-                      : AppRoutes.caseDetail(caseId),
-            );
-          } else if (c.counterpart.username != null) {
-            // OQ-043: a direct chat opens the other person's profile.
-            context.push(
-              c.counterpart.isAttorney
-                  ? AppRoutes.lawyer(c.counterpart.username!)
-                  : AppRoutes.client(c.counterpart.username!),
-            );
-          }
-        },
+        key: const ValueKey('chat-header'),
+        onTap: () => openContactInfo(
+          context,
+          conversationId: c.id,
+          onCall: onCall,
+        ),
         child: Row(
           children: [
-            // Owner 2026-10-07: the photo itself opens full screen; the
-            // name beside it opens the profile / case.
-            GestureDetector(
-              onTap: c.counterpart.avatarUrl == null
-                  ? null
-                  : () => showPhotoGallery(
-                        context,
-                        urls: [c.counterpart.avatarUrl!],
-                        closeLabel: t.t('common.close'),
-                      ),
-              child: CounterpartAvatar(
-                counterpart: c.counterpart,
-                size: 36,
-                online: presence?.online,
-              ),
+            CounterpartAvatar(
+              counterpart: c.counterpart,
+              size: 36,
+              online: presence?.online,
             ),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
@@ -594,34 +505,24 @@ class _Header extends ConsumerWidget {
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  Text.rich(
-                    TextSpan(
-                      children: [
-                        if (presence != null)
-                          TextSpan(
-                            text: '${presenceLabel(
-                              t,
-                              presence,
-                              time: formats.time,
-                              date: formats.date,
-                            )} · ',
-                            style: TextStyle(
-                              color: presence.online
-                                  ? colors.gold
-                                  : colors.textSecondary,
-                              fontWeight: presence.online
-                                  ? FontWeight.w600
-                                  : FontWeight.w400,
-                            ),
-                          ),
-                        TextSpan(text: context2),
-                      ],
+                  if (presence != null)
+                    Text(
+                      presenceLabel(
+                        t,
+                        presence,
+                        time: formats.time,
+                        date: formats.date,
+                      ),
+                      key: const ValueKey('chat-presence'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: type.caption.copyWith(
+                        color: presence.online
+                            ? colors.goldDark
+                            : colors.textSecondary,
+                        fontWeight: presence.online ? FontWeight.w600 : null,
+                      ),
                     ),
-                    key: const ValueKey('chat-presence'),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: type.caption.copyWith(color: colors.goldDark),
-                  ),
                 ],
               ),
             ),
