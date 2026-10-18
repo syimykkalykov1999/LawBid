@@ -32,6 +32,7 @@ import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart'
     show PracticePostsScreen;
 import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart';
+import 'package:lawbid/features/social/presentation/widgets/caption_fit.dart';
 import 'package:lawbid/features/social/presentation/widgets/comments_sheet.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_attachments_sheet.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart';
@@ -112,32 +113,53 @@ class PostVideoCaption extends ConsumerWidget {
           child: LayoutBuilder(
             builder: (context, box) {
               final textScaler = MediaQuery.textScalerOf(context);
-              TextPainter painter(String s) => TextPainter(
-                    text: TextSpan(text: s, style: base),
-                    textDirection: Directionality.of(context),
-                    textScaler: textScaler,
-                    maxLines: 2,
-                  )..layout(maxWidth: box.maxWidth);
-              // The whole text fits two lines: no «ещё», no cut.
-              var shown = oneLine;
-              final fitsWhole = !painter(oneLine).didExceedMaxLines;
-              if (fitsWhole && !_force) {
+              final direction = Directionality.of(context);
+              final width = box.maxWidth;
+              // Owner 2026-10-18 (speed): measured once per text, width,
+              // scale and style (cached), each layout only as long as it
+              // has to be — the same «ещё» place as before.
+              final shownOrNull = cachedCaptionFit<String?>(
+                (
+                  'video',
+                  oneLine,
+                  more,
+                  base,
+                  width,
+                  direction,
+                  textScaler,
+                  _force,
+                ),
+                () {
+                  bool overflows(String s) => captionOverflows(
+                        s,
+                        base,
+                        width,
+                        2,
+                        direction,
+                        textScaler,
+                      );
+                  // The whole text fits two lines: no «ещё», no cut.
+                  final fitsWhole = !overflows(oneLine);
+                  if (fitsWhole && !_force) return null;
+                  if (!overflows('$oneLine  $more')) return oneLine;
+                  final lo = captionCut(
+                    oneLine.length,
+                    (mid) => captionFits(
+                      '${oneLine.substring(0, mid).trimRight()}…  $more',
+                      base,
+                      width,
+                      2,
+                      direction,
+                      textScaler,
+                    ),
+                  );
+                  return '${oneLine.substring(0, lo).trimRight()}…';
+                },
+              );
+              if (shownOrNull == null) {
                 return Text(oneLine, maxLines: 2, style: base);
               }
-              if (painter('$shown  $more').didExceedMaxLines) {
-                var lo = 0;
-                var hi = oneLine.length;
-                while (lo < hi) {
-                  final mid = (lo + hi + 1) ~/ 2;
-                  final cut = oneLine.substring(0, mid).trimRight();
-                  if (painter('$cut…  $more').didExceedMaxLines) {
-                    hi = mid - 1;
-                  } else {
-                    lo = mid;
-                  }
-                }
-                shown = '${oneLine.substring(0, lo).trimRight()}…';
-              }
+              final shown = shownOrNull;
               return Text.rich(
                 TextSpan(
                   children: [
@@ -2318,48 +2340,66 @@ class _PostBodyTextState extends ConsumerState<PostBodyText> {
     return LayoutBuilder(
       builder: (context, box) {
         final measured = DefaultTextStyle.of(context).style.merge(style);
-        final painter = TextPainter(
-          text: TextSpan(
-            text: widget.leading == null ? _body : '${widget.leading} $_body',
-            style: measured,
-          ),
-          maxLines: widget.collapsedLines,
-          textDirection: Directionality.of(context),
-          textScaler: MediaQuery.textScalerOf(context),
-        )..layout(maxWidth: box.maxWidth);
-        if (!painter.didExceedMaxLines && !widget.forceMore) return text;
-        final more = widget.onMore ?? () => setState(() => _expanded = true);
+        final direction = Directionality.of(context);
+        final scaler = MediaQuery.textScalerOf(context);
+        final width = box.maxWidth;
+        final lines = widget.collapsedLines;
         // "… more" ends the last allowed line (Instagram-like), never a
         // line of its own.
         final moreLabel = t.t('post.more');
         final lead = widget.leading == null ? '' : '${widget.leading} ';
         final bodyText = _body;
-        bool fits(int n) {
-          final shown = n >= bodyText.length
-              ? bodyText
-              : '${bodyText.substring(0, n).trimRight()}…';
-          final p = TextPainter(
-            text: TextSpan(text: '$lead$shown $moreLabel', style: measured),
-            maxLines: widget.collapsedLines,
-            textDirection: Directionality.of(context),
-            textScaler: MediaQuery.textScalerOf(context),
-          )..layout(maxWidth: box.maxWidth);
-          return !p.didExceedMaxLines;
-        }
+        // Owner 2026-10-18 (speed): measured once per text, width, scale
+        // and style (cached), each layout only as long as it has to be —
+        // the same cut as before. Null = the text fits, no «ещё».
+        final lo = cachedCaptionFit<int?>(
+          (
+            'body',
+            lead,
+            bodyText,
+            moreLabel,
+            measured,
+            width,
+            lines,
+            direction,
+            scaler,
+            widget.forceMore,
+          ),
+          () {
+            final overflows = captionOverflows(
+              widget.leading == null ? _body : '${widget.leading} $_body',
+              measured,
+              width,
+              lines,
+              direction,
+              scaler,
+            );
+            if (!overflows && !widget.forceMore) return null;
+            bool fits(int n) {
+              final shown = n >= bodyText.length
+                  ? bodyText
+                  : '${bodyText.substring(0, n).trimRight()}…';
+              return captionFits(
+                '$lead$shown $moreLabel',
+                measured,
+                width,
+                lines,
+                direction,
+                scaler,
+              );
+            }
 
-        var lo = 0;
-        var hi = bodyText.length;
-        while (lo < hi) {
-          final mid = (lo + hi + 1) ~/ 2;
-          if (fits(mid)) {
-            lo = mid;
-          } else {
-            hi = mid - 1;
-          }
-        }
+            return captionCut(bodyText.length, fits);
+          },
+        );
+        if (lo == null) return text;
+        final more = widget.onMore ?? () => setState(() => _expanded = true);
         final cutText = lo >= bodyText.length
             ? bodyText
             : '${bodyText.substring(0, lo).trimRight()}…';
+        // Owner 2026-10-18 (bug): the spans first — _spans() disposes the
+        // recognizers it made before, and «ещё»'s own must outlive it.
+        final cutSpans = _spans(colors, cutText);
         final moreRecognizer = TapGestureRecognizer()..onTap = more;
         _recognizers.add(moreRecognizer);
         return GestureDetector(
@@ -2368,7 +2408,7 @@ class _PostBodyTextState extends ConsumerState<PostBodyText> {
             TextSpan(
               style: style,
               children: [
-                ..._spans(colors, cutText),
+                ...cutSpans,
                 const TextSpan(text: ' '),
                 TextSpan(
                   text: moreLabel,
@@ -2431,6 +2471,9 @@ class PostMediaCarousel extends StatefulWidget {
 
 class _PostMediaCarouselState extends State<PostMediaCarousel>
     with SingleTickerProviderStateMixin {
+  /// How the main photo fills its frame.
+  static const BoxFit _frontFit = BoxFit.cover;
+
   late final AnimationController _heart = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 820),
@@ -2471,12 +2514,16 @@ class _PostMediaCarouselState extends State<PostMediaCarousel>
             // screen gallery.
             itemBuilder: (context, i) {
               final m = media[i];
-              Widget img(BoxFit fit, String url, String key) =>
+              // Owner 2026-10-18 (speed): the decode width follows which
+              // picture it is — the tiny blurred backdrop 96 px, the main
+              // photo 1080 px (the same size post_prefetch.dart warms, so
+              // the prefetched decode is found in the memory cache).
+              Widget img(BoxFit fit, String url, String key, int decodeWidth) =>
                   CachedNetworkImage(
                     imageUrl: url,
                     cacheKey: key,
                     // Screen width is enough; never decode the original.
-                    memCacheWidth: fit == BoxFit.cover ? 96 : 1080,
+                    memCacheWidth: decodeWidth,
                     fit: fit,
                     fadeInDuration: context.reduceMotion
                         ? Duration.zero
@@ -2496,12 +2543,23 @@ class _PostMediaCarouselState extends State<PostMediaCarousel>
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    ImageFiltered(
-                      imageFilter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-                      child: img(BoxFit.cover, m.previewUrl, '${m.fileId}:320'),
-                    ),
-                    ColoredBox(color: Colors.black.withValues(alpha: 0.18)),
-                    img(BoxFit.cover, m.mediumUrl, '${m.fileId}:1080'),
+                    // Owner 2026-10-18 (speed): the sigma-24 blurred
+                    // backdrop only shows around a "contain" photo; a
+                    // "cover" front photo hides it completely, so it is not
+                    // built (no blur pass, no second decode).
+                    if (_frontFit != BoxFit.cover) ...[
+                      ImageFiltered(
+                        imageFilter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+                        child: img(
+                          BoxFit.cover,
+                          m.previewUrl,
+                          '${m.fileId}:320',
+                          96,
+                        ),
+                      ),
+                      ColoredBox(color: Colors.black.withValues(alpha: 0.18)),
+                    ],
+                    img(_frontFit, m.mediumUrl, '${m.fileId}:1080', 1080),
                   ],
                 ),
               );
@@ -3259,6 +3317,8 @@ class FeedCaptionState extends ConsumerState<FeedCaption> {
   }
 
   /// The longest start of [text] that, followed by [tail], fits two lines.
+  /// Owner 2026-10-18 (speed): cached per text, width, scale and style,
+  /// each layout only as long as it has to be — the same answer as before.
   int _fit(
     String text,
     String tail,
@@ -3267,33 +3327,79 @@ class FeedCaptionState extends ConsumerState<FeedCaption> {
     BuildContext context, {
     int maxLines = 2,
   }) {
-    bool fits(int n) {
-      final p = TextPainter(
-        text: TextSpan(
-          text: n >= text.length
-              ? '$text $tail'
-              : '${text.substring(0, n).trimRight()}$tail',
-          style: DefaultTextStyle.of(context).style.merge(style),
-        ),
-        maxLines: maxLines,
-        textDirection: Directionality.of(context),
-        textScaler: MediaQuery.textScalerOf(context),
-      )..layout(maxWidth: width);
-      return !p.didExceedMaxLines;
-    }
+    final measured = DefaultTextStyle.of(context).style.merge(style);
+    final direction = Directionality.of(context);
+    final scaler = MediaQuery.textScalerOf(context);
+    return cachedCaptionFit<int>(
+      ('feedFit', text, tail, measured, width, maxLines, direction, scaler),
+      () {
+        bool fits(int n) => captionFits(
+              n >= text.length
+                  ? '$text $tail'
+                  : '${text.substring(0, n).trimRight()}$tail',
+              measured,
+              width,
+              maxLines,
+              direction,
+              scaler,
+            );
 
-    if (fits(text.length)) return text.length;
-    var lo = 0;
-    var hi = text.length;
-    while (lo < hi) {
-      final mid = (lo + hi + 1) ~/ 2;
-      if (fits(mid)) {
-        lo = mid;
-      } else {
-        hi = mid - 1;
-      }
-    }
-    return lo;
+        if (!captionOverflows(
+          '$text $tail',
+          measured,
+          width,
+          maxLines,
+          direction,
+          scaler,
+        )) {
+          return text.length;
+        }
+        return captionCut(text.length, fits);
+      },
+    );
+  }
+
+  /// Whether [text] in [style] needs more than [maxLines] lines (cached).
+  bool _overflows(
+    String text,
+    TextStyle style,
+    double width,
+    BuildContext context,
+    int maxLines,
+  ) {
+    final measured = DefaultTextStyle.of(context).style.merge(style);
+    final direction = Directionality.of(context);
+    final scaler = MediaQuery.textScalerOf(context);
+    return cachedCaptionFit<bool>(
+      ('feedOver', text, measured, width, maxLines, direction, scaler),
+      () => captionOverflows(
+        text,
+        measured,
+        width,
+        maxLines,
+        direction,
+        scaler,
+      ),
+    );
+  }
+
+  /// Lines of [text] in [style], counted up to 5 (cached) — the caption
+  /// only asks "more than 2" and "more than 4".
+  int _lines(String text, TextStyle style, double width, BuildContext context) {
+    final measured = DefaultTextStyle.of(context).style.merge(style);
+    final direction = Directionality.of(context);
+    final scaler = MediaQuery.textScalerOf(context);
+    return cachedCaptionFit<int>(
+      ('feedLines', text, measured, width, direction, scaler),
+      () => captionLineCount(
+        text,
+        measured,
+        width,
+        direction,
+        scaler,
+        cap: 5,
+      ),
+    );
   }
 
   @override
@@ -3356,33 +3462,19 @@ class FeedCaptionState extends ConsumerState<FeedCaption> {
           // text scale included): then «ещё» shows even if the text below
           // is short or empty (owner 2026-10-18: a long title must be
           // readable — two lines, and the one «ещё» opens all of it).
-          final titleMeasured =
-              DefaultTextStyle.of(context).style.merge(titleStyle);
           final titleCut = widget.title.isNotEmpty &&
               !_expanded &&
-              (TextPainter(
-                text: TextSpan(text: widget.title, style: titleMeasured),
-                maxLines: _titleLines,
-                textDirection: Directionality.of(context),
-                textScaler: MediaQuery.textScalerOf(context),
-              )..layout(maxWidth: outer.maxWidth))
-                  .didExceedMaxLines;
+              _overflows(
+                widget.title,
+                titleStyle,
+                outer.maxWidth,
+                context,
+                _titleLines,
+              );
           final textCut = hasText &&
               !_expanded &&
               (hasTags ||
-                  (TextPainter(
-                        text: TextSpan(
-                          text: widget.text,
-                          style: DefaultTextStyle.of(context)
-                              .style
-                              .merge(bodyStyle),
-                        ),
-                        textDirection: Directionality.of(context),
-                        textScaler: MediaQuery.textScalerOf(context),
-                      )..layout(maxWidth: outer.maxWidth))
-                          .computeLineMetrics()
-                          .length >
-                      2);
+                  _lines(widget.text, bodyStyle, outer.maxWidth, context) > 2);
           // ONE «ещё» per caption: at the end of the cut text, else after
           // the cut title.
           final force = widget.forceMore && !_expanded;
@@ -3447,16 +3539,10 @@ class FeedCaptionState extends ConsumerState<FeedCaption> {
               if (hasText)
                 LayoutBuilder(
                   builder: (context, box) {
-                    final painter = TextPainter(
-                      text: TextSpan(
-                        text: widget.text,
-                        style:
-                            DefaultTextStyle.of(context).style.merge(bodyStyle),
-                      ),
-                      textDirection: Directionality.of(context),
-                      textScaler: MediaQuery.textScalerOf(context),
-                    )..layout(maxWidth: box.maxWidth);
-                    final lines = painter.computeLineMetrics().length;
+                    // Owner 2026-10-18 (speed): counted up to 5 lines and
+                    // cached (only "> 2" and "> 4" are asked below).
+                    final lines =
+                        _lines(widget.text, bodyStyle, box.maxWidth, context);
                     final collapsed =
                         (lines > 2 || hasTags || widget.forceMore) &&
                             !_expanded;

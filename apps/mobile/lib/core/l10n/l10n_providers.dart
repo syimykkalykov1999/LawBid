@@ -95,29 +95,51 @@ class L10nCacheController extends _$L10nCacheController {
   }
 
   Future<void> bootstrap() async {
-    await initializeDateFormatting();
-    await _loadOnly(await _currentLanguage());
+    // Owner 2026-10-18 (speed): the date symbols and the cached bundle are
+    // independent — loaded side by side.
+    await Future.wait<void>([
+      initializeDateFormatting(),
+      _currentLanguage().then(_loadOnly),
+    ]);
   }
 
   Future<void> refreshInBackground() async {
-    await ref.read(activeLanguagesControllerProvider.notifier).refresh();
+    // Owner 2026-10-18 (speed): the language list and the bundles are
+    // fetched side by side. If the fresh list switches an auto-detected
+    // language, the languageControllerProvider listener in [build] loads
+    // and refreshes the new one (as before); a bundle of the old one that
+    // lands later is dropped by [_isStillCurrent].
+    final language = await _currentLanguage();
     if (!ref.mounted) return;
-    await _loadAndRefresh(await _currentLanguage());
+    await Future.wait<void>([
+      ref.read(activeLanguagesControllerProvider.notifier).refresh(),
+      _loadAndRefresh(language),
+    ]);
   }
 
   Future<void> _loadOnly(AppLanguage language) async {
     if (!ref.mounted) return;
     final repo = ref.read(l10nRepositoryProvider);
     final code = language.code;
-    final seed = compiledSeedFor(code);
-    if (seed != null) await repo.seedIfEmpty(code, seed);
-    final cached = await repo.loadCached(code);
-    var english = const <String, String>{};
-    if (language != AppLanguage.fallback) {
-      final enCode = AppLanguage.fallback.code;
-      await repo.seedIfEmpty(enCode, compiledSeedFor(enCode)!);
-      english = await repo.loadCached(enCode);
+    // Owner 2026-10-18 (speed): the language and the English fallback are
+    // seeded/read side by side.
+    Future<Map<String, String>> seedAndLoad(
+      String lang,
+      Map<String, String>? seed,
+    ) async {
+      if (seed != null) await repo.seedIfEmpty(lang, seed);
+      return repo.loadCached(lang);
     }
+
+    final enCode = AppLanguage.fallback.code;
+    final loaded = await Future.wait([
+      seedAndLoad(code, compiledSeedFor(code)),
+      if (language != AppLanguage.fallback)
+        seedAndLoad(enCode, compiledSeedFor(enCode)),
+    ]);
+    final cached = loaded[0];
+    final english =
+        loaded.length > 1 ? loaded[1] : const <String, String>{};
     if (_isStillCurrent(language)) {
       state = L10nCacheState(lang: code, entries: cached, english: english);
     }

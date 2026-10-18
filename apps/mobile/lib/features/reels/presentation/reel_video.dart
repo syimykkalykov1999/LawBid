@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/features/reels/application/reels_providers.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
@@ -44,6 +45,18 @@ class ReelClip {
     return ((position - start).inMilliseconds / len).clamp(0, 1).toDouble();
   }
 }
+
+/// Owner 2026-10-18 (speed): the width a reel's poster frame is decoded
+/// at (the player box is at most a phone screen wide).
+const int kReelPosterDecodeWidth = 720;
+
+/// The poster frame exactly as [ReelVideo] draws it (cache key + decode
+/// size), for warming it before it is on screen.
+ImageProvider reelPosterProvider(String url) => ResizeImage.resizeIfNeeded(
+      kReelPosterDecodeWidth,
+      null,
+      CachedNetworkImageProvider(url, cacheKey: stableImageCacheKey(url)),
+    );
 
 /// Owner 2026-10-01 — one reel video: the poster frame until the stream is
 /// ready, then the video filling its box (cover), looping. Plays only while
@@ -101,7 +114,10 @@ class _ReelVideoState extends State<ReelVideo> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
           unawaited(
-            precacheImage(CachedNetworkImageProvider(thumb), context)
+            // Owner 2026-10-18 (speed): warmed exactly as build() draws it
+            // (same cache key, decoded at the same 720 px), so the warm
+            // decode is the one found — not a second full-size decode.
+            precacheImage(reelPosterProvider(thumb), context)
                 .catchError((_) {}),
           );
         }
@@ -228,7 +244,8 @@ class _ReelVideoState extends State<ReelVideo> {
           if (thumb != null)
             CachedNetworkImage(
               imageUrl: thumb,
-              memCacheWidth: 720,
+              cacheKey: stableImageCacheKey(thumb),
+              memCacheWidth: kReelPosterDecodeWidth,
               fit: BoxFit.cover,
               fadeInDuration: Duration.zero,
               errorWidget: (_, __, ___) => const SizedBox.shrink(),

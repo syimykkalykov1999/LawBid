@@ -131,6 +131,11 @@ class FeedNotifier extends PagedNotifier<Post> {
   /// The page on screen came from the offline cache (§2.3 "Нет сети").
   bool fromCache = false;
 
+  // Owner 2026-10-18 (speed): kept for 5 minutes after the screen leaves
+  // (see PagedNotifier.keepAliveFor).
+  @override
+  Duration? get keepAliveFor => const Duration(minutes: 5);
+
   @override
   Future<CursorPage<Post>> fetch(String? cursor) async {
     final repo = ref.read(socialRepositoryProvider);
@@ -325,6 +330,11 @@ class FilteredPostsNotifier extends PagedNotifier<Post> {
   FilteredPostsNotifier(this.key);
 
   final FilteredPostsKey key;
+
+  // Owner 2026-10-18 (speed): kept for 5 minutes after the screen leaves
+  // (see PagedNotifier.keepAliveFor).
+  @override
+  Duration? get keepAliveFor => const Duration(minutes: 5);
 
   @override
   Future<CursorPage<Post>> fetch(String? cursor) {

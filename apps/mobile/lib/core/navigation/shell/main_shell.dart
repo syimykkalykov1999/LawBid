@@ -97,8 +97,12 @@ class _MainShellState extends ConsumerState<MainShell> {
       ..listen(badgesProvider, (_, __) {})
       ..listen(sessionServicesProvider, (_, __) {});
 
-    final uploading =
-        ref.watch(reelPublishJobProvider).phase != ReelPublishPhase.idle;
+    // Owner 2026-10-18 (speed): only "is a reel uploading" — the upload's
+    // progress ticks must not rebuild the whole shell (the strip watches
+    // them itself).
+    final uploading = ref.watch(
+      reelPublishJobProvider.select((j) => j.phase != ReelPublishPhase.idle),
+    );
     // Owner 2026-10-15 (web): on a wide window the bar moves to the side.
     final layout = shellLayoutFor(MediaQuery.sizeOf(context).width);
     final side = layout != ShellLayout.bottom;

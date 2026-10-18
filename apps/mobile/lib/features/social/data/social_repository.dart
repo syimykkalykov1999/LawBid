@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/limits/text_limits.dart';
 import 'package:lawbid/core/network/api_error.dart';
@@ -333,7 +335,14 @@ class ApiSocialRepository implements SocialRepository {
     final env = await guardApiCall(() => _feed.getFeed(cursor: cursor));
     final owner = _ownerId;
     if (cursor == null && owner != null) {
-      await _local.savePage('feed:$owner', jsonEncode(env.toJson()));
+      // Owner 2026-10-18 (speed): the offline copy is written in the
+      // background — the first page is on screen without waiting for the
+      // disk; a failed write only means no offline copy this time.
+      unawaited(
+        _local
+            .savePage('feed:$owner', jsonEncode(env.toJson()))
+            .catchError((Object e) => debugPrint('feed cache write: $e')),
+      );
     }
     return CursorPage(
       items: env.data.map(SocialMappers.post).toList(),

@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/features/chat/application/voice_recorder.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:video_player/video_player.dart';
@@ -47,10 +48,15 @@ class _ChatVideoTileState extends State<ChatVideoTile> {
     if (old.attachment.url != widget.attachment.url && _c == null) _open();
   }
 
+  /// Owner 2026-10-18 (speed): a poster image from the server, when it
+  /// sends one — then the tile draws it and no player is opened for the
+  /// tile (the full-screen player opens on tap, as always).
+  String? get _poster => widget.attachment.previewUrl;
+
   /// The first frame and the length (only the start of the file loads).
   void _open() {
     final url = widget.attachment.url;
-    if (url == null) return;
+    if (url == null || _poster != null) return;
     final c = VideoPlayerController.networkUrl(Uri.parse(url));
     _c = c;
     unawaited(
@@ -105,6 +111,15 @@ class _ChatVideoTileState extends State<ChatVideoTile> {
                 fit: StackFit.expand,
                 children: [
                   const ColoredBox(color: Colors.black),
+                  if (_poster != null && !_ready)
+                    Image(
+                      image: appNetworkImage(
+                        _poster!,
+                        decodeWidthFor(widget.fill ? 150 : 220),
+                      ),
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                    ),
                   if (_ready)
                     FittedBox(
                       fit: BoxFit.cover,

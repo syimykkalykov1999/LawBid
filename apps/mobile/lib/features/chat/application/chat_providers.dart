@@ -39,6 +39,11 @@ final chatRepositoryProvider = Provider<ChatRepository>(
 class ConversationsNotifier extends PagedNotifier<Conversation> {
   Timer? _debounce;
 
+  // Owner 2026-10-18 (speed): kept for 5 minutes after the screen leaves
+  // (see PagedNotifier.keepAliveFor).
+  @override
+  Duration? get keepAliveFor => const Duration(minutes: 5);
+
   @override
   Future<PaginatedList<Conversation>> build() {
     // New messages, closed chats, a reconnect: re-read the first page

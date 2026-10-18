@@ -133,6 +133,11 @@ class FeedNotifier extends PagedNotifier<FeedCase> {
 
   final FeedFilter filter;
 
+  // Owner 2026-10-18 (speed): kept for 5 minutes after the screen leaves
+  // (see PagedNotifier.keepAliveFor).
+  @override
+  Duration? get keepAliveFor => const Duration(minutes: 5);
+
   @override
   Future<CursorPage<FeedCase>> fetch(String? cursor) =>
       ref.read(casesRepositoryProvider).feed(

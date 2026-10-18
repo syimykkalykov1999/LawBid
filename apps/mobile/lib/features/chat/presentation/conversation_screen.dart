@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -1965,27 +1966,49 @@ class _WallpaperPainter extends CustomPainter {
   static const _cell = 76.0;
   static const _glyph = 22.0;
 
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (color.a == 0) return;
+  /// Owner 2026-10-18 (speed): the pattern is recorded once per colour and
+  /// size into a picture and that picture is drawn on every repaint (it
+  /// used to lay out ~70 icon glyphs — a TextPainter each — on every
+  /// repaint). The six glyphs are laid out once per colour and kept with
+  /// the picture.
+  static Color? _pictureColor;
+  static Size? _pictureSize;
+  static ui.Picture? _picture;
+  static List<TextPainter> _glyphs = const [];
+
+  static ui.Picture _patternFor(Color color, Size size) {
+    final cached = _picture;
+    if (cached != null && _pictureColor == color && _pictureSize == size) {
+      return cached;
+    }
+    if (_pictureColor != color) {
+      for (final g in _glyphs) {
+        g.dispose();
+      }
+      _glyphs = [
+        for (final icon in _icons)
+          TextPainter(
+            text: TextSpan(
+              text: String.fromCharCode(icon.codePoint),
+              style: TextStyle(
+                fontFamily: icon.fontFamily,
+                package: icon.fontPackage,
+                fontSize: _glyph,
+                color: color,
+              ),
+            ),
+            textDirection: TextDirection.ltr,
+          )..layout(),
+      ];
+    }
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
     var row = 0;
     for (var y = 0.0; y < size.height + _cell; y += _cell, row++) {
       var col = 0;
       final shift = row.isOdd ? _cell / 2 : 0.0;
       for (var x = -shift; x < size.width + _cell; x += _cell, col++) {
-        final icon = _icons[(row * 5 + col * 3) % _icons.length];
-        final tp = TextPainter(
-          text: TextSpan(
-            text: String.fromCharCode(icon.codePoint),
-            style: TextStyle(
-              fontFamily: icon.fontFamily,
-              package: icon.fontPackage,
-              fontSize: _glyph,
-              color: color,
-            ),
-          ),
-          textDirection: TextDirection.ltr,
-        )..layout();
+        final tp = _glyphs[(row * 5 + col * 3) % _icons.length];
         canvas
           ..save()
           ..translate(x + 18, y + 18)
@@ -1994,6 +2017,18 @@ class _WallpaperPainter extends CustomPainter {
         canvas.restore();
       }
     }
+    cached?.dispose();
+    final picture = recorder.endRecording();
+    _picture = picture;
+    _pictureColor = color;
+    _pictureSize = size;
+    return picture;
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (color.a == 0) return;
+    canvas.drawPicture(_patternFor(color, size));
   }
 
   @override

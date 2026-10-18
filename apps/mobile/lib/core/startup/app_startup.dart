@@ -46,15 +46,20 @@ class AppStartupController extends Notifier<StartupStatus> {
 
     final session =
         await ref.read(sessionControllerProvider.notifier).bootstrap();
-    await remote;
 
     if (session == SessionBootstrapResult.offline) {
+      await remote;
       state = StartupStatus.offline;
       return;
     }
-    if (session == SessionBootstrapResult.signedIn) {
-      await ref.read(currentUserControllerProvider.notifier).ensureLoaded();
-    }
+    // Owner 2026-10-18 (speed): GET /users/me no longer waits for the flags
+    // and translations — it runs alongside them (same 4 s box for those,
+    // and the splash still ends only when both are done).
+    await Future.wait<void>([
+      remote,
+      if (session == SessionBootstrapResult.signedIn)
+        ref.read(currentUserControllerProvider.notifier).ensureLoaded(),
+    ]);
     state = StartupStatus.ready;
   }
 }

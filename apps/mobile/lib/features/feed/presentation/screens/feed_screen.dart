@@ -41,6 +41,10 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
   _FeedTab _tab = _FeedTab.posts;
   final _chrome = FeedChromeController();
 
+  /// Owner 2026-10-18 (speed): the attorney's Cases tab is built the first
+  /// time it is opened (not at app open, hidden), then kept.
+  bool _casesOpened = false;
+
   @override
   void dispose() {
     _chrome.dispose();
@@ -119,6 +123,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
         ),
       );
     }
+    if (_tab == _FeedTab.cases) _casesOpened = true;
     final topInset = MediaQuery.paddingOf(context).top;
     final bottomInset = MediaQuery.paddingOf(context).bottom;
     // Owner 2026-10-12: Posts | Reels | Cases for attorneys and their
@@ -133,13 +138,16 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
             }),
             child: IndexedStack(
               index: _tab.index,
-              children: const [
+              children: [
                 // Owner 2026-09-30: the topic slider for every role.
-                _TopicFeed(),
+                const _TopicFeed(),
                 // Built only while open, so hidden reels never play.
                 // The Reels tab is its own full-screen layout (see build).
-                SizedBox.shrink(),
-                AttorneyCasesTab(),
+                const SizedBox.shrink(),
+                if (_casesOpened)
+                  const AttorneyCasesTab()
+                else
+                  const SizedBox.shrink(),
               ],
             ),
           )
