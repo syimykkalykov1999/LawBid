@@ -28,7 +28,7 @@ import {
 import { toBidDto } from '../bids.service';
 import type { BidDto } from '../dto/bid-responses.dto';
 import { disclosedFieldsOf } from './contact-disclosure.util';
-import { touchClientActive } from '../../cases/domain/client-activity';
+import { touchClientActive } from '../../cases/cases.public';
 
 /** docs/04 §7 step 8: why the losing bids were rejected. */
 export const REJECT_REASON_ANOTHER_BID = 'another_bid_accepted';

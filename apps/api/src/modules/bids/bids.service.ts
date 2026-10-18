@@ -23,14 +23,11 @@ import { SubscriptionAccessService } from '../subscriptions/subscription-access.
 import { AttorneyTrustService } from '../attorney-trust/attorney-trust.service';
 import { EntitlementsService } from '../plans/entitlements.service';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
-import {
-  assertContingency,
-  contingencyPolicy,
-} from '../cases/domain/contingency';
+import { assertContingency, contingencyPolicy } from '../cases/cases.public';
 import { BidStateMachine, bidNotFound } from './domain/bid-state-machine';
 import type { BidDto } from './dto/bid-responses.dto';
 import type { CounterOfferDto, CreateBidDto } from './dto/bid-requests.dto';
-import { touchClientActive } from '../cases/domain/client-activity';
+import { touchClientActive } from '../cases/cases.public';
 
 export type BidWithOffers = Bid & { offers: BidOffer[] };
 type BidWithCase = Bid & { case: { client_id: string; status: string } };

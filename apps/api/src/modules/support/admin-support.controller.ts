@@ -23,7 +23,7 @@ import {
   Roles,
   type AdminActor,
 } from '../admin-auth/admin-auth.decorators';
-import { FileDto, PresignedFileDto } from '../files/dto/files.dto';
+import { FileDto, PresignedFileDto } from '../files/files.public';
 import { FilesService } from '../files/files.service';
 import { AdminSupportService } from './admin-support.service';
 import { SupportDeskService } from './support-desk.service';

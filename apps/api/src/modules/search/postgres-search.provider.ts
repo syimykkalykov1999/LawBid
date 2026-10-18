@@ -19,7 +19,7 @@ import { parseSearchQuery } from '../../common/search/search-query';
 import { escapeLike, nameMatchSql } from '../../common/search/name-match.sql';
 import { SearchSynonymsService } from './search-synonyms.service';
 import { urgencyFilterSql } from '../cases/domain/case-urgency';
-import { budgetFilterSql } from '../cases/queries/budget-filter.sql';
+import { budgetFilterSql } from '../cases/cases.public';
 import {
   buildPracticeCasesSql,
   buildVisibleCasesSql,

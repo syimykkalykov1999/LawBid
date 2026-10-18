@@ -58,7 +58,7 @@ import {
   OrganizeConversationDto,
 } from './chat.dto';
 import { MessageBodyCipher } from '../../common/secrets/message-body-cipher';
-import { touchClientActive } from '../cases/domain/client-activity';
+import { touchClientActive } from '../cases/cases.public';
 
 const CONVERSATIONS_PAGE = 20;
 const MESSAGES_PAGE = 30;
