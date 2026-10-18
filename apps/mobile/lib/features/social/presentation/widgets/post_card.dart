@@ -76,6 +76,9 @@ class PostVideoCaption extends ConsumerWidget {
     required this.onMore,
   });
 
+  /// Owner 2026-10-18: «ещё» even for a short line when the post has files.
+  bool get _force => post.attachments.isNotEmpty;
+
   final Post post;
   final String line;
   final VoidCallback onMore;
@@ -118,7 +121,7 @@ class PostVideoCaption extends ConsumerWidget {
               // The whole text fits two lines: no «ещё», no cut.
               var shown = oneLine;
               final fitsWhole = !painter(oneLine).didExceedMaxLines;
-              if (fitsWhole) {
+              if (fitsWhole && !_force) {
                 return Text(oneLine, maxLines: 2, style: base);
               }
               if (painter('$shown  $more').didExceedMaxLines) {
@@ -573,8 +576,15 @@ class PostCard extends ConsumerWidget {
               // inner card opens from the attached files.
               inPlaceOnly: true,
               onMore: () => showPostTextSheet(context, p),
+              // Owner 2026-10-18: the files are inside the «ещё» sheet.
+              forceMore: p.attachments.isNotEmpty,
             ),
-          if (p.video == null && p.attachments.isNotEmpty)
+          // Files without any text to hang «ещё» on keep their chips.
+          if (p.video == null &&
+              p.attachments.isNotEmpty &&
+              title.isEmpty &&
+              text.isEmpty &&
+              hashtags.isEmpty)
             _DocChips(documents: p.attachments, onOpen: openFiles),
           const SizedBox(height: AppSpacing.md),
         ],
@@ -904,6 +914,7 @@ class _InstagramPost extends ConsumerWidget {
           // Owner 2026-10-07: two lines in the feed, the rest inside.
           collapsedLines: 2,
           onMore: inDetail ? null : open,
+          forceMore: !inDetail && p.attachments.isNotEmpty,
           mentions: p.mentions,
           large: !hasMedia,
         );
@@ -1000,7 +1011,8 @@ class _InstagramPost extends ConsumerWidget {
           ),
         // Owner 2026-10-07 (bug 13): one small «Посмотреть · N» button;
         // the photos and files open in a sheet.
-        if (p.attachments.isNotEmpty)
+        // Owner 2026-10-18: in a list the files are in the «ещё» sheet.
+        if (p.attachments.isNotEmpty && (inDetail || caption.isEmpty))
           Padding(
             padding: const EdgeInsets.fromLTRB(
               AppSpacing.lg,
@@ -1121,6 +1133,7 @@ class _ThreadsPost extends ConsumerWidget {
           // to six lines with «ещё».
           collapsedLines: inDetail ? 1000 : 6,
           onMore: inDetail ? null : open,
+          forceMore: !inDetail && p.attachments.isNotEmpty,
           mentions: p.mentions,
           large: inDetail,
         );
@@ -2146,8 +2159,13 @@ class PostBodyText extends ConsumerStatefulWidget {
     this.onLeadingTap,
     this.collapsedLines = 3,
     this.onMore,
+    this.forceMore = false,
     super.key,
   });
+
+  /// Owner 2026-10-18: «ещё» even when the text fits — the post has files,
+  /// and they live in the sheet «ещё» opens.
+  final bool forceMore;
 
   /// Owner 2026-10-07: in the feed the text never grows in place; "more"
   /// (or a tap on the text) opens the post with the whole text instead.
@@ -2309,7 +2327,7 @@ class _PostBodyTextState extends ConsumerState<PostBodyText> {
           textDirection: Directionality.of(context),
           textScaler: MediaQuery.textScalerOf(context),
         )..layout(maxWidth: box.maxWidth);
-        if (!painter.didExceedMaxLines) return text;
+        if (!painter.didExceedMaxLines && !widget.forceMore) return text;
         final more = widget.onMore ?? () => setState(() => _expanded = true);
         // "… more" ends the last allowed line (Instagram-like), never a
         // line of its own.
@@ -2339,7 +2357,9 @@ class _PostBodyTextState extends ConsumerState<PostBodyText> {
             hi = mid - 1;
           }
         }
-        final cutText = '${bodyText.substring(0, lo).trimRight()}…';
+        final cutText = lo >= bodyText.length
+            ? bodyText
+            : '${bodyText.substring(0, lo).trimRight()}…';
         final moreRecognizer = TapGestureRecognizer()..onTap = more;
         _recognizers.add(moreRecognizer);
         return GestureDetector(
@@ -3194,8 +3214,13 @@ class FeedCaption extends ConsumerStatefulWidget {
     this.onExpand,
     this.inPlaceOnly = false,
     this.onMore,
+    this.forceMore = false,
     super.key,
   });
+
+  /// Owner 2026-10-18: «ещё» even when nothing is cut — the post's files
+  /// are in the sheet it opens.
+  final bool forceMore;
 
   /// With [inPlaceOnly]: opens the description sheet.
   final VoidCallback? onMore;
@@ -3360,7 +3385,8 @@ class FeedCaptionState extends ConsumerState<FeedCaption> {
                       2);
           // ONE «ещё» per caption: at the end of the cut text, else after
           // the cut title.
-          final titleMore = titleCut && !textCut;
+          final force = widget.forceMore && !_expanded;
+          final titleMore = (titleCut || (force && !hasText)) && !textCut;
           void openMore() {
             if (widget.inPlaceOnly) {
               widget.onMore?.call();
@@ -3388,7 +3414,9 @@ class FeedCaptionState extends ConsumerState<FeedCaption> {
                     style: titleStyle,
                     children: [
                       TextSpan(
-                        text: '${widget.title.substring(0, cut).trimRight()}… ',
+                        text: cut >= widget.title.length
+                            ? '${widget.title} '
+                            : '${widget.title.substring(0, cut).trimRight()}… ',
                       ),
                       TextSpan(
                         text: moreLabel,
@@ -3429,7 +3457,9 @@ class FeedCaptionState extends ConsumerState<FeedCaption> {
                       textScaler: MediaQuery.textScalerOf(context),
                     )..layout(maxWidth: box.maxWidth);
                     final lines = painter.computeLineMetrics().length;
-                    final collapsed = (lines > 2 || hasTags) && !_expanded;
+                    final collapsed =
+                        (lines > 2 || hasTags || widget.forceMore) &&
+                            !_expanded;
                     _more.onTap = () {
                       if (widget.inPlaceOnly) {
                         // Owner 2026-10-13: no inner card — «ещё» always opens

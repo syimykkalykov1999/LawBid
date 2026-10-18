@@ -6,11 +6,13 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/shell/content_column_frame.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
+import 'package:lawbid/features/social/presentation/widgets/post_documents.dart';
 import 'package:lawbid/features/social/social_routes.dart';
 
-/// Owner 2026-10-13: «ещё» on a post or reel without attachments opens the
-/// whole description in a sheet that rises from the bottom, like the
-/// comments: author, title, text with paragraphs, hashtags.
+/// Owner 2026-10-13: «ещё» on a post or reel opens the whole description in
+/// a sheet that rises from the bottom, like the comments: author, title,
+/// text with paragraphs, hashtags — and (owner 2026-10-18) the attached
+/// files.
 Future<void> showPostTextSheet(BuildContext context, Post post) {
   final colors = Theme.of(context).extension<AppColorTokens>()!;
   return showModalBottomSheet<void>(
@@ -146,6 +148,12 @@ class PostTextSheet extends ConsumerWidget {
                         ),
                     ],
                   ),
+                ],
+                // Owner 2026-10-18: the post's files live here, not under
+                // the post in the feed.
+                if (post.attachments.isNotEmpty) ...[
+                  const SizedBox(height: AppSpacing.lg),
+                  PostDocumentsList(documents: post.attachments),
                 ],
               ],
             ),

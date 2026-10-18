@@ -20,6 +20,7 @@ void main() {
     required String title,
     required String text,
     VoidCallback? onMore,
+    bool forceMore = false,
   }) async {
     await t.pumpWidget(
       uxApp(
@@ -33,6 +34,7 @@ void main() {
                 hashtags: const [],
                 onOpen: () {},
                 onMore: onMore,
+                forceMore: forceMore,
               ),
             ),
           ),
@@ -143,6 +145,15 @@ void main() {
       find.descendant(of: find.text(title), matching: find.byType(RichText)),
     );
     expect(box.didExceedMaxLines, isFalse);
+  });
+
+  testWidgets('a post with files: «ещё» even when nothing is cut',
+      (t) async {
+    await pump(t, title: 'Short', text: 'Short text', forceMore: true);
+    expect(more(), findsOneWidget);
+    await pump(t, title: 'Only a title', text: '', forceMore: true);
+    expect(more(), findsOneWidget);
+    expect(find.textContaining('…', findRichText: true), findsNothing);
   });
 
   testWidgets('nothing cut: no «ещё»', (t) async {
