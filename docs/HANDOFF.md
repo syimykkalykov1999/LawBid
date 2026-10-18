@@ -98,6 +98,14 @@ row + topic hint; budget step no jump.
 - After `sh packages/api-contract/generate.sh` RESTART the API dev server
   (`nest build` inside it deletes dist/ and the watcher dies → app shows
   «Нет подключения»).
+- Speed (2026-10-18, commits d3edd54c API, da1ea66b app): settings memo,
+  Redis block sets / content mode, parallel awaits, partial indexes; app:
+  photo decode, keepAlive for feeds/chats, caption_fit.dart cache, parallel
+  startup, stable image cache keys. Open: profile posts as slivers (skipped,
+  needs AppPaginatedListView rework), chat video posters (server has none).
+  Waiting for the owner: Glass card blur, tab fade, economy guard on the Mac
+  (video 503 «paused»: AWS fallback $150 > $150 floor locally; options A/B/C
+  asked).
 - APK: build ONLY when the owner says (he checks the iPhone first).
 - iPhone: install a RELEASE build (`flutter run --release …`) — a debug build
   stops working when the cable/session drops.
