@@ -27,6 +27,11 @@ abstract interface class ChatRepository {
     DateTime? updatedSince,
     bool requests = false,
     ChatListFolder folder = ChatListFolder.all,
+
+    /// Owner 2026-10-18: search my chats (names, @username, case title,
+    /// message text) — the server matches; items then carry
+    /// [Conversation.matchedMessage].
+    String? q,
   });
 
   /// Owner 2026-10-01: move to a folder (null = automatic), "waiting for
@@ -412,11 +417,14 @@ class ApiChatRepository implements ChatRepository {
     DateTime? updatedSince,
     bool requests = false,
     ChatListFolder folder = ChatListFolder.all,
+    String? q,
   }) async {
     final f = requests ? ChatListFolder.requests : folder;
+    final query = q?.trim();
     final env = await guardApiCall(
       () => _chat.listConversations(
         cursor: cursor,
+        q: query == null || query.isEmpty ? null : query,
         updatedSince: updatedSince?.toUtc().toIso8601String(),
         folder: f == ChatListFolder.all
             ? null
@@ -701,6 +709,7 @@ abstract final class ChatMappers {
         waitingSince: d.waitingSince,
         note: d.note,
         pinnedAt: d.pinnedAt,
+        matchedMessage: d.matchedMessage,
       );
 
   /// A realtime `message:new` payload (same shape as MessageDto).

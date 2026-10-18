@@ -19,7 +19,7 @@
  "features/promotions/presentation/promote_case_card.dart": 1,
  "features/reels/presentation/reels_screen.dart": 2,
  "features/search/presentation/screens/search_screen.dart": 3,
- "features/search/presentation/widgets/flip_search_bar.dart": 2,
+ "shared/presentation/flip_search_bar.dart": 2,
  "features/search/presentation/widgets/search_tiles.dart": 2,
  "features/social/presentation/widgets/attorney_tile.dart": 5,
  "features/social/presentation/widgets/post_card.dart": 12,

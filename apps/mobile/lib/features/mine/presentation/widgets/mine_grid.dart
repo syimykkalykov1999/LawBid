@@ -18,8 +18,8 @@ import 'package:lawbid/features/feed/presentation/widgets/feed_chrome.dart';
 import 'package:lawbid/features/onboarding/domain/us_states.dart';
 import 'package:lawbid/features/onboarding/presentation/widgets/option_picker_sheet.dart';
 import 'package:lawbid/features/practice/practice_options.dart';
-import 'package:lawbid/features/search/presentation/widgets/flip_search_bar.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
+import 'package:lawbid/shared/presentation/flip_search_bar.dart';
 
 /// Owner 2026-09-30: one square of the "Mine" grid — the case's first photo
 /// (or our art of its qualification), a short title and its status.

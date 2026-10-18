@@ -20,7 +20,6 @@ import 'package:lawbid/features/feed/presentation/widgets/topic_filter_bar.dart'
 import 'package:lawbid/features/practice/practice_matches.dart';
 import 'package:lawbid/features/search/application/search_providers.dart';
 import 'package:lawbid/features/search/data/search_repository.dart';
-import 'package:lawbid/features/search/presentation/widgets/flip_search_bar.dart';
 import 'package:lawbid/features/search/presentation/widgets/search_filters_sheet.dart';
 import 'package:lawbid/features/search/presentation/widgets/search_tiles.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
@@ -30,6 +29,7 @@ import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_grid_tile.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
+import 'package:lawbid/shared/presentation/flip_search_bar.dart';
 
 enum SearchTab { attorneys, cases, posts, tags }
 

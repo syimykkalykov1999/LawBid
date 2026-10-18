@@ -508,7 +508,8 @@ final repliesProvider = AsyncNotifierProvider.autoDispose
 
 enum FollowListKind { followers, following }
 
-typedef FollowListKey = ({String attorneyId, FollowListKind kind});
+/// [q]: Owner 2026-10-18 — the search box above the list ('' = everyone).
+typedef FollowListKey = ({String attorneyId, FollowListKind kind, String q});
 
 class FollowListNotifier extends PagedNotifier<PersonRow> {
   FollowListNotifier(this.key);
@@ -519,9 +520,9 @@ class FollowListNotifier extends PagedNotifier<PersonRow> {
   Future<CursorPage<PersonRow>> fetch(String? cursor) async {
     final repo = ref.read(socialRepositoryProvider);
     if (key.kind == FollowListKind.followers) {
-      return repo.followers(key.attorneyId, cursor: cursor);
+      return repo.followers(key.attorneyId, cursor: cursor, q: key.q);
     }
-    return repo.following(key.attorneyId, cursor: cursor);
+    return repo.following(key.attorneyId, cursor: cursor, q: key.q);
   }
 
   @override

@@ -114,6 +114,31 @@ final folderConversationsProvider = AsyncNotifierProvider.autoDispose.family<
   retry: _noRetry,
 );
 
+/// Owner 2026-10-18: the chats of a folder matching a search (`q` is sent
+/// to the server: names, @username, case title, message text).
+typedef ChatSearchKey = ({ChatListFolder folder, String q});
+
+class SearchConversationsNotifier extends ConversationsNotifier {
+  SearchConversationsNotifier(this.key);
+
+  final ChatSearchKey key;
+
+  @override
+  Future<CursorPage<Conversation>> fetch(String? cursor) =>
+      ref.read(chatRepositoryProvider).conversations(
+            cursor: cursor,
+            folder: key.folder,
+            requests: key.folder == ChatListFolder.requests,
+            q: key.q,
+          );
+}
+
+final searchConversationsProvider = AsyncNotifierProvider.autoDispose.family<
+    SearchConversationsNotifier, PaginatedList<Conversation>, ChatSearchKey>(
+  SearchConversationsNotifier.new,
+  retry: _noRetry,
+);
+
 /// Waiting / Requests badges; re-read on chat events.
 final chatFolderCountsProvider =
     FutureProvider.autoDispose<({int waiting, int requests})>(

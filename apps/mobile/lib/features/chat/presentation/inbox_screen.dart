@@ -29,6 +29,7 @@ import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/features/team/presentation/team_inbox_tab.dart';
 import 'package:lawbid/features/team/team_routes.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
+import 'package:lawbid/shared/presentation/list_search_field.dart';
 
 // OQ-048: [team] — assistants' approval requests and activity (attorney).
 enum InboxTab { chats, notifications, requests, team }
@@ -54,9 +55,21 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
       ? ChatListFolder.requests
       : ChatListFolder.all;
 
+  /// Owner 2026-10-18: the search box of the chats list ('' = none).
+  String _query = '';
+
   /// The chats of the folder on screen (Select all, the bulk bar).
   List<Conversation> _visibleChats() {
     if (_folder == ChatListFolder.requests) return const [];
+    if (_query.isNotEmpty) {
+      return ref
+              .watch(
+                searchConversationsProvider((folder: _folder, q: _query)),
+              )
+              .value
+              ?.items ??
+          const [];
+    }
     final provider = _folder == ChatListFolder.all
         ? conversationsProvider
         : folderConversationsProvider(_folder);
@@ -277,6 +290,8 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                       ConversationsView(
                         folder: _folder,
                         onFolder: (f) => setState(() => _folder = f),
+                        query: _query,
+                        onQuery: (q) => setState(() => _query = q),
                       )
                     else
                       const SizedBox.shrink(),
@@ -551,11 +566,18 @@ class ConversationsView extends ConsumerWidget {
   const ConversationsView({
     this.folder = ChatListFolder.all,
     this.onFolder,
+    this.query = '',
+    this.onQuery,
     super.key,
   });
 
   final ChatListFolder folder;
   final ValueChanged<ChatListFolder>? onFolder;
+
+  /// Owner 2026-10-18: the typed search ('' = the normal list). The field
+  /// shows when [onQuery] is set.
+  final String query;
+  final ValueChanged<String>? onQuery;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -563,8 +585,30 @@ class ConversationsView extends ConsumerWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final attorney = ref.watch(actsAsAttorneyProvider);
+    final searching = query.isNotEmpty;
     Widget body;
-    if (folder == ChatListFolder.requests) {
+    if (searching) {
+      final key = (folder: folder, q: query);
+      final provider = searchConversationsProvider(key);
+      final value = ref.watch(provider);
+      final n = ref.read(provider.notifier);
+      body = PagedListBody<Conversation>(
+        value: value,
+        t: t,
+        itemKey: (c) => c.id,
+        edgeToEdge: true,
+        itemBuilder: (context, c, _) =>
+            ConversationRow(conversation: c, highlight: query),
+        empty: AppEmptyState(
+          icon: AppIcons.searchRounded,
+          title: t.t('chat.search.empty.title'),
+          message: t.t('chat.search.empty.hint'),
+        ),
+        onRefresh: n.refresh,
+        onLoadMore: n.loadMore,
+        onRetryMore: n.retryLoadMore,
+      );
+    } else if (folder == ChatListFolder.requests) {
       body = const MessageRequestsView();
     } else {
       final provider = folder == ChatListFolder.all
@@ -610,6 +654,13 @@ class ConversationsView extends ConsumerWidget {
     }
     return Column(
       children: [
+        if (onQuery != null)
+          ListSearchField(
+            fieldKey: const ValueKey('chat-search'),
+            hintKey: 'chat.search.hint',
+            initial: query,
+            onChanged: onQuery!,
+          ),
         if (onFolder != null) ...[
           ChatFolderPills(value: folder, onChanged: onFolder!),
           const SizedBox(height: AppSpacing.sm),
@@ -658,15 +709,44 @@ class MessageRequestsView extends ConsumerWidget {
   }
 }
 
+/// [text] with every word of [query] (any case) in bold — the matched
+/// message of a chat search.
+@visibleForTesting
+TextSpan boldWords(String text, String query, TextStyle style) {
+  final words = query
+      .split(RegExp(r'\s+'))
+      .map((w) => w.trim())
+      .where((w) => w.isNotEmpty)
+      .map(RegExp.escape)
+      .toList()
+    ..sort((a, b) => b.length.compareTo(a.length));
+  if (words.isEmpty) return TextSpan(text: text, style: style);
+  final re = RegExp(words.join('|'), caseSensitive: false, unicode: true);
+  final bold = style.copyWith(fontWeight: FontWeight.w700);
+  final spans = <TextSpan>[];
+  var at = 0;
+  for (final m in re.allMatches(text)) {
+    if (m.start > at) spans.add(TextSpan(text: text.substring(at, m.start)));
+    spans.add(TextSpan(text: m.group(0), style: bold));
+    at = m.end;
+  }
+  if (at < text.length) spans.add(TextSpan(text: text.substring(at)));
+  return TextSpan(style: style, children: spans);
+}
+
 /// Telegram / WhatsApp style chat row: a flat full-width row on the screen
 /// background, a round avatar, name + time, preview + badge, and a hairline
 /// divider indented from the avatar. The chat's menu (pin, folder, waiting +
 /// note) opens on long-press.
 class ConversationRow extends ConsumerWidget {
   // ignore: use_key_in_widget_constructors
-  const ConversationRow({required this.conversation});
+  const ConversationRow({required this.conversation, this.highlight = ''});
 
   final Conversation conversation;
+
+  /// Owner 2026-10-18: the typed chat search — the words of it are bold in
+  /// the matched message.
+  final String highlight;
 
   static const double _avatar = 54;
 
@@ -857,19 +937,30 @@ class ConversationRow extends ConsumerWidget {
                                         fontStyle: FontStyle.italic,
                                       ),
                                     )
-                                  : Text(
-                                      last == null
-                                          ? ''
-                                          : '${last.senderId == me ? '${t.t('chat.you')}: ' : ''}'
-                                              '${messagePreview(t, last, me: me)}',
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: unread
-                                          ? secondary.copyWith(
-                                              color: colors.text,
-                                            )
-                                          : secondary,
-                                    ),
+                                  : (c.matchedMessage?.isNotEmpty ?? false)
+                                      ? Text.rich(
+                                          key: ValueKey('chat-match-${c.id}'),
+                                          boldWords(
+                                            c.matchedMessage!,
+                                            highlight,
+                                            secondary,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        )
+                                      : Text(
+                                          last == null
+                                              ? ''
+                                              : '${last.senderId == me ? '${t.t('chat.you')}: ' : ''}'
+                                                  '${messagePreview(t, last, me: me)}',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: unread
+                                              ? secondary.copyWith(
+                                                  color: colors.text,
+                                                )
+                                              : secondary,
+                                        ),
                             ),
                             if (c.muted) ...[
                               const SizedBox(width: AppSpacing.sm),

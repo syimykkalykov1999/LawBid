@@ -63,6 +63,7 @@ class _Chats implements ChatRepository {
     DateTime? updatedSince,
     bool requests = false,
     ChatListFolder folder = ChatListFolder.all,
+    String? q,
   }) async {
     folders.add(requests ? ChatListFolder.requests : folder);
     return CursorPage(

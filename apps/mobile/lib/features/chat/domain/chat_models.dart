@@ -69,7 +69,12 @@ class Conversation {
     this.note,
     this.pinnedAt,
     this.blocked = false,
+    this.matchedMessage,
   });
+
+  /// Owner 2026-10-18: in a search by text, the message that matched —
+  /// shown instead of the last-message preview.
+  final String? matchedMessage;
 
   /// Audit 2026-10-04: either side blocked the other. An accepted case
   /// chat that is not closed keeps working (see [blockedHere]).

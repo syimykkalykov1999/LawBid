@@ -20,6 +20,7 @@ import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_grid_tile.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_prefetch.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
+import 'package:lawbid/shared/presentation/list_search_field.dart';
 
 /// Post skeletons for list loading states.
 class PostListSkeleton extends StatelessWidget {
@@ -527,8 +528,10 @@ class _TagScreenState extends ConsumerState<TagScreen> {
   }
 }
 
-/// docs/05 §6.2 followers / following of a person.
-class FollowListScreen extends ConsumerWidget {
+/// docs/05 §6.2 followers / following of a person. Owner 2026-10-18: a
+/// search box above the list (name in any alphabet, @username) — the server
+/// matches.
+class FollowListScreen extends ConsumerStatefulWidget {
   const FollowListScreen({
     required this.kind,
     required this.attorneyId,
@@ -539,10 +542,18 @@ class FollowListScreen extends ConsumerWidget {
   final FollowListKind kind;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<FollowListScreen> createState() => _FollowListScreenState();
+}
+
+class _FollowListScreenState extends ConsumerState<FollowListScreen> {
+  String _q = '';
+
+  @override
+  Widget build(BuildContext context) {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final key = (attorneyId: attorneyId, kind: kind);
+    final kind = widget.kind;
+    final key = (attorneyId: widget.attorneyId, kind: kind, q: _q);
     final value = ref.watch(followListProvider(key));
     final n = ref.read(followListProvider(key).notifier);
     return Scaffold(
@@ -560,22 +571,39 @@ class FollowListScreen extends ConsumerWidget {
           ),
         ),
       ),
-      body: PagedListBody<PersonRow>(
-        value: value,
-        t: t,
-        itemKey: (r) => r.id,
-        itemBuilder: (context, r, _) => PersonTile(row: r),
-        empty: AppEmptyState(
-          icon: AppIcons.peopleOutlineRounded,
-          message: t.t(
-            kind == FollowListKind.followers
-                ? 'follow.followers.empty'
-                : 'follow.following.empty',
+      body: Column(
+        children: [
+          ListSearchField(
+            fieldKey: const ValueKey('follow-search'),
+            hintKey: 'follow.search.hint',
+            onChanged: (q) => setState(() => _q = q),
           ),
-        ),
-        onRefresh: n.refresh,
-        onLoadMore: n.loadMore,
-        onRetryMore: n.retryLoadMore,
+          Expanded(
+            child: PagedListBody<PersonRow>(
+              value: value,
+              t: t,
+              itemKey: (r) => r.id,
+              itemBuilder: (context, r, _) => PersonTile(row: r),
+              empty: _q.isNotEmpty
+                  ? AppEmptyState(
+                      icon: AppIcons.searchRounded,
+                      title: t.t('follow.search.empty.title'),
+                      message: t.t('follow.search.empty.hint'),
+                    )
+                  : AppEmptyState(
+                      icon: AppIcons.peopleOutlineRounded,
+                      message: t.t(
+                        kind == FollowListKind.followers
+                            ? 'follow.followers.empty'
+                            : 'follow.following.empty',
+                      ),
+                    ),
+              onRefresh: n.refresh,
+              onLoadMore: n.loadMore,
+              onRetryMore: n.retryLoadMore,
+            ),
+          ),
+        ],
       ),
     );
   }

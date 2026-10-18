@@ -10,6 +10,13 @@ const auditChatRu = <String, String>{
   'settings.contactPreferences': 'Как со мной связаться',
   'support.close.confirm': 'Закрыть обращение? Это нельзя отменить.',
   'chat.blockedBanner': 'Переписка недоступна: есть блокировка',
+  'chat.search.hint': 'Поиск по чатам',
+  'chat.search.empty.title': 'Ничего не найдено',
+  'chat.search.empty.hint':
+      'Ищем по имени, @нику, названию кейса и тексту сообщений',
+  'follow.search.hint': 'Поиск по имени или @нику',
+  'follow.search.empty.title': 'Никого не найдено',
+  'follow.search.empty.hint': 'Попробуйте другое имя или @ник',
 };
 
 const auditChatEn = <String, String>{
@@ -20,4 +27,11 @@ const auditChatEn = <String, String>{
   'settings.contactPreferences': 'Contact preferences',
   'support.close.confirm': "Close this request? This can't be undone.",
   'chat.blockedBanner': 'Messaging is unavailable: a block is in place',
+  'chat.search.hint': 'Search chats',
+  'chat.search.empty.title': 'Nothing found',
+  'chat.search.empty.hint':
+      'We search names, @usernames, case titles and message text',
+  'follow.search.hint': 'Search by name or @username',
+  'follow.search.empty.title': 'No one found',
+  'follow.search.empty.hint': 'Try another name or @username',
 };

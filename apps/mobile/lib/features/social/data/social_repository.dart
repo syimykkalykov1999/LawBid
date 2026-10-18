@@ -244,11 +244,19 @@ abstract interface class SocialRepository {
   Future<void> setFollowing(String attorneyId, {required bool following});
 
   /// OQ-026: attorneys and clients who follow [attorneyId].
+  ///
+  /// Owner 2026-10-18: [q] — name (any alphabet, typos) or @username; the
+  /// server matches.
   Future<CursorPage<PersonRow>> followers(
     String attorneyId, {
     String? cursor,
+    String? q,
   });
-  Future<CursorPage<PersonRow>> following(String attorneyId, {String? cursor});
+  Future<CursorPage<PersonRow>> following(
+    String attorneyId, {
+    String? cursor,
+    String? q,
+  });
   Future<CursorPage<AttorneyRow>> suggestions({String? cursor});
 
   Future<void> report(
@@ -278,6 +286,11 @@ abstract interface class SocialRepository {
     required int maxBytes,
     void Function(double progress)? onProgress,
   });
+}
+
+String? _queryOrNull(String? q) {
+  final v = q?.trim();
+  return v == null || v.isEmpty ? null : v;
 }
 
 class ApiSocialRepository implements SocialRepository {
@@ -752,9 +765,14 @@ class ApiSocialRepository implements SocialRepository {
   Future<CursorPage<PersonRow>> followers(
     String attorneyId, {
     String? cursor,
+    String? q,
   }) async {
     final env = await guardApiCall(
-      () => _follows.listFollowers(id: attorneyId, cursor: cursor),
+      () => _follows.listFollowers(
+        id: attorneyId,
+        cursor: cursor,
+        q: _queryOrNull(q),
+      ),
     );
     return CursorPage(
       items: env.data.map(SocialMappers.person).whereType<PersonRow>().toList(),
@@ -766,10 +784,15 @@ class ApiSocialRepository implements SocialRepository {
   Future<CursorPage<PersonRow>> following(
     String attorneyId, {
     String? cursor,
+    String? q,
   }) async {
     // OQ-038: attorneys and clients.
     final env = await guardApiCall(
-      () => _follows.listFollowing(id: attorneyId, cursor: cursor),
+      () => _follows.listFollowing(
+        id: attorneyId,
+        cursor: cursor,
+        q: _queryOrNull(q),
+      ),
     );
     return CursorPage(
       items: env.data.map(SocialMappers.person).whereType<PersonRow>().toList(),
