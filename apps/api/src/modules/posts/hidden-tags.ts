@@ -1,3 +1,5 @@
+import { Prisma } from '@prisma/client';
+
 /**
  * Owner 2026-10-13: ONE tag algorithm for Topics, search, the Reels filters,
  * hashtag chips and profile filters. A post's qualification is stored as
@@ -44,4 +46,61 @@ const LEGACY_TOPIC_TAGS: Record<string, string[]> = {
 /** The legacy hashtags of a practice category (top level only). */
 export function legacyTopicTags(code: string): string[] {
   return LEGACY_TOPIC_TAGS[code.trim().toLowerCase()] ?? [];
+}
+
+/**
+ * Owner 2026-10-18 (search filters audit): ONE Prisma clause for "posts of
+ * this qualification (a category includes every leaf under it, a leaf only
+ * itself)". It reads BOTH the hidden tags AND `posts.practice_area_id`,
+ * because posts created by seeds / imports / before the hidden tags carry
+ * only the column (a `family_law.divorce` post had no `~family_law` tag, so
+ * the "Family law" filter found nothing). Legacy posts without a
+ * qualification fall back to topic hashtags.
+ */
+export function postPracticeWhere(
+  codes: string[],
+  legacyTags: string[] = [],
+): Prisma.PostWhereInput {
+  const list = [
+    ...new Set(codes.map((c) => c.trim().toLowerCase()).filter(Boolean)),
+  ];
+  return {
+    OR: [
+      {
+        tags: {
+          some: { tag: { tag_lower: { in: list.map((c) => hiddenTagOf(c)) } } },
+        },
+      },
+      {
+        practice_area: {
+          OR: list.flatMap((c) => [
+            { code: c },
+            { code: { startsWith: `${c}.` } },
+          ]),
+        },
+      },
+      ...(legacyTags.length
+        ? [
+            {
+              practice_area_id: null,
+              tags: { some: { tag: { tag_lower: { in: legacyTags } } } },
+            },
+          ]
+        : []),
+    ],
+  };
+}
+
+/** Raw-SQL twin of [postPracticeWhere] for alias `p` (posts). */
+export function postPracticeSql(
+  code: string,
+  legacyTags: string[] = [],
+): Prisma.Sql {
+  const c = code.trim().toLowerCase();
+  return Prisma.sql`(EXISTS (SELECT 1 FROM post_tags pt JOIN tags t ON t.id = pt.tag_id WHERE pt.post_id = p.id AND t.tag_lower = ${hiddenTagOf(c)})
+    OR EXISTS (SELECT 1 FROM practice_areas fpa WHERE fpa.id = p.practice_area_id AND (fpa.code = ${c} OR fpa.code LIKE ${`${c.replace(/[\\%_]/g, '\\$&')}.%`}))${
+      legacyTags.length
+        ? Prisma.sql` OR (p.practice_area_id IS NULL AND EXISTS (SELECT 1 FROM post_tags pt JOIN tags t ON t.id = pt.tag_id WHERE pt.post_id = p.id AND t.tag_lower = ANY(${legacyTags}::TEXT[])))`
+        : Prisma.empty
+    })`;
 }

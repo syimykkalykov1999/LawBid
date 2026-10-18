@@ -117,40 +117,50 @@ final trendingTagsProvider = FutureProvider.autoDispose<List<TagInfo>>(
   retry: _noRetry,
 );
 
-/// §7.2 recent searches: local, per account, clearable.
+/// §7.2 recent searches: local, per account AND per Search tab (owner
+/// 2026-10-18: people history = people searches only, posts history = posts
+/// only…), clearable. The family key is the tab name (`SearchTab.name`).
 class RecentSearches extends AsyncNotifier<List<String>> {
+  RecentSearches(this.tab);
+
+  final String tab;
+
   @override
   Future<List<String>> build() async {
     final owner = ref.watch(currentUserIdProvider);
     if (owner == null) return const [];
-    return ref.watch(socialLocalDatabaseProvider).recent(owner);
+    final db = ref.watch(socialLocalDatabaseProvider);
+    await db.dropLegacyRecent(owner);
+    return db.recent(owner, tab);
   }
 
   Future<void> remember(String query) async {
     final owner = ref.read(currentUserIdProvider);
     final q = normalizeSearch(query);
     if (owner == null || q.length < kSearchMinChars) return;
-    await ref.read(socialLocalDatabaseProvider).remember(owner, q);
+    await ref.read(socialLocalDatabaseProvider).remember(owner, tab, q);
     ref.invalidateSelf();
   }
 
   Future<void> forget(String query) async {
     final owner = ref.read(currentUserIdProvider);
     if (owner == null) return;
-    await ref.read(socialLocalDatabaseProvider).forgetRecent(owner, query);
+    await ref.read(socialLocalDatabaseProvider).forgetRecent(owner, tab, query);
     ref.invalidateSelf();
   }
 
   Future<void> clear() async {
     final owner = ref.read(currentUserIdProvider);
     if (owner == null) return;
-    await ref.read(socialLocalDatabaseProvider).clearRecent(owner);
+    await ref.read(socialLocalDatabaseProvider).clearRecent(owner, tab);
     state = const AsyncData([]);
   }
 }
 
 final recentSearchesProvider =
-    AsyncNotifierProvider<RecentSearches, List<String>>(RecentSearches.new);
+    AsyncNotifierProvider.family<RecentSearches, List<String>, String>(
+  RecentSearches.new,
+);
 
 /// Owner 2026-10-15: practices whose name in any language starts with the
 /// typed text (code → the matching word when not the English name) — the

@@ -5,7 +5,7 @@ import {
   Injectable,
   Optional,
 } from '@nestjs/common';
-import { hiddenTagOf } from '../posts/hidden-tags';
+import { legacyTopicTags, postPracticeWhere } from '../posts/hidden-tags';
 import type { Prisma } from '@prisma/client';
 import { createHash } from 'node:crypto';
 import type Redis from 'ioredis';
@@ -325,7 +325,12 @@ export class SearchService {
     );
     const { slice, next } = this.pageOf(ids, dto.cursor);
     // §7.6: the provider's rows still pass the single access check.
-    const visible = await this.access.visibleCaseIds(user.sub, slice);
+    const visible = await this.access.visibleCaseIds(
+      user.sub,
+      slice,
+      undefined,
+      { hidePaused: true },
+    );
     if (!dto.cursor) {
       this.queryLog?.logQuery(user.sub, 'cases', q, visible.size);
     }
@@ -492,17 +497,10 @@ export class SearchService {
       // qualifications, each with its subcategories.
       ...(filter.practices?.length
         ? [
-            {
-              tags: {
-                some: {
-                  tag: {
-                    tag_lower: {
-                      in: filter.practices.map((p) => hiddenTagOf(p)),
-                    },
-                  },
-                },
-              },
-            },
+            postPracticeWhere(
+              filter.practices,
+              filter.practices.flatMap((p) => legacyTopicTags(p)),
+            ),
           ]
         : []),
       // Audit 2026-10-01: nothing of people blocked either way.
@@ -520,23 +518,10 @@ export class SearchService {
       // qualification) by their topic hashtag.
       ...(practice
         ? [
-            {
-              OR: [
-                {
-                  tags: {
-                    some: { tag: { tag_lower: hiddenTagOf(practice) } },
-                  },
-                },
-                ...(tag
-                  ? [
-                      {
-                        practice_area_id: null,
-                        tags: { some: { tag: { tag_lower: tag } } },
-                      },
-                    ]
-                  : []),
-              ],
-            },
+            postPracticeWhere(
+              [practice],
+              [...(tag ? [tag] : []), ...legacyTopicTags(practice)],
+            ),
           ]
         : []),
     ];

@@ -31,7 +31,8 @@ import 'package:lawbid/features/team/application/team_providers.dart';
 
 enum SearchTab { attorneys, cases, posts, tags }
 
-/// docs/05 §7 Search tab: one query for all result tabs (clients:
+/// docs/05 §7 Search tab: every result tab has its own query, filters and
+/// history (owner 2026-10-18) (clients:
 /// Attorneys / Posts / Topics; attorneys: People / Cases / Posts /
 /// Topics), 2+ characters, 300 ms debounce, filters in a sheet, and
 /// before typing: recent searches, popular topics, suggested attorneys.
@@ -63,6 +64,40 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   /// OQ-036: every tab keeps its own filters.
   final Map<SearchTab, SearchFilters> _filters = {};
 
+  /// Owner 2026-10-18: every tab also keeps its own typed text and applied
+  /// query (the other tabs' are saved here while one is shown).
+  final Map<SearchTab, String> _texts = {};
+  final Map<SearchTab, String> _queries = {};
+
+  /// True while a tab switch rewrites the field (so it is not "typing").
+  bool _restoring = false;
+
+  RecentSearches _recentOf(SearchTab tab) =>
+      ref.read(recentSearchesProvider(tab.name).notifier);
+
+  /// Switches the section: saves this tab's text/query, restores the new
+  /// tab's own (or empty) — nothing leaks between tabs.
+  void _selectTab(SearchTab next) {
+    if (next == _tab) return;
+    _timer?.cancel();
+    _suggestTimer?.cancel();
+    _texts[_tab] = _controller.text;
+    _queries[_tab] = _query;
+    final text = _texts[next] ?? '';
+    _restoring = true;
+    _controller.value = TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
+    );
+    _restoring = false;
+    setState(() {
+      _tab = next;
+      _query = _queries[next] ?? '';
+      _suggestQ = '';
+      _focused = false;
+    });
+  }
+
   @override
   void initState() {
     super.initState();
@@ -86,7 +121,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final next = normalizeSearch(_controller.text);
     if (next.length >= kSearchMinChars) {
       setState(() => _query = next);
-      ref.read(recentSearchesProvider.notifier).remember(next);
+      _recentOf(_tab).remember(next);
     }
     if (_focused) setState(() => _focused = false);
     _focus.unfocus();
@@ -94,6 +129,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   /// One request per pause in typing, never per keystroke (§7.1).
   void _onText() {
+    if (_restoring) return;
     _timer?.cancel();
     final next = normalizeSearch(_controller.text);
     // Owner 2026-10-15: type-ahead suggestions after a 150 ms pause.
@@ -117,7 +153,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     if (_focus.hasFocus && !_focused) setState(() => _focused = true);
     if (_focus.hasFocus) _chrome.show();
     if (!_focus.hasFocus && _query.isNotEmpty) {
-      ref.read(recentSearchesProvider.notifier).remember(_query);
+      _recentOf(_tab).remember(_query);
     }
   }
 
@@ -169,10 +205,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final tabsRow = PillTabs<SearchTab>(
       value: _tab,
       tabs: tabs,
-      onChanged: (v) => setState(() {
-        _tab = v;
-        _focused = false;
-      }),
+      onChanged: _selectTab,
     );
 
     // Filters button inside the field at the left edge (owner
@@ -233,7 +266,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         SearchTab.posts => [t.t('search.hint.posts')],
         SearchTab.tags => [t.t('search.hint.tag')],
       },
-      onSubmitted: (v) => ref.read(recentSearchesProvider.notifier).remember(v),
+      onSubmitted: (v) => _recentOf(_tab).remember(v),
     );
 
     return PopScope(
@@ -277,7 +310,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     child: TabSwipe<SearchTab>(
                       value: _tab,
                       values: [for (final (v, _) in tabs) v],
-                      onChanged: (v) => setState(() => _tab = v),
+                      onChanged: _selectTab,
                       child: AnimatedSwitcher(
                         duration: context.reduceMotion
                             ? Duration.zero
@@ -286,7 +319,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                             // Instagram: tapping the field shows the history
                             // right under it, each line with a × and "Clear".
                             ? _RecentHistory(
-                                key: const ValueKey('history'),
+                                key: ValueKey('history:${_tab.name}'),
+                                tab: _tab,
                                 onPick: _useRecent,
                               )
                             : _query.isEmpty
@@ -517,7 +551,7 @@ class _BeforeTyping extends ConsumerWidget {
     final postsTab = tab == SearchTab.posts;
     final recent = postsTab
         ? const <String>[]
-        : ref.watch(recentSearchesProvider).value ?? const [];
+        : ref.watch(recentSearchesProvider(tab.name)).value ?? const [];
     final last = recent.isEmpty ? null : recent.first;
     final attorney = ref.watch(actsAsAttorneyProvider);
 
@@ -867,8 +901,9 @@ class _MyCasesGrid extends ConsumerWidget {
 /// The search history inside the field's own list (shown while the field
 /// has focus and is empty): "Recent" with "Clear", and a × on every line.
 class _RecentHistory extends ConsumerWidget {
-  const _RecentHistory({required this.onPick, super.key});
+  const _RecentHistory({required this.tab, required this.onPick, super.key});
 
+  final SearchTab tab;
   final ValueChanged<String> onPick;
 
   @override
@@ -876,7 +911,8 @@ class _RecentHistory extends ConsumerWidget {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    final recent = ref.watch(recentSearchesProvider).value ?? const <String>[];
+    final history = recentSearchesProvider(tab.name);
+    final recent = ref.watch(history).value ?? const <String>[];
     if (recent.isEmpty) return const SizedBox.shrink();
     return ListView(
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
@@ -902,7 +938,7 @@ class _RecentHistory extends ConsumerWidget {
                 ),
               ),
               GestureDetector(
-                onTap: () => ref.read(recentSearchesProvider.notifier).clear(),
+                onTap: () => ref.read(history.notifier).clear(),
                 behavior: HitTestBehavior.opaque,
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
@@ -949,8 +985,7 @@ class _RecentHistory extends ConsumerWidget {
                   IconButton(
                     tooltip: t.t('search.recent.clear'),
                     visualDensity: VisualDensity.compact,
-                    onPressed: () =>
-                        ref.read(recentSearchesProvider.notifier).forget(q),
+                    onPressed: () => ref.read(history.notifier).forget(q),
                     icon: AppIcon(
                       AppIcons.closeRounded,
                       size: 18,

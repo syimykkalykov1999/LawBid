@@ -1,6 +1,10 @@
 import { Injectable, Optional } from '@nestjs/common';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
-import { HIDDEN_TAG_PREFIX, hiddenTagOf } from '../posts/hidden-tags';
+import {
+  HIDDEN_TAG_PREFIX,
+  legacyTopicTags,
+  postPracticeSql,
+} from '../posts/hidden-tags';
 import { attorneysWithEntitlementSql } from '../plans/entitlements.service';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -321,11 +325,10 @@ export class PostgresSearchProvider implements SearchProvider {
         // Audit 2026-10-01: a qualification matches posts of it (and its
         // subcategories) — older posts without one by the topic hashtag.
         f.practice
-          ? Prisma.sql`AND (EXISTS (SELECT 1 FROM post_tags pt JOIN tags t ON t.id = pt.tag_id WHERE pt.post_id = p.id AND t.tag_lower = ${hiddenTagOf(f.practice)})${
-              f.tag
-                ? Prisma.sql` OR (p.practice_area_id IS NULL AND EXISTS (SELECT 1 FROM post_tags pt JOIN tags t ON t.id = pt.tag_id WHERE pt.post_id = p.id AND t.tag_lower = ${f.tag}))`
-                : Prisma.empty
-            })`
+          ? Prisma.sql`AND ${postPracticeSql(f.practice, [
+              ...(f.tag ? [f.tag] : []),
+              ...legacyTopicTags(f.practice),
+            ])}`
           : f.tag
             ? Prisma.sql`AND EXISTS (SELECT 1 FROM post_tags pt JOIN tags t ON t.id = pt.tag_id WHERE pt.post_id = p.id AND t.tag_lower = ${f.tag})`
             : Prisma.empty
