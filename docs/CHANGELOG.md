@@ -5,6 +5,16 @@ All notable changes to this project are documented here, per
 .cursorrules (each stage ends with a CHANGELOG update + commit on
 branch cursor/stage-X-Y-description).
 
+## Web and admin on an iPhone (2026-10-18)
+
+Owner: "the web and the admin on the phone: half the screen is missing, files/posts/videos do not upload".
+
+- Web (Flutter): `web/index.html` keeps `maximum-scale=1` (Flutter swapped in a 5x-zoom viewport and its hidden inputs are 14px, so iOS Safari zoomed in on every field tap and half the screen went off the edge); after the keyboard closes the page scrolls back.
+- Web videos: `core/media/video_probe_web.dart` reads length/size from the video metadata and draws cover/trim frames through a canvas (the player waited for «can play», which iOS never sends, so a picked video never showed). Checked: 5 s mp4 → cover frame, trim 0:00–0:05.
+- `tool/web_preview/serve.mjs` `PREVIEW_STORAGE=<s3>,<bunny>`: storage and video links in API answers go through the preview server (`/__storage0/…`), Host kept for signatures, TUS `Location` rewritten — a phone on https or another network can upload and see files. Checked: photo post published from a 390 px browser through the proxy.
+- Admin: phone-width search/filter boxes, stacked input grids (plans), wrapping section titles/tabs, long values wrap, content column clips stray overflow; dev CSP allows `http:` for local storage on the LAN.
+- Not web: video upload on the local server answers VIDEO_UNAVAILABLE «paused» (economy guard in the dev DB).
+
 ## Search everywhere, files in the «ещё» sheet, all languages (2026-10-18)
 
 Owner: "search must find «Эмили» = Emily, by chats, followers, in every picker; long titles readable; files inside the sheet; every text in all languages".

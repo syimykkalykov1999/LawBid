@@ -102,6 +102,21 @@ row + topic hint; budget step no jump.
 - iPhone: install a RELEASE build (`flutter run --release …`) — a debug build
   stops working when the cable/session drops.
 
+## Web / admin on a phone (session 3, 2026-10-18)
+- Flutter web build for the phone: `flutter build web --profile -t lib/main_dev.dart
+  --dart-define-from-file=<copy of config/dev.json with API_BASE_URL=/api/v1>
+  --dart-define=WEB_ENABLED=true --no-web-resources-cdn -o <out>`, copy
+  web/drift_worker.js + sqlite3.wasm into <out>, serve with
+  `PREVIEW_API=http://localhost:3000 PREVIEW_STORAGE=http://<mac-ip>:9000,http://<mac-ip>:4010
+  node tool/web_preview/serve.mjs <out> 8090` → phone opens http://<mac-ip>:8090.
+- Admin on the phone: `npm run dev --prefix apps/admin` (3001), http://<mac-ip>:3001.
+- Claude's built-in browser pane blocks fetch inside SharedWorkers: there the
+  web app hangs on the splash (drift). Not a bug on phones/Safari; for pane
+  tests serve a copy whose index.html sets `window.SharedWorker=undefined`.
+- Test web client: +1 212 555 0177 «Webtest Client» (password WebTest2026!).
+- Simulator «LawBid Web Test» (iPhone 17 Pro, iOS 27) was created for Safari
+  checks; Claude needs «Let Claude use it» in the simulator panel to tap.
+
 ## Open / do next (in this order)
 1. DONE (session 2). Stale banner is confusing (owner didn't understand when/why it appeared).
    Rework the whole stale UX (case_stale_banner.dart, My cases, owner case,
