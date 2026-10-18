@@ -1,7 +1,7 @@
 'use client';
 
 import {
-  ArrowClockwise, ChatCircleDots, CheckCircle, HourglassMedium, Lifebuoy, MagnifyingGlass, Siren, Timer, UserCircleDashed,
+  ArrowClockwise, ChatCircleDots, CheckCircle, EnvelopeSimple, HourglassMedium, Lifebuoy, MagnifyingGlass, Siren, Timer, UserCircleDashed,
 } from '@phosphor-icons/react';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -36,10 +36,12 @@ export default function SupportInboxPage() {
   const [draftQ, setDraftQ] = useState('');
   const [q, setQ] = useState('');
   const [sla, setSla] = useState<SlaFilter>('');
+  // Owner 2026-10-18: «Непрочитанные» — something new from the user.
+  const [unread, setUnread] = useState(false);
 
   // Polled by the sidebar badge (lib/live.ts); this page reads the cache.
   const stats = useQuery(supportStatsQuery);
-  const filters = { status, assignee, category, priority, q, sla };
+  const filters = { status, assignee, category, priority, q, sla, unread };
   const list = useInfiniteQuery({
     queryKey: ['support-tickets', filters],
     initialPageParam: undefined as string | undefined,
@@ -55,6 +57,7 @@ export default function SupportInboxPage() {
               priority: priority || undefined,
               q: q || undefined,
               sla: sla || undefined,
+              unread: unread || undefined,
             },
           },
         })
@@ -65,7 +68,7 @@ export default function SupportInboxPage() {
   });
   const rows = list.data?.pages.flatMap((p) => p.data) ?? [];
   const s = stats.data;
-  const filtered = assignee !== 'all' || category || priority || q || sla;
+  const filtered = assignee !== 'all' || category || priority || q || sla || unread;
 
   return (
     <>
@@ -200,6 +203,10 @@ export default function SupportInboxPage() {
             </option>
           ))}
         </Select>
+        <Button variant={unread ? 'soft' : 'outline'} size="sm" aria-pressed={unread} onClick={() => setUnread(!unread)}>
+          <EnvelopeSimple size={15} weight="light" /> Непрочитанные
+          {s && s.unreadByAdmin > 0 ? <span className="ml-1 text-faint">{s.unreadByAdmin}</span> : null}
+        </Button>
         <Button
           variant={sla ? 'soft' : 'outline'}
           size="sm"
@@ -219,6 +226,7 @@ export default function SupportInboxPage() {
               setDraftQ('');
               setQ('');
               setSla('');
+              setUnread(false);
             }}
           >
             Сбросить

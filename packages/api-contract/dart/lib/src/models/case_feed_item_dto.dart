@@ -11,6 +11,7 @@ import 'case_practice_area_dto.dart';
 import 'case_status.dart';
 import 'case_urgency.dart';
 import 'case_urgency_level.dart';
+import 'client_activity_dto.dart';
 
 part 'case_feed_item_dto.g.dart';
 
@@ -44,6 +45,7 @@ class CaseFeedItemDto {
     this.deadlineAt,
     this.deadlineKind,
     this.promotedUntil,
+    this.clientActivity,
   });
 
   factory CaseFeedItemDto.fromJson(Map<String, Object?> json) =>
@@ -107,6 +109,9 @@ class CaseFeedItemDto {
 
   /// Owner 2026-10-05: the client's plan puts the case first in the feed (shown on top of the first page).
   final bool priorityClient;
+
+  /// Owner 2026-10-18 (OQ-054): the client's activity line.
+  final ClientActivityDto? clientActivity;
 
   /// Owner 2026-10-05: how complete the case is (counts only).
   final CaseDossierDto dossier;

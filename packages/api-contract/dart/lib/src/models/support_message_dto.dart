@@ -4,6 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'support_attachment_dto.dart';
 import 'support_message_dto_author.dart';
 
 part 'support_message_dto.g.dart';
@@ -14,6 +15,7 @@ class SupportMessageDto {
     required this.id,
     required this.author,
     required this.body,
+    required this.attachments,
     required this.createdAt,
     this.authorName,
   });
@@ -27,6 +29,7 @@ class SupportMessageDto {
   /// "LawBid Support" or "LawBid Support · <first name>" for support; null for own messages.
   final String? authorName;
   final String body;
+  final List<SupportAttachmentDto> attachments;
   final DateTime createdAt;
 
   Map<String, Object?> toJson() => _$SupportMessageDtoToJson(this);

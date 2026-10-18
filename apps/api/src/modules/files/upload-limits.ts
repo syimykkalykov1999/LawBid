@@ -25,6 +25,7 @@ export const UPLOAD_PLACES = [
   'avatar',
   'verification',
   'client_badge',
+  'support',
 ] as const;
 export type UploadPlace = (typeof UPLOAD_PLACES)[number];
 
@@ -228,6 +229,20 @@ export const PLACE_SPECS: Record<UploadPlace, PlaceSpec> = {
       formats: ['jpeg', 'png', 'heic', 'pdf'],
     },
   },
+  // Owner 2026-10-18 (OQ-055): files in a support ticket message, both
+  // ways (photos, documents, videos).
+  support: {
+    count: 'combined',
+    safeFormats: ANY_UPLOAD_FORMATS,
+    ceiling: { count: 10, fileMb: 100, totalMb: 0 },
+    defaults: {
+      maxPhotos: 0,
+      maxFiles: 5,
+      fileMb: 25,
+      totalMb: 0,
+      formats: [...ANY_UPLOAD_FORMATS],
+    },
+  },
   // Uses the verification files (their size and formats); only the count.
   client_badge: {
     count: 'combined',
@@ -298,6 +313,7 @@ export const PURPOSE_PLACES: Partial<Record<FilePurpose, UploadPlace[]>> = {
   case_photo: ['case'],
   case_attachment: ['case'],
   chat_attachment: ['chat'],
+  support_attachment: ['support'],
   task_attachment: ['task'],
   verification_document: ['verification'],
   verification_selfie: ['verification'],

@@ -30,6 +30,8 @@ class CaseDto {
     required this.bidsCount,
     required this.createdAt,
     required this.lastActivityAt,
+    required this.stillNeededPending,
+    required this.canMakeNotUrgent,
     this.city,
     this.budgetCents,
     this.budgetPercentBps,
@@ -45,6 +47,7 @@ class CaseDto {
     this.closedAt,
     this.deletedAt,
     this.stalePromptSentAt,
+    this.pausedAt,
   });
 
   factory CaseDto.fromJson(Map<String, Object?> json) =>
@@ -97,6 +100,17 @@ class CaseDto {
   /// §10.2 "Is this case still relevant?" prompt time, else null. Set while.
   /// the prompt is pending; POST /cases/:id/keep-alive clears it.
   final String? stalePromptSentAt;
+
+  /// OQ-054: set when the case was paused (hidden from the attorneys' feed.
+  /// and search): the client's screens show «Кейс скрыт · Вернуть».
+  final String? pausedAt;
+
+  /// OQ-054: «Вам ещё нужен адвокат?» is waiting for an answer.
+  final bool stillNeededPending;
+
+  /// OQ-054: «Сменить на «Не срочно»» is offered (urgent / very urgent.
+  /// and older than 7 days).
+  final bool canMakeNotUrgent;
 
   Map<String, Object?> toJson() => _$CaseDtoToJson(this);
 }

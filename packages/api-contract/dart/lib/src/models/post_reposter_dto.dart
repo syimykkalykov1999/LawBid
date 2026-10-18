@@ -13,6 +13,7 @@ class PostReposterDto {
   const PostReposterDto({
     required this.id,
     required this.username,
+    required this.name,
     required this.role,
   });
 
@@ -21,6 +22,9 @@ class PostReposterDto {
 
   final String id;
   final String username;
+
+  /// Display name ("First Last"), empty when none is set.
+  final String name;
   final PostReposterDtoRole role;
 
   Map<String, Object?> toJson() => _$PostReposterDtoToJson(this);

@@ -26,6 +26,8 @@ CaseDto _$CaseDtoFromJson(Map<String, dynamic> json) => CaseDto(
   bidsCount: (json['bidsCount'] as num).toInt(),
   createdAt: json['createdAt'] as String,
   lastActivityAt: json['lastActivityAt'] as String,
+  stillNeededPending: json['stillNeededPending'] as bool,
+  canMakeNotUrgent: json['canMakeNotUrgent'] as bool,
   city: json['city'] as String?,
   budgetCents: (json['budgetCents'] as num?)?.toInt(),
   budgetPercentBps: (json['budgetPercentBps'] as num?)?.toInt(),
@@ -49,6 +51,7 @@ CaseDto _$CaseDtoFromJson(Map<String, dynamic> json) => CaseDto(
   closedAt: json['closedAt'] as String?,
   deletedAt: json['deletedAt'] as String?,
   stalePromptSentAt: json['stalePromptSentAt'] as String?,
+  pausedAt: json['pausedAt'] as String?,
 );
 
 Map<String, dynamic> _$CaseDtoToJson(CaseDto instance) => <String, dynamic>{
@@ -82,4 +85,7 @@ Map<String, dynamic> _$CaseDtoToJson(CaseDto instance) => <String, dynamic>{
   'closedAt': ?instance.closedAt,
   'deletedAt': ?instance.deletedAt,
   'stalePromptSentAt': ?instance.stalePromptSentAt,
+  'pausedAt': ?instance.pausedAt,
+  'stillNeededPending': instance.stillNeededPending,
+  'canMakeNotUrgent': instance.canMakeNotUrgent,
 };

@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
 import '../models/create_post_dto.dart';
+import '../models/person_item_list_envelope.dart';
 import '../models/pin_post_dto.dart';
 import '../models/post_attachments_allowed_envelope.dart';
 import '../models/post_counters_dto.dart';
@@ -133,6 +134,26 @@ abstract class PostsClient {
   @DELETE('/posts/{id}/repost')
   Future<void> unrepostPost({
     @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Who reposted a post, newest first (owner 2026-10-18).
+  ///
+  /// [cursor] - meta.nextCursor of the previous page.
+  @GET('/posts/{id}/reposts')
+  Future<PersonItemListEnvelope> listReposters({
+    @Path('id') required String id,
+    @Query('cursor') String? cursor,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// A user's Reposts profile tab, newest first (owner 2026-10-18).
+  ///
+  /// [cursor] - meta.nextCursor of the previous page.
+  @GET('/users/{id}/reposts')
+  Future<PostListEnvelope> listUserReposts({
+    @Path('id') required String id,
+    @Query('cursor') String? cursor,
     @Extras() Map<String, dynamic>? extras,
   });
 

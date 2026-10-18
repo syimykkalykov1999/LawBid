@@ -5,6 +5,8 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'create_support_ticket_dto_category.dart';
+import 'support_attachment_input_dto.dart';
+import 'support_client_context_input_dto.dart';
 
 part 'create_support_ticket_dto.g.dart';
 
@@ -14,6 +16,8 @@ class CreateSupportTicketDto {
     required this.subject,
     required this.category,
     required this.body,
+    this.attachments,
+    this.context,
   });
 
   factory CreateSupportTicketDto.fromJson(Map<String, Object?> json) =>
@@ -21,7 +25,11 @@ class CreateSupportTicketDto {
 
   final String subject;
   final CreateSupportTicketDtoCategory category;
+
+  /// May be empty when files are attached.
   final String body;
+  final List<SupportAttachmentInputDto>? attachments;
+  final SupportClientContextInputDto? context;
 
   Map<String, Object?> toJson() => _$CreateSupportTicketDtoToJson(this);
 }

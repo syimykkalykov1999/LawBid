@@ -28,6 +28,15 @@ import 'clients/assistants_client.dart';
 import 'clients/admin_teams_client.dart';
 import 'clients/posts_client.dart';
 import 'clients/videos_client.dart';
+import 'clients/follows_client.dart';
+import 'clients/practice_areas_client.dart';
+import 'clients/attorneys_client.dart';
+import 'clients/profiles_client.dart';
+import 'clients/clients_client.dart';
+import 'clients/users_client.dart';
+import 'clients/admin_analytics_client.dart';
+import 'clients/app_events_client.dart';
+import 'clients/blocks_client.dart';
 import 'clients/comments_client.dart';
 import 'clients/case_comments_client.dart';
 import 'clients/cases_client.dart';
@@ -35,19 +44,11 @@ import 'clients/mine_client.dart';
 import 'clients/invites_client.dart';
 import 'clients/admin_contact_issues_client.dart';
 import 'clients/admin_case_disputes_client.dart';
-import 'clients/users_client.dart';
-import 'clients/admin_analytics_client.dart';
-import 'clients/app_events_client.dart';
-import 'clients/practice_areas_client.dart';
-import 'clients/attorneys_client.dart';
-import 'clients/profiles_client.dart';
-import 'clients/clients_client.dart';
-import 'clients/blocks_client.dart';
+import 'clients/presence_client.dart';
 import 'clients/admin_content_client.dart';
 import 'clients/admin_media_client.dart';
 import 'clients/admin_search_client.dart';
 import 'clients/search_client.dart';
-import 'clients/follows_client.dart';
 import 'clients/crash_reports_client.dart';
 import 'clients/admin_crashes_client.dart';
 import 'clients/document_templates_client.dart';
@@ -72,7 +73,6 @@ import 'clients/client_reviews_client.dart';
 import 'clients/admin_review_appeals_client.dart';
 import 'clients/reports_client.dart';
 import 'clients/contacts_sync_client.dart';
-import 'clients/presence_client.dart';
 import 'clients/admin_integrations_client.dart';
 import 'clients/admin_ops_client.dart';
 import 'clients/admin_economy_client.dart';
@@ -140,6 +140,15 @@ class LawbidApi {
   AdminTeamsClient? _adminTeams;
   PostsClient? _posts;
   VideosClient? _videos;
+  FollowsClient? _follows;
+  PracticeAreasClient? _practiceAreas;
+  AttorneysClient? _attorneys;
+  ProfilesClient? _profiles;
+  ClientsClient? _clients;
+  UsersClient? _users;
+  AdminAnalyticsClient? _adminAnalytics;
+  AppEventsClient? _appEvents;
+  BlocksClient? _blocks;
   CommentsClient? _comments;
   CaseCommentsClient? _caseComments;
   CasesClient? _cases;
@@ -147,19 +156,11 @@ class LawbidApi {
   InvitesClient? _invites;
   AdminContactIssuesClient? _adminContactIssues;
   AdminCaseDisputesClient? _adminCaseDisputes;
-  UsersClient? _users;
-  AdminAnalyticsClient? _adminAnalytics;
-  AppEventsClient? _appEvents;
-  PracticeAreasClient? _practiceAreas;
-  AttorneysClient? _attorneys;
-  ProfilesClient? _profiles;
-  ClientsClient? _clients;
-  BlocksClient? _blocks;
+  PresenceClient? _presence;
   AdminContentClient? _adminContent;
   AdminMediaClient? _adminMedia;
   AdminSearchClient? _adminSearch;
   SearchClient? _search;
-  FollowsClient? _follows;
   CrashReportsClient? _crashReports;
   AdminCrashesClient? _adminCrashes;
   DocumentTemplatesClient? _documentTemplates;
@@ -184,7 +185,6 @@ class LawbidApi {
   AdminReviewAppealsClient? _adminReviewAppeals;
   ReportsClient? _reports;
   ContactsSyncClient? _contactsSync;
-  PresenceClient? _presence;
   AdminIntegrationsClient? _adminIntegrations;
   AdminOpsClient? _adminOps;
   AdminEconomyClient? _adminEconomy;
@@ -281,6 +281,31 @@ class LawbidApi {
 
   VideosClient get videos => _videos ??= VideosClient(_dio, baseUrl: _baseUrl);
 
+  FollowsClient get follows =>
+      _follows ??= FollowsClient(_dio, baseUrl: _baseUrl);
+
+  PracticeAreasClient get practiceAreas =>
+      _practiceAreas ??= PracticeAreasClient(_dio, baseUrl: _baseUrl);
+
+  AttorneysClient get attorneys =>
+      _attorneys ??= AttorneysClient(_dio, baseUrl: _baseUrl);
+
+  ProfilesClient get profiles =>
+      _profiles ??= ProfilesClient(_dio, baseUrl: _baseUrl);
+
+  ClientsClient get clients =>
+      _clients ??= ClientsClient(_dio, baseUrl: _baseUrl);
+
+  UsersClient get users => _users ??= UsersClient(_dio, baseUrl: _baseUrl);
+
+  AdminAnalyticsClient get adminAnalytics =>
+      _adminAnalytics ??= AdminAnalyticsClient(_dio, baseUrl: _baseUrl);
+
+  AppEventsClient get appEvents =>
+      _appEvents ??= AppEventsClient(_dio, baseUrl: _baseUrl);
+
+  BlocksClient get blocks => _blocks ??= BlocksClient(_dio, baseUrl: _baseUrl);
+
   CommentsClient get comments =>
       _comments ??= CommentsClient(_dio, baseUrl: _baseUrl);
 
@@ -300,27 +325,8 @@ class LawbidApi {
   AdminCaseDisputesClient get adminCaseDisputes =>
       _adminCaseDisputes ??= AdminCaseDisputesClient(_dio, baseUrl: _baseUrl);
 
-  UsersClient get users => _users ??= UsersClient(_dio, baseUrl: _baseUrl);
-
-  AdminAnalyticsClient get adminAnalytics =>
-      _adminAnalytics ??= AdminAnalyticsClient(_dio, baseUrl: _baseUrl);
-
-  AppEventsClient get appEvents =>
-      _appEvents ??= AppEventsClient(_dio, baseUrl: _baseUrl);
-
-  PracticeAreasClient get practiceAreas =>
-      _practiceAreas ??= PracticeAreasClient(_dio, baseUrl: _baseUrl);
-
-  AttorneysClient get attorneys =>
-      _attorneys ??= AttorneysClient(_dio, baseUrl: _baseUrl);
-
-  ProfilesClient get profiles =>
-      _profiles ??= ProfilesClient(_dio, baseUrl: _baseUrl);
-
-  ClientsClient get clients =>
-      _clients ??= ClientsClient(_dio, baseUrl: _baseUrl);
-
-  BlocksClient get blocks => _blocks ??= BlocksClient(_dio, baseUrl: _baseUrl);
+  PresenceClient get presence =>
+      _presence ??= PresenceClient(_dio, baseUrl: _baseUrl);
 
   AdminContentClient get adminContent =>
       _adminContent ??= AdminContentClient(_dio, baseUrl: _baseUrl);
@@ -332,9 +338,6 @@ class LawbidApi {
       _adminSearch ??= AdminSearchClient(_dio, baseUrl: _baseUrl);
 
   SearchClient get search => _search ??= SearchClient(_dio, baseUrl: _baseUrl);
-
-  FollowsClient get follows =>
-      _follows ??= FollowsClient(_dio, baseUrl: _baseUrl);
 
   CrashReportsClient get crashReports =>
       _crashReports ??= CrashReportsClient(_dio, baseUrl: _baseUrl);
@@ -408,9 +411,6 @@ class LawbidApi {
 
   ContactsSyncClient get contactsSync =>
       _contactsSync ??= ContactsSyncClient(_dio, baseUrl: _baseUrl);
-
-  PresenceClient get presence =>
-      _presence ??= PresenceClient(_dio, baseUrl: _baseUrl);
 
   AdminIntegrationsClient get adminIntegrations =>
       _adminIntegrations ??= AdminIntegrationsClient(_dio, baseUrl: _baseUrl);

@@ -12,6 +12,16 @@ CreateSupportTicketDto _$CreateSupportTicketDtoFromJson(
   subject: json['subject'] as String,
   category: CreateSupportTicketDtoCategory.fromJson(json['category'] as String),
   body: json['body'] as String,
+  attachments: (json['attachments'] as List<dynamic>?)
+      ?.map(
+        (e) => SupportAttachmentInputDto.fromJson(e as Map<String, dynamic>),
+      )
+      .toList(),
+  context: json['context'] == null
+      ? null
+      : SupportClientContextInputDto.fromJson(
+          json['context'] as Map<String, dynamic>,
+        ),
 );
 
 Map<String, dynamic> _$CreateSupportTicketDtoToJson(
@@ -20,4 +30,6 @@ Map<String, dynamic> _$CreateSupportTicketDtoToJson(
   'subject': instance.subject,
   'category': instance.category.toJson(),
   'body': instance.body,
+  'attachments': ?instance.attachments?.map((e) => e.toJson()).toList(),
+  'context': ?instance.context?.toJson(),
 };

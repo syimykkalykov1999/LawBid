@@ -21,6 +21,8 @@ CaseSummaryDto _$CaseSummaryDtoFromJson(Map<String, dynamic> json) =>
       bidsCount: (json['bidsCount'] as num).toInt(),
       createdAt: json['createdAt'] as String,
       lastActivityAt: json['lastActivityAt'] as String,
+      stillNeededPending: json['stillNeededPending'] as bool,
+      canMakeNotUrgent: json['canMakeNotUrgent'] as bool,
       coverUrl: json['coverUrl'] as String?,
       city: json['city'] as String?,
       budgetCents: (json['budgetCents'] as num?)?.toInt(),
@@ -38,6 +40,7 @@ CaseSummaryDto _$CaseSummaryDtoFromJson(Map<String, dynamic> json) =>
       deadlineKind: json['deadlineKind'] == null
           ? null
           : CaseDeadlineKind.fromJson(json['deadlineKind'] as String),
+      pausedAt: json['pausedAt'] as String?,
     );
 
 Map<String, dynamic> _$CaseSummaryDtoToJson(CaseSummaryDto instance) =>
@@ -62,4 +65,7 @@ Map<String, dynamic> _$CaseSummaryDtoToJson(CaseSummaryDto instance) =>
       'bidsCount': instance.bidsCount,
       'createdAt': instance.createdAt,
       'lastActivityAt': instance.lastActivityAt,
+      'pausedAt': ?instance.pausedAt,
+      'stillNeededPending': instance.stillNeededPending,
+      'canMakeNotUrgent': instance.canMakeNotUrgent,
     };

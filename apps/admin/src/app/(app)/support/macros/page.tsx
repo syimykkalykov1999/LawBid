@@ -17,8 +17,8 @@ import { api, errorText } from '@/lib/api/client';
 import { useMe } from '@/lib/hooks';
 import { TICKET_CATEGORY } from '@/lib/labels';
 
-type Draft = { id?: string; title: string; body: string; category: '' | TicketCategory; active: boolean };
-const EMPTY: Draft = { title: '', body: '', category: '', active: true };
+type Draft = { id?: string; title: string; body: string; bodyRu: string; category: '' | TicketCategory; active: boolean };
+const EMPTY: Draft = { title: '', body: '', bodyRu: '', category: '', active: true };
 
 /** Ready answers: the team picks one in the reply box and edits before sending. */
 export default function SupportMacrosPage() {
@@ -40,7 +40,14 @@ export default function SupportMacrosPage() {
 
   const save = useMutation({
     mutationFn: async (d: Draft) => {
-      const body = { title: d.title.trim(), body: d.body.trim(), category: d.category || null, active: d.active };
+      const body = {
+        title: d.title.trim(),
+        body: d.body.trim(),
+        // Empty = no Russian text (the composer then uses English).
+        bodyRu: d.bodyRu.trim() || null,
+        category: d.category || null,
+        active: d.active,
+      };
       if (d.id) await api.PATCH('/admin/support/macros/{id}', { params: { path: { id: d.id } }, body });
       else await api.POST('/admin/support/macros', { body });
     },
@@ -99,7 +106,18 @@ export default function SupportMacrosPage() {
                       {m.category ? <Badge tone="neutral">{TICKET_CATEGORY[m.category] ?? m.category}</Badge> : null}
                       <Badge tone="info">использован {m.uses}</Badge>
                     </div>
-                    <p className="mt-1.5 line-clamp-3 text-sm break-words whitespace-pre-wrap text-muted">{m.body}</p>
+                    <p className="mt-1.5 line-clamp-3 text-sm break-words whitespace-pre-wrap text-muted">
+                      <span className="mr-1.5 text-[11px] font-semibold text-faint">EN</span>
+                      {m.body}
+                    </p>
+                    {m.bodyRu ? (
+                      <p className="mt-1 line-clamp-3 text-sm break-words whitespace-pre-wrap text-muted">
+                        <span className="mr-1.5 text-[11px] font-semibold text-faint">RU</span>
+                        {m.bodyRu}
+                      </p>
+                    ) : (
+                      <p className="mt-1 text-[11px] text-faint">Русского текста нет — русскоязычным покажем английский.</p>
+                    )}
                   </div>
                   {canWrite ? (
                     <div className="flex shrink-0 items-center gap-1">
@@ -114,7 +132,14 @@ export default function SupportMacrosPage() {
                         size="icon"
                         aria-label="Изменить"
                         onClick={() =>
-                          setDraft({ id: m.id, title: m.title, body: m.body, category: m.category ?? '', active: m.active })
+                          setDraft({
+                            id: m.id,
+                            title: m.title,
+                            body: m.body,
+                            bodyRu: m.bodyRu ?? '',
+                            category: m.category ?? '',
+                            active: m.active,
+                          })
                         }
                       >
                         <PencilSimple size={16} weight="light" />
@@ -143,7 +168,7 @@ export default function SupportMacrosPage() {
         open={!!draft}
         onClose={() => setDraft(null)}
         title={draft?.id ? 'Изменить ответ' : 'Новый готовый ответ'}
-        description="Пользователь увидит только текст ответа."
+        description="Пользователь увидит только текст ответа, на своём языке."
       >
         {draft ? (
           <div className="space-y-4">
@@ -170,15 +195,36 @@ export default function SupportMacrosPage() {
                 ))}
               </Select>
             </Field>
-            <Field label="Текст ответа" htmlFor="mc-body">
+            <Field
+              label="Текст на английском"
+              htmlFor="mc-body"
+              hint="Его получат все, у кого язык не русский, и те, для кого нет русского текста."
+            >
               <Textarea
                 id="mc-body"
                 maxLength={5000}
-                className="min-h-40"
+                className="min-h-32"
                 value={draft.body}
                 onChange={(e) => setDraft({ ...draft, body: e.target.value })}
               />
             </Field>
+            <Field
+              label="Текст на русском"
+              htmlFor="mc-body-ru"
+              hint="Необязательно. В окне ответа подставится тому, у кого приложение на русском."
+            >
+              <Textarea
+                id="mc-body-ru"
+                maxLength={5000}
+                className="min-h-32"
+                value={draft.bodyRu}
+                onChange={(e) => setDraft({ ...draft, bodyRu: e.target.value })}
+              />
+            </Field>
+            <p className="rounded-lg bg-surface-2 px-3 py-2 text-xs text-muted">
+              Переменные в тексте: <code>{'{name}'}</code> — имя пользователя (если имени нет: «there» по-английски, ничего по-русски),{' '}
+              <code>{'{ticket}'}</code> — номер обращения (например, #3A9F01C2). Сервер подставит их при отправке ответа.
+            </p>
             <div className="flex flex-wrap justify-end gap-2">
               <Button variant="ghost" onClick={() => setDraft(null)}>
                 Отмена

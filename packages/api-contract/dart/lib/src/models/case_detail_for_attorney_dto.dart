@@ -13,48 +13,50 @@ import 'case_practice_area_dto.dart';
 import 'case_status.dart';
 import 'case_urgency.dart';
 import 'case_urgency_level.dart';
+import 'client_activity_dto.dart';
 
 part 'case_detail_for_attorney_dto.g.dart';
 
 @JsonSerializable()
 class CaseDetailForAttorneyDto {
   const CaseDetailForAttorneyDto({
-    required this.createdAt,
+    required this.isNew,
     required this.title,
     required this.excerpt,
     required this.practiceArea,
     required this.extraPracticeCount,
     required this.primaryStateCode,
     required this.additionalStateCodes,
-    required this.inMyLicensedStates,
     required this.status,
     required this.budget,
-    required this.inMyPractice,
     required this.id,
-    required this.photosCount,
-    required this.photos,
-    required this.description,
     required this.viewCount,
     required this.bidsCount,
-    required this.promoted,
-    required this.isNew,
+    required this.createdAt,
+    required this.acceptedBidIsMine,
     required this.hasOwnBid,
     required this.commentCount,
     required this.shareCount,
     required this.isSaved,
+    required this.promoted,
     required this.bidAllowed,
-    required this.dossier,
     required this.priorityClient,
-    required this.acceptedBidIsMine,
+    required this.photosCount,
+    required this.inMyLicensedStates,
+    required this.photos,
+    required this.description,
+    required this.inMyPractice,
+    required this.dossier,
+    this.clientActivity,
     this.deadlineKind,
     this.ownBidId,
-    this.urgency,
+    this.promotedUntil,
     this.completionRequestedBy,
     this.deadlineAt,
-    this.urgencyLevel,
+    this.urgency,
     this.coverKey,
     this.city,
-    this.promotedUntil,
+    this.urgencyLevel,
   });
 
   factory CaseDetailForAttorneyDto.fromJson(Map<String, Object?> json) =>
@@ -118,6 +120,9 @@ class CaseDetailForAttorneyDto {
 
   /// Owner 2026-10-05: the client's plan puts the case first in the feed (shown on top of the first page).
   final bool priorityClient;
+
+  /// Owner 2026-10-18 (OQ-054): the client's activity line.
+  final ClientActivityDto? clientActivity;
 
   /// Owner 2026-10-05: how complete the case is (counts only).
   final CaseDossierDto dossier;

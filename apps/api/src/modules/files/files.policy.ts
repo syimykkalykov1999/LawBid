@@ -125,6 +125,13 @@ export const PURPOSE_RULES: Record<FilePurpose, PurposeRule> = {
     mimes: [...IMAGES, FILE_MIME.gif, ...DOCS, FILE_MIME.mp4, FILE_MIME.mov],
     bucket: 'documents',
   },
+  // Owner 2026-10-18 (OQ-055): files in a support ticket, both ways —
+  // photos, documents and videos like a chat; private, opened only by the
+  // ticket's user and the support staff.
+  support_attachment: {
+    mimes: [...IMAGES, FILE_MIME.gif, ...DOCS, FILE_MIME.mp4, FILE_MIME.mov],
+    bucket: 'documents',
+  },
   // OQ-048: documents an assistant attaches to a task (same formats).
   task_attachment: {
     mimes: [...IMAGES, FILE_MIME.gif, ...DOCS],
@@ -249,6 +256,7 @@ export const DEDUP_PROFILE: Partial<Record<FilePurpose, DedupProfile>> = {
   case_photo: 'fitted',
   case_attachment: 'fitted',
   chat_attachment: 'fitted',
+  support_attachment: 'fitted',
   sticker: 'raw',
   post_attachment: 'raw',
   document_template: 'raw',

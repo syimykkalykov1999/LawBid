@@ -5,11 +5,15 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/l10n/language_providers.dart';
 import 'package:lawbid/core/limits/text_limits.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/legal/application/legal_providers.dart';
 import 'package:lawbid/features/support/application/support_providers.dart';
+import 'package:lawbid/features/support/data/support_context.dart';
 import 'package:lawbid/features/support/domain/support_models.dart';
+import 'package:lawbid/features/support/presentation/support_attach_controller.dart';
+import 'package:lawbid/features/support/presentation/support_attachment_widgets.dart';
 
 /// Owner 2026-10-02 — a new request to the team: topic, subject, message.
 class SupportNewScreen extends ConsumerStatefulWidget {
@@ -22,27 +26,67 @@ class SupportNewScreen extends ConsumerStatefulWidget {
 class _SupportNewScreenState extends ConsumerState<SupportNewScreen> {
   final _subject = TextEditingController();
   final _body = TextEditingController();
+  late final SupportAttachController _files = SupportAttachController(ref);
   SupportCategory _category = SupportCategory.account;
   bool _sending = false;
 
   @override
+  void initState() {
+    super.initState();
+    _files.addListener(_changed);
+  }
+
+  void _changed() {
+    if (mounted) setState(() {});
+  }
+
+  @override
   void dispose() {
+    _files
+      ..removeListener(_changed)
+      ..dispose();
     _subject.dispose();
     _body.dispose();
     super.dispose();
   }
 
+  /// A message needs words (5+) or a file; files must have finished.
   bool get _valid =>
-      _subject.text.trim().length >= 3 && _body.text.trim().length >= 5;
+      _subject.text.trim().length >= 3 &&
+      (_body.text.trim().length >= 5 || _files.attachments.isNotEmpty) &&
+      _files.settled;
+
+  /// The screen the user was on before the support screens (best effort).
+  String? _origin() {
+    try {
+      final stack = GoRouter.of(context)
+          .routerDelegate
+          .currentConfiguration
+          .matches
+          .map((m) => m.matchedLocation)
+          .toList();
+      return originRoute(stack, supportPrefix: AppRoutes.support);
+    } on Object {
+      return null;
+    }
+  }
 
   Future<void> _send() async {
     final t = ref.read(translatorProvider);
     setState(() => _sending = true);
     try {
+      // Owner 2026-10-18: app / phone info for the team (admins only).
+      final device = await collectSupportContext(
+        language: ref.read(languageControllerProvider).value?.code,
+        theme: ref.read(appThemeControllerProvider)?.name,
+        route: _origin(),
+      );
       final ticket = await ref.read(supportRepositoryProvider).create(
             category: _category,
             subject: _subject.text.trim(),
             body: _body.text.trim(),
+            attachments: _files.attachments,
+            context: device,
           );
       if (!mounted) return;
       showAppSnackBar(context, t.t('support.sent'));
@@ -126,7 +170,31 @@ class _SupportNewScreenState extends ConsumerState<SupportNewScreen> {
                     onChanged: (_) => setState(() {}),
                   ),
                   const SizedBox(height: AppSpacing.sm),
+                  Row(
+                    children: [
+                      SupportAttachButton(
+                        controller: _files,
+                        enabled: !_sending,
+                      ),
+                      Expanded(
+                        child: Text(
+                          t.t('support.attach.hint'),
+                          style: type.caption.copyWith(
+                            color: colors.textSecondary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  SupportDraftStrip(controller: _files),
+                  const SizedBox(height: AppSpacing.sm),
                   const _ReplyTime(),
+                  Text(
+                    t.t('support.context.note'),
+                    key: const ValueKey('support-context-note'),
+                    style: type.caption.copyWith(color: colors.textSecondary),
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
                   Text(
                     t.t('support.hint'),
                     style: type.caption.copyWith(color: colors.textSecondary),

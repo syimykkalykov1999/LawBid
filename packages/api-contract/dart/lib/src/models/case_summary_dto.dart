@@ -27,6 +27,8 @@ class CaseSummaryDto {
     required this.bidsCount,
     required this.createdAt,
     required this.lastActivityAt,
+    required this.stillNeededPending,
+    required this.canMakeNotUrgent,
     this.coverUrl,
     this.city,
     this.budgetCents,
@@ -36,6 +38,7 @@ class CaseSummaryDto {
     this.urgencyLevel,
     this.deadlineAt,
     this.deadlineKind,
+    this.pausedAt,
   });
 
   factory CaseSummaryDto.fromJson(Map<String, Object?> json) =>
@@ -81,6 +84,11 @@ class CaseSummaryDto {
   final int bidsCount;
   final String createdAt;
   final String lastActivityAt;
+
+  /// OQ-054: paused = hidden from the attorneys' feed («На паузе»).
+  final String? pausedAt;
+  final bool stillNeededPending;
+  final bool canMakeNotUrgent;
 
   Map<String, Object?> toJson() => _$CaseSummaryDtoToJson(this);
 }

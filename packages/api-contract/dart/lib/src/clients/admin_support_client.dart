@@ -11,9 +11,12 @@ import '../models/admin_support_stats_envelope.dart';
 import '../models/admin_support_ticket_detail_envelope.dart';
 import '../models/admin_support_ticket_row_envelope.dart';
 import '../models/admin_support_ticket_row_list_envelope.dart';
+import '../models/admin_support_upload_dto.dart';
 import '../models/admin_update_support_ticket_dto.dart';
 import '../models/category.dart';
 import '../models/create_support_macro_dto.dart';
+import '../models/file_envelope.dart';
+import '../models/presigned_file_envelope.dart';
 import '../models/priority.dart';
 import '../models/sla.dart';
 import '../models/status9.dart';
@@ -42,6 +45,8 @@ abstract class AdminSupportClient {
   ///
   /// [q] - Substring of the subject.
   ///
+  /// [unread] - Owner 2026-10-18: only tickets with something new from the user (unread by staff), closed ones excluded unless `status` is set.
+  ///
   /// [sla] - Owner 2026-10-05: `breached` = the answer is late (SLA missed); `waiting` = an answer is due (oldest deadline first).
   @GET('/admin/support/tickets')
   Future<AdminSupportTicketRowListEnvelope> listAdminSupportTickets({
@@ -52,6 +57,7 @@ abstract class AdminSupportClient {
     @Query('assignee') String? assignee,
     @Query('q') String? q,
     @Query('userId') String? userId,
+    @Query('unread') bool? unread,
     @Query('sla') Sla? sla,
     @Extras() Map<String, dynamic>? extras,
   });
@@ -85,6 +91,20 @@ abstract class AdminSupportClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
+  /// Step 1 of a file for a reply: presigned POST (then POST the file to S3)
+  @POST('/admin/support/uploads')
+  Future<PresignedFileEnvelope> presignAdminSupportUpload({
+    @Body() required AdminSupportUploadDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Step 2: verify the uploaded file; usable once scanStatus = clean
+  @POST('/admin/support/uploads/{fileId}/confirm')
+  Future<FileEnvelope> confirmAdminSupportUpload({
+    @Path('fileId') required String fileId,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
   /// Workspace «Следующий»: my most urgent open ticket, else the most overdue unassigned one (taken by me)
   @POST('/admin/support/tickets/next')
   Future<SupportNextTicketEnvelope> nextAdminSupportTicket({
@@ -106,9 +126,12 @@ abstract class AdminSupportClient {
 
   /// Ready answers (most used first).
   ///
+  /// [language] - The ticket user's ui_language; picks `text` (default en).
+  ///
   /// [all] - Include switched-off answers (management).
   @GET('/admin/support/macros')
   Future<SupportMacroListEnvelope> listSupportMacros({
+    @Query('language') String? language,
     @Query('all') bool? all,
     @Extras() Map<String, dynamic>? extras,
   });

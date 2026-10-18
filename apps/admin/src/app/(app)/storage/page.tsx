@@ -30,6 +30,7 @@ const PURPOSE: Record<string, string> = {
   case_photo: 'Фото кейсов',
   case_attachment: 'Документы кейсов',
   chat_attachment: 'Файлы в чатах',
+  support_attachment: 'Файлы в поддержке',
   chat_voice: 'Голосовые',
   task_attachment: 'Файлы задач',
   review_photo: 'Фото в отзывах',

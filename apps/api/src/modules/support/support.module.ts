@@ -1,10 +1,12 @@
 import { Module } from '@nestjs/common';
 import { AdminAccessModule } from '../admin-access/admin-access.module';
 import { AuthModule } from '../auth/auth.module';
+import { FilesModule } from '../files/files.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { AdminSupportController } from './admin-support.controller';
 import { AdminSupportService } from './admin-support.service';
+import { SupportFilesService } from './support-files.service';
 import { SupportDeskService } from './support-desk.service';
 import { SupportTeamService } from './support-team.service';
 import { SupportController, SupportInfoController } from './support.controller';
@@ -18,6 +20,7 @@ import { SupportService } from './support.service';
     NotificationsModule,
     SubscriptionsModule,
     AdminAccessModule,
+    FilesModule,
   ],
   controllers: [
     SupportController,
@@ -29,6 +32,7 @@ import { SupportService } from './support.service';
     AdminSupportService,
     SupportDeskService,
     SupportTeamService,
+    SupportFilesService,
   ],
   exports: [SupportDeskService, SupportTeamService],
 })

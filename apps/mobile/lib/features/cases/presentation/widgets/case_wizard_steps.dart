@@ -1019,97 +1019,97 @@ class _BudgetStepState extends ConsumerState<BudgetStep> {
           ),
         ),
         const SizedBox(height: AppSpacing.xl),
-        AnimatedSwitcher(
-          duration:
-              context.reduceMotion ? Duration.zero : AppMotion.stateChange,
-          child: kind == _BudgetKind.percent
-              ? AppTextField(
-                  key: const ValueKey('percent'),
-                  controller: _percent,
-                  label: t.t('cases.field.budgetPercent'),
-                  helperText: t.t('cases.create.budget.percentHint'),
-                  leading: Text(
-                    '%',
-                    style:
-                        typography.titleMedium.copyWith(color: colors.goldDark),
-                  ),
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  inputFormatters: [
-                    FilteringTextInputFormatter.allow(RegExp('[0-9.,]')),
-                    LengthLimitingTextInputFormatter(6),
-                  ],
-                  errorText: _percent.text.isNotEmpty &&
-                          rules.parse(_percent.text) == null
+        // Owner 2026-10-18: the three choices share one box as tall as the
+        // tallest, so nothing below jumps when switching (they cross-fade).
+        _SameHeightSwitch(
+          index: kind.index,
+          children: [
+            AppTextField(
+              key: const ValueKey('amount-field'),
+              controller: _amount,
+              label: t.t('cases.field.budgetAmount'),
+              leading: Text(
+                r'$',
+                style: typography.titleMedium.copyWith(color: colors.goldDark),
+              ),
+              keyboardType: TextInputType.number,
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                LengthLimitingTextInputFormatter(8),
+              ],
+              errorText: _amount.text.isNotEmpty && !d.budgetValid
+                  ? t.t('cases.field.budgetError', {
+                      'max': CaseFormat.money(
+                        ref.watch(l10nFormatsProvider),
+                        CaseLimits.budgetMaxDollars * 100,
+                      ),
+                    })
+                  : null,
+              onChanged: (v) {
+                final n = int.tryParse(v);
+                widget.onChange(
+                  (x) => n == null
+                      ? x.copyWith(clearBudgetDollars: true)
+                      : x.copyWith(budgetDollars: n),
+                );
+              },
+            ),
+            AppTextField(
+              key: const ValueKey('percent'),
+              controller: _percent,
+              label: t.t('cases.field.budgetPercent'),
+              helperText: t.t('cases.create.budget.percentHint'),
+              leading: Text(
+                '%',
+                style: typography.titleMedium.copyWith(color: colors.goldDark),
+              ),
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp('[0-9.,]')),
+                LengthLimitingTextInputFormatter(6),
+              ],
+              errorText:
+                  _percent.text.isNotEmpty && rules.parse(_percent.text) == null
                       ? t.t('cases.field.budgetPercentError', {
                           'max': ContingencyRules.plain(rules.maxBps),
                         })
                       : null,
-                  onChanged: (v) {
-                    final bps = rules.parse(v);
-                    widget.onChange(
-                      (x) => bps == null
-                          ? x.copyWith(clearBudgetPercent: true)
-                          : x.copyWith(budgetPercentBps: bps),
-                    );
-                  },
-                )
-              : kind == _BudgetKind.amount
-                  ? AppTextField(
-                      key: const ValueKey('amount'),
-                      controller: _amount,
-                      label: t.t('cases.field.budgetAmount'),
-                      leading: Text(
-                        r'$',
-                        style: typography.titleMedium
-                            .copyWith(color: colors.goldDark),
-                      ),
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly,
-                        LengthLimitingTextInputFormatter(8),
-                      ],
-                      errorText: _amount.text.isNotEmpty && !d.budgetValid
-                          ? t.t('cases.field.budgetError', {
-                              'max': CaseFormat.money(
-                                ref.watch(l10nFormatsProvider),
-                                CaseLimits.budgetMaxDollars * 100,
-                              ),
-                            })
-                          : null,
-                      onChanged: (v) {
-                        final n = int.tryParse(v);
-                        widget.onChange(
-                          (x) => n == null
-                              ? x.copyWith(clearBudgetDollars: true)
-                              : x.copyWith(budgetDollars: n),
-                        );
-                      },
-                    )
-                  : Container(
-                      key: const ValueKey('later'),
-                      padding: const EdgeInsets.all(AppSpacing.lg),
-                      decoration: BoxDecoration(
-                        color: colors.goldTint,
-                        borderRadius: BorderRadius.circular(AppRadii.card),
-                      ),
-                      child: Row(
-                        children: [
-                          AppIcon(
-                            AppIcons.forumOutlined,
-                            color: colors.goldDark,
-                          ),
-                          const SizedBox(width: AppSpacing.md),
-                          Expanded(
-                            child: Text(
-                              t.t('cases.create.budget.laterHint'),
-                              style: typography.bodySmall
-                                  .copyWith(color: colors.text),
-                            ),
-                          ),
-                        ],
-                      ),
+              onChanged: (v) {
+                final bps = rules.parse(v);
+                widget.onChange(
+                  (x) => bps == null
+                      ? x.copyWith(clearBudgetPercent: true)
+                      : x.copyWith(budgetPercentBps: bps),
+                );
+              },
+            ),
+            Container(
+              key: const ValueKey('later'),
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              // Owner 2026-10-18: the theme's own surface.
+              decoration: BoxDecoration(
+                color: colors.chip,
+                borderRadius: BorderRadius.circular(AppRadii.card),
+                border: Border.all(color: colors.border),
+              ),
+              child: Row(
+                children: [
+                  AppIcon(
+                    AppIcons.forumOutlined,
+                    color: colors.goldAccent,
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: Text(
+                      t.t('cases.create.budget.laterHint'),
+                      style: typography.bodySmall.copyWith(color: colors.text),
                     ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
         // Owner 2026-10-04: shown large on the attorney's card.
         const SizedBox(height: AppSpacing.xl),
@@ -1224,6 +1224,41 @@ class SegmentedChoice<T> extends StatelessWidget {
           );
         },
       ),
+    );
+  }
+}
+
+/// Owner 2026-10-18: shows [children] one at a time in a box as tall as
+/// the tallest of them (a Stack sizes to its largest child), cross-fading
+/// between them — the content below never moves. Hidden ones take no
+/// taps, focus or screen-reader time.
+class _SameHeightSwitch extends StatelessWidget {
+  const _SameHeightSwitch({required this.index, required this.children});
+
+  final int index;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final fade = context.reduceMotion ? Duration.zero : AppMotion.stateChange;
+    return Stack(
+      children: [
+        for (var i = 0; i < children.length; i++)
+          IgnorePointer(
+            ignoring: i != index,
+            child: ExcludeFocus(
+              excluding: i != index,
+              child: ExcludeSemantics(
+                excluding: i != index,
+                child: AnimatedOpacity(
+                  opacity: i == index ? 1 : 0,
+                  duration: fade,
+                  child: children[i],
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

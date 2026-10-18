@@ -14,6 +14,7 @@ class CreateSupportMacroDto {
     required this.title,
     required this.body,
     this.active = true,
+    this.bodyRu,
     this.category,
   });
 
@@ -22,6 +23,7 @@ class CreateSupportMacroDto {
 
   final String title;
   final String body;
+  final String? bodyRu;
   final CreateSupportMacroDtoCategory? category;
   final bool active;
 

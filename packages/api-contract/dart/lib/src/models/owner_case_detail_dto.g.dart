@@ -8,7 +8,7 @@ part of 'owner_case_detail_dto.dart';
 
 OwnerCaseDetailDto _$OwnerCaseDetailDtoFromJson(Map<String, dynamic> json) =>
     OwnerCaseDetailDto(
-      id: json['id'] as String,
+      status: CaseStatus.fromJson(json['status'] as String),
       title: json['title'] as String,
       description: json['description'] as String,
       practiceArea: PracticeAreaRefDto.fromJson(
@@ -22,43 +22,46 @@ OwnerCaseDetailDto _$OwnerCaseDetailDtoFromJson(Map<String, dynamic> json) =>
           .map((e) => CaseStateDto.fromJson(e as Map<String, dynamic>))
           .toList(),
       budgetMode: BudgetMode.fromJson(json['budgetMode'] as String),
-      status: CaseStatus.fromJson(json['status'] as String),
-      viewCount: (json['viewCount'] as num).toInt(),
-      bidsCount: (json['bidsCount'] as num).toInt(),
-      createdAt: json['createdAt'] as String,
-      lastActivityAt: json['lastActivityAt'] as String,
+      id: json['id'] as String,
+      stillNeededPending: json['stillNeededPending'] as bool,
       photos: (json['photos'] as List<dynamic>)
           .map((e) => CasePhotoDto.fromJson(e as Map<String, dynamic>))
           .toList(),
-      city: json['city'] as String?,
-      budgetCents: (json['budgetCents'] as num?)?.toInt(),
-      budgetPercentBps: (json['budgetPercentBps'] as num?)?.toInt(),
+      canMakeNotUrgent: json['canMakeNotUrgent'] as bool,
+      lastActivityAt: json['lastActivityAt'] as String,
+      createdAt: json['createdAt'] as String,
+      bidsCount: (json['bidsCount'] as num).toInt(),
+      viewCount: (json['viewCount'] as num).toInt(),
       coverKey: json['coverKey'] as String?,
-      urgency: json['urgency'] == null
-          ? null
-          : CaseUrgency.fromJson(json['urgency'] as String),
-      urgencyLevel: json['urgencyLevel'] == null
-          ? null
-          : CaseUrgencyLevel.fromJson(json['urgencyLevel'] as String),
-      deadlineAt: json['deadlineAt'] == null
-          ? null
-          : DateTime.parse(json['deadlineAt'] as String),
       deadlineKind: json['deadlineKind'] == null
           ? null
           : CaseDeadlineKind.fromJson(json['deadlineKind'] as String),
-      archivedAt: json['archivedAt'] as String?,
+      deadlineAt: json['deadlineAt'] == null
+          ? null
+          : DateTime.parse(json['deadlineAt'] as String),
+      urgencyLevel: json['urgencyLevel'] == null
+          ? null
+          : CaseUrgencyLevel.fromJson(json['urgencyLevel'] as String),
+      urgency: json['urgency'] == null
+          ? null
+          : CaseUrgency.fromJson(json['urgency'] as String),
+      budgetPercentBps: (json['budgetPercentBps'] as num?)?.toInt(),
       clientCompletedAt: json['clientCompletedAt'] as String?,
       attorneyConfirmedAt: json['attorneyConfirmedAt'] as String?,
       autoCloseAt: json['autoCloseAt'] as String?,
       closedAt: json['closedAt'] as String?,
       deletedAt: json['deletedAt'] as String?,
       stalePromptSentAt: json['stalePromptSentAt'] as String?,
+      pausedAt: json['pausedAt'] as String?,
+      budgetCents: (json['budgetCents'] as num?)?.toInt(),
+      city: json['city'] as String?,
       acceptedBid: json['acceptedBid'] == null
           ? null
           : CaseBidItemDto.fromJson(
               json['acceptedBid'] as Map<String, dynamic>,
             ),
       conversationId: json['conversationId'] as String?,
+      archivedAt: json['archivedAt'] as String?,
     );
 
 Map<String, dynamic> _$OwnerCaseDetailDtoToJson(OwnerCaseDetailDto instance) =>
@@ -93,6 +96,9 @@ Map<String, dynamic> _$OwnerCaseDetailDtoToJson(OwnerCaseDetailDto instance) =>
       'closedAt': ?instance.closedAt,
       'deletedAt': ?instance.deletedAt,
       'stalePromptSentAt': ?instance.stalePromptSentAt,
+      'pausedAt': ?instance.pausedAt,
+      'stillNeededPending': instance.stillNeededPending,
+      'canMakeNotUrgent': instance.canMakeNotUrgent,
       'acceptedBid': ?instance.acceptedBid?.toJson(),
       'conversationId': ?instance.conversationId,
       'photos': instance.photos.map((e) => e.toJson()).toList(),

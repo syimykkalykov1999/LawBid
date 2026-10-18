@@ -109,7 +109,7 @@ export class SupportController {
     @Param() p: SupportTicketIdParamDto,
     @Body() dto: SupportMessageBodyDto,
   ): Promise<SupportMessageDto> {
-    return this.support.reply(user.sub, p.id, dto.body);
+    return this.support.reply(user.sub, p.id, dto.body, dto.attachments);
   }
 
   @Post(':id/close')

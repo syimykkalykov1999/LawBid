@@ -49,6 +49,11 @@ CaseFeedItemDto _$CaseFeedItemDtoFromJson(Map<String, dynamic> json) =>
       promotedUntil: json['promotedUntil'] == null
           ? null
           : DateTime.parse(json['promotedUntil'] as String),
+      clientActivity: json['clientActivity'] == null
+          ? null
+          : ClientActivityDto.fromJson(
+              json['clientActivity'] as Map<String, dynamic>,
+            ),
     );
 
 Map<String, dynamic> _$CaseFeedItemDtoToJson(CaseFeedItemDto instance) =>
@@ -79,5 +84,6 @@ Map<String, dynamic> _$CaseFeedItemDtoToJson(CaseFeedItemDto instance) =>
       'promoted': instance.promoted,
       'promotedUntil': ?instance.promotedUntil?.toIso8601String(),
       'priorityClient': instance.priorityClient,
+      'clientActivity': ?instance.clientActivity?.toJson(),
       'dossier': instance.dossier.toJson(),
     };

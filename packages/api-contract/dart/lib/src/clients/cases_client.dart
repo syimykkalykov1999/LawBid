@@ -30,6 +30,7 @@ import '../models/period.dart';
 import '../models/saved_item_dto.dart';
 import '../models/scope.dart';
 import '../models/sort.dart';
+import '../models/still_needed_answer_dto.dart';
 import '../models/task_done_dto.dart';
 import '../models/task_submission_dto.dart';
 import '../models/update_case_dto.dart';
@@ -146,6 +147,21 @@ abstract class CasesClient {
   /// "Still relevant" — resets the staleness timer (docs/04 §10.2)
   @POST('/cases/{id}/keep-alive')
   Future<CaseEnvelope> keepCaseAlive({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Answer «Вам ещё нужен адвокат?» — still_needed / wait_better / not_needed (closes the case) / make_not_urgent (owner, OQ-054)
+  @POST('/cases/{id}/still-needed')
+  Future<CaseEnvelope> answerStillNeeded({
+    @Path('id') required String id,
+    @Body() required StillNeededAnswerDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Bring a paused case back into the attorneys' feed (owner, OQ-054)
+  @POST('/cases/{id}/resume')
+  Future<CaseEnvelope> resumeCase({
     @Path('id') required String id,
     @Extras() Map<String, dynamic>? extras,
   });

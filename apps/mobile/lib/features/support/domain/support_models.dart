@@ -40,6 +40,67 @@ enum SupportStatus {
       );
 }
 
+/// Owner 2026-10-18 (OQ-055): a photo, video or document on a support
+/// message (short signed links; null while the scan runs).
+@immutable
+class SupportAttachment {
+  const SupportAttachment({
+    required this.fileId,
+    required this.name,
+    required this.mime,
+    required this.sizeBytes,
+    required this.isImage,
+    required this.isVideo,
+    this.url,
+    this.previewUrl,
+    this.width,
+    this.height,
+  });
+
+  final String fileId;
+  final String name;
+  final String mime;
+  final int sizeBytes;
+  final bool isImage;
+  final bool isVideo;
+  final String? url;
+  final String? previewUrl;
+  final int? width;
+  final int? height;
+}
+
+/// What the app sends along with a new ticket so the team can reproduce a
+/// problem (shown to admins only). The user id and role come from the
+/// session on the server.
+@immutable
+class SupportClientContext {
+  const SupportClientContext({
+    this.appVersion,
+    this.buildNumber,
+    this.platform,
+    this.osVersion,
+    this.deviceModel,
+    this.language,
+    this.theme,
+    this.timezone,
+    this.route,
+  });
+
+  final String? appVersion;
+  final String? buildNumber;
+
+  /// ios · android · web · other.
+  final String? platform;
+  final String? osVersion;
+  final String? deviceModel;
+  final String? language;
+  final String? theme;
+  final String? timezone;
+
+  /// The screen the user came from.
+  final String? route;
+}
+
 @immutable
 class SupportMessage {
   const SupportMessage({
@@ -48,6 +109,7 @@ class SupportMessage {
     required this.body,
     required this.createdAt,
     this.authorName,
+    this.attachments = const [],
   });
 
   final String id;
@@ -55,6 +117,7 @@ class SupportMessage {
   final String body;
   final DateTime createdAt;
   final String? authorName;
+  final List<SupportAttachment> attachments;
 }
 
 @immutable

@@ -32,6 +32,10 @@ const PLACE: Record<Place, { title: string; hint: string }> = {
   review: { title: 'Отзывы', hint: 'Фото в отзывах об адвокатах и о клиентах.' },
   avatar: { title: 'Фото профиля', hint: 'Одно фото; приложение сжимает его до 1024 px.' },
   verification: { title: 'Проверка адвоката', hint: 'Файлы одного документа (лицензия, ID). Видят только проверяющие.' },
+  support: {
+    title: 'Поддержка',
+    hint: 'Файлы в обращении и в ответе поддержки: фото, документы, видео. Столько штук можно в одном сообщении.',
+  },
   client_badge: { title: 'Значок клиента', hint: 'Сколько файлов в заявке. Размер и форматы — как в «Проверке адвоката».' },
 };
 
@@ -58,7 +62,7 @@ const FORMAT_LABEL: Record<Format, string> = {
   mov: 'MOV',
 };
 const PHOTO: readonly Format[] = ['jpeg', 'png', 'heic', 'webp', 'gif'];
-/** Owner 2026-10-17: videos (chat only; the app compresses them to 720p). */
+/** Owner 2026-10-17: videos (chat and support; the app compresses them to 720p). */
 const VIDEO: readonly Format[] = ['mp4', 'mov'];
 
 type NumKey = 'maxPhotos' | 'maxFiles' | 'fileMb' | 'totalMb';

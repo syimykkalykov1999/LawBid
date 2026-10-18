@@ -29,6 +29,7 @@ class _AdminSupportClient implements AdminSupportClient {
     String? assignee,
     String? q,
     String? userId,
+    bool? unread,
     Sla? sla,
     Map<String, dynamic>? extras,
   }) async {
@@ -42,6 +43,7 @@ class _AdminSupportClient implements AdminSupportClient {
       r'assignee': assignee,
       r'q': q,
       r'userId': userId,
+      r'unread': unread,
       r'sla': sla?.toJson(),
     };
     queryParameters.removeWhere((k, v) => v == null);
@@ -200,6 +202,71 @@ class _AdminSupportClient implements AdminSupportClient {
   }
 
   @override
+  Future<PresignedFileEnvelope> presignAdminSupportUpload({
+    required AdminSupportUploadDto body,
+    Map<String, dynamic>? extras,
+  }) async {
+    final _extra = <String, dynamic>{};
+    _extra.addAll(extras ?? <String, dynamic>{});
+    final queryParameters = <String, dynamic>{};
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{};
+    final _data = <String, dynamic>{};
+    _data.addAll(body.toJson());
+    final _options = _setStreamType<PresignedFileEnvelope>(
+      Options(method: 'POST', headers: _headers, extra: _extra)
+          .compose(
+            _dio.options,
+            '/admin/support/uploads',
+            queryParameters: queryParameters,
+            data: _data,
+          )
+          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
+    );
+    final _result = await _dio.fetch<Map<String, Object?>>(_options);
+    late PresignedFileEnvelope _value;
+    try {
+      _value = PresignedFileEnvelope.fromJson(_result.data!);
+    } on Object catch (e, s) {
+      errorLogger?.logError(e, s, _options, response: _result);
+      rethrow;
+    }
+    return _value;
+  }
+
+  @override
+  Future<FileEnvelope> confirmAdminSupportUpload({
+    required String fileId,
+    Map<String, dynamic>? extras,
+  }) async {
+    final _extra = <String, dynamic>{};
+    _extra.addAll(extras ?? <String, dynamic>{});
+    final queryParameters = <String, dynamic>{};
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{};
+    const Map<String, dynamic>? _data = null;
+    final _options = _setStreamType<FileEnvelope>(
+      Options(method: 'POST', headers: _headers, extra: _extra)
+          .compose(
+            _dio.options,
+            '/admin/support/uploads/${fileId}/confirm',
+            queryParameters: queryParameters,
+            data: _data,
+          )
+          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
+    );
+    final _result = await _dio.fetch<Map<String, Object?>>(_options);
+    late FileEnvelope _value;
+    try {
+      _value = FileEnvelope.fromJson(_result.data!);
+    } on Object catch (e, s) {
+      errorLogger?.logError(e, s, _options, response: _result);
+      rethrow;
+    }
+    return _value;
+  }
+
+  @override
   Future<SupportNextTicketEnvelope> nextAdminSupportTicket({
     Map<String, dynamic>? extras,
   }) async {
@@ -296,12 +363,16 @@ class _AdminSupportClient implements AdminSupportClient {
 
   @override
   Future<SupportMacroListEnvelope> listSupportMacros({
+    String? language,
     bool? all,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
     _extra.addAll(extras ?? <String, dynamic>{});
-    final queryParameters = <String, dynamic>{r'all': all};
+    final queryParameters = <String, dynamic>{
+      r'language': language,
+      r'all': all,
+    };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};
     const Map<String, dynamic>? _data = null;

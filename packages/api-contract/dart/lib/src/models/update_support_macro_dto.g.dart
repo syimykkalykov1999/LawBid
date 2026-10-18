@@ -11,6 +11,7 @@ UpdateSupportMacroDto _$UpdateSupportMacroDtoFromJson(
 ) => UpdateSupportMacroDto(
   title: json['title'] as String?,
   body: json['body'] as String?,
+  bodyRu: json['bodyRu'] as String?,
   category: json['category'] == null
       ? null
       : UpdateSupportMacroDtoCategory.fromJson(json['category'] as String),
@@ -22,6 +23,7 @@ Map<String, dynamic> _$UpdateSupportMacroDtoToJson(
 ) => <String, dynamic>{
   'title': ?instance.title,
   'body': ?instance.body,
+  'bodyRu': ?instance.bodyRu,
   'category': ?instance.category?.toJson(),
   'active': ?instance.active,
 };

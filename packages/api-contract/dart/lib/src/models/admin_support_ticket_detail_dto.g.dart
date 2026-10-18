@@ -41,6 +41,11 @@ AdminSupportTicketDetailDto _$AdminSupportTicketDetailDtoFromJson(
   firstResponseAt: json['firstResponseAt'] == null
       ? null
       : DateTime.parse(json['firstResponseAt'] as String),
+  clientContext: json['clientContext'] == null
+      ? null
+      : SupportClientContextDto.fromJson(
+          json['clientContext'] as Map<String, dynamic>,
+        ),
 );
 
 Map<String, dynamic> _$AdminSupportTicketDetailDtoToJson(
@@ -63,5 +68,6 @@ Map<String, dynamic> _$AdminSupportTicketDetailDtoToJson(
   'slaBreached': ?instance.slaBreached,
   'firstResponseAt': ?instance.firstResponseAt?.toIso8601String(),
   'userSummary': instance.userSummary.toJson(),
+  'clientContext': ?instance.clientContext?.toJson(),
   'messages': instance.messages.map((e) => e.toJson()).toList(),
 };

@@ -1,3 +1,4 @@
+import { videoDimensions } from '../processing/video-dimensions';
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import type { File } from '@prisma/client';
 import { createHash } from 'node:crypto';
@@ -13,6 +14,7 @@ import {
   DEDUP_PROFILE,
   purposesOfProfile,
   variantKey,
+  FILE_MIME,
 } from '../files.policy';
 import type { ImageFormat } from '../processing/image-processor';
 
@@ -100,7 +102,8 @@ export class FileScanProcessor {
           file.purpose === 'case_photo' ||
           file.purpose === 'case_attachment' ||
           // OQ-047: chat photos get previews; documents pass through.
-          file.purpose === 'chat_attachment',
+          file.purpose === 'chat_attachment' ||
+          file.purpose === 'support_attachment',
         format: await this.imageFormat(),
       });
     } catch (err) {
@@ -133,8 +136,11 @@ export class FileScanProcessor {
         where: { id: fileId, scan_status: 'pending' },
         data: {
           scan_status: 'clean',
-          width: processed.width,
-          height: processed.height,
+          // Owner 2026-10-18: videos get their shown size too (the app
+          // draws the bubble at that shape before the video loads).
+          ...(mime === FILE_MIME.mp4 || mime === FILE_MIME.mov
+            ? (videoDimensions(data) ?? { width: null, height: null })
+            : { width: processed.width, height: processed.height }),
           ...(main
             ? {
                 mime: main.mime,

@@ -14,9 +14,11 @@ class SupportMacroDto {
     required this.id,
     required this.title,
     required this.body,
+    required this.text,
     required this.active,
     required this.uses,
     required this.updatedAt,
+    this.bodyRu,
     this.category,
   });
 
@@ -26,8 +28,14 @@ class SupportMacroDto {
   final String id;
   final String title;
 
-  /// `{name}` becomes the user first name.
+  /// English text. `{name}` becomes the user first name, `{ticket}` the ticket number (replaced by the API when the reply is sent).
   final String body;
+
+  /// Russian text; the composer uses it for ru users.
+  final String? bodyRu;
+
+  /// The text to insert: the Russian body for `language=ru` (when there is one), else the English body.
+  final String text;
   final SupportMacroDtoCategory? category;
   final bool active;
   final num uses;

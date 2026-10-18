@@ -19,7 +19,7 @@ part 'owner_case_detail_dto.g.dart';
 @JsonSerializable()
 class OwnerCaseDetailDto {
   const OwnerCaseDetailDto({
-    required this.id,
+    required this.status,
     required this.title,
     required this.description,
     required this.practiceArea,
@@ -27,29 +27,32 @@ class OwnerCaseDetailDto {
     required this.primaryStateCode,
     required this.states,
     required this.budgetMode,
-    required this.status,
-    required this.viewCount,
-    required this.bidsCount,
-    required this.createdAt,
-    required this.lastActivityAt,
+    required this.id,
+    required this.stillNeededPending,
     required this.photos,
-    this.city,
-    this.budgetCents,
-    this.budgetPercentBps,
+    required this.canMakeNotUrgent,
+    required this.lastActivityAt,
+    required this.createdAt,
+    required this.bidsCount,
+    required this.viewCount,
     this.coverKey,
-    this.urgency,
-    this.urgencyLevel,
-    this.deadlineAt,
     this.deadlineKind,
-    this.archivedAt,
+    this.deadlineAt,
+    this.urgencyLevel,
+    this.urgency,
+    this.budgetPercentBps,
     this.clientCompletedAt,
     this.attorneyConfirmedAt,
     this.autoCloseAt,
     this.closedAt,
     this.deletedAt,
     this.stalePromptSentAt,
+    this.pausedAt,
+    this.budgetCents,
+    this.city,
     this.acceptedBid,
     this.conversationId,
+    this.archivedAt,
   });
 
   factory OwnerCaseDetailDto.fromJson(Map<String, Object?> json) =>
@@ -102,6 +105,17 @@ class OwnerCaseDetailDto {
   /// §10.2 "Is this case still relevant?" prompt time, else null. Set while.
   /// the prompt is pending; POST /cases/:id/keep-alive clears it.
   final String? stalePromptSentAt;
+
+  /// OQ-054: set when the case was paused (hidden from the attorneys' feed.
+  /// and search): the client's screens show «Кейс скрыт · Вернуть».
+  final String? pausedAt;
+
+  /// OQ-054: «Вам ещё нужен адвокат?» is waiting for an answer.
+  final bool stillNeededPending;
+
+  /// OQ-054: «Сменить на «Не срочно»» is offered (urgent / very urgent.
+  /// and older than 7 days).
+  final bool canMakeNotUrgent;
   final CaseBidItemDto? acceptedBid;
 
   /// Chat with the accepted attorney (docs/05).

@@ -18,7 +18,8 @@ enum UploadPlace {
   review,
   avatar,
   verification,
-  clientBadge('client_badge');
+  clientBadge('client_badge'),
+  support;
 
   const UploadPlace([this._key]);
   final String? _key;
@@ -203,6 +204,14 @@ const kDefaultUploadLimits = <UploadPlace, PlaceUploadLimits>{
     fileMb: 10,
     totalMb: 0,
     formats: {'jpeg', 'png', 'heic', 'pdf'},
+  ),
+  // Owner 2026-10-18 (OQ-055): files in a support ticket, both ways.
+  UploadPlace.support: PlaceUploadLimits(
+    maxPhotos: 0,
+    maxFiles: 5,
+    fileMb: 25,
+    totalMb: 0,
+    formats: {...kPhotoFormats, ..._docs, ...kVideoFormats},
   ),
   UploadPlace.clientBadge: PlaceUploadLimits(
     maxPhotos: 0,

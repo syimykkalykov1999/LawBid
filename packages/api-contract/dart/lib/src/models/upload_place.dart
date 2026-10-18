@@ -26,6 +26,8 @@ enum UploadPlace {
   verification('verification'),
   @JsonValue('client_badge')
   clientBadge('client_badge'),
+  @JsonValue('support')
+  support('support'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

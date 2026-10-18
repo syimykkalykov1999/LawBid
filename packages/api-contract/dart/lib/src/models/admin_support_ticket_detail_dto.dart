@@ -10,6 +10,7 @@ import 'admin_support_ticket_detail_dto_priority.dart';
 import 'admin_support_ticket_detail_dto_status.dart';
 import 'admin_support_user_ref_dto.dart';
 import 'admin_support_user_summary_dto.dart';
+import 'support_client_context_dto.dart';
 
 part 'admin_support_ticket_detail_dto.g.dart';
 
@@ -34,6 +35,7 @@ class AdminSupportTicketDetailDto {
     this.slaDueAt,
     this.slaBreached,
     this.firstResponseAt,
+    this.clientContext,
   });
 
   factory AdminSupportTicketDetailDto.fromJson(Map<String, Object?> json) =>
@@ -60,6 +62,9 @@ class AdminSupportTicketDetailDto {
   final bool? slaBreached;
   final DateTime? firstResponseAt;
   final AdminSupportUserSummaryDto userSummary;
+
+  /// Owner 2026-10-18: device and app info the app attached to the ticket (admins only).
+  final SupportClientContextDto? clientContext;
   final List<AdminSupportMessageDto> messages;
 
   Map<String, Object?> toJson() => _$AdminSupportTicketDetailDtoToJson(this);
