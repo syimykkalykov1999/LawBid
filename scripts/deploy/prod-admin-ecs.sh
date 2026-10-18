@@ -3,8 +3,12 @@
 # first super admin is made by a one-off ECS task inside the VPC (the Mac's
 # docker cannot reach it; prod-run.sh seed/admin is for a reachable DB).
 #   scripts/deploy/prod-admin-ecs.sh <image tag>          seed + super admin
-#   scripts/deploy/prod-admin-ecs.sh <image tag> i18n     re-import the
-#        translations_seed.xlsx baked into the image (the seed already does it)
+#   scripts/deploy/prod-admin-ecs.sh <image tag> i18n     add what the
+#        database lacks from the translations_seed.xlsx baked into the image
+#        (every release, deploy.yml); texts already there — the owner's
+#        uploads in Admin → Localization — are never overwritten
+#   scripts/deploy/prod-admin-ecs.sh <image tag> i18n-full  re-import the
+#        whole table, overwriting what differs (by hand only)
 # Seed = reference data + all 85 languages from prisma/seed/translations_seed
 # .xlsx (in the image) + the admin row. The e-mail, login and password are
 # typed here (hidden), go into a temporary Secrets Manager secret that only
@@ -73,9 +77,14 @@ case "$MODE" in
   i18n)
     echo "1/3 (no secret needed)"
     TMP_SECRET_ARN_FOR_TD=""
+    CMD='node dist/src/cli/import-translations.js prisma/seed/translations_seed.xlsx --missing-only 2>&1 | cut -c1-300'
+    ;;
+  i18n-full)
+    echo "1/3 (no secret needed)"
+    TMP_SECRET_ARN_FOR_TD=""
     CMD='node dist/src/cli/import-translations.js prisma/seed/translations_seed.xlsx 2>&1 | cut -c1-300'
     ;;
-  *) echo "unknown mode: $MODE (admin | i18n)" >&2; exit 2 ;;
+  *) echo "unknown mode: $MODE (admin | i18n | i18n-full)" >&2; exit 2 ;;
 esac
 
 echo "2/3 task definition (copy of ${CLUSTER}-api, image ${TAG})"

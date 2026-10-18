@@ -111,6 +111,14 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
       - name: Migrations (one-off task, waits for exit 0)
         run: scripts/deploy/run-migrations.sh lawbid-staging "$IMAGE_TAG"
+      # Owner 2026-10-18: the translations table goes up with every release
+      # (before, only by hand — the live site missed new texts). Dry run
+      # first inside the task; only missing texts are added (admin uploads stay).
+      - name: Translations (all 85 languages from translations_seed.xlsx)
+        env:
+          CLUSTER: lawbid-staging
+          SECRET_PREFIX: lawbid-staging
+        run: scripts/deploy/prod-admin-ecs.sh "$IMAGE_TAG" i18n
       - name: Roll api / worker / admin
         run: scripts/deploy/roll-services.sh lawbid-staging "$IMAGE_TAG"
       - name: Smoke
@@ -138,6 +146,11 @@ jobs:
         run: scripts/deploy/check-backup.sh
       - name: Migrations (expand/contract only, docs/02 §7.1)
         run: scripts/deploy/run-migrations.sh lawbid-prod "$IMAGE_TAG"
+      - name: Translations (all 85 languages from translations_seed.xlsx)
+        env:
+          CLUSTER: lawbid-prod
+          SECRET_PREFIX: lawbid-prod
+        run: scripts/deploy/prod-admin-ecs.sh "$IMAGE_TAG" i18n
       - name: Rolling deploy api / worker / admin
         run: scripts/deploy/roll-services.sh lawbid-prod "$IMAGE_TAG"
       - name: Smoke

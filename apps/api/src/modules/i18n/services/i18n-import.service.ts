@@ -52,9 +52,18 @@ export class I18nImportService {
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {}
 
+  /**
+   * Owner 2026-10-18 (release): `missingOnly` — every release brings the
+   * translations table up with it, but only fills what the database does
+   * not have yet (new keys, new languages, empty cells). Texts already in
+   * the database — including files the owner uploaded in Admin →
+   * Localization — are never overwritten. Only changed languages get a new
+   * bundle version, so phones re-download nothing else.
+   */
   async run(
     fileBuffer: Buffer,
     mode: I18nImportMode,
+    options: { missingOnly?: boolean } = {},
   ): Promise<I18nImportReport> {
     const grid = await this.safeParse(fileBuffer);
     if ('errors' in grid) {
@@ -109,7 +118,10 @@ export class I18nImportService {
         existing.translations.map((t) => [t.lang, t.value]),
       );
       for (const [lang, value] of Object.entries(row.values)) {
-        if (existingValues.get(lang) !== value) {
+        const current = existingValues.get(lang);
+        if (options.missingOnly && current !== undefined && current !== '') {
+          unchangedCount += 1;
+        } else if (current !== value) {
           changedKeys.push({ key: row.key, lang });
           affectedLangs.add(lang);
         } else {
