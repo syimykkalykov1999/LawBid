@@ -89,6 +89,10 @@ row + topic hint; budget step no jump.
 - Tech debt: practiceMatchesProvider → features/practice/practice_matches.dart
   (baseline practice 4, profile 20); API module boundaries: cases.public.ts /
   files.public.ts, baseline refreshed.
+- PAUSED, waiting for the owner: stickers search and notifications search
+  (owner did not choose yet; a started API part for notifications ?q is in
+  `git stash` "WIP notifications search"). Do NOT build the APK until the
+  owner says so.
 - iPhone: install a RELEASE build (`flutter run --release …`) — a debug build
   stops working when the cable/session drops.
 
