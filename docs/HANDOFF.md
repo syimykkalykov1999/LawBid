@@ -89,10 +89,13 @@ row + topic hint; budget step no jump.
 - Tech debt: practiceMatchesProvider → features/practice/practice_matches.dart
   (baseline practice 4, profile 20); API module boundaries: cases.public.ts /
   files.public.ts, baseline refreshed.
-- PAUSED, waiting for the owner: stickers search and notifications search
-  (owner did not choose yet; a started API part for notifications ?q is in
-  `git stash` "WIP notifications search"). Do NOT build the APK until the
-  owner says so.
+- Sticker search (pack name + emoji, `searchStickers` in sticker_widgets.dart)
+  and notifications search (`GET /notifications?q`, box above the chips) —
+  DONE, all 85 languages.
+- Test phones (dev DB, code 000000): +1 212 555 0101 attorney Thomas Brennan
+  WITH subscription; +1 212 555 0102 attorney Victor Alvarez WITHOUT
+  subscription; +1 212 555 0103 client Charlotte Davis.
+- APK: build ONLY when the owner says (he checks the iPhone first).
 - iPhone: install a RELEASE build (`flutter run --release …`) — a debug build
   stops working when the cable/session drops.
 
