@@ -191,11 +191,21 @@ class ChatVideoScreen extends StatefulWidget {
   State<ChatVideoScreen> createState() => _ChatVideoScreenState();
 }
 
+/// Owner 2026-10-17 (WhatsApp): the video fills the screen width; the big
+/// play button shows only while paused; the bottom bar has play / pause,
+/// the time and the seek bar; the controls hide by themselves after 3 s of
+/// playing and come back on a tap; a swipe down closes.
 class _ChatVideoScreenState extends State<ChatVideoScreen> {
   late final VideoPlayerController _c =
       VideoPlayerController.networkUrl(Uri.parse(widget.url));
   bool _controls = true;
   bool _failed = false;
+  bool _wasPlaying = false;
+  Timer? _hide;
+  double _drag = 0;
+
+  /// While the thumb is dragged: its spot (the player catches up).
+  double? _scrubMs;
 
   @override
   void initState() {
@@ -207,6 +217,7 @@ class _ChatVideoScreenState extends State<ChatVideoScreen> {
           if (!mounted) return;
           setState(() {});
           await _c.play();
+          _scheduleHide();
         },
         onError: (Object _) {
           if (mounted) setState(() => _failed = true);
@@ -216,11 +227,34 @@ class _ChatVideoScreenState extends State<ChatVideoScreen> {
   }
 
   void _tick() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    final v = _c.value;
+    // Ended: back to the controls with the play button (WhatsApp).
+    if (_wasPlaying && !v.isPlaying && v.position >= v.duration) {
+      _hide?.cancel();
+      _controls = true;
+    }
+    _wasPlaying = v.isPlaying;
+    setState(() {});
+  }
+
+  void _scheduleHide() {
+    _hide?.cancel();
+    _hide = Timer(const Duration(seconds: 3), () {
+      if (mounted && _c.value.isPlaying && _scrubMs == null) {
+        setState(() => _controls = false);
+      }
+    });
+  }
+
+  void _tapScreen() {
+    setState(() => _controls = !_controls);
+    if (_controls) _scheduleHide();
   }
 
   @override
   void dispose() {
+    _hide?.cancel();
     _c.removeListener(_tick);
     unawaited(_c.dispose());
     super.dispose();
@@ -229,12 +263,14 @@ class _ChatVideoScreenState extends State<ChatVideoScreen> {
   Future<void> _toggle() async {
     unawaited(HapticFeedback.selectionClick());
     if (_c.value.isPlaying) {
+      _hide?.cancel();
       await _c.pause();
     } else {
       if (_c.value.position >= _c.value.duration) {
         await _c.seekTo(Duration.zero);
       }
       await _c.play();
+      _scheduleHide();
     }
   }
 
@@ -244,99 +280,205 @@ class _ChatVideoScreenState extends State<ChatVideoScreen> {
     final v = _c.value;
     final total = v.duration;
     final pos = v.position > total ? total : v.position;
+    final shownMs = _scrubMs ?? pos.inMilliseconds.toDouble();
+    final maxMs = math.max(1, total.inMilliseconds).toDouble();
     final clock = type.caption.copyWith(
       color: Colors.white,
       fontFeatures: const [FontFeature.tabularFigures()],
     );
+    final fade = context.reduceMotion
+        ? Duration.zero
+        : const Duration(milliseconds: 200);
+    final paused = v.isInitialized && !v.isPlaying;
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
       child: Scaffold(
         backgroundColor: Colors.black,
         body: GestureDetector(
           behavior: HitTestBehavior.opaque,
-          onTap: () => setState(() => _controls = !_controls),
+          onTap: _tapScreen,
+          // Swipe down to close, like a photo.
+          onVerticalDragUpdate: (d) =>
+              setState(() => _drag = math.max(0, _drag + d.delta.dy)),
+          onVerticalDragEnd: (_) {
+            if (_drag > 120) {
+              Navigator.of(context).maybePop();
+            } else {
+              setState(() => _drag = 0);
+            }
+          },
           child: Stack(
+            fit: StackFit.expand,
             children: [
-              Center(
-                child: v.isInitialized
-                    ? AspectRatio(
-                        aspectRatio: v.aspectRatio,
-                        child: VideoPlayer(_c),
-                      )
-                    : _failed
-                        ? const AppIcon(
-                            AppIcons.errorOutlineRounded,
-                            color: Colors.white54,
-                            size: 40,
+              Positioned.fill(
+                child: Transform.translate(
+                  offset: Offset(0, _drag),
+                  child: Center(
+                    child: v.isInitialized
+                        ? AspectRatio(
+                            aspectRatio: v.aspectRatio,
+                            child: VideoPlayer(_c),
                           )
-                        : const CircularProgressIndicator(
-                            color: Colors.white,
-                          ),
+                        : _failed
+                            ? const AppIcon(
+                                AppIcons.errorOutlineRounded,
+                                color: Colors.white54,
+                                size: 40,
+                              )
+                            : const CircularProgressIndicator(
+                                color: Colors.white,
+                              ),
+                  ),
+                ),
               ),
-              if (_controls) ...[
-                SafeArea(
-                  child: Align(
-                    alignment: Alignment.topLeft,
-                    child: IconButton(
-                      onPressed: () => Navigator.of(context).maybePop(),
-                      icon: const AppIcon(
-                        AppIcons.closeRounded,
-                        color: Colors.white,
+              // Paused or ended: one big play button in the middle.
+              if (paused && _drag == 0)
+                Positioned.fill(
+                  child: Center(
+                    child: AppPressable(
+                      onTap: _toggle,
+                      child: Container(
+                        width: 72,
+                        height: 72,
+                        decoration: const BoxDecoration(
+                          color: Colors.black54,
+                          shape: BoxShape.circle,
+                        ),
+                        alignment: Alignment.center,
+                        child: const AppIcon(
+                          AppIcons.playArrowRounded,
+                          color: Colors.white,
+                          size: 44,
+                        ),
                       ),
                     ),
                   ),
                 ),
-                if (v.isInitialized)
-                  Center(
-                    child: AppPressable(
-                      onTap: _toggle,
-                      child: Container(
-                        width: 64,
-                        height: 64,
-                        decoration: const BoxDecoration(
-                          color: Colors.black45,
-                          shape: BoxShape.circle,
-                        ),
-                        child: AppIcon(
-                          v.isPlaying
-                              ? AppIcons.pauseRounded
-                              : AppIcons.playArrowRounded,
-                          color: Colors.white,
-                          size: 40,
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: AnimatedOpacity(
+                  opacity: _controls && _drag == 0 ? 1 : 0,
+                  duration: fade,
+                  child: IgnorePointer(
+                    ignoring: !_controls,
+                    child: Container(
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [Colors.black54, Colors.transparent],
                         ),
                       ),
-                    ),
-                  ),
-                if (v.isInitialized)
-                  SafeArea(
-                    child: Align(
-                      alignment: Alignment.bottomCenter,
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                        child: Row(
-                          children: [
-                            Text(voiceClock(pos), style: clock),
-                            Expanded(
-                              child: Slider(
-                                value: pos.inMilliseconds.toDouble(),
-                                max: math
-                                    .max(1, total.inMilliseconds)
-                                    .toDouble(),
-                                activeColor: Colors.white,
-                                inactiveColor: Colors.white30,
-                                thumbColor: Colors.white,
-                                onChanged: (x) => _c.seekTo(
-                                  Duration(milliseconds: x.round()),
-                                ),
-                              ),
+                      child: SafeArea(
+                        bottom: false,
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: IconButton(
+                            onPressed: () => Navigator.of(context).maybePop(),
+                            icon: const AppIcon(
+                              AppIcons.closeRounded,
+                              color: Colors.white,
                             ),
-                            Text(voiceClock(total), style: clock),
-                          ],
+                          ),
                         ),
                       ),
                     ),
                   ),
-              ],
+                ),
+              ),
+              if (v.isInitialized)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: AnimatedOpacity(
+                    opacity: _controls && _drag == 0 ? 1 : 0,
+                    duration: fade,
+                    child: IgnorePointer(
+                      ignoring: !_controls,
+                      child: Container(
+                        decoration: const BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.bottomCenter,
+                            end: Alignment.topCenter,
+                            colors: [Colors.black54, Colors.transparent],
+                          ),
+                        ),
+                        child: SafeArea(
+                          top: false,
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(8, 16, 16, 8),
+                            child: Row(
+                              children: [
+                                IconButton(
+                                  onPressed: _toggle,
+                                  icon: AppIcon(
+                                    v.isPlaying
+                                        ? AppIcons.pauseRounded
+                                        : AppIcons.playArrowRounded,
+                                    color: Colors.white,
+                                    size: 28,
+                                  ),
+                                ),
+                                Text(
+                                  voiceClock(
+                                    Duration(milliseconds: shownMs.round()),
+                                  ),
+                                  style: clock,
+                                ),
+                                Expanded(
+                                  child: SliderTheme(
+                                    data: SliderTheme.of(context).copyWith(
+                                      trackHeight: 3,
+                                      thumbShape: const RoundSliderThumbShape(
+                                        enabledThumbRadius: 7,
+                                      ),
+                                      overlayShape:
+                                          const RoundSliderOverlayShape(
+                                        overlayRadius: 14,
+                                      ),
+                                    ),
+                                    child: Slider(
+                                      value: shownMs.clamp(0, maxMs),
+                                      max: maxMs,
+                                      activeColor: Colors.white,
+                                      inactiveColor: Colors.white30,
+                                      thumbColor: Colors.white,
+                                      onChangeStart: (x) {
+                                        _hide?.cancel();
+                                        setState(() => _scrubMs = x);
+                                      },
+                                      onChanged: (x) {
+                                        setState(() => _scrubMs = x);
+                                        unawaited(
+                                          _c.seekTo(
+                                            Duration(milliseconds: x.round()),
+                                          ),
+                                        );
+                                      },
+                                      onChangeEnd: (x) async {
+                                        await _c.seekTo(
+                                          Duration(milliseconds: x.round()),
+                                        );
+                                        if (mounted) {
+                                          setState(() => _scrubMs = null);
+                                        }
+                                        _scheduleHide();
+                                      },
+                                    ),
+                                  ),
+                                ),
+                                Text(voiceClock(total), style: clock),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
             ],
           ),
         ),

@@ -5,6 +5,11 @@ All notable changes to this project are documented here, per
 .cursorrules (each stage ends with a CHANGELOG update + commit on
 branch cursor/stage-X-Y-description).
 
+## Chat videos: black iPhone videos, WhatsApp-like player (2026-10-18)
+
+- iPhone videos came out all black (checked: every frame Y = 16). `video_compress` on iOS builds its frame-rate video composition from the source asset but exports the trimmed composition; its Dart API always sends a frame rate. On iOS the app now calls the plugin's `compressVideo` channel method without one (preset only: 720p, picture and rotation kept). Also fixes the same problem for reels. Safety net: a black result of a non-black original keeps the original.
+- Full-screen player: video centred; the big play button only while paused / ended; bottom bar with play/pause, time and a seek bar that follows the thumb; controls fade out after 3 s of playing (tap brings them back); swipe down closes.
+
 ## iPhone calls through PushKit (VoIP); one gallery for photos and videos (2026-10-17)
 
 Owner: "do the VoIP pushes now, not before the release"; "photos and videos in one button, like WhatsApp".
