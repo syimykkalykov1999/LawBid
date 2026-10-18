@@ -16,6 +16,7 @@ class AttachDocumentDto {
     required this.docType,
     this.side,
     this.stateCode,
+    this.note,
   });
 
   factory AttachDocumentDto.fromJson(Map<String, Object?> json) =>
@@ -30,6 +31,9 @@ class AttachDocumentDto {
 
   /// bar_license: the state of the license it proves.
   final String? stateCode;
+
+  /// Owner 2026-10-18: the attorney's optional note to the reviewer, sent with the bar card of a number for manual review.
+  final String? note;
 
   Map<String, Object?> toJson() => _$AttachDocumentDtoToJson(this);
 }

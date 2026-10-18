@@ -20,6 +20,7 @@ VerificationQueueItemDto _$VerificationQueueItemDtoFromJson(
   stateCodes: (json['stateCodes'] as List<dynamic>)
       .map((e) => e as String)
       .toList(),
+  formatReview: json['formatReview'] as bool,
   reviewerId: json['reviewerId'] as String?,
   adminNote: json['adminNote'] as String?,
 );
@@ -32,6 +33,7 @@ Map<String, dynamic> _$VerificationQueueItemDtoToJson(
   'submittedAt': ?instance.submittedAt?.toIso8601String(),
   'attorney': instance.attorney.toJson(),
   'stateCodes': instance.stateCodes,
+  'formatReview': instance.formatReview,
   'reviewerId': ?instance.reviewerId,
   'adminNote': ?instance.adminNote,
 };

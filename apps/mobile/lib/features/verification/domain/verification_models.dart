@@ -95,6 +95,7 @@ class VerificationLicense {
     this.expiresAt,
     this.rejectionCode,
     this.rejectionNote,
+    this.manualReview = false,
   });
 
   final String id;
@@ -107,6 +108,11 @@ class VerificationLicense {
   final DateTime? expiresAt;
   final String? rejectionCode;
   final String? rejectionNote;
+
+  /// Owner 2026-10-18: the attorney sent the number for manual review
+  /// («Мой номер верный — отправить на проверку»); its bar card photo is
+  /// required whatever [VerificationOverview.barDocumentRequired] says.
+  final bool manualReview;
 }
 
 class VerificationDocument {
@@ -186,8 +192,15 @@ class VerificationRequest {
 
   /// Owner 2026-10-04 ("только номер"): the bar card photo is optional
   /// unless the API asks for it ([VerificationOverview.barDocumentRequired]).
-  bool licensesReady({required bool barDocumentRequired}) =>
-      barDocumentRequired ? licensesComplete : pendingLicenses.isNotEmpty;
+  /// A license sent for manual review always needs its card.
+  bool licensesReady({required bool barDocumentRequired}) => barDocumentRequired
+      ? licensesComplete
+      : pendingLicenses.isNotEmpty &&
+          pendingLicenses.every(
+            (l) =>
+                !l.manualReview ||
+                docsFor(DocSlot.barLicense(l.stateCode)).isNotEmpty,
+          );
 
   /// Same rule as the API's identityCompleteness: some identity type has
   /// its front, plus back where needed.
@@ -212,6 +225,7 @@ class VerificationOverview {
     required this.maxSubmissions30Days,
     this.request,
     this.barDocumentRequired = true,
+    this.barAttemptsRetryAfterSeconds = 0,
   });
 
   final VerificationStatus status;
@@ -225,6 +239,10 @@ class VerificationOverview {
   final bool barDocumentRequired;
   final int submissionsLast30Days;
   final int maxSubmissions30Days;
+
+  /// Owner 2026-10-18: seconds until a bar number can be added again after
+  /// too many failed attempts (0 = not locked). Manual review stays open.
+  final int barAttemptsRetryAfterSeconds;
 
   bool get submissionLimitReached =>
       submissionsLast30Days >= maxSubmissions30Days;

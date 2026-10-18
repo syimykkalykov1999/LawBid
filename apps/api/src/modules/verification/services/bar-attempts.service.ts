@@ -7,7 +7,8 @@ const DAY = 86_400;
 
 /**
  * Owner 2026-10-14: wrong bar numbers cool down in steps, never a permanent
- * block: after N wrong numbers in a row (default 3) one hour, after the
+ * block: after N wrong numbers in a row (owner 2026-10-18: default 5, a
+ * number that does not fit its state's format counts too) one hour, after the
  * next N twelve hours, after the next N twenty-four hours (the last step
  * repeats). A correct check clears the count; so do 7 days without a wrong
  * number. Counted per account AND per source IP.

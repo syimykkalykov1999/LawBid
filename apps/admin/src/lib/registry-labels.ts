@@ -71,4 +71,6 @@ export const REASON_RU: Record<string, string> = {
   no_adapter_for_state: 'У штата нет автопроверки',
   // Owner 2026-10-05: trust levels — someone else registered this bar number.
   duplicate_claim: 'Номер уже заявлен другим адвокатом',
+  // Owner 2026-10-18: refused by the state's format, sent for manual review.
+  format_unusual: 'Номер не по формату штата — проверить вручную',
 };

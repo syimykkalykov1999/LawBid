@@ -7499,7 +7499,7 @@
             }
           },
           "400": {
-            "description": "Bad request: VALIDATION_ERROR",
+            "description": "Bad request: VALIDATION_ERROR, BAR_NUMBER_FORMAT_INVALID",
             "content": {
               "application/json": {
                 "schema": {
@@ -7559,7 +7559,7 @@
             }
           },
           "429": {
-            "description": "Too many requests: RATE_LIMITED",
+            "description": "Too many requests: BAR_ATTEMPTS_COOLDOWN",
             "content": {
               "application/json": {
                 "schema": {
@@ -87213,6 +87213,10 @@
           "rejectionNote": {
             "type": "string",
             "nullable": true
+          },
+          "manualReview": {
+            "type": "boolean",
+            "description": "Owner 2026-10-18: sent for manual review by the attorney (the number does not fit the state's format); a bar card photo is required."
           }
         },
         "required": [
@@ -87222,7 +87226,8 @@
           "status",
           "expiresAt",
           "rejectionCode",
-          "rejectionNote"
+          "rejectionNote",
+          "manualReview"
         ]
       },
       "VerificationDocType": {
@@ -87381,6 +87386,10 @@
             "type": "boolean",
             "description": "A photo of the bar card is required per license (setting verification.require_bar_document, off by default)."
           },
+          "barAttemptsRetryAfterSeconds": {
+            "type": "integer",
+            "description": "Owner 2026-10-18: seconds until a bar number can be added again after too many failed attempts (0 = not locked). The manual-review path stays open while locked."
+          },
           "submissionsLast30Days": {
             "type": "integer"
           },
@@ -87392,6 +87401,7 @@
           "verificationStatus",
           "identityRequired",
           "barDocumentRequired",
+          "barAttemptsRetryAfterSeconds",
           "submissionsLast30Days",
           "maxSubmissions30Days"
         ]
@@ -87461,6 +87471,10 @@
           "renewal": {
             "type": "boolean",
             "description": "True to renew a license that is still verified (a new expiry date). Without it a state that is already verified is refused."
+          },
+          "manualReview": {
+            "type": "boolean",
+            "description": "Owner 2026-10-18 («Мой номер верный — отправить на проверку»): the attorney insists the number is right although it does not fit the state's format. It is added for a person to check (registry flag format_unusual) and the bar card photo becomes required; allowed while the attempts lock is on."
           }
         },
         "required": [
@@ -87497,6 +87511,11 @@
             "maxLength": 2,
             "example": "NY",
             "description": "bar_license: the state of the license it proves."
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "Owner 2026-10-18: the attorney's optional note to the reviewer, sent with the bar card of a number for manual review."
           }
         },
         "required": [
@@ -87580,6 +87599,10 @@
               "type": "string"
             }
           },
+          "formatReview": {
+            "type": "boolean",
+            "description": "Owner 2026-10-18: a license of this request does not fit its state's format and the attorney sent it for manual review (bar card attached)."
+          },
           "reviewerId": {
             "type": "string",
             "nullable": true,
@@ -87597,6 +87620,7 @@
           "submittedAt",
           "attorney",
           "stateCodes",
+          "formatReview",
           "reviewerId",
           "adminNote"
         ]
@@ -87768,6 +87792,11 @@
               }
             ]
           },
+          "notes": {
+            "type": "string",
+            "nullable": true,
+            "description": "The attorney's note sent with this document."
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -87781,6 +87810,7 @@
           "mime",
           "sizeBytes",
           "scanStatus",
+          "notes",
           "createdAt"
         ]
       },

@@ -51,6 +51,7 @@ class VerificationRepositoryImpl implements VerificationRepository {
     required String stateCode,
     required String barNumber,
     DateTime? expiresAt,
+    bool manualReview = false,
   }) async {
     final response = await guardApiCall(
       () => _dio.post<Map<String, dynamic>>(
@@ -59,6 +60,7 @@ class VerificationRepositoryImpl implements VerificationRepository {
           'stateCode': stateCode,
           'barNumber': barNumber,
           if (expiresAt != null) 'expiresAt': isoDay(expiresAt),
+          if (manualReview) 'manualReview': true,
         },
         options: RequestFlags.createOptions(),
       ),
@@ -87,6 +89,7 @@ class VerificationRepositoryImpl implements VerificationRepository {
     String requestId, {
     required String fileId,
     required DocSlot slot,
+    String? note,
   }) =>
       _req(
         () => _client.attachVerificationDocument(
@@ -100,6 +103,7 @@ class VerificationRepositoryImpl implements VerificationRepository {
               null => null,
             },
             stateCode: slot.stateCode,
+            note: note,
           ),
           extras: _creates,
         ),

@@ -14,6 +14,8 @@ VerificationOverviewDto _$VerificationOverviewDtoFromJson(
   ),
   identityRequired: json['identityRequired'] as bool,
   barDocumentRequired: json['barDocumentRequired'] as bool,
+  barAttemptsRetryAfterSeconds: (json['barAttemptsRetryAfterSeconds'] as num)
+      .toInt(),
   submissionsLast30Days: (json['submissionsLast30Days'] as num).toInt(),
   maxSubmissions30Days: (json['maxSubmissions30Days'] as num).toInt(),
   request: json['request'] == null
@@ -30,6 +32,7 @@ Map<String, dynamic> _$VerificationOverviewDtoToJson(
   'request': ?instance.request?.toJson(),
   'identityRequired': instance.identityRequired,
   'barDocumentRequired': instance.barDocumentRequired,
+  'barAttemptsRetryAfterSeconds': instance.barAttemptsRetryAfterSeconds,
   'submissionsLast30Days': instance.submissionsLast30Days,
   'maxSubmissions30Days': instance.maxSubmissions30Days,
 };

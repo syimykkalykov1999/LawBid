@@ -9,6 +9,7 @@ import { MoreButton } from '@/components/legacy/more-button';
 import { RegistryFlags } from '@/components/registries/registry-flags';
 import { useDebounced } from '@/components/legacy/use-debounced';
 import { ErrorNote, PageHeader } from '@/components/page-header';
+import { Badge } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { Tabs } from '@/components/ui/tabs';
@@ -118,7 +119,15 @@ export default function VerificationQueuePage() {
                         {r.adminNote ? ` · ${r.adminNote}` : ''}
                       </div>
                     </Td>
-                    <Td>{r.stateCodes.join(', ')}</Td>
+                    <Td>
+                      {r.stateCodes.join(', ')}
+                      {/* Owner 2026-10-18: a number sent for manual review. */}
+                      {r.formatReview ? (
+                        <div className="mt-1">
+                          <Badge tone="warning">Номер не по формату штата — проверить вручную</Badge>
+                        </div>
+                      ) : null}
+                    </Td>
                     <Td>
                       <StatusPill map={REQUEST_STATUS} value={r.status} />
                     </Td>

@@ -20,6 +20,7 @@ class AdminDocumentDto {
     required this.mime,
     required this.sizeBytes,
     required this.scanStatus,
+    required this.notes,
     required this.createdAt,
   });
 
@@ -33,6 +34,9 @@ class AdminDocumentDto {
   final String mime;
   final int sizeBytes;
   final ScanStatus scanStatus;
+
+  /// The attorney's note sent with this document.
+  final String? notes;
   final DateTime createdAt;
 
   Map<String, Object?> toJson() => _$AdminDocumentDtoToJson(this);

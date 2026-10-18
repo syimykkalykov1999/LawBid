@@ -159,10 +159,11 @@ export function StateRegistries() {
       )}
       {(q.data?.formatMisses?.length ?? 0) > 0 ? (
         <Card className="mt-4 p-4">
-          <h3 className="font-serif text-base font-semibold text-heading">Нетипичные номера (ушли на ручную проверку)</h3>
+          <h3 className="font-serif text-base font-semibold text-heading">Номера не по формату штата (отклонены)</h3>
           <p className="mt-1 max-w-3xl text-sm text-muted">
-            Форма номера, которую правило штата не узнало: 9 — цифра, A — буква. Самих номеров здесь нет. Если форма
-            настоящая, расширьте правило штата в настройке «verification.bar_formats» — без релиза.
+            Форма номера, которую правило штата не узнало: 9 — цифра, A — буква. Самих номеров здесь нет. Такой номер
+            отклоняется как попытка; если адвокат уверен в номере, он отправляет его на ручную проверку с фото карточки.
+            Если форма настоящая, расширьте правило штата в настройке «verification.bar_formats» — без релиза.
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             {q.data!.formatMisses.map((m) => (

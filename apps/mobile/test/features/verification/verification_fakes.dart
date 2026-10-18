@@ -46,6 +46,12 @@ class FakeVerificationBackend
   /// While set, uploads wait on it (an "unfinished" upload).
   Completer<void>? uploadGate;
 
+  /// Owner 2026-10-18: seconds of the server's lock on adding a bar
+  /// number (0 = none). A number 'NOFMT' does not fit its state's format.
+  int lockSeconds = 0;
+  bool? lastManualReview;
+  String? lastNote;
+
   int createCalls = 0;
   int submitCalls = 0;
   String? lastComment;
@@ -84,6 +90,7 @@ class FakeVerificationBackend
         identityRequired: identityRequired,
         submissionsLast30Days: submissionsLast30Days,
         maxSubmissions30Days: maxSubmissions30Days,
+        barAttemptsRetryAfterSeconds: lockSeconds,
       );
 
   @override
@@ -112,7 +119,23 @@ class FakeVerificationBackend
     required String stateCode,
     required String barNumber,
     DateTime? expiresAt,
+    bool manualReview = false,
   }) async {
+    lastManualReview = manualReview;
+    if (!manualReview && lockSeconds > 0) {
+      throw ApiException(
+        code: ApiErrorCodes.barAttemptsCooldown,
+        message: 'locked',
+        details: {'retryAfterSeconds': lockSeconds},
+      );
+    }
+    if (!manualReview && barNumber == 'NOFMT') {
+      throw const ApiException(
+        code: ApiErrorCodes.barNumberFormatInvalid,
+        message: 'Bar number not found for this state.',
+        details: {'stateCode': 'AL'},
+      );
+    }
     if (barNumber == 'TAKEN') {
       throw const ApiException(
         code: ApiErrorCodes.licenseAlreadyRegistered,
@@ -129,6 +152,7 @@ class FakeVerificationBackend
           barNumber: barNumber,
           status: LicenseStatus.pending,
           expiresAt: expiresAt,
+          manualReview: manualReview,
         ),
       ],
     );
@@ -154,7 +178,9 @@ class FakeVerificationBackend
     String requestId, {
     required String fileId,
     required DocSlot slot,
+    String? note,
   }) async {
+    lastNote = note;
     if (_files[fileId] != ScanState.clean) {
       throw const ApiException(
         code: ApiErrorCodes.fileNotAttachable,

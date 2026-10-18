@@ -5,16 +5,17 @@
 // or has the wrong type.
 export const FILE_03_SETTINGS = {
   'verification.max_submissions_30d': 5,
-  /** Owner 2026-10-14: wrong bar numbers in a row before a cooldown. */
-  'verification.bar_fails_per_step': 3,
+  /** Owner 2026-10-14: wrong bar numbers in a row before a cooldown.
+   * Owner 2026-10-18: 5 tries, then the first lock is exactly 1 hour. */
+  'verification.bar_fails_per_step': 5,
   /** Cooldowns after each series of wrong numbers, hours, comma list; the
    * last one repeats. Never a permanent block. */
   'verification.bar_cooldown_hours': '1,12,24',
   /** Days without a wrong number after which the counter starts over. */
   'verification.bar_fail_reset_days': 7,
-  /** Bar number format per state (JSON: {"NY":{"pattern":"^\\d{4,7}$",
-   * "example":"1234567"}}); a state not listed only needs 4+ characters with
-   * at least 3 digits. */
+  /** Bar number format per state (JSON: {"NY":{"pattern":"^\\d{4,7}$"}});
+   * a state not listed only needs 4+ characters with at least 3 digits. The
+   * format is never shown to anyone (owner 2026-10-18). */
   'verification.bar_formats': '',
   'verification.signed_url_ttl_sec': 300,
   'verification.license_expiry_notify_days': [30, 7],

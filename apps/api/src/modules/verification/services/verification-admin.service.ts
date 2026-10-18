@@ -1,3 +1,4 @@
+import { FORMAT_UNUSUAL_FLAG } from '../bar-number-format';
 import { type CountryScope, userInScope } from '../../countries/country-scope';
 import { HttpStatus, Injectable } from '@nestjs/common';
 import type {
@@ -149,7 +150,7 @@ export class VerificationAdminService {
             user: { select: { first_name: true, last_name: true } },
             licenses: {
               where: { license_status: 'pending' },
-              select: { state_code: true },
+              select: { state_code: true, registry_flag: true },
               orderBy: { state_code: 'asc' },
             },
           },
@@ -171,6 +172,9 @@ export class VerificationAdminService {
           verificationStatus: r.attorney.verification_status,
         },
         stateCodes: [...new Set(r.attorney.licenses.map((l) => l.state_code))],
+        formatReview: r.attorney.licenses.some(
+          (l) => l.registry_flag === FORMAT_UNUSUAL_FLAG,
+        ),
         reviewerId: r.reviewed_by,
         adminNote: r.admin_note,
       })),
@@ -231,6 +235,7 @@ export class VerificationAdminService {
         mime: d.file.mime,
         sizeBytes: Number(d.file.size_bytes),
         scanStatus: d.file.scan_status,
+        notes: d.notes,
         createdAt: d.created_at.toISOString(),
       })),
       checks: row.checks.map((c) => ({

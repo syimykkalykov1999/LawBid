@@ -22,10 +22,9 @@ describe('bar number format (owner 2026-10-14)', () => {
   it('refuses digits where the state wants a letter, and wrong lengths', () => {
     expect(checkBarNumber('MI', 'ABCDE', f).ok).toBe(false);
     expect(checkBarNumber('TX', '24', f).ok).toBe(false);
-    expect(checkBarNumber('NY', 'ABC', f)).toMatchObject({
-      ok: false,
-      example: '4567890',
-    });
+    expect(checkBarNumber('NY', 'ABC', f).ok).toBe(false);
+    // Owner 2026-10-18: the check never carries an example to show.
+    expect(checkBarNumber('NY', 'ABC', f)).not.toHaveProperty('example');
   });
 
   it('a state without a format needs 4+ characters with 3+ digits', () => {

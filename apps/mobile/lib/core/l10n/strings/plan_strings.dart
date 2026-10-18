@@ -6,6 +6,21 @@
 // apps/api/prisma/seed/translations_seed.xlsx.
 
 const planRu = <String, String>{
+  // Owner 2026-10-18: bar number lock and manual review.
+  'verification.license.locked':
+      'Слишком много попыток. Попробуйте через {minutes} мин.',
+  'verification.license.manual.open':
+      'Мой номер верный — отправить на проверку',
+  'verification.license.manual.title': 'Проверка номера вручную',
+  'verification.license.manual.body':
+      'Пришлите фото карточки адвоката: сотрудник сверит номер и штат.',
+  'verification.license.manual.card': 'Фото карточки адвоката',
+  'verification.license.manual.cardRequired':
+      'Добавьте фото карточки адвоката.',
+  'verification.license.manual.cardRemove': 'Убрать фото карточки',
+  'verification.license.manual.note':
+      'Комментарий для проверяющего (необязательно)',
+  'verification.license.manual.send': 'Отправить на проверку',
   'error.api.BAR_NUMBER_FORMAT_INVALID': 'Номер не найден для этого штата.',
   'error.api.BAR_ATTEMPTS_COOLDOWN':
       'Слишком много неверных номеров. Попробуйте позже.',
@@ -231,6 +246,19 @@ const planRu = <String, String>{
 };
 
 const planEn = <String, String>{
+  // Owner 2026-10-18: bar number lock and manual review.
+  'verification.license.locked':
+      'Too many attempts. Try again in {minutes} min.',
+  'verification.license.manual.open':
+      'My number is correct — send it for review',
+  'verification.license.manual.title': 'Manual number check',
+  'verification.license.manual.body':
+      'Send a photo of your bar card: our team will check the number and the state.',
+  'verification.license.manual.card': 'Photo of your bar card',
+  'verification.license.manual.cardRequired': 'Add a photo of your bar card.',
+  'verification.license.manual.cardRemove': 'Remove the bar card photo',
+  'verification.license.manual.note': 'Note for the reviewer (optional)',
+  'verification.license.manual.send': 'Send for review',
   'error.api.BAR_NUMBER_FORMAT_INVALID': 'Bar number not found for this state.',
   'error.api.BAR_ATTEMPTS_COOLDOWN':
       'Too many wrong bar numbers. Try again later.',

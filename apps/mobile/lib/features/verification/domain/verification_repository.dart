@@ -16,6 +16,7 @@ abstract interface class VerificationRepository {
     required String stateCode,
     required String barNumber,
     DateTime? expiresAt,
+    bool manualReview = false,
   });
 
   Future<VerificationRequest> removeLicense(String requestId, String licenseId);
@@ -24,6 +25,7 @@ abstract interface class VerificationRepository {
     String requestId, {
     required String fileId,
     required DocSlot slot,
+    String? note,
   });
 
   Future<VerificationRequest> removeDocument(

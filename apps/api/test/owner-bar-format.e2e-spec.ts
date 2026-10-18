@@ -12,8 +12,11 @@ import type Redis from 'ioredis';
 import { DEFAULT_BAR_FORMATS } from '../src/modules/verification/bar-number-format';
 
 /**
- * Owner 2026-10-14: a bar number must have its state's shape, and wrong ones
- * cool down in steps (3 wrong → 1 h → 12 h → 24 h), never a permanent block.
+ * Owner 2026-10-14 / 2026-10-18: a bar number must have its state's shape (a
+ * number that does not fit is refused, the format is never shown), and wrong
+ * ones cool down in steps (5 wrong → 1 h, then 12 h, then 24 h), never a
+ * permanent block. A real attorney sends a refused number for manual review
+ * with the bar card, also while locked.
  */
 jest.setTimeout(120_000);
 
@@ -46,6 +49,11 @@ describe('Bar number format and stepped cooldown (e2e)', () => {
     await prisma.state.upsert({
       where: { code: 'MI' },
       create: { code: 'MI', name: 'Michigan', is_active: true },
+      update: {},
+    });
+    await prisma.state.upsert({
+      where: { code: 'NY' },
+      create: { code: 'NY', name: 'New York', is_active: true },
       update: {},
     });
     // The real table for this suite (the global setup loosens it).
@@ -103,19 +111,54 @@ describe('Bar number format and stepped cooldown (e2e)', () => {
     a: { auth: Record<string, string>; requestId: string },
     stateCode: string,
     barNumber: string,
+    manualReview?: boolean,
   ) =>
     request(base)
       .post(`/api/v1/verification/requests/${a.requestId}/licenses`)
       .set(a.auth)
-      .send({ stateCode, barNumber });
+      .send({ stateCode, barNumber, ...(manualReview && { manualReview }) });
+
+  async function cleanFile(ownerId: string): Promise<string> {
+    const id = randomUUID();
+    await prisma.file.create({
+      data: {
+        id,
+        owner_user_id: ownerId,
+        purpose: 'verification_document',
+        s3_bucket: process.env.S3_BUCKET_DOCUMENTS ?? 'lawbid-documents',
+        s3_key: `verification_document/${ownerId}/${id}`,
+        mime: 'image/jpeg',
+        size_bytes: BigInt(1234),
+        sha256: 'a'.repeat(64),
+        scan_status: 'clean',
+      },
+    });
+    return id;
+  }
+
+  const clearCooldown = (userId: string) =>
+    redis.del(
+      `bar:cool:u:${userId}`,
+      'bar:cool:ip:127.0.0.1',
+      'bar:cool:ip:::ffff:127.0.0.1',
+    );
+
+  /** Owner 2026-10-18: no response ever shows the state's format. */
+  function expectNoExample(body: unknown, state: string) {
+    const text = JSON.stringify(body);
+    expect(text).not.toMatch(/example|pattern/i);
+    expect(text).not.toContain(DEFAULT_BAR_FORMATS[state].example);
+  }
 
   it("a number must fit the state's shape; a good one is stored without separators", async () => {
+    await redis.flushdb();
     const a = await attorney();
     const bad = await add(a, 'MI', 'ABC');
     expect(bad.status).toBe(400);
     expect(bad.body.error.code).toBe('BAR_NUMBER_FORMAT_INVALID');
     // Owner 2026-10-14: the shape is never revealed to the client.
     expect(bad.body.error.details).toEqual({ stateCode: 'MI' });
+    expectNoExample(bad.body, 'MI');
     const ok = await add(a, 'MI', 'p-12345');
     expect(ok.status).toBe(201);
     const row = await prisma.attorneyLicense.findFirstOrThrow({
@@ -125,54 +168,125 @@ describe('Bar number format and stepped cooldown (e2e)', () => {
     await redis.flushdb();
   });
 
-  // Owner 2026-10-16: a real number the rule does not know is never a dead
-  // end: soft, flagged for a person, its shape counted for the admin.
-  it('a number of an unusual shape is accepted for manual review and its shape is logged', async () => {
+  // Owner 2026-10-18: a number that does not fit is REFUSED (generic text,
+  // no example), counts as a failed attempt, and its shape is logged.
+  it('a non-fitting number is refused, never added, and its shape is logged', async () => {
+    await redis.flushdb();
     const a = await attorney();
     const res = await add(a, 'NY', 'A1B2C3');
-    expect(res.status).toBe(201);
-    const row = await prisma.attorneyLicense.findFirstOrThrow({
-      where: { attorney_id: a.id },
-    });
-    expect(row.registry_flag).toBe('format_unusual');
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('BAR_NUMBER_FORMAT_INVALID');
+    expect(res.body.error.details).toEqual({ stateCode: 'NY' });
+    expectNoExample(res.body, 'NY');
+    expect(
+      await prisma.attorneyLicense.count({ where: { attorney_id: a.id } }),
+    ).toBe(0);
     const miss = await prisma.barFormatMiss.findUniqueOrThrow({
       where: { state_code_shape: { state_code: 'NY', shape: 'A9A9A9' } },
     });
     expect(miss.hits).toBeGreaterThanOrEqual(1);
+    expect(await redis.get(`bar:fails:u:${a.id}`)).toBe('1');
     await redis.flushdb();
   });
 
-  it('three wrong numbers → 1 hour; the next three → 12 hours; then 24 hours, never forever', async () => {
-    const a = await attorney();
+  it('five failed attempts → locked for exactly 1 hour (retryAfterSeconds); later locks step up', async () => {
     await redis.flushdb();
-    for (let i = 0; i < 2; i += 1) {
-      expect((await add(a, 'NY', 'ABC')).body.error.code).toBe(
-        'BAR_NUMBER_FORMAT_INVALID',
-      );
+    const a = await attorney();
+    for (let i = 0; i < 4; i += 1) {
+      const r = await add(a, 'NY', i % 2 ? 'ABC' : 'A1B2C3');
+      expect(r.status).toBe(400);
+      expect(r.body.error.code).toBe('BAR_NUMBER_FORMAT_INVALID');
     }
-    const third = await add(a, 'NY', 'ABC');
-    expect(third.status).toBe(429);
-    expect(third.body.error.code).toBe('BAR_ATTEMPTS_COOLDOWN');
-    expect(third.body.error.details.retryAfterSeconds).toBe(3600);
-    // Even a right number waits out the cooldown.
-    expect((await add(a, 'NY', '1234567')).status).toBe(429);
-    // Time passes (the cooldown key ends), the counter stays.
-    await redis.del(
-      `bar:cool:u:${a.id}`,
-      'bar:cool:ip:127.0.0.1',
-      'bar:cool:ip:::ffff:127.0.0.1',
-    );
-    for (let i = 0; i < 2; i += 1) await add(a, 'NY', 'ABC');
-    const sixth = await add(a, 'NY', 'ABC');
-    expect(sixth.body.error.details.retryAfterSeconds).toBe(12 * 3600);
-    await redis.del(
-      `bar:cool:u:${a.id}`,
-      'bar:cool:ip:127.0.0.1',
-      'bar:cool:ip:::ffff:127.0.0.1',
-    );
-    for (let i = 0; i < 2; i += 1) await add(a, 'NY', 'ABC');
-    const ninth = await add(a, 'NY', 'ABC');
-    expect(ninth.body.error.details.retryAfterSeconds).toBe(24 * 3600);
+    const fifth = await add(a, 'NY', 'A1B2C3');
+    expect(fifth.status).toBe(429);
+    expect(fifth.body.error.code).toBe('BAR_ATTEMPTS_COOLDOWN');
+    expect(fifth.body.error.details.retryAfterSeconds).toBe(3600);
+    expectNoExample(fifth.body, 'NY');
+    // Even a right number waits out the lock.
+    const right = await add(a, 'NY', '1234567');
+    expect(right.status).toBe(429);
+    expect(right.body.error.details.retryAfterSeconds).toBeGreaterThan(3500);
+    // The app learns the lock up front.
+    const me = await request(base)
+      .get('/api/v1/verification/me')
+      .set(a.auth)
+      .expect(200);
+    expect(me.body.data.barAttemptsRetryAfterSeconds).toBeGreaterThan(3500);
+    // Time passes (the lock key ends), the counter stays: the next five → 12 h.
+    await clearCooldown(a.id);
+    for (let i = 0; i < 4; i += 1) await add(a, 'NY', 'ABC');
+    const tenth = await add(a, 'NY', 'ABC');
+    expect(tenth.body.error.details.retryAfterSeconds).toBe(12 * 3600);
+    await clearCooldown(a.id);
+    for (let i = 0; i < 4; i += 1) await add(a, 'NY', 'ABC');
+    const fifteenth = await add(a, 'NY', 'ABC');
+    expect(fifteenth.body.error.details.retryAfterSeconds).toBe(24 * 3600);
+    await redis.flushdb();
+  });
+
+  // Owner 2026-10-18: «Мой номер верный — отправить на проверку» — the real
+  // attorney's path, open while locked: the number, the state and the bar
+  // card (with an optional note) go to a person.
+  it('manual review is accepted while locked; the bar card is required and the note reaches the admin', async () => {
+    await redis.flushdb();
+    const a = await attorney();
+    for (let i = 0; i < 5; i += 1) await add(a, 'NY', 'A1B2C3');
+    expect((await add(a, 'NY', 'A1B2C3')).status).toBe(429);
+    const manual = await add(a, 'NY', 'a1b2c3', true);
+    expect(manual.status).toBe(201);
+    expectNoExample(manual.body, 'NY');
+    const licenses = (
+      manual.body as {
+        data: {
+          licenses: {
+            state: { code: string };
+            manualReview: boolean;
+            barNumber: string;
+          }[];
+        };
+      }
+    ).data.licenses;
+    const lic = licenses.find((l) => l.state.code === 'NY');
+    expect(lic?.manualReview).toBe(true);
+    expect(lic?.barNumber).toBe('A1B2C3');
+    const row = await prisma.attorneyLicense.findFirstOrThrow({
+      where: { attorney_id: a.id },
+    });
+    expect(row.registry_flag).toBe('format_unusual');
+    expect(row.license_status).toBe('pending');
+    // The manual path does not count as another failed attempt.
+    expect(await redis.get(`bar:fails:u:${a.id}`)).toBe('5');
+    // No card → not submittable.
+    const incomplete = await request(base)
+      .post(`/api/v1/verification/requests/${a.requestId}/submit`)
+      .set(a.auth)
+      .send({ attestation: true });
+    expect(incomplete.status).toBe(400);
+    expect(incomplete.body.error.details.missing).toContain('bar_license:NY');
+    await request(base)
+      .post(`/api/v1/verification/requests/${a.requestId}/documents`)
+      .set(a.auth)
+      .send({
+        fileId: await cleanFile(a.id),
+        docType: 'bar_license',
+        stateCode: 'NY',
+        note: '  Issued 1998, old format  ',
+      })
+      .expect(201);
+    const doc = await prisma.verificationDocument.findFirstOrThrow({
+      where: { request_id: a.requestId, doc_type: 'bar_license' },
+    });
+    expect(doc.notes).toBe('Issued 1998, old format');
+    const sent = await request(base)
+      .post(`/api/v1/verification/requests/${a.requestId}/submit`)
+      .set(a.auth)
+      .send({ attestation: true });
+    expect(sent.status).toBe(200);
+    // Junk is refused even on the manual path (and is not counted there).
+    const b = await attorney();
+    const junk = await add(b, 'NY', 'ABC', true);
+    expect(junk.status).toBe(400);
+    expect(junk.body.error.code).toBe('BAR_NUMBER_FORMAT_INVALID');
     await redis.flushdb();
   });
 });

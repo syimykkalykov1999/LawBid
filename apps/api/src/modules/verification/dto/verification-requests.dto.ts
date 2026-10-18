@@ -107,6 +107,18 @@ export class AddLicenseDto {
   @IsOptional()
   @IsBoolean()
   renewal?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'Owner 2026-10-18 («Мой номер верный — отправить на проверку»): the ' +
+      'attorney insists the number is right although it does not fit the ' +
+      "state's format. It is added for a person to check (registry flag " +
+      'format_unusual) and the bar card photo becomes required; allowed ' +
+      'while the attempts lock is on.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  manualReview?: boolean;
 }
 
 /** POST /verification/requests/:id/documents — attach a `clean` uploaded
@@ -138,4 +150,16 @@ export class AttachDocumentDto {
   @IsString()
   @Length(2, 2)
   stateCode?: string;
+
+  @ApiPropertyOptional({
+    type: String,
+    maxLength: APPLICANT_COMMENT_MAX,
+    description:
+      "Owner 2026-10-18: the attorney's optional note to the reviewer, sent " +
+      'with the bar card of a number for manual review.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(APPLICANT_COMMENT_MAX)
+  note?: string;
 }

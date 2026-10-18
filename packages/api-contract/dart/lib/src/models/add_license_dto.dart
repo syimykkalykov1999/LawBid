@@ -13,6 +13,7 @@ class AddLicenseDto {
     required this.barNumber,
     this.expiresAt,
     this.renewal,
+    this.manualReview,
   });
 
   factory AddLicenseDto.fromJson(Map<String, Object?> json) =>
@@ -27,6 +28,9 @@ class AddLicenseDto {
 
   /// True to renew a license that is still verified (a new expiry date). Without it a state that is already verified is refused.
   final bool? renewal;
+
+  /// Owner 2026-10-18 («Мой номер верный — отправить на проверку»): the attorney insists the number is right although it does not fit the state's format. It is added for a person to check (registry flag format_unusual) and the bar card photo becomes required; allowed while the attempts lock is on.
+  final bool? manualReview;
 
   Map<String, Object?> toJson() => _$AddLicenseDtoToJson(this);
 }
