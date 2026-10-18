@@ -3217,6 +3217,9 @@ class FeedCaption extends ConsumerStatefulWidget {
 }
 
 class FeedCaptionState extends ConsumerState<FeedCaption> {
+  /// Lines of the title before it is cut (owner 2026-10-18).
+  static const _titleLines = 2;
+
   bool _expanded = false;
   final _more = TapGestureRecognizer();
   final _tagTaps = <TapGestureRecognizer>[];
@@ -3324,16 +3327,17 @@ class FeedCaptionState extends ConsumerState<FeedCaption> {
       padding: const EdgeInsets.fromLTRB(AppSpacing.md, 8, AppSpacing.md, 0),
       child: LayoutBuilder(
         builder: (context, outer) {
-          // The title is cut when it does not fit its one line (measured,
+          // The title is cut when it does not fit its two lines (measured,
           // text scale included): then «ещё» shows even if the text below
-          // is short or empty (owner 2026-10-18).
+          // is short or empty (owner 2026-10-18: a long title must be
+          // readable — two lines, and the one «ещё» opens all of it).
           final titleMeasured =
               DefaultTextStyle.of(context).style.merge(titleStyle);
           final titleCut = widget.title.isNotEmpty &&
               !_expanded &&
               (TextPainter(
                 text: TextSpan(text: widget.title, style: titleMeasured),
-                maxLines: 1,
+                maxLines: _titleLines,
                 textDirection: Directionality.of(context),
                 textScaler: MediaQuery.textScalerOf(context),
               )..layout(maxWidth: outer.maxWidth))
@@ -3376,7 +3380,6 @@ class FeedCaptionState extends ConsumerState<FeedCaption> {
                 titleStyle,
                 outer.maxWidth - 4,
                 context,
-                maxLines: 1,
               );
               return AppPressable(
                 onTap: widget.onOpen,
@@ -3401,7 +3404,7 @@ class FeedCaptionState extends ConsumerState<FeedCaption> {
               onTap: widget.onOpen,
               child: Text(
                 widget.title,
-                maxLines: _expanded ? null : 1,
+                maxLines: _expanded ? null : _titleLines,
                 overflow:
                     _expanded ? TextOverflow.visible : TextOverflow.ellipsis,
                 style: titleStyle,

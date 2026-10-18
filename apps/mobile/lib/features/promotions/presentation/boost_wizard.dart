@@ -158,7 +158,8 @@ class _PromoteSheetState extends ConsumerState<PromoteSheet> {
       multi: true,
       initial: _audience.states.toSet(),
       options: [
-        for (final s in kRegions) PickerOption(value: s.code, label: s.name),
+        for (final s in kRegions)
+          PickerOption(value: s.code, label: s.name, keywords: s.aliases),
       ],
     );
     if (picked != null && mounted) {

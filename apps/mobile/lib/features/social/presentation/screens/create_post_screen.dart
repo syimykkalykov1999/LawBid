@@ -686,7 +686,14 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                               key: const ValueKey('post-add-gallery'),
                               icon: AppIcons.photoLibraryOutlined,
                               label: t.t('post.src.gallery'),
-                              hint: t.t('post.src.galleryHint'),
+                              // Owner 2026-10-18: say what the gallery takes —
+                              // photos only while video posts are off.
+                              hint: t.t(
+                                _videoAllowed
+                                    ? 'post.src.galleryHintMax'
+                                    : 'post.src.galleryHintPhotos',
+                                {'max': '$_maxMedia'},
+                              ),
                               tint: AppColorsFixed.sourceGalleryBlue,
                               onTap: _photos.length < _maxMedia ? _pick : null,
                             ),

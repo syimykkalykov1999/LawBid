@@ -174,7 +174,11 @@ class TopicFilterBar extends ConsumerWidget {
               label: t.t('cases.feed.allLicensedStates'),
             ),
           for (final s in kRegions)
-            PickerOption(value: s.code, label: s.name, sublabel: s.code),
+            PickerOption(
+                value: s.code,
+                label: s.name,
+                sublabel: s.code,
+                keywords: s.aliases,),
         ],
       );
       if (picked != null && identical(picked, OptionPickerSheet.backResult)) {
@@ -198,7 +202,11 @@ class TopicFilterBar extends ConsumerWidget {
             label: t.t('cases.feed.allLicensedStates'),
           ),
         for (final s in kRegions)
-          PickerOption(value: s.code, label: s.name, sublabel: s.code),
+          PickerOption(
+              value: s.code,
+              label: s.name,
+              sublabel: s.code,
+              keywords: s.aliases,),
       ],
     );
     if (picked == null) return false;

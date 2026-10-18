@@ -759,14 +759,10 @@ class _StatePickerSheetState extends State<_StatePickerSheet> {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    final q = _q.trim().toLowerCase();
+    // Owner 2026-10-18: «Нью-Йорк», "new yrok", "NY" — any alphabet.
     final list = [
       for (final s in kRegions)
-        if (!widget.exclude.contains(s.code) &&
-            (q.isEmpty ||
-                s.name.toLowerCase().contains(q) ||
-                s.code.toLowerCase() == q))
-          s,
+        if (!widget.exclude.contains(s.code) && s.matches(_q)) s,
     ];
     return SafeArea(
       child: SizedBox(

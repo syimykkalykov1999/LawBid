@@ -89,7 +89,11 @@ class _AddLicenseSheetState extends ConsumerState<AddLicenseSheet> {
       options: [
         for (final s in kRegions)
           if (!widget.takenStates.contains(s.code))
-            PickerOption(value: s.code, label: s.name, sublabel: s.code),
+            PickerOption(
+                value: s.code,
+                label: s.name,
+                sublabel: s.code,
+                keywords: s.aliases,),
       ],
       initial: {if (_state != null) _state!},
     );

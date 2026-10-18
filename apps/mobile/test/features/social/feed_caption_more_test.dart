@@ -1,5 +1,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/static_translator.dart';
@@ -130,6 +131,18 @@ void main() {
     await tapMore(t);
     expect(more(), findsNothing);
     expect(find.text('Short title'), findsOneWidget);
+  });
+
+  testWidgets('a title of two lines is shown whole, no «…» (photo post)',
+      (t) async {
+    const title = 'Marriage green card, step by step: the evidence file';
+    await pump(t, title: title, text: longText);
+    final text = t.widget<Text>(find.text(title));
+    expect(text.maxLines, 2);
+    final box = t.renderObject<RenderParagraph>(
+      find.descendant(of: find.text(title), matching: find.byType(RichText)),
+    );
+    expect(box.didExceedMaxLines, isFalse);
   });
 
   testWidgets('nothing cut: no «ещё»', (t) async {

@@ -271,7 +271,11 @@ class _ClientEditFormState extends ConsumerState<_ClientEditForm> {
             title: t.t('onboarding.profile.state'),
             options: [
               for (final s in kRegions)
-                PickerOption(value: s.code, label: s.name, sublabel: s.code),
+                PickerOption(
+                    value: s.code,
+                    label: s.name,
+                    sublabel: s.code,
+                    keywords: s.aliases,),
             ],
             initial: {_state},
           );
