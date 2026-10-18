@@ -1,5 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import type { Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+import { nameMatchSql } from '../../../common/search/name-match.sql';
 import { Transform } from 'class-transformer';
 import type { PrismaService } from '../../../prisma/prisma.service';
 import {
@@ -51,6 +52,10 @@ export function hasMineFilter(f: MineFilterFields): boolean {
 export function mineCaseWhere(
   f: MineFilterFields,
   topicIds: Map<string, string[]> = new Map(),
+  // Owner 2026-10-18: per word, case ids it matched in the attorney's work
+  // (accent / ё-insensitive title or description, the client's name or
+  // @username — see [workWordHits]).
+  extraHits: Map<string, string[]> = new Map(),
 ): Prisma.CaseWhereInput {
   const words = (f.q ?? '').split(/\s+/).filter((w) => w.length > 0);
   return {
@@ -58,9 +63,11 @@ export function mineCaseWhere(
       ? {
           AND: words.map((w) => {
             const ids = topicIds.get(w) ?? [];
+            const hits = extraHits.get(w) ?? [];
             const ci = { contains: w, mode: 'insensitive' as const };
             return {
               OR: [
+                ...(hits.length ? [{ id: { in: hits } }] : []),
                 { title: ci },
                 { description: ci },
                 { city: ci },
@@ -141,10 +148,62 @@ export async function topicIdsByWord(
   return out;
 }
 
+/**
+ * Owner 2026-10-18: «В работе» search. Per typed word, the ids of the
+ * attorney's accepted cases it matches by: title / description ignoring
+ * case, accents and ё = е; and — only when [withClient] (the attorney sees
+ * client names, §8.3 subscription gate) — the CLIENT's name (any alphabet,
+ * typos: «Эмили» = Emily) or @username prefix.
+ */
+export async function workWordHits(
+  prisma: PrismaService,
+  q: string | undefined,
+  attorneyId: string,
+  withClient: boolean,
+): Promise<Map<string, string[]>> {
+  // Keyed by the typed word (with its @), like [mineCaseWhere] looks it up.
+  const words = [
+    ...new Set((q ?? '').split(/\s+/).filter((w) => w.length > 0)),
+  ].slice(0, 6);
+  const out = new Map<string, string[]>();
+  for (const typed of words) {
+    const w = typed.replace(/^@+/, '');
+    if (!w) continue;
+    const like = Prisma.sql`'%' || public.f_unaccent(${escapeLike(w.toLowerCase().replace(/ё/g, 'е'))}) || '%'`;
+    const client = withClient
+      ? Prisma.sql`OR ${nameMatchSql(w, Prisma.sql`u.full_name_lower`)}
+          OR coalesce(cp.username_lower, '') LIKE ${`${escapeLike(w.toLowerCase())}%`}`
+      : Prisma.empty;
+    const rows = await prisma.$queryRaw<{ id: string }[]>`
+      SELECT c.id::TEXT AS id
+      FROM bids b
+      JOIN cases c ON c.accepted_bid_id = b.id
+      JOIN users u ON u.id = c.client_id
+      LEFT JOIN client_profiles cp ON cp.user_id = u.id
+      WHERE b.attorney_id = ${attorneyId}::UUID AND b.status = 'accepted'
+        AND (public.f_unaccent(replace(lower(c.title), 'ё', 'е')) LIKE ${like}
+             OR public.f_unaccent(replace(lower(c.description), 'ё', 'е')) LIKE ${like}
+             ${client})
+      LIMIT 5000`;
+    out.set(
+      typed,
+      rows.map((r) => r.id),
+    );
+  }
+  return out;
+}
+
 /** [mineCaseWhere] with the topic names resolved. */
 export async function mineWhere(
   prisma: PrismaService,
   f: MineFilterFields,
+  work?: { attorneyId: string; withClient: boolean },
 ): Promise<Prisma.CaseWhereInput> {
-  return mineCaseWhere(f, await topicIdsByWord(prisma, f.q));
+  return mineCaseWhere(
+    f,
+    await topicIdsByWord(prisma, f.q),
+    work
+      ? await workWordHits(prisma, f.q, work.attorneyId, work.withClient)
+      : undefined,
+  );
 }

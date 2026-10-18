@@ -25,6 +25,12 @@ import {
   encodeCursor,
 } from '../../common/pagination/cursor.util';
 import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
+import {
+  allWordsSql,
+  escapeLike,
+  nameMatchSql,
+  typedWords,
+} from '../../common/search/name-match.sql';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
@@ -57,6 +63,21 @@ import { touchClientActive } from '../cases/domain/client-activity';
 const CONVERSATIONS_PAGE = 20;
 const MESSAGES_PAGE = 30;
 const CATCH_UP_MAX = 100;
+
+/** ~80 characters of [text] around the first typed word. */
+function snippetAround(text: string, words: string[]): string {
+  const flat = text.replace(/\s+/g, ' ').trim();
+  const low = flat.toLowerCase().replace(/ё/g, 'е');
+  const at = Math.min(
+    ...words.map((w) => {
+      const i = low.indexOf(w);
+      return i < 0 ? Infinity : i;
+    }),
+  );
+  const start = Number.isFinite(at) ? Math.max(0, at - 25) : 0;
+  const cut = flat.slice(start, start + 80);
+  return `${start > 0 ? '…' : ''}${cut}${start + 80 < flat.length ? '…' : ''}`;
+}
 
 function notFound(): NotFoundException {
   return new NotFoundException({
@@ -186,10 +207,14 @@ export class ChatService {
     cursor?: string,
     updatedSince?: string,
     folder: ConversationFolderName = 'all',
+    q?: string,
   ): Promise<ConversationPage> {
     if (!this.sideOf(user)) return { items: [], nextCursor: null };
     const c = cursor ? decodeCursor(cursor) : undefined;
     const filters = this.folderWhere(user.sub, folder);
+    // Owner 2026-10-18: search — only the chats the typed text found.
+    const found = q ? await this.searchHits(user.sub, q) : null;
+    if (found) filters.push({ id: { in: [...found.keys()] } });
     // Pinned chats lead the first page; the paged list skips them.
     const firstPage = !c && !updatedSince;
     const pinnedFilter: Prisma.ConversationWhereInput = {
@@ -248,13 +273,72 @@ export class ChatService {
     });
     const page = rows.slice(0, CONVERSATIONS_PAGE);
     const last = page[page.length - 1];
+    const items = await this.present([...pinned, ...page], user.sub);
+    if (found) {
+      for (const it of items) it.matchedMessage = found.get(it.id) ?? null;
+    }
     return {
-      items: await this.present([...pinned, ...page], user.sub),
+      items,
       nextCursor:
         rows.length > CONVERSATIONS_PAGE && last?.last_message_at
           ? encodeCursor({ createdAt: last.last_message_at, id: last.id })
           : null,
     };
+  }
+
+  /**
+   * Owner 2026-10-18: chat search. The chats of [me] where the OTHER person's
+   * name (any alphabet / typo / word order) or @username, the case title, or
+   * a (not deleted) message contains the typed words. Id → snippet of the
+   * newest message hit, null when the name / title matched. A client whose
+   * identity the attorney does not see yet («Клиент по кейсу») cannot be
+   * found by name.
+   */
+  private async searchHits(
+    me: string,
+    q: string,
+  ): Promise<Map<string, string | null>> {
+    const words = typedWords(q);
+    if (!words.length) return new Map();
+    const handle = `${escapeLike(q.trim().replace(/^@+/, '').toLowerCase())}%`;
+    const rows = await this.prisma.$queryRaw<
+      { id: string; body: string | null; by_meta: boolean }[]
+    >`
+      SELECT * FROM (SELECT c.id::TEXT AS id, msg.body AS body,
+             ((NOT hidden.v AND (${nameMatchSql(q, Prisma.sql`o.full_name_lower`)}
+                 OR coalesce(ap.username_lower, cp.username_lower) LIKE ${handle}))
+              OR (cs.title IS NOT NULL AND ${allWordsSql(Prisma.sql`cs.title`, words)})) AS by_meta
+      FROM conversations c
+      JOIN users o ON o.id = CASE WHEN c.client_id = ${me}::UUID
+                                  THEN c.attorney_id ELSE c.client_id END
+      LEFT JOIN attorney_profiles ap ON ap.user_id = o.id
+      LEFT JOIN client_profiles cp ON cp.user_id = o.id
+      LEFT JOIN cases cs ON cs.id = c.case_id
+      CROSS JOIN LATERAL (SELECT (o.role::TEXT <> 'attorney'
+                                  AND NOT c.contacts_unlocked
+                                  AND c.case_id IS NOT NULL) AS v) hidden
+      LEFT JOIN LATERAL (
+        SELECT m.body_display AS body FROM messages m
+        WHERE m.conversation_id = c.id
+          AND m.deleted_at IS NULL
+          AND m.type IN ('text', 'attachment')
+          AND ${allWordsSql(Prisma.sql`m.body_display`, words)}
+        ORDER BY m.created_at DESC LIMIT 1) msg ON TRUE
+      WHERE (c.client_id = ${me}::UUID OR c.attorney_id = ${me}::UUID)
+        AND c.last_message_at IS NOT NULL) t
+      WHERE t.by_meta OR t.body IS NOT NULL
+      LIMIT 2000`;
+    const out = new Map<string, string | null>();
+    for (const r of rows) {
+      if (r.by_meta) out.set(r.id, null);
+      else if (r.body !== null) {
+        out.set(
+          r.id,
+          snippetAround(this.cipher?.open(r.body) ?? r.body, words),
+        );
+      }
+    }
+    return out;
   }
 
   /** Owner 2026-10-01: folder, "waiting for my answer", note, pin. */

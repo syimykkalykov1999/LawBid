@@ -31,29 +31,38 @@ abstract class FollowsClient {
   /// Attorney followers — attorneys and clients (OQ-026).
   ///
   /// [cursor] - meta.nextCursor of the previous page.
+  ///
+  /// [q] - Name (any alphabet, typos, word order) or @username prefix — only matching people are listed.
   @GET('/attorneys/{id}/followers')
   Future<PersonItemListEnvelope> listFollowers({
     @Path('id') required String id,
     @Query('cursor') String? cursor,
+    @Query('q') String? q,
     @Extras() Map<String, dynamic>? extras,
   });
 
   /// Whom a user follows — attorneys and clients (OQ-038).
   ///
   /// [cursor] - meta.nextCursor of the previous page.
+  ///
+  /// [q] - Name (any alphabet, typos, word order) or @username prefix — only matching people are listed.
   @GET('/attorneys/{id}/following')
   Future<PersonItemListEnvelope> listFollowing({
     @Path('id') required String id,
     @Query('cursor') String? cursor,
+    @Query('q') String? q,
     @Extras() Map<String, dynamic>? extras,
   });
 
   /// My follows (docs/05 §6.2).
   ///
   /// [cursor] - meta.nextCursor of the previous page.
+  ///
+  /// [q] - Name (any alphabet, typos, word order) or @username prefix — only matching people are listed.
   @GET('/users/me/following')
   Future<AttorneyListItemListEnvelope> listMyFollowing({
     @Query('cursor') String? cursor,
+    @Query('q') String? q,
     @Extras() Map<String, dynamic>? extras,
   });
 

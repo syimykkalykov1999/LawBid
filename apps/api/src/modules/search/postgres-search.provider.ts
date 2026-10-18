@@ -16,6 +16,7 @@ import {
   typoMatch,
 } from '../../common/search/fts-sql';
 import { parseSearchQuery } from '../../common/search/search-query';
+import { escapeLike, nameMatchSql } from '../../common/search/name-match.sql';
 import { SearchSynonymsService } from './search-synonyms.service';
 import { urgencyFilterSql } from '../cases/domain/case-urgency';
 import { budgetFilterSql } from '../cases/queries/budget-filter.sql';
@@ -73,10 +74,6 @@ export function casePlaceMatch(norm: string): Prisma.Sql {
                AND lower(s.name) LIKE ${like})
     OR lower(c.city) LIKE ${like}
     OR lower(c.city) LIKE ${`% ${escapeLike(norm)}%`})`;
-}
-
-export function escapeLike(s: string): string {
-  return s.replace(/[\\%_]/g, (c) => `\\${c}`);
 }
 
 /**
@@ -632,31 +629,4 @@ export class PostgresSearchProvider implements SearchProvider {
   }
 }
 
-/**
- * Owner 2026-10-18: a name in any alphabet, spelling, word order, with a
- * small typo — «Эмили Браун», "brown emily", «Джон» → "John". Every typed
- * word must appear in the name's spelling skeleton (`f_name_skel`,
- * migration 20261018140000), be close to one of its words, or share its
- * consonants («Рэйчел» = "Rachel", `f_name_cons`); the whole text close to
- * the whole name also counts. Uses the users_name_{skel,cons}_trgm_idx.
- */
-export function nameMatchSql(q: string): Prisma.Sql {
-  const skel = Prisma.sql`public.f_name_skel(full_name_lower)`;
-  const cons = Prisma.sql`public.f_name_cons(full_name_lower)`;
-  const words = q
-    .split(/\s+/)
-    .map((w) => w.replace(/^[@#]+/, ''))
-    .filter((w) => w.length >= 2)
-    .slice(0, 4);
-  if (!words.length) return Prisma.sql`FALSE`;
-  const each = words.map(
-    (
-      w,
-    ) => Prisma.sql`(${skel} LIKE '%' || public.f_name_skel(${escapeLike(w)}) || '%'
-      OR public.f_name_skel(${w}) <% ${skel}
-      OR (length(public.f_name_cons(${w})) >= 3
-          AND ${cons} LIKE '%' || public.f_name_cons(${escapeLike(w)}) || '%'))`,
-  );
-  return Prisma.sql`((${Prisma.join(each, ' AND ')})
-    OR public.f_name_skel(${q}) % ${skel})`;
-}
+export { escapeLike, nameMatchSql };

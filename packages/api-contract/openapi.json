@@ -22737,6 +22737,17 @@
               "maxLength": 300,
               "type": "string"
             }
+          },
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "description": "Name (any alphabet, typos, word order) or @username prefix — only matching people are listed.",
+            "schema": {
+              "minLength": 1,
+              "maxLength": 100,
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -22824,6 +22835,17 @@
               "maxLength": 300,
               "type": "string"
             }
+          },
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "description": "Name (any alphabet, typos, word order) or @username prefix — only matching people are listed.",
+            "schema": {
+              "minLength": 1,
+              "maxLength": 100,
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -22900,6 +22922,17 @@
             "description": "meta.nextCursor of the previous page.",
             "schema": {
               "maxLength": 300,
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "description": "Name (any alphabet, typos, word order) or @username prefix — only matching people are listed.",
+            "schema": {
+              "minLength": 1,
+              "maxLength": 100,
               "type": "string"
             }
           }
@@ -72584,6 +72617,17 @@
             "description": "Owner 2026-10-01: all · primary (case chats by default) · general · waiting (marked \"waiting for my answer\") · requests (OQ-043, message requests sent to me).",
             "schema": {
               "$ref": "#/components/schemas/ConversationFolder"
+            }
+          },
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "description": "Owner 2026-10-18: search my chats — the other person's name (any alphabet, typos, word order) or @username, the case title, or the words of any message. Items then carry matchedMessage.",
+            "schema": {
+              "minLength": 1,
+              "maxLength": 100,
+              "type": "string"
             }
           }
         ],
@@ -124327,6 +124371,11 @@
           "folderAuto": {
             "type": "boolean",
             "description": "true = the folder is chosen automatically."
+          },
+          "matchedMessage": {
+            "type": "string",
+            "nullable": true,
+            "description": "Owner 2026-10-18: only with GET /chats?q=… — a ~80-char snippet around the first message hit; null when the name / @username / case title matched."
           },
           "waitingSince": {
             "format": "date-time",

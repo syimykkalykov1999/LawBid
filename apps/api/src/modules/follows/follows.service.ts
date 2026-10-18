@@ -1,3 +1,5 @@
+import { Prisma } from '@prisma/client';
+import { escapeLike, nameMatchSql } from '../../common/search/name-match.sql';
 import {
   Inject,
   Injectable,
@@ -156,8 +158,9 @@ export class FollowsService {
     viewerId: string,
     attorneyId: string,
     cursor?: string,
+    q?: string,
   ): Promise<PeoplePage> {
-    return this.people(viewerId, attorneyId, 'followers', cursor);
+    return this.people(viewerId, attorneyId, 'followers', cursor, q);
   }
 
   /** OQ-038: followers / following of any public profile (attorney or
@@ -167,14 +170,23 @@ export class FollowsService {
     userId: string,
     side: 'followers' | 'following',
     cursor?: string,
+    q?: string,
   ): Promise<PeoplePage> {
     await this.assertPublicAttorney(userId);
     const c = cursor ? decodeCursor(cursor) : undefined;
     const followers = side === 'followers';
     const other = followers ? 'follower_id' : 'followee_id';
+    const found = q
+      ? await this.matchingPeople(
+          userId,
+          followers ? 'followee_id' : 'follower_id',
+          q,
+        )
+      : null;
     const rows = await this.prisma.follow.findMany({
       where: {
         ...(followers ? { followee_id: userId } : { follower_id: userId }),
+        ...(found ? { [other]: { in: found } } : {}),
         [followers ? 'follower' : 'followee']: {
           status: 'active',
           deleted_at: null,
@@ -264,8 +276,9 @@ export class FollowsService {
     viewerId: string,
     attorneyId: string,
     cursor?: string,
+    q?: string,
   ): Promise<PeoplePage> {
-    return this.people(viewerId, attorneyId, 'following', cursor);
+    return this.people(viewerId, attorneyId, 'following', cursor, q);
   }
 
   /** The public lists exist for attorneys only: a client's follows are
@@ -295,8 +308,12 @@ export class FollowsService {
   }
 
   /** GET /users/me/following — the caller's own follows. */
-  mine(viewerId: string, cursor?: string): Promise<AttorneyListPage> {
-    return this.pageOf(viewerId, cursor, 'follower', viewerId);
+  mine(
+    viewerId: string,
+    cursor?: string,
+    q?: string,
+  ): Promise<AttorneyListPage> {
+    return this.pageOf(viewerId, cursor, 'follower', viewerId, q);
   }
 
   /**
@@ -410,20 +427,56 @@ export class FollowsService {
     return ids;
   }
 
+  /**
+   * Owner 2026-10-18: search box of the followers / following lists — the
+   * ids among [userId]'s follows whose name (any alphabet, typo, word order)
+   * or @username prefix matches [q].
+   */
+  private async matchingPeople(
+    userId: string,
+    ownSide: 'followee_id' | 'follower_id',
+    q: string,
+  ): Promise<string[]> {
+    const handle = `${escapeLike(q.trim().replace(/^@+/, '').toLowerCase())}%`;
+    const edge =
+      ownSide === 'followee_id'
+        ? Prisma.sql`SELECT f.follower_id AS id FROM follows f WHERE f.followee_id = ${userId}::UUID`
+        : Prisma.sql`SELECT f.followee_id AS id FROM follows f WHERE f.follower_id = ${userId}::UUID`;
+    const rows = await this.prisma.$queryRaw<{ id: string }[]>`
+      SELECT u.id::TEXT AS id
+      FROM users u
+      LEFT JOIN attorney_profiles ap ON ap.user_id = u.id
+      LEFT JOIN client_profiles cp ON cp.user_id = u.id
+      WHERE u.id IN (${edge})
+        AND (${nameMatchSql(q, Prisma.sql`u.full_name_lower`)}
+             OR coalesce(ap.username_lower, cp.username_lower) LIKE ${handle})
+      LIMIT 5000`;
+    return rows.map((r) => r.id);
+  }
+
   /** Keyset over follows(created_at, other id), attorneys only. */
   private async pageOf(
     viewerId: string,
     cursor: string | undefined,
     side: 'followee' | 'follower',
     attorneyId: string,
+    q?: string,
   ): Promise<AttorneyListPage> {
     const c = cursor ? decodeCursor(cursor) : undefined;
     const other = side === 'followee' ? 'follower_id' : 'followee_id';
+    const found = q
+      ? await this.matchingPeople(
+          attorneyId,
+          side === 'followee' ? 'followee_id' : 'follower_id',
+          q,
+        )
+      : null;
     const rows = await this.prisma.follow.findMany({
       where: {
         ...(side === 'followee'
           ? { followee_id: attorneyId }
           : { follower_id: attorneyId }),
+        ...(found ? { [other]: { in: found } } : {}),
         // Clients are counted, never listed (§6.2).
         [side === 'followee' ? 'follower' : 'followee']: LISTABLE_ATTORNEY,
         ...(c

@@ -35,6 +35,7 @@ ConversationDto _$ConversationDtoFromJson(
       ? null
       : DateTime.parse(json['mutedUntil'] as String),
   counterpartLastReadMessageId: json['counterpartLastReadMessageId'] as String?,
+  matchedMessage: json['matchedMessage'] as String?,
   waitingSince: json['waitingSince'] == null
       ? null
       : DateTime.parse(json['waitingSince'] as String),
@@ -60,6 +61,7 @@ Map<String, dynamic> _$ConversationDtoToJson(ConversationDto instance) =>
       'updatedAt': instance.updatedAt.toIso8601String(),
       'folder': instance.folder.toJson(),
       'folderAuto': instance.folderAuto,
+      'matchedMessage': ?instance.matchedMessage,
       'waitingSince': ?instance.waitingSince?.toIso8601String(),
       'note': ?instance.note,
       'pinnedAt': ?instance.pinnedAt?.toIso8601String(),

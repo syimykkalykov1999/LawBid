@@ -68,7 +68,7 @@ export class ChatController {
     @CurrentUser() user: RequestUser,
     @Query() q: ConversationsQueryDto,
   ): Promise<ConversationPage> {
-    return this.chat.list(user, q.cursor, q.updatedSince, q.folder);
+    return this.chat.list(user, q.cursor, q.updatedSince, q.folder, q.q);
   }
 
   @Get('folders/counts')

@@ -224,7 +224,14 @@ export class MineService {
           status: 'accepted',
           accepted_for_case: {
             status: { in: WORK_STATUSES[filter] },
-            ...(await mineWhere(this.prisma, search)),
+            // Owner 2026-10-18: also by the client's name / @username (when
+            // the attorney sees names) and accent-insensitively.
+            ...(await mineWhere(this.prisma, search, {
+              attorneyId: user.sub,
+              withClient: search.q
+                ? await this.subscriptions.isActive(user.sub)
+                : false,
+            })),
           },
           ...(c
             ? {

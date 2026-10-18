@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsInt,
   IsOptional,
@@ -8,6 +8,7 @@ import {
   Max,
   MaxLength,
   Min,
+  MinLength,
 } from 'class-validator';
 import { RatingDto } from '../profiles/dto/attorney-profile.dto';
 import { ClientListItemDto } from '../profiles/dto/client-profile.dto';
@@ -24,6 +25,23 @@ export class FollowsQueryDto {
   @IsString()
   @MaxLength(300)
   cursor?: string;
+}
+
+/** Owner 2026-10-18: followers / following lists with a search box. */
+export class PeopleListQueryDto extends FollowsQueryDto {
+  @ApiPropertyOptional({
+    maxLength: 100,
+    description:
+      'Name (any alphabet, typos, word order) or @username prefix — only matching people are listed.',
+  })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
+  q?: string;
 }
 
 /** Owner 2026-10-13: "More" sheet of Recommended — page size on top of the

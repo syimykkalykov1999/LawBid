@@ -72,11 +72,12 @@ class _FollowsClient implements FollowsClient {
   Future<PersonItemListEnvelope> listFollowers({
     required String id,
     String? cursor,
+    String? q,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
     _extra.addAll(extras ?? <String, dynamic>{});
-    final queryParameters = <String, dynamic>{r'cursor': cursor};
+    final queryParameters = <String, dynamic>{r'cursor': cursor, r'q': q};
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};
     const Map<String, dynamic>? _data = null;
@@ -105,11 +106,12 @@ class _FollowsClient implements FollowsClient {
   Future<PersonItemListEnvelope> listFollowing({
     required String id,
     String? cursor,
+    String? q,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
     _extra.addAll(extras ?? <String, dynamic>{});
-    final queryParameters = <String, dynamic>{r'cursor': cursor};
+    final queryParameters = <String, dynamic>{r'cursor': cursor, r'q': q};
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};
     const Map<String, dynamic>? _data = null;
@@ -137,11 +139,12 @@ class _FollowsClient implements FollowsClient {
   @override
   Future<AttorneyListItemListEnvelope> listMyFollowing({
     String? cursor,
+    String? q,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
     _extra.addAll(extras ?? <String, dynamic>{});
-    final queryParameters = <String, dynamic>{r'cursor': cursor};
+    final queryParameters = <String, dynamic>{r'cursor': cursor, r'q': q};
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};
     const Map<String, dynamic>? _data = null;
