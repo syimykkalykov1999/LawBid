@@ -28,6 +28,7 @@ import {
   NotificationSettingsDto,
   NotificationsQueryDto,
   PushTokenDto,
+  VoipTokenDto,
   QuietHoursDto,
   ReadNotificationsDto,
   ReadNotificationsResultDto,
@@ -36,6 +37,7 @@ import {
 } from './notifications-api.dto';
 import { NotificationsApiService } from './notifications-api.service';
 import { PushTokensService } from './push/push-tokens.service';
+import { VoipTokensService } from './push/voip-tokens.service';
 import { AssistantSelf } from '../auth/assistant/assistant-context';
 
 /** docs/05 §15 "Уведомления и push" (stage 5.8). */
@@ -48,6 +50,7 @@ export class NotificationsApiController {
     private readonly api: NotificationsApiService,
     private readonly badges: BadgesService,
     private readonly tokens: PushTokensService,
+    private readonly voipTokens: VoipTokensService,
   ) {}
 
   // OQ-048: an assistant has their own notifications and devices.
@@ -152,6 +155,36 @@ export class NotificationsApiController {
     @Body() dto: PushTokenDto,
   ): Promise<void> {
     await this.tokens.register(user.sub, user.sid, dto.token, dto.platform);
+  }
+
+  // Owner 2026-10-17: an iPhone registers its PushKit token for calls.
+  @AssistantSelf()
+  @Post('push-tokens/voip')
+  @HttpCode(204)
+  @ApiOperation({ summary: 'Register this iPhone for call (VoIP) pushes' })
+  @ApiErrors({ 400: [ErrorCode.VALIDATION_ERROR] })
+  async registerVoipToken(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: VoipTokenDto,
+  ): Promise<void> {
+    await this.voipTokens.register(
+      user.sub,
+      user.sid,
+      dto.token,
+      `${dto.bundleId}.voip`,
+      dto.environment,
+    );
+  }
+
+  @AssistantSelf()
+  @Delete('push-tokens/voip')
+  @HttpCode(204)
+  @ApiOperation({ summary: 'Stop call (VoIP) pushes to this iPhone' })
+  async deleteVoipToken(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: DeletePushTokenDto,
+  ): Promise<void> {
+    await this.voipTokens.unregister(user.sub, dto.token);
   }
 
   // OQ-048: an assistant has their own notifications and devices.

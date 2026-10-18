@@ -47,18 +47,12 @@ Future<List<PickedChatFile>> pickChatFiles(
         mainAxisSize: MainAxisSize.min,
         children: [
           const AppSheetHandle(),
+          // Owner 2026-10-17 (WhatsApp): one gallery for photos and videos.
           AppListRow(
             icon: AppIcons.photoLibraryOutlined,
-            label: t.t('chat.attach.photos'),
+            label: t.t(videoOn ? 'chat.attach.gallery' : 'chat.attach.photos'),
             onTap: () => Navigator.of(sheet).pop('photos'),
           ),
-          if (videoOn)
-            AppListRow(
-              key: const ValueKey('chat-attach-video'),
-              icon: AppIcons.videoCameraOutlined,
-              label: t.t('chat.attach.video'),
-              onTap: () => Navigator.of(sheet).pop('video'),
-            ),
           AppListRow(
             icon: AppIcons.photoCameraOutlined,
             label: t.t('chat.attach.camera'),
@@ -99,25 +93,29 @@ Future<List<PickedChatFile>> pickChatFiles(
       onTemplate?.call();
       return const [];
     case 'photos':
-      final picked = await ImagePicker().pickMultiImage(
-        maxWidth: 2560,
-        maxHeight: 2560,
-        imageQuality: 90,
-        // Owner 2026-10-01: no count limit in chats and tasks (only
-        // publications keep 9 photos).
-      );
+      // Owner 2026-10-01: no count limit in chats and tasks (only
+      // publications keep 9 photos). Owner 2026-10-17: videos picked in
+      // the same gallery are compressed and sent too.
+      final picked = videoOn
+          ? await ImagePicker().pickMultipleMedia(
+              maxWidth: 2560,
+              maxHeight: 2560,
+              imageQuality: 90,
+            )
+          : await ImagePicker().pickMultiImage(
+              maxWidth: 2560,
+              maxHeight: 2560,
+              imageQuality: 90,
+            );
       for (final f in picked) {
-        add(await f.readAsBytes(), f.name);
-      }
-    case 'video':
-      final picked = await ImagePicker().pickVideo(
-        source: ImageSource.gallery,
-      );
-      if (picked != null && prepareVideo != null) {
-        final ready = await prepareVideo(picked);
-        final name =
-            ready.name.contains('.') ? ready.name : '${ready.name}.mp4';
-        add(await ready.readAsBytes(), name);
+        if (videoOn && _isVideo(f)) {
+          final ready = await prepareVideo(f);
+          final name =
+              ready.name.contains('.') ? ready.name : '${ready.name}.mp4';
+          add(await ready.readAsBytes(), name);
+        } else {
+          add(await f.readAsBytes(), f.name);
+        }
       }
     case 'camera':
       final f = await ImagePicker().pickImage(
@@ -146,6 +144,16 @@ Future<List<PickedChatFile>> pickChatFiles(
     showAppSnackBar(context, t.t('chat.attach.skipped', {'count': '$skipped'}));
   }
   return out;
+}
+
+/// A picked gallery item that is a video (by type, else by extension).
+bool _isVideo(XFile f) {
+  if (f.mimeType?.startsWith('video/') ?? false) return true;
+  final n = (f.name.isNotEmpty ? f.name : f.path).toLowerCase();
+  return n.endsWith('.mp4') ||
+      n.endsWith('.mov') ||
+      n.endsWith('.m4v') ||
+      n.endsWith('.3gp');
 }
 
 /// "12.4 MB", "830 KB".

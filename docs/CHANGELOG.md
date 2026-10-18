@@ -5,6 +5,18 @@ All notable changes to this project are documented here, per
 .cursorrules (each stage ends with a CHANGELOG update + commit on
 branch cursor/stage-X-Y-description).
 
+## iPhone calls through PushKit (VoIP); one gallery for photos and videos (2026-10-17)
+
+Owner: "do the VoIP pushes now, not before the release"; "photos and videos in one button, like WhatsApp".
+
+- iOS background modes `audio`, `voip`, `remote-notification` (without them CallKit refused the call: error 1, unentitled — no ringtone on the iPhone).
+- `AppDelegate.swift`: PushKit registry; the token goes to the CallKit plugin (Dart sends it to the server); every VoIP push reports the call to CallKit at once (same id and fields as the Dart side, `silent` → no ringtone).
+- API: `voip_tokens` (migration `20261017120000_voip_tokens`), `POST/DELETE /push-tokens/voip` (token, bundle id → topic `<bundle>.voip`, sandbox|production). `ApnsVoipSender` sends `apns-push-type: voip` over HTTP/2 with an ES256 provider token; a wrong environment is retried once and remembered, dead tokens are removed. `dispatchCall` rings iPhones by VoIP first and skips their FCM call push (`PushMessage.skipTokens`) — no double ring.
+- Keys: admin «Интеграции → Apple Push» or `APNS_KEY_ID` / `APNS_TEAM_ID` / `APNS_PRIVATE_KEY` (docs/KEYS_SETUP.md step 14a). Without them nothing changes (the call rings while the app runs).
+- App: registers the PushKit token after sign-in on iOS and again on renewal; removes it on sign-out.
+- Chat paperclip: «Фото и видео» picks both in one gallery (`pickMultipleMedia`); videos are compressed as before. The separate «Видео» row is gone.
+- Tests: `apns-voip.sender.spec.ts` (no keys → nothing; ES256 token verifies; environment fallback; dead token removal).
+
 ## Videos in a chat (2026-10-17)
 
 Owner: "everything like WhatsApp" — videos in chats, formats managed in the admin, only safe formats.

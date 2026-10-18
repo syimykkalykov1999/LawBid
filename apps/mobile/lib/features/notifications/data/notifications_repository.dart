@@ -197,6 +197,14 @@ abstract interface class NotificationsRepository {
     bool web = false,
   });
   Future<void> deletePushToken(String token);
+
+  /// Owner 2026-10-17: an iPhone's PushKit token for incoming calls.
+  Future<void> registerVoipToken(
+    String token, {
+    required String bundleId,
+    required bool production,
+  });
+  Future<void> deleteVoipToken(String token);
 }
 
 class ApiNotificationsRepository implements NotificationsRepository {
@@ -390,5 +398,28 @@ class ApiNotificationsRepository implements NotificationsRepository {
   @override
   Future<void> deletePushToken(String token) => guardApiCall(
         () => _api.deletePushToken(body: api.DeletePushTokenDto(token: token)),
+      );
+
+  @override
+  Future<void> registerVoipToken(
+    String token, {
+    required String bundleId,
+    required bool production,
+  }) =>
+      guardApiCall(
+        () => _api.registerVoipToken(
+          body: api.VoipTokenDto(
+            token: token,
+            bundleId: bundleId,
+            environment: production
+                ? api.VoipTokenDtoEnvironment.production
+                : api.VoipTokenDtoEnvironment.sandbox,
+          ),
+        ),
+      );
+
+  @override
+  Future<void> deleteVoipToken(String token) => guardApiCall(
+        () => _api.deleteVoipToken(body: api.DeletePushTokenDto(token: token)),
       );
 }

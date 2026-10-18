@@ -13,6 +13,8 @@ import { LoggingPushSender } from './logging-push.sender';
 import { NotificationTemplateService } from './notification-template.service';
 import { PushDispatcher, type PushModuleOptions } from './push-dispatcher';
 import { PushTokensService } from './push-tokens.service';
+import { ApnsVoipSender } from './apns-voip.sender';
+import { VoipTokensService } from './voip-tokens.service';
 import {
   NOTIFICATION_EMAIL,
   PUSH_MODULE_OPTIONS,
@@ -34,6 +36,9 @@ export class PushModule {
       providers: [
         { provide: PUSH_MODULE_OPTIONS, useValue: options },
         PushTokensService,
+        // Owner 2026-10-17: iPhone calls as VoIP pushes (APNs directly).
+        VoipTokensService,
+        ApnsVoipSender,
         {
           provide: PUSH_SENDER,
           inject: [SecretsService, PushTokensService, REDIS_CLIENT, PinoLogger],

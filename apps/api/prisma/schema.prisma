@@ -787,6 +787,7 @@ model User {
   notification_settings       NotificationSetting[]
   quiet_hours                 NotificationQuietHours?
   push_tokens                 PushToken[]
+  voip_tokens                 VoipToken[]
   stripe_customer             StripeCustomer?
   subscription                Subscription?
   payments                    Payment[]
@@ -955,6 +956,7 @@ model Session {
   // stage 2.6 (docs/02_DATABASE.md §5.2). This plain index covers lookups
   // until then.
   push_tokens PushToken[]
+  voip_tokens VoipToken[]
 
   // (user_id) WHERE revoked_at IS NULL: partial index, raw SQL (2.6).
   @@index([session_chain_id])
@@ -2364,6 +2366,27 @@ model PushToken {
 
   @@index([user_id])
   @@map("push_tokens")
+}
+
+/// Owner 2026-10-17: an iPhone's PushKit (VoIP) token — incoming calls go
+/// to Apple directly as VoIP pushes (FCM can't send them), so iOS shows the
+/// call screen and rings even when the app is closed. Bound to the session
+/// chain like push_tokens; `topic` is the app's bundle id + ".voip".
+model VoipToken {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id      String   @db.Uuid
+  user         User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  session_id   String   @db.Uuid
+  session      Session  @relation(fields: [session_id], references: [id], onDelete: Cascade)
+  token        String   @unique
+  topic        String
+  /// sandbox (development-signed builds) | production (TestFlight, store).
+  environment  String
+  last_seen_at DateTime @default(now()) @db.Timestamptz
+  created_at   DateTime @default(now()) @db.Timestamptz
+
+  @@index([user_id])
+  @@map("voip_tokens")
 }
 
 model StripeCustomer {

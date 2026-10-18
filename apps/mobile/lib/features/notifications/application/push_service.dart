@@ -3,6 +3,9 @@ import 'dart:async';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show appFlavor;
+import 'package:flutter_callkit_incoming/entities/entities.dart';
+import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/config/web_push_config.dart';
 import 'package:lawbid/core/navigation/app_router.dart';
@@ -15,6 +18,7 @@ import 'package:lawbid/features/notifications/presentation/notifications_view.da
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 /// docs/05 §9.5 push on the device: FCM token registered for this session
 /// (`POST /push-tokens`), re-registered when it rotates, removed on
@@ -54,6 +58,11 @@ class PushService {
     // Owner 2026-10-15: the phone's permission is asked here, whether or not
     // the push SDK is set up in this build.
     unawaited(_ref.read(systemNotificationsProvider).request());
+    // Owner 2026-10-17: iPhones ring for calls through Apple's VoIP pushes
+    // (independent of Firebase).
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
+      unawaited(_registerVoip());
+    }
     // Web: push only when the build carries the Firebase web app's keys.
     if (kIsWeb && !WebPushConfig.configured) {
       debugPrint('push: no web keys in this build');
@@ -124,9 +133,56 @@ class PushService {
     }
   }
 
+  String? _voipToken;
+
+  /// Owner 2026-10-17: the PushKit token (AppDelegate.swift hands it to
+  /// the CallKit plugin) goes to the server; again whenever iOS renews it.
+  Future<void> _registerVoip() async {
+    Future<void> send() async {
+      try {
+        final token = await FlutterCallkitIncoming.getDevicePushTokenVoIP();
+        if (token is! String || token.isEmpty || token == _voipToken) return;
+        final info = await PackageInfo.fromPlatform();
+        await _ref.read(notificationsRepositoryProvider).registerVoipToken(
+              token,
+              bundleId: info.packageName,
+              // Store builds (prod flavor) talk to Apple's production
+              // gateway; the server retries the other one if needed.
+              production: appFlavor == 'prod',
+            );
+        _voipToken = token;
+      } on Object {
+        // Next app start registers again.
+      }
+    }
+
+    _subs.add(
+      FlutterCallkitIncoming.onEvent.listen(
+        (e) {
+          if (e is CallEventActionDidUpdateDevicePushTokenVoip) {
+            unawaited(send());
+          }
+        },
+        onError: (Object _) {},
+      ),
+    );
+    await send();
+  }
+
   /// Sign-out: this device stops receiving pushes.
   Future<void> unregister() async {
     _startedFor = null;
+    final voip = _voipToken;
+    _voipToken = null;
+    if (voip != null) {
+      try {
+        await _ref
+            .read(notificationsRepositoryProvider)
+            .deleteVoipToken(voip);
+      } on Object {
+        // The server also drops tokens of signed-out sessions.
+      }
+    }
     final token = _token;
     if (token == null) return;
     try {

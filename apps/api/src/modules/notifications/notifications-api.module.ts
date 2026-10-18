@@ -4,11 +4,12 @@ import { NotificationsApiController } from './notifications-api.controller';
 import { NotificationsApiService } from './notifications-api.service';
 import { NotificationsModule } from './notifications.module';
 import { PushTokensService } from './push/push-tokens.service';
+import { VoipTokensService } from './push/voip-tokens.service';
 
 /** docs/05 §15 notifications REST (API process only). */
 @Module({
   imports: [NotificationsModule, FilesModule],
   controllers: [NotificationsApiController],
-  providers: [NotificationsApiService, PushTokensService],
+  providers: [NotificationsApiService, PushTokensService, VoipTokensService],
 })
 export class NotificationsApiModule {}

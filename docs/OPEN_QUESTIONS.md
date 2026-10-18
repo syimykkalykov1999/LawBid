@@ -1045,5 +1045,18 @@ Decided:
 - Card line «В сети / Был …» and «Отвечает за день» — mockup first.
 Rejected: hiding cases with many bids; refunding bids (bids are free and
 unlimited now).
-Open: the one-time cleanup (E) must respect the client's chosen dates and
-must never nag — reminder logic to be proposed.
+Reminders (E, owner answers 2026-10-17):
+- A new bid is the reminder: its push carries «Кейс ещё актуален» /
+  «Уже не нужен» — no separate LawBid message.
+- One LawBid question only when there are no bids and the client stayed
+  silent until the case's timer; never repeated.
+- NO weekly LawBid reminder / digest. LawBid writes no reminders of its
+  own beyond that one question; bids and the other notifications go as
+  usual.
+- Never SMS (no Twilio spend) — push + in-app only.
+- The pause comes silently (in the app: «Кейс скрыт · Вернуть»).
+- "By date" cases: the feed lifts them more and more as the date gets
+  closer (clients post early to find an attorney in time); bids keep
+  reaching the client.
+- The launch cleanup follows the same rules (one push per client at most,
+  no SMS), sent when each case's own timer has run out.

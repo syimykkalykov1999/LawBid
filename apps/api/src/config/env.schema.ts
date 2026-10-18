@@ -382,6 +382,19 @@ export const envSchema = z
       /-----BEGIN PRIVATE KEY-----/,
       'FCM_PRIVATE_KEY must be the PEM "private_key" field of the service-account JSON',
     ),
+    // Owner 2026-10-17: APNs auth key for iPhone VoIP (call) pushes.
+    APNS_KEY_ID: optionalMatching(
+      /^[A-Z0-9]{10}$/,
+      'APNS_KEY_ID must be the 10-character Key ID of the APNs key',
+    ),
+    APNS_TEAM_ID: optionalMatching(
+      /^[A-Z0-9]{10}$/,
+      'APNS_TEAM_ID must be the 10-character Apple Developer Team ID',
+    ),
+    APNS_PRIVATE_KEY: optionalMatching(
+      /-----BEGIN PRIVATE KEY-----/,
+      'APNS_PRIVATE_KEY must be the contents of the AuthKey_XXXX.p8 file',
+    ),
 
     // --- Background jobs (docs/01 §5.2 BullMQ; docs/06 §6 `worker`
     // service; src/jobs/) ---
@@ -757,6 +770,7 @@ export const envSchema = z
       ['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY'],
       ['S3_ACCESS_KEY_ID', 'S3_SECRET_ACCESS_KEY'],
       ['FCM_PROJECT_ID', 'FCM_CLIENT_EMAIL', 'FCM_PRIVATE_KEY'],
+      ['APNS_KEY_ID', 'APNS_TEAM_ID', 'APNS_PRIVATE_KEY'],
     ] as const;
     for (const group of groups) {
       const present = group.filter((key) => env[key] !== undefined);

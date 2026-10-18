@@ -395,6 +395,44 @@ export const PROVIDERS: ProviderDefinition[] = [
     ],
   },
   {
+    // Owner 2026-10-17: incoming calls on iPhones go to Apple directly as
+    // VoIP (PushKit) pushes — FCM can't send them. Apple Developer →
+    // Keys → a key with "Apple Push Notifications service (APNs)".
+    id: 'apns',
+    label: 'Apple Push (APNs) — iPhone calls',
+    description:
+      'Rings incoming calls on iPhones even when the app is closed (VoIP pushes).',
+    fields: [
+      {
+        name: 'keyId',
+        label: 'Key ID',
+        secret: false,
+        required: true,
+        pattern: /^[A-Z0-9]{10}$/,
+        env: 'APNS_KEY_ID',
+        normalize: (v) => cleanPasted(v).toUpperCase(),
+      },
+      {
+        name: 'teamId',
+        label: 'Team ID',
+        secret: false,
+        required: true,
+        pattern: /^[A-Z0-9]{10}$/,
+        env: 'APNS_TEAM_ID',
+        normalize: (v) => cleanPasted(v).toUpperCase(),
+      },
+      {
+        name: 'privateKey',
+        label: 'Key file (.p8) contents',
+        secret: true,
+        required: true,
+        pattern: /-----BEGIN PRIVATE KEY-----/,
+        env: 'APNS_PRIVATE_KEY',
+        normalize: normalizePem,
+      },
+    ],
+  },
+  {
     id: 'turn',
     label: 'TURN / STUN (in-app calls)',
     description: 'Relays for calls when the phones cannot connect directly.',

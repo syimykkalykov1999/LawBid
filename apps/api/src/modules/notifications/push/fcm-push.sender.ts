@@ -59,7 +59,9 @@ export class FcmPushSender implements PushSender {
     const sentKey = `push:sent:${dedupeKey}`;
     const { token: access } = await this.jwt.getAccessToken();
     let temporary = 0;
+    const skip = new Set(message.skipTokens ?? []);
     for (const device of devices) {
+      if (skip.has(device)) continue;
       // Claim the device before the call: a crash between FCM's 200 and
       // the mark can at most skip a push, never double it (load review).
       const claimed = await this.redis.set(

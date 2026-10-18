@@ -17,6 +17,7 @@ import '../models/read_notifications_dto.dart';
 import '../models/read_notifications_result_envelope.dart';
 import '../models/update_new_case_alerts_dto.dart';
 import '../models/update_notification_settings_dto.dart';
+import '../models/voip_token_dto.dart';
 
 part 'notifications_client.g.dart';
 
@@ -91,6 +92,20 @@ abstract class NotificationsClient {
   /// Unregister a device (sign-out) (§9.5)
   @DELETE('/push-tokens')
   Future<void> deletePushToken({
+    @Body() required DeletePushTokenDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Register this iPhone for call (VoIP) pushes
+  @POST('/push-tokens/voip')
+  Future<void> registerVoipToken({
+    @Body() required VoipTokenDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Stop call (VoIP) pushes to this iPhone
+  @DELETE('/push-tokens/voip')
+  Future<void> deleteVoipToken({
     @Body() required DeletePushTokenDto body,
     @Extras() Map<String, dynamic>? extras,
   });

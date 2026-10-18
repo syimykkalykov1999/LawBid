@@ -206,6 +206,24 @@ export class PushTokenDto {
   platform!: 'ios' | 'android' | 'web';
 }
 
+/** Owner 2026-10-17: an iPhone's PushKit (VoIP) token for calls. */
+export class VoipTokenDto {
+  @ApiProperty({ description: 'PushKit token, hex.' })
+  @Matches(/^[0-9a-f]{64,200}$/)
+  token!: string;
+
+  @ApiProperty({
+    description: "The app's bundle id (the VoIP topic is it + '.voip').",
+    example: 'com.lawbid.lawbid',
+  })
+  @Matches(/^com\.lawbid\.lawbid(\.[a-z]{2,12})?$/)
+  bundleId!: string;
+
+  @ApiProperty({ enum: ['sandbox', 'production'] })
+  @IsIn(['sandbox', 'production'])
+  environment!: 'sandbox' | 'production';
+}
+
 export class DeletePushTokenDto {
   @ApiProperty()
   @IsString()

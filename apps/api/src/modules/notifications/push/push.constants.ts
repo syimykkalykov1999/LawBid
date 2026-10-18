@@ -78,6 +78,9 @@ export interface PushMessage {
    * on their own). Owner 2026-10-07: both play the phone's own default
    * sound — LawBid ships no sounds of its own. */
   sound?: PushSoundKind;
+  /** Owner 2026-10-17: FCM tokens not to send to (iPhones already rung by
+   * a VoIP push — no double ring). */
+  skipTokens?: string[];
 }
 
 export type PushSoundKind = 'message' | 'notification';
