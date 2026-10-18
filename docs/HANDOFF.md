@@ -112,6 +112,13 @@ row + topic hint; budget step no jump.
   the project already runs on the production AWS server with all keys in the
   production admin; local work = updates and fixes only. apps/api/.env is
   local and gitignored (DEV_FAKE_BUNNY is for the Mac only).
+- Bar numbers (91f7e91c, owner option A): format never shown (app copy of
+  the formats deleted), off-format numbers refused, 5 failures → 1 h lock on
+  the server (then 12 h / 24 h), «Мой номер верный — отправить на проверку»
+  → manual review with the bar card photo (admin badge «Номер не по формату
+  штата — проверить вручную»).
+- Test accounts (dev DB): password Test1234! for +12125550101 (attorney,
+  subscription), +12125550102 (attorney, none), +12125550103 (client).
 - APK: build ONLY when the owner says (he checks the iPhone first).
 - iPhone: install a RELEASE build (`flutter run --release …`) — a debug build
   stops working when the cable/session drops.
