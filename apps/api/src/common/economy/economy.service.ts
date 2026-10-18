@@ -231,6 +231,18 @@ export class EconomyService {
         ),
         source: 'actual',
       });
+    } else if (process.env.NODE_ENV === 'development') {
+      // Owner 2026-10-18: a developer's Mac has no AWS bill at all — the
+      // assumed «aws_fallback_usd» ($150) alone tripped the guard against
+      // the $150 floor and paused new videos locally. In development only
+      // the real metered spend (SMS, video, translation below) counts.
+      // Production (and staging) keep the fallback estimate unchanged.
+      lines.push({
+        key: 'aws',
+        monthToDateUsd: 0,
+        projectedUsd: 0,
+        source: 'estimate',
+      });
     } else {
       const daysInMonth = new Date(
         Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0),

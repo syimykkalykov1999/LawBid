@@ -4,7 +4,6 @@ import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
 import 'package:lawbid/core/design_system/tokens/app_radii.dart';
 import 'package:lawbid/core/design_system/tokens/app_sizes.dart';
 import 'package:lawbid/core/design_system/tokens/app_spacing.dart';
-import 'package:lawbid/core/design_system/widgets/display/glass_panel.dart';
 import 'package:lawbid/core/design_system/widgets/motion/app_pressable.dart';
 
 /// General-purpose card container (file 01 §15 component list): `surface`
@@ -48,11 +47,10 @@ class AppCard extends StatelessWidget {
       ),
       child: child,
     );
-    final panel = GlassPanel(
-      radius: BorderRadius.circular(AppRadii.card),
-      child: card,
-    );
-    if (onTap == null) return panel;
-    return AppPressable(onTap: onTap, child: panel);
+    // Owner 2026-10-18 (speed): no backdrop blur per card — in lists every
+    // card blurred the screen behind it and scrolling froze on Glass. The
+    // see-through `surface` fill stays; the bars and sheets keep the blur.
+    if (onTap == null) return card;
+    return AppPressable(onTap: onTap, child: card);
   }
 }
