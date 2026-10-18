@@ -209,7 +209,8 @@ class AttachmentMessageBody extends ConsumerWidget {
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final a = message.attachment!;
     final sending = message.delivery == DeliveryState.sending;
-    final fg = mine ? colors.onAccent : colors.text;
+    final chat = ChatColors.of(context);
+    final fg = mine ? chat.onMine : chat.onTheirs;
     final pct = a.progress > 0 && a.progress < 1 ? a.progress : null;
 
     final Widget content;

@@ -41,16 +41,16 @@ ChatMessage _note(String id, {required bool listened, String? sender}) =>
     );
 
 Widget _bubble(BuildContext context, Widget child, {required bool mine}) {
-  final colors = Theme.of(context).extension<AppColorTokens>()!;
+  final chat = ChatColors.of(context);
   return Align(
     alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
     child: Container(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
       decoration: BoxDecoration(
-        color: mine ? colors.accent : colors.surface,
+        color: mine ? chat.mine : chat.theirs,
         borderRadius: BorderRadius.circular(18),
-        border: mine ? null : Border.all(color: colors.border),
+        border: mine ? null : Border.all(color: chat.theirsBorder),
       ),
       child: child,
     ),
@@ -62,52 +62,55 @@ void main() {
   for (final entry in themes.entries) {
     testGoldens('voice bubbles like WhatsApp - ${entry.key}', (tester) async {
       await tester.pumpWidgetBuilder(
-        Scaffold(
-          body: Builder(
-            builder: (context) => ListView(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              children: [
-                _bubble(
-                  context,
-                  VoiceMessageBody(
-                    message: _note('new', listened: false, sender: 'a'),
+        Builder(
+          builder: (context) => Scaffold(
+            backgroundColor: ChatColors.of(context).wallpaper,
+            body: Builder(
+              builder: (context) => ListView(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                children: [
+                  _bubble(
+                    context,
+                    VoiceMessageBody(
+                      message: _note('new', listened: false, sender: 'a'),
+                      mine: false,
+                      threadId: 'c',
+                      avatarName: 'Anna Kowalski',
+                    ),
                     mine: false,
-                    threadId: 'c',
-                    avatarName: 'Anna Kowalski',
                   ),
-                  mine: false,
-                ),
-                _bubble(
-                  context,
-                  VoiceMessageBody(
-                    message: _note('playing', listened: true, sender: 'a'),
+                  _bubble(
+                    context,
+                    VoiceMessageBody(
+                      message: _note('playing', listened: true, sender: 'a'),
+                      mine: false,
+                      threadId: 'c',
+                      avatarName: 'Anna Kowalski',
+                    ),
                     mine: false,
-                    threadId: 'c',
-                    avatarName: 'Anna Kowalski',
                   ),
-                  mine: false,
-                ),
-                _bubble(
-                  context,
-                  VoiceMessageBody(
-                    message: _note('sent', listened: false, sender: 'me'),
+                  _bubble(
+                    context,
+                    VoiceMessageBody(
+                      message: _note('sent', listened: false, sender: 'me'),
+                      mine: true,
+                      threadId: 'c',
+                      avatarName: 'Syimyk Kalykov',
+                    ),
                     mine: true,
-                    threadId: 'c',
-                    avatarName: 'Syimyk Kalykov',
                   ),
-                  mine: true,
-                ),
-                _bubble(
-                  context,
-                  VoiceMessageBody(
-                    message: _note('heard', listened: true, sender: 'me'),
+                  _bubble(
+                    context,
+                    VoiceMessageBody(
+                      message: _note('heard', listened: true, sender: 'me'),
+                      mine: true,
+                      threadId: 'c',
+                      avatarName: 'Syimyk Kalykov',
+                    ),
                     mine: true,
-                    threadId: 'c',
-                    avatarName: 'Syimyk Kalykov',
                   ),
-                  mine: true,
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

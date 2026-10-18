@@ -49,9 +49,9 @@ class VoiceMessageBody extends ConsumerWidget {
     final progress = active && total.inMilliseconds > 0
         ? playback.position.inMilliseconds / total.inMilliseconds
         : 0.0;
-    final fg = mine ? colors.onAccent : colors.text;
-    // On my gold bubble the played part and the thumb are dark (contrast).
-    final accent = mine ? fg : colors.gold;
+    final chat = ChatColors.of(context);
+    final fg = mine ? chat.onMine : chat.onTheirs;
+    final accent = colors.goldAccent;
     final playable = v.url != null || v.localPath != null;
     final player = ref.read(voicePlayerProvider.notifier);
     // Download the note while it is on screen (a tap then plays at once).
@@ -195,11 +195,11 @@ class VoiceMessageBody extends ConsumerWidget {
                 size: _avatarSize,
                 // Gold until the recipient plays it, then blue (WhatsApp).
                 badge: v.listened || m.isLocal
-                    ? colors.info
+                    ? chat.tickRead
                     : mine
-                        ? colors.textSecondary
-                        : colors.gold,
-                ring: mine ? colors.accent : colors.surface,
+                        ? chat.mineMeta
+                        : colors.goldAccent,
+                ring: mine ? chat.mine : chat.theirs,
                 badgeOnLeft: mine,
               ),
       ),

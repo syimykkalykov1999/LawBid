@@ -176,14 +176,15 @@ class CasePhotosPicker extends ConsumerWidget {
                   child: Container(
                     width: _tile,
                     height: _tile,
+                    // Owner 2026-10-18: the theme's own tile (no gold fill).
                     decoration: BoxDecoration(
-                      color: colors.goldTint,
+                      color: colors.chip,
                       borderRadius: BorderRadius.circular(AppRadii.field),
-                      border: Border.all(color: colors.goldStroke),
+                      border: Border.all(color: colors.border),
                     ),
                     child: AppIcon(
                       AppIcons.addPhotoAlternateOutlined,
-                      color: colors.goldDark,
+                      color: colors.textSecondary,
                     ),
                   ),
                 ),
@@ -197,14 +198,15 @@ class CasePhotosPicker extends ConsumerWidget {
                   child: Container(
                     width: _tile,
                     height: _tile,
+                    // Owner 2026-10-18: the theme's own tile (no gold fill).
                     decoration: BoxDecoration(
-                      color: colors.goldTint,
+                      color: colors.chip,
                       borderRadius: BorderRadius.circular(AppRadii.field),
-                      border: Border.all(color: colors.goldStroke),
+                      border: Border.all(color: colors.border),
                     ),
                     child: AppIcon(
                       AppIcons.noteAddOutlined,
-                      color: colors.goldDark,
+                      color: colors.textSecondary,
                     ),
                   ),
                 ),

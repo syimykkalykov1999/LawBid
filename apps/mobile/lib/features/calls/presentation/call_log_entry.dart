@@ -54,7 +54,9 @@ class CallLogEntry extends ConsumerWidget {
         : mine
             ? AppIcons.callMadeRounded
             : AppIcons.callReceivedRounded;
-    final fg = mine ? colors.onAccent : colors.text;
+    // Owner 2026-10-17: the chat's theme colours (no gold bubble).
+    final chat = ChatColors.of(context);
+    final fg = mine ? chat.onMine : chat.onTheirs;
     final c = conversation;
     final canCall = c != null && !c.closed && c.contactsUnlocked;
 
@@ -83,14 +85,14 @@ class CallLogEntry extends ConsumerWidget {
         AppSpacing.sm,
       ),
       decoration: BoxDecoration(
-        color: mine ? colors.accent : colors.surface,
+        color: mine ? chat.mine : chat.theirs,
         borderRadius: BorderRadius.only(
           topLeft: const Radius.circular(18),
           topRight: const Radius.circular(18),
           bottomLeft: Radius.circular(mine ? 18 : 4),
           bottomRight: Radius.circular(mine ? 4 : 18),
         ),
-        border: mine ? null : Border.all(color: colors.border),
+        border: mine ? null : Border.all(color: chat.theirsBorder),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -106,9 +108,7 @@ class CallLogEntry extends ConsumerWidget {
             child: AppIcon(
               icon,
               size: 20,
-              color: missedHere
-                  ? colors.danger
-                  : (mine ? colors.goldLight : colors.goldDark),
+              color: missedHere ? colors.danger : colors.goldAccent,
             ),
           ),
           const SizedBox(width: AppSpacing.sm),
@@ -145,7 +145,7 @@ class CallLogEntry extends ConsumerWidget {
             AppIcon(
               AppIcons.callOutlined,
               size: 20,
-              color: mine ? colors.goldLight : colors.goldDark,
+              color: colors.goldAccent,
             ),
           ],
         ],

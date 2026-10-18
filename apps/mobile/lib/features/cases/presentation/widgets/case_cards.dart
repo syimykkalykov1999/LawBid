@@ -172,8 +172,12 @@ class FeedCaseCard extends StatelessWidget {
     required this.formats,
     required this.onTap,
     this.feedHeight,
+    this.activity,
     super.key,
   });
+
+  /// OQ-054 (mockup): how active the client is; null = no line.
+  final ClientActivity? activity;
 
   final FeedCase item;
 
@@ -321,6 +325,17 @@ class FeedCaseCard extends StatelessWidget {
                       ),
                     ),
                   ),
+                  if (activity != null)
+                    ClientActivityLine(
+                      activity: activity!,
+                      t: t,
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.lg,
+                        AppSpacing.xs,
+                        AppSpacing.lg,
+                        0,
+                      ),
+                    ),
                   CaseFigures(
                     t: t,
                     formats: formats,
@@ -366,6 +381,91 @@ class FeedCaseCard extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// OQ-054: the client's activity on an attorney's card.
+@immutable
+class ClientActivity {
+  const ClientActivity({
+    this.online = false,
+    this.lastSeenDays,
+    this.respondsWithinDay = false,
+  });
+
+  final bool online;
+
+  /// Days since the client was last in the app (null = unknown / today).
+  final int? lastSeenDays;
+
+  /// The client usually answers bids and messages within a day.
+  final bool respondsWithinDay;
+}
+
+/// One thin line under the title: a dot and «В сети» / «Был 2 дня назад»,
+/// then «· Отвечает за день». Always one line — when space runs out the
+/// end is cut with "…", so it never pushes into other parts of the card.
+class ClientActivityLine extends StatelessWidget {
+  const ClientActivityLine({
+    required this.activity,
+    required this.t,
+    this.padding = EdgeInsets.zero,
+    super.key,
+  });
+
+  final ClientActivity activity;
+  final Translator t;
+  final EdgeInsetsGeometry padding;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
+    final a = activity;
+    final status = a.online
+        ? t.t('cases.activity.online')
+        : a.lastSeenDays == null || a.lastSeenDays == 0
+            ? t.t('cases.activity.today')
+            : t.plural(
+                'cases.activity.lastSeen',
+                a.lastSeenDays!,
+                {'n': '${a.lastSeenDays}'},
+              );
+    final dot = a.online ? colors.success : colors.textSecondary;
+    return Padding(
+      padding: padding,
+      child: Row(
+        children: [
+          Container(
+            width: 7,
+            height: 7,
+            decoration: BoxDecoration(color: dot, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(
+                    text: status,
+                    style: TextStyle(
+                      color:
+                          a.online ? colors.successText : colors.textSecondary,
+                      fontWeight: a.online ? FontWeight.w600 : null,
+                    ),
+                  ),
+                  if (a.respondsWithinDay)
+                    TextSpan(text: ' · ${t.t('cases.activity.responds')}'),
+                ],
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: typography.caption.copyWith(color: colors.textSecondary),
+            ),
+          ),
+        ],
       ),
     );
   }

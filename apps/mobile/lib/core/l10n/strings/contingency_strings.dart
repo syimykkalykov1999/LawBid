@@ -17,6 +17,14 @@ const contingencyRu = <String, String>{
   'cases.counter.percent': 'Новый процент',
   'error.api.CONTINGENCY_NOT_ALLOWED':
       'Для этого вида дела работа за процент не допускается.',
+  // OQ-054 (mockup): the client's activity on a card.
+  'cases.activity.online': 'Клиент в сети',
+  'cases.activity.today': 'Клиент был сегодня',
+  'cases.activity.lastSeen.one': 'Клиент был {n} день назад',
+  'cases.activity.lastSeen.few': 'Клиент был {n} дня назад',
+  'cases.activity.lastSeen.many': 'Клиент был {n} дней назад',
+  'cases.activity.lastSeen.other': 'Клиент был {n} дня назад',
+  'cases.activity.responds': 'Отвечает в течение дня',
 };
 
 const contingencyEn = <String, String>{
@@ -36,4 +44,9 @@ const contingencyEn = <String, String>{
   'cases.counter.percent': 'New percent',
   'error.api.CONTINGENCY_NOT_ALLOWED':
       'A percent fee is not allowed for this kind of case.',
+  'cases.activity.online': 'Client online',
+  'cases.activity.today': 'Client active today',
+  'cases.activity.lastSeen.one': 'Client active {n} day ago',
+  'cases.activity.lastSeen.other': 'Client active {n} days ago',
+  'cases.activity.responds': 'Usually replies within a day',
 };
