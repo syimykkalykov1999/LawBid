@@ -1023,3 +1023,27 @@ Replaces the "attorney ↔ client only" part of OQ-043.
   dui_and_dwi, traffic_tickets, family_law — ethics rules forbid
   contingency there; a code covers its subtopics). The option is hidden
   there in the app and refused by the API (`CONTINGENCY_NOT_ALLOWED`).
+
+## OQ-054 — Stale cases in the attorney feed (owner, 2026-10-17) — DRAFT, not built yet
+
+Decided:
+- Activity = the client's own actions only (open the case, view bids,
+  reply, edit). Attorney bids/comments never keep a case alive.
+- "Still need an attorney?" question, then a pause (hidden from the feed,
+  not deleted; one tap brings it back; 30 days paused → archived).
+- Freshness and client silence lower a case in the feed.
+- A passed case date (court, deadline) → pause + question.
+- Every number in the admin.
+- Timers by urgency (client silent → question; no answer → pause):
+  very urgent 2 d + 1 d; urgent 4 d + 2 d; this week 7 d + 3 d;
+  within a month 30 d + 4 d; not urgent 30 d + 14 d; by date: date
+  passed + 3 d.
+- Question buttons: «Да, нужен», «Жду предложений получше» (restarts the
+  timer), «Уже не нужен».
+- A long-"urgent" case is offered "change to not urgent".
+- Urgent cases with an active client rank first; silent ones drop fast.
+- Card line «В сети / Был …» and «Отвечает за день» — mockup first.
+Rejected: hiding cases with many bids; refunding bids (bids are free and
+unlimited now).
+Open: the one-time cleanup (E) must respect the client's chosen dates and
+must never nag — reminder logic to be proposed.
