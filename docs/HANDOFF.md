@@ -16,6 +16,11 @@ wants results, not questions. Answer in Russian, short and plain.
 - The Mac freezes if many flutter test/analyze run in parallel: run full
   suites once yourself with `flutter test -j 2`; agents run only their files.
 - When done, install on the iPhone (cable) and summarise what to check.
+- Every UI text in ALL 85 languages at once (see translations workflow).
+- Big system → ask the owner how first. Cheap sub-agents for simple tasks,
+  strong ones for hard tasks, never too weak; verify their work.
+- Commit locally after every finished part and keep this file current so
+  another session/AI can continue. No push / GitHub until the owner says.
 - Every stage: CHANGELOG entry + commit (local branch, no push unless asked).
 
 ## Where things are
@@ -51,8 +56,44 @@ public block + private details for the accepted attorney; removed cover
 picker; themed add tiles; one "ещё" for long titles; new-post Gallery/Camera
 row + topic hint; budget step no jump.
 
+## Done in session 2 (2026-10-18 evening, all committed locally, NOT pushed)
+- Stale prompt explains itself: «Вы давно не заходили в этот кейс — он ещё
+  актуален?», the real dates from the API (`hidesAt`, `archivesAt` on case
+  DTOs; pure `pauseDueAt`/`archiveDueAt` in case-staleness.ts), button
+  explanations, push text «Ваш кейс ещё актуален?».
+- People search across alphabets/spellings/typos/word order: Postgres
+  `f_name_skel` / `f_name_cons` (migration 20261018140000) +
+  `nameMatchSql` (apps/api/src/common/search/name-match.sql.ts); the same
+  rules in the app: apps/mobile/lib/core/text/search_fold.dart
+  (`textMatches`, used by every OptionPickerSheet, state pickers, language
+  picker). Russian state names: `kUsStateAliases` (us_states.dart),
+  `PickerOption.keywords`.
+- Server search: GET /conversations?q (name, @username, case title, message
+  text — NOT encrypted bodies when MESSAGE_ENC_KEYS is set), followers /
+  following ?q, «В работе» by client name (subscribed attorneys only),
+  templates every word. App: search box in chats and follow lists
+  (lib/shared/presentation/list_search_field.dart, flip_search_bar.dart moved
+  to lib/shared/presentation).
+- Post cards: title up to 2 lines; files moved into the «ещё» sheet in every
+  card style (FeedCaption/PostBodyText/PostVideoCaption `forceMore`).
+- Gallery hint «До 9 фото или 1 видео» / «До 9 фото» (video off). Locally
+  video posts ON: feature flag `video_posts` = true in the dev DB,
+  `DEV_FAKE_BUNNY=true` + `DEV_FAKE_BUNNY_HOST=<mac-ip>:4010` in apps/api/.env,
+  run `node apps/api/tools/fake-bunny.mjs` (needs ffmpeg).
+- Translations: all recent texts in all 85 languages. Workflow: add RU/EN in
+  lib/core/l10n/strings, then `node scripts/i18n-add.mjs file.json` (key →
+  {lang: text}) into apps/api/prisma/seed/translations_seed.xlsx, check
+  `node scripts/i18n-audit.mjs` (0 missing), load into the dev DB with
+  `npm run seed:i18n` in apps/api (NOT `npm run seed`: it resets feature
+  flags).
+- Tech debt: practiceMatchesProvider → features/practice/practice_matches.dart
+  (baseline practice 4, profile 20); API module boundaries: cases.public.ts /
+  files.public.ts, baseline refreshed.
+- iPhone: install a RELEASE build (`flutter run --release …`) — a debug build
+  stops working when the cable/session drops.
+
 ## Open / do next (in this order)
-1. Stale banner is confusing (owner didn't understand when/why it appeared).
+1. DONE (session 2). Stale banner is confusing (owner didn't understand when/why it appeared).
    Rework the whole stale UX (case_stale_banner.dart, My cases, owner case,
    notification text): WHY ("Вы давно не заходили в этот кейс — он ещё
    актуален?"), WHEN it hides ("Если не ответите до <date>, кейс скроется из
@@ -62,11 +103,14 @@ row + topic hint; budget step no jump.
 2. APNs key (owner creates at developer.apple.com → Keys → APNs, .p8) →
    admin «Интеграции → Apple Push» or .env APNS_*; test a call with the app
    closed.
-3. Search gaps: chat-list search («Поиск по чатам»), followers/following,
+3. MOSTLY DONE (session 2) — left: stickers search (stickers have no
+   keywords; emoji names in 85 languages = big, ask the owner), notifications
+   search, language names in the app language («английский»), chat message
+   search for encrypted bodies. Search gaps: chat-list search («Поиск по чатам»), followers/following,
    stickers, notifications search; transliteration (Эмили↔Emily) and typos
    for people; Russian state names; client name search in «В работе»; check
    task_pickers.dart, templates_screen.dart, language_picker_sheet.dart.
-4. Tech debt: feature_boundaries_baseline.json was raised (practice 4→5,
+4. DONE (session 2). Tech debt: feature_boundaries_baseline.json was raised (practice 4→5,
    profile 19→21) because practice_options.dart / practices_screen.dart import
    features/search/application/search_providers.dart (practiceMatchesProvider)
    — move it into the practice feature and lower the baseline back.

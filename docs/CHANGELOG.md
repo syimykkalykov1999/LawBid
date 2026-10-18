@@ -5,6 +5,18 @@ All notable changes to this project are documented here, per
 .cursorrules (each stage ends with a CHANGELOG update + commit on
 branch cursor/stage-X-Y-description).
 
+## Search everywhere, files in the «ещё» sheet, all languages (2026-10-18)
+
+Owner: "search must find «Эмили» = Emily, by chats, followers, in every picker; long titles readable; files inside the sheet; every text in all languages".
+
+- People search: `f_name_skel` / `f_name_cons` (migration 20261018140000, trigram expression indexes) — any alphabet, spelling, word order, small typo, sounds-alike consonants; `nameMatchSql` shared by search, chats, follows, «В работе». App mirror `core/text/search_fold.dart` (`textMatches`) with shared vectors.
+- New search: `GET /conversations?q` (+ `matchedMessage` snippet), followers / following `?q`, «В работе» by client name / @username (subscribed attorneys), templates by every word; app search boxes in chats and follow lists; Russian state names in every state picker; language picker matches with typos.
+- Posts: title up to two lines; the post's files are in the «ещё» sheet (all card styles), «ещё» always shown on a post with files.
+- Gallery hint says «До N фото или 1 видео» (photos only while video is off).
+- 103 keys added to translations_seed.xlsx in 85 languages (`scripts/i18n-add.mjs`, `npm run seed:i18n`); i18n audit: 0 missing, 0 placeholder mismatches.
+- API boundaries: `cases/cases.public.ts`, `files/files.public.ts`; baseline refreshed.
+- Tests: e2e owner-people-search, owner-chat-search, owner-follows-search, owner-work-client-search, owner-templates-search; app search_fold_test, chat_search_test, follow_search_test, feed_caption_more_test.
+
 ## Tech debt: topic pickers no longer depend on Search (2026-10-18)
 
 - `practiceMatchesProvider` moved from `features/search/application/search_providers.dart` to `features/practice/practice_matches.dart` (its own `SearchClient.practices` call); `SearchRepository.practices` removed. Practice options, the practices screen, the case wizard, the new-post screen and Search all read it from the practice feature.
