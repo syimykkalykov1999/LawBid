@@ -184,20 +184,92 @@ export class PostPresenter {
       reposts.map((r) => [r.post_id, r._count._all]),
     );
     const reposted = new Set(myReposts.map((r) => r.post_id));
-    // Owner 2026-10-13: files stay after the author's subscription ends
-    // unless the admin switched «keep attachments» off.
+    // Owner 2026-10-18 (speed): the lookups below do not depend on each
+    // other, so they run together (documents; images; avatars; mentions;
+    // reel videos with their covers; practice areas; client badges).
     const docAuthors = new Map(posts.map((p) => [p.id, p.author_id]));
-    const shownAuthors = this.attachmentsPolicy
-      ? await this.attachmentsPolicy.visibleFor(
-          docs.map((d) => docAuthors.get(d.post_id) ?? ''),
-        )
-      : null;
-    const visibleDocs = shownAuthors
-      ? docs.filter((d) => shownAuthors.has(docAuthors.get(d.post_id) ?? ''))
-      : docs;
-    const docUrls = await this.files.postAttachmentUrls(
-      visibleDocs.map((d) => ({ fileId: d.file_id, fileName: d.file_name })),
-    );
+    const authorById = new Map(authors.map((a) => [a.id, a]));
+    const assetIds = posts
+      .map((p) => p.video_asset_id)
+      .filter((x): x is string => !!x);
+    const practiceIds = [
+      ...new Set(
+        posts.map((p) => p.practice_area_id).filter((x): x is string => !!x),
+      ),
+    ];
+    const [
+      { visibleDocs, docUrls },
+      urls,
+      files,
+      mentioned,
+      videos,
+      practiceRows,
+      goldClients,
+    ] = await Promise.all([
+      (async () => {
+        // Owner 2026-10-13: files stay after the author's subscription ends
+        // unless the admin switched «keep attachments» off.
+        const shownAuthors = this.attachmentsPolicy
+          ? await this.attachmentsPolicy.visibleFor(
+              docs.map((d) => docAuthors.get(d.post_id) ?? ''),
+            )
+          : null;
+        const visibleDocs = shownAuthors
+          ? docs.filter((d) =>
+              shownAuthors.has(docAuthors.get(d.post_id) ?? ''),
+            )
+          : docs;
+        const docUrls = await this.files.postAttachmentUrls(
+          visibleDocs.map((d) => ({
+            fileId: d.file_id,
+            fileName: d.file_name,
+          })),
+        );
+        return { visibleDocs, docUrls };
+      })(),
+      this.files.postImageUrls(media.map((m) => m.file_id)),
+      this.files.avatarUrlsMany(authors.map((a) => a.avatar_file_id)),
+      this.mentions.resolve(posts.map((p) => p.body)),
+      (async () => {
+        // Owner 2026-10-01: reels — signed playback for ready videos.
+        const assets = assetIds.length
+          ? await this.prisma.videoAsset.findMany({
+              where: { id: { in: assetIds } },
+            })
+          : [];
+        const videos = await this.videos.present(assets);
+        // Owner 2026-10-15: a cover picked from the gallery is the poster.
+        const coverIds = assets
+          .map((a) => a.cover_file_id)
+          .filter((x): x is string => !!x);
+        if (coverIds.length) {
+          const covers = await this.files.postImageUrls(coverIds);
+          for (const a of assets) {
+            const v = a.cover_file_id ? videos.get(a.id) : undefined;
+            const url = a.cover_file_id
+              ? covers.get(a.cover_file_id)
+              : undefined;
+            if (v && url && v.thumbnailUrl) v.thumbnailUrl = url.mediumUrl;
+          }
+        }
+        return videos;
+      })(),
+      // Owner 2026-09-30: each post's qualification.
+      practiceIds.length
+        ? this.prisma.practiceArea.findMany({
+            where: { id: { in: practiceIds } },
+            select: { id: true, code: true, name_en: true, i18n_key: true },
+          })
+        : Promise.resolve([]),
+      // Owner 2026-10-02: a client's badge is the paid gold one.
+      activeClientBadgeIds(
+        this.prisma,
+        posts
+          .filter((p) => authorById.get(p.author_id)?.role === 'client')
+          .map((p) => p.author_id),
+      ),
+    ]);
+    const practices = new Map(practiceRows.map((a) => [a.id, a]));
     const docsByPost = new Map<string, typeof docs>();
     for (const d of visibleDocs) {
       const list = docsByPost.get(d.post_id) ?? [];
@@ -205,17 +277,12 @@ export class PostPresenter {
       docsByPost.set(d.post_id, list);
     }
     const followed = new Set(follows.map((f) => f.followee_id));
-    const urls = await this.files.postImageUrls(media.map((m) => m.file_id));
-    const files = await this.files.avatarUrlsMany(
-      authors.map((a) => a.avatar_file_id),
-    );
     const avatars = new Map<string, string | null>(
       authors.map((a) => [
         a.id,
         a.avatar_file_id ? (files.get(a.avatar_file_id)?.url256 ?? null) : null,
       ]),
     );
-    const authorById = new Map(authors.map((a) => [a.id, a]));
     const liked = new Set(likes.map((l) => l.post_id));
     const saved = new Set(saves.map((s) => s.item_id));
     const tagsByPost = new Map<string, string[]>();
@@ -231,51 +298,6 @@ export class PostPresenter {
       mediaByPost.set(m.post_id, list);
     }
     const clamp = (n: number) => Math.max(0, n);
-    const mentioned = await this.mentions.resolve(posts.map((p) => p.body));
-    // Owner 2026-10-01: reels — signed playback for ready videos.
-    const assetIds = posts
-      .map((p) => p.video_asset_id)
-      .filter((x): x is string => !!x);
-    const assets = assetIds.length
-      ? await this.prisma.videoAsset.findMany({
-          where: { id: { in: assetIds } },
-        })
-      : [];
-    const videos = await this.videos.present(assets);
-    // Owner 2026-10-15: a cover picked from the gallery is the poster.
-    const coverIds = assets
-      .map((a) => a.cover_file_id)
-      .filter((x): x is string => !!x);
-    if (coverIds.length) {
-      const covers = await this.files.postImageUrls(coverIds);
-      for (const a of assets) {
-        const v = a.cover_file_id ? videos.get(a.id) : undefined;
-        const url = a.cover_file_id ? covers.get(a.cover_file_id) : undefined;
-        if (v && url && v.thumbnailUrl) v.thumbnailUrl = url.mediumUrl;
-      }
-    }
-    // Owner 2026-09-30: each post's qualification.
-    const practiceIds = [
-      ...new Set(
-        posts.map((p) => p.practice_area_id).filter((x): x is string => !!x),
-      ),
-    ];
-    const practices = new Map(
-      (practiceIds.length
-        ? await this.prisma.practiceArea.findMany({
-            where: { id: { in: practiceIds } },
-            select: { id: true, code: true, name_en: true, i18n_key: true },
-          })
-        : []
-      ).map((a) => [a.id, a]),
-    );
-    // Owner 2026-10-02: a client's badge is the paid gold one.
-    const goldClients = await activeClientBadgeIds(
-      this.prisma,
-      posts
-        .filter((p) => authorById.get(p.author_id)?.role === 'client')
-        .map((p) => p.author_id),
-    );
     return posts.map((p) => {
       const area = p.practice_area_id
         ? practices.get(p.practice_area_id)

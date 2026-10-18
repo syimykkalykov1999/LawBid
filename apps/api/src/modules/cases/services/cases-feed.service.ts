@@ -456,18 +456,20 @@ export class CasesFeedService {
       ]);
     const bidCaseIds = new Set(ownBids.map((b) => b.case_id));
     const savedIds = new Set(saved.map((s) => s.item_id));
-    const promotedEnds = await this.activePromotedEnds(ids);
+    // Owner 2026-10-18 (speed): these four reads do not depend on each other.
+    const [promotedEnds, priorityClients, activity, thresholds] =
+      await Promise.all([
+        this.activePromotedEnds(ids),
+        this.priorityClientIds(rows.map((r) => r.client_id)),
+        this.activityOf(
+          attorneyId,
+          rows.map((r) => r.client_id),
+        ),
+        loadUrgencyThresholds(this.settings),
+      ]);
     const promoted = new Set(promotedEnds.keys());
-    const priorityClients = await this.priorityClientIds(
-      rows.map((r) => r.client_id),
-    );
-    const activity = await this.activityOf(
-      attorneyId,
-      rows.map((r) => r.client_id),
-    );
     const byId = new Map(rows.map((r) => [r.id, r]));
     const now = Date.now();
-    const thresholds = await loadUrgencyThresholds(this.settings);
     const items: CaseFeedItemDto[] = [];
     for (const id of ids) {
       const c = byId.get(id);

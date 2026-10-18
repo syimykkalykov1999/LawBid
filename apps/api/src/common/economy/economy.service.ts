@@ -2,7 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
 import { FeatureFlagsService } from '../../modules/feature-flags/services/feature-flags.service';
-import { APP_CONFIG_CACHE_KEY } from '../../modules/feature-flags/services/app-config.service';
+import { dropAppConfigCache } from '../../modules/feature-flags/services/app-config.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { AppSettingsService } from '../app-settings/app-settings.service';
@@ -340,7 +340,7 @@ export class EconomyService {
         });
       }
     }
-    await this.redis.del(APP_CONFIG_CACHE_KEY);
+    await dropAppConfigCache(this.redis);
     await this.ops.setEconomy({
       guard: 'limited',
       since: now.toISOString(),
@@ -383,7 +383,7 @@ export class EconomyService {
           });
         }
       }
-      await this.redis.del(APP_CONFIG_CACHE_KEY);
+      await dropAppConfigCache(this.redis);
     }
     await this.ops.setEconomy({
       guard: 'ok',

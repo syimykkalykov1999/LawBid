@@ -10,7 +10,7 @@ import type Redis from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
 import { withJobLock } from '../../jobs/handlers/job-lock';
 import {
-  APP_CONFIG_CACHE_KEY,
+  dropAppConfigCache,
   AppConfigService,
 } from '../../modules/feature-flags/services/app-config.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -189,7 +189,7 @@ export class CostAutoscaleService
           ...(await this.applyProvider(provider, settings, stored, now)),
         );
       }
-      if (changes.length > 0) await this.redis.del(APP_CONFIG_CACHE_KEY);
+      if (changes.length > 0) await dropAppConfigCache(this.redis);
       return { changes };
     });
   }
@@ -199,12 +199,12 @@ export class CostAutoscaleService
     provider: CostProvider,
     now: Date = new Date(),
   ): Promise<AutoscaleChange[]> {
-    await this.redis.del(APP_CONFIG_CACHE_KEY);
+    await dropAppConfigCache(this.redis);
     await this.snapshotHistory(provider, now);
     if (await this.ops?.isEconomyLimited(now.getTime())) return [];
     const { settings, stored } = await this.readSettings();
     const changes = await this.applyProvider(provider, settings, stored, now);
-    if (changes.length > 0) await this.redis.del(APP_CONFIG_CACHE_KEY);
+    if (changes.length > 0) await dropAppConfigCache(this.redis);
     return changes;
   }
 

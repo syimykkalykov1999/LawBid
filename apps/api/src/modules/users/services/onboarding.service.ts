@@ -67,7 +67,12 @@ export type MissingRequirement =
 
 /** Owner 2026-10-13: a verified phone / e-mail account without a password
  * (the demo world and assistants, who sign in with a code, are exempt). */
-function passwordMissing(user: User): boolean {
+function passwordMissing(
+  user: Pick<
+    User,
+    'password_hash' | 'role' | 'phone_verified_at' | 'email_verified_at'
+  >,
+): boolean {
   if (demoContext.isDemo()) return false;
   if (user.password_hash !== null || user.role === 'assistant') return false;
   return user.phone_verified_at !== null || user.email_verified_at !== null;
@@ -130,34 +135,69 @@ export class OnboardingService {
   ) {}
 
   async getMe(userId: string): Promise<MeView> {
+    // Owner 2026-10-18 (speed): only the columns the response uses.
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      include: { onboarding_state: true },
+      select: {
+        id: true,
+        role: true,
+        status: true,
+        first_name: true,
+        last_name: true,
+        email: true,
+        email_verified_at: true,
+        phone_e164: true,
+        phone_verified_at: true,
+        ui_language: true,
+        theme: true,
+        hide_like_counts: true,
+        avatar_file_id: true,
+        password_hash: true,
+        onboarding_state: true,
+      },
     });
     if (!user) {
       throw new NotFoundException({ code: ErrorCode.NOT_FOUND });
     }
+    // Owner 2026-10-18 (speed): the legal documents are checked once, for
+    // the role's documents plus the document-backed required consents;
+    // both answers (pendingLegalDocuments and requiredConsentsGranted)
+    // are derived from that one result.
+    const roleDocTypes = requiredDocTypes(user.role);
+    const consentDocTypes = REQUIRED_CONSENTS.filter((t) =>
+      DOCUMENT_CONSENTS.has(t),
+    ) as LegalDocType[];
+    const pendingTypes = [
+      ...roleDocTypes,
+      ...consentDocTypes.filter((t) => !roleDocTypes.includes(t)),
+    ];
     const [
-      consentsOk,
+      consentRowsGranted,
       facts,
       avatarUrl,
       avatarClean,
-      pendingLegal,
+      pendingAll,
       emailOn,
       passwordOn,
     ] = await Promise.all([
-      this.requiredConsentsGranted(userId, user.ui_language),
+      this.requiredConsentRowsGranted(userId),
       this.profiles.facts(userId, user.role, user.onboarding_state?.data),
       this.files.mediaUrl(user.avatar_file_id),
       this.files.isCleanAvatar(user.avatar_file_id, userId),
       this.legalAcceptance.pendingFor(
         userId,
-        requiredDocTypes(user.role),
+        pendingTypes,
         docLocaleOf(user.ui_language),
       ),
       emailFlowsOn(this.flags),
       this.flags ? this.flags.isEnabled('password_login', true) : true,
     ]);
+    const pendingLegal = pendingAll.filter((p) =>
+      roleDocTypes.includes(p.docType),
+    );
+    const consentsOk =
+      consentRowsGranted &&
+      !pendingAll.some((p) => consentDocTypes.includes(p.docType));
     // Admin «Вход и письма по почте» (owner 2026-10-07): while it is off a
     // client signs up with a phone only. Turning it on later asks the
     // e-mail only of clients still in onboarding — nobody who already
@@ -413,10 +453,7 @@ export class OnboardingService {
    * flagged `requires_reacceptance` puts `consents` back into `missing`, so the app's guard sends
    * the user to the consents step on the next sign-in.
    */
-  private async requiredConsentsGranted(
-    userId: string,
-    locale = 'en',
-  ): Promise<boolean> {
+  private async requiredConsentRowsGranted(userId: string): Promise<boolean> {
     const rows = await this.prisma.userConsent.findMany({
       where: {
         user_id: userId,
@@ -426,21 +463,13 @@ export class OnboardingService {
       distinct: ['consent_type'],
       select: { consent_type: true, granted: true },
     });
-    const allGranted = REQUIRED_CONSENTS.every(
-      (t) => rows.find((r) => r.consent_type === t)?.granted === true,
-    );
-    if (!allGranted) return false;
     // Owner 2026-10-05: a newer version asks again only when it was
     // published as a material change (requires_reacceptance); a consent
-    // without a document (before versions existed) still counts.
-    const stale = await this.legalAcceptance.pendingFor(
-      userId,
-      REQUIRED_CONSENTS.filter((t) =>
-        DOCUMENT_CONSENTS.has(t),
-      ) as LegalDocType[],
-      docLocaleOf(locale),
+    // without a document (before versions existed) still counts. That
+    // second check is the pending list in getMe.
+    return REQUIRED_CONSENTS.every(
+      (t) => rows.find((r) => r.consent_type === t)?.granted === true,
     );
-    return stale.length === 0;
   }
 }
 

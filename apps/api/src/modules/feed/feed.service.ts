@@ -11,6 +11,7 @@ import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
+import { cachedBlockSet } from '../blocks/block-set.cache';
 import type { PostPage } from '../posts/dto/posts.dto';
 import {
   ContentFilterService,
@@ -556,14 +557,9 @@ export class FeedService implements FeedProvider {
   }
 
   private async blockedAuthors(viewer: RequestUser): Promise<string[]> {
-    const blocks = await this.prisma.userBlock.findMany({
-      where: { OR: [{ blocker_id: viewer.sub }, { blocked_id: viewer.sub }] },
-      select: { blocker_id: true, blocked_id: true },
-      take: 5000,
-    });
-    return blocks.map((b) =>
-      b.blocker_id === viewer.sub ? b.blocked_id : b.blocker_id,
-    );
+    // Owner 2026-10-18 (speed): one cached block set per viewer (see
+    // block-set.cache.ts), not a query up to three times per page.
+    return cachedBlockSet(this.prisma, this.redis, viewer.sub);
   }
 
   private async markSeen(uid: string, ids: string[]): Promise<void> {

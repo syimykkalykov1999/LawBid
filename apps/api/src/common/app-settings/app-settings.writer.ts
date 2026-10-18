@@ -2,7 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import type Redis from 'ioredis';
 import { AuditLogService } from '../../modules/admin-access/audit-log.service';
-import { APP_CONFIG_CACHE_KEY } from '../../modules/feature-flags/services/app-config.service';
+import { dropAppConfigCache } from '../../modules/feature-flags/services/app-config.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
@@ -58,6 +58,6 @@ export class AppSettingsWriter {
         tx,
       );
     });
-    await this.redis.del(APP_CONFIG_CACHE_KEY);
+    await dropAppConfigCache(this.redis);
   }
 }

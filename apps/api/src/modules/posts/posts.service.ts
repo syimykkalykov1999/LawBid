@@ -49,6 +49,9 @@ import {
   legacyTopicTags,
   postPracticeWhere,
 } from './hidden-tags';
+import type Redis from 'ioredis';
+import { REDIS_CLIENT } from '../../redis/redis.constants';
+import { cachedBlockSet } from '../blocks/block-set.cache';
 import { extractHashtags } from './hashtags';
 import { PostAttachmentsPolicy } from './post-attachments.policy';
 import {
@@ -94,6 +97,7 @@ export class PostsService {
     private readonly notifications: NotificationsService,
     private readonly attachmentsPolicy: PostAttachmentsPolicy,
     private readonly settings: AppSettingsService,
+    @Inject(REDIS_CLIENT) private readonly redis: Redis,
     @Optional() private readonly alerts?: SubscriptionAlertsService,
     @Optional() private readonly promoDelivery?: PromotionDeliveryService,
     @Optional() private readonly flags?: FeatureFlagsService,
@@ -712,13 +716,8 @@ export class PostsService {
     const limit = Math.min(query.limit ?? 20, 20);
     const practice = query.practice?.trim().toLowerCase();
     const c = query.cursor ? decodeCursor(query.cursor) : undefined;
-    const blocks = await this.prisma.userBlock.findMany({
-      where: { OR: [{ blocker_id: user.sub }, { blocked_id: user.sub }] },
-      select: { blocker_id: true, blocked_id: true },
-    });
-    const hidden = blocks.map((b) =>
-      b.blocker_id === user.sub ? b.blocked_id : b.blocker_id,
-    );
+    // Owner 2026-10-18 (speed): the cached block set (block-set.cache.ts).
+    const hidden = await cachedBlockSet(this.prisma, this.redis, user.sub);
     const rows = await this.prisma.post.findMany({
       where: {
         AND: [

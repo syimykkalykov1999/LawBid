@@ -106,6 +106,9 @@ export class NotificationsApiService {
    * Owner 2026-10-18: the user's notifications whose stored text (title,
    * body, reason, note) has every typed word, or whose actor — an attorney;
    * a client stays anonymous (§5.2) — matches the typed name.
+   * Owner 2026-10-18 (speed): the actor is joined as a uuid (guarded by a
+   * uuid-shape check) so the users primary key is used, not a text cast
+   * of every user id.
    */
   private async matchingIds(userId: string, q: string): Promise<string[]> {
     const words = typedWords(q);
@@ -116,7 +119,10 @@ export class NotificationsApiService {
       FROM notifications n
       LEFT JOIN users a
         ON a.role::TEXT = 'attorney'
-       AND a.id::TEXT = lower(n.payload->>'actorId')
+       AND a.id = CASE
+             WHEN lower(n.payload->>'actorId') ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+             THEN lower(n.payload->>'actorId')::UUID
+           END
       WHERE n.user_id = ${userId}::UUID
         AND (${allWordsSql(text, words)}
              OR (a.id IS NOT NULL

@@ -91,6 +91,39 @@ export class PostgresSearchProvider implements SearchProvider {
     @Optional() private readonly synonyms?: SearchSynonymsService,
   ) {}
 
+  /** Owner 2026-10-18 (speed): practice area id → its name in every
+   * language, lower-cased, kept in memory for 10 minutes. The "practice by
+   * its name in ANY language" branch of People search used to join all
+   * i18n translations on every query (~16 ms); now it is a JS substring
+   * test and the SQL only reads the matching areas' attorneys. Off under
+   * jest, where specs import translations and search straight away. */
+  private practiceNames: { at: number; byArea: Map<string, string[]> } | null =
+    null;
+
+  private async practiceAreaNames(): Promise<Map<string, string[]>> {
+    const cached = this.practiceNames;
+    if (
+      process.env.NODE_ENV !== 'test' &&
+      cached &&
+      Date.now() - cached.at < 10 * 60_000
+    ) {
+      return cached.byArea;
+    }
+    const rows = await this.prisma.$queryRaw<{ id: string; v: string }[]>`
+      SELECT pa.id::TEXT AS id, lower(tr.value) AS v
+      FROM practice_areas pa
+      JOIN i18n_keys k ON k.key = pa.i18n_key
+      JOIN i18n_translations tr ON tr.key_id = k.id`;
+    const byArea = new Map<string, string[]>();
+    for (const r of rows) {
+      const list = byArea.get(r.id);
+      if (list) list.push(r.v);
+      else byArea.set(r.id, [r.v]);
+    }
+    this.practiceNames = { at: Date.now(), byArea };
+    return byArea;
+  }
+
   /** The admin's ranking weights (defaults when unset). */
   private async weights() {
     const s = this.settings;
@@ -158,6 +191,19 @@ export class PostgresSearchProvider implements SearchProvider {
       ? Prisma.sql`UNION
         (SELECT ap.attorney_id FROM attorney_practice_areas ap
           WHERE ap.practice_area_id = ANY(${synPractices}::UUID[])
+          LIMIT ${BRANCH_CAP})`
+      : Prisma.empty;
+    // Owner 2026-10-13: a practice by its name in ANY language ("развод",
+    // "तलाक"): the translations of its i18n key (matched in memory).
+    const needle = q;
+    const namedPractices: string[] = [];
+    for (const [id, names] of await this.practiceAreaNames()) {
+      if (names.some((n) => n.includes(needle))) namedPractices.push(id);
+    }
+    const byTranslation = namedPractices.length
+      ? Prisma.sql`UNION
+        (SELECT ap.attorney_id FROM attorney_practice_areas ap
+          WHERE ap.practice_area_id = ANY(${namedPractices}::UUID[])
           LIMIT ${BRANCH_CAP})`
       : Prisma.empty;
     const filters = Prisma.sql`
@@ -235,15 +281,7 @@ export class PostgresSearchProvider implements SearchProvider {
           JOIN attorney_practice_areas ap ON ap.practice_area_id = pa.id
           WHERE lower(pa.name_en) LIKE ${contains}
           LIMIT ${BRANCH_CAP})
-        UNION
-        -- Owner 2026-10-13: a practice by its name in ANY language
-        -- ("развод", "तलाक"): the translations of its i18n key.
-        (SELECT ap.attorney_id FROM practice_areas pa
-          JOIN i18n_keys k ON k.key = pa.i18n_key
-          JOIN i18n_translations tr ON tr.key_id = k.id
-          JOIN attorney_practice_areas ap ON ap.practice_area_id = pa.id
-          WHERE lower(tr.value) LIKE ${contains}
-          LIMIT ${BRANCH_CAP})
+        ${byTranslation}
         UNION
         (SELECT l.attorney_id FROM states s
           JOIN attorney_licenses l ON l.state_code = s.code
