@@ -546,7 +546,6 @@ class _CounterSheetState extends State<_CounterSheet> {
                     : widget.bid.feeType == FeeType.hourly
                         ? t.t('cases.counter.amountHourly')
                         : t.t('cases.counter.amount'),
-                hintText: _percent ? '33' : null,
                 leading: Text(
                   _percent ? '%' : r'$',
                   style:

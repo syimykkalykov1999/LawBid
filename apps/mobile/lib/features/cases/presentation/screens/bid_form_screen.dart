@@ -319,7 +319,6 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
                                 ? 'cases.bidForm.rate'
                                 : 'cases.bidForm.amount',
                       ),
-                      hintText: _isPercent ? '33' : null,
                       helperText:
                           _isPercent ? t.t('cases.bidForm.percentHint') : null,
                       leading: Text(

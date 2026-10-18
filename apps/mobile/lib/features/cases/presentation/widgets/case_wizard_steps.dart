@@ -1027,7 +1027,6 @@ class _BudgetStepState extends ConsumerState<BudgetStep> {
                   key: const ValueKey('percent'),
                   controller: _percent,
                   label: t.t('cases.field.budgetPercent'),
-                  hintText: '33',
                   helperText: t.t('cases.create.budget.percentHint'),
                   leading: Text(
                     '%',
@@ -1060,7 +1059,6 @@ class _BudgetStepState extends ConsumerState<BudgetStep> {
                       key: const ValueKey('amount'),
                       controller: _amount,
                       label: t.t('cases.field.budgetAmount'),
-                      hintText: '600',
                       leading: Text(
                         r'$',
                         style: typography.titleMedium

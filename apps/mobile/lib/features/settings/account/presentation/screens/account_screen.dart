@@ -148,9 +148,8 @@ class _AccountBody extends StatelessWidget {
         actionLabel: editable
             ? t.t(verified ? 'account.contact.change' : 'account.contact.add')
             : null,
-        onTap: editable
-            ? () => onContact(type, AccountContactMode.primary)
-            : null,
+        onTap:
+            editable ? () => onContact(type, AccountContactMode.primary) : null,
       );
     }
 

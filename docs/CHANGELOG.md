@@ -5,6 +5,15 @@ All notable changes to this project are documented here, per
 .cursorrules (each stage ends with a CHANGELOG update + commit on
 branch cursor/stage-X-Y-description).
 
+## Voice notes like WhatsApp; no price hints (2026-10-17)
+
+Owner: "the chat exactly like WhatsApp — speed 1×/2×, avatars in voice notes"; "remove 600 and 33, I don't want to suggest prices".
+
+- Voice bubble: the sender's photo (initials without one) with a mic badge — gold until the recipient plays it, blue after (grey on my own unplayed note); while a note plays or is paused midway the photo turns into the speed button (1× → 1.5× → 2×); a round thumb on the waveform; a plain play/pause icon. Incoming: photo on the left, mine: on the right.
+- The chosen speed is remembered (`chat.voice_speed` in shared preferences). When a note ends, the other side's next voice notes in a row play by themselves and are marked played.
+- New golden `test/features/chat/voice_bubble_golden_test.dart` (light/dark, incoming/mine, idle/playing).
+- Case and bid forms no longer show example amounts or percents (`600`, `33`).
+
 ## Percent budgets and bids (2026-10-17)
 
 Owner (OQ-053): clients can look for an attorney "for a percent of the recovery" and attorneys can offer one; LawBid takes nothing from it.

@@ -33,6 +33,7 @@ import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/presentation/attachment_widgets.dart';
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart';
 import 'package:lawbid/features/chat/presentation/voice_widgets.dart';
+import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/plans/presentation/plan_offer.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
@@ -817,6 +818,36 @@ class _Bubble extends ConsumerWidget {
   final bool showSeenLabel;
   final String threadId;
 
+  /// Owner 2026-10-17: a voice note shows its sender's photo (WhatsApp).
+  Widget _voice(WidgetRef ref, ChatMessage m) {
+    String? url;
+    String? name;
+    if (mine) {
+      final me = ref.watch(currentUserControllerProvider).user;
+      url = me?.avatarUrl;
+      name = [me?.firstName, me?.lastName]
+          .whereType<String>()
+          .where((x) => x.trim().isNotEmpty)
+          .join(' ');
+    } else {
+      final c = ref.watch(
+        chatThreadProvider(threadId).select((s) => s.conversation),
+      );
+      final p = c?.counterpart;
+      if (p != null && !p.hidden) {
+        url = p.avatarUrl;
+        name = attorneyName ?? p.displayName ?? p.username;
+      }
+    }
+    return VoiceMessageBody(
+      message: m,
+      mine: mine,
+      threadId: threadId,
+      avatarUrl: url,
+      avatarName: name,
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translatorProvider);
@@ -920,7 +951,7 @@ class _Bubble extends ConsumerWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (m.kind == MessageKind.voice && m.voice != null)
-                  VoiceMessageBody(message: m, mine: mine, threadId: threadId)
+                  _voice(ref, m)
                 else if (m.kind == MessageKind.attachment &&
                     m.attachment != null)
                   AttachmentMessageBody(message: m, mine: mine)
