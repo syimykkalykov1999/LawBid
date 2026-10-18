@@ -93,6 +93,8 @@ void main() {
     required bool pending,
     bool notUrgent = false,
     ThemeData? theme,
+    DateTime? hidesAt,
+    DateTime? archivesAt,
   }) async {
     final repo = FakeCasesRepository();
     final wrap = await onboardingWrapper(
@@ -109,6 +111,8 @@ void main() {
               paused: paused,
               pending: pending,
               canMakeNotUrgent: notUrgent,
+              hidesAt: hidesAt,
+              archivesAt: archivesAt,
             ),
           ),
         ),
@@ -118,11 +122,45 @@ void main() {
     return repo;
   }
 
+  testWidgets('the question says why it appeared and the date it acts',
+      (tester) async {
+    await pumpBanner(
+      tester,
+      paused: false,
+      pending: true,
+      hidesAt: DateTime(2026, 10, 21, 15),
+    );
+    expect(
+      find.textContaining('If you do not answer by Oct 21'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('keep the case in the feed'), findsOneWidget);
+  });
+
+  testWidgets('a paused case says when it moves to the archive',
+      (tester) async {
+    await pumpBanner(
+      tester,
+      paused: true,
+      pending: false,
+      archivesAt: DateTime(2026, 11, 17, 15),
+    );
+    expect(
+      find.textContaining('by Nov 17, it moves to the archive'),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('the question offers three answers; each one is sent',
       (tester) async {
     final repo = await pumpBanner(tester, paused: false, pending: true);
-    expect(find.text('Do you still need an attorney?'), findsOneWidget);
-    expect(find.text('Yes, I do'), findsOneWidget);
+    expect(
+      find.text(
+        'You have not opened this case in a while. Is it still current?',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Yes, still needed'), findsOneWidget);
     expect(find.text('Waiting for better offers'), findsOneWidget);
     expect(find.text('No longer needed'), findsOneWidget);
     // «Не срочно» only when the case is urgent and older than a week.
@@ -166,8 +204,13 @@ void main() {
   testWidgets('a paused case says so and has one «Вернуть» button',
       (tester) async {
     final repo = await pumpBanner(tester, paused: true, pending: false);
-    expect(find.text('Case hidden from the feed'), findsOneWidget);
-    expect(find.text('Yes, I do'), findsNothing);
+    expect(
+      find.text(
+        'Case hidden from the attorneys’ feed — no answer for a while',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Yes, still needed'), findsNothing);
     await tester.tap(find.byKey(const ValueKey('stale-resume')));
     await tester.pumpAndSettle();
     expect(repo.calls, ['resume']);
@@ -239,7 +282,7 @@ void main() {
     await tester.pumpWidget(wrap(const Scaffold(body: ClientMineView())));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('stale-prompt')), findsOneWidget);
-    expect(find.text('Yes, I do'), findsOneWidget);
+    expect(find.text('Yes, still needed'), findsOneWidget);
   });
 
   group('the attorney card line', () {
@@ -334,7 +377,7 @@ void main() {
             createdAt: DateTime(2026, 10, 18),
           ),
         );
-    expect(text(1), contains('1 of your cases awaits'));
-    expect(text(2), contains('2 of your cases await'));
+    expect(text(1), contains('You have not opened 1 case'));
+    expect(text(2), contains('You have not opened 2 cases'));
   });
 }

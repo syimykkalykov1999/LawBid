@@ -24,7 +24,14 @@ import { BidStateMachine } from '../bids/domain/bid-state-machine';
 import { NotificationsService } from '../notifications/notifications.service';
 import { OnboardingService } from '../users/services/onboarding.service';
 import { CaseStateMachine, caseNotFound } from './domain/case-state-machine';
-import { canMakeNotUrgent } from './domain/case-staleness';
+import {
+  DEFAULT_STALE_TIMERS,
+  archiveDueAt,
+  canMakeNotUrgent,
+  loadStaleTimers,
+  pauseDueAt,
+  type StaleTimers,
+} from './domain/case-staleness';
 import {
   DEFAULT_URGENCY_THRESHOLDS,
   hasUrgencyInput,
@@ -213,6 +220,7 @@ export function urgencyDiff(
 function toCaseDto(
   kase: CaseWithDetails,
   t: UrgencyThresholds = DEFAULT_URGENCY_THRESHOLDS,
+  stale: StaleTimers = DEFAULT_STALE_TIMERS,
 ): CaseDto {
   return {
     id: kase.id,
@@ -256,30 +264,58 @@ function toCaseDto(
     closedAt: kase.closed_at?.toISOString() ?? null,
     deletedAt: kase.deleted_at?.toISOString() ?? null,
     stalePromptSentAt: kase.stale_prompt_sent_at?.toISOString() ?? null,
-    ...stillNeededFields(kase),
+    ...stillNeededFields(kase, stale),
   };
 }
 
-/** OQ-054: what the client's screens need to draw the question / pause. */
-function stillNeededFields(kase: Case): {
+/** OQ-054: what the client's screens need to draw the question / pause —
+ * including the dates: when an unanswered question hides the case, and
+ * when a paused case goes to the archive. */
+function stillNeededFields(
+  kase: Case,
+  timers: StaleTimers,
+): {
   pausedAt: string | null;
   stillNeededPending: boolean;
   canMakeNotUrgent: boolean;
+  hidesAt: string | null;
+  archivesAt: string | null;
 } {
   const open = kase.status === 'open';
+  // The question waits for an answer (a paused case shows «Вернуть»).
+  const pending = open && !kase.paused_at && kase.stale_prompt_sent_at !== null;
+  const facts = {
+    urgency: kase.urgency,
+    deadlineAt: kase.deadline_at,
+    clientActiveAt: kase.client_active_at,
+    promptSentAt: kase.stale_prompt_sent_at,
+    pausedAt: kase.paused_at,
+  };
   return {
     pausedAt: kase.paused_at?.toISOString() ?? null,
-    // The question waits for an answer (a paused case shows «Вернуть»).
-    stillNeededPending:
-      open && !kase.paused_at && kase.stale_prompt_sent_at !== null,
+    stillNeededPending: pending,
     canMakeNotUrgent:
       open && canMakeNotUrgent(kase.urgency, kase.created_at, new Date()),
+    // The prompt is shown even when the client acted after it (the flag
+    // above); the date then counts from the question itself.
+    hidesAt:
+      pending && kase.stale_prompt_sent_at
+        ? (pauseDueAt(
+            { ...facts, clientActiveAt: kase.stale_prompt_sent_at },
+            timers,
+          )?.toISOString() ?? null)
+        : null,
+    archivesAt:
+      open && kase.paused_at
+        ? (archiveDueAt(facts, timers)?.toISOString() ?? null)
+        : null,
   };
 }
 
 function toSummaryDto(
   kase: CaseWithPracticeAndStates,
   t: UrgencyThresholds = DEFAULT_URGENCY_THRESHOLDS,
+  stale: StaleTimers = DEFAULT_STALE_TIMERS,
 ): CaseSummaryDto {
   return {
     id: kase.id,
@@ -303,7 +339,7 @@ function toSummaryDto(
     bidsCount: kase.bids_count,
     createdAt: kase.created_at.toISOString(),
     lastActivityAt: kase.last_activity_at.toISOString(),
-    ...stillNeededFields(kase),
+    ...stillNeededFields(kase, stale),
   };
 }
 
@@ -478,6 +514,7 @@ export class CasesService {
         states: statesRows(states),
       },
       await this.thresholds(),
+      await this.staleTimers(),
     );
   }
 
@@ -775,6 +812,7 @@ export class CasesService {
         states: finalStates,
       },
       await this.thresholds(),
+      await this.staleTimers(),
     );
   }
 
@@ -1063,9 +1101,10 @@ export class CasesService {
       user.sub,
     );
     const t = await this.thresholds();
+    const stale = await this.staleTimers();
     return {
       items: page.map((k) => ({
-        ...toSummaryDto(k, t),
+        ...toSummaryDto(k, t, stale),
         coverUrl: covers.get(k.id) ?? null,
       })),
       nextCursor:
@@ -1252,12 +1291,18 @@ export class CasesService {
         states,
       },
       await this.thresholds(),
+      await this.staleTimers(),
     );
   }
 
   /** Owner 2026-10-05: the admin's urgency thresholds (days left). */
   thresholds(): Promise<UrgencyThresholds> {
     return loadUrgencyThresholds(this.settings);
+  }
+
+  /** OQ-054: the admin's stale-case timers (for the dates on the prompt). */
+  staleTimers(): Promise<StaleTimers> {
+    return loadStaleTimers(this.settings);
   }
 
   /** Shared body of close/delete: the state transition plus auto-rejecting

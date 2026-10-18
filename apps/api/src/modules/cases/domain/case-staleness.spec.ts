@@ -1,5 +1,6 @@
 import { fillTemplate } from '../../notifications/push/notification-templates';
 import {
+  archiveDueAt,
   askDueAt,
   bidWindowStart,
   canMakeNotUrgent,
@@ -7,6 +8,7 @@ import {
   DEFAULT_STALE_TIMERS,
   isClientDaytime,
   loadStaleTimers,
+  pauseDueAt,
   shouldArchive,
   shouldAsk,
   shouldPause,
@@ -209,6 +211,48 @@ describe('stale case timers (OQ-054)', () => {
     await expect(loadStaleTimers(null)).resolves.toEqual(T);
     const broken = { number: jest.fn(() => Promise.reject(new Error('x'))) };
     await expect(loadStaleTimers(broken as never)).resolves.toEqual(T);
+  });
+});
+
+describe('the dates shown on the prompt (OQ-054)', () => {
+  it('an urgent question hides the case 2 days after it was sent', () => {
+    const sent = ago(1);
+    const f = facts({
+      urgency: 'urgent',
+      clientActiveAt: ago(5),
+      promptSentAt: sent,
+    });
+    expect(pauseDueAt(f, T)?.getTime()).toBe(sent.getTime() + 2 * DAY_MS);
+  });
+  it('no question out or already paused: no date', () => {
+    expect(pauseDueAt(facts(), T)).toBeNull();
+    expect(
+      pauseDueAt(
+        facts({
+          promptSentAt: ago(1),
+          clientActiveAt: ago(3),
+          pausedAt: ago(0),
+        }),
+        T,
+      ),
+    ).toBeNull();
+  });
+  it('a date case waits at least a day after the question', () => {
+    const sent = ago(0);
+    const f = facts({
+      urgency: 'by_date',
+      deadlineAt: ago(10),
+      clientActiveAt: ago(20),
+      promptSentAt: sent,
+    });
+    expect(pauseDueAt(f, T)?.getTime()).toBe(sent.getTime() + DAY_MS);
+  });
+  it('a paused case is archived 30 days later', () => {
+    const p = ago(2);
+    expect(archiveDueAt({ pausedAt: p }, T)?.getTime()).toBe(
+      p.getTime() + 30 * DAY_MS,
+    );
+    expect(archiveDueAt({ pausedAt: null }, T)).toBeNull();
   });
 });
 

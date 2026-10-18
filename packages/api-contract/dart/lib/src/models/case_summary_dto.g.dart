@@ -41,6 +41,8 @@ CaseSummaryDto _$CaseSummaryDtoFromJson(Map<String, dynamic> json) =>
           ? null
           : CaseDeadlineKind.fromJson(json['deadlineKind'] as String),
       pausedAt: json['pausedAt'] as String?,
+      hidesAt: json['hidesAt'] as String?,
+      archivesAt: json['archivesAt'] as String?,
     );
 
 Map<String, dynamic> _$CaseSummaryDtoToJson(CaseSummaryDto instance) =>
@@ -68,4 +70,6 @@ Map<String, dynamic> _$CaseSummaryDtoToJson(CaseSummaryDto instance) =>
       'pausedAt': ?instance.pausedAt,
       'stillNeededPending': instance.stillNeededPending,
       'canMakeNotUrgent': instance.canMakeNotUrgent,
+      'hidesAt': ?instance.hidesAt,
+      'archivesAt': ?instance.archivesAt,
     };

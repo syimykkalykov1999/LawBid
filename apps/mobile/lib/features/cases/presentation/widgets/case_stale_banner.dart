@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
+import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
@@ -17,6 +18,8 @@ class CaseStaleBanner extends ConsumerStatefulWidget {
     required this.paused,
     required this.pending,
     this.canMakeNotUrgent = false,
+    this.hidesAt,
+    this.archivesAt,
     super.key,
   });
 
@@ -26,6 +29,12 @@ class CaseStaleBanner extends ConsumerStatefulWidget {
 
   /// «Сменить на «Не срочно»» is offered (urgent, older than 7 days).
   final bool canMakeNotUrgent;
+
+  /// When the unanswered question hides the case (the server's date).
+  final DateTime? hidesAt;
+
+  /// When the paused case moves to the archive.
+  final DateTime? archivesAt;
 
   /// Whether this case needs a banner at all.
   static bool needed({required bool paused, required bool pending}) =>
@@ -81,9 +90,21 @@ class _CaseStaleBannerState extends ConsumerState<CaseStaleBanner> {
   @override
   Widget build(BuildContext context) {
     final t = ref.watch(translatorProvider);
+    final formats = ref.watch(l10nFormatsProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final paused = widget.paused;
+    final hidesAt = widget.hidesAt;
+    final archivesAt = widget.archivesAt;
+    // WHY it appeared and WHEN it acts — with the server's real dates.
+    final hint = hidesAt == null
+        ? t.t('cases.stale.hint')
+        : t.t('cases.stale.hintDate', {'date': formats.dayMonth(hidesAt)});
+    final pausedHint = archivesAt == null
+        ? t.t('cases.stale.pausedHint')
+        : t.t('cases.stale.pausedHintDate', {
+            'date': formats.dayMonth(archivesAt),
+          });
     return Semantics(
       container: true,
       child: Container(
@@ -119,26 +140,33 @@ class _CaseStaleBannerState extends ConsumerState<CaseStaleBanner> {
                     ),
                   ),
                 ),
-                if (paused)
-                  _StaleButton(
-                    key: const ValueKey('stale-resume'),
-                    label: t.t('cases.stale.resume'),
-                    emphasized: true,
-                    onTap: _busy
-                        ? null
-                        : () => _run(
-                              () => ref
-                                  .read(caseActionsProvider)
-                                  .resume(widget.caseId),
-                              'cases.stale.resumed',
-                            ),
-                  ),
               ],
             ),
+            if (paused) ...[
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                pausedHint,
+                style: typography.caption.copyWith(color: colors.textSecondary),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              _StaleButton(
+                key: const ValueKey('stale-resume'),
+                label: t.t('cases.stale.resume'),
+                emphasized: true,
+                onTap: _busy
+                    ? null
+                    : () => _run(
+                          () => ref
+                              .read(caseActionsProvider)
+                              .resume(widget.caseId),
+                          'cases.stale.resumed',
+                        ),
+              ),
+            ],
             if (!paused) ...[
               const SizedBox(height: AppSpacing.xs),
               Text(
-                t.t('cases.stale.hint'),
+                hint,
                 style: typography.caption.copyWith(color: colors.textSecondary),
               ),
               const SizedBox(height: AppSpacing.md),
@@ -184,6 +212,11 @@ class _CaseStaleBannerState extends ConsumerState<CaseStaleBanner> {
                               ),
                     ),
                 ],
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                t.t('cases.stale.answersHint'),
+                style: typography.caption.copyWith(color: colors.textSecondary),
               ),
             ],
           ],

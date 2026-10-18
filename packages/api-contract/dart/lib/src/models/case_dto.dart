@@ -17,7 +17,7 @@ part 'case_dto.g.dart';
 @JsonSerializable()
 class CaseDto {
   const CaseDto({
-    required this.id,
+    required this.lastActivityAt,
     required this.title,
     required this.description,
     required this.privateDetails,
@@ -26,21 +26,19 @@ class CaseDto {
     required this.primaryStateCode,
     required this.states,
     required this.budgetMode,
-    required this.status,
-    required this.viewCount,
-    required this.bidsCount,
-    required this.createdAt,
-    required this.lastActivityAt,
+    required this.id,
     required this.stillNeededPending,
     required this.canMakeNotUrgent,
-    this.city,
-    this.budgetCents,
+    required this.createdAt,
+    required this.bidsCount,
+    required this.viewCount,
+    required this.status,
     this.budgetPercentBps,
-    this.coverKey,
-    this.urgency,
-    this.urgencyLevel,
     this.deadlineAt,
-    this.deadlineKind,
+    this.urgencyLevel,
+    this.urgency,
+    this.coverKey,
+    this.archivesAt,
     this.archivedAt,
     this.clientCompletedAt,
     this.attorneyConfirmedAt,
@@ -49,6 +47,10 @@ class CaseDto {
     this.deletedAt,
     this.stalePromptSentAt,
     this.pausedAt,
+    this.budgetCents,
+    this.city,
+    this.hidesAt,
+    this.deadlineKind,
   });
 
   factory CaseDto.fromJson(Map<String, Object?> json) =>
@@ -115,6 +117,13 @@ class CaseDto {
   /// OQ-054: «Сменить на «Не срочно»» is offered (urgent / very urgent.
   /// and older than 7 days).
   final bool canMakeNotUrgent;
+
+  /// OQ-054: when the unanswered question hides the case from the.
+  /// attorneys' feed (null = no question waiting).
+  final String? hidesAt;
+
+  /// OQ-054: when a paused case moves to the archive (null = not paused).
+  final String? archivesAt;
 
   Map<String, Object?> toJson() => _$CaseDtoToJson(this);
 }

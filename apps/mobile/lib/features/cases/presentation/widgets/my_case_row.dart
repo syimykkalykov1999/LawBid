@@ -117,6 +117,8 @@ class MyCaseRow extends ConsumerWidget {
                   paused: c.paused,
                   pending: c.stillNeededPending,
                   canMakeNotUrgent: c.canMakeNotUrgent,
+                  hidesAt: c.hidesAt,
+                  archivesAt: c.archivesAt,
                 ),
               ),
             ],

@@ -185,6 +185,24 @@ export function bidWindowStart(
   return new Date(now.getTime() - days * DAY_MS);
 }
 
+/** When an outstanding question pauses the case if nobody answers (null =
+ * no question out, or already paused). The client's screens show this date:
+ * «Если не ответите до …, кейс скроется из ленты адвокатов». */
+export function pauseDueAt(f: StaleFacts, timers: StaleTimers): Date | null {
+  if (f.pausedAt || !questionOutstanding(f) || !f.promptSentAt) return null;
+  const kind = staleKind(f.urgency, f.deadlineAt);
+  const days = timers.pauseDays[kind];
+  if (kind === 'by_date' && f.deadlineAt) {
+    return new Date(
+      Math.max(
+        f.deadlineAt.getTime() + days * DAY_MS,
+        f.promptSentAt.getTime() + MIN_GRACE_AFTER_QUESTION_MS,
+      ),
+    );
+  }
+  return new Date(f.promptSentAt.getTime() + days * DAY_MS);
+}
+
 /** Pause now? A question is out, nothing happened since, and the grace
  * has run out. */
 export function shouldPause(
@@ -192,19 +210,18 @@ export function shouldPause(
   timers: StaleTimers,
   now: Date,
 ): boolean {
-  if (f.pausedAt || !questionOutstanding(f) || !f.promptSentAt) return false;
-  const kind = staleKind(f.urgency, f.deadlineAt);
-  const days = timers.pauseDays[kind];
-  let at: number;
-  if (kind === 'by_date' && f.deadlineAt) {
-    at = Math.max(
-      f.deadlineAt.getTime() + days * DAY_MS,
-      f.promptSentAt.getTime() + MIN_GRACE_AFTER_QUESTION_MS,
-    );
-  } else {
-    at = f.promptSentAt.getTime() + days * DAY_MS;
-  }
-  return now.getTime() >= at;
+  const at = pauseDueAt(f, timers);
+  return at !== null && now.getTime() >= at.getTime();
+}
+
+/** When a paused case is archived (null = not paused). */
+export function archiveDueAt(
+  f: Pick<StaleFacts, 'pausedAt'>,
+  timers: StaleTimers,
+): Date | null {
+  return f.pausedAt
+    ? new Date(f.pausedAt.getTime() + timers.archiveAfterPauseDays * DAY_MS)
+    : null;
 }
 
 /** Archive a paused case now? */

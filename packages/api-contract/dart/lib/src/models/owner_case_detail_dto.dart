@@ -19,7 +19,7 @@ part 'owner_case_detail_dto.g.dart';
 @JsonSerializable()
 class OwnerCaseDetailDto {
   const OwnerCaseDetailDto({
-    required this.status,
+    required this.viewCount,
     required this.title,
     required this.description,
     required this.privateDetails,
@@ -29,31 +29,33 @@ class OwnerCaseDetailDto {
     required this.states,
     required this.budgetMode,
     required this.id,
-    required this.stillNeededPending,
     required this.photos,
-    required this.canMakeNotUrgent,
     required this.lastActivityAt,
+    required this.canMakeNotUrgent,
     required this.createdAt,
     required this.bidsCount,
-    required this.viewCount,
-    this.coverKey,
+    required this.stillNeededPending,
+    required this.status,
     this.deadlineKind,
     this.deadlineAt,
     this.urgencyLevel,
     this.urgency,
     this.budgetPercentBps,
+    this.archivedAt,
     this.clientCompletedAt,
-    this.attorneyConfirmedAt,
+    this.budgetCents,
     this.autoCloseAt,
     this.closedAt,
     this.deletedAt,
     this.stalePromptSentAt,
     this.pausedAt,
-    this.budgetCents,
+    this.attorneyConfirmedAt,
     this.city,
+    this.hidesAt,
+    this.archivesAt,
     this.acceptedBid,
     this.conversationId,
-    this.archivedAt,
+    this.coverKey,
   });
 
   factory OwnerCaseDetailDto.fromJson(Map<String, Object?> json) =>
@@ -120,6 +122,13 @@ class OwnerCaseDetailDto {
   /// OQ-054: «Сменить на «Не срочно»» is offered (urgent / very urgent.
   /// and older than 7 days).
   final bool canMakeNotUrgent;
+
+  /// OQ-054: when the unanswered question hides the case from the.
+  /// attorneys' feed (null = no question waiting).
+  final String? hidesAt;
+
+  /// OQ-054: when a paused case moves to the archive (null = not paused).
+  final String? archivesAt;
   final CaseBidItemDto? acceptedBid;
 
   /// Chat with the accepted attorney (docs/05).

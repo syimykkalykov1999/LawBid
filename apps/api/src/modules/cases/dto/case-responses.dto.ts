@@ -195,6 +195,15 @@ export class CaseDto {
    * and older than 7 days). */
   @ApiProperty()
   canMakeNotUrgent!: boolean;
+
+  /** OQ-054: when the unanswered question hides the case from the
+   * attorneys' feed (null = no question waiting). */
+  @ApiPropertyOptional({ type: String, nullable: true })
+  hidesAt!: string | null;
+
+  /** OQ-054: when a paused case moves to the archive (null = not paused). */
+  @ApiPropertyOptional({ type: String, nullable: true })
+  archivesAt!: string | null;
 }
 
 /** One card of GET /users/me/cases (docs/04 §11.1). */
@@ -300,6 +309,15 @@ export class CaseSummaryDto {
 
   @ApiProperty()
   canMakeNotUrgent!: boolean;
+
+  /** OQ-054: when the unanswered question hides the case from the
+   * attorneys' feed (null = no question waiting). */
+  @ApiPropertyOptional({ type: String, nullable: true })
+  hidesAt!: string | null;
+
+  /** OQ-054: when a paused case moves to the archive (null = not paused). */
+  @ApiPropertyOptional({ type: String, nullable: true })
+  archivesAt!: string | null;
 }
 
 export interface CasePage {

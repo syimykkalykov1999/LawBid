@@ -39,6 +39,8 @@ class CaseSummaryDto {
     this.deadlineAt,
     this.deadlineKind,
     this.pausedAt,
+    this.hidesAt,
+    this.archivesAt,
   });
 
   factory CaseSummaryDto.fromJson(Map<String, Object?> json) =>
@@ -89,6 +91,13 @@ class CaseSummaryDto {
   final String? pausedAt;
   final bool stillNeededPending;
   final bool canMakeNotUrgent;
+
+  /// OQ-054: when the unanswered question hides the case from the.
+  /// attorneys' feed (null = no question waiting).
+  final String? hidesAt;
+
+  /// OQ-054: when a paused case moves to the archive (null = not paused).
+  final String? archivesAt;
 
   Map<String, Object?> toJson() => _$CaseSummaryDtoToJson(this);
 }

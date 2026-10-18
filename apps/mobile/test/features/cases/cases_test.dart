@@ -437,11 +437,11 @@ void main() {
       await tester.pumpWidget(wrap(const OwnerCaseScreen(caseId: 'case-1')));
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('stale-prompt')), findsOneWidget);
-      // OQ-054: «Вам ещё нужен адвокат?» with «Да, нужен» among the answers.
+      // OQ-054: «Кейс ещё актуален?» with «Да, ещё нужен» among the answers.
       await tester.tap(
         find.descendant(
           of: find.byKey(const ValueKey('stale-prompt')),
-          matching: find.text('Yes, I do'),
+          matching: find.text('Yes, still needed'),
         ),
       );
       await tester.pumpAndSettle();

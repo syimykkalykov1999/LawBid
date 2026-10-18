@@ -8,7 +8,7 @@ part of 'owner_case_detail_dto.dart';
 
 OwnerCaseDetailDto _$OwnerCaseDetailDtoFromJson(Map<String, dynamic> json) =>
     OwnerCaseDetailDto(
-      status: CaseStatus.fromJson(json['status'] as String),
+      viewCount: (json['viewCount'] as num).toInt(),
       title: json['title'] as String,
       description: json['description'] as String,
       privateDetails: json['privateDetails'] as String?,
@@ -24,16 +24,15 @@ OwnerCaseDetailDto _$OwnerCaseDetailDtoFromJson(Map<String, dynamic> json) =>
           .toList(),
       budgetMode: BudgetMode.fromJson(json['budgetMode'] as String),
       id: json['id'] as String,
-      stillNeededPending: json['stillNeededPending'] as bool,
       photos: (json['photos'] as List<dynamic>)
           .map((e) => CasePhotoDto.fromJson(e as Map<String, dynamic>))
           .toList(),
-      canMakeNotUrgent: json['canMakeNotUrgent'] as bool,
       lastActivityAt: json['lastActivityAt'] as String,
+      canMakeNotUrgent: json['canMakeNotUrgent'] as bool,
       createdAt: json['createdAt'] as String,
       bidsCount: (json['bidsCount'] as num).toInt(),
-      viewCount: (json['viewCount'] as num).toInt(),
-      coverKey: json['coverKey'] as String?,
+      stillNeededPending: json['stillNeededPending'] as bool,
+      status: CaseStatus.fromJson(json['status'] as String),
       deadlineKind: json['deadlineKind'] == null
           ? null
           : CaseDeadlineKind.fromJson(json['deadlineKind'] as String),
@@ -47,22 +46,25 @@ OwnerCaseDetailDto _$OwnerCaseDetailDtoFromJson(Map<String, dynamic> json) =>
           ? null
           : CaseUrgency.fromJson(json['urgency'] as String),
       budgetPercentBps: (json['budgetPercentBps'] as num?)?.toInt(),
+      archivedAt: json['archivedAt'] as String?,
       clientCompletedAt: json['clientCompletedAt'] as String?,
-      attorneyConfirmedAt: json['attorneyConfirmedAt'] as String?,
+      budgetCents: (json['budgetCents'] as num?)?.toInt(),
       autoCloseAt: json['autoCloseAt'] as String?,
       closedAt: json['closedAt'] as String?,
       deletedAt: json['deletedAt'] as String?,
       stalePromptSentAt: json['stalePromptSentAt'] as String?,
       pausedAt: json['pausedAt'] as String?,
-      budgetCents: (json['budgetCents'] as num?)?.toInt(),
+      attorneyConfirmedAt: json['attorneyConfirmedAt'] as String?,
       city: json['city'] as String?,
+      hidesAt: json['hidesAt'] as String?,
+      archivesAt: json['archivesAt'] as String?,
       acceptedBid: json['acceptedBid'] == null
           ? null
           : CaseBidItemDto.fromJson(
               json['acceptedBid'] as Map<String, dynamic>,
             ),
       conversationId: json['conversationId'] as String?,
-      archivedAt: json['archivedAt'] as String?,
+      coverKey: json['coverKey'] as String?,
     );
 
 Map<String, dynamic> _$OwnerCaseDetailDtoToJson(OwnerCaseDetailDto instance) =>
@@ -101,6 +103,8 @@ Map<String, dynamic> _$OwnerCaseDetailDtoToJson(OwnerCaseDetailDto instance) =>
       'pausedAt': ?instance.pausedAt,
       'stillNeededPending': instance.stillNeededPending,
       'canMakeNotUrgent': instance.canMakeNotUrgent,
+      'hidesAt': ?instance.hidesAt,
+      'archivesAt': ?instance.archivesAt,
       'acceptedBid': ?instance.acceptedBid?.toJson(),
       'conversationId': ?instance.conversationId,
       'photos': instance.photos.map((e) => e.toJson()).toList(),

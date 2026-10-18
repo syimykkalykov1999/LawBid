@@ -55,6 +55,8 @@ abstract final class CasesMappers {
         pausedAt: _dateOrNull(c.pausedAt),
         stillNeededPending: c.stillNeededPending,
         canMakeNotUrgent: c.canMakeNotUrgent,
+        hidesAt: _dateOrNull(c.hidesAt),
+        archivesAt: _dateOrNull(c.archivesAt),
       );
 
   static OwnerCase ownerCase(api.OwnerCaseDetailDto c) => OwnerCase(
@@ -100,6 +102,8 @@ abstract final class CasesMappers {
         pausedAt: _dateOrNull(c.pausedAt),
         stillNeededPending: c.stillNeededPending,
         canMakeNotUrgent: c.canMakeNotUrgent,
+        hidesAt: _dateOrNull(c.hidesAt),
+        archivesAt: _dateOrNull(c.archivesAt),
       );
 
   static CasePhoto casePhoto(api.CasePhotoDto p) => CasePhoto(

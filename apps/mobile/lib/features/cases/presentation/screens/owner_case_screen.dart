@@ -626,6 +626,8 @@ class _OwnerOpenCaseState extends ConsumerState<_OwnerOpenCase> {
                       paused: c.paused,
                       pending: c.stillNeededPending,
                       canMakeNotUrgent: c.canMakeNotUrgent,
+                      hidesAt: c.hidesAt,
+                      archivesAt: c.archivesAt,
                     ),
                   ],
                   // Owner 2026-10-05: attorneys the client offered the case to.

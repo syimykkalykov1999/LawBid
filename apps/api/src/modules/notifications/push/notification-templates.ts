@@ -157,12 +157,12 @@ export const NOTIFICATION_TEMPLATES: Partial<
   case_still_needed: {
     group: 'cases',
     en: {
-      title: 'Do you still need an attorney?',
-      body: 'Waiting for your answer: {count|case|cases}. Open and answer in one tap.',
+      title: 'Is your case still current?',
+      body: 'You have not opened {count|case|cases} in a while. Answer in one tap, or it is hidden from the attorneys’ feed.',
     },
     ru: {
-      title: 'Вам ещё нужен адвокат?',
-      body: 'Ждут ответа: {count|кейс|кейса|кейсов}. Откройте и ответьте в одно касание.',
+      title: 'Ваш кейс ещё актуален?',
+      body: 'Вы давно не заходили: {count|кейс|кейса|кейсов}. Ответьте в одно касание, иначе кейс скроется из ленты адвокатов.',
     },
   },
   case_stale_prompt: {

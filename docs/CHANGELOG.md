@@ -5,6 +5,15 @@ All notable changes to this project are documented here, per
 .cursorrules (each stage ends with a CHANGELOG update + commit on
 branch cursor/stage-X-Y-description).
 
+## Stale-case prompt explains itself (2026-10-18, OQ-054 follow-up)
+
+Owner: "I did not understand why «Вам ещё нужен адвокат?» appeared and when the case disappears".
+
+- The card now says WHY and WHEN: «Вы давно не заходили в этот кейс — он ещё актуален?», "we ask so attorneys do not waste time on outdated cases; if you do not answer by <date> the case is hidden from the attorneys' feed; nothing is deleted". Buttons «Да, ещё нужен» · «Жду предложений получше» · «Уже не нужен» with a line under them on what each does. Paused: «Кейс скрыт из ленты адвокатов — вы давно не отвечали», what that means, «Вернуть в ленту» and the archive date.
+- API: case DTOs carry `hidesAt` (when the unanswered question pauses the case — the admin's timers) and `archivesAt` (when a paused case is archived). Pure `pauseDueAt` / `archiveDueAt` in `case-staleness.ts` (shouldPause uses the first). Contract regenerated.
+- Push / in-app texts: «Ваш кейс ещё актуален?» — "you have not opened it in a while; answer in one tap, or it is hidden from the attorneys' feed".
+- Tests: `case-staleness.spec.ts` (dates), `stale_case_test.dart` (date lines, archive date, new texts).
+
 ## Stale cases leave the attorney feed, without nagging clients (2026-10-18, OQ-054)
 
 Owner: "old and abandoned cases must stop cluttering the feed; do not pester the client".

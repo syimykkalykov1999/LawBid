@@ -119,6 +119,8 @@ class CaseSummary {
     this.pausedAt,
     this.stillNeededPending = false,
     this.canMakeNotUrgent = false,
+    this.hidesAt,
+    this.archivesAt,
   });
 
   /// OQ-054: the case is hidden from the attorneys' feed («На паузе»).
@@ -130,6 +132,12 @@ class CaseSummary {
 
   /// OQ-054: «Сменить на «Не срочно»» is offered.
   final bool canMakeNotUrgent;
+
+  /// OQ-054: when the unanswered question hides the case from the feed.
+  final DateTime? hidesAt;
+
+  /// OQ-054: when a paused case moves to the archive.
+  final DateTime? archivesAt;
 
   /// Owner 2026-10-15: topics besides the first — «+N» on the card.
   final int extraPracticeCount;
@@ -218,6 +226,8 @@ class OwnerCase {
     this.pausedAt,
     this.stillNeededPending = false,
     this.canMakeNotUrgent = false,
+    this.hidesAt,
+    this.archivesAt,
   });
 
   /// Owner 2026-10-18: the client's private details (null = none).
@@ -233,6 +243,12 @@ class OwnerCase {
 
   /// OQ-054: «Сменить на «Не срочно»» is offered (urgent, older than 7 days).
   final bool canMakeNotUrgent;
+
+  /// OQ-054: when the unanswered question hides the case from the feed.
+  final DateTime? hidesAt;
+
+  /// OQ-054: when a paused case moves to the archive.
+  final DateTime? archivesAt;
 
   /// Owner 2026-10-15: topics 2..N of the case (the first is [practice]).
   final List<PracticeRef> extraPractices;

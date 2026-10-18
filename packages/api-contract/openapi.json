@@ -99004,6 +99004,16 @@
           "canMakeNotUrgent": {
             "type": "boolean",
             "description": "OQ-054: «Сменить на «Не срочно»» is offered (urgent / very urgent\nand older than 7 days)."
+          },
+          "hidesAt": {
+            "type": "string",
+            "nullable": true,
+            "description": "OQ-054: when the unanswered question hides the case from the\nattorneys' feed (null = no question waiting)."
+          },
+          "archivesAt": {
+            "type": "string",
+            "nullable": true,
+            "description": "OQ-054: when a paused case moves to the archive (null = not paused)."
           }
         },
         "required": [
@@ -99477,6 +99487,16 @@
           },
           "canMakeNotUrgent": {
             "type": "boolean"
+          },
+          "hidesAt": {
+            "type": "string",
+            "nullable": true,
+            "description": "OQ-054: when the unanswered question hides the case from the\nattorneys' feed (null = no question waiting)."
+          },
+          "archivesAt": {
+            "type": "string",
+            "nullable": true,
+            "description": "OQ-054: when a paused case moves to the archive (null = not paused)."
           }
         },
         "required": [
@@ -101736,6 +101756,16 @@
           "canMakeNotUrgent": {
             "type": "boolean",
             "description": "OQ-054: «Сменить на «Не срочно»» is offered (urgent / very urgent\nand older than 7 days)."
+          },
+          "hidesAt": {
+            "type": "string",
+            "nullable": true,
+            "description": "OQ-054: when the unanswered question hides the case from the\nattorneys' feed (null = no question waiting)."
+          },
+          "archivesAt": {
+            "type": "string",
+            "nullable": true,
+            "description": "OQ-054: when a paused case moves to the archive (null = not paused)."
           },
           "acceptedBid": {
             "nullable": true,
