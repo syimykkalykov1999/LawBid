@@ -154,6 +154,7 @@ export class PostgresSearchProvider implements SearchProvider {
     const w = await this.weights();
     const prefix = `${escapeLike(q)}%`;
     const contains = `%${escapeLike(q)}%`;
+    const byName = nameMatchSql(q);
     // Owner 2026-10-15: "развод" / "муж бьёт" → attorneys of that topic.
     const synPractices = (await this.synonyms?.resolve(q))?.practiceIds ?? [];
     const bySynonym = synPractices.length
@@ -204,6 +205,10 @@ export class PostgresSearchProvider implements SearchProvider {
             WHERE full_name_lower IS NOT NULL AND role = 'client'
               AND (full_name_lower % ${q} OR full_name_lower LIKE ${contains})
             LIMIT ${BRANCH_CAP})
+          UNION
+          (SELECT id AS user_id FROM users
+            WHERE full_name_lower IS NOT NULL AND role = 'client' AND ${byName}
+            LIMIT ${BRANCH_CAP})
         ) cc
         JOIN users u ON u.id = cc.user_id AND u.role = 'client'
           AND u.status = 'active' AND u.deleted_at IS NULL
@@ -223,6 +228,10 @@ export class PostgresSearchProvider implements SearchProvider {
         (SELECT id FROM users
           WHERE full_name_lower IS NOT NULL AND role = 'attorney'
             AND (full_name_lower % ${q} OR full_name_lower LIKE ${contains})
+          LIMIT ${BRANCH_CAP})
+        UNION
+        (SELECT id FROM users
+          WHERE full_name_lower IS NOT NULL AND role = 'attorney' AND ${byName}
           LIMIT ${BRANCH_CAP})
         UNION
         (SELECT ap.attorney_id FROM practice_areas pa
@@ -269,7 +278,9 @@ export class PostgresSearchProvider implements SearchProvider {
         (uname = ${q}) DESC,
         (uname LIKE ${prefix}) DESC,
         GREATEST(similarity(uname, ${q}),
-                 similarity(COALESCE(fname, ''), ${q})) DESC,
+                 similarity(COALESCE(fname, ''), ${q}),
+                 word_similarity(public.f_name_skel(${q}),
+                                 public.f_name_skel(COALESCE(fname, '')))) DESC,
         (role = 'attorney') DESC,
         (priority::INT * ${w.priority}::FLOAT8 + verified::INT * ${w.verified}::FLOAT8
           + rating::FLOAT8 * ${w.rating}::FLOAT8) DESC,
@@ -619,4 +630,33 @@ export class PostgresSearchProvider implements SearchProvider {
     });
     return rows.map((r) => r.tag_lower);
   }
+}
+
+/**
+ * Owner 2026-10-18: a name in any alphabet, spelling, word order, with a
+ * small typo — «Эмили Браун», "brown emily", «Джон» → "John". Every typed
+ * word must appear in the name's spelling skeleton (`f_name_skel`,
+ * migration 20261018140000), be close to one of its words, or share its
+ * consonants («Рэйчел» = "Rachel", `f_name_cons`); the whole text close to
+ * the whole name also counts. Uses the users_name_{skel,cons}_trgm_idx.
+ */
+export function nameMatchSql(q: string): Prisma.Sql {
+  const skel = Prisma.sql`public.f_name_skel(full_name_lower)`;
+  const cons = Prisma.sql`public.f_name_cons(full_name_lower)`;
+  const words = q
+    .split(/\s+/)
+    .map((w) => w.replace(/^[@#]+/, ''))
+    .filter((w) => w.length >= 2)
+    .slice(0, 4);
+  if (!words.length) return Prisma.sql`FALSE`;
+  const each = words.map(
+    (
+      w,
+    ) => Prisma.sql`(${skel} LIKE '%' || public.f_name_skel(${escapeLike(w)}) || '%'
+      OR public.f_name_skel(${w}) <% ${skel}
+      OR (length(public.f_name_cons(${w})) >= 3
+          AND ${cons} LIKE '%' || public.f_name_cons(${escapeLike(w)}) || '%'))`,
+  );
+  return Prisma.sql`((${Prisma.join(each, ' AND ')})
+    OR public.f_name_skel(${q}) % ${skel})`;
 }
