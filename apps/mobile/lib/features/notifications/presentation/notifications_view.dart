@@ -24,6 +24,7 @@ import 'package:lawbid/features/team/team_routes.dart';
 import 'package:lawbid/features/trust/domain/trust_models.dart';
 import 'package:lawbid/features/trust/trust_routes.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
+import 'package:lawbid/shared/presentation/list_search_field.dart';
 
 /// Where a notification (or its push) leads (docs/05 §9.2); null = no
 /// target screen (a sheet with the text is shown instead).
@@ -485,6 +486,15 @@ class _NotificationsViewState extends ConsumerState<NotificationsView> {
 
     return Column(
       children: [
+        // Owner 2026-10-18: one search box above the list (not for the
+        // assistants' activity, which has its own list).
+        if (!(team && _assistants))
+          ListSearchField(
+            fieldKey: const ValueKey('notif-search'),
+            hintKey: 'notif.search.hint',
+            initial: ref.read(notificationQueryProvider),
+            onChanged: ref.read(notificationQueryProvider.notifier).set,
+          ),
         Padding(
           padding: const EdgeInsetsDirectional.fromSTEB(
             0,
@@ -562,16 +572,22 @@ class _NotificationsViewState extends ConsumerState<NotificationsView> {
           ],
         );
       },
-      empty: AppEmptyState(
-        icon: AppIcons.notificationsNoneRounded,
-        message: t.t(
-          switch (ref.watch(notificationGroupProvider)) {
-            NotifGroup.important => 'notif.empty.important',
-            NotifGroup.other => 'notif.empty.other',
-            null => 'notif.empty',
-          },
-        ),
-      ),
+      empty: ref.watch(notificationQueryProvider).isNotEmpty
+          ? AppEmptyState(
+              icon: AppIcons.searchRounded,
+              title: t.t('notif.search.empty.title'),
+              message: t.t('notif.search.empty.hint'),
+            )
+          : AppEmptyState(
+              icon: AppIcons.notificationsNoneRounded,
+              message: t.t(
+                switch (ref.watch(notificationGroupProvider)) {
+                  NotifGroup.important => 'notif.empty.important',
+                  NotifGroup.other => 'notif.empty.other',
+                  null => 'notif.empty',
+                },
+              ),
+            ),
       onRefresh: n.refresh,
       onLoadMore: n.loadMore,
       onRetryMore: n.retryLoadMore,

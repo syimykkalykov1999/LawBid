@@ -172,10 +172,12 @@ class NewCaseAlerts {
 enum NotifGroup { important, other }
 
 abstract interface class NotificationsRepository {
-  /// [group] null = every notification.
+  /// [group] null = every notification; [query] null/empty = no search
+  /// (Owner 2026-10-18: matches the text and the attorney's name).
   Future<CursorPage<AppNotification>> list({
     String? cursor,
     NotifGroup? group,
+    String? query,
   });
   Future<void> markRead({List<String>? ids, bool all = false});
   Future<Badges> badges();
@@ -248,10 +250,12 @@ class ApiNotificationsRepository implements NotificationsRepository {
   Future<CursorPage<AppNotification>> list({
     String? cursor,
     NotifGroup? group,
+    String? query,
   }) async {
     final env = await guardApiCall(
       () => _api.listNotifications(
         cursor: cursor,
+        q: (query == null || query.trim().isEmpty) ? null : query.trim(),
         group: switch (group) {
           NotifGroup.important => api.NotificationGroup.important,
           NotifGroup.other => api.NotificationGroup.other,

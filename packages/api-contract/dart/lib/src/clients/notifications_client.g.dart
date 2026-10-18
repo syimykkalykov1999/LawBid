@@ -24,6 +24,7 @@ class _NotificationsClient implements NotificationsClient {
   Future<NotificationListEnvelope> listNotifications({
     String? cursor,
     NotificationGroup? group,
+    String? q,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
@@ -31,6 +32,7 @@ class _NotificationsClient implements NotificationsClient {
     final queryParameters = <String, dynamic>{
       r'cursor': cursor,
       r'group': group?.toJson(),
+      r'q': q,
     };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};

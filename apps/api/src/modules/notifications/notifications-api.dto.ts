@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
@@ -50,6 +50,21 @@ export class NotificationsQueryDto {
   @IsOptional()
   @IsIn(NOTIFICATION_GROUPS)
   group?: NotificationGroup;
+
+  /** Owner 2026-10-18: the search box above the bell's list. */
+  @ApiPropertyOptional({
+    description:
+      "Words from the stored text (a broadcast's title/body, a moderator's reason) or the name of the attorney in the notification, in any alphabet. Combines with `group`.",
+    maxLength: 100,
+  })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
+  q?: string;
 }
 
 export class NotificationActorDto {

@@ -22,6 +22,9 @@ const auditChatRu = <String, String>{
   'follow.search.hint': 'Поиск по имени или @нику',
   'follow.search.empty.title': 'Никого не найдено',
   'follow.search.empty.hint': 'Попробуйте другое имя или @ник',
+  'notif.search.hint': 'Поиск по уведомлениям',
+  'notif.search.empty.title': 'Ничего не найдено',
+  'notif.search.empty.hint': 'Ищем по тексту уведомления и имени адвоката',
 };
 
 const auditChatEn = <String, String>{
@@ -43,4 +46,8 @@ const auditChatEn = <String, String>{
   'follow.search.hint': 'Search by name or @username',
   'follow.search.empty.title': 'No one found',
   'follow.search.empty.hint': 'Try another name or @username',
+  'notif.search.hint': 'Search notifications',
+  'notif.search.empty.title': 'Nothing found',
+  'notif.search.empty.hint':
+      "We search the notification text and the attorney's name",
 };

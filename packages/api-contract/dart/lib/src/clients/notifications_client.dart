@@ -31,10 +31,13 @@ abstract class NotificationsClient {
   /// [cursor] - meta.nextCursor of the previous page.
   ///
   /// [group] - important: bids, cases, payments, account; other: likes, follows, comments, logins. Omit for all.
+  ///
+  /// [q] - Words from the stored text (a broadcast's title/body, a moderator's reason) or the name of the attorney in the notification, in any alphabet. Combines with `group`.
   @GET('/notifications')
   Future<NotificationListEnvelope> listNotifications({
     @Query('cursor') String? cursor,
     @Query('group') NotificationGroup? group,
+    @Query('q') String? q,
     @Extras() Map<String, dynamic>? extras,
   });
 

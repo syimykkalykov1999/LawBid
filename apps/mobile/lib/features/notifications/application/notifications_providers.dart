@@ -13,6 +13,10 @@ import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 
+extension on String {
+  String? get nullIfEmpty => isEmpty ? null : this;
+}
+
 Duration? _noRetry(int retryCount, Object error) => null;
 
 final notificationsRepositoryProvider = Provider<NotificationsRepository>(
@@ -113,12 +117,28 @@ final notificationGroupProvider =
   NotificationGroupNotifier.new,
 );
 
+/// Owner 2026-10-18: the text typed in the bell's search box ('' = none).
+class NotificationQueryNotifier extends Notifier<String> {
+  @override
+  String build() => '';
+
+  // ignore: use_setters_to_change_properties
+  void set(String query) => state = query;
+}
+
+final notificationQueryProvider =
+    NotifierProvider.autoDispose<NotificationQueryNotifier, String>(
+  NotificationQueryNotifier.new,
+);
+
 /// docs/05 §9.1 notifications list (of the open tab).
 class NotificationsNotifier extends PagedNotifier<AppNotification> {
   @override
   Future<PaginatedList<AppNotification>> build() {
     // Another tab = a fresh first page.
-    ref.watch(notificationGroupProvider);
+    ref
+      ..watch(notificationGroupProvider)
+      ..watch(notificationQueryProvider);
     return super.build();
   }
 
@@ -127,6 +147,7 @@ class NotificationsNotifier extends PagedNotifier<AppNotification> {
       ref.read(notificationsRepositoryProvider).list(
             cursor: cursor,
             group: ref.read(notificationGroupProvider),
+            query: ref.read(notificationQueryProvider).nullIfEmpty,
           );
 
   @override
