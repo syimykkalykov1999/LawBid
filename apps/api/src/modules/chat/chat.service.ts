@@ -13,7 +13,12 @@ import {
   Optional,
 } from '@nestjs/common';
 import { ClientFraudService } from '../client-fraud/client-fraud.service';
-import { Prisma, type Conversation, type Message } from '@prisma/client';
+import {
+  Prisma,
+  type ChatPairKind,
+  type Conversation,
+  type Message,
+} from '@prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
   decodeCursor,
@@ -51,8 +56,6 @@ import { MessageBodyCipher } from '../../common/secrets/message-body-cipher';
 const CONVERSATIONS_PAGE = 20;
 const MESSAGES_PAGE = 30;
 const CATCH_UP_MAX = 100;
-/** OQ-043: messages a requester may send before acceptance. */
-export const DIRECT_REQUEST_MAX_MESSAGES = 3;
 
 function notFound(): NotFoundException {
   return new NotFoundException({
@@ -498,9 +501,9 @@ export class ChatService {
 
     await this.limits.consume('message', user.sub);
     if (conv.status === 'closed') throw closed();
-    // OQ-043: a message request — the recipient's reply accepts it; the
-    // requester may send up to 3 messages until then; a declined request
-    // takes no more.
+    // OQ-043: a message request — the recipient's reply accepts it; a
+    // declined request takes no more. Owner 2026-10-17: no cap on how many
+    // messages the requester sends meanwhile.
     let requestFirst = false;
     let acceptRequest = false;
     if (conv.request_status === 'pending') {
@@ -508,12 +511,6 @@ export class ChatService {
         const sent = await this.prisma.message.count({
           where: { conversation_id: id, sender_id: user.sub, deleted_at: null },
         });
-        if (sent >= DIRECT_REQUEST_MAX_MESSAGES) {
-          throw new ConflictException({
-            code: ErrorCode.MESSAGE_REQUEST_LIMIT,
-            message: 'Wait until your message request is accepted.',
-          });
-        }
         requestFirst = sent === 0;
       } else {
         acceptRequest = true;
@@ -535,7 +532,9 @@ export class ChatService {
         user.sub === conv.attorney_id ? conv.client_id : conv.attorney_id,
       );
     }
+    // Only an attorney writing to a client pays (owner 2026-10-17).
     if (
+      conv.pair_kind === 'attorney_client' &&
       user.sub === conv.attorney_id &&
       !(await this.subscriptions.isActive(user.sub))
     ) {
@@ -771,9 +770,10 @@ export class ChatService {
 
   /**
    * POST /conversations/direct (OQ-043): the "Message" button on a
-   * profile — the one direct chat of this attorney/client pair, created
-   * as a request of the caller if new. Hidden from lists until its first
-   * message.
+   * profile — the one direct chat of a pair, created if new. Owner
+   * 2026-10-17: anyone writes to anyone, like Instagram — straight to the
+   * main list when the recipient follows the caller, otherwise a request.
+   * Hidden from lists until its first message.
    */
   async startDirect(
     user: RequestUser,
@@ -789,16 +789,11 @@ export class ChatService {
         message: 'User not found.',
       });
     }
-    const pair =
-      user.role === 'attorney' && other.role === 'client'
-        ? { attorney_id: user.sub, client_id: other.id }
-        : user.role === 'client' && other.role === 'attorney'
-          ? { attorney_id: other.id, client_id: user.sub }
-          : null;
+    const pair = directPair(user.sub, user.role, other.id, other.role);
     if (!pair) {
       throw new ConflictException({
         code: ErrorCode.DIRECT_CHAT_NOT_ALLOWED,
-        message: 'Direct chats are between an attorney and a client.',
+        message: 'Direct chats are between clients and attorneys.',
       });
     }
     await this.blocks.assertNotBlocked(user.sub, other.id);
@@ -806,14 +801,23 @@ export class ChatService {
       where: { ...pair, case_id: null },
     });
     if (existing) return this.get(user, existing.id);
+    const followsMe = await this.prisma.follow.findUnique({
+      where: {
+        follower_id_followee_id: {
+          follower_id: other.id,
+          followee_id: user.sub,
+        },
+      },
+      select: { follower_id: true },
+    });
     let conv: Conversation;
     try {
       conv = await this.prisma.conversation.create({
         data: {
           ...pair,
           status: 'active',
-          contacts_unlocked: false,
-          request_status: 'pending',
+          contacts_unlocked: followsMe !== null,
+          request_status: followsMe ? 'accepted' : 'pending',
           requested_by: user.sub,
           participants: {
             create: [
@@ -1263,4 +1267,34 @@ function cleanFileName(raw: string): string {
   // eslint-disable-next-line no-control-regex
   const clean = base.replace(/[\u0000-\u001f\u007f]/g, '').trim();
   return (clean || 'file').slice(0, 200);
+}
+
+/** The two slots of a direct chat between [me] and [other], or null when
+ * that pair cannot have one (self, or a role without chats). */
+function directPair(
+  me: string,
+  myRole: string | null | undefined,
+  other: string,
+  otherRole: string | null | undefined,
+): {
+  attorney_id: string;
+  client_id: string;
+  pair_kind: ChatPairKind;
+} | null {
+  if (me === other) return null;
+  const roles = ['client', 'attorney'];
+  if (!roles.includes(myRole ?? '') || !roles.includes(otherRole ?? '')) {
+    return null;
+  }
+  if (myRole !== otherRole) {
+    return myRole === 'attorney'
+      ? { attorney_id: me, client_id: other, pair_kind: 'attorney_client' }
+      : { attorney_id: other, client_id: me, pair_kind: 'attorney_client' };
+  }
+  const [a, b] = me < other ? [me, other] : [other, me];
+  return {
+    attorney_id: a,
+    client_id: b,
+    pair_kind: myRole === 'client' ? 'client_client' : 'attorney_attorney',
+  };
 }

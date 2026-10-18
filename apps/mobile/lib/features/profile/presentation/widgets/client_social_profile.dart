@@ -273,10 +273,11 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
                     expanded: true,
                   ),
                 ),
-                // OQ-043: an attorney can write to a client directly (a
-                // message request until the client accepts).
-                // Audit 2026-10-02: assistants need the "chats" duty.
-                if (ref.watch(actsAsAttorneyProvider) &&
+                // OQ-043: "Написать" opens the direct chat (a message
+                // request until accepted). Owner 2026-10-17: clients too,
+                // like Instagram. Audit 2026-10-02: assistants need the
+                // "chats" duty.
+                if (!ref.watch(actsAsAttorneyProvider) ||
                     ref.watch(canDoProvider(AssistantDuty.chats))) ...[
                   const SizedBox(width: AppSpacing.sm),
                   Expanded(

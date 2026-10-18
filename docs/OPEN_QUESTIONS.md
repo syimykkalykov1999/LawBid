@@ -996,3 +996,18 @@ reviews a client).
 - Like / follow toggles notify the person once a day.
 - Icons: the owner rejected colourful / cartoon 3D art and chose Phosphor
   Light (thin, serious lines) for the whole app; colour follows the theme.
+
+## OQ-052 — Chat for everyone, like Instagram (owner, 2026-10-17)
+
+Replaces the "attorney ↔ client only" part of OQ-043.
+- "Message" sits next to Follow on every profile: client ↔ client,
+  attorney ↔ attorney and attorney ↔ client all have one direct chat per
+  pair (assistants need the "chats" duty).
+- If the recipient follows the sender, the chat goes straight to the main
+  list (accepted, contacts open); otherwise it is a message request as in
+  OQ-043. No cap on messages while a request is pending.
+- Only attorney → client messages and attorney ↔ client calls need the
+  attorney's subscription; client ↔ client and attorney ↔ attorney are free.
+- Message length and allowed chat file formats stay in the admin
+  (`limits.chat_message_chars`, Система → «Загрузки и файлы» → chat).
+- Next: video in chat (owner wants WhatsApp/Telegram-level media).

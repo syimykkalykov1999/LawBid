@@ -33,6 +33,7 @@ import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart'
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/social/social_routes.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
+import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/features/translation/data/content_translation_repository.dart';
 import 'package:lawbid/features/translation/presentation/translatable_text.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
@@ -272,8 +273,10 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
           isFollowing: p.isFollowing,
           blocked: p.isBlocked || p.hasBlockedMe,
           // OQ-043: "Написать" opens the direct chat (a message request
-          // until accepted). Attorney ↔ attorney has no direct chat.
-          canMessage: !ref.watch(actsAsAttorneyProvider),
+          // until accepted). Owner 2026-10-17: anyone writes to anyone;
+          // an assistant needs the "chats" duty.
+          canMessage: !ref.watch(actsAsAttorneyProvider) ||
+              ref.watch(canDoProvider(AssistantDuty.chats)),
           onMessage: () => openDirectChat(context, ref, p.id),
           onShare: () => _share(t),
         ),

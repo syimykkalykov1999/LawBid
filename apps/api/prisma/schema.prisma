@@ -381,6 +381,18 @@ enum ConversationStatus {
   @@map("conversation_status")
 }
 
+/// Owner 2026-10-17: who talks in a chat. Anyone may write to anyone; only
+/// attorney ↔ client keeps the attorney's subscription gate. In same-role
+/// chats `attorney_id` / `client_id` are just the two members (the smaller
+/// id in `attorney_id`).
+enum ChatPairKind {
+  attorney_client
+  client_client
+  attorney_attorney
+
+  @@map("chat_pair_kind")
+}
+
 /// OQ-043: a direct chat started from a profile waits in the recipient's
 /// "Requests" until accepted (case chats: none).
 enum MessageRequestStatus {
@@ -2162,6 +2174,7 @@ model Conversation {
   // OQ-043: direct chats (case_id NULL) start as a request of `requested_by`.
   request_status    MessageRequestStatus @default(none)
   requested_by      String?              @db.Uuid
+  pair_kind         ChatPairKind         @default(attorney_client)
   requester         User?                @relation("ConversationRequester", fields: [requested_by], references: [id], onDelete: Restrict, onUpdate: NoAction)
   last_message_at   DateTime?            @db.Timestamptz
   // Bare uuid: an FK here would make conversations <-> messages a cycle

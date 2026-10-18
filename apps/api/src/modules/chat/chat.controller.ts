@@ -179,7 +179,7 @@ export class ChatController {
     ],
     403: [ErrorCode.SUBSCRIPTION_REQUIRED, ErrorCode.MESSAGE_REQUEST_DECLINED],
     404: [ErrorCode.CONVERSATION_NOT_FOUND],
-    409: [ErrorCode.CONVERSATION_CLOSED, ErrorCode.MESSAGE_REQUEST_LIMIT],
+    409: [ErrorCode.CONVERSATION_CLOSED],
     429: [ErrorCode.RATE_LIMITED],
   })
   sendMessage(

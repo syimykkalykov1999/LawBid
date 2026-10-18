@@ -72630,7 +72630,7 @@
             }
           },
           "409": {
-            "description": "Conflict: CONVERSATION_CLOSED, MESSAGE_REQUEST_LIMIT",
+            "description": "Conflict: CONVERSATION_CLOSED",
             "content": {
               "application/json": {
                 "schema": {

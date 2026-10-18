@@ -438,6 +438,9 @@ export class CallsService {
   }
 
   private async assertSubscription(conv: Conversation): Promise<void> {
+    // Owner 2026-10-17: only attorney ↔ client calls need the attorney's
+    // subscription; client ↔ client and attorney ↔ attorney are free.
+    if (conv.pair_kind !== 'attorney_client') return;
     if (!(await this.subscriptions.isActive(conv.attorney_id))) {
       throw new ForbiddenException({
         code: ErrorCode.SUBSCRIPTION_REQUIRED,

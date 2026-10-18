@@ -5,6 +5,16 @@ All notable changes to this project are documented here, per
 .cursorrules (each stage ends with a CHANGELOG update + commit on
 branch cursor/stage-X-Y-description).
 
+## Chat for everyone (2026-10-17)
+
+Owner (OQ-052): "everyone writes to everyone, like Instagram".
+
+- `POST /conversations/direct` accepts any client/attorney pair except yourself; new `conversations.pair_kind` (`attorney_client` | `client_client` | `attorney_attorney`, migration `20261017100000_chat_for_everyone`). In same-role chats `attorney_id`/`client_id` hold the two members, smaller id first.
+- A recipient who follows the sender gets the chat accepted at once; otherwise it is a request (OQ-043). The 3-message cap while pending is gone (`MESSAGE_REQUEST_LIMIT` no longer thrown).
+- The subscription gate (messages and calls) applies only to attorney ↔ client chats.
+- App: "Написать" next to Follow on client and attorney profiles for everyone. Request note and `DIRECT_CHAT_NOT_ALLOWED` texts updated (`file06_strings.dart`; update the translations xlsx too).
+- e2e `owner-direct-chats` covers client ↔ client, attorney ↔ attorney without subscriptions, and follow → straight to the main list. Regenerated `packages/api-contract`.
+
 ## Stub cleanup (2026-10-16)
 
 Owner: no paid identity checks, nothing in the admin may read "not built".

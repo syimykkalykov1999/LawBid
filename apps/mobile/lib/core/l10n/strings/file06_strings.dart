@@ -113,10 +113,10 @@ const file06Ru = <String, String>{
   'chat.requests.delete': 'Удалить',
   'chat.requests.block': 'Блок',
   'chat.requests.sentNote':
-      'Запрос отправлен. До ответа можно отправить до 3 сообщений.',
+      'Запрос отправлен. Сообщения появятся у человека в «Запросах», пока он не ответит.',
   'chat.requests.declinedForYou': 'Этот человек не принимает ваши сообщения.',
   'error.api.DIRECT_CHAT_NOT_ALLOWED':
-      'Личная переписка доступна между адвокатом и клиентом.',
+      'С этим аккаунтом нельзя переписываться.',
   'error.api.MESSAGE_REQUEST_DECLINED':
       'Этот человек не принимает ваши сообщения.',
   'error.api.MESSAGE_REQUEST_LIMIT':
@@ -541,10 +541,9 @@ const file06En = <String, String>{
   'chat.requests.delete': 'Delete',
   'chat.requests.block': 'Block',
   'chat.requests.sentNote':
-      'Request sent. You can send up to 3 messages until they accept.',
+      'Request sent. Your messages wait in their Requests until they reply.',
   'chat.requests.declinedForYou': "This person isn't accepting your messages.",
-  'error.api.DIRECT_CHAT_NOT_ALLOWED':
-      'Direct messages are between an attorney and a client.',
+  'error.api.DIRECT_CHAT_NOT_ALLOWED': "You can't message this account.",
   'error.api.MESSAGE_REQUEST_DECLINED':
       "This person isn't accepting your messages.",
   'error.api.MESSAGE_REQUEST_LIMIT':
