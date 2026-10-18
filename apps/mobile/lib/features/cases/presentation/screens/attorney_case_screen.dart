@@ -546,6 +546,7 @@ class _OwnBidCard extends ConsumerWidget {
                         formats,
                         value.feeType,
                         value.amountCents,
+                        percentBps: value.percentBps,
                       ),
                     ),
                   ),

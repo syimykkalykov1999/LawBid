@@ -174,6 +174,7 @@ export class CaseBidsService {
       status: bid.status,
       feeType: bid.fee_type,
       amountCents: bid.amount_cents,
+      percentBps: bid.percent_bps,
       message: bid.message,
       startAvailability: bid.start_availability,
       startDate: bid.start_date

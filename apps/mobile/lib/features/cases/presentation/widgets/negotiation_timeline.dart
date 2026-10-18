@@ -96,8 +96,13 @@ class _OfferBubble extends StatelessWidget {
       OfferStatus.declined => t.t('cases.timeline.declined'),
       _ => t.t('cases.timeline.superseded'),
     };
-    final amount =
-        CaseFormat.terms(t, formats, offer.feeType, offer.amountCents);
+    final amount = CaseFormat.terms(
+      t,
+      formats,
+      offer.feeType,
+      offer.amountCents,
+      percentBps: offer.percentBps,
+    );
     final pending = offer.status == OfferStatus.pending;
 
     final bubble = Container(

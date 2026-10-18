@@ -58,15 +58,22 @@ class PracticeRef {
   String get artCode => categoryCode ?? code.split('.').first;
 }
 
-/// docs/04 §3.2 budget: whole-case amount in cents or "Clarify later".
+/// docs/04 §3.2 budget: whole-case amount in cents, a percent of the
+/// recovery (owner 2026-10-17) or "Clarify later".
 @immutable
 class CaseBudget {
-  const CaseBudget({required this.mode, this.amountCents});
+  const CaseBudget({required this.mode, this.amountCents, this.percentBps});
 
   final BudgetMode mode;
   final int? amountCents;
 
-  bool get isClarifyLater => mode != BudgetMode.amount || amountCents == null;
+  /// Basis points (3300 = 33 %) when [mode] is percent.
+  final int? percentBps;
+
+  bool get isPercent => mode == BudgetMode.percent && percentBps != null;
+
+  bool get isClarifyLater =>
+      !isPercent && (mode != BudgetMode.amount || amountCents == null);
 }
 
 /// "Мои кейсы" card (docs/04 §11.1).
@@ -282,6 +289,7 @@ class BidOffer {
     required this.message,
     required this.status,
     required this.createdAt,
+    this.percentBps,
   });
 
   final String id;
@@ -289,6 +297,9 @@ class BidOffer {
   final PartyRole fromRole;
   final FeeType feeType;
   final int amountCents;
+
+  /// Owner 2026-10-17: contingency → basis points (3300 = 33 %).
+  final int? percentBps;
   final String? message;
   final OfferStatus status;
   final DateTime createdAt;
@@ -317,6 +328,7 @@ class CaseBid {
     this.offers = const [],
     this.outsidePractice = false,
     this.outsideLicensedStates = false,
+    this.percentBps,
   });
 
   /// Owner 2026-09-30: the case's practice is outside the attorney's own —
@@ -333,6 +345,9 @@ class CaseBid {
   final BidStatus status;
   final FeeType feeType;
   final int amountCents;
+
+  /// Owner 2026-10-17: contingency → basis points (3300 = 33 %).
+  final int? percentBps;
   final String message;
   final StartAvailability startAvailability;
   final DateTime? startDate;
@@ -585,6 +600,7 @@ class WorkItem {
     this.practiceI18nKey,
     this.practiceNameEn,
     this.coverUrl,
+    this.percentBps,
   });
 
   /// Owner 2026-09-30: the first photo (the Mine grid) when this viewer
@@ -606,6 +622,9 @@ class WorkItem {
   final int additionalStateCount;
   final FeeType feeType;
   final int amountCents;
+
+  /// Owner 2026-10-17: contingency → basis points (3300 = 33 %).
+  final int? percentBps;
   final DateTime? autoCloseAt;
   final DateTime? acceptedAt;
   final DateTime? closedAt;
@@ -703,6 +722,7 @@ class HistoryCase {
     this.closedAt,
     this.archivedAt,
     this.acceptedAmountCents,
+    this.acceptedPercentBps,
     this.acceptedFeeType,
   });
 
@@ -717,6 +737,7 @@ class HistoryCase {
   final DateTime? closedAt;
   final DateTime? archivedAt;
   final int? acceptedAmountCents;
+  final int? acceptedPercentBps;
   final FeeType? acceptedFeeType;
 }
 
@@ -730,6 +751,7 @@ class HistoryEvent {
     required this.createdAt,
     required this.actor,
     this.amountCents,
+    this.percentBps,
     this.feeType,
     this.roundNo,
     this.reason,
@@ -740,6 +762,7 @@ class HistoryEvent {
   final DateTime createdAt;
   final HistoryActor actor;
   final int? amountCents;
+  final int? percentBps;
   final FeeType? feeType;
   final int? roundNo;
   final String? reason;

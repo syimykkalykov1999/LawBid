@@ -13,6 +13,7 @@ import 'package:lawbid/core/l10n/strings/case_payments_strings.dart';
 import 'package:lawbid/core/l10n/strings/case_urgency_strings.dart';
 import 'package:lawbid/core/l10n/strings/case_workspace_strings.dart';
 import 'package:lawbid/core/l10n/strings/client_fraud_strings.dart';
+import 'package:lawbid/core/l10n/strings/contingency_strings.dart';
 import 'package:lawbid/core/l10n/strings/demo_strings.dart';
 import 'package:lawbid/core/l10n/strings/email_flows_strings.dart';
 import 'package:lawbid/core/l10n/strings/feed_content_strings.dart';
@@ -1142,6 +1143,7 @@ class StaticTranslatorRu extends _MapTranslator {
         'error.default.title': 'Что-то пошло не так',
         ...file05Ru,
         ...file06Ru,
+        ...contingencyRu,
         ...file07Ru,
         ...reelsRu,
         ...auditCasesRu,
@@ -2560,6 +2562,7 @@ class StaticTranslatorEn extends _MapTranslator {
         'error.default.title': 'Something went wrong',
         ...file05En,
         ...file06En,
+        ...contingencyEn,
         ...file07En,
         ...reelsEn,
         ...auditCasesEn,

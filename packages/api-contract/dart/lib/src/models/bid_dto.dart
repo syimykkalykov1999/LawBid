@@ -33,6 +33,7 @@ class BidDto {
     required this.outsideLicensedStates,
     required this.createdAt,
     required this.offers,
+    this.percentBps,
     this.attorney,
   });
 
@@ -44,6 +45,9 @@ class BidDto {
   final BidStatus status;
   final FeeType feeType;
   final int amountCents;
+
+  /// Owner 2026-10-17: contingency → basis points (3300 = 33 %).
+  final int? percentBps;
   final String message;
   final StartAvailability startAvailability;
   final DateTime? startDate;

@@ -28,6 +28,7 @@ CaseDto _$CaseDtoFromJson(Map<String, dynamic> json) => CaseDto(
   lastActivityAt: json['lastActivityAt'] as String,
   city: json['city'] as String?,
   budgetCents: (json['budgetCents'] as num?)?.toInt(),
+  budgetPercentBps: (json['budgetPercentBps'] as num?)?.toInt(),
   coverKey: json['coverKey'] as String?,
   urgency: json['urgency'] == null
       ? null
@@ -63,6 +64,7 @@ Map<String, dynamic> _$CaseDtoToJson(CaseDto instance) => <String, dynamic>{
   'city': ?instance.city,
   'budgetMode': instance.budgetMode.toJson(),
   'budgetCents': ?instance.budgetCents,
+  'budgetPercentBps': ?instance.budgetPercentBps,
   'coverKey': ?instance.coverKey,
   'urgency': ?instance.urgency?.toJson(),
   'urgencyLevel': ?instance.urgencyLevel?.toJson(),

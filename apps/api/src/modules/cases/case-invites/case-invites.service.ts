@@ -47,6 +47,7 @@ const INVITE_INCLUDE = {
       deadline_kind: true,
       budget_mode: true,
       budget_cents: true,
+      budget_percent_bps: true,
       practice_area: { select: { i18n_key: true } },
       states: { select: { state_code: true }, orderBy: { state_code: 'asc' } },
     },
@@ -490,6 +491,7 @@ export class CaseInvitesService {
       caseBudget: {
         mode: row.case.budget_mode,
         amountCents: row.case.budget_cents,
+        percentBps: row.case.budget_percent_bps,
       },
       caseDossier: {
         imagesCount: files?.images ?? 0,

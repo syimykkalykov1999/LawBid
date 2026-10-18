@@ -427,9 +427,11 @@ class CaseActions {
     return result;
   }
 
-  Future<CaseBid> counter(CaseBid bid, int amountCents, String? message) async {
-    final result =
-        await _repo.counter(bid.id, amountCents: amountCents, message: message);
+  /// [value]: cents, or basis points for a contingency bid.
+  Future<CaseBid> counter(CaseBid bid, int value, String? message) async {
+    final result = bid.feeType == FeeType.contingency
+        ? await _repo.counter(bid.id, percentBps: value, message: message)
+        : await _repo.counter(bid.id, amountCents: value, message: message);
     _afterBidChange(bid);
     return result;
   }

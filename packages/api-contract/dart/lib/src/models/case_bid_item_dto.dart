@@ -32,6 +32,7 @@ class CaseBidItemDto {
     required this.outsideLicensedStates,
     required this.createdAt,
     required this.attorney,
+    this.percentBps,
   });
 
   factory CaseBidItemDto.fromJson(Map<String, Object?> json) =>
@@ -43,6 +44,9 @@ class CaseBidItemDto {
   final BidStatus status;
   final FeeType feeType;
   final int amountCents;
+
+  /// Owner 2026-10-17: contingency → basis points (3300 = 33 %).
+  final int? percentBps;
   final String message;
   final StartAvailability startAvailability;
   final DateTime? startDate;

@@ -109,6 +109,8 @@ export const PUBLIC_CONFIG_PREFIXES = [
   'media.',
   'stickers.',
   'translate.',
+  // Owner 2026-10-17: the percent cap and where the percent is hidden.
+  'fees.contingency_',
 ] as const;
 
 @Injectable()

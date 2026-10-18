@@ -10,6 +10,7 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/cases/domain/case_draft.dart';
+import 'package:lawbid/features/cases/domain/contingency.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_urgency_picker.dart';
@@ -944,14 +945,29 @@ class BudgetStep extends ConsumerStatefulWidget {
   ConsumerState<BudgetStep> createState() => _BudgetStepState();
 }
 
+/// Owner 2026-10-17: «Сумма», «Проценты», «Уточню позже».
+enum _BudgetKind { amount, percent, later }
+
 class _BudgetStepState extends ConsumerState<BudgetStep> {
   late final _amount = TextEditingController(
     text: widget.draft.budgetDollars?.toString() ?? '',
   );
+  late final _percent = TextEditingController(
+    text: widget.draft.budgetPercentBps == null
+        ? ''
+        : ContingencyRules.plain(widget.draft.budgetPercentBps!),
+  );
+
+  _BudgetKind _kindOf(CaseDraft d) => d.budgetIsPercent
+      ? _BudgetKind.percent
+      : d.budgetIsAmount
+          ? _BudgetKind.amount
+          : _BudgetKind.later;
 
   @override
   void dispose() {
     _amount.dispose();
+    _percent.dispose();
     super.dispose();
   }
 
@@ -961,6 +977,20 @@ class _BudgetStepState extends ConsumerState<BudgetStep> {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final d = widget.draft;
+    final rules =
+        ContingencyRules.of(ref.watch(featureFlagsControllerProvider));
+    // Ethics rules forbid a percent for some topics (admin list).
+    final percentAllowed = !rules.blockedFor(d.practiceCodes);
+    if (!percentAllowed && d.budgetIsPercent) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          widget.onChange(
+            (x) => x.copyWith(budgetIsPercent: false, clearBudgetPercent: true),
+          );
+        }
+      });
+    }
+    final kind = _kindOf(d);
     return ListView(
       padding: const EdgeInsets.fromLTRB(
         AppSpacing.screenSide,
@@ -973,73 +1003,115 @@ class _BudgetStepState extends ConsumerState<BudgetStep> {
           title: t.t('cases.create.budget.title'),
           subtitle: t.t('cases.create.budget.subtitle'),
         ),
-        SegmentedChoice<bool>(
-          value: d.budgetIsAmount,
+        SegmentedChoice<_BudgetKind>(
+          value: kind,
           options: [
-            (true, t.t('cases.budget.specify')),
-            (false, t.t('cases.budget.clarifyLater')),
+            (_BudgetKind.amount, t.t('cases.budget.specify')),
+            if (percentAllowed)
+              (_BudgetKind.percent, t.t('cases.budget.percent')),
+            (_BudgetKind.later, t.t('cases.budget.clarifyLater')),
           ],
-          onChanged: (v) =>
-              widget.onChange((x) => x.copyWith(budgetIsAmount: v)),
+          onChanged: (v) => widget.onChange(
+            (x) => x.copyWith(
+              budgetIsAmount: v == _BudgetKind.amount,
+              budgetIsPercent: v == _BudgetKind.percent,
+            ),
+          ),
         ),
         const SizedBox(height: AppSpacing.xl),
         AnimatedSwitcher(
           duration:
               context.reduceMotion ? Duration.zero : AppMotion.stateChange,
-          child: d.budgetIsAmount
+          child: kind == _BudgetKind.percent
               ? AppTextField(
-                  key: const ValueKey('amount'),
-                  controller: _amount,
-                  label: t.t('cases.field.budgetAmount'),
-                  hintText: '600',
+                  key: const ValueKey('percent'),
+                  controller: _percent,
+                  label: t.t('cases.field.budgetPercent'),
+                  hintText: '33',
+                  helperText: t.t('cases.create.budget.percentHint'),
                   leading: Text(
-                    r'$',
+                    '%',
                     style:
                         typography.titleMedium.copyWith(color: colors.goldDark),
                   ),
-                  keyboardType: TextInputType.number,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
                   inputFormatters: [
-                    FilteringTextInputFormatter.digitsOnly,
-                    LengthLimitingTextInputFormatter(8),
+                    FilteringTextInputFormatter.allow(RegExp('[0-9.,]')),
+                    LengthLimitingTextInputFormatter(6),
                   ],
-                  errorText: _amount.text.isNotEmpty && !d.budgetValid
-                      ? t.t('cases.field.budgetError', {
-                          'max': CaseFormat.money(
-                            ref.watch(l10nFormatsProvider),
-                            CaseLimits.budgetMaxDollars * 100,
-                          ),
+                  errorText: _percent.text.isNotEmpty &&
+                          rules.parse(_percent.text) == null
+                      ? t.t('cases.field.budgetPercentError', {
+                          'max': ContingencyRules.plain(rules.maxBps),
                         })
                       : null,
                   onChanged: (v) {
-                    final n = int.tryParse(v);
+                    final bps = rules.parse(v);
                     widget.onChange(
-                      (x) => n == null
-                          ? x.copyWith(clearBudgetDollars: true)
-                          : x.copyWith(budgetDollars: n),
+                      (x) => bps == null
+                          ? x.copyWith(clearBudgetPercent: true)
+                          : x.copyWith(budgetPercentBps: bps),
                     );
                   },
                 )
-              : Container(
-                  key: const ValueKey('later'),
-                  padding: const EdgeInsets.all(AppSpacing.lg),
-                  decoration: BoxDecoration(
-                    color: colors.goldTint,
-                    borderRadius: BorderRadius.circular(AppRadii.card),
-                  ),
-                  child: Row(
-                    children: [
-                      AppIcon(AppIcons.forumOutlined, color: colors.goldDark),
-                      const SizedBox(width: AppSpacing.md),
-                      Expanded(
-                        child: Text(
-                          t.t('cases.create.budget.laterHint'),
-                          style:
-                              typography.bodySmall.copyWith(color: colors.text),
-                        ),
+              : kind == _BudgetKind.amount
+                  ? AppTextField(
+                      key: const ValueKey('amount'),
+                      controller: _amount,
+                      label: t.t('cases.field.budgetAmount'),
+                      hintText: '600',
+                      leading: Text(
+                        r'$',
+                        style: typography.titleMedium
+                            .copyWith(color: colors.goldDark),
                       ),
-                    ],
-                  ),
-                ),
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(8),
+                      ],
+                      errorText: _amount.text.isNotEmpty && !d.budgetValid
+                          ? t.t('cases.field.budgetError', {
+                              'max': CaseFormat.money(
+                                ref.watch(l10nFormatsProvider),
+                                CaseLimits.budgetMaxDollars * 100,
+                              ),
+                            })
+                          : null,
+                      onChanged: (v) {
+                        final n = int.tryParse(v);
+                        widget.onChange(
+                          (x) => n == null
+                              ? x.copyWith(clearBudgetDollars: true)
+                              : x.copyWith(budgetDollars: n),
+                        );
+                      },
+                    )
+                  : Container(
+                      key: const ValueKey('later'),
+                      padding: const EdgeInsets.all(AppSpacing.lg),
+                      decoration: BoxDecoration(
+                        color: colors.goldTint,
+                        borderRadius: BorderRadius.circular(AppRadii.card),
+                      ),
+                      child: Row(
+                        children: [
+                          AppIcon(
+                            AppIcons.forumOutlined,
+                            color: colors.goldDark,
+                          ),
+                          const SizedBox(width: AppSpacing.md),
+                          Expanded(
+                            child: Text(
+                              t.t('cases.create.budget.laterHint'),
+                              style: typography.bodySmall
+                                  .copyWith(color: colors.text),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
         ),
         // Owner 2026-10-04: shown large on the attorney's card.
         const SizedBox(height: AppSpacing.xl),

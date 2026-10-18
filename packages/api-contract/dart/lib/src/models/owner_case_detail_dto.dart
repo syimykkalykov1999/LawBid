@@ -35,6 +35,7 @@ class OwnerCaseDetailDto {
     required this.photos,
     this.city,
     this.budgetCents,
+    this.budgetPercentBps,
     this.coverKey,
     this.urgency,
     this.urgencyLevel,
@@ -66,6 +67,9 @@ class OwnerCaseDetailDto {
   final String? city;
   final BudgetMode budgetMode;
   final int? budgetCents;
+
+  /// Owner 2026-10-17: budgetMode = percent → basis points.
+  final int? budgetPercentBps;
 
   /// Owner 2026-10-04: `art:0..3` / `icon:<name>`; null = from the id.
   final String? coverKey;

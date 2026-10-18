@@ -245,6 +245,9 @@ enum CaseStatus {
 enum BudgetMode {
   amount
   clarify_later
+  /// Owner 2026-10-17: a share of the recovery (client ↔ attorney deal;
+  /// LawBid takes nothing from it).
+  percent
 
   @@map("budget_mode")
 }
@@ -264,6 +267,8 @@ enum FeeType {
   fixed
   hourly
   free_consultation
+  /// Owner 2026-10-17: contingency — a percent of the recovery.
+  contingency
 
   @@map("fee_type")
 }
@@ -1517,6 +1522,9 @@ model Case {
   city                  String?
   budget_mode           BudgetMode
   budget_cents          Int?
+  // Owner 2026-10-17: budget_mode = percent → the client's percent in
+  // basis points (3300 = 33 %). CHECK in the migration.
+  budget_percent_bps    Int?
   // Owner 2026-10-04: the client's card cover (`art:0..3` / `icon:<name>`,
   // never a personal photo; null = picked from the id) and urgency
   // (flexible | within_month | soon | urgent | very_urgent | by_date —
@@ -1609,6 +1617,9 @@ model Bid {
   status                  BidStatus         @default(active)
   fee_type                FeeType
   amount_cents            Int
+  // Owner 2026-10-17: fee_type = contingency → percent in basis points
+  // (amount_cents is then 0). CHECK in the migration.
+  percent_bps             Int?
   // ≤2000 chars (§6.1), CHECK in the migration.
   message                 String
   start_availability      StartAvailability
@@ -1652,6 +1663,7 @@ model BidOffer {
   from_role    PartyRole
   fee_type     FeeType
   amount_cents Int
+  percent_bps  Int?
   message      String?
   status       OfferStatus
   created_at   DateTime    @default(now()) @db.Timestamptz

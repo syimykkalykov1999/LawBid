@@ -10,10 +10,12 @@ CaseBudgetDto _$CaseBudgetDtoFromJson(Map<String, dynamic> json) =>
     CaseBudgetDto(
       mode: BudgetMode.fromJson(json['mode'] as String),
       amountCents: (json['amountCents'] as num?)?.toInt(),
+      percentBps: (json['percentBps'] as num?)?.toInt(),
     );
 
 Map<String, dynamic> _$CaseBudgetDtoToJson(CaseBudgetDto instance) =>
     <String, dynamic>{
       'mode': instance.mode.toJson(),
       'amountCents': ?instance.amountCents,
+      'percentBps': ?instance.percentBps,
     };

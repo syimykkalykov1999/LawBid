@@ -12,6 +12,7 @@ import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
+import 'package:lawbid/features/cases/domain/contingency.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_cards.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
@@ -349,7 +350,13 @@ class _BidBody extends StatelessWidget {
                 ),
                 const SizedBox(height: AppSpacing.xs),
                 MoneyText(
-                  CaseFormat.terms(t, formats, bid.feeType, bid.amountCents),
+                  CaseFormat.terms(
+                    t,
+                    formats,
+                    bid.feeType,
+                    bid.amountCents,
+                    percentBps: bid.percentBps,
+                  ),
                   large: true,
                 ),
                 const SizedBox(height: AppSpacing.sm),
@@ -480,7 +487,14 @@ class _CounterSheetState extends State<_CounterSheet> {
   final _amount = TextEditingController();
   final _message = TextEditingController();
 
+  bool get _percent => widget.bid.feeType == FeeType.contingency;
+
+  /// Cents, or basis points for a contingency bid (owner 2026-10-17).
   int? get _cents {
+    if (_percent) {
+      return const ContingencyRules(maxBps: 10000, blocked: [])
+          .parse(_amount.text);
+    }
     final n = int.tryParse(_amount.text);
     return n == null || n <= 0 ? null : n * 100;
   }
@@ -527,18 +541,26 @@ class _CounterSheetState extends State<_CounterSheet> {
               AppTextField(
                 controller: _amount,
                 autofocus: true,
-                label: widget.bid.feeType == FeeType.hourly
-                    ? t.t('cases.counter.amountHourly')
-                    : t.t('cases.counter.amount'),
+                label: _percent
+                    ? t.t('cases.counter.percent')
+                    : widget.bid.feeType == FeeType.hourly
+                        ? t.t('cases.counter.amountHourly')
+                        : t.t('cases.counter.amount'),
+                hintText: _percent ? '33' : null,
                 leading: Text(
-                  r'$',
+                  _percent ? '%' : r'$',
                   style:
                       typography.titleMedium.copyWith(color: colors.goldDark),
                 ),
-                keyboardType: TextInputType.number,
+                keyboardType: _percent
+                    ? const TextInputType.numberWithOptions(decimal: true)
+                    : TextInputType.number,
                 inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                  LengthLimitingTextInputFormatter(8),
+                  if (_percent)
+                    FilteringTextInputFormatter.allow(RegExp('[0-9.,]'))
+                  else
+                    FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(_percent ? 6 : 8),
                 ],
                 onChanged: (_) => setState(() {}),
               ),

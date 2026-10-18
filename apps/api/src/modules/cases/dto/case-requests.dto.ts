@@ -8,6 +8,7 @@ import {
 } from '../domain/case-urgency';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { BudgetMode } from '@prisma/client';
+import { PERCENT_BPS_MAX, PERCENT_BPS_MIN } from '../domain/contingency';
 import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
@@ -156,6 +157,19 @@ export class CreateCaseDto {
   budgetAmountDollars?: number;
 
   @ApiPropertyOptional({
+    type: 'integer',
+    minimum: PERCENT_BPS_MIN,
+    maximum: PERCENT_BPS_MAX,
+    description:
+      'Owner 2026-10-17: required when budgetMode = percent; basis points (3300 = 33 %). Capped by `fees.contingency_max_percent`.',
+  })
+  @ValidateIf((o: CreateCaseDto) => o.budgetMode === 'percent')
+  @IsInt()
+  @Min(PERCENT_BPS_MIN)
+  @Max(PERCENT_BPS_MAX)
+  budgetPercentBps?: number;
+
+  @ApiPropertyOptional({
     description:
       'Must be true unless the client already granted client_contact_sharing on an earlier case.',
   })
@@ -292,6 +306,19 @@ export class UpdateCaseDto {
   @Min(BUDGET_MIN_DOLLARS)
   @Max(BUDGET_MAX_DOLLARS)
   budgetAmountDollars?: number;
+
+  @ApiPropertyOptional({
+    type: 'integer',
+    minimum: PERCENT_BPS_MIN,
+    maximum: PERCENT_BPS_MAX,
+    description:
+      'Owner 2026-10-17: required when budgetMode = percent; basis points (3300 = 33 %). Capped by `fees.contingency_max_percent`.',
+  })
+  @ValidateIf((o: UpdateCaseDto) => o.budgetMode === 'percent')
+  @IsInt()
+  @Min(PERCENT_BPS_MIN)
+  @Max(PERCENT_BPS_MAX)
+  budgetPercentBps?: number;
   /** Owner 2026-10-04: an app cover variant or icon avatar for the card
    * (never a personal photo). Null/absent = picked from the case id. */
   @ApiPropertyOptional({

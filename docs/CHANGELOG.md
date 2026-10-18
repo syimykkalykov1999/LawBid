@@ -5,6 +5,16 @@ All notable changes to this project are documented here, per
 .cursorrules (each stage ends with a CHANGELOG update + commit on
 branch cursor/stage-X-Y-description).
 
+## Percent budgets and bids (2026-10-17)
+
+Owner (OQ-053): clients can look for an attorney "for a percent of the recovery" and attorneys can offer one; LawBid takes nothing from it.
+
+- DB: `budget_mode` += `percent`, `fee_type` += `contingency` (own migration `20261017110000_contingency_enums`), `cases.budget_percent_bps`, `bids.percent_bps`, `bid_offers.percent_bps` with CHECKs (`20261017110100_contingency_fees`). Basis points: 3300 = 33 %.
+- API: `budgetPercentBps` on case create/update and in case, feed, invite responses (`budget.percentBps`); `percentBps` on bid create, counter-offer, bid/offer/work-item/history responses. `CONTINGENCY_NOT_ALLOWED` for blocked topics. Shared rules in `cases/domain/contingency.ts`.
+- Settings `fees.contingency_max_percent` (100) and `fees.contingency_blocked_practices` (criminal, DUI, traffic, family); exposed to the app through bootstrap (`fees.contingency_` prefix) and listed in admin Config with Russian help.
+- App: third budget tab «Проценты» (hidden for blocked topics), fee type «Процент» in the bid form, percent counter-offers, "33% of recovery" everywhere terms are shown. Strings in `contingency_strings.dart` (update the translations xlsx too). Case golden images regenerated.
+- Tests: e2e `owner-contingency` (percent case, percent bid, percent counter, blocked topic, admin cap); bid state-machine spec updated.
+
 ## Chat for everyone (2026-10-17)
 
 Owner (OQ-052): "everyone writes to everyone, like Instagram".

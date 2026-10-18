@@ -10,7 +10,7 @@ import {
 import { mineCaseWhere } from './mine/mine-filters';
 import { ClientFraudService } from '../client-fraud/client-fraud.service';
 import { SubscriptionAlertsService } from '../notifications/subscription-alerts.service';
-import type { Case, CaseState, Prisma } from '@prisma/client';
+import type { BudgetMode, Case, CaseState, Prisma } from '@prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
   decodeCursor,
@@ -39,6 +39,7 @@ import {
   type CaseStateInput,
 } from './domain/case-states.rule';
 import { assertNoContactInfo } from './domain/contact-detector';
+import { assertContingency, contingencyPolicy } from './domain/contingency';
 import {
   ChatSystemMessages,
   type ChatChange,
@@ -145,10 +146,10 @@ function statesLocked(): ConflictException {
  * already keeps the two in sync on the wire, this is the one place the
  * dollars -> cents conversion (and its defense-in-depth check) happens. */
 export function budgetCentsOf(
-  mode: 'amount' | 'clarify_later',
+  mode: BudgetMode,
   amountDollars: number | undefined,
 ): number | null {
-  if (mode === 'clarify_later') return null;
+  if (mode !== 'amount') return null;
   if (!Number.isInteger(amountDollars) || (amountDollars as number) <= 0) {
     throw validationError('budgetAmountDollars is required for "amount".', {
       field: 'budgetAmountDollars',
@@ -235,6 +236,7 @@ function toCaseDto(
     city: kase.city,
     budgetMode: kase.budget_mode,
     budgetCents: kase.budget_cents,
+    budgetPercentBps: kase.budget_percent_bps,
     coverKey: kase.cover_key,
     ...urgencyFields(kase, new Date(), t),
     status: kase.status,
@@ -272,6 +274,7 @@ function toSummaryDto(
     status: kase.status,
     budgetMode: kase.budget_mode,
     budgetCents: kase.budget_cents,
+    budgetPercentBps: kase.budget_percent_bps,
     coverKey: kase.cover_key,
     ...urgencyFields(kase, new Date(), t),
     bidsCount: kase.bids_count,
@@ -340,6 +343,15 @@ export class CasesService {
       dto.extraPracticeAreaIds ?? [],
     );
     const budgetCents = budgetCentsOf(dto.budgetMode, dto.budgetAmountDollars);
+    const budgetPercentBps =
+      dto.budgetMode === 'percent'
+        ? assertContingency(
+            await contingencyPolicy(this.settings),
+            [practiceArea.code, ...extraAreas.map((a) => a.code)],
+            dto.budgetPercentBps,
+            'budgetPercentBps',
+          )
+        : null;
     const urgency = urgencyColumnsOf(dto, null);
 
     // OQ-031: the author's own clean case photos (count: admin, bug 17).
@@ -367,6 +379,7 @@ export class CasesService {
           city: dto.city ?? null,
           budget_mode: dto.budgetMode,
           budget_cents: budgetCents,
+          budget_percent_bps: budgetPercentBps,
           cover_key: dto.coverKey ?? null,
           ...urgency,
           status: 'open',
@@ -401,6 +414,7 @@ export class CasesService {
           states: states as unknown as Prisma.InputJsonArray,
           budgetMode: kase.budget_mode,
           budgetCents: kase.budget_cents,
+          budgetPercentBps: kase.budget_percent_bps,
         },
       });
       if (!consentGranted) {
@@ -542,20 +556,62 @@ export class CasesService {
         extra.city = dto.city;
         diff.city = { old: current.city, new: dto.city };
       }
+      // Owner 2026-10-17: a percent budget is checked against the topics
+      // the case will have after this update.
+      const nextMode = dto.budgetMode ?? current.budget_mode;
+      if (
+        nextMode === 'percent' &&
+        (dto.budgetMode !== undefined || hasPracticeChange)
+      ) {
+        const extraIds =
+          extraAreas?.map((a) => a.id) ??
+          (
+            await tx.caseExtraPractice.findMany({
+              where: { case_id: caseId },
+              select: { practice_area_id: true },
+            })
+          ).map((e) => e.practice_area_id);
+        const codes = (
+          await tx.practiceArea.findMany({
+            where: { id: { in: [nextPrimary, ...extraIds] } },
+            select: { code: true },
+          })
+        ).map((a) => a.code);
+        assertContingency(
+          await contingencyPolicy(this.settings),
+          codes,
+          dto.budgetMode === undefined
+            ? (current.budget_percent_bps ?? undefined)
+            : dto.budgetPercentBps,
+          'budgetPercentBps',
+        );
+      }
       if (dto.budgetMode !== undefined) {
         const budgetCents = budgetCentsOf(
           dto.budgetMode,
           dto.budgetAmountDollars,
         );
+        const budgetPercentBps =
+          dto.budgetMode === 'percent' ? (dto.budgetPercentBps ?? null) : null;
         if (
           dto.budgetMode !== current.budget_mode ||
-          budgetCents !== current.budget_cents
+          budgetCents !== current.budget_cents ||
+          budgetPercentBps !== current.budget_percent_bps
         ) {
           extra.budget_mode = dto.budgetMode;
           extra.budget_cents = budgetCents;
+          extra.budget_percent_bps = budgetPercentBps;
           diff.budget = {
-            old: { mode: current.budget_mode, cents: current.budget_cents },
-            new: { mode: dto.budgetMode, cents: budgetCents },
+            old: {
+              mode: current.budget_mode,
+              cents: current.budget_cents,
+              percentBps: current.budget_percent_bps,
+            },
+            new: {
+              mode: dto.budgetMode,
+              cents: budgetCents,
+              percentBps: budgetPercentBps,
+            },
           };
         }
       }

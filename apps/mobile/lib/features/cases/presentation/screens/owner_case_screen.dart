@@ -906,7 +906,13 @@ class _AcceptedAttorneyCard extends StatelessWidget {
             ),
           const SizedBox(height: AppSpacing.md),
           MoneyText(
-            CaseFormat.terms(t, formats, bid.feeType, bid.amountCents),
+            CaseFormat.terms(
+              t,
+              formats,
+              bid.feeType,
+              bid.amountCents,
+              percentBps: bid.percentBps,
+            ),
             large: true,
           ),
           const SizedBox(height: AppSpacing.xs),

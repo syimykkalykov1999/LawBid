@@ -482,9 +482,11 @@ class _ReviewStep extends ConsumerWidget {
               Divider(height: 1, color: colors.border),
               row(
                 t.t('cases.card.budget'),
-                d.budgetIsAmount && d.budgetDollars != null
-                    ? CaseFormat.money(formats, d.budgetDollars! * 100)
-                    : t.t('cases.budget.clarifyLater'),
+                d.budgetIsPercent && d.budgetPercentBps != null
+                    ? CaseFormat.percent(t, formats, d.budgetPercentBps!)
+                    : d.budgetIsAmount && d.budgetDollars != null
+                        ? CaseFormat.money(formats, d.budgetDollars! * 100)
+                        : t.t('cases.budget.clarifyLater'),
                 3,
                 AppIcons.paymentsOutlined,
               ),

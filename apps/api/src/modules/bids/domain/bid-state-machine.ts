@@ -233,6 +233,9 @@ export interface ApplyBidActionInput {
   /** counter only: the new amount in cents (§6.1: only the amount is
    * negotiated, the fee type stays). */
   amountCents?: number;
+  /** counter only, contingency bids: the new percent in basis points
+   * (owner 2026-10-17; the service checks the admin cap). */
+  percentBps?: number;
   /** counter only: optional note (≤500 chars, validated by the DTO). */
   message?: string | null;
 }
@@ -268,7 +271,13 @@ export class BidStateMachine {
     const plan = planBidTransition(bid, input.action, input.by, now);
 
     const data: Prisma.BidUncheckedUpdateManyInput = { ...plan.data };
-    if (plan.newOffer) {
+    if (plan.newOffer && bid.fee_type === 'contingency') {
+      const bps = input.percentBps;
+      if (bps === undefined || !Number.isInteger(bps) || bps <= 0) {
+        throw new Error('counter needs a positive integer percentBps');
+      }
+      data.percent_bps = bps;
+    } else if (plan.newOffer) {
       const amount = input.amountCents;
       if (amount === undefined || !Number.isInteger(amount) || amount <= 0) {
         throw new Error('counter needs a positive integer amountCents');
@@ -304,7 +313,12 @@ export class BidStateMachine {
           round_no: plan.newOffer.round_no,
           from_role: plan.newOffer.from_role,
           fee_type: bid.fee_type,
-          amount_cents: data.amount_cents as number,
+          amount_cents:
+            bid.fee_type === 'contingency' ? 0 : (data.amount_cents as number),
+          percent_bps:
+            bid.fee_type === 'contingency'
+              ? (data.percent_bps as number)
+              : null,
           message: input.message ?? null,
           status: 'pending',
           created_at: now,

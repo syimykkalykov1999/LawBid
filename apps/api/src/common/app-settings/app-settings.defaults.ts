@@ -279,6 +279,18 @@ export const OWNER_SEAT_SETTINGS = {
   'billing.max_assistant_seats': 10,
 } as const;
 
+// Owner 2026-10-17: percent (contingency) budgets and bids — a deal between
+// client and attorney, LawBid takes nothing. `fees.contingency_max_percent`
+// caps the percent (100 = no cap); `fees.contingency_blocked_practices` is a
+// comma list of practice codes (a code covers its subtopics) where the
+// percent option is hidden — ethics rules forbid contingency fees in
+// criminal and domestic-relations matters in almost every state.
+export const OWNER_CONTINGENCY_SETTINGS = {
+  'fees.contingency_max_percent': 100,
+  'fees.contingency_blocked_practices':
+    'criminal_defense,dui_and_dwi,traffic_tickets,family_law',
+} as const;
+
 // Owner 2026-10-05: case urgency. A case with a date reads as "very
 // urgent" with at most `cases.urgency_days_very_urgent` days left, and so
 // on down. Client and hired attorney get reminders
@@ -593,6 +605,7 @@ export const APP_SETTINGS = {
   ...OWNER_INVITE_SETTINGS,
   ...OWNER_SEAT_SETTINGS,
   ...OWNER_URGENCY_SETTINGS,
+  ...OWNER_CONTINGENCY_SETTINGS,
   ...OWNER_TRUST_SETTINGS,
   ...OWNER_TRIAL_SETTINGS,
   ...OWNER_REASON_SETTINGS,

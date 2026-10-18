@@ -137,6 +137,7 @@ class _HistoryTile extends StatelessWidget {
                 formats,
                 item.acceptedFeeType!,
                 item.acceptedAmountCents!,
+                percentBps: item.acceptedPercentBps,
               );
     return AppCard(
       elevated: true,
@@ -279,7 +280,13 @@ class _EventRow extends StatelessWidget {
     final actor = t.t('history.actor.${event.actor.name}');
     final extra = [
       if (event.amountCents != null && event.feeType != null)
-        CaseFormat.terms(t, formats, event.feeType!, event.amountCents!),
+        CaseFormat.terms(
+          t,
+          formats,
+          event.feeType!,
+          event.amountCents!,
+          percentBps: event.percentBps,
+        ),
       if (event.roundNo != null && event.roundNo! > 0)
         t.t('cases.timeline.round', {'n': '${event.roundNo}'}),
     ].join(' · ');

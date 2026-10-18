@@ -83062,6 +83062,7 @@
           "CALL_IN_PROGRESS",
           "CALL_STATE_CONFLICT",
           "DIRECT_CHAT_NOT_ALLOWED",
+          "CONTINGENCY_NOT_ALLOWED",
           "MESSAGE_REQUEST_DECLINED",
           "MESSAGE_REQUEST_LIMIT",
           "INTEGRATIONS_NOT_CONFIGURED",
@@ -87975,7 +87976,8 @@
         "enum": [
           "fixed",
           "hourly",
-          "free_consultation"
+          "free_consultation",
+          "contingency"
         ]
       },
       "StartAvailability": {
@@ -88030,6 +88032,11 @@
           },
           "amountCents": {
             "type": "integer"
+          },
+          "percentBps": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Owner 2026-10-17: contingency → basis points (3300 = 33 %)."
           },
           "message": {
             "type": "string",
@@ -88162,6 +88169,11 @@
           "amountCents": {
             "type": "integer"
           },
+          "percentBps": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Owner 2026-10-17: contingency → basis points (3300 = 33 %)."
+          },
           "message": {
             "type": "string"
           },
@@ -88266,6 +88278,12 @@
             "maximum": 1000000000,
             "description": "Required for fixed/hourly; ignored (stored as 0) for free_consultation."
           },
+          "percentBps": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10000,
+            "description": "Owner 2026-10-17: required for contingency — basis points (3300 = 33 %), capped by `fees.contingency_max_percent`."
+          },
           "message": {
             "type": "string",
             "minLength": 20,
@@ -88315,17 +88333,21 @@
           "amountCents": {
             "type": "integer",
             "minimum": 1,
-            "maximum": 1000000000
+            "maximum": 1000000000,
+            "description": "Required unless the bid is contingency."
+          },
+          "percentBps": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10000,
+            "description": "Owner 2026-10-17: required for a contingency bid."
           },
           "message": {
             "type": "string",
             "nullable": true,
             "maxLength": 500
           }
-        },
-        "required": [
-          "amountCents"
-        ]
+        }
       },
       "FirmMemberDto": {
         "type": "object",
@@ -95210,7 +95232,8 @@
         "type": "string",
         "enum": [
           "amount",
-          "clarify_later"
+          "clarify_later",
+          "percent"
         ]
       },
       "CaseStatus": {
@@ -95271,6 +95294,11 @@
           "budgetCents": {
             "type": "integer",
             "nullable": true
+          },
+          "budgetPercentBps": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Owner 2026-10-17: budgetMode = percent → basis points."
           },
           "coverKey": {
             "type": "string",
@@ -95446,6 +95474,12 @@
             "maximum": 10000000,
             "description": "Required (and only meaningful) when budgetMode = amount."
           },
+          "budgetPercentBps": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10000,
+            "description": "Owner 2026-10-17: required when budgetMode = percent; basis points (3300 = 33 %). Capped by `fees.contingency_max_percent`."
+          },
           "clientContactSharingConsent": {
             "type": "boolean",
             "description": "Must be true unless the client already granted client_contact_sharing on an earlier case."
@@ -95562,6 +95596,12 @@
             "type": "integer",
             "minimum": 1,
             "maximum": 10000000
+          },
+          "budgetPercentBps": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10000,
+            "description": "Owner 2026-10-17: required when budgetMode = percent; basis points (3300 = 33 %). Capped by `fees.contingency_max_percent`."
           },
           "coverKey": {
             "type": "string",
@@ -95717,6 +95757,11 @@
             "type": "integer",
             "nullable": true
           },
+          "budgetPercentBps": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Owner 2026-10-17: budgetMode = percent → basis points."
+          },
           "coverKey": {
             "type": "string",
             "nullable": true,
@@ -95856,6 +95901,11 @@
           "amountCents": {
             "type": "integer",
             "nullable": true
+          },
+          "percentBps": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Owner 2026-10-17: mode = percent → basis points."
           }
         },
         "required": [
@@ -96398,6 +96448,11 @@
           },
           "amountCents": {
             "type": "integer"
+          },
+          "percentBps": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Owner 2026-10-17: contingency → basis points (3300 = 33 %)."
           },
           "message": {
             "type": "string"
@@ -97858,6 +97913,11 @@
             "type": "integer",
             "nullable": true
           },
+          "budgetPercentBps": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Owner 2026-10-17: budgetMode = percent → basis points."
+          },
           "coverKey": {
             "type": "string",
             "nullable": true,
@@ -98072,6 +98132,11 @@
           "amountCents": {
             "type": "integer"
           },
+          "percentBps": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Owner 2026-10-17: contingency → basis points (3300 = 33 %)."
+          },
           "message": {
             "type": "string"
           },
@@ -98235,6 +98300,11 @@
           },
           "amountCents": {
             "type": "integer"
+          },
+          "percentBps": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Owner 2026-10-17: contingency → basis points."
           },
           "autoCloseAt": {
             "type": "string",
@@ -110745,6 +110815,11 @@
             "type": "integer",
             "description": "Final amount in cents."
           },
+          "percentBps": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Owner 2026-10-17: contingency → basis points."
+          },
           "feeType": {
             "allOf": [
               {
@@ -110904,6 +110979,11 @@
           "amountCents": {
             "type": "integer",
             "nullable": true
+          },
+          "percentBps": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Owner 2026-10-17: contingency → basis points."
           },
           "feeType": {
             "nullable": true,

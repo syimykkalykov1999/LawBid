@@ -482,7 +482,11 @@ export class CasesFeedService {
           .map((s) => s.state_code),
         city: c.city,
         status: c.status,
-        budget: { mode: c.budget_mode, amountCents: c.budget_cents },
+        budget: {
+          mode: c.budget_mode,
+          amountCents: c.budget_cents,
+          percentBps: c.budget_percent_bps,
+        },
         coverKey: c.cover_key,
         ...urgencyFields(c, new Date(now), thresholds),
         viewCount: c.view_count,

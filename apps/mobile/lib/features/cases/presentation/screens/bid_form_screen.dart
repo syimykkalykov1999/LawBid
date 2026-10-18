@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/pickers/app_pickers.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -14,6 +15,7 @@ import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/data/cases_repository.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
+import 'package:lawbid/features/cases/domain/contingency.dart';
 import 'package:lawbid/features/cases/presentation/screens/attorney_case_screen.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_wizard_steps.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
@@ -106,10 +108,11 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
       await ref.read(teamRepositoryProvider).saveBidDraft(
             widget.caseId,
             feeType: _fee.json,
-            amountCents:
-                _fee == FeeType.freeConsultation || _amountDollars == null
-                    ? null
-                    : _amountDollars! * 100,
+            amountCents: _fee == FeeType.freeConsultation ||
+                    _isPercent ||
+                    _amountDollars == null
+                ? null
+                : _amountDollars! * 100,
             message: _message.text.trim().isEmpty ? null : _message.text,
             startAvailability: _start.json,
             startDate: _startDate,
@@ -130,9 +133,18 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
 
   int? get _amountDollars => int.tryParse(_amount.text);
 
+  /// Owner 2026-10-17: a contingency bid — percent of the recovery.
+  bool get _isPercent => _fee == FeeType.contingency;
+
+  int? get _percentBps =>
+      ContingencyRules.of(ref.read(featureFlagsControllerProvider))
+          .parse(_amount.text);
+
   bool get _amountOk =>
       _fee == FeeType.freeConsultation ||
-      (_amountDollars != null &&
+      (_isPercent && _percentBps != null) ||
+      (!_isPercent &&
+          _amountDollars != null &&
           _amountDollars! > 0 &&
           _amountDollars! <= BidLimits.amountMaxDollars);
 
@@ -182,9 +194,10 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
             widget.caseId,
             BidInput(
               feeType: _fee,
-              amountCents: _fee == FeeType.freeConsultation
+              amountCents: _fee == FeeType.freeConsultation || _isPercent
                   ? null
                   : _amountDollars! * 100,
+              percentBps: _isPercent ? _percentBps : null,
               message: _message.text,
               startAvailability: _start,
               startDate: _startDate,
@@ -280,9 +293,13 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
             options: [
               (FeeType.fixed, t.t('cases.fee.fixed')),
               (FeeType.hourly, t.t('cases.fee.hourly')),
+              (FeeType.contingency, t.t('cases.fee.percentShort')),
               (FeeType.freeConsultation, t.t('cases.fee.freeShort')),
             ],
-            onChanged: (v) => setState(() => _fee = v),
+            onChanged: (v) => setState(() {
+              if ((v == FeeType.contingency) != _isPercent) _amount.clear();
+              _fee = v;
+            }),
           ),
           AnimatedSize(
             duration:
@@ -294,23 +311,49 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
                     padding: const EdgeInsets.only(top: AppSpacing.lg),
                     child: AppTextField(
                       controller: _amount,
+                      key: ValueKey(_isPercent),
                       label: t.t(
-                        _fee == FeeType.hourly
-                            ? 'cases.bidForm.rate'
-                            : 'cases.bidForm.amount',
+                        _isPercent
+                            ? 'cases.bidForm.percent'
+                            : _fee == FeeType.hourly
+                                ? 'cases.bidForm.rate'
+                                : 'cases.bidForm.amount',
                       ),
+                      hintText: _isPercent ? '33' : null,
+                      helperText:
+                          _isPercent ? t.t('cases.bidForm.percentHint') : null,
                       leading: Text(
-                        r'$',
+                        _isPercent ? '%' : r'$',
                         style: typography.titleMedium
                             .copyWith(color: colors.goldDark),
                       ),
-                      keyboardType: TextInputType.number,
+                      keyboardType: _isPercent
+                          ? const TextInputType.numberWithOptions(
+                              decimal: true,
+                            )
+                          : TextInputType.number,
                       inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly,
-                        LengthLimitingTextInputFormatter(8),
+                        if (_isPercent)
+                          FilteringTextInputFormatter.allow(
+                            RegExp('[0-9.,]'),
+                          )
+                        else
+                          FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(_isPercent ? 6 : 8),
                       ],
                       errorText: _amount.text.isNotEmpty && !_amountOk
-                          ? t.t('cases.bidForm.amountError')
+                          ? t.t(
+                              _isPercent
+                                  ? 'cases.bidForm.percentError'
+                                  : 'cases.bidForm.amountError',
+                              {
+                                'max': ContingencyRules.plain(
+                                  ContingencyRules.of(
+                                    ref.watch(featureFlagsControllerProvider),
+                                  ).maxBps,
+                                ),
+                              },
+                            )
                           : null,
                       onChanged: (_) => setState(() {}),
                     ),

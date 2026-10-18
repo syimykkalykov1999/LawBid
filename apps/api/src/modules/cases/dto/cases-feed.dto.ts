@@ -250,6 +250,13 @@ export class CaseBudgetDto {
 
   @ApiPropertyOptional({ type: 'integer', nullable: true })
   amountCents!: number | null;
+
+  @ApiPropertyOptional({
+    type: 'integer',
+    nullable: true,
+    description: 'Owner 2026-10-17: mode = percent → basis points.',
+  })
+  percentBps!: number | null;
 }
 
 /**

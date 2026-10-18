@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
+import 'package:lawbid/features/cases/domain/contingency.dart';
 
 /// Display rules for docs/04 values. Money is integer cents; whole-dollar
 /// amounts drop the ".00" (`$600`, docs/04 §4.2 card).
@@ -18,10 +19,25 @@ abstract final class CaseFormat {
     );
   }
 
-  /// "$600", "$250/hr" or "Free consultation".
-  static String terms(Translator t, L10nFormats f, FeeType type, int cents) =>
+  /// "33% of recovery" (owner 2026-10-17; basis points in).
+  static String percent(Translator t, L10nFormats f, int bps) =>
+      t.t('cases.fee.percentOf', {
+        'percent': f.digits(ContingencyRules.plain(bps)),
+      });
+
+  /// "$600", "$250/hr", "33% of recovery" or "Free consultation".
+  static String terms(
+    Translator t,
+    L10nFormats f,
+    FeeType type,
+    int cents, {
+    int? percentBps,
+  }) =>
       switch (type) {
         FeeType.freeConsultation => t.t('cases.fee.free'),
+        FeeType.contingency => percentBps == null
+            ? t.t('cases.fee.percent')
+            : percent(t, f, percentBps),
         FeeType.hourly => t.t('cases.fee.perHour', {'amount': money(f, cents)}),
         _ => money(f, cents),
       };
@@ -29,12 +45,14 @@ abstract final class CaseFormat {
   static String feeTypeLabel(Translator t, FeeType type) => switch (type) {
         FeeType.hourly => t.t('cases.fee.hourly'),
         FeeType.freeConsultation => t.t('cases.fee.free'),
+        FeeType.contingency => t.t('cases.fee.percent'),
         _ => t.t('cases.fee.fixed'),
       };
 
   /// "$600" or "Clarify later" (docs/04 §4.2).
-  static String budget(Translator t, L10nFormats f, CaseBudget b) =>
-      b.isClarifyLater
+  static String budget(Translator t, L10nFormats f, CaseBudget b) => b.isPercent
+      ? percent(t, f, b.percentBps!)
+      : b.isClarifyLater
           ? t.t('cases.budget.clarifyLater')
           : money(f, b.amountCents!);
 

@@ -35,6 +35,7 @@ class MyBidItemDto {
     required this.createdAt,
     required this.caseValue,
     required this.lastOffer,
+    this.percentBps,
     this.attorney,
     this.coverUrl,
   });
@@ -48,6 +49,9 @@ class MyBidItemDto {
   final BidStatus status;
   final FeeType feeType;
   final int amountCents;
+
+  /// Owner 2026-10-17: contingency → basis points (3300 = 33 %).
+  final int? percentBps;
   final String message;
   final StartAvailability startAvailability;
   final DateTime? startDate;

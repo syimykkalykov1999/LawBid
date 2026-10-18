@@ -22,6 +22,7 @@ class UpdateCaseDto {
     this.city,
     this.budgetMode,
     this.budgetAmountDollars,
+    this.budgetPercentBps,
     this.coverKey,
     this.urgency,
     this.deadlineAt,
@@ -45,6 +46,9 @@ class UpdateCaseDto {
   final String? city;
   final BudgetMode? budgetMode;
   final int? budgetAmountDollars;
+
+  /// Owner 2026-10-17: required when budgetMode = percent; basis points (3300 = 33 %). Capped by `fees.contingency_max_percent`.
+  final int? budgetPercentBps;
 
   /// `art:0`-`art:3` (practice cover variant) or `icon:<name>`.
   final String? coverKey;

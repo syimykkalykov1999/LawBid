@@ -1011,3 +1011,15 @@ Replaces the "attorney ↔ client only" part of OQ-043.
 - Message length and allowed chat file formats stay in the admin
   (`limits.chat_message_chars`, Система → «Загрузки и файлы» → chat).
 - Next: video in chat (owner wants WhatsApp/Telegram-level media).
+
+## OQ-053 — Percent (contingency) budgets and bids (owner, 2026-10-17)
+
+- The percent is a deal between the client and the attorney; LawBid takes
+  nothing from it.
+- New case → Budget: «Сумма», «Проценты», «Уточню позже». Bids: a new fee
+  type «Процент»; a percent bid is negotiated in percent.
+- Admin: `fees.contingency_max_percent` (default 100 = no cap) and
+  `fees.contingency_blocked_practices` (default criminal_defense,
+  dui_and_dwi, traffic_tickets, family_law — ethics rules forbid
+  contingency there; a code covers its subtopics). The option is hidden
+  there in the app and refused by the API (`CONTINGENCY_NOT_ALLOWED`).

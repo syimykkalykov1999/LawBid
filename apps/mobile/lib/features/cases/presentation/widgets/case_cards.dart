@@ -1031,7 +1031,13 @@ class BidCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    final terms = CaseFormat.terms(t, formats, bid.feeType, bid.amountCents);
+    final terms = CaseFormat.terms(
+      t,
+      formats,
+      bid.feeType,
+      bid.amountCents,
+      percentBps: bid.percentBps,
+    );
     final start =
         CaseFormat.startLabel(t, formats, bid.startAvailability, bid.startDate);
     final highlighted = bid.isTurnOf(PartyRole.client);
@@ -1123,7 +1129,13 @@ class MyBidCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final bid = item.bid;
-    final terms = CaseFormat.terms(t, formats, bid.feeType, bid.amountCents);
+    final terms = CaseFormat.terms(
+      t,
+      formats,
+      bid.feeType,
+      bid.amountCents,
+      percentBps: bid.percentBps,
+    );
     final re = t.t('cases.myBids.re', {'title': item.caseTitle});
     final practice = CaseFormat.practice(
       t,
@@ -1188,7 +1200,13 @@ class WorkCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final terms = CaseFormat.terms(t, formats, item.feeType, item.amountCents);
+    final terms = CaseFormat.terms(
+      t,
+      formats,
+      item.feeType,
+      item.amountCents,
+      percentBps: item.percentBps,
+    );
     final client = item.clientName ?? t.t('cases.work.clientLocked');
     final practice = item.practiceI18nKey == null
         ? ''

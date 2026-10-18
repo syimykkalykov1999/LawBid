@@ -88,6 +88,13 @@ export class CaseDto {
   @ApiPropertyOptional({ type: 'integer', nullable: true })
   budgetCents!: number | null;
 
+  @ApiPropertyOptional({
+    type: 'integer',
+    nullable: true,
+    description: 'Owner 2026-10-17: budgetMode = percent → basis points.',
+  })
+  budgetPercentBps!: number | null;
+
   /** Owner 2026-10-04: `art:0..3` / `icon:<name>`; null = from the id. */
   @ApiPropertyOptional({ type: String, nullable: true, example: 'art:2' })
   coverKey?: string | null;
@@ -206,6 +213,13 @@ export class CaseSummaryDto {
 
   @ApiPropertyOptional({ type: 'integer', nullable: true })
   budgetCents!: number | null;
+
+  @ApiPropertyOptional({
+    type: 'integer',
+    nullable: true,
+    description: 'Owner 2026-10-17: budgetMode = percent → basis points.',
+  })
+  budgetPercentBps!: number | null;
 
   /** Owner 2026-10-04: `art:0..3` / `icon:<name>`; null = from the id. */
   @ApiPropertyOptional({ type: String, nullable: true, example: 'art:2' })

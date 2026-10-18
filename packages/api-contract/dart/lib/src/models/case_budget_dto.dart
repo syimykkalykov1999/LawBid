@@ -10,13 +10,16 @@ part 'case_budget_dto.g.dart';
 
 @JsonSerializable()
 class CaseBudgetDto {
-  const CaseBudgetDto({required this.mode, this.amountCents});
+  const CaseBudgetDto({required this.mode, this.amountCents, this.percentBps});
 
   factory CaseBudgetDto.fromJson(Map<String, Object?> json) =>
       _$CaseBudgetDtoFromJson(json);
 
   final BudgetMode mode;
   final int? amountCents;
+
+  /// Owner 2026-10-17: mode = percent → basis points.
+  final int? percentBps;
 
   Map<String, Object?> toJson() => _$CaseBudgetDtoToJson(this);
 }

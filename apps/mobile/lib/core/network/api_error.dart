@@ -154,6 +154,7 @@ abstract final class ApiErrorCodes {
   static const directChatNotAllowed = 'DIRECT_CHAT_NOT_ALLOWED';
   static const messageRequestDeclined = 'MESSAGE_REQUEST_DECLINED';
   static const messageRequestLimit = 'MESSAGE_REQUEST_LIMIT';
+  static const contingencyNotAllowed = 'CONTINGENCY_NOT_ALLOWED';
   static const bidAttorneyInactive = 'BID_ATTORNEY_INACTIVE';
   static const contactsLocked = 'CONTACTS_LOCKED';
   static const contactIssueAlreadyOpen = 'CONTACT_ISSUE_ALREADY_OPEN';
@@ -380,6 +381,7 @@ abstract final class ApiErrorCodes {
     directChatNotAllowed,
     messageRequestDeclined,
     messageRequestLimit,
+    contingencyNotAllowed,
     bidAttorneyInactive,
     contactsLocked,
     contactIssueAlreadyOpen,

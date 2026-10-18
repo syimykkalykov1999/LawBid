@@ -391,7 +391,13 @@ class _TermsLine extends ConsumerWidget {
         children: [
           Expanded(
             child: MoneyText(
-              CaseFormat.terms(t, formats, bid.feeType, bid.amountCents),
+              CaseFormat.terms(
+                t,
+                formats,
+                bid.feeType,
+                bid.amountCents,
+                percentBps: bid.percentBps,
+              ),
             ),
           ),
           AppIcon(

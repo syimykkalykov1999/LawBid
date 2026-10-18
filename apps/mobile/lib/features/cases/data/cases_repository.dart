@@ -20,6 +20,7 @@ class BidInput {
     required this.message,
     required this.startAvailability,
     this.amountCents,
+    this.percentBps,
     this.startDate,
     this.estimatedDurationDays,
     this.sendAsAttorneyId,
@@ -29,6 +30,9 @@ class BidInput {
   final String? sendAsAttorneyId;
   final FeeType feeType;
   final int? amountCents;
+
+  /// Owner 2026-10-17: contingency → basis points (3300 = 33 %).
+  final int? percentBps;
   final String message;
   final StartAvailability startAvailability;
   final DateTime? startDate;
@@ -135,9 +139,13 @@ abstract interface class CasesRepository {
   // --- both parties of a bid ---
   Future<CaseBid> bid(String bidId);
   Future<CaseBid> accept(String bidId);
+
+  /// [percentBps] for a contingency bid (owner 2026-10-17), else
+  /// [amountCents].
   Future<CaseBid> counter(
     String bidId, {
-    required int amountCents,
+    int? amountCents,
+    int? percentBps,
     String? message,
   });
   Future<CaseBid> decline(String bidId);
@@ -223,11 +231,11 @@ class ApiCasesRepository implements CasesRepository {
           primaryStateCode: draft.primaryStateCode!,
           additionalStateCodes: draft.additionalStateCodes,
           city: draft.city.trim().isEmpty ? null : draft.city.trim(),
-          budgetMode: draft.budgetIsAmount
-              ? api.BudgetMode.amount
-              : api.BudgetMode.clarifyLater,
+          budgetMode: _budgetMode(draft),
           budgetAmountDollars:
               draft.budgetIsAmount ? draft.budgetDollars : null,
+          budgetPercentBps:
+              draft.budgetIsPercent ? draft.budgetPercentBps : null,
           clientContactSharingConsent: contactSharingConsent ? true : null,
           photoFileIds: photoFileIds.isEmpty ? null : photoFileIds,
           coverKey: draft.coverKey,
@@ -256,9 +264,10 @@ class ApiCasesRepository implements CasesRepository {
     final amountCents = draft.budgetIsAmount && draft.budgetDollars != null
         ? draft.budgetDollars! * 100
         : null;
-    final budgetChanged = draft.budgetIsAmount ==
-            original.budget.isClarifyLater ||
-        (draft.budgetIsAmount && amountCents != original.budget.amountCents);
+    final budgetChanged = _budgetMode(draft) != original.budget.mode ||
+        (draft.budgetIsAmount && amountCents != original.budget.amountCents) ||
+        (draft.budgetIsPercent &&
+            draft.budgetPercentBps != original.budget.percentBps);
     await guardApiCall(
       () => _cases.updateCase(
         id: original.id,
@@ -280,13 +289,12 @@ class ApiCasesRepository implements CasesRepository {
           additionalStateCodes: statesChanged ? states : null,
           // An empty string clears the city (null would mean "unchanged").
           city: draft.city.trim(),
-          budgetMode: budgetChanged
-              ? (draft.budgetIsAmount
-                  ? api.BudgetMode.amount
-                  : api.BudgetMode.clarifyLater)
-              : null,
+          budgetMode: budgetChanged ? _budgetMode(draft) : null,
           budgetAmountDollars: budgetChanged && draft.budgetIsAmount
               ? draft.budgetDollars
+              : null,
+          budgetPercentBps: budgetChanged && draft.budgetIsPercent
+              ? draft.budgetPercentBps
               : null,
           coverKey: draft.coverKey != original.coverKey ? draft.coverKey : null,
           urgency:
@@ -437,7 +445,8 @@ class ApiCasesRepository implements CasesRepository {
   @override
   Future<CaseBid> counter(
     String bidId, {
-    required int amountCents,
+    int? amountCents,
+    int? percentBps,
     String? message,
   }) async =>
       CasesMappers.bid(
@@ -446,6 +455,7 @@ class ApiCasesRepository implements CasesRepository {
             id: bidId,
             body: api.CounterOfferDto(
               amountCents: amountCents,
+              percentBps: percentBps,
               message:
                   (message?.trim().isEmpty ?? true) ? null : message!.trim(),
             ),
@@ -536,9 +546,13 @@ class ApiCasesRepository implements CasesRepository {
             caseId: caseId,
             body: api.CreateBidDto(
               feeType: input.feeType,
-              amountCents: input.feeType == FeeType.freeConsultation
+              amountCents: input.feeType == FeeType.freeConsultation ||
+                      input.feeType == FeeType.contingency
                   ? null
                   : input.amountCents,
+              percentBps: input.feeType == FeeType.contingency
+                  ? input.percentBps
+                  : null,
               message: input.message.trim(),
               startAvailability: input.startAvailability,
               startDate: input.startAvailability == StartAvailability.customDate
@@ -729,3 +743,10 @@ class ApiCasesRepository implements CasesRepository {
 
 bool _sameIds(List<String> a, List<String> b) =>
     a.length == b.length && a.toSet().containsAll(b);
+
+/// Owner 2026-10-17: «Сумма», «Проценты» or «Уточню позже».
+api.BudgetMode _budgetMode(CaseDraft d) => d.budgetIsPercent
+    ? api.BudgetMode.percent
+    : d.budgetIsAmount
+        ? api.BudgetMode.amount
+        : api.BudgetMode.clarifyLater;

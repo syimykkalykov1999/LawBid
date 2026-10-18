@@ -17,6 +17,7 @@ class CreateBidDto {
     required this.startAvailability,
     this.sendAsAttorneyId,
     this.amountCents,
+    this.percentBps,
     this.startDate,
     this.estimatedDurationDays,
   });
@@ -30,6 +31,9 @@ class CreateBidDto {
 
   /// Required for fixed/hourly; ignored (stored as 0) for free_consultation.
   final int? amountCents;
+
+  /// Owner 2026-10-17: required for contingency — basis points (3300 = 33 %), capped by `fees.contingency_max_percent`.
+  final int? percentBps;
   final String message;
   final StartAvailability startAvailability;
 

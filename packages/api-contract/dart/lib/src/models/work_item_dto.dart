@@ -25,6 +25,7 @@ class WorkItemDto {
     required this.amountCents,
     this.clientName,
     this.clientAvatarUrl,
+    this.percentBps,
     this.autoCloseAt,
     this.acceptedAt,
     this.closedAt,
@@ -55,6 +56,9 @@ class WorkItemDto {
   final String? clientAvatarUrl;
   final FeeType feeType;
   final int amountCents;
+
+  /// Owner 2026-10-17: contingency → basis points.
+  final int? percentBps;
   final String? autoCloseAt;
   final String? acceptedAt;
   final String? closedAt;

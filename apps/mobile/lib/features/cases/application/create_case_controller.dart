@@ -378,7 +378,9 @@ CaseDraft draftFromCase(OwnerCase c) => CaseDraft(
       primaryStateCode: c.primaryStateCode,
       additionalStateCodes: c.additionalStateCodes,
       city: c.city ?? '',
-      budgetIsAmount: !c.budget.isClarifyLater,
+      budgetIsAmount: !c.budget.isClarifyLater && !c.budget.isPercent,
+      budgetIsPercent: c.budget.isPercent,
+      budgetPercentBps: c.budget.percentBps,
       budgetDollars:
           c.budget.amountCents == null ? null : c.budget.amountCents! ~/ 100,
       practiceCode: c.practice.code,

@@ -323,6 +323,7 @@ describe('BidStateMachine (docs/04 §5–§7)', () => {
           from_role: 'client',
           fee_type: 'fixed',
           amount_cents: 40_000,
+          percent_bps: null,
           message: 'Can you do 400?',
           status: 'pending',
           created_at: now,

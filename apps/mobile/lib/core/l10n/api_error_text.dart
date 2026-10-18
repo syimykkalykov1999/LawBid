@@ -195,6 +195,7 @@ const _keys = <String, String>{
   ApiErrorCodes.directChatNotAllowed: 'error.api.DIRECT_CHAT_NOT_ALLOWED',
   ApiErrorCodes.messageRequestDeclined: 'error.api.MESSAGE_REQUEST_DECLINED',
   ApiErrorCodes.messageRequestLimit: 'error.api.MESSAGE_REQUEST_LIMIT',
+  ApiErrorCodes.contingencyNotAllowed: 'error.api.CONTINGENCY_NOT_ALLOWED',
   ApiErrorCodes.callNotAllowed: 'call.notAllowed',
   ApiErrorCodes.callInProgress: 'call.inProgress',
   ApiErrorCodes.bidAttorneyInactive: 'error.api.BID_ATTORNEY_INACTIVE',
