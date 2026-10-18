@@ -75,12 +75,12 @@ variable "media_origins" {
 variable "app_connect_src" {
   type = list(string)
   default = [
-    "https://*.amazonaws.com",   # uploads (presigned POST) and signed links
-    "https://*.cloudfront.net",  # media CDN
+    "https://*.amazonaws.com",    # uploads (presigned POST) and signed links
+    "https://*.cloudfront.net",   # media CDN
     "https://video.bunnycdn.com", # video uploads (TUS)
-    "https://*.b-cdn.net",       # video playback
-    "https://fonts.gstatic.com", # engine fallback fonts
-    "https://api.stripe.com",    # card page (/pay.html)
+    "https://*.b-cdn.net",        # video playback
+    "https://fonts.gstatic.com",  # engine fallback fonts
+    "https://api.stripe.com",     # card page (/pay.html)
     "https://*.stripe.com",
     "https://*.stripe.network",
     "https://maps.googleapis.com",
