@@ -95,6 +95,9 @@ row + topic hint; budget step no jump.
 - Test phones (dev DB, code 000000): +1 212 555 0101 attorney Thomas Brennan
   WITH subscription; +1 212 555 0102 attorney Victor Alvarez WITHOUT
   subscription; +1 212 555 0103 client Charlotte Davis.
+- After `sh packages/api-contract/generate.sh` RESTART the API dev server
+  (`nest build` inside it deletes dist/ and the watcher dies → app shows
+  «Нет подключения»).
 - APK: build ONLY when the owner says (he checks the iPhone first).
 - iPhone: install a RELEASE build (`flutter run --release …`) — a debug build
   stops working when the cable/session drops.
