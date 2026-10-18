@@ -71,11 +71,12 @@ class _ChatVideoTileState extends State<ChatVideoTile> {
     final a = widget.attachment;
     final c = _c;
     final size = _ready ? c!.value.size : Size.zero;
-    final ratio = size.height > 0
-        ? (size.width / size.height).clamp(0.6, 1.8)
-        : (a.width != null && a.height != null && a.height! > 0)
-            ? (a.width! / a.height!).clamp(0.6, 1.8)
-            : 16 / 9;
+    // Owner 2026-10-18: the bubble's shape never changes once shown — the
+    // server's size of the video (width/height), else a phone-portrait
+    // 3:4; the loaded video fills that box (cover) instead of resizing it.
+    final ratio = (a.width != null && a.height != null && a.height! > 0)
+        ? (a.width! / a.height!).clamp(0.6, 1.8)
+        : 3 / 4;
     final pct = a.progress > 0 && a.progress < 1 ? a.progress : null;
     final url = a.url;
     return Semantics(
