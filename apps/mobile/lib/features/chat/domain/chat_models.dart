@@ -216,6 +216,12 @@ class ChatAttachment {
   final double progress;
 
   /// Lowercase extension of [name] ("pdf", "xlsx"…), '' when none.
+  /// Owner 2026-10-17: a video (MP4 / MOV).
+  bool get isVideo =>
+      (mime?.startsWith('video/') ?? false) ||
+      extension == 'mp4' ||
+      extension == 'mov';
+
   String get extension {
     final dot = name.lastIndexOf('.');
     return dot < 0 || dot == name.length - 1

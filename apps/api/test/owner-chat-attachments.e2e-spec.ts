@@ -276,6 +276,37 @@ describe('Chat attachments (e2e, OQ-047)', () => {
     ]);
   });
 
+  it('owner 2026-10-17: a video (MP4 / MOV) is sent and opens', async () => {
+    const c = await chat();
+    // ftyp box + a small mdat: enough for the type check.
+    const mp4 = Buffer.concat([
+      Buffer.from([0, 0, 0, 0x18]),
+      Buffer.from('ftypisom', 'latin1'),
+      Buffer.from([0, 0, 2, 0]),
+      Buffer.from('isomavc1', 'latin1'),
+      Buffer.from([0, 0, 0, 0x10]),
+      Buffer.from('mdat', 'latin1'),
+      Buffer.alloc(8, 1),
+    ]);
+    const video = await upload(c.client.auth, mp4, 'video/mp4');
+    const sent = await send(c.client.auth, c.id, {
+      type: 'attachment',
+      fileId: video,
+      fileName: 'accident.mp4',
+    });
+    expect(sent.status).toBe(201);
+    expect(sent.body.data.attachment).toMatchObject({
+      mime: 'video/mp4',
+      isImage: false,
+      url: expect.any(String),
+    });
+    const mov = Buffer.from(mp4);
+    mov.write('qt  ', 8, 'latin1');
+    expect(await upload(c.attorney.auth, mov, 'video/quicktime')).toEqual(
+      expect.any(String),
+    );
+  });
+
   it('refuses files before acceptance and from outsiders', async () => {
     const locked = await chat(false);
     const f = await upload(locked.attorney.auth, pdf, 'application/pdf');

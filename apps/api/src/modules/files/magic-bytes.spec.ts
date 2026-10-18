@@ -45,6 +45,21 @@ describe('detectMime (docs/03 §2.2 magic bytes)', () => {
     expect(detectMime(Buffer.alloc(0))).toBeNull();
   });
 
+  it('owner 2026-10-17: MP4 / MOV videos only when declared as video', () => {
+    expect(detectMime(ftyp('isom', ['isom', 'avc1']), 'video/mp4')).toBe(
+      'video/mp4',
+    );
+    expect(detectMime(ftyp('qt  ', ['qt  ']), 'video/quicktime')).toBe(
+      'video/quicktime',
+    );
+    // The same box declared as a voice note stays audio.
+    expect(detectMime(ftyp('mp42', ['mp42']), 'audio/mp4')).toBe('audio/mp4');
+    // A video type over non-video bytes is refused.
+    expect(detectMime(Buffer.from('%PDF-1.4 fake'), 'video/mp4')).not.toBe(
+      'video/mp4',
+    );
+  });
+
   it('OQ-047: office, ODF, RTF, text, WEBP, GIF', () => {
     const ole = Buffer.from([
       0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1, 0,

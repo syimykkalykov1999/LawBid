@@ -34,6 +34,14 @@ export function detectMime(
   }
   if (isHeic(b)) return FILE_MIME.heic;
   if (isDocx(b)) return FILE_MIME.docx;
+  // Owner 2026-10-17: an MP4/MOV video shares the `ftyp` box (and brands)
+  // with an .m4a voice note — the declared video type picks it.
+  if (
+    (declared === FILE_MIME.mp4 || declared === FILE_MIME.mov) &&
+    isVideoFtyp(b)
+  ) {
+    return declared;
+  }
   if (isM4a(b)) return FILE_MIME.m4a;
   if (isWebmOpus(b)) return FILE_MIME.webm;
   const family = detectFamily(b);
@@ -206,6 +214,32 @@ function isM4a(b: Buffer): boolean {
     return false;
   }
   return M4A_BRANDS.has(b.subarray(8, 12).toString('latin1'));
+}
+
+// Brands of MP4 / QuickTime videos the iOS and Android cameras and the
+// app's compressor write.
+const VIDEO_BRANDS = new Set([
+  'isom',
+  'iso2',
+  'iso4',
+  'iso5',
+  'iso6',
+  'mp41',
+  'mp42',
+  'avc1',
+  'M4V ',
+  'qt  ',
+  '3gp4',
+  '3gp5',
+  '3gp6',
+]);
+
+/** An ISO-BMFF / QuickTime file with a video brand. */
+function isVideoFtyp(b: Buffer): boolean {
+  if (b.length < 12 || b.subarray(4, 8).toString('latin1') !== 'ftyp') {
+    return false;
+  }
+  return VIDEO_BRANDS.has(b.subarray(8, 12).toString('latin1'));
 }
 
 /** OOXML Word document: a ZIP (local file header "PK\x03\x04") whose

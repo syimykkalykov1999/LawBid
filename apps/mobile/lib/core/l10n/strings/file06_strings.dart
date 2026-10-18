@@ -100,6 +100,10 @@ const file06Ru = <String, String>{
   'call.notAllowedRequest':
       'Звонок откроется, когда запрос на переписку примут.',
   // --- OQ-043: личные чаты и запросы на переписку ---
+  // Owner 2026-10-17: videos in a chat.
+  'chat.attach.video': 'Видео',
+  'chat.attach.videoPreparing': 'Готовим видео к отправке…',
+  'chat.attach.videoPlay': 'Смотреть видео',
   'chat.requests.title': 'Запросы на переписку',
   'chat.requests.subtitle': 'Сообщения от людей, с которыми вы не общались',
   'chat.requests.explain':
@@ -539,6 +543,9 @@ const file06En = <String, String>{
   'chat.requests.accept': 'Accept',
   'chat.requests.sent': 'Request sent',
   'chat.requests.delete': 'Delete',
+  'chat.attach.video': 'Video',
+  'chat.attach.videoPreparing': 'Preparing the video…',
+  'chat.attach.videoPlay': 'Watch the video',
   'chat.requests.block': 'Block',
   'chat.requests.sentNote':
       'Request sent. Your messages wait in their Requests until they reply.',

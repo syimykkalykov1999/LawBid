@@ -31,6 +31,10 @@ export const FILE_MIME = {
   rtf: 'application/rtf',
   txt: 'text/plain',
   csv: 'text/csv',
+  // Owner 2026-10-17: videos in a chat (WhatsApp-like), compressed on the
+  // phone. Stored as uploaded — never decoded on the server.
+  mp4: 'video/mp4',
+  mov: 'video/quicktime',
 } as const;
 export type FileMime = (typeof FILE_MIME)[keyof typeof FILE_MIME];
 export const ALL_FILE_MIMES: readonly FileMime[] = Object.values(FILE_MIME);
@@ -116,9 +120,9 @@ export const PURPOSE_RULES: Record<FilePurpose, PurposeRule> = {
     bucket: 'documents',
   },
   // OQ-047: photos and documents in a chat once the bid is accepted;
-  // private.
+  // private. Owner 2026-10-17: and videos.
   chat_attachment: {
-    mimes: [...IMAGES, FILE_MIME.gif, ...DOCS],
+    mimes: [...IMAGES, FILE_MIME.gif, ...DOCS, FILE_MIME.mp4, FILE_MIME.mov],
     bucket: 'documents',
   },
   // OQ-048: documents an assistant attaches to a task (same formats).

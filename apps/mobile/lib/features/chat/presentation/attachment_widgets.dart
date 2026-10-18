@@ -17,6 +17,7 @@ import 'package:lawbid/features/cases/presentation/widgets/case_photos.dart'
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/data/chat_repository.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
+import 'package:lawbid/features/chat/presentation/chat_video.dart';
 
 /// OQ-047: a file picked for a chat.
 typedef PickedChatFile = ({Uint8List bytes, String name, String mime});
@@ -33,7 +34,12 @@ Future<List<PickedChatFile>> pickChatFiles(
   /// Owner 2026-10-07 (bug 17): the admin's formats and MB for this place
   /// (chat or task); without it the chat defaults.
   PlaceUploadLimits? limits,
+
+  /// Owner 2026-10-17: set → "Video" is offered (when a video format is on);
+  /// gets the picked video, returns it ready to upload (compressed).
+  Future<XFile> Function(XFile video)? prepareVideo,
 }) async {
+  final videoOn = prepareVideo != null && (limits?.allowsVideo ?? true);
   final choice = await showAppBottomSheet<String>(
     context: context,
     builder: (sheet) => SafeArea(
@@ -46,6 +52,13 @@ Future<List<PickedChatFile>> pickChatFiles(
             label: t.t('chat.attach.photos'),
             onTap: () => Navigator.of(sheet).pop('photos'),
           ),
+          if (videoOn)
+            AppListRow(
+              key: const ValueKey('chat-attach-video'),
+              icon: AppIcons.videoCameraOutlined,
+              label: t.t('chat.attach.video'),
+              onTap: () => Navigator.of(sheet).pop('video'),
+            ),
           AppListRow(
             icon: AppIcons.photoCameraOutlined,
             label: t.t('chat.attach.camera'),
@@ -95,6 +108,16 @@ Future<List<PickedChatFile>> pickChatFiles(
       );
       for (final f in picked) {
         add(await f.readAsBytes(), f.name);
+      }
+    case 'video':
+      final picked = await ImagePicker().pickVideo(
+        source: ImageSource.gallery,
+      );
+      if (picked != null && prepareVideo != null) {
+        final ready = await prepareVideo(picked);
+        final name =
+            ready.name.contains('.') ? ready.name : '${ready.name}.mp4';
+        add(await ready.readAsBytes(), name);
       }
     case 'camera':
       final f = await ImagePicker().pickImage(
@@ -182,7 +205,14 @@ class AttachmentMessageBody extends ConsumerWidget {
     final pct = a.progress > 0 && a.progress < 1 ? a.progress : null;
 
     final Widget content;
-    if (a.isImage) {
+    if (a.isVideo) {
+      // Owner 2026-10-17 (WhatsApp): first frame, play button, length.
+      content = ChatVideoTile(
+        attachment: a,
+        sending: sending,
+        playLabel: t.t('chat.attach.videoPlay'),
+      );
+    } else if (a.isImage) {
       final image = a.localBytes != null
           ? Image.memory(a.localBytes!, fit: BoxFit.cover, cacheWidth: 600)
           : (a.previewUrl ?? a.url) != null

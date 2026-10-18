@@ -47,9 +47,15 @@ const kUploadFormatMime = <String, String>{
   'rtf': 'application/rtf',
   'txt': 'text/plain',
   'csv': 'text/csv',
+  // Owner 2026-10-17: videos in a chat.
+  'mp4': 'video/mp4',
+  'mov': 'video/quicktime',
 };
 
 const kPhotoFormats = {'jpeg', 'png', 'heic', 'webp', 'gif'};
+
+/// Owner 2026-10-17: video formats (chat only).
+const kVideoFormats = {'mp4', 'mov'};
 
 /// File-name extensions of a format (what the picker offers).
 const _extensions = <String, List<String>>{
@@ -83,8 +89,12 @@ class PlaceUploadLimits {
   /// Document formats that are on, as picker extensions.
   List<String> get documentExtensions => [
         for (final f in formats)
-          if (!kPhotoFormats.contains(f)) ...(_extensions[f] ?? [f]),
+          if (!kPhotoFormats.contains(f) && !kVideoFormats.contains(f))
+            ...(_extensions[f] ?? [f]),
       ];
+
+  /// A video format is on here (owner 2026-10-17: chat).
+  bool get allowsVideo => formats.any(kVideoFormats.contains);
 
   /// Every format that is on, as picker extensions.
   List<String> get allExtensions => [
@@ -162,9 +172,9 @@ const kDefaultUploadLimits = <UploadPlace, PlaceUploadLimits>{
   UploadPlace.chat: PlaceUploadLimits(
     maxPhotos: 0,
     maxFiles: 0,
-    fileMb: 25,
+    fileMb: 50,
     totalMb: 0,
-    formats: {...kPhotoFormats, ..._docs},
+    formats: {...kPhotoFormats, ..._docs, ...kVideoFormats},
   ),
   UploadPlace.task: PlaceUploadLimits(
     maxPhotos: 0,

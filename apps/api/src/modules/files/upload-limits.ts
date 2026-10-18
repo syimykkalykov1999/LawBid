@@ -47,11 +47,20 @@ export const DOC_FORMATS = [
   'txt',
   'csv',
 ] as const;
+/** Owner 2026-10-17: video formats — chat only. */
+export const VIDEO_FORMATS = ['mp4', 'mov'] as const;
 export type UploadFormat =
-  (typeof PHOTO_FORMATS)[number] | (typeof DOC_FORMATS)[number];
+  | (typeof PHOTO_FORMATS)[number]
+  | (typeof DOC_FORMATS)[number]
+  | (typeof VIDEO_FORMATS)[number];
 export const ALL_UPLOAD_FORMATS: readonly UploadFormat[] = [
   ...PHOTO_FORMATS,
   ...DOC_FORMATS,
+];
+/** Every format any place may use (photos, documents, chat videos). */
+export const ANY_UPLOAD_FORMATS: readonly UploadFormat[] = [
+  ...ALL_UPLOAD_FORMATS,
+  ...VIDEO_FORMATS,
 ];
 
 export const FORMAT_MIME: Record<UploadFormat, FileMime> = {
@@ -73,6 +82,8 @@ export const FORMAT_MIME: Record<UploadFormat, FileMime> = {
   rtf: FILE_MIME.rtf,
   txt: FILE_MIME.txt,
   csv: FILE_MIME.csv,
+  mp4: FILE_MIME.mp4,
+  mov: FILE_MIME.mov,
 };
 
 /** How a place counts files:
@@ -156,16 +167,17 @@ export const PLACE_SPECS: Record<UploadPlace, PlaceSpec> = {
       formats: ['jpeg', 'png', 'heic', 'pdf', 'docx'],
     },
   },
+  // Owner 2026-10-17: videos too (compressed to 720p on the phone).
   chat: {
     count: 'none',
-    safeFormats: ALL_UPLOAD_FORMATS,
+    safeFormats: ANY_UPLOAD_FORMATS,
     ceiling: { count: 0, fileMb: 100, totalMb: 0 },
     defaults: {
       maxPhotos: 0,
       maxFiles: 0,
-      fileMb: 25,
+      fileMb: 50,
       totalMb: 0,
-      formats: [...ALL_UPLOAD_FORMATS],
+      formats: [...ANY_UPLOAD_FORMATS],
     },
   },
   task: {

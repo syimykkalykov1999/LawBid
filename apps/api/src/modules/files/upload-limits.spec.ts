@@ -15,7 +15,9 @@ describe('upload limits', () => {
     expect(d.task.maxFiles).toBe(10);
     expect(d.review.maxPhotos).toBe(10);
     expect(d.avatar.fileMb).toBe(5);
-    expect(d.chat.fileMb).toBe(25);
+    // Owner 2026-10-17: 50 MB for chat videos.
+    expect(d.chat.fileMb).toBe(50);
+    expect(d.chat.formats).toEqual(expect.arrayContaining(['mp4', 'mov']));
     expect(d.verification.maxFiles).toBe(3);
     expect(d.client_badge.maxFiles).toBe(5);
   });

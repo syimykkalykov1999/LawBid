@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart' show XFile;
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
@@ -15,6 +16,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/language_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/limits/text_limits.dart';
+import 'package:lawbid/core/media/video_compression.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/navigation/shell/web_page_frame.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
@@ -166,6 +168,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
       t,
       onTemplate: ref.read(templatesEnabledProvider) ? _sendTemplate : null,
       limits: ref.read(uploadLimitsProvider)[UploadPlace.chat],
+      prepareVideo: _prepareVideo,
     );
     if (files.isEmpty || !mounted) return;
     final caption = _text.text.trim();
@@ -181,6 +184,24 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
         ),
       );
     }
+  }
+
+  /// Owner 2026-10-17 (WhatsApp): a chat video is re-encoded on the phone
+  /// to at most 720p (the admin's reel setting may make it smaller) before
+  /// upload; the original goes when compressing fails or doesn't help.
+  Future<XFile> _prepareVideo(XFile video) async {
+    final t = ref.read(translatorProvider);
+    showAppSnackBar(context, t.t('chat.attach.videoPreparing'));
+    final reel = videoLimitsOf(ref.read(featureFlagsControllerProvider));
+    final limits = (
+      maxHeight: reel.maxHeight <= 0 ? 720 : math.min(720, reel.maxHeight),
+      frameRate: reel.frameRate,
+    );
+    final out =
+        await ref.read(videoCompressorProvider).compress(video, limits: limits);
+    return out == null
+        ? video
+        : XFile(out.path, name: 'video.mp4', mimeType: 'video/mp4');
   }
 
   /// Owner 2026-10-05: a document template from the library, sent as a

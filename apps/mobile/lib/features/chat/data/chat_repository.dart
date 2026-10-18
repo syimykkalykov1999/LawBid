@@ -533,7 +533,7 @@ class ApiChatRepository implements ChatRepository {
 }
 
 /// OQ-047: the default chat MB per file (admin «Загрузки и файлы»).
-const kChatAttachmentMaxBytes = 25 * 1024 * 1024;
+const kChatAttachmentMaxBytes = 50 * 1024 * 1024;
 
 /// The most any setting allows per chat or task file (the API's ceiling).
 const kChatAttachmentCeilingBytes = 100 * 1024 * 1024;
@@ -565,6 +565,8 @@ String? chatMimeForName(String name) {
     'rtf' => 'application/rtf',
     'txt' => 'text/plain',
     'csv' => 'text/csv',
+    'mp4' => 'video/mp4',
+    'mov' => 'video/quicktime',
     _ => null,
   };
 }

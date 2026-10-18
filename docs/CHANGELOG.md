@@ -5,6 +5,15 @@ All notable changes to this project are documented here, per
 .cursorrules (each stage ends with a CHANGELOG update + commit on
 branch cursor/stage-X-Y-description).
 
+## Videos in a chat (2026-10-17)
+
+Owner: "everything like WhatsApp" — videos in chats, formats managed in the admin, only safe formats.
+
+- API: `video/mp4` and `video/quicktime` (`mp4`, `mov`) for `chat_attachment`; detected only when declared as video (`ftyp` with a video brand), otherwise the old checks apply. Chat place: safe formats + videos, default 50 MB per file (ceiling 100). `ANY_UPLOAD_FORMATS` for the admin DTO. Videos are stored as uploaded (never decoded on the server).
+- Admin «Загрузки и файлы» → Чат: a «Видео» row (MP4, MOV).
+- App: «Видео» in the paperclip menu (only when a video format is on); the video is re-encoded on the phone to at most 720p (`video_compress`; the original when it does not help). Bubble: first frame, play button, length; tap → full screen (play/pause, seek bar, time).
+- Tests: e2e `owner-chat-attachments` (MP4 and MOV sent and listed), magic-bytes and upload-limit specs, app limits test.
+
 ## Voice notes like WhatsApp; no price hints (2026-10-17)
 
 Owner: "the chat exactly like WhatsApp — speed 1×/2×, avatars in voice notes"; "remove 600 and 33, I don't want to suggest prices".
