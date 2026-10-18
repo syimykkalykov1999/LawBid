@@ -8,6 +8,7 @@ import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/text/search_fold.dart';
 import 'package:lawbid/features/profile/data/avatar_upload_repository.dart'
     show sniffImageMime;
 import 'package:lawbid/features/social/domain/social_models.dart';
@@ -15,6 +16,7 @@ import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart';
 import 'package:lawbid/features/stickers/application/stickers_providers.dart';
 import 'package:lawbid/features/stickers/domain/sticker_models.dart';
 import 'package:lawbid/features/stickers/presentation/emoji_data.dart';
+import 'package:lawbid/shared/presentation/flip_search_bar.dart';
 
 /// Owner 2026-10-01 — Telegram-style stickers: the image, the panel under
 /// the chat composer (Emoji · Stickers), the pack sheet and "+" for own
@@ -58,6 +60,23 @@ class StickerImage extends StatelessWidget {
 }
 
 /// The panel that replaces the keyboard: Emoji · Stickers.
+/// Stickers whose emoji is in [q] or whose pack's name matches it (any
+/// case / alphabet, a small typo). Each sticker once.
+List<ChatSticker> searchStickers(StickerLibrary data, String q) {
+  final text = q.trim();
+  if (text.isEmpty) return const [];
+  final out = <ChatSticker>[];
+  final seen = <String>{};
+  for (final p in data.packs) {
+    final byPack = textMatches(text, [p.title, p.shortName]);
+    for (final st in p.stickers) {
+      final byEmoji = st.emoji.isNotEmpty && text.contains(st.emoji);
+      if ((byPack || byEmoji) && seen.add(st.id)) out.add(st);
+    }
+  }
+  return out;
+}
+
 class StickerPanel extends ConsumerStatefulWidget {
   const StickerPanel({
     required this.onSticker,
@@ -76,6 +95,29 @@ class StickerPanel extends ConsumerStatefulWidget {
 
 class _StickerPanelState extends ConsumerState<StickerPanel> {
   bool _stickers = true;
+
+  /// Owner 2026-10-18: the search over the stickers (by the pack's name and
+  /// the sticker's emoji); null = the pack strip shows.
+  String? _query;
+  final _searchText = TextEditingController();
+  final _searchFocus = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _searchText.addListener(() {
+      if (_query != null && _query != _searchText.text) {
+        setState(() => _query = _searchText.text);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchText.dispose();
+    _searchFocus.dispose();
+    super.dispose();
+  }
 
   /// -1 = recent, otherwise an index into the packs.
   int _section = -1;
@@ -202,8 +244,13 @@ class _StickerPanelState extends ConsumerState<StickerPanel> {
       return Center(child: CircularProgressIndicator(color: colors.gold));
     }
     final section = _section >= data.packs.length ? -1 : _section;
-    final items = section == -1 ? data.recent : data.packs[section].stickers;
-    final pack = section == -1 ? null : data.packs[section];
+    final searching = _query != null;
+    final items = searching
+        ? searchStickers(data, _query!)
+        : section == -1
+            ? data.recent
+            : data.packs[section].stickers;
+    final pack = searching || section == -1 ? null : data.packs[section];
 
     // ignore: avoid_positional_boolean_parameters
     Widget strip(Widget child, bool on, VoidCallback tap) => AppPressable(
@@ -220,46 +267,90 @@ class _StickerPanelState extends ConsumerState<StickerPanel> {
           ),
         );
 
+    final searchBar = Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.sm,
+        AppSpacing.sm,
+        AppSpacing.sm,
+        AppSpacing.xs,
+      ),
+      child: FlipSearchBar(
+        key: const ValueKey('sticker-search'),
+        controller: _searchText,
+        focusNode: _searchFocus,
+        semanticLabel: t.t('stickers.search.hint'),
+        hints: [t.t('stickers.search.hint')],
+        cancelLabel: t.t('common.cancel'),
+        clearLabel: t.t('search.clear'),
+        keepCancel: true,
+        onCancel: () {
+          _searchText.clear();
+          _searchFocus.unfocus();
+          setState(() => _query = null);
+        },
+      ),
+    );
+
     return Column(
       children: [
-        SizedBox(
-          height: 52,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.sm,
-              vertical: 4,
-            ),
-            children: [
-              strip(
-                AppIcon(
-                  AppIcons.scheduleRounded,
-                  color: colors.textSecondary,
-                  size: 22,
-                ),
-                section == -1,
-                () => setState(() => _section = -1),
+        if (searching)
+          searchBar
+        else
+          SizedBox(
+            height: 52,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.sm,
+                vertical: 4,
               ),
-              for (var i = 0; i < data.packs.length; i++)
+              children: [
                 strip(
-                  data.packs[i].cover == null
-                      ? AppIcon(
-                          AppIcons.stickerOutlined,
-                          color: colors.textSecondary,
-                          size: 22,
-                        )
-                      : StickerImage(sticker: data.packs[i].cover!, size: 34),
-                  section == i,
-                  () => setState(() => _section = i),
+                  AppIcon(
+                    AppIcons.searchRounded,
+                    key: const ValueKey('sticker-search-open'),
+                    color: colors.textSecondary,
+                    size: 22,
+                  ),
+                  false,
+                  () {
+                    setState(() => _query = '');
+                    _searchFocus.requestFocus();
+                  },
                 ),
-              strip(
-                AppIcon(AppIcons.addRounded, color: colors.goldDark, size: 24),
-                false,
-                () => showStickerHub(context),
-              ),
-            ],
+                strip(
+                  AppIcon(
+                    AppIcons.scheduleRounded,
+                    color: colors.textSecondary,
+                    size: 22,
+                  ),
+                  section == -1,
+                  () => setState(() => _section = -1),
+                ),
+                for (var i = 0; i < data.packs.length; i++)
+                  strip(
+                    data.packs[i].cover == null
+                        ? AppIcon(
+                            AppIcons.stickerOutlined,
+                            color: colors.textSecondary,
+                            size: 22,
+                          )
+                        : StickerImage(sticker: data.packs[i].cover!, size: 34),
+                    section == i,
+                    () => setState(() => _section = i),
+                  ),
+                strip(
+                  AppIcon(
+                    AppIcons.addRounded,
+                    color: colors.goldDark,
+                    size: 24,
+                  ),
+                  false,
+                  () => showStickerHub(context),
+                ),
+              ],
+            ),
           ),
-        ),
         Expanded(
           child: items.isEmpty
               ? Center(
@@ -270,24 +361,29 @@ class _StickerPanelState extends ConsumerState<StickerPanel> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          pack != null && pack.isMine
-                              ? t.t('stickers.packEmpty')
-                              : t.t('stickers.empty'),
+                          searching
+                              ? ((_query ?? '').trim().isEmpty
+                                  ? t.t('stickers.search.prompt')
+                                  : t.t('stickers.search.empty'))
+                              : pack != null && pack.isMine
+                                  ? t.t('stickers.packEmpty')
+                                  : t.t('stickers.empty'),
                           textAlign: TextAlign.center,
                           style: type.bodySmall
                               .copyWith(color: colors.textSecondary),
                         ),
-                        const SizedBox(height: AppSpacing.sm),
-                        TextButton(
-                          onPressed: () => pack != null && pack.isMine
-                              ? showStickerPackSheet(context, pack.id)
-                              : showStickerHub(context),
-                          child: Text(
-                            pack != null && pack.isMine
-                                ? t.t('stickers.add')
-                                : t.t('stickers.browse'),
+                        if (!searching) const SizedBox(height: AppSpacing.sm),
+                        if (!searching)
+                          TextButton(
+                            onPressed: () => pack != null && pack.isMine
+                                ? showStickerPackSheet(context, pack.id)
+                                : showStickerHub(context),
+                            child: Text(
+                              pack != null && pack.isMine
+                                  ? t.t('stickers.add')
+                                  : t.t('stickers.browse'),
+                            ),
                           ),
-                        ),
                       ],
                     ),
                   ),

@@ -3,6 +3,11 @@
 // strings merged into StaticTranslatorRu/En.
 
 const auditChatRu = <String, String>{
+  'stickers.search.hint': 'Название набора или эмодзи',
+  'stickers.search.prompt':
+      'Напишите название набора или вставьте эмодзи — покажем подходящие стикеры',
+  'stickers.search.empty':
+      'Ничего не найдено. Попробуйте другое название или эмодзи',
   'notif.list.review_reply': 'Адвокат ответил на ваш отзыв',
   'notif.list.client_review_reply': 'Клиент ответил на ваш отзыв',
   'notif.list.case_disputed': 'По кейсу открыт спор',
@@ -20,6 +25,10 @@ const auditChatRu = <String, String>{
 };
 
 const auditChatEn = <String, String>{
+  'stickers.search.hint': 'Pack name or emoji',
+  'stickers.search.prompt':
+      'Type a pack name or paste an emoji to see matching stickers',
+  'stickers.search.empty': 'Nothing found. Try another name or emoji',
   'notif.list.review_reply': 'The attorney replied to your review',
   'notif.list.client_review_reply': 'The client replied to your review',
   'notif.list.case_disputed': 'A dispute was opened on the case',
