@@ -693,13 +693,10 @@ class ConversationRow extends ConsumerWidget {
     void organize() => showChatOrganizeSheet(context, ref, c);
     final read = last != null && c.counterpartLastReadId == last.id;
     final secondary = type.bodySmall.copyWith(color: colors.textSecondary);
-    // Compact @username / case label under the preview.
+    // Owner 2026-10-18: no @username under the chat (WhatsApp/Telegram);
+    // only a case chat's case, or "request sent".
     final labelText = c.caseTitle ??
-        (c.isDirect && c.counterpart.username != null
-            ? (c.myRequestPending
-                ? '@${c.counterpart.username} · ${t.t('chat.requests.sent')}'
-                : '@${c.counterpart.username}')
-            : null);
+        (c.isDirect && c.myRequestPending ? t.t('chat.requests.sent') : null);
     final labelIcon = c.caseTitle != null
         ? (c.closed ? AppIcons.lockOutlineRounded : AppIcons.balanceRounded)
         : (c.myRequestPending
@@ -738,7 +735,29 @@ class ConversationRow extends ConsumerWidget {
                 ),
                 const SizedBox(width: AppSpacing.md),
               ],
-              CounterpartAvatar(counterpart: c.counterpart, size: _avatar),
+              // Owner 2026-10-18 (WhatsApp): a tap on the photo opens it
+              // full screen; the rest of the row opens the chat.
+              if (picking == null &&
+                  !c.counterpart.hidden &&
+                  c.counterpart.avatarUrl != null)
+                Semantics(
+                  button: true,
+                  label: t.t('chat.avatar.open'),
+                  child: AppPressable(
+                    key: ValueKey('chat-avatar-${c.id}'),
+                    onTap: () => showPhotoGallery(
+                      context,
+                      urls: [c.counterpart.avatarUrl!],
+                      closeLabel: t.t('common.close'),
+                    ),
+                    child: CounterpartAvatar(
+                      counterpart: c.counterpart,
+                      size: _avatar,
+                    ),
+                  ),
+                )
+              else
+                CounterpartAvatar(counterpart: c.counterpart, size: _avatar),
               const SizedBox(width: AppSpacing.md),
               Expanded(
                 child: DecoratedBox(
@@ -756,26 +775,33 @@ class ConversationRow extends ConsumerWidget {
                       children: [
                         Row(
                           children: [
-                            Flexible(
-                              child: Text(
-                                who,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: type.body.copyWith(
-                                  color: colors.text,
-                                  fontWeight: FontWeight.w700,
-                                ),
+                            // The name takes the free width, so the time
+                            // always sits at the right edge.
+                            Expanded(
+                              child: Row(
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      who,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: type.body.copyWith(
+                                        color: colors.text,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                  if (c.counterpart.verified) ...[
+                                    const SizedBox(width: 3),
+                                    VerifiedCheck(
+                                      label: t.t('post.verified'),
+                                      size: 14,
+                                      gold: !c.counterpart.isAttorney,
+                                    ),
+                                  ],
+                                ],
                               ),
                             ),
-                            if (c.counterpart.verified) ...[
-                              const SizedBox(width: 3),
-                              VerifiedCheck(
-                                label: t.t('post.verified'),
-                                size: 14,
-                                gold: !c.counterpart.isAttorney,
-                              ),
-                            ],
-                            const Spacer(),
                             if (c.lastMessageAt != null) ...[
                               const SizedBox(width: AppSpacing.sm),
                               ConstrainedBox(

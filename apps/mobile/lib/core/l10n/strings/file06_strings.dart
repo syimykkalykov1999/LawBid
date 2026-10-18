@@ -103,6 +103,7 @@ const file06Ru = <String, String>{
   // Owner 2026-10-17: videos in a chat.
   'chat.attach.video': 'Видео',
   'chat.attach.gallery': 'Фото и видео',
+  'chat.avatar.open': 'Открыть фото',
   'chat.attach.videoPreparing': 'Готовим видео к отправке…',
   'chat.attach.videoPlay': 'Смотреть видео',
   'chat.requests.title': 'Запросы на переписку',
@@ -546,6 +547,7 @@ const file06En = <String, String>{
   'chat.requests.delete': 'Delete',
   'chat.attach.video': 'Video',
   'chat.attach.gallery': 'Photos and videos',
+  'chat.avatar.open': 'Open photo',
   'chat.attach.videoPreparing': 'Preparing the video…',
   'chat.attach.videoPlay': 'Watch the video',
   'chat.requests.block': 'Block',
