@@ -12,7 +12,6 @@ import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/cases/application/create_case_controller.dart';
 import 'package:lawbid/features/cases/domain/case_draft.dart';
 import 'package:lawbid/features/cases/domain/case_urgency.dart';
-import 'package:lawbid/features/cases/presentation/widgets/case_cover_picker.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_photos.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_urgency_picker.dart';
@@ -500,19 +499,9 @@ class _ReviewStep extends ConsumerWidget {
             ],
           ),
         ),
-        // Owner 2026-10-04: what attorneys see instead of the client.
+        // Owner 2026-10-17: no cover choice — covers are not shown on the
+        // attorneys' cards; "Мои кейсы" keeps the automatic one.
         const SizedBox(height: AppSpacing.xl),
-        CaseCoverPicker(
-          t: t,
-          practiceCode: d.practiceCode,
-          selected: d.coverKey,
-          onChanged: (key) => c.update(
-            (x) => key == null
-                ? x.copyWith(clearCoverKey: true)
-                : x.copyWith(coverKey: key),
-          ),
-        ),
-        const SizedBox(height: AppSpacing.lg),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
