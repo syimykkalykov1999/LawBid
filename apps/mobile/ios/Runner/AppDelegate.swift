@@ -1,3 +1,4 @@
+import AVFoundation
 import Flutter
 import PushKit
 import UIKit
@@ -17,7 +18,26 @@ import flutter_callkit_incoming
     registry.delegate = self
     registry.desiredPushTypes = [.voIP]
     voipRegistry = registry
+    configureAudioSessionOnce()
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
+
+  /// Owner 2026-10-19 (the click when a video starts / stops): the audio
+  /// session's category is set ONCE, at launch — playback (sound with the
+  /// silent switch on, like Instagram), movie playback mode. video_player
+  /// only changes the category when it differs ("upgrade"), so with this in
+  /// place no player switches the session when a reel starts, loops or is
+  /// swiped away. It is not activated here (that would stop the person's
+  /// music the moment the app opens); the first video with sound activates
+  /// it and it stays active. Calls (CallKit / WebRTC) still set their own
+  /// mode while a call is on.
+  private func configureAudioSessionOnce() {
+    let session = AVAudioSession.sharedInstance()
+    do {
+      try session.setCategory(.playback, mode: .moviePlayback, options: [])
+    } catch {
+      NSLog("audio session: \(error)")
+    }
   }
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {

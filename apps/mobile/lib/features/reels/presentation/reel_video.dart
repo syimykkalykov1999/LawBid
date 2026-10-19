@@ -321,9 +321,14 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
     if (play && !c.value.isPlaying) {
       _ramp?.cancel();
       _vol = 0;
-      unawaited(c.setVolume(0));
-      c.play();
-      _fade(c, _target);
+      // The volume is 0 BEFORE the first frame of sound, then it rises.
+      unawaited(
+        c.setVolume(0).whenComplete(() {
+          if (_c != c) return;
+          c.play();
+          _fade(c, _target);
+        }),
+      );
     } else if (!play && c.value.isPlaying) {
       _fade(
         c,
