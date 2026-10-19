@@ -540,6 +540,9 @@ enum NotificationType {
   new_urgent_case
   // Owner 2026-10-07: someone reposted your post (Threads-style).
   post_repost
+  // Audit 2026-10-19: the other side added something in a case in work
+  // (payload.kind: update, task_added, task_done, task_files, details).
+  case_workspace_activity
 
   @@map("notification_type")
 }

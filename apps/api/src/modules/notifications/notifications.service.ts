@@ -33,6 +33,8 @@ export const NOTIFICATION_CATEGORY: Record<
   case_stale_prompt: 'cases',
   // Owner 2026-10-18 (OQ-054).
   case_still_needed: 'cases',
+  // Audit 2026-10-19.
+  case_workspace_activity: 'cases',
   case_archived: 'cases',
   completion_requested: 'cases',
   completion_reminder: 'cases',
@@ -122,6 +124,7 @@ export const NOTIFICATION_IMPORTANT: Record<NotificationType, boolean> = {
   case_deadline_changed: true,
   case_stale_prompt: true,
   case_still_needed: true,
+  case_workspace_activity: true,
   case_archived: true,
   completion_requested: true,
   completion_reminder: true,

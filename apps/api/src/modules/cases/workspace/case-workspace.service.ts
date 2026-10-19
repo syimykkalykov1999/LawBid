@@ -9,6 +9,7 @@ import { PrismaService } from '../../../prisma/prisma.service';
 import { withTxRetry } from '../../../prisma/tx-retry.util';
 import type { RequestUser } from '../../auth/decorators/current-user.decorator';
 import { FilesService } from '../../files/files.service';
+import { NotificationsService } from '../../notifications/notifications.service';
 import { caseNotFound } from '../domain/case-state-machine';
 import type {
   BoardCaseTaskDto,
@@ -61,7 +62,27 @@ export class CaseWorkspaceService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly files: FilesService,
+    private readonly notifications: NotificationsService,
   ) {}
+
+  /** Audit 2026-10-19: what one side adds reaches the other side (the bell
+   * and a push, category "cases"). Ids only in the payload (docs/05 §9.5). */
+  private async tell(
+    user: RequestUser,
+    s: Side,
+    caseId: string,
+    kind: 'update' | 'task_added' | 'task_done' | 'task_files',
+    tx?: Prisma.TransactionClient,
+  ): Promise<void> {
+    await this.notifications.emit(
+      {
+        type: 'case_workspace_activity',
+        recipientId: s.role === 'client' ? s.attorneyId : s.clientId,
+        payload: { caseId, actorId: user.sub, kind },
+      },
+      tx,
+    );
+  }
 
   /** The viewer's side of an accepted case; [need] = what the call does. */
   async side(
@@ -406,6 +427,7 @@ export class CaseWorkspaceService {
           },
         });
       }
+      await this.tell(user, s, caseId, 'task_added', tx);
     });
     return this.listTasks(user, caseId);
   }
@@ -472,6 +494,7 @@ export class CaseWorkspaceService {
         done_at: done ? new Date() : null,
       },
     });
+    if (done) await this.tell(user, s, caseId, 'task_done');
     return this.listTasks(user, caseId);
   }
 
@@ -590,6 +613,7 @@ export class CaseWorkspaceService {
           data: { done_at: new Date(), done_by: user.sub },
         });
       }
+      await this.tell(user, s, caseId, 'task_files', tx);
     });
     return this.listTasks(user, caseId);
   }
@@ -699,7 +723,7 @@ export class CaseWorkspaceService {
     caseId: string,
     dto: CreateCaseUpdateDto,
   ): Promise<CaseUpdateDto[]> {
-    await this.side(user, caseId, 'write');
+    const s = await this.side(user, caseId, 'write');
     await withTxRetry(this.prisma, async (tx) => {
       const u = await tx.caseUpdate.create({
         data: { case_id: caseId, author_id: user.sub, body: dto.body },
@@ -711,6 +735,7 @@ export class CaseWorkspaceService {
         create: { case_id: caseId, user_id: user.sub },
         update: { updates_seen_at: new Date() },
       });
+      await this.tell(user, s, caseId, 'update', tx);
     });
     return this.listUpdates(user, caseId);
   }

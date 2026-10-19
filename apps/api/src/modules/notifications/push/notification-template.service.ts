@@ -47,6 +47,9 @@ export class NotificationTemplateService {
   ): Promise<TemplateText> {
     const base = await this.render(type, lang);
     const kind = payload.kind;
+    if (type === 'case_workspace_activity' && typeof kind === 'string') {
+      return this.workspaceText(base, kind, lang);
+    }
     if (type !== 'verification_update' || typeof kind !== 'string') {
       return base;
     }
@@ -70,6 +73,20 @@ export class NotificationTemplateService {
     };
   }
 
+  /** Audit 2026-10-19: «Новое в кейсе» + what was added. */
+  private async workspaceText(
+    base: TemplateText,
+    kind: string,
+    lang: string,
+  ): Promise<TemplateText> {
+    const fallback = WORKSPACE_KIND_FALLBACK[kind];
+    if (!fallback) return base;
+    const body =
+      (await this.lookup(lang, `notif.workspace.${kind}`)) ??
+      fallback[lang === 'ru' ? 'ru' : 'en'];
+    return { title: base.title, body };
+  }
+
   private async lookup(lang: string, key: string): Promise<string | null> {
     const cacheKey = `${lang}:${key}`;
     const hit = this.cache.get(cacheKey);
@@ -83,6 +100,30 @@ export class NotificationTemplateService {
     return v;
   }
 }
+
+/** Audit 2026-10-19: what the other side added in a case in work. */
+const WORKSPACE_KIND_FALLBACK: Record<string, { en: string; ru: string }> = {
+  update: {
+    en: 'A new update in the case.',
+    ru: 'В кейсе новое обновление.',
+  },
+  task_added: {
+    en: 'A new task in the case.',
+    ru: 'В кейсе новая задача.',
+  },
+  task_done: {
+    en: 'A task in the case is done.',
+    ru: 'Задача в кейсе выполнена.',
+  },
+  task_files: {
+    en: 'A note or files were added to a task.',
+    ru: 'К задаче добавили заметку или файлы.',
+  },
+  details: {
+    en: 'The client changed the case details.',
+    ru: 'Клиент изменил подробности кейса.',
+  },
+};
 
 /** Built-in texts for kinds whose translations are not imported yet. */
 const VERIFICATION_KIND_FALLBACK: Record<string, { en: string; ru: string }> = {

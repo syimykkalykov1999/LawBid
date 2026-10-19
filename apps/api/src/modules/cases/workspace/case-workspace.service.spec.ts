@@ -32,8 +32,13 @@ function make(opts: {
     },
     casePhoto: { findMany: jest.fn(() => Promise.resolve([])) },
   };
-  const svc = new CaseWorkspaceService(prisma as never, {} as never);
-  return { svc, prisma };
+  const notifications = { emit: jest.fn(() => Promise.resolve(null)) };
+  const svc = new CaseWorkspaceService(
+    prisma as never,
+    {} as never,
+    notifications as never,
+  );
+  return { svc, prisma, notifications };
 }
 const as = (sub: string) => ({ sub, role: 'x' }) as never;
 /** An assistant working in the attorney's account (the guard swaps sub). */
@@ -199,5 +204,23 @@ describe('CaseWorkspaceService', () => {
     const m = make({ accepted: true, task, status: 'pending_completion' });
     await m.svc.setDone(as(CLIENT), 'k', 't', true);
     expect(m.prisma.caseTask.update).toHaveBeenCalled();
+  });
+
+  // Audit 2026-10-19: what one side does reached nobody.
+  it('a done mark tells the other side; taking it off does not', async () => {
+    const task = { id: 't', kind: 'joint', closed_at: null, items: [] };
+    const m = make({ accepted: true, task });
+    await m.svc.setDone(as(CLIENT), 'k', 't', true);
+    expect(m.notifications.emit).toHaveBeenCalledWith(
+      {
+        type: 'case_workspace_activity',
+        recipientId: ATTORNEY,
+        payload: { caseId: 'k', actorId: CLIENT, kind: 'task_done' },
+      },
+      undefined,
+    );
+    const back = make({ accepted: true, task });
+    await back.svc.setDone(as(ATTORNEY), 'k', 't', false);
+    expect(back.notifications.emit).not.toHaveBeenCalled();
   });
 });

@@ -69,6 +69,11 @@ String? notificationRoute({
     case 'case_disputed' || 'dispute_resolved':
       if (caseId == null) return null;
       return attorney ? AppRoutes.workCase(caseId) : AppRoutes.myCase(caseId);
+    // Audit 2026-10-19: the other side added an update, a task, files or
+    // the private details in a case in work.
+    case 'case_workspace_activity':
+      if (caseId == null) return null;
+      return attorney ? AppRoutes.workCase(caseId) : AppRoutes.myCase(caseId);
     case 'case_stale_prompt' ||
           // Owner 2026-10-18 (OQ-054): the client answers on the case.
           'case_still_needed' ||
@@ -230,6 +235,15 @@ bool _flag(Object? v) => v == true || v == 'true';
 
 /// The row text: the `notif.list.<type>` template with the actor's name
 /// and, for aggregated rows, "and N more" (§9.4).
+/// Audit 2026-10-19: what a `case_workspace_activity` can say.
+const caseWorkspaceActivityKinds = {
+  'update',
+  'task_added',
+  'task_done',
+  'task_files',
+  'details',
+};
+
 String notificationText(Translator t, AppNotification n) {
   // Owner 2026-09-30: a message from the LawBid team carries its own text.
   if (n.type == 'admin_broadcast' && n.payload['kind'] == 'support_reply') {
@@ -310,6 +324,15 @@ String notificationText(Translator t, AppNotification n) {
       if (title is String) title,
       if (body is String) body,
     ].join(' — ');
+  }
+  // Audit 2026-10-19: «{name} добавил(а) задачу…» per what was added.
+  if (n.type == 'case_workspace_activity') {
+    final kind = n.payload['kind'];
+    final known = kind is String && caseWorkspaceActivityKinds.contains(kind);
+    return t.t(
+      'notif.list.case_workspace_activity.${known ? kind : 'update'}',
+      {'name': n.actor?.displayName ?? ''},
+    );
   }
   // Owner 2026-10-18 (OQ-054): one question for several cases.
   if (n.type == 'case_still_needed') {
@@ -411,6 +434,7 @@ IconData _icon(AppNotification n) => switch (n.type) {
       'case_deadline_changed' =>
         AppIcons.eventOutlined,
       'new_urgent_case' => AppIcons.timerOutlined,
+      'case_workspace_activity' => AppIcons.folderRounded,
       _ => switch (n.category) {
           NotifCategory.bids => AppIcons.gavelRounded,
           NotifCategory.cases => AppIcons.folderRounded,

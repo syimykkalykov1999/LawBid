@@ -97,6 +97,25 @@ const caseWorkspaceRu = <String, String>{
   'cases.compose.file': 'Файл',
   'cases.compose.samplePhoto': 'Образец (фото)',
   'cases.compose.sampleFile': 'Образец (файл)',
+  // Audit 2026-10-19: the other side added something in a case in work.
+  'notif.cases.case_workspace_activity.title': 'Новое в кейсе',
+  'notif.cases.case_workspace_activity.body':
+      'Другая сторона добавила что-то в кейс. Откройте, чтобы посмотреть.',
+  'notif.workspace.update': 'В кейсе новое обновление.',
+  'notif.workspace.task_added': 'В кейсе новая задача.',
+  'notif.workspace.task_done': 'Задача в кейсе выполнена.',
+  'notif.workspace.task_files': 'К задаче добавили заметку или файлы.',
+  'notif.workspace.details': 'Клиент изменил подробности кейса.',
+  'notif.list.case_workspace_activity.update':
+      '{name}: новое обновление в кейсе',
+  'notif.list.case_workspace_activity.task_added':
+      '{name} добавил(а) задачу в кейс',
+  'notif.list.case_workspace_activity.task_done':
+      '{name} выполнил(а) задачу в кейсе',
+  'notif.list.case_workspace_activity.task_files':
+      '{name} добавил(а) заметку или файлы к задаче',
+  'notif.list.case_workspace_activity.details':
+      '{name} изменил(а) подробности кейса',
 };
 
 const caseWorkspaceEn = <String, String>{
@@ -192,4 +211,23 @@ const caseWorkspaceEn = <String, String>{
   'cases.compose.file': 'File',
   'cases.compose.samplePhoto': 'Sample (photo)',
   'cases.compose.sampleFile': 'Sample (file)',
+  // Audit 2026-10-19: the other side added something in a case in work.
+  'notif.cases.case_workspace_activity.title': 'New in your case',
+  'notif.cases.case_workspace_activity.body':
+      'The other side added something to the case. Open it to see.',
+  'notif.workspace.update': 'A new update in the case.',
+  'notif.workspace.task_added': 'A new task in the case.',
+  'notif.workspace.task_done': 'A task in the case is done.',
+  'notif.workspace.task_files': 'A note or files were added to a task.',
+  'notif.workspace.details': 'The client changed the case details.',
+  'notif.list.case_workspace_activity.update':
+      '{name} posted an update in the case',
+  'notif.list.case_workspace_activity.task_added':
+      '{name} added a task to the case',
+  'notif.list.case_workspace_activity.task_done':
+      '{name} completed a task in the case',
+  'notif.list.case_workspace_activity.task_files':
+      '{name} added a note or files to a task',
+  'notif.list.case_workspace_activity.details':
+      '{name} changed the case details',
 };

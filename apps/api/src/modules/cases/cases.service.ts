@@ -905,7 +905,7 @@ export class CasesService {
   /** PATCH /cases/:id/private-details — audit 2026-10-19: the client's
    * «Подробности» were write-once (the case edit is for open cases only).
    * Now the client changes them while the case is open or in work; the
-   * journal never gets the text. */
+   * hired attorney is told, the journal never gets the text. */
   async updatePrivateDetails(
     user: RequestUser,
     caseId: string,
@@ -946,6 +946,18 @@ export class CasesService {
           },
         },
       });
+      // Audit 2026-10-19: the hired attorney is told (ids only).
+      const attorney = current.accepted_bid?.attorney_id ?? null;
+      if (attorney && current.status !== 'open') {
+        await this.notifications.emit(
+          {
+            type: 'case_workspace_activity',
+            recipientId: attorney,
+            payload: { caseId, actorId: user.sub, kind: 'details' },
+          },
+          tx,
+        );
+      }
       return afterCase;
     });
     return this.toFullDto(updated);

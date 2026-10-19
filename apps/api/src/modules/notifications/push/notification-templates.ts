@@ -165,6 +165,19 @@ export const NOTIFICATION_TEMPLATES: Partial<
       body: 'Вы давно не заходили: {count|кейс|кейса|кейсов}. Ответьте в одно касание, иначе кейс скроется из ленты адвокатов.',
     },
   },
+  // Audit 2026-10-19: the push body says what was added (renderFor:
+  // `notif.workspace.<kind>`); this pair is the fallback.
+  case_workspace_activity: {
+    group: 'cases',
+    en: {
+      title: 'New in your case',
+      body: 'The other side added something to the case. Open it to see.',
+    },
+    ru: {
+      title: 'Новое в кейсе',
+      body: 'Другая сторона добавила что-то в кейс. Откройте, чтобы посмотреть.',
+    },
+  },
   case_stale_prompt: {
     group: 'cases',
     en: {
