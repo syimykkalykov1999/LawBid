@@ -474,6 +474,9 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
       value: _tab,
       values: _tabs,
       onChanged: (v) => setState(() => _picked = v),
+      // Owner 2026-10-19 (Instagram): the header stays, the tab's content
+      // slides with the finger.
+      slideChild: false,
       child: AppPaginatedListView<Review>(
         items: items,
         itemKey: (r) => r.id,
@@ -499,7 +502,7 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
           ),
           child: header,
         ),
-        footer: footer,
+        footer: footer == null ? null : TabSwipeSlide(child: footer),
         labels: AppPaginationLabels(
           loadingMore: t.t('pagination.loadingMore'),
           error: t.t('pagination.error'),
@@ -524,20 +527,22 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
             ..invalidate(reviewsListProvider(_reviewsKey));
           await widget.onRefresh();
         },
-        itemBuilder: (context, review, index) => AppEntrance(
-          index: index % 6,
-          child: ReviewCard(
-            review: review,
-            // Owner 2026-10-01 (Google-style): anyone but the author flags;
-            // the author edits / deletes; the attorney replies; others vote.
-            onReport: review.isMine ? null : () => _report(t, review),
-            onEdit: review.isMine ? () => _writeReview(t, review) : null,
-            onDelete: review.isMine ? () => _deleteReview(t, review) : null,
-            onReply: p.isSelf ? () => _reply(t, review) : null,
-            onDeleteReply:
-                p.isSelf ? () => _reply(t, review, remove: true) : null,
-            onHelpful:
-                review.isMine || p.isSelf ? null : () => _helpful(t, review),
+        itemBuilder: (context, review, index) => TabSwipeSlide(
+          child: AppEntrance(
+            index: index % 6,
+            child: ReviewCard(
+              review: review,
+              // Owner 2026-10-01 (Google-style): anyone but the author flags;
+              // the author edits / deletes; the attorney replies; others vote.
+              onReport: review.isMine ? null : () => _report(t, review),
+              onEdit: review.isMine ? () => _writeReview(t, review) : null,
+              onDelete: review.isMine ? () => _deleteReview(t, review) : null,
+              onReply: p.isSelf ? () => _reply(t, review) : null,
+              onDeleteReply:
+                  p.isSelf ? () => _reply(t, review, remove: true) : null,
+              onHelpful:
+                  review.isMine || p.isSelf ? null : () => _helpful(t, review),
+            ),
           ),
         ),
       ),
@@ -1371,22 +1376,51 @@ class _Tabs extends ConsumerWidget {
             ],
           ),
           Positioned.fill(
-            child: AnimatedAlign(
-              // Directional: the tab Row flips in RTL, so must the bar.
-              alignment: AlignmentDirectional(
-                tabs.length < 2 ? -1 : -1 + 2 * index / (tabs.length - 1),
-                1,
-              ),
-              duration: reduce ? Duration.zero : AppMotion.stateChange,
-              curve: AppMotion.enterCurve,
-              child: FractionallySizedBox(
-                widthFactor: 1 / tabs.length,
-                child: Container(height: 2, color: colors.gold),
+            // Owner 2026-10-19 (Instagram): the bar follows the finger while
+            // the content is pulled (a whole width = one tab).
+            child: _FollowDrag(
+              tabCount: tabs.length,
+              child: AnimatedAlign(
+                // Directional: the tab Row flips in RTL, so must the bar.
+                alignment: AlignmentDirectional(
+                  tabs.length < 2 ? -1 : -1 + 2 * index / (tabs.length - 1),
+                  1,
+                ),
+                duration: reduce ? Duration.zero : AppMotion.stateChange,
+                curve: AppMotion.enterCurve,
+                child: FractionallySizedBox(
+                  widthFactor: 1 / tabs.length,
+                  child: Container(height: 2, color: colors.gold),
+                ),
               ),
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Moves the tab bar's gold line with the finger while a [TabSwipe]
+/// section is pulled.
+class _FollowDrag extends StatelessWidget {
+  const _FollowDrag({required this.tabCount, required this.child});
+
+  final int tabCount;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final drag = TabSwipe.dragOf(context);
+    if (drag == null || tabCount < 2) return child;
+    final rtl = Directionality.of(context) == TextDirection.rtl;
+    return ValueListenableBuilder<double>(
+      valueListenable: drag,
+      builder: (context, dx, child) => Transform.translate(
+        offset: Offset((rtl ? dx : -dx) / tabCount, 0),
+        child: child,
+      ),
+      child: child,
     );
   }
 }

@@ -319,6 +319,9 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
           ? _Tab.values
           : const [_Tab.posts, _Tab.reels, _Tab.reposts],
       onChanged: (v) => setState(() => _tab = v),
+      // Owner 2026-10-19 (Instagram): the header stays, the tab's content
+      // slides with the finger.
+      slideChild: false,
       child: RefreshIndicator(
         color: colors.gold,
         onRefresh: () async {
@@ -331,32 +334,39 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
           padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
           children: [
             header,
-            if (tab == _Tab.posts)
-              ProfilePostsGrid(
-                attorneyId: p.id,
-                emptyTitle: t.t('client.posts.empty'),
-                emptyMessage: '',
-              )
-            else if (tab == _Tab.reels)
-              ProfilePostsGrid(
-                key: const ValueKey('reels'),
-                attorneyId: p.id,
-                reelsOnly: true,
-                emptyTitle: t.t('profile.reels.empty.title'),
-                emptyMessage: t.t(
-                  p.isSelf
-                      ? 'profile.reels.empty.self'
-                      : 'profile.reels.empty.other',
-                ),
-              )
-            else if (tab == _Tab.reposts)
-              ProfileBriefsAndReposts(
-                attorneyId: p.id,
-                isSelf: p.isSelf,
-                emptyOtherKey: 'profile.briefsReposts.empty.otherUser',
-              )
-            else
-              _ReviewsList(clientId: p.id),
+            TabSwipeSlide(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (tab == _Tab.posts)
+                    ProfilePostsGrid(
+                      attorneyId: p.id,
+                      emptyTitle: t.t('client.posts.empty'),
+                      emptyMessage: '',
+                    )
+                  else if (tab == _Tab.reels)
+                    ProfilePostsGrid(
+                      key: const ValueKey('reels'),
+                      attorneyId: p.id,
+                      reelsOnly: true,
+                      emptyTitle: t.t('profile.reels.empty.title'),
+                      emptyMessage: t.t(
+                        p.isSelf
+                            ? 'profile.reels.empty.self'
+                            : 'profile.reels.empty.other',
+                      ),
+                    )
+                  else if (tab == _Tab.reposts)
+                    ProfileBriefsAndReposts(
+                      attorneyId: p.id,
+                      isSelf: p.isSelf,
+                      emptyOtherKey: 'profile.briefsReposts.empty.otherUser',
+                    )
+                  else
+                    _ReviewsList(clientId: p.id),
+                ],
+              ),
+            ),
           ],
         ),
       ),
