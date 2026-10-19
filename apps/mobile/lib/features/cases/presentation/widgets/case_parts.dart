@@ -675,17 +675,16 @@ class CaseHero extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: AppSpacing.sm),
-              Flexible(
-                child: Text(
-                  t.t('cases.hero.published', {
-                    'date': formats.dayMonth(publishedAt),
-                  }),
-                  // Owner 2026-10-19: dates stay at the right edge.
-                  textAlign: TextAlign.end,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: type.caption.copyWith(color: colors.textSecondary),
-                ),
+              // Owner 2026-10-19: the date sits at the right edge — the
+              // stage text above is Expanded, so this takes only its own
+              // width at the end of the row (a Flexible here shrank to the
+              // text and stood mid-row).
+              Text(
+                t.t('cases.hero.published', {
+                  'date': formats.dayMonth(publishedAt),
+                }),
+                maxLines: 1,
+                style: type.caption.copyWith(color: colors.textSecondary),
               ),
             ],
           ),
