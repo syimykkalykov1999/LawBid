@@ -11,6 +11,7 @@ import 'package:lawbid/features/feed/presentation/widgets/feed_chrome.dart';
 import 'package:lawbid/features/practice/practice_options.dart'
     as practice_options;
 import 'package:lawbid/features/practice/practice_options.dart' as practices;
+import 'package:lawbid/features/reels/presentation/reels_screen.dart';
 import 'package:lawbid/features/social/application/merged_paging.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
@@ -733,11 +734,16 @@ class ProfileBriefsAndReposts extends ConsumerWidget {
   const ProfileBriefsAndReposts({
     required this.attorneyId,
     required this.isSelf,
+    this.emptyOtherKey = 'profile.briefsReposts.empty.other',
     super.key,
   });
 
   final String attorneyId;
   final bool isSelf;
+
+  /// Owner 2026-10-18: a client's profile has the same tab; its empty
+  /// text names a user, not an attorney.
+  final String emptyOtherKey;
 
   static const _briefs = 0;
   static const _reposts = 1;
@@ -847,9 +853,7 @@ class ProfileBriefsAndReposts extends ConsumerWidget {
           icon: AppIcons.autoModeRounded,
           title: t.t('profile.briefsReposts.empty.title'),
           message: t.t(
-            isSelf
-                ? 'profile.briefsReposts.empty.self'
-                : 'profile.briefsReposts.empty.other',
+            isSelf ? 'profile.briefsReposts.empty.self' : emptyOtherKey,
           ),
         ),
       );
@@ -956,11 +960,18 @@ class ProfilePostsGrid extends ConsumerWidget {
     required this.emptyMessage,
     this.newsOnly = false,
     this.threadsOnly = false,
+    this.reelsOnly = false,
     super.key,
   });
 
   /// Owner 2026-09-30: the profile's News tab.
   final bool newsOnly;
+
+  /// Owner 2026-10-18: the profile's «Рилсы» tab — video posts / reels as
+  /// vertical 9:16 tiles with their view count; a tap opens the reels
+  /// player at that reel. The «Посты» grid (neither flag) keeps the photo
+  /// and file posts only.
+  final bool reelsOnly;
 
   /// Owner 2026-10-12 (Threads): the profile's threads tab — text posts as
   /// cards in a list; the grid tab keeps the posts with a photo or video.
@@ -973,7 +984,20 @@ class ProfilePostsGrid extends ConsumerWidget {
   AsyncNotifierProvider<AttorneyPostsNotifier, PaginatedList<Post>>
       get _provider => newsOnly
           ? attorneyNewsProvider(attorneyId)
-          : attorneyPostsProvider(attorneyId);
+          : reelsOnly
+              ? attorneyReelsProvider(attorneyId)
+              : threadsOnly
+                  ? attorneyPostsProvider(attorneyId)
+                  : attorneyPhotoPostsProvider(attorneyId);
+
+  /// What the tab shows; the server already filters by media, this keeps a
+  /// post edited since (or an old server's page) in its own tab.
+  bool _keeps(Post p) {
+    if (newsOnly) return true;
+    if (reelsOnly) return p.video != null;
+    if (threadsOnly) return PostCard.isThreadsStyle(p);
+    return !PostCard.isThreadsStyle(p) && p.video == null;
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1002,9 +1026,7 @@ class ProfilePostsGrid extends ConsumerWidget {
       data: (page) {
         final posts = page.items
             .where(
-              (p) =>
-                  !deleted.contains(p.id) &&
-                  (newsOnly || PostCard.isThreadsStyle(p) == threadsOnly),
+              (p) => !deleted.contains(p.id) && _keeps(p),
             )
             .toList();
         if (posts.isEmpty) {
@@ -1012,7 +1034,9 @@ class ProfilePostsGrid extends ConsumerWidget {
           return SizedBox(
             height: 280,
             child: AppEmptyState(
-              icon: AppIcons.articleOutlined,
+              icon: reelsOnly
+                  ? AppIcons.filmReelOutlined
+                  : AppIcons.articleOutlined,
               title: emptyTitle,
               message: emptyMessage,
             ),
@@ -1023,6 +1047,36 @@ class ProfilePostsGrid extends ConsumerWidget {
             children: [
               for (final p in posts)
                 PostCard(key: ValueKey(p.id), post: p, showPin: true),
+              if (page.canLoadMore)
+                TextButton(
+                  onPressed: () => ref.read(_provider.notifier).loadMore(),
+                  child: Text(t.t('pagination.loadingMore')),
+                ),
+            ],
+          );
+        }
+        if (reelsOnly) {
+          return Column(
+            children: [
+              GridView.builder(
+                key: const ValueKey('profile-reels-grid'),
+                padding: EdgeInsets.zero,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: reelsGridDelegate(),
+                itemCount: posts.length,
+                itemBuilder: (context, i) => ReelGridTile(
+                  key: ValueKey('reel-tile-${posts[i].id}'),
+                  post: posts[i],
+                  semanticLabel: t.t('post.open'),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) =>
+                          ReelsScreen(initial: posts, initialIndex: i),
+                    ),
+                  ),
+                ),
+              ),
               if (page.canLoadMore)
                 TextButton(
                   onPressed: () => ref.read(_provider.notifier).loadMore(),
@@ -1159,7 +1213,7 @@ class _ThreadDetailState extends ConsumerState<_ThreadDetail> {
             child: Padding(
               padding: const EdgeInsets.all(AppSpacing.lg),
               child: Text(
-                t.t('reels.commentsOff'),
+                t.t('post.comments.off'),
                 textAlign: TextAlign.center,
                 style: type.bodySmall.copyWith(color: colors.textSecondary),
               ),

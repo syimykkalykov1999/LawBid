@@ -324,10 +324,12 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
 
   /// Owner 2026-10-12: a reel counts as viewed after a few seconds as the
   /// current one (once per viewer; the server dedups).
+  /// Owner 2026-10-18: after ~2 s; the server counts one view per viewer
+  /// per 24 h.
   void _trackView() {
     _viewTimer?.cancel();
     if (!widget.active) return;
-    _viewTimer = Timer(const Duration(seconds: 3), () {
+    _viewTimer = Timer(const Duration(seconds: 2), () {
       if (!mounted || !widget.active) return;
       ref.read(socialActionsProvider).recordView(widget.post);
     });

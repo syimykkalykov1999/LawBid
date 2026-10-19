@@ -96,6 +96,9 @@ class PostOverrides extends Notifier<Map<String, Post>> {
 final postOverridesProvider =
     NotifierProvider<PostOverrides, Map<String, Post>>(PostOverrides.new);
 
+/// Posts gone from every public list in this session: deleted, or (owner
+/// 2026-10-18) archived — an archived one comes back with [remove] when the
+/// author shows it in the profile again.
 class DeletedPosts extends Notifier<Set<String>> {
   @override
   Set<String> build() {
@@ -104,6 +107,8 @@ class DeletedPosts extends Notifier<Set<String>> {
   }
 
   void add(String id) => state = {...state, id};
+
+  void remove(String id) => state = {...state}..remove(id);
 }
 
 final deletedPostsProvider =
@@ -200,6 +205,23 @@ final attorneyPostsProvider = AsyncNotifierProvider.autoDispose
   retry: _noRetry,
 );
 
+/// Owner 2026-10-18: Settings → «Архив» — the viewer's own archived posts,
+/// newest archived first.
+class ArchivedPostsNotifier extends PagedNotifier<Post> {
+  @override
+  Future<CursorPage<Post>> fetch(String? cursor) =>
+      ref.read(socialRepositoryProvider).archivedPosts(cursor: cursor);
+
+  @override
+  Object idOf(Post item) => item.id;
+}
+
+final archivedPostsProvider = AsyncNotifierProvider.autoDispose<
+    ArchivedPostsNotifier, PaginatedList<Post>>(
+  ArchivedPostsNotifier.new,
+  retry: _noRetry,
+);
+
 /// Owner 2026-09-30: the profile's News tab.
 class AttorneyNewsNotifier extends AttorneyPostsNotifier {
   AttorneyNewsNotifier(super.attorneyId);
@@ -213,6 +235,46 @@ class AttorneyNewsNotifier extends AttorneyPostsNotifier {
 final attorneyNewsProvider = AsyncNotifierProvider.autoDispose
     .family<AttorneyPostsNotifier, PaginatedList<Post>, String>(
   AttorneyNewsNotifier.new,
+  retry: _noRetry,
+);
+
+/// Owner 2026-10-18: the profile's «Посты» grid — photo / file posts only
+/// (reels have their own tab, briefs theirs).
+class AttorneyPhotoPostsNotifier extends AttorneyPostsNotifier {
+  AttorneyPhotoPostsNotifier(super.attorneyId);
+
+  @override
+  Future<CursorPage<Post>> fetch(String? cursor) =>
+      ref.read(socialRepositoryProvider).attorneyPosts(
+            attorneyId,
+            cursor: cursor,
+            media: ProfileMedia.visual,
+          );
+}
+
+final attorneyPhotoPostsProvider = AsyncNotifierProvider.autoDispose
+    .family<AttorneyPostsNotifier, PaginatedList<Post>, String>(
+  AttorneyPhotoPostsNotifier.new,
+  retry: _noRetry,
+);
+
+/// Owner 2026-10-18: the profile's «Рилсы» tab — video posts / reels,
+/// newest first.
+class AttorneyReelsNotifier extends AttorneyPostsNotifier {
+  AttorneyReelsNotifier(super.attorneyId);
+
+  @override
+  Future<CursorPage<Post>> fetch(String? cursor) =>
+      ref.read(socialRepositoryProvider).attorneyPosts(
+            attorneyId,
+            cursor: cursor,
+            media: ProfileMedia.video,
+          );
+}
+
+final attorneyReelsProvider = AsyncNotifierProvider.autoDispose
+    .family<AttorneyPostsNotifier, PaginatedList<Post>, String>(
+  AttorneyReelsNotifier.new,
   retry: _noRetry,
 );
 
@@ -681,8 +743,11 @@ class SocialActions {
         _ref.read(deletedPostsProvider.notifier).add(post.id);
         // The author's profile grids and post counters follow at once.
         _ref
+          ..invalidate(archivedPostsProvider)
           ..invalidate(attorneyPostsProvider(post.author.id))
           ..invalidate(attorneyNewsProvider(post.author.id))
+          ..invalidate(attorneyPhotoPostsProvider(post.author.id))
+          ..invalidate(attorneyReelsProvider(post.author.id))
           ..invalidate(publicAttorneyProfileProvider)
           ..invalidate(publicClientProfileProvider);
       });
@@ -718,10 +783,44 @@ class SocialActions {
         _refreshProfileLists(post);
       });
 
+  /// Owner 2026-10-18 (Instagram): the author turns comments on / off; the
+  /// open comments reload (hidden while off, back when on).
+  Future<Object?> setCommentsEnabled(Post post, {required bool enabled}) =>
+      _guard('comments-setting:${post.id}', () async {
+        final updated =
+            await _repo.setPostCommentsEnabled(post.id, enabled: enabled);
+        _ref
+          ..read(postOverridesProvider.notifier).put(updated)
+          ..invalidate(commentsProvider(post.id));
+      });
+
+  /// Owner 2026-10-18: «Архивировать» — the post leaves every list at once
+  /// (the server hides it from everyone but the author); «Показать в
+  /// профиле» brings it back to its place by publish date.
+  Future<Object?> setArchived(Post post, {required bool archived}) =>
+      _guard('archive:${post.id}', () async {
+        final updated =
+            await _repo.setPostArchived(post.id, archived: archived);
+        final hidden = _ref.read(deletedPostsProvider.notifier);
+        if (archived) {
+          hidden.add(post.id);
+        } else {
+          hidden.remove(post.id);
+        }
+        _ref
+          ..read(postOverridesProvider.notifier).put(updated)
+          ..invalidate(archivedPostsProvider)
+          ..invalidate(publicAttorneyProfileProvider)
+          ..invalidate(publicClientProfileProvider);
+        _refreshProfileLists(post);
+      });
+
   void _refreshProfileLists(Post post) {
     _ref
       ..invalidate(attorneyPostsProvider(post.author.id))
-      ..invalidate(attorneyNewsProvider(post.author.id));
+      ..invalidate(attorneyNewsProvider(post.author.id))
+      ..invalidate(attorneyPhotoPostsProvider(post.author.id))
+      ..invalidate(attorneyReelsProvider(post.author.id));
   }
 
   /// Owner 2026-09-30: title, text and qualification.

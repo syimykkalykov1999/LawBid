@@ -36,6 +36,7 @@ import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart';
 import 'package:lawbid/features/social/presentation/widgets/caption_fit.dart';
 import 'package:lawbid/features/social/presentation/widgets/comments_sheet.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_attachments_sheet.dart';
+import 'package:lawbid/features/social/presentation/widgets/post_promo_row.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_text_sheet.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
@@ -555,6 +556,8 @@ class PostCard extends ConsumerWidget {
           else if (fromProfile)
             _OwnMenuRow(post: p),
           photoFor(fill: fill, onShort: onExpand),
+          // Owner 2026-10-18: only in the profile's post list (Instagram).
+          if (fromProfile) PostPromoRow(post: p),
           PostActionsBar(post: p, run: run, showTime: true),
           // Owner 2026-10-15: the advertiser's button under a promoted post.
           if (post.promotionId != null && post.promotionCta != null)
@@ -774,6 +777,7 @@ class PostCard extends ConsumerWidget {
             ),
           ),
         // Owner 2026-10-07: the comment button opens the comments sheet.
+        if (fromProfile) PostPromoRow(post: p),
         PostActionsBar(post: p, run: run, boost: false, reactions: false),
         if (p.likeCount > 0 && showLikeCount(ref, p))
           Padding(
@@ -978,6 +982,7 @@ class _InstagramPost extends ConsumerWidget {
                   )
                 : captionText(caption),
           ),
+        if (fromProfile) PostPromoRow(post: p),
         PostActionsBar(
           post: p,
           run: run,

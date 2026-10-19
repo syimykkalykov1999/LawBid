@@ -192,7 +192,7 @@ void main() {
       expect(d.practiceValid, isFalse);
       expect(d.copyWith(title: 'short').titleValid, isFalse);
       expect(d.copyWith(title: 'Speeding ticket NJ').titleValid, isTrue);
-      expect(d.copyWith(description: 'x' * 29).descriptionValid, isFalse);
+      expect(d.copyWith(description: 'x' * 19).descriptionValid, isFalse);
       expect(d.copyWith(description: 'x' * 30).descriptionValid, isTrue);
       expect(
         d.copyWith(

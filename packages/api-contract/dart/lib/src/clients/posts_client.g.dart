@@ -217,6 +217,136 @@ class _PostsClient implements PostsClient {
   }
 
   @override
+  Future<PostEnvelope> setPostComments({
+    required String id,
+    required PostCommentsSettingDto body,
+    Map<String, dynamic>? extras,
+  }) async {
+    final _extra = <String, dynamic>{};
+    _extra.addAll(extras ?? <String, dynamic>{});
+    final queryParameters = <String, dynamic>{};
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{};
+    final _data = <String, dynamic>{};
+    _data.addAll(body.toJson());
+    final _options = _setStreamType<PostEnvelope>(
+      Options(method: 'PATCH', headers: _headers, extra: _extra)
+          .compose(
+            _dio.options,
+            '/posts/${id}/comments-setting',
+            queryParameters: queryParameters,
+            data: _data,
+          )
+          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
+    );
+    final _result = await _dio.fetch<Map<String, Object?>>(_options);
+    late PostEnvelope _value;
+    try {
+      _value = PostEnvelope.fromJson(_result.data!);
+    } on Object catch (e, s) {
+      errorLogger?.logError(e, s, _options, response: _result);
+      rethrow;
+    }
+    return _value;
+  }
+
+  @override
+  Future<PostEnvelope> archivePost({
+    required String id,
+    Map<String, dynamic>? extras,
+  }) async {
+    final _extra = <String, dynamic>{};
+    _extra.addAll(extras ?? <String, dynamic>{});
+    final queryParameters = <String, dynamic>{};
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{};
+    const Map<String, dynamic>? _data = null;
+    final _options = _setStreamType<PostEnvelope>(
+      Options(method: 'POST', headers: _headers, extra: _extra)
+          .compose(
+            _dio.options,
+            '/posts/${id}/archive',
+            queryParameters: queryParameters,
+            data: _data,
+          )
+          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
+    );
+    final _result = await _dio.fetch<Map<String, Object?>>(_options);
+    late PostEnvelope _value;
+    try {
+      _value = PostEnvelope.fromJson(_result.data!);
+    } on Object catch (e, s) {
+      errorLogger?.logError(e, s, _options, response: _result);
+      rethrow;
+    }
+    return _value;
+  }
+
+  @override
+  Future<PostEnvelope> unarchivePost({
+    required String id,
+    Map<String, dynamic>? extras,
+  }) async {
+    final _extra = <String, dynamic>{};
+    _extra.addAll(extras ?? <String, dynamic>{});
+    final queryParameters = <String, dynamic>{};
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{};
+    const Map<String, dynamic>? _data = null;
+    final _options = _setStreamType<PostEnvelope>(
+      Options(method: 'DELETE', headers: _headers, extra: _extra)
+          .compose(
+            _dio.options,
+            '/posts/${id}/archive',
+            queryParameters: queryParameters,
+            data: _data,
+          )
+          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
+    );
+    final _result = await _dio.fetch<Map<String, Object?>>(_options);
+    late PostEnvelope _value;
+    try {
+      _value = PostEnvelope.fromJson(_result.data!);
+    } on Object catch (e, s) {
+      errorLogger?.logError(e, s, _options, response: _result);
+      rethrow;
+    }
+    return _value;
+  }
+
+  @override
+  Future<PostListEnvelope> listArchivedPosts({
+    String? cursor,
+    Map<String, dynamic>? extras,
+  }) async {
+    final _extra = <String, dynamic>{};
+    _extra.addAll(extras ?? <String, dynamic>{});
+    final queryParameters = <String, dynamic>{r'cursor': cursor};
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{};
+    const Map<String, dynamic>? _data = null;
+    final _options = _setStreamType<PostListEnvelope>(
+      Options(method: 'GET', headers: _headers, extra: _extra)
+          .compose(
+            _dio.options,
+            '/me/archived-posts',
+            queryParameters: queryParameters,
+            data: _data,
+          )
+          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
+    );
+    final _result = await _dio.fetch<Map<String, Object?>>(_options);
+    late PostListEnvelope _value;
+    try {
+      _value = PostListEnvelope.fromJson(_result.data!);
+    } on Object catch (e, s) {
+      errorLogger?.logError(e, s, _options, response: _result);
+      rethrow;
+    }
+    return _value;
+  }
+
+  @override
   Future<PostEnvelope> pinPost({
     required String id,
     required PinPostDto body,
@@ -288,6 +418,7 @@ class _PostsClient implements PostsClient {
     num? limit = 20,
     String? cursor,
     PostKind? kind,
+    PostMediaFilter? media,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
@@ -296,6 +427,7 @@ class _PostsClient implements PostsClient {
       r'limit': limit,
       r'cursor': cursor,
       r'kind': kind?.toJson(),
+      r'media': media?.toJson(),
     };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};

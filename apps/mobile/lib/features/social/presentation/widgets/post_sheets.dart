@@ -144,7 +144,9 @@ void refreshPostLists(WidgetRef ref) {
     ..invalidate(filteredPostsProvider)
     ..invalidate(tagPostsProvider)
     ..invalidate(attorneyPostsProvider)
-    ..invalidate(attorneyNewsProvider);
+    ..invalidate(attorneyNewsProvider)
+    ..invalidate(attorneyPhotoPostsProvider)
+    ..invalidate(attorneyReelsProvider);
 }
 
 /// Owner 2026-10-12: a small sheet with three numbers — the slot the post
@@ -270,6 +272,7 @@ Future<void> showPostMenu(BuildContext context, WidgetRef ref, Post post) {
                         ),
                       // Owner 2026-10-12: pin to the profile top (1..3).
                       if (!post.isNews &&
+                          !post.isArchived &&
                           post.status == 'published' &&
                           ref.read(canDoProvider(AssistantDuty.publish)))
                         AppListRow(
@@ -299,6 +302,72 @@ Future<void> showPostMenu(BuildContext context, WidgetRef ref, Post post) {
                             }
                           },
                         ),
+                      // Owner 2026-10-18 (Instagram): comments on / off and
+                      // the archive — every author; an assistant with
+                      // "publish" for the attorney.
+                      if (ref.read(canDoProvider(AssistantDuty.publish))) ...[
+                        AppListRow(
+                          key: const ValueKey('post-menu-comments'),
+                          icon: AppIcons.modeCommentOutlined,
+                          label: t.t(
+                            post.commentsEnabled
+                                ? 'post.menu.commentsOff'
+                                : 'post.menu.commentsOn',
+                          ),
+                          showChevron: false,
+                          onTap: () async {
+                            Navigator.of(sheet).pop();
+                            final enabled = !post.commentsEnabled;
+                            final error = await ref
+                                .read(socialActionsProvider)
+                                .setCommentsEnabled(post, enabled: enabled);
+                            if (context.mounted) {
+                              showAppSnackBar(
+                                context,
+                                error == null
+                                    ? t.t(
+                                        enabled
+                                            ? 'post.comments.turnedOn'
+                                            : 'post.comments.turnedOff',
+                                      )
+                                    : errorText(t, error),
+                              );
+                            }
+                          },
+                        ),
+                        if (post.status != 'processing')
+                          AppListRow(
+                            key: const ValueKey('post-menu-archive'),
+                            icon: post.isArchived
+                                ? AppIcons.unarchiveOutlined
+                                : AppIcons.inventory2Outlined,
+                            label: t.t(
+                              post.isArchived
+                                  ? 'post.menu.unarchive'
+                                  : 'post.menu.archive',
+                            ),
+                            showChevron: false,
+                            onTap: () async {
+                              Navigator.of(sheet).pop();
+                              final archived = !post.isArchived;
+                              final error = await ref
+                                  .read(socialActionsProvider)
+                                  .setArchived(post, archived: archived);
+                              if (context.mounted) {
+                                showAppSnackBar(
+                                  context,
+                                  error == null
+                                      ? t.t(
+                                          archived
+                                              ? 'post.archived'
+                                              : 'post.unarchived',
+                                        )
+                                      : errorText(t, error),
+                                );
+                              }
+                            },
+                          ),
+                      ],
                       // Owner 2026-10-15 (Instagram): hide the like / view counters.
                       if (ref
                           .read(featureFlagsControllerProvider)
@@ -344,8 +413,8 @@ Future<void> showPostMenu(BuildContext context, WidgetRef ref, Post post) {
                           ),
                       ],
                       // Owner 2026-10-05: Instagram-style "Promote" (money: the
-                      // account owner, never an assistant).
-                      if (!ref.read(isAssistantProvider))
+                      // account owner, never an assistant); not while archived.
+                      if (!ref.read(isAssistantProvider) && !post.isArchived)
                         AppListRow(
                           icon: AppIcons.campaignOutlined,
                           label: t.t('promote.menu'),

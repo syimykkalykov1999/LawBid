@@ -147,6 +147,11 @@ const Map<String, dynamic> _createsResource = {
 
 /// docs/05 §2–§6 for the app: feed, posts, likes, saves, comments,
 /// follows, suggestions, tag pages, reports. Throws [ApiException].
+/// Owner 2026-10-18: a profile's tabs Посты | Рилсы | Брифы и репосты —
+/// [video] video posts / reels, [visual] photo or file posts without a
+/// video, [text] text-only briefs.
+enum ProfileMedia { video, visual, text }
+
 /// Network access only through here (.cursorrules).
 abstract interface class SocialRepository {
   /// Owner 2026-10-13: whether the viewer may add files, documents, extra
@@ -160,10 +165,13 @@ abstract interface class SocialRepository {
   Future<Post> post(String id);
 
   /// [newsOnly]: the profile's News tab (owner 2026-09-30).
+  /// [media]: the profile's Posts / Reels tabs (owner 2026-10-18), filtered
+  /// by the server so every page is full.
   Future<CursorPage<Post>> attorneyPosts(
     String attorneyId, {
     String? cursor,
     bool newsOnly = false,
+    ProfileMedia? media,
   });
   Future<CursorPage<Post>> tagPosts(
     String tag,
@@ -217,6 +225,16 @@ abstract interface class SocialRepository {
   /// Owner 2026-10-12: pin an own post to slot 1..3 / take it off.
   Future<Post> pinPost(String id, int slot);
   Future<Post> unpinPost(String id);
+
+  /// Owner 2026-10-18 (Instagram): the author turns comments of an own post
+  /// on / off (off: no new comments, the existing ones hidden).
+  Future<Post> setPostCommentsEnabled(String id, {required bool enabled});
+
+  /// Owner 2026-10-18: «Архивировать» / «Показать в профиле».
+  Future<Post> setPostArchived(String id, {required bool archived});
+
+  /// Owner 2026-10-18: Settings → «Архив», newest archived first.
+  Future<CursorPage<Post>> archivedPosts({String? cursor});
 
   /// Owner 2026-10-05: the feed shows legal posts only (general, personal
   /// posts hidden in the feed, topics, search and recommendations).
@@ -393,6 +411,7 @@ class ApiSocialRepository implements SocialRepository {
     String attorneyId, {
     String? cursor,
     bool newsOnly = false,
+    ProfileMedia? media,
   }) async {
     final env = await guardApiCall(
       () => _posts.listAttorneyPosts(
@@ -400,6 +419,12 @@ class ApiSocialRepository implements SocialRepository {
         cursor: cursor,
         // The Posts tab must not repeat the News tab's items.
         kind: newsOnly ? api.PostKind.news : api.PostKind.post,
+        media: switch (media) {
+          null => null,
+          ProfileMedia.video => api.PostMediaFilter.video,
+          ProfileMedia.visual => api.PostMediaFilter.visual,
+          ProfileMedia.text => api.PostMediaFilter.text,
+        },
       ),
     );
     return CursorPage(
@@ -593,6 +618,42 @@ class ApiSocialRepository implements SocialRepository {
   Future<Post> unpinPost(String id) async => SocialMappers.post(
         (await guardApiCall(() => _posts.unpinPost(id: id))).data,
       );
+
+  @override
+  Future<Post> setPostCommentsEnabled(
+    String id, {
+    required bool enabled,
+  }) async =>
+      SocialMappers.post(
+        (await guardApiCall(
+          () => _posts.setPostComments(
+            id: id,
+            body: api.PostCommentsSettingDto(enabled: enabled),
+          ),
+        ))
+            .data,
+      );
+
+  @override
+  Future<Post> setPostArchived(String id, {required bool archived}) async =>
+      SocialMappers.post(
+        (await guardApiCall(
+          () => archived
+              ? _posts.archivePost(id: id)
+              : _posts.unarchivePost(id: id),
+        ))
+            .data,
+      );
+
+  @override
+  Future<CursorPage<Post>> archivedPosts({String? cursor}) async {
+    final env =
+        await guardApiCall(() => _posts.listArchivedPosts(cursor: cursor));
+    return CursorPage(
+      items: env.data.map(SocialMappers.post).toList(),
+      nextCursor: env.meta?.nextCursor,
+    );
+  }
 
   @override
   Future<void> recordPostShare(String postId) =>
@@ -1065,6 +1126,7 @@ abstract final class SocialMappers {
         repostCount: d.repostCount,
         repostedByMe: d.repostedByMe,
         pinSlot: d.pinSlot,
+        archivedAt: d.archivedAt?.toLocal(),
         repostedBy: d.repostedBy == null
             ? null
             : PostReposter(

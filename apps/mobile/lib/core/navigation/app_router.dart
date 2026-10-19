@@ -57,6 +57,7 @@ import 'package:lawbid/features/search/presentation/screens/search_screen.dart';
 import 'package:lawbid/features/settings/about/about_screen.dart';
 import 'package:lawbid/features/settings/account/account_routes.dart';
 import 'package:lawbid/features/settings/active_devices/presentation/active_devices_screen.dart';
+import 'package:lawbid/features/settings/archive/archive_screen.dart';
 import 'package:lawbid/features/settings/data_export/presentation/data_export_screen.dart';
 import 'package:lawbid/features/settings/saved/saved_screen.dart';
 import 'package:lawbid/features/social/social_routes.dart';
@@ -426,6 +427,12 @@ GoRouter appRouter(Ref ref) {
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) =>
             AppPageTransitions.push(state, const SavedScreen()),
+      ),
+      GoRoute(
+        path: AppRoutes.postArchive,
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            AppPageTransitions.push(state, const ArchiveScreen()),
       ),
       GoRoute(
         path: AppRoutes.dataExport,

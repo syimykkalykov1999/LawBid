@@ -415,7 +415,7 @@ export class PostgresSearchProvider implements SearchProvider {
       WITH m AS (
         SELECT p.id, p.created_at, p.search_tsv, p.search_tsv_simple FROM posts p
         WHERE ${match}
-          AND p.status = 'published' AND p.deleted_at IS NULL
+          AND p.status = 'published' AND p.deleted_at IS NULL AND p.archived_at IS NULL
           ${where}
         ORDER BY p.created_at DESC
         LIMIT ${POST_CANDIDATES}

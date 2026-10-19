@@ -261,7 +261,9 @@ export class CounterAggregator
           save_count = (SELECT count(*) FROM saved_items s
                         WHERE s.item_type = 'post' AND s.item_id = p.id),
           share_count = (SELECT count(*) FROM post_shares x WHERE x.post_id = p.id),
-          view_count = (SELECT count(*) FROM post_views v WHERE v.post_id = p.id)
+          -- Owner 2026-10-18: views once per viewer per 24 h (post_view_events).
+          view_count = (SELECT count(*) FROM post_view_events v
+                        WHERE v.post_id = p.id AND v.kind = 'view')
         WHERE p.id = ANY(${ids}::UUID[])`;
     } else if (entity === 'comment') {
       await this.prisma.$executeRaw`
@@ -292,6 +294,7 @@ export class CounterAggregator
         UPDATE client_profiles AS a SET
           posts_count = (SELECT count(*) FROM posts p
                          WHERE p.author_id = a.user_id AND p.deleted_at IS NULL
+                           AND p.archived_at IS NULL
                            AND p.status = 'published'),
           followers_count = (SELECT count(*) FROM follows f WHERE f.followee_id = a.user_id),
           following_count = (SELECT count(*) FROM follows f WHERE f.follower_id = a.user_id)
@@ -301,6 +304,7 @@ export class CounterAggregator
         UPDATE attorney_profiles AS a SET
           posts_count = (SELECT count(*) FROM posts p
                          WHERE p.author_id = a.user_id AND p.deleted_at IS NULL
+                           AND p.archived_at IS NULL
                            AND p.status = 'published'),
           followers_count = (SELECT count(*) FROM follows f WHERE f.followee_id = a.user_id),
           following_count = (SELECT count(*) FROM follows f WHERE f.follower_id = a.user_id)

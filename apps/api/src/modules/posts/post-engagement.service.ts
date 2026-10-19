@@ -22,6 +22,7 @@ import {
 import { PostPresenter, VISIBLE_POST_WHERE } from './post-presenter.service';
 import { postNotFound } from './posts.service';
 import { assertNoBlock } from '../blocks/block-guard';
+import { PostEventsService } from './post-events.service';
 
 const REPOSTS_PAGE = 20;
 
@@ -40,6 +41,7 @@ export class PostEngagementService {
     private readonly notifications: NotificationsService,
     private readonly presenter: PostPresenter,
     private readonly follows: FollowsService,
+    private readonly events: PostEventsService,
   ) {}
 
   async like(userId: string, postId: string): Promise<void> {
@@ -227,15 +229,22 @@ export class PostEngagementService {
   }
 
   /** Owner 2026-10-12: a video post / reel was watched (a few seconds or a
-   * tap). One view per viewer, never the author's own; a repeat is a no-op. */
+   * tap); never the author's own. Owner 2026-10-18: counted once per viewer
+   * per 24 h (post_view_events, PostEventsService); post_views keeps "who
+   * has seen it" for the recommendations. */
   async view(userId: string, postId: string): Promise<void> {
     const post = await this.visible(postId);
     if (post.author_id === userId) return;
-    const { count } = await this.prisma.postView.createMany({
+    await this.prisma.postView.createMany({
       data: [{ post_id: postId, user_id: userId }],
       skipDuplicates: true,
     });
-    if (count > 0) await this.counters.bump('post', postId, 'view_count', 1);
+    await this.events.record({
+      postId,
+      authorId: post.author_id,
+      viewerId: userId,
+      kind: 'view',
+    });
   }
 
   async unlike(userId: string, postId: string): Promise<void> {

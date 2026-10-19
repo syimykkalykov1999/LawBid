@@ -534,6 +534,8 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
       ref
         ..invalidate(attorneyPostsProvider(post.author.id))
         ..invalidate(attorneyNewsProvider(post.author.id))
+        ..invalidate(attorneyPhotoPostsProvider(post.author.id))
+        ..invalidate(attorneyReelsProvider(post.author.id))
         ..invalidate(publicAttorneyProfileProvider)
         ..invalidate(publicClientProfileProvider);
       // ignore: unawaited_futures

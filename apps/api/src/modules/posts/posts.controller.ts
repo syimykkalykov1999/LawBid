@@ -43,6 +43,7 @@ import {
   SavedPostsQueryDto,
   UpdatePostDto,
   PostCountersDto,
+  PostCommentsSettingDto,
   type PostPage,
 } from './dto/posts.dto';
 import { PostEngagementService } from './post-engagement.service';
@@ -148,6 +149,65 @@ export class PostsController {
     @Body() dto: PostCountersDto,
   ): Promise<PostDto> {
     return this.posts.setCounters(user, p.id, dto);
+  }
+
+  // Owner 2026-10-18: every author (attorney, client; an assistant with the
+  // "publish" duty for the attorney) turns comments of an own post on / off.
+  @AttorneyOnly('publish')
+  @Patch('posts/:id/comments-setting')
+  @ApiOperation({
+    summary:
+      'Turn comments of an own post on / off (off: no new comments or replies, the existing ones are hidden)',
+  })
+  @ApiEnvelopeResponse(PostDto)
+  @ApiErrors({ 400: [E.VALIDATION_ERROR], 404: [E.POST_NOT_FOUND] })
+  setPostComments(
+    @CurrentUser() user: RequestUser,
+    @Param() p: PostIdParamDto,
+    @Body() dto: PostCommentsSettingDto,
+  ): Promise<PostDto> {
+    return this.posts.setCommentsEnabled(user, p.id, dto.enabled);
+  }
+
+  // Owner 2026-10-18: «Архивировать» — hidden from everyone but the author.
+  @AttorneyOnly('publish')
+  @Post('posts/:id/archive')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Archive an own post (idempotent)' })
+  @ApiEnvelopeResponse(PostDto)
+  @ApiErrors({ 404: [E.POST_NOT_FOUND], 409: [E.VIDEO_NOT_READY] })
+  archivePost(
+    @CurrentUser() user: RequestUser,
+    @Param() p: PostIdParamDto,
+  ): Promise<PostDto> {
+    return this.posts.archive(user, p.id);
+  }
+
+  // Owner 2026-10-18: «Показать в профиле» — back by its publish date.
+  @AttorneyOnly('publish')
+  @Delete('posts/:id/archive')
+  @ApiOperation({ summary: 'Show an archived own post in the profile again' })
+  @ApiEnvelopeResponse(PostDto)
+  @ApiErrors({ 404: [E.POST_NOT_FOUND] })
+  unarchivePost(
+    @CurrentUser() user: RequestUser,
+    @Param() p: PostIdParamDto,
+  ): Promise<PostDto> {
+    return this.posts.unarchive(user, p.id);
+  }
+
+  @AttorneyOnly('publish')
+  @Get('me/archived-posts')
+  @ApiOperation({
+    summary: 'My archived posts, newest archived first (Settings → «Архив»)',
+  })
+  @ApiEnvelopeResponse(PostDto, { isArray: true })
+  @ApiErrors({ 400: [E.VALIDATION_ERROR] })
+  listArchivedPosts(
+    @CurrentUser() user: RequestUser,
+    @Query() q: RepostsQueryDto,
+  ): Promise<PostPage> {
+    return this.posts.listArchived(user, q);
   }
 
   // OQ-048: publications are the attorney's — an assistant never deletes.

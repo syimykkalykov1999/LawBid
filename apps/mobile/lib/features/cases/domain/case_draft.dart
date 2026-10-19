@@ -8,7 +8,7 @@ import 'package:lawbid/core/limits/text_limits.dart';
 abstract final class CaseLimits {
   static const titleMin = 10;
   static int get titleMax => TextLimits.of(TextLimit.caseTitle);
-  static const descriptionMin = 30;
+  static const descriptionMin = 20;
   static int get descriptionMax => TextLimits.of(TextLimit.caseDescription);
   static int get privateDetailsMax =>
       TextLimits.of(TextLimit.casePrivateDetails);

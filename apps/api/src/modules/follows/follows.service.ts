@@ -418,7 +418,8 @@ export class FollowsService {
         a.rating_avg DESC,
         (SELECT count(*) FROM posts p
          WHERE p.author_id = a.user_id AND p.status = 'published'
-           AND p.deleted_at IS NULL AND p.created_at > ${since}) DESC,
+           AND p.deleted_at IS NULL AND p.archived_at IS NULL
+           AND p.created_at > ${since}) DESC,
         a.rating_count DESC,
         a.user_id
       LIMIT ${SUGGEST_POOL}`;

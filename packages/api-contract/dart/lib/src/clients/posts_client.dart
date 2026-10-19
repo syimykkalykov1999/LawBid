@@ -9,11 +9,13 @@ import '../models/create_post_dto.dart';
 import '../models/person_item_list_envelope.dart';
 import '../models/pin_post_dto.dart';
 import '../models/post_attachments_allowed_envelope.dart';
+import '../models/post_comments_setting_dto.dart';
 import '../models/post_counters_dto.dart';
 import '../models/post_deleted_envelope.dart';
 import '../models/post_envelope.dart';
 import '../models/post_kind.dart';
 import '../models/post_list_envelope.dart';
+import '../models/post_media_filter.dart';
 import '../models/saved_post_item_list_envelope.dart';
 import '../models/update_post_dto.dart';
 
@@ -66,6 +68,37 @@ abstract class PostsClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
+  /// Turn comments of an own post on / off (off: no new comments or replies, the existing ones are hidden)
+  @PATCH('/posts/{id}/comments-setting')
+  Future<PostEnvelope> setPostComments({
+    @Path('id') required String id,
+    @Body() required PostCommentsSettingDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Archive an own post (idempotent)
+  @POST('/posts/{id}/archive')
+  Future<PostEnvelope> archivePost({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Show an archived own post in the profile again
+  @DELETE('/posts/{id}/archive')
+  Future<PostEnvelope> unarchivePost({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// My archived posts, newest archived first (Settings → «Архив»).
+  ///
+  /// [cursor] - meta.nextCursor of the previous page.
+  @GET('/me/archived-posts')
+  Future<PostListEnvelope> listArchivedPosts({
+    @Query('cursor') String? cursor,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
   /// Pin an own post to slot 1, 2 or 3
   @POST('/posts/{id}/pin')
   Future<PostEnvelope> pinPost({
@@ -86,12 +119,15 @@ abstract class PostsClient {
   /// [cursor] - meta.nextCursor of the previous page.
   ///
   /// [kind] - Owner 2026-09-30: only News / only regular posts (profile tabs).
+  ///
+  /// [media] - Owner 2026-10-18: the profile's Posts / Reels / briefs tabs.
   @GET('/attorneys/{id}/posts')
   Future<PostListEnvelope> listAttorneyPosts({
     @Path('id') required String id,
     @Query('limit') num? limit = 20,
     @Query('cursor') String? cursor,
     @Query('kind') PostKind? kind,
+    @Query('media') PostMediaFilter? media,
     @Extras() Map<String, dynamic>? extras,
   });
 

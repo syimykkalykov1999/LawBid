@@ -352,10 +352,12 @@ class _InlineReelState extends State<InlineReel> {
 
   /// Owner 2026-10-12: a reel counts as viewed after a few seconds on
   /// screen (once per viewer; the server dedups).
+  /// Owner 2026-10-18: after ~2 s; the server counts one view per viewer
+  /// per 24 h.
   void _trackView() {
     _viewTimer?.cancel();
     if (!_visible) return;
-    _viewTimer = Timer(const Duration(seconds: 3), () {
+    _viewTimer = Timer(const Duration(seconds: 2), () {
       if (!mounted || !_visible) return;
       ProviderScope.containerOf(context)
           .read(socialActionsProvider)

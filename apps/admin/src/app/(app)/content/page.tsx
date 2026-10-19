@@ -332,6 +332,7 @@ function Posts({ ask }: { ask: Ask }) {
                   {p.contentClassLocked ? ' · закреплено' : ''}
                 </Badge>
                 {p.hasVideo ? <Badge tone="info">видео</Badge> : null}
+                {p.archived ? <Badge tone="neutral">В архиве у автора</Badge> : null}
                 {p.attachments > 0 ? (
                   <Badge tone="info">файлы: {p.attachments}</Badge>
                 ) : null}

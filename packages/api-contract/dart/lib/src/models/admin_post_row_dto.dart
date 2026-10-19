@@ -24,6 +24,7 @@ class AdminPostRowDto {
     required this.likes,
     required this.comments,
     required this.deleted,
+    required this.archived,
     required this.hasVideo,
     required this.attachments,
     required this.photos,
@@ -50,6 +51,9 @@ class AdminPostRowDto {
   final int likes;
   final int comments;
   final bool deleted;
+
+  /// Owner 2026-10-18: the author keeps it in «Архив»
+  final bool archived;
 
   /// The post carries a video
   final bool hasVideo;

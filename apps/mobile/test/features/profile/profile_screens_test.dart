@@ -219,7 +219,8 @@ void main() {
             (e.widget.key! as ValueKey<String>).value,
         };
 
-    testWidgets('three tabs: Posts, Briefs & reposts, Reviews', (tester) async {
+    testWidgets('four tabs: Posts, Reels, Briefs & reposts, Reviews',
+        (tester) async {
       await _pumpScreen(
         tester,
         const AttorneyProfileScreen(username: 'jane.doe'),
@@ -231,9 +232,11 @@ void main() {
       );
       expect(tabKeys(tester), {
         'profile-tab-posts',
+        'profile-tab-reels',
         'profile-tab-reposts',
         'profile-tab-reviews',
       });
+      expect(find.bySemanticsLabel('Reels'), findsOneWidget);
       expect(find.bySemanticsLabel('Briefs & reposts'), findsOneWidget);
       expect(find.bySemanticsLabel('Text'), findsNothing);
       await _teardown(tester);
@@ -251,6 +254,7 @@ void main() {
       );
       expect(tabKeys(tester), {
         'profile-tab-posts',
+        'profile-tab-reels',
         'profile-tab-reposts',
         'profile-tab-news',
         'profile-tab-reviews',
@@ -690,8 +694,10 @@ void main() {
 
   group('client profile (docs/03 §5)', () {
     // OQ-038: Instagram-like client profile — counters, Posts / Reviews.
-    testWidgets('own profile: name, state, counters, Posts and Reviews tabs',
-        (tester) async {
+    testWidgets(
+        'own profile: name, state, counters and the four tabs '
+        'Posts | Reels | Briefs & reposts | Reviews', (tester) async {
+      final handle = tester.ensureSemantics();
       await _pumpScreen(
         tester,
         const ProfileScreen(),
@@ -703,8 +709,32 @@ void main() {
       expect(find.textContaining('California'), findsNothing);
       expect(find.text('Followers'), findsOneWidget);
       expect(find.text('Following'), findsOneWidget);
-      expect(find.text('Reviews'), findsOneWidget);
       expect(find.text('Edit'), findsOneWidget);
+      // Owner 2026-10-18: Instagram's icon tabs, as on an attorney's profile.
+      expect(
+        {
+          for (final e in find
+              .byWidgetPredicate(
+                (w) =>
+                    w.key is ValueKey<String> &&
+                    (w.key! as ValueKey<String>)
+                        .value
+                        .startsWith('client-tab-'),
+              )
+              .evaluate())
+            (e.widget.key! as ValueKey<String>).value,
+        },
+        {
+          'client-tab-posts',
+          'client-tab-reels',
+          'client-tab-reposts',
+          'client-tab-reviews',
+        },
+      );
+      for (final label in ['Posts', 'Reels', 'Briefs & reposts', 'Reviews']) {
+        expect(find.bySemanticsLabel(label), findsOneWidget, reason: label);
+      }
+      handle.dispose();
       await _teardown(tester);
     });
 

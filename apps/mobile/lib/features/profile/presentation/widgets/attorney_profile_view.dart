@@ -43,7 +43,10 @@ import 'package:lawbid/shared/presentation/share_sheet.dart';
 // Owner 2026-10-18: three tabs — Posts | Briefs & reposts | Reviews (plus
 // News while it is on). [threads] has no tab of its own any more: opening
 // it lands on [reposts], the merged «Брифы и репосты» tab.
-enum AttorneyProfileTab { posts, threads, reposts, news, reviews }
+// Owner 2026-10-18 (later): Instagram's tabs for everyone — Посты (photo
+// posts) | Рилсы (video posts / reels) | Брифы и репосты | Отзывы (plus
+// News while it is on, before Reviews).
+enum AttorneyProfileTab { posts, reels, threads, reposts, news, reviews }
 
 /// Public link of an attorney profile (docs/03 §4.2 «Поделиться», deep
 /// link of docs/01 §12).
@@ -397,27 +400,39 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
               attorneyId: p.id,
               isSelf: p.isSelf,
             )
-          : _tab == AttorneyProfileTab.news
+          : _tab == AttorneyProfileTab.reels
               ? ProfilePostsGrid(
-                  key: const ValueKey('news'),
+                  key: const ValueKey('reels'),
                   attorneyId: p.id,
-                  newsOnly: true,
-                  emptyTitle: t.t('profile.news.empty.title'),
+                  reelsOnly: true,
+                  emptyTitle: t.t('profile.reels.empty.title'),
                   emptyMessage: t.t(
                     p.isSelf
-                        ? 'profile.news.empty.self'
-                        : 'profile.news.empty.other',
+                        ? 'profile.reels.empty.self'
+                        : 'profile.reels.empty.other',
                   ),
                 )
-              : ProfilePostsGrid(
-                  attorneyId: p.id,
-                  emptyTitle: t.t('profile.posts.empty.title'),
-                  emptyMessage: t.t(
-                    p.isSelf
-                        ? 'profile.posts.empty.self'
-                        : 'profile.posts.empty.other',
-                  ),
-                );
+              : _tab == AttorneyProfileTab.news
+                  ? ProfilePostsGrid(
+                      key: const ValueKey('news'),
+                      attorneyId: p.id,
+                      newsOnly: true,
+                      emptyTitle: t.t('profile.news.empty.title'),
+                      emptyMessage: t.t(
+                        p.isSelf
+                            ? 'profile.news.empty.self'
+                            : 'profile.news.empty.other',
+                      ),
+                    )
+                  : ProfilePostsGrid(
+                      attorneyId: p.id,
+                      emptyTitle: t.t('profile.posts.empty.title'),
+                      emptyMessage: t.t(
+                        p.isSelf
+                            ? 'profile.posts.empty.self'
+                            : 'profile.posts.empty.other',
+                      ),
+                    );
     } else if (reviews == null || reviews.isLoading && state == null) {
       footer = const Column(
         children: [
@@ -1291,6 +1306,11 @@ class _Tabs extends ConsumerWidget {
               tab,
               t.t('profile.tab.posts'),
               AppIcons.gridOnRounded
+            ),
+          AttorneyProfileTab.reels => (
+              tab,
+              t.t('profile.tab.reels'),
+              AppIcons.filmReelOutlined
             ),
           AttorneyProfileTab.threads => (
               tab,

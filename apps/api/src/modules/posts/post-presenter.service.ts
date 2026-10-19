@@ -10,11 +10,13 @@ import { FilesService } from '../files/files.service';
 import { VideosService } from '../videos/videos.service';
 import type { PostDto, PostReposterDto } from './dto/posts.dto';
 
-/** Where a viewer may see a post: published, not deleted, author active
+/** Where a viewer may see a post: published, not deleted, not archived
+ * (owner 2026-10-18: only its author sees an archived post), author active
  * and not suspended (docs/05 §2.2.4, §12.3). */
 export const VISIBLE_POST_WHERE: Prisma.PostWhereInput = {
   status: 'published',
   deleted_at: null,
+  archived_at: null,
   author: {
     status: 'active',
     // OQ-038: clients post too; suspended attorneys never show.
@@ -395,7 +397,11 @@ export class PostPresenter {
           p.hide_likes && p.author_id !== viewerId
             ? 0
             : clamp(p.like_count + (pLike.get(p.id) ?? 0)),
-        commentCount: clamp(p.comment_count + (pComment.get(p.id) ?? 0)),
+        // Owner 2026-10-18: comments turned off are hidden (Instagram).
+        commentCount:
+          !p.comments_enabled && p.author_id !== viewerId
+            ? 0
+            : clamp(p.comment_count + (pComment.get(p.id) ?? 0)),
         saveCount: clamp(p.save_count + (pSave.get(p.id) ?? 0)),
         shareCount: clamp(p.share_count + (pShare.get(p.id) ?? 0)),
         viewCount:
@@ -411,6 +417,8 @@ export class PostPresenter {
         createdAt: p.created_at.toISOString(),
         editedAt: p.edited_at?.toISOString() ?? null,
         pinSlot: p.pin_slot ?? null,
+        // Owner 2026-10-18: only its author ever gets an archived post.
+        archivedAt: p.archived_at?.toISOString() ?? null,
       };
     });
   }

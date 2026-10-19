@@ -808,6 +808,7 @@ model User {
   case_comment_likes          CaseCommentLike[]              @relation("CaseCommentLiker")
   post_shares                 PostShare[]                    @relation("PostSharer")
   post_views                  PostView[]                     @relation("PostViewer")
+  post_view_events            PostViewEvent[]                @relation("PostEventViewer")
   case_shares                 CaseShare[]                    @relation("CaseSharer")
   client_reviews_given        ClientReview[]                 @relation("ClientReviewAttorney")
   client_reviews_received     ClientReview[]                 @relation("ClientReviewClient")
@@ -1867,9 +1868,11 @@ model Post {
   // Owner 2026-09-30 (OQ-037): times shared (share sheet completed).
   share_count          Int                      @default(0)
   shares               PostShare[]
-  // Owner 2026-10-12: views of a video post / reel (one per viewer).
+  // Owner 2026-10-12: views of a video post / reel. 2026-10-18: one per
+  // viewer per 24 h = count of post_view_events kind 'view'.
   view_count           Int                      @default(0)
   views                PostView[]
+  view_events          PostViewEvent[]
   // Owner 2026-10-12: pinned to the top of the author's profile list, slot
   // 1..3 inside pin_group 'grid' (posts) or 'brief' (text-only). A partial
   // unique index (author, group, slot) is in the migration.
@@ -1877,6 +1880,9 @@ model Post {
   pin_group            String?
   // docs/05 §3.3, §14 (stage 5.1): "Изменено" after a text edit.
   edited_at            DateTime?                @db.Timestamptz
+  /// Owner 2026-10-18: «Архивировать» — seen by the author only (Settings →
+  /// «Архив»); likes, comments and saves are kept. NULL = in the profile.
+  archived_at          DateTime?                @db.Timestamptz
   deleted_at           DateTime?                @db.Timestamptz
   // STORED computed column (§5.3): to_tsvector('english', body). Read-only.
   search_tsv           Unsupported("tsvector")? @default(dbgenerated("(setweight(to_tsvector('english'::regconfig, f_unaccent(COALESCE(title, ''::text))), 'A'::\"char\") || setweight(to_tsvector('english'::regconfig, f_unaccent(body)), 'C'::\"char\"))"))
@@ -2798,6 +2804,27 @@ model PostView {
   @@unique([user_id, post_id])
   @@index([post_id])
   @@map("post_views")
+}
+
+// Owner 2026-10-18: per-post events for the author's statistics (Instagram
+// Insights, author only) — 'view' (a reel / video watched ~2 s+),
+// 'impression' (shown on screen), 'profile_visit' (the author's profile
+// opened from the post). One row per viewer + post + kind per 24 h
+// (PostEventsService.record); viewer_id null = an anonymous event, never
+// deduped. posts.view_count = count(kind = 'view'). CHECK on kind in the
+// migration.
+model PostViewEvent {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  post_id    String   @db.Uuid
+  post       Post     @relation(fields: [post_id], references: [id], onDelete: Cascade)
+  viewer_id  String?  @db.Uuid
+  viewer     User?    @relation("PostEventViewer", fields: [viewer_id], references: [id], onDelete: SetNull)
+  kind       String   @db.VarChar(16)
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  @@index([post_id, viewer_id, kind, created_at(sort: Desc)])
+  @@index([post_id, kind, created_at(sort: Desc)])
+  @@map("post_view_events")
 }
 
 model CaseShare {

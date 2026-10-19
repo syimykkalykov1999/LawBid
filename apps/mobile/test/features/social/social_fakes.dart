@@ -21,6 +21,7 @@ Post fakePost(
   PostPractice? practice,
   bool news = false,
   int comments = 0,
+  bool mine = false,
 }) =>
     Post(
       id: id,
@@ -49,7 +50,7 @@ Post fakePost(
       commentCount: comments,
       likedByMe: liked,
       savedByMe: false,
-      isMine: false,
+      isMine: mine,
       practice: practice,
       isNews: news,
       createdAt: DateTime(2026, 9, 28, 10),
@@ -124,10 +125,33 @@ class FakeSocialRepository implements SocialRepository {
     String attorneyId, {
     String? cursor,
     bool newsOnly = false,
+    ProfileMedia? media,
   }) async {
     attorneyPostsCalls++;
-    return _page(posts, cursor);
+    attorneyPostsMedia.add(media);
+    // Like the server's `media` filter (owner 2026-10-18).
+    bool text(Post p) =>
+        p.video == null && p.media.isEmpty && p.attachments.isEmpty;
+    final kept = switch (media) {
+      null => posts,
+      ProfileMedia.video => [
+          for (final p in posts)
+            if (p.video != null) p,
+        ],
+      ProfileMedia.visual => [
+          for (final p in posts)
+            if (p.video == null && !text(p)) p,
+        ],
+      ProfileMedia.text => [
+          for (final p in posts)
+            if (text(p)) p,
+        ],
+    };
+    return _page(kept, cursor);
   }
+
+  /// The media filter of every [attorneyPosts] call.
+  final attorneyPostsMedia = <ProfileMedia?>[];
 
   List<Post> reposts = const [];
   List<PersonRow> reposters = const [];

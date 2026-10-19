@@ -73,6 +73,7 @@ export class CommentsController {
   @ApiEnvelopeResponse(CommentDto, { status: 201 })
   @ApiErrors({
     400: [E.VALIDATION_ERROR],
+    403: [E.COMMENTS_DISABLED],
     404: [E.POST_NOT_FOUND, E.COMMENT_NOT_FOUND],
     422: [E.CONTENT_BLOCKED],
     429: [E.RATE_LIMITED],

@@ -21060,6 +21060,383 @@
         ]
       }
     },
+    "/posts/{id}/comments-setting": {
+      "patch": {
+        "operationId": "setPostComments",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PostCommentsSettingDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: POST_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Turn comments of an own post on / off (off: no new comments or replies, the existing ones are hidden)",
+        "tags": [
+          "posts"
+        ]
+      }
+    },
+    "/posts/{id}/archive": {
+      "post": {
+        "operationId": "archivePost",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: POST_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: VIDEO_NOT_READY",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Archive an own post (idempotent)",
+        "tags": [
+          "posts"
+        ]
+      },
+      "delete": {
+        "operationId": "unarchivePost",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: POST_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Show an archived own post in the profile again",
+        "tags": [
+          "posts"
+        ]
+      }
+    },
+    "/me/archived-posts": {
+      "get": {
+        "operationId": "listArchivedPosts",
+        "parameters": [
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "meta.nextCursor of the previous page.",
+            "schema": {
+              "maxLength": 300,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostListEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "My archived posts, newest archived first (Settings → «Архив»)",
+        "tags": [
+          "posts"
+        ]
+      }
+    },
     "/posts/{id}/pin": {
       "post": {
         "operationId": "pinPost",
@@ -21293,6 +21670,15 @@
             "description": "Owner 2026-09-30: only News / only regular posts (profile tabs).",
             "schema": {
               "$ref": "#/components/schemas/PostKind"
+            }
+          },
+          {
+            "name": "media",
+            "required": false,
+            "in": "query",
+            "description": "Owner 2026-10-18: the profile's Posts / Reels / briefs tabs.",
+            "schema": {
+              "$ref": "#/components/schemas/PostMediaFilter"
             }
           }
         ],
@@ -25663,6 +26049,16 @@
           },
           "401": {
             "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: COMMENTS_DISABLED",
             "content": {
               "application/json": {
                 "schema": {
@@ -95307,6 +95703,12 @@
             "type": "boolean",
             "default": true
           },
+          "archivedAt": {
+            "type": "string",
+            "nullable": true,
+            "description": "Owner 2026-10-18: set while the author keeps the post in «Архив»\n(nobody else gets an archived post).",
+            "format": "date-time"
+          },
           "likesHidden": {
             "type": "boolean",
             "description": "Owner 2026-10-15: the author hid this counter (counts are 0 for others).",
@@ -95658,6 +96060,34 @@
           }
         }
       },
+      "PostCommentsSettingDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled"
+        ]
+      },
+      "PostListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PostDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
       "PostDeletedDto": {
         "type": "object",
         "properties": {
@@ -95697,21 +96127,12 @@
           "slot"
         ]
       },
-      "PostListEnvelope": {
-        "type": "object",
-        "properties": {
-          "data": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/PostDto"
-            }
-          },
-          "meta": {
-            "$ref": "#/components/schemas/ResponseMetaDto"
-          }
-        },
-        "required": [
-          "data"
+      "PostMediaFilter": {
+        "type": "string",
+        "enum": [
+          "video",
+          "visual",
+          "text"
         ]
       },
       "PersonRole": {
@@ -99148,7 +99569,7 @@
           },
           "description": {
             "type": "string",
-            "minLength": 30,
+            "minLength": 20,
             "maxLength": 5000
           },
           "privateDetails": {
@@ -99274,7 +99695,7 @@
           },
           "description": {
             "type": "string",
-            "minLength": 30,
+            "minLength": 20,
             "maxLength": 5000
           },
           "privateDetails": {
@@ -102479,6 +102900,10 @@
           "deleted": {
             "type": "boolean"
           },
+          "archived": {
+            "type": "boolean",
+            "description": "Owner 2026-10-18: the author keeps it in «Архив»"
+          },
           "hasVideo": {
             "type": "boolean",
             "description": "The post carries a video"
@@ -102506,6 +102931,7 @@
           "likes",
           "comments",
           "deleted",
+          "archived",
           "hasVideo",
           "attachments",
           "photos",

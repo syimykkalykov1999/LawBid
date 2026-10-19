@@ -426,7 +426,7 @@ export class SearchService {
       FROM tags t
       LEFT JOIN post_tags pt ON pt.tag_id = t.id
       LEFT JOIN posts p ON p.id = pt.post_id
-        AND p.status = 'published' AND p.deleted_at IS NULL
+        AND p.status = 'published' AND p.deleted_at IS NULL AND p.archived_at IS NULL
         -- Only posts anyone can see (active, not deleted authors).
         AND EXISTS (SELECT 1 FROM users u WHERE u.id = p.author_id
                     AND u.status = 'active' AND u.deleted_at IS NULL)
@@ -691,7 +691,7 @@ export class SearchService {
         SELECT p.id FROM post_tags pt
         JOIN posts p ON p.id = pt.post_id
         WHERE pt.tag_id = ${tagId}::UUID
-          AND p.status = 'published' AND p.deleted_at IS NULL
+          AND p.status = 'published' AND p.deleted_at IS NULL AND p.archived_at IS NULL
         ORDER BY p.created_at DESC
         LIMIT ${TAG_TOP_CANDIDATES}
       )

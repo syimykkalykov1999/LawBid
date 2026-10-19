@@ -33,6 +33,12 @@ export const POST_BODY_MAX = 5000;
 export const POST_TITLE_MAX = 120;
 export const POST_KINDS = ['post', 'news'] as const;
 export type PostKindValue = (typeof POST_KINDS)[number];
+
+/** Owner 2026-10-18 (profile tabs): 'video' — video posts / reels (Рилсы);
+ * 'visual' — photo or file posts without a video (Посты grid); 'text' —
+ * text-only posts (briefs). */
+export const POST_MEDIA_FILTERS = ['video', 'visual', 'text'] as const;
+export type PostMediaFilter = (typeof POST_MEDIA_FILTERS)[number];
 /** Hard ceilings; the live counts are the admin's «Загрузки и файлы»
  * (bug 17, default 9 photos and 9 documents per post / reel). */
 export const POST_MEDIA_MAX = 20;
@@ -248,6 +254,13 @@ export class PostCountersDto {
   hideViews?: boolean;
 }
 
+/** Owner 2026-10-18: the author turns comments of an own post on / off. */
+export class PostCommentsSettingDto {
+  @ApiProperty()
+  @IsBoolean()
+  enabled!: boolean;
+}
+
 export class PostIdParamDto {
   @ApiProperty({ format: 'uuid' })
   @IsUUID('all')
@@ -314,6 +327,15 @@ export class PostsPageQueryDto {
   @IsOptional()
   @IsIn(POST_KINDS)
   kind?: PostKindValue;
+
+  /** Owner 2026-10-18: the profile's Posts / Reels / briefs tabs. */
+  @ApiPropertyOptional({
+    enum: POST_MEDIA_FILTERS,
+    enumName: 'PostMediaFilter',
+  })
+  @IsOptional()
+  @IsIn(POST_MEDIA_FILTERS)
+  media?: PostMediaFilter;
 }
 
 export class PostAuthorDto {
@@ -457,6 +479,11 @@ export class PostDto {
 
   @ApiProperty({ default: true })
   commentsEnabled!: boolean;
+
+  /** Owner 2026-10-18: set while the author keeps the post in «Архив»
+   * (nobody else gets an archived post). */
+  @ApiPropertyOptional({ type: String, nullable: true, format: 'date-time' })
+  archivedAt!: string | null;
 
   /** Owner 2026-10-15: the author hid this counter (counts are 0 for others). */
   @ApiProperty({ default: false })

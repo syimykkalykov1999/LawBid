@@ -27,7 +27,7 @@ import 'package:lawbid/features/profile/presentation/widgets/review_widgets.dart
 import 'package:lawbid/features/social/application/social_providers.dart'
     show currentUserIdProvider;
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart'
-    show ProfilePostsGrid, ProfileRepostsList;
+    show ProfileBriefsAndReposts, ProfilePostsGrid;
 import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart'
     show FollowButton, TrustAvatarBadge;
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
@@ -36,7 +36,10 @@ import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/shared/presentation/share_sheet.dart';
 
-enum _Tab { posts, reposts, reviews }
+// Owner 2026-10-18: Instagram's tabs, as on an attorney's profile — Посты
+// (photo posts) | Рилсы (video posts / reels) | Брифы и репосты | Отзывы
+// (reviews about the client, only for those who may read them).
+enum _Tab { posts, reels, reposts, reviews }
 
 /// Owner 2026-09-30 (OQ-038): the client profile like Instagram, for the
 /// client and for anyone opening it — avatar with posts / followers /
@@ -131,7 +134,10 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
           label: label,
           excludeSemantics: true,
           child: AppPressable(
+            key: ValueKey('client-tab-${value.name}'),
             onTap: () => setState(() => _tab = value),
+            // Owner 2026-10-18: four tabs — icons only, as on an attorney's
+            // profile and Instagram (the label stays for screen readers).
             child: Container(
               height: AppSizes.touchTarget,
               decoration: BoxDecoration(
@@ -142,27 +148,12 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
                   ),
                 ),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  AppIcon(
-                    icon,
-                    size: 20,
-                    color: selected ? colors.text : colors.textSecondary,
-                  ),
-                  const SizedBox(width: AppSpacing.xs),
-                  Flexible(
-                    child: Text(
-                      label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: type.bodySmall.copyWith(
-                        color: selected ? colors.text : colors.textSecondary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
+              child: Center(
+                child: AppIcon(
+                  icon,
+                  size: AppSizes.iconMd,
+                  color: selected ? colors.text : colors.textSecondary,
+                ),
               ),
             ),
           ),
@@ -297,11 +288,17 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
                 AppIcons.gridOnRounded,
                 t.t('client.tab.posts'),
               ),
-              // Owner 2026-10-18: the same «Репосты» tab as an attorney's.
+              tabButton(
+                _Tab.reels,
+                AppIcons.filmReelOutlined,
+                t.t('profile.tab.reels'),
+              ),
+              // Owner 2026-10-18: the same «Брифы и репосты» tab as an
+              // attorney's (a client's text posts had no tab before).
               tabButton(
                 _Tab.reposts,
                 AppIcons.autoModeRounded,
-                t.t('profile.tab.reposts'),
+                t.t('profile.tab.briefsReposts'),
               ),
               if (p.canSeeReviews)
                 tabButton(
@@ -318,7 +315,9 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
 
     return TabSwipe<_Tab>(
       value: tab,
-      values: p.canSeeReviews ? _Tab.values : const [_Tab.posts, _Tab.reposts],
+      values: p.canSeeReviews
+          ? _Tab.values
+          : const [_Tab.posts, _Tab.reels, _Tab.reposts],
       onChanged: (v) => setState(() => _tab = v),
       child: RefreshIndicator(
         color: colors.gold,
@@ -338,8 +337,24 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
                 emptyTitle: t.t('client.posts.empty'),
                 emptyMessage: '',
               )
+            else if (tab == _Tab.reels)
+              ProfilePostsGrid(
+                key: const ValueKey('reels'),
+                attorneyId: p.id,
+                reelsOnly: true,
+                emptyTitle: t.t('profile.reels.empty.title'),
+                emptyMessage: t.t(
+                  p.isSelf
+                      ? 'profile.reels.empty.self'
+                      : 'profile.reels.empty.other',
+                ),
+              )
             else if (tab == _Tab.reposts)
-              ProfileRepostsList(userId: p.id, isSelf: p.isSelf)
+              ProfileBriefsAndReposts(
+                attorneyId: p.id,
+                isSelf: p.isSelf,
+                emptyOtherKey: 'profile.briefsReposts.empty.otherUser',
+              )
             else
               _ReviewsList(clientId: p.id),
           ],

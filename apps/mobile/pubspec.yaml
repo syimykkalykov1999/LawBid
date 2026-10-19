@@ -121,6 +121,12 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  # 2026-10-18 (speed): on-device scroll measurements —
+  # integration_test/scroll_perf_test.dart + test_driver/perf_driver.dart.
+  integration_test:
+    sdk: flutter
+  flutter_driver:
+    sdk: flutter
   riverpod_generator: ^4.0.9
   build_runner: ^2.16.1
   freezed: ^4.0.2

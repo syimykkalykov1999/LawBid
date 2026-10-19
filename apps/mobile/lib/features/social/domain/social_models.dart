@@ -261,7 +261,14 @@ class Post {
     this.repostedByMe = false,
     this.repostedBy,
     this.pinSlot,
+    this.archivedAt,
   });
+
+  /// Owner 2026-10-18: set while the author keeps the post in «Архив»
+  /// (only the author ever gets an archived post).
+  final DateTime? archivedAt;
+
+  bool get isArchived => archivedAt != null;
 
   /// Owner 2026-10-07: Threads-style reposts — how many people reposted
   /// the post, and whether the viewer did.
@@ -395,6 +402,7 @@ class Post {
         repostedByMe: repostedByMe ?? this.repostedByMe,
         repostedBy: repostedBy,
         pinSlot: unpin ? null : (pinSlot ?? this.pinSlot),
+        archivedAt: archivedAt,
       );
 }
 

@@ -34,7 +34,7 @@ import { MaxTextChars } from '../../../common/app-settings/max-text-chars.decora
 // docs/04_CASES_BIDS.md §3.2.
 export const TITLE_MIN = 10;
 export const TITLE_MAX = 120;
-export const DESCRIPTION_MIN = 30;
+export const DESCRIPTION_MIN = 20;
 export const DESCRIPTION_MAX = 5000;
 export const CITY_MAX = 80;
 export const BUDGET_MIN_DOLLARS = 1;

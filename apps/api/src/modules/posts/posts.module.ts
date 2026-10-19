@@ -9,6 +9,7 @@ import { VideosModule } from '../videos/videos.module';
 import { BunnyWebhookController } from './bunny-webhook.controller';
 import { ContentFilterService } from './content-filter.service';
 import { PostAttachmentsPolicy } from './post-attachments.policy';
+import { PostEventsService } from './post-events.service';
 import { PostEngagementService } from './post-engagement.service';
 import { PostVideosController } from './post-videos.controller';
 import { PostVideosService } from './post-videos.service';
@@ -31,6 +32,7 @@ import { PostsService } from './posts.service';
   controllers: [PostsController, PostVideosController, BunnyWebhookController],
   providers: [
     PostsService,
+    PostEventsService,
     PostPresenter,
     PostEngagementService,
     PostVideosService,
@@ -39,6 +41,7 @@ import { PostsService } from './posts.service';
   ],
   exports: [
     PostsService,
+    PostEventsService,
     PostPresenter,
     PostEngagementService,
     PostVideosService,

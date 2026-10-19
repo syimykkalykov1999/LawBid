@@ -41,6 +41,7 @@ describe('PostEngagementService reposts', () => {
       { emit } as never,
       {} as never,
       {} as never,
+      {} as never,
     );
     return { service, consume, emit, createMany, deleteMany };
   }

@@ -33,11 +33,12 @@ export class TrendingTagsJob {
         (SELECT count(*) FROM post_tags pt2
            JOIN posts p2 ON p2.id = pt2.post_id
              AND p2.status = 'published' AND p2.deleted_at IS NULL
+             AND p2.archived_at IS NULL
            WHERE pt2.tag_id = t.id)::INT8 AS total
       FROM posts p
       JOIN post_tags pt ON pt.post_id = p.id
       JOIN tags t ON t.id = pt.tag_id
-      WHERE p.status = 'published' AND p.deleted_at IS NULL
+      WHERE p.status = 'published' AND p.deleted_at IS NULL AND p.archived_at IS NULL
         AND p.created_at > ${since}
         AND t.tag_lower NOT LIKE '~%'
       GROUP BY t.tag_lower, t.id

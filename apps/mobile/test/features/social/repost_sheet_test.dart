@@ -118,7 +118,10 @@ void main() {
     await settle(t);
   });
 
-  testWidgets('a client profile has the same Reposts tab', (t) async {
+  // Owner 2026-10-18: a client's reposts sit with their briefs, as on an
+  // attorney's profile.
+  testWidgets('a client profile has the same Briefs & reposts tab',
+      (t) async {
     final repo = FakeSocialRepository()..reposts = [other()];
     t.view.physicalSize = const Size(400, 1200);
     t.view.devicePixelRatio = 1;
@@ -143,15 +146,20 @@ void main() {
       ),
     );
     await t.pumpAndSettle();
-    expect(find.bySemanticsLabel('Reposts'), findsOneWidget);
-    await t.tap(find.bySemanticsLabel('Reposts'));
+    // No reviews for this viewer: three tabs.
+    for (final label in ['Posts', 'Reels', 'Briefs & reposts']) {
+      expect(find.bySemanticsLabel(label), findsOneWidget, reason: label);
+    }
+    expect(find.bySemanticsLabel('Reviews'), findsNothing);
+    await t.tap(find.bySemanticsLabel('Briefs & reposts'));
     await t.pumpAndSettle();
     expect(find.byType(PostCard), findsOneWidget);
     await settle(t);
   });
 
-  testWidgets('a client profile has three tabs: Posts, Reposts, Reviews',
-      (t) async {
+  testWidgets(
+      'a client profile has four tabs: '
+      'Posts, Reels, Briefs & reposts, Reviews', (t) async {
     t.view.physicalSize = const Size(400, 1200);
     t.view.devicePixelRatio = 1;
     addTearDown(t.view.reset);
@@ -176,10 +184,10 @@ void main() {
       ),
     );
     await t.pumpAndSettle();
-    for (final label in ['Posts', 'Reposts', 'Reviews']) {
+    for (final label in ['Posts', 'Reels', 'Briefs & reposts', 'Reviews']) {
       expect(find.bySemanticsLabel(label), findsOneWidget, reason: label);
     }
-    expect(find.bySemanticsLabel('Briefs & reposts'), findsNothing);
+    expect(find.bySemanticsLabel('Reposts'), findsNothing);
     await settle(t);
   });
 }
