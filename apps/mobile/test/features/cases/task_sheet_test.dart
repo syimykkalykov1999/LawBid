@@ -69,7 +69,32 @@ Future<void> main() async {
     await tester.pumpAndSettle();
     expect(find.text('Sign the lease'), findsOneWidget);
     expect(find.text('Joint'), findsOneWidget);
+    // either side ticks it from the sheet too
+    expect(find.text('Mark done'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  // Audit 2026-10-19: a closed case only looks.
+  testWidgets('a closed case: no buttons, the reason instead', (tester) async {
+    final closed = api.CaseTasksDto(
+      role: tasks.role,
+      forClient: const [],
+      shared: const [],
+      joint: tasks.joint,
+      private: const [],
+      canEdit: false,
+    );
+    await open(tester, closed, 'j1');
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    expect(find.text('Mark done'), findsNothing);
+    expect(find.byKey(const ValueKey('workspace-read-only')), findsOneWidget);
+    expect(
+      find.text(
+        'The case is closed: you can only look here. Everything added is kept.',
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('a task that is gone says so instead of loading forever', (

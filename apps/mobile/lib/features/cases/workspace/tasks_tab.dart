@@ -87,6 +87,9 @@ class _TasksTabState extends ConsumerState<TasksTab> {
               ];
         final idx = _filter.clamp(0, lists.length - 1);
         final shown = lists[idx];
+        // Audit 2026-10-19: a closed case (or an assistant without the
+        // «tasks» duty) only looks.
+        final canEdit = d.canEdit;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -102,39 +105,44 @@ class _TasksTabState extends ConsumerState<TasksTab> {
                     onChanged: (i) => setState(() => _filter = i),
                   ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.only(
-                    right: AppSpacing.lg,
-                    top: AppSpacing.sm,
-                  ),
-                  child: GestureDetector(
-                    onTap: _create,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: colors.chip,
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const AppIcon(AppIcons.addRounded, size: 14),
-                          const SizedBox(width: 4),
-                          Text(
-                            t.t('cases.tasks.add'),
-                            style: type.bodySmall
-                                .copyWith(fontWeight: FontWeight.w700),
-                          ),
-                        ],
+                if (canEdit)
+                  Padding(
+                    padding: const EdgeInsets.only(
+                      right: AppSpacing.lg,
+                      top: AppSpacing.sm,
+                    ),
+                    child: GestureDetector(
+                      onTap: _create,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: colors.chip,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const AppIcon(AppIcons.addRounded, size: 14),
+                            const SizedBox(width: 4),
+                            Text(
+                              t.t('cases.tasks.add'),
+                              style: type.bodySmall
+                                  .copyWith(fontWeight: FontWeight.w700),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
-                ),
               ],
             ),
+            if (!canEdit)
+              WorkspaceReadOnlyNote(
+                text: t.t(readOnlyReasonKey(ref, tasks: true)),
+              ),
             if (shown.isEmpty)
               Padding(
                 padding: const EdgeInsets.all(AppSpacing.lg),
@@ -148,6 +156,7 @@ class _TasksTabState extends ConsumerState<TasksTab> {
                 caseId: widget.caseId,
                 task: task,
                 isAttorney: widget.isAttorney,
+                canEdit: canEdit,
                 t: t,
                 formats: formats,
               ),
@@ -203,6 +212,7 @@ class TaskRow extends ConsumerWidget {
     required this.isAttorney,
     required this.t,
     required this.formats,
+    this.canEdit = true,
     super.key,
   });
 
@@ -212,7 +222,11 @@ class TaskRow extends ConsumerWidget {
   final Translator t;
   final L10nFormats formats;
 
+  /// False in a closed case (audit 2026-10-19): the tick only shows.
+  final bool canEdit;
+
   bool get _canTick {
+    if (!canEdit) return false;
     if (task.kind == api.CaseTaskDtoKind.private) return false;
     if (task.kind == api.CaseTaskDtoKind.joint) return true;
     if (task.kind == api.CaseTaskDtoKind.shared) return isAttorney;
@@ -464,7 +478,11 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
     }
     final done = task.status == api.CaseTaskDtoStatus.done;
     final forClient = task.kind == api.CaseTaskDtoKind.forClient;
-    final canAdd = !task.closed &&
+    final joint = task.kind == api.CaseTaskDtoKind.joint;
+    // Audit 2026-10-19: a closed case only looks.
+    final editable = tasks!.canEdit;
+    final canAdd = editable &&
+        !task.closed &&
         (forClient || isAttorney) &&
         task.kind != api.CaseTaskDtoKind.private;
     Widget fileTile(api.WorkspaceFileDto f) => Padding(
@@ -604,7 +622,8 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
                             children: [
                               GestureDetector(
                                 behavior: HitTestBehavior.opaque,
-                                onTap: forClient &&
+                                onTap: editable &&
+                                        forClient &&
                                         !task.closed &&
                                         (!isAttorney || item.done)
                                     ? () => _run(
@@ -638,7 +657,7 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
                                   const EdgeInsetsDirectional.only(start: 34),
                               child: fileTile(f),
                             ),
-                          if (!task.closed && !isAttorney)
+                          if (editable && !task.closed && !isAttorney)
                             Padding(
                               padding: const EdgeInsetsDirectional.only(
                                 start: 34,
@@ -675,99 +694,111 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
               AppSpacing.lg,
               MediaQuery.paddingOf(context).bottom + AppSpacing.md,
             ),
-            child: Row(
-              children: [
-                if (canAdd && task.items.isEmpty)
-                  Expanded(
-                    child: AppButton(
-                      label: t.t(
-                        done && !isAttorney
-                            ? 'cases.tasks.addMore'
-                            : 'cases.tasks.addFiles',
-                      ),
-                      icon: AppIcons.attachFileRounded,
-                      variant: AppButtonVariant.secondary,
-                      onPressed: _busy
-                          ? null
-                          : () => _addFiles(isAttorney: isAttorney),
-                    ),
+            child: !editable
+                ? WorkspaceReadOnlyNote(
+                    text: t.t(readOnlyReasonKey(ref, tasks: true)),
+                    padding: EdgeInsets.zero,
+                  )
+                : Row(
+                    children: [
+                      if (canAdd && task.items.isEmpty)
+                        Expanded(
+                          child: AppButton(
+                            label: t.t(
+                              done && !isAttorney
+                                  ? 'cases.tasks.addMore'
+                                  : 'cases.tasks.addFiles',
+                            ),
+                            icon: AppIcons.attachFileRounded,
+                            variant: AppButtonVariant.secondary,
+                            onPressed: _busy
+                                ? null
+                                : () => _addFiles(isAttorney: isAttorney),
+                          ),
+                        ),
+                      if (canAdd && task.items.isEmpty)
+                        const SizedBox(width: 10),
+                      if (!isAttorney && forClient && !done)
+                        Expanded(
+                          child: AppButton(
+                            label: t.t('cases.tasks.done'),
+                            isLoading: _busy,
+                            onPressed: _busy
+                                ? null
+                                : () => _run(
+                                      () => actions.setTaskDone(
+                                        widget.caseId,
+                                        task.id,
+                                        done: true,
+                                      ),
+                                    ),
+                          ),
+                        ),
+                      // Audit 2026-10-19: either side ticks a joint task,
+                      // from its sheet too.
+                      if (joint ||
+                          (isAttorney &&
+                              task.kind == api.CaseTaskDtoKind.shared))
+                        Expanded(
+                          child: AppButton(
+                            label: t.t(
+                              done
+                                  ? 'cases.tasks.undo'
+                                  : 'cases.tasks.markDone',
+                            ),
+                            isLoading: _busy,
+                            onPressed: _busy
+                                ? null
+                                : () => _run(
+                                      () => actions.setTaskDone(
+                                        widget.caseId,
+                                        task.id,
+                                        done: !done,
+                                      ),
+                                    ),
+                          ),
+                        ),
+                      if (isAttorney && forClient) ...[
+                        if (done)
+                          Padding(
+                            padding: const EdgeInsetsDirectional.only(end: 10),
+                            child: AppButton(
+                              label: t.t('cases.tasks.undo'),
+                              variant: AppButtonVariant.secondary,
+                              onPressed: _busy
+                                  ? null
+                                  : () => _run(
+                                        () => actions.setTaskDone(
+                                          widget.caseId,
+                                          task.id,
+                                          done: false,
+                                        ),
+                                      ),
+                            ),
+                          ),
+                        Expanded(
+                          child: AppButton(
+                            label: t.t(
+                              task.closed
+                                  ? 'cases.tasks.reopen'
+                                  : 'cases.tasks.close',
+                            ),
+                            isLoading: _busy,
+                            onPressed: _busy
+                                ? null
+                                : () => _run(
+                                      () => actions.setTaskClosed(
+                                        widget.caseId,
+                                        task.id,
+                                        closed: !task.closed,
+                                      ),
+                                    ),
+                          ),
+                        ),
+                      ],
+                      if (ws == null) const SizedBox.shrink(),
+                    ],
                   ),
-                if (canAdd && task.items.isEmpty) const SizedBox(width: 10),
-                if (!isAttorney && forClient && !done)
-                  Expanded(
-                    child: AppButton(
-                      label: t.t('cases.tasks.done'),
-                      isLoading: _busy,
-                      onPressed: _busy
-                          ? null
-                          : () => _run(
-                                () => actions.setTaskDone(
-                                  widget.caseId,
-                                  task.id,
-                                  done: true,
-                                ),
-                              ),
-                    ),
-                  ),
-                if (isAttorney && task.kind == api.CaseTaskDtoKind.shared)
-                  Expanded(
-                    child: AppButton(
-                      label: t.t(
-                        done ? 'cases.tasks.undo' : 'cases.tasks.markDone',
-                      ),
-                      isLoading: _busy,
-                      onPressed: _busy
-                          ? null
-                          : () => _run(
-                                () => actions.setTaskDone(
-                                  widget.caseId,
-                                  task.id,
-                                  done: !done,
-                                ),
-                              ),
-                    ),
-                  ),
-                if (isAttorney && forClient) ...[
-                  if (done)
-                    Padding(
-                      padding: const EdgeInsetsDirectional.only(end: 10),
-                      child: AppButton(
-                        label: t.t('cases.tasks.undo'),
-                        variant: AppButtonVariant.secondary,
-                        onPressed: _busy
-                            ? null
-                            : () => _run(
-                                  () => actions.setTaskDone(
-                                    widget.caseId,
-                                    task.id,
-                                    done: false,
-                                  ),
-                                ),
-                      ),
-                    ),
-                  Expanded(
-                    child: AppButton(
-                      label: t.t(
-                        task.closed
-                            ? 'cases.tasks.reopen'
-                            : 'cases.tasks.close',
-                      ),
-                      isLoading: _busy,
-                      onPressed: _busy
-                          ? null
-                          : () => _run(
-                                () => actions.setTaskClosed(
-                                  widget.caseId,
-                                  task.id,
-                                  closed: !task.closed,
-                                ),
-                              ),
-                    ),
-                  ),
-                ],
-                if (ws == null) const SizedBox.shrink(),
-              ],
-            ),
           ),
         ],
       ),

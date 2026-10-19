@@ -14,6 +14,8 @@ import 'package:lawbid/features/cases/workspace/file_actions.dart';
 import 'package:lawbid/features/cases/workspace/tasks_tab.dart';
 import 'package:lawbid/features/cases/workspace/workspace_data.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
+import 'package:lawbid/features/team/application/team_providers.dart';
+import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// Owner 2026-10-13: the body of an accepted case, for the client and the
@@ -408,6 +410,60 @@ class _FileRow extends StatelessWidget {
   }
 }
 
+// ---------------------------------------------------------- read-only
+
+/// Audit 2026-10-19: why nothing can be added here — the case is closed,
+/// or (for task changes) the assistant has no «tasks» duty.
+String readOnlyReasonKey(WidgetRef ref, {bool tasks = false}) => tasks &&
+        ref.watch(isAssistantProvider) &&
+        !ref.watch(canDoProvider(AssistantDuty.tasks))
+    ? 'cases.workspace.noTasksDuty'
+    : 'cases.workspace.readOnly';
+
+/// A grey line with a lock: the workspace only shows.
+class WorkspaceReadOnlyNote extends StatelessWidget {
+  const WorkspaceReadOnlyNote({
+    required this.text,
+    this.padding = const EdgeInsets.fromLTRB(
+      AppSpacing.lg,
+      AppSpacing.sm,
+      AppSpacing.lg,
+      0,
+    ),
+    super.key,
+  });
+
+  final String text;
+  final EdgeInsetsGeometry padding;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    return Padding(
+      key: const ValueKey('workspace-read-only'),
+      padding: padding,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AppIcon(
+            AppIcons.lockOutlineRounded,
+            size: 16,
+            color: colors.textSecondary,
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Text(
+              text,
+              style: type.bodySmall.copyWith(color: colors.textSecondary),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 // -------------------------------------------------------------- Updates
 
 class UpdatesTab extends ConsumerWidget {
@@ -452,7 +508,11 @@ class UpdatesTab extends ConsumerWidget {
       data: (items) => Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _WriteRow(onTap: () => _add(context, ref), t: t),
+          // Audit 2026-10-19: a closed case takes no new updates.
+          if (ref.watch(caseWorkspaceProvider(caseId)).value?.canWrite ?? true)
+            _WriteRow(onTap: () => _add(context, ref), t: t)
+          else
+            WorkspaceReadOnlyNote(text: t.t(readOnlyReasonKey(ref))),
           for (final u in items) UpdateEntry(update: u, t: t, formats: formats),
           if (items.isEmpty)
             Padding(

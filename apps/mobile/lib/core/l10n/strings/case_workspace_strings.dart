@@ -97,6 +97,11 @@ const caseWorkspaceRu = <String, String>{
   'cases.compose.file': 'Файл',
   'cases.compose.samplePhoto': 'Образец (фото)',
   'cases.compose.sampleFile': 'Образец (файл)',
+  // Audit 2026-10-19: a closed case only looks; an assistant without tasks.
+  'cases.workspace.readOnly':
+      'Кейс закрыт: здесь можно только смотреть. Всё, что было добавлено, сохранено.',
+  'cases.workspace.noTasksDuty':
+      'Менять задачи может адвокат. Чтобы это могли вы, адвокат должен включить вам доступ «Задачи».',
   // Audit 2026-10-19: «Подробности» once a bid is accepted.
   'cases.details.title': 'Подробности',
   'cases.details.add': 'Добавить',
@@ -225,6 +230,11 @@ const caseWorkspaceEn = <String, String>{
   'cases.compose.file': 'File',
   'cases.compose.samplePhoto': 'Sample (photo)',
   'cases.compose.sampleFile': 'Sample (file)',
+  // Audit 2026-10-19: a closed case only looks; an assistant without tasks.
+  'cases.workspace.readOnly':
+      'The case is closed: you can only look here. Everything added is kept.',
+  'cases.workspace.noTasksDuty':
+      'Only the attorney changes tasks. To let you do it, the attorney turns on your «Tasks» access.',
   // Audit 2026-10-19: «Подробности» once a bid is accepted.
   'cases.details.title': 'Details',
   'cases.details.add': 'Add',
