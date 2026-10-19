@@ -124,6 +124,42 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
     }
   }
 
+  /// Owner 2026-10-19 (Instagram): pull down on the first reel (or tap the
+  /// open tab in the nav bar) — the newest reels from the start.
+  Future<void> _refresh() async {
+    try {
+      final page = await ref.read(reelsRepositoryProvider).reels(
+            practice: widget.practice,
+          );
+      if (!mounted) return;
+      // A reel opened from a feed card stays first.
+      final keep = [...widget.initial];
+      final seen = keep.map((p) => p.id).toSet();
+      setState(() {
+        _items
+          ..clear()
+          ..addAll(keep)
+          ..addAll(page.items.where((p) => !seen.contains(p.id)));
+        _cursor = page.nextCursor;
+        _more = page.hasMore;
+        _error = null;
+        _index = 0;
+      });
+      if (_pages.hasClients) _pages.jumpToPage(0);
+    } on Object catch (e) {
+      if (mounted) setState(() => _error = e);
+    }
+  }
+
+  /// The player under a pull-to-refresh (white on the dark video).
+  Widget _refreshable(Widget child) => RefreshIndicator(
+        color: Colors.white,
+        backgroundColor: Colors.black54,
+        edgeOffset: MediaQuery.paddingOf(context).top + 48,
+        onRefresh: _refresh,
+        child: child,
+      );
+
   @override
   Widget build(BuildContext context) {
     final t = ref.watch(translatorProvider);
@@ -155,24 +191,26 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
                           style: type.body.copyWith(color: Colors.white70),
                         ),
                 )
-              : PageView.builder(
-                  controller: _pages,
-                  scrollDirection: Axis.vertical,
-                  itemCount: items.length,
-                  // Owner 2026-10-15: the neighbours are built (and warmed).
-                  allowImplicitScrolling: true,
-                  onPageChanged: (i) {
-                    setState(() => _index = i);
-                    if (i >= items.length - 3) _load();
-                  },
-                  itemBuilder: (_, i) => WebReelFrame(
-                    child: _ReelPage(
-                      key: ValueKey(items[i].id),
-                      post: items[i],
-                      active: i == _index,
-                      warm: (i - _index).abs() == 1,
-                      muted: muted,
-                      embedded: true,
+              : _refreshable(
+                  PageView.builder(
+                    controller: _pages,
+                    scrollDirection: Axis.vertical,
+                    itemCount: items.length,
+                    // Owner 2026-10-15: the neighbours are built (and warmed).
+                    allowImplicitScrolling: true,
+                    onPageChanged: (i) {
+                      setState(() => _index = i);
+                      if (i >= items.length - 3) _load();
+                    },
+                    itemBuilder: (_, i) => WebReelFrame(
+                      child: _ReelPage(
+                        key: ValueKey(items[i].id),
+                        post: items[i],
+                        active: i == _index,
+                        warm: (i - _index).abs() == 1,
+                        muted: muted,
+                        embedded: true,
+                      ),
                     ),
                   ),
                 ),
@@ -218,24 +256,26 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
                         ),
                 )
               else
-                PageView.builder(
-                  controller: _pages,
-                  scrollDirection: Axis.vertical,
-                  itemCount: items.length,
-                  // Owner 2026-10-15: the neighbours are built (and warmed).
-                  allowImplicitScrolling: true,
-                  onPageChanged: (i) {
-                    setState(() => _index = i);
-                    if (i >= items.length - 3) _load();
-                  },
-                  itemBuilder: (_, i) => WebReelFrame(
-                    child: _ReelPage(
-                      key: ValueKey(items[i].id),
-                      post: items[i],
-                      active: i == _index,
-                      warm: (i - _index).abs() == 1,
-                      muted: muted,
-                      embedded: _underNavBar,
+                _refreshable(
+                  PageView.builder(
+                    controller: _pages,
+                    scrollDirection: Axis.vertical,
+                    itemCount: items.length,
+                    // Owner 2026-10-15: the neighbours are built (and warmed).
+                    allowImplicitScrolling: true,
+                    onPageChanged: (i) {
+                      setState(() => _index = i);
+                      if (i >= items.length - 3) _load();
+                    },
+                    itemBuilder: (_, i) => WebReelFrame(
+                      child: _ReelPage(
+                        key: ValueKey(items[i].id),
+                        post: items[i],
+                        active: i == _index,
+                        warm: (i - _index).abs() == 1,
+                        muted: muted,
+                        embedded: _underNavBar,
+                      ),
                     ),
                   ),
                 ),

@@ -14,7 +14,8 @@ void main() {
         ),
       );
 
-  testWidgets('scrolls the visible list to the top and refreshes it',
+  testWidgets(
+      'scrolls the visible list to the top; a second tap at the top refreshes',
       (tester) async {
     final key = GlobalKey();
     final visible = ScrollController();
@@ -59,6 +60,11 @@ void main() {
     await done;
 
     expect(visible.offset, 0);
+    // Owner 2026-10-19 (Instagram): the first tap only scrolls up.
+    expect(visibleRefreshes, 0);
+    final again = scrollToTopAndRefresh(key.currentContext!);
+    await tester.pumpAndSettle();
+    await again;
     expect(visibleRefreshes, 1);
     expect(hiddenSubTab.offset, 3000);
     expect(hiddenBranch.offset, 2000);
