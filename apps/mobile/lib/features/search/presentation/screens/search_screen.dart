@@ -479,16 +479,30 @@ class _Results extends ConsumerWidget {
           onRetry: () => ref.invalidate(tagSearchProvider(query)),
           builder: (tags) => tags.isEmpty && practices.isEmpty
               ? nothing
-              : ListView(
-                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-                  children: [
-                    for (final c in practices)
-                      _PracticeTopicRow(code: c, query: query),
-                    if (filters.topicKind != TopicKind.practices)
-                      for (final tag in _sortedTags(filters, tags))
-                        if (!practices.contains(categoryForTopicTag(tag.tag)))
-                          _TagTopicRow(tag: tag),
-                  ],
+              : Builder(
+                  builder: (context) {
+                    // Owner 2026-10-19: one topic per area of law — a
+                    // hashtag of an area (#greencard, #immigration) is not
+                    // a topic of its own; its area is shown once.
+                    final split = _splitTags(_sortedTags(filters, tags));
+                    final areas = filters.topicKind == TopicKind.hashtags
+                        ? const <String>[]
+                        : <String>{...practices, ...split.areas}.toList();
+                    return ListView(
+                      padding:
+                          const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                      children: [
+                        for (final c in areas)
+                          _PracticeTopicRow(code: c, query: query),
+                        if (filters.topicKind != TopicKind.practices)
+                          for (final tag
+                              in filters.topicKind == TopicKind.hashtags
+                                  ? split.onePerArea
+                                  : split.free)
+                            _TagTopicRow(tag: tag),
+                      ],
+                    );
+                  },
                 ),
         );
     }
@@ -757,21 +771,46 @@ class _BeforeTyping extends ConsumerWidget {
         ],
       SearchTab.tags => [
           // Owner 2026-10-15: no explanation line under the field.
-          if (filters.topicKind != TopicKind.practices)
-            ...switch (ref.watch(trendingTagsProvider)) {
-              AsyncData(:final value) when value.isNotEmpty => [
-                  SliverToBoxAdapter(child: title(t.t('search.trending'))),
-                  for (final tag in _sortedTags(filters, value).take(8))
-                    SliverToBoxAdapter(child: _TagTopicRow(tag: tag)),
-                ],
-              _ => const <Widget>[],
-            },
-          if (filters.topicKind != TopicKind.hashtags) ...[
-            SliverToBoxAdapter(child: title(t.t('search.topics.practices'))),
-            for (final c
-                in _sortedPractices(ref, filters, kPracticeCategoryCodes))
-              SliverToBoxAdapter(child: _PracticeTopicRow(code: c)),
-          ],
+          // Owner 2026-10-19: one topic per area of law, never repeated —
+          // a trending hashtag of an area shows that area once (in
+          // «Trending»), and the areas below leave it out.
+          ...() {
+            final trending = switch (ref.watch(trendingTagsProvider)) {
+              AsyncData(:final value) =>
+                _splitTags(_sortedTags(filters, value)),
+              _ => _splitTags(const []),
+            };
+            final hotAreas = filters.topicKind == TopicKind.practices
+                ? const <String>[]
+                : trending.areas;
+            final rows = <Widget>[
+              if (filters.topicKind == TopicKind.hashtags)
+                for (final tag in trending.onePerArea) _TagTopicRow(tag: tag)
+              else ...[
+                for (final c in hotAreas) _PracticeTopicRow(code: c),
+                if (filters.topicKind != TopicKind.practices)
+                  for (final tag in trending.free) _TagTopicRow(tag: tag),
+              ],
+            ].take(8).toList();
+            final shownAreas = filters.topicKind == TopicKind.hashtags
+                ? const <String>{}
+                : hotAreas.take(8).toSet();
+            return [
+              if (rows.isNotEmpty) ...[
+                SliverToBoxAdapter(child: title(t.t('search.trending'))),
+                for (final r in rows) SliverToBoxAdapter(child: r),
+              ],
+              if (filters.topicKind != TopicKind.hashtags) ...[
+                SliverToBoxAdapter(
+                  child: title(t.t('search.topics.practices')),
+                ),
+                for (final c
+                    in _sortedPractices(ref, filters, kPracticeCategoryCodes))
+                  if (!shownAreas.contains(c))
+                    SliverToBoxAdapter(child: _PracticeTopicRow(code: c)),
+              ],
+            ];
+          }(),
         ],
     };
 
@@ -905,6 +944,36 @@ List<String> _sortedPractices(
   if (f.topicSort != TopicSort.az) return codes;
   return [...codes]
     ..sort((a, b) => topicName(ref, a).compareTo(topicName(ref, b)));
+}
+
+/// Owner 2026-10-19: the area of law a hashtag belongs to (by its name,
+/// else by its posts), or null for a hashtag of no area.
+String? _tagArea(TagInfo t) => topicCategory(t.tag) ?? t.categoryCode;
+
+/// Hashtags split by area, keeping their order: the areas they point to
+/// (each once), the hashtags of no area, and one hashtag per area (for the
+/// «hashtags only» view).
+typedef _TagSplit = ({
+  List<String> areas,
+  List<TagInfo> free,
+  List<TagInfo> onePerArea,
+});
+
+_TagSplit _splitTags(List<TagInfo> tags) {
+  final areas = <String>[];
+  final free = <TagInfo>[];
+  final onePerArea = <TagInfo>[];
+  for (final t in tags) {
+    final a = _tagArea(t);
+    if (a == null) {
+      free.add(t);
+      onePerArea.add(t);
+    } else if (!areas.contains(a)) {
+      areas.add(a);
+      onePerArea.add(t);
+    }
+  }
+  return (areas: areas, free: free, onePerArea: onePerArea);
 }
 
 List<TagInfo> _sortedTags(SearchFilters f, List<TagInfo> tags) {
