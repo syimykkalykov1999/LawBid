@@ -32,6 +32,7 @@ import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/data/social_repository.dart';
 import 'package:lawbid/features/social/domain/post_text.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
+import 'package:lawbid/features/social/presentation/screens/photo_crop_screen.dart';
 import 'package:lawbid/features/social/presentation/widgets/mention_suggestions.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_documents.dart';
@@ -42,9 +43,16 @@ import 'package:lawbid/features/team/domain/team_models.dart';
 /// One photo in the composer: uploaded right after it is picked, so
 /// "Опубликовать" only waits for what is still in flight.
 class _Photo {
-  _Photo(this.bytes);
+  _Photo(this.bytes, {Uint8List? original, this.framing = const PhotoFraming()})
+      : original = original ?? bytes;
 
+  /// What is uploaded: the photo cut to its frame.
   final Uint8List bytes;
+
+  /// The photo as picked, and how it sits in its frame (owner 2026-10-19:
+  /// a tap on the tile frames it again).
+  final Uint8List original;
+  final PhotoFraming framing;
   final key = UniqueKey();
   double progress = 0;
   String? fileId;
@@ -121,6 +129,9 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
       _Photo(Uint8List(0))..fileId = 'debug-$i',
   ];
   _VideoPick? _video;
+
+  /// The shape of the post's photos (original or square, Instagram).
+  PhotoFrame _frame = PhotoFrame.original;
 
   /// Owner 2026-10-05: PDF / Word / text readers download.
   late final _docs = PostDocumentsController(
@@ -226,12 +237,72 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
         limit: left > 1 ? left : null,
       );
     }
-    for (final file in picked.take(left)) {
-      final photo = _Photo(await file.readAsBytes());
-      if (!mounted) return;
-      setState(() => _photos.add(photo));
-      // ignore: unawaited_futures
-      _upload(photo);
+    final added = <Uint8List>[
+      for (final file in picked.take(left)) await file.readAsBytes(),
+    ];
+    if (!mounted) return;
+    await _frameAndAdd(added);
+  }
+
+  /// Owner 2026-10-19: the picked photos go through the framing (each one
+  /// moved and zoomed by hand, «original / square» for the set) before
+  /// they are added; closing it adds nothing.
+  Future<void> _frameAndAdd(List<Uint8List> added) async {
+    if (added.isEmpty) return;
+    final before = _photos.length;
+    final result = await PhotoCropScreen.open(
+      context,
+      photos: [for (final p in _photos) p.original, ...added],
+      framings: [for (final p in _photos) p.framing],
+      frame: _frame,
+      fresh: {for (var i = before; i < before + added.length; i++) i},
+      start: before,
+    );
+    if (result == null || !mounted) return;
+    _applyFraming(result, [for (final p in _photos) p.original, ...added]);
+  }
+
+  /// A tap on a photo: frame the set again, starting with that photo.
+  Future<void> _reframe(int index) async {
+    if (_photos.any((p) => p.original.isEmpty)) return;
+    final originals = [for (final p in _photos) p.original];
+    final result = await PhotoCropScreen.open(
+      context,
+      photos: originals,
+      framings: [for (final p in _photos) p.framing],
+      frame: _frame,
+      fresh: const {},
+      start: index,
+    );
+    if (result == null || !mounted) return;
+    _applyFraming(result, originals);
+  }
+
+  void _applyFraming(FramedPhotos result, List<Uint8List> originals) {
+    final next = <_Photo>[];
+    final toUpload = <_Photo>[];
+    for (var i = 0; i < originals.length; i++) {
+      final cut = result.photos[i];
+      if (cut == null && i < _photos.length) {
+        next.add(_photos[i]);
+        continue;
+      }
+      final p = _Photo(
+        cut ?? originals[i],
+        original: originals[i],
+        framing: result.framings[i],
+      );
+      next.add(p);
+      toUpload.add(p);
+    }
+    setState(() {
+      _frame = result.frame;
+      _photos
+        ..clear()
+        ..addAll(next);
+    });
+    for (final p in toUpload) {
+      unawaited(_upload(p));
     }
   }
 
@@ -353,10 +424,9 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
       );
       if (x == null || !mounted) return;
       setState(() => _video = null);
-      final p = _Photo(await x.readAsBytes());
+      final bytes = await x.readAsBytes();
       if (!mounted) return;
-      setState(() => _photos.add(p));
-      unawaited(_upload(p));
+      await _frameAndAdd([bytes]);
     } else {
       final x = await picker.pickVideo(
         source: ImageSource.camera,
@@ -680,6 +750,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                                     onRemove: () =>
                                         setState(() => _photos.removeAt(i)),
                                     onRetry: () => _upload(_photos[i]),
+                                    onTap: () => _reframe(i),
                                   ),
                                 ),
                             ],
@@ -1048,6 +1119,7 @@ class _PhotoTile extends StatelessWidget {
     required this.retryLabel,
     required this.onRemove,
     required this.onRetry,
+    required this.onTap,
   });
 
   final _Photo photo;
@@ -1057,88 +1129,96 @@ class _PhotoTile extends StatelessWidget {
   final VoidCallback onRemove;
   final VoidCallback onRetry;
 
+  /// Frames the photo again.
+  final VoidCallback onTap;
+
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    return Container(
-      width: 104,
-      margin: const EdgeInsetsDirectional.only(end: AppSpacing.sm),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(AppRadii.card),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            Image.memory(
-              photo.bytes,
-              fit: BoxFit.cover,
-              cacheWidth: 312,
-              // A format this browser cannot draw (HEIC outside Safari): the
-              // file is still uploaded and converted on the server.
-              errorBuilder: (_, __, ___) => ColoredBox(
-                color: colors.surface,
-                child: Center(
-                  child: AppIcon(
-                    AppIcons.photoLibraryOutlined,
-                    color: colors.textSecondary,
-                  ),
-                ),
-              ),
-            ),
-            if (photo.uploading)
-              ColoredBox(
-                color: colors.navy.withValues(alpha: 0.45),
-                child: Center(
-                  child: SizedBox.square(
-                    dimension: 36,
-                    child: CircularProgressIndicator(
-                      value: photo.progress > 0 ? photo.progress : null,
-                      strokeWidth: 3,
-                      color: colors.gold,
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 104,
+        margin: const EdgeInsetsDirectional.only(end: AppSpacing.sm),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(AppRadii.card),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Image.memory(
+                photo.bytes,
+                fit: BoxFit.cover,
+                cacheWidth: 312,
+                // A format this browser cannot draw (HEIC outside Safari): the
+                // file is still uploaded and converted on the server.
+                errorBuilder: (_, __, ___) => ColoredBox(
+                  color: colors.surface,
+                  child: Center(
+                    child: AppIcon(
+                      AppIcons.photoLibraryOutlined,
+                      color: colors.textSecondary,
                     ),
                   ),
                 ),
               ),
-            if (photo.error != null)
-              ColoredBox(
-                color: colors.navy.withValues(alpha: 0.6),
-                child: Center(
-                  child: AppIconButton(
-                    icon: const AppIcon(
-                      AppIcons.refreshRounded,
-                      color: Colors.white,
+              if (photo.uploading)
+                ColoredBox(
+                  color: colors.navy.withValues(alpha: 0.45),
+                  child: Center(
+                    child: SizedBox.square(
+                      dimension: 36,
+                      child: CircularProgressIndicator(
+                        value: photo.progress > 0 ? photo.progress : null,
+                        strokeWidth: 3,
+                        color: colors.gold,
+                      ),
                     ),
-                    semanticLabel: retryLabel,
-                    onPressed: onRetry,
+                  ),
+                ),
+              if (photo.error != null)
+                ColoredBox(
+                  color: colors.navy.withValues(alpha: 0.6),
+                  child: Center(
+                    child: AppIconButton(
+                      icon: const AppIcon(
+                        AppIcons.refreshRounded,
+                        color: Colors.white,
+                      ),
+                      semanticLabel: retryLabel,
+                      onPressed: onRetry,
+                    ),
+                  ),
+                ),
+              Positioned(
+                left: 6,
+                top: 6,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  decoration: BoxDecoration(
+                    color: colors.navy.withValues(alpha: 0.7),
+                    borderRadius: BorderRadius.circular(AppRadii.pill),
+                  ),
+                  child: Text(
+                    context.digits(index + 1),
+                    style: type.caption.copyWith(color: Colors.white),
                   ),
                 ),
               ),
-            Positioned(
-              left: 6,
-              top: 6,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6),
-                decoration: BoxDecoration(
-                  color: colors.navy.withValues(alpha: 0.7),
-                  borderRadius: BorderRadius.circular(AppRadii.pill),
-                ),
-                child: Text(
-                  context.digits(index + 1),
-                  style: type.caption.copyWith(color: Colors.white),
+              Positioned(
+                right: 0,
+                top: 0,
+                child: AppIconButton(
+                  icon: const AppIcon(
+                    AppIcons.cancelRounded,
+                    color: Colors.white,
+                  ),
+                  semanticLabel: removeLabel,
+                  onPressed: onRemove,
                 ),
               ),
-            ),
-            Positioned(
-              right: 0,
-              top: 0,
-              child: AppIconButton(
-                icon:
-                    const AppIcon(AppIcons.cancelRounded, color: Colors.white),
-                semanticLabel: removeLabel,
-                onPressed: onRemove,
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
