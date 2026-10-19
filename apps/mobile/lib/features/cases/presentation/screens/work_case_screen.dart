@@ -275,6 +275,13 @@ class _WorkCaseScreenState extends ConsumerState<WorkCaseScreen> {
                 .copyWith(color: colors.textSecondary),
           ),
         ),
+        // Audit 2026-10-19: the client's Overview had the case questions,
+        // the hired attorney's had no way to them.
+        AppListRow(
+          icon: AppIcons.modeCommentOutlined,
+          label: t.t('cases.comments.title'),
+          onTap: () => context.push(AppRoutes.caseComments(c.id)),
+        ),
       ],
     );
   }
