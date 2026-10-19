@@ -68,7 +68,9 @@ class VerificationStatusScreen extends ConsumerWidget {
         ),
       ),
       body: AnimatedSwitcher(
-        duration: context.reduceMotion ? Duration.zero : AppMotion.stateChange,
+        // Owner 2026-10-19 («мигание»): loading, data and tab bodies
+        // swap at once (Instagram), no cross-fade.
+        duration: Duration.zero,
         child: switch (async) {
           AsyncData(:final value) => KeyedSubtree(
               key: ValueKey('status-${viewOf(value).name}'),

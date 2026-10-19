@@ -128,9 +128,9 @@ class _ClientMineViewState extends ConsumerState<ClientMineView> {
               values: _ClientTab.values,
               onChanged: (v) => setState(() => _tab = v),
               child: AnimatedSwitcher(
-                duration: context.reduceMotion
-                    ? Duration.zero
-                    : AppMotion.stateChange,
+                // Owner 2026-10-19 («мигание»): loading, data and tab bodies
+                // swap at once (Instagram), no cross-fade.
+                duration: Duration.zero,
                 child: body,
               ),
             ),
@@ -336,9 +336,9 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
             ),
             Expanded(
               child: AnimatedSwitcher(
-                duration: context.reduceMotion
-                    ? Duration.zero
-                    : AppMotion.stateChange,
+                // Owner 2026-10-19 («мигание»): loading, data and tab bodies
+                // swap at once (Instagram), no cross-fade.
+                duration: Duration.zero,
                 child: grid,
               ),
             ),
@@ -364,9 +364,9 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
               values: _AttorneyTab.values,
               onChanged: (v) => setState(() => _tab = v),
               child: AnimatedSwitcher(
-                duration: context.reduceMotion
-                    ? Duration.zero
-                    : AppMotion.stateChange,
+                // Owner 2026-10-19 («мигание»): loading, data and tab bodies
+                // swap at once (Instagram), no cross-fade.
+                duration: Duration.zero,
                 child: body,
               ),
             ),

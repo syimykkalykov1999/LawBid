@@ -219,7 +219,9 @@ class PagedListBody<T> extends ConsumerWidget {
         ),
     };
     return AnimatedSwitcher(
-      duration: context.reduceMotion ? Duration.zero : AppMotion.stateChange,
+      // Owner 2026-10-19 («мигание»): loading, data and tab bodies
+      // swap at once (Instagram), no cross-fade.
+      duration: Duration.zero,
       child: body,
     );
   }
@@ -255,7 +257,9 @@ class AsyncDetailBody<T> extends StatelessWidget {
       _ => const DetailSkeleton(key: ValueKey('loading')),
     };
     return AnimatedSwitcher(
-      duration: context.reduceMotion ? Duration.zero : AppMotion.stateChange,
+      // Owner 2026-10-19 («мигание»): loading, data and tab bodies
+      // swap at once (Instagram), no cross-fade.
+      duration: Duration.zero,
       child: body,
     );
   }

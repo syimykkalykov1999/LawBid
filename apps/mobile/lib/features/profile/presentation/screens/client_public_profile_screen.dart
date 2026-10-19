@@ -98,8 +98,9 @@ class ClientPublicProfileScreen extends ConsumerWidget {
       body: SafeArea(
         top: false,
         child: AnimatedSwitcher(
-          duration:
-              context.reduceMotion ? Duration.zero : AppMotion.stateChange,
+          // Owner 2026-10-19 («мигание»): loading, data and tab bodies
+          // swap at once (Instagram), no cross-fade.
+          duration: Duration.zero,
           child: profile.when(
             skipLoadingOnReload: true,
             loading: () => const _Skeleton(key: ValueKey('loading')),

@@ -139,22 +139,30 @@ class _CaseWorkspaceBodyState extends ConsumerState<CaseWorkspaceBody> {
                 index: tab - shift,
                 onChanged: (i) => _select(i + shift),
               ),
-              switch (tab) {
-                0 => Column(children: widget.overview),
-                1 => FilesTab(
-                    caseId: widget.caseId,
-                    isAttorney: widget.isAttorney,
-                  ),
-                2 => TasksTab(
-                    caseId: widget.caseId,
-                    isAttorney: widget.isAttorney,
-                  ),
-                3 => UpdatesTab(
-                    caseId: widget.caseId,
-                    isAttorney: widget.isAttorney,
-                  ),
-                _ => ActivityTab(caseId: widget.caseId),
-              },
+              // Owner 2026-10-19 («данные прыгают»): a tab keeps at least
+              // half a screen while it loads or is short, so switching tabs
+              // does not pull the page.
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: MediaQuery.sizeOf(context).height * 0.5,
+                ),
+                child: switch (tab) {
+                  0 => Column(children: widget.overview),
+                  1 => FilesTab(
+                      caseId: widget.caseId,
+                      isAttorney: widget.isAttorney,
+                    ),
+                  2 => TasksTab(
+                      caseId: widget.caseId,
+                      isAttorney: widget.isAttorney,
+                    ),
+                  3 => UpdatesTab(
+                      caseId: widget.caseId,
+                      isAttorney: widget.isAttorney,
+                    ),
+                  _ => ActivityTab(caseId: widget.caseId),
+                },
+              ),
             ],
           ),
         );

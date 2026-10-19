@@ -320,7 +320,9 @@ void main() {
       expect(find.byType(ReviewSummaryPanel), findsOneWidget);
       expect(find.text('Anna K.'), findsWidgets);
       expect(find.text('Edited'), findsOneWidget);
-      await tester.drag(find.byType(ListView).first, const Offset(0, -4000));
+      // Owner 2026-10-19: the tabs are pages (Instagram) — the reviews
+      // page scrolls under the sticky tab row.
+      await tester.drag(find.byType(ReviewCard).first, const Offset(0, -4000));
       await tester.pumpAndSettle();
       expect(reviews.listCursors, [null, '1']);
       expect(find.text("That's all the reviews"), findsOneWidget);

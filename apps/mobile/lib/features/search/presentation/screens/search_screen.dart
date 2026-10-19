@@ -314,9 +314,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                       values: [for (final (v, _) in tabs) v],
                       onChanged: _selectTab,
                       child: AnimatedSwitcher(
-                        duration: context.reduceMotion
-                            ? Duration.zero
-                            : AppMotion.stateChange,
+                        // Owner 2026-10-19 («мигание»): loading, data
+                        // and tab bodies swap at once (Instagram), no
+                        // cross-fade.
+                        duration: Duration.zero,
                         child: _query.isEmpty && _focused
                             // Instagram: tapping the field shows the history
                             // right under it, each line with a × and "Clear".

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -15,7 +17,6 @@ import 'package:lawbid/features/cases/presentation/widgets/client_review_sheet.d
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
     show showConfirmSheet;
 import 'package:lawbid/features/cases/presentation/widgets/offer_case_sheet.dart';
-import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/chat/presentation/open_direct_chat.dart';
 import 'package:lawbid/features/feed/application/news_flag.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
@@ -23,6 +24,7 @@ import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/features/profile/presentation/widgets/profile_avatar.dart';
 import 'package:lawbid/features/profile/presentation/widgets/profile_quiet_button.dart';
+import 'package:lawbid/features/profile/presentation/widgets/profile_tab_pages.dart';
 import 'package:lawbid/features/profile/presentation/widgets/review_widgets.dart';
 import 'package:lawbid/features/social/domain/social_models.dart'
     show ReportTarget;
@@ -247,84 +249,173 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
     );
   }
 
+  /// The page of each tab (its own scroll list, kept alive).
+  Widget _gridPage(Translator t, AttorneyProfileTab tab) =>
+      tab == AttorneyProfileTab.reposts
+          ? ProfileBriefsAndReposts(
+              key: const ValueKey('reposts'),
+              attorneyId: p.id,
+              isSelf: p.isSelf,
+            )
+          : tab == AttorneyProfileTab.reels
+              ? ProfilePostsGrid(
+                  key: const ValueKey('reels'),
+                  attorneyId: p.id,
+                  reelsOnly: true,
+                  emptyTitle: t.t('profile.reels.empty.title'),
+                  emptyMessage: t.t(
+                    p.isSelf
+                        ? 'profile.reels.empty.self'
+                        : 'profile.reels.empty.other',
+                  ),
+                )
+              : tab == AttorneyProfileTab.news
+                  ? ProfilePostsGrid(
+                      key: const ValueKey('news'),
+                      attorneyId: p.id,
+                      newsOnly: true,
+                      emptyTitle: t.t('profile.news.empty.title'),
+                      emptyMessage: t.t(
+                        p.isSelf
+                            ? 'profile.news.empty.self'
+                            : 'profile.news.empty.other',
+                      ),
+                    )
+                  : ProfilePostsGrid(
+                      attorneyId: p.id,
+                      emptyTitle: t.t('profile.posts.empty.title'),
+                      emptyMessage: t.t(
+                        p.isSelf
+                            ? 'profile.posts.empty.self'
+                            : 'profile.posts.empty.other',
+                      ),
+                    );
+
   @override
   Widget build(BuildContext context) {
     final t = ref.watch(translatorProvider);
-    final reviewsTab = _tab == AttorneyProfileTab.reviews;
-    final reviews =
-        reviewsTab ? ref.watch(reviewsListProvider(_reviewsKey)) : null;
-    final summary = reviewsTab ? ref.watch(reviewSummaryProvider(p.id)) : null;
-    final state = reviews?.value;
+    // Owner 2026-10-19 (Instagram): every tab's data loads with the profile
+    // and stays (no load, blink or jump when a tab is opened).
+    final reviews = ref.watch(reviewsListProvider(_reviewsKey));
+    final summary = ref.watch(reviewSummaryProvider(p.id));
+    final state = reviews.value;
+    final tabs = _tabs;
 
-    final header = Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: staggeredEntrance([
-        if (widget.needsVerification) ...[
-          _VerificationBanner(t: t),
+    // Owner 2026-10-19: the header is the same for every tab, with no
+    // entrance animation — it never moves when a tab changes.
+    final header = Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.screenSide,
+        AppSpacing.sm,
+        AppSpacing.screenSide,
+        AppSpacing.md,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (widget.needsVerification) ...[
+            _VerificationBanner(t: t),
+            const SizedBox(height: AppSpacing.md),
+          ],
+          // Instagram-like: avatar + counters (posts, followers, following,
+          // ★ rating → reviews), name, bio, info chips, one compact button
+          // row, icon tabs (owner request 2026-09-28).
+          _HeaderCard(profile: p),
           const SizedBox(height: AppSpacing.md),
-        ],
-        // Instagram-like: avatar + counters (posts, followers, following,
-        // ★ rating → reviews), name, bio, info chips, one compact button
-        // row, icon tabs (owner request 2026-09-28).
-        _HeaderCard(profile: p),
-        const SizedBox(height: AppSpacing.md),
-        _AboutSection(profile: p),
-        const SizedBox(height: AppSpacing.md),
-        _ChipRows(profile: p),
-        const SizedBox(height: AppSpacing.sm),
-        // Instagram order: buttons right above the tabs — Follow |
-        // Message | share icon (owner request).
-        if (!p.isSelf && (p.isBlocked || p.hasBlockedMe)) ...[
-          _BlockNotice(
-            text: t.t(p.isBlocked ? 'block.byYou' : 'block.blockedYou'),
-          ),
+          _AboutSection(profile: p),
+          const SizedBox(height: AppSpacing.md),
+          _ChipRows(profile: p),
           const SizedBox(height: AppSpacing.sm),
-        ],
-        _Actions(
-          isSelf: p.isSelf,
-          attorneyId: p.id,
-          isFollowing: p.isFollowing,
-          blocked: p.isBlocked || p.hasBlockedMe,
-          // OQ-043: "Написать" opens the direct chat (a message request
-          // until accepted). Owner 2026-10-17: anyone writes to anyone;
-          // an assistant needs the "chats" duty.
-          canMessage: !ref.watch(actsAsAttorneyProvider) ||
-              ref.watch(canDoProvider(AssistantDuty.chats)),
-          onMessage: () => openDirectChat(context, ref, p.id),
-          onShare: () => _share(t),
-        ),
-        // Owner 2026-10-05: a client offers one of their cases directly.
-        if (!p.isSelf &&
-            !(p.isBlocked || p.hasBlockedMe) &&
-            ref.watch(currentUserRoleProvider) == UserRole.client) ...[
-          const SizedBox(height: AppSpacing.sm),
-          AppButton(
-            key: const ValueKey('profile-offer-case'),
-            label: t.t('invite.offer.button'),
-            icon: AppIcons.workOutlineRounded,
-            height: 40,
-            onPressed: () => showOfferCaseSheet(
-              context,
-              attorneyId: p.id,
-              attorneyName:
-                  p.fullName.trim().isEmpty ? '@${p.username}' : p.fullName,
-              licensedStateCodes: {for (final s in p.licensedStates) s.code},
-              practiceIds: {for (final x in p.practices) x.id},
+          // Instagram order: buttons right above the tabs — Follow |
+          // Message | share icon (owner request).
+          if (!p.isSelf && (p.isBlocked || p.hasBlockedMe)) ...[
+            _BlockNotice(
+              text: t.t(p.isBlocked ? 'block.byYou' : 'block.blockedYou'),
             ),
+            const SizedBox(height: AppSpacing.sm),
+          ],
+          _Actions(
+            isSelf: p.isSelf,
+            attorneyId: p.id,
+            isFollowing: p.isFollowing,
+            blocked: p.isBlocked || p.hasBlockedMe,
+            // OQ-043: "Написать" opens the direct chat (a message request
+            // until accepted). Owner 2026-10-17: anyone writes to anyone;
+            // an assistant needs the "chats" duty.
+            canMessage: !ref.watch(actsAsAttorneyProvider) ||
+                ref.watch(canDoProvider(AssistantDuty.chats)),
+            onMessage: () => openDirectChat(context, ref, p.id),
+            onShare: () => _share(t),
           ),
+          // Owner 2026-10-05: a client offers one of their cases directly.
+          if (!p.isSelf &&
+              !(p.isBlocked || p.hasBlockedMe) &&
+              ref.watch(currentUserRoleProvider) == UserRole.client) ...[
+            const SizedBox(height: AppSpacing.sm),
+            AppButton(
+              key: const ValueKey('profile-offer-case'),
+              label: t.t('invite.offer.button'),
+              icon: AppIcons.workOutlineRounded,
+              height: 40,
+              onPressed: () => showOfferCaseSheet(
+                context,
+                attorneyId: p.id,
+                attorneyName:
+                    p.fullName.trim().isEmpty ? '@${p.username}' : p.fullName,
+                licensedStateCodes: {for (final s in p.licensedStates) s.code},
+                practiceIds: {for (final x in p.practices) x.id},
+              ),
+            ),
+          ],
         ],
-        const SizedBox(height: AppSpacing.md),
-        _Tabs(
-          tabs: _tabs,
-          selected: _tab,
-          onChanged: (tab) => setState(() => _picked = tab),
-        ),
-        // Posts/News grids sit flush under the tabs (owner 2026-10-01);
-        // the reviews tab keeps its breathing room.
-        SizedBox(height: reviewsTab ? AppSpacing.lg : 2),
-        // Owner 2026-10-06: only a client who completed a case with this
-        // attorney reviews them; everyone else sees why instead.
-        if (reviewsTab && !p.isSelf)
+      ),
+    );
+
+    // The reviews tab: who may write, the summary, then the reviews.
+    Widget? reviewsState;
+    var status = AppPaginationStatus.idle;
+    var items = const <Review>[];
+    if (reviews.isLoading && state == null) {
+      reviewsState = const Column(
+        children: [
+          ReviewCardSkeleton(),
+          SizedBox(height: AppSpacing.md),
+          ReviewCardSkeleton(),
+        ],
+      );
+    } else if (reviews.hasError && state == null) {
+      final offline = isOfflineError(reviews.error);
+      reviewsState = _TabMessage(
+        icon: offline ? AppIcons.wifiOffRounded : AppIcons.errorOutlineRounded,
+        title: t.t(offline ? 'offline.title' : 'error.default.title'),
+        message: t.t(offline ? 'offline.message' : 'reviews.error'),
+        actionLabel: t.t('error.retry'),
+        onAction: () => ref.invalidate(reviewsListProvider(_reviewsKey)),
+      );
+    } else if (state != null && state.items.isEmpty) {
+      reviewsState = _stars != null
+          ? _TabMessage(
+              icon: AppIcons.starOutlineRounded,
+              title: t.t('reviews.filter.emptyTitle', {'stars': '$_stars'}),
+              message: t.t('reviews.filter.emptyMessage'),
+              actionLabel: t.t('reviews.filter.showAll'),
+              onAction: () => setState(() => _stars = null),
+            )
+          : _TabMessage(
+              icon: AppIcons.starOutlineRounded,
+              title: t.t('profile.rating.new'),
+              message:
+                  t.t(p.isSelf ? 'reviews.empty.self' : 'reviews.empty.other'),
+            );
+    } else if (state != null) {
+      items = state.items;
+      status = state.status;
+    }
+    final reviewsPage = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SizedBox(height: AppSpacing.sm),
+        if (!p.isSelf)
           Padding(
             padding: const EdgeInsets.only(bottom: AppSpacing.md),
             child: Builder(
@@ -358,191 +449,33 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
               },
             ),
           ),
-        if (reviewsTab && summary != null)
-          summary.when(
-            skipLoadingOnReload: true,
-            loading: () => const AppSkeleton(
-              height: AppSizes.stateMedallion + AppSpacing.xxl,
-              borderRadius: AppRadii.card,
-            ),
-            error: (_, __) => const SizedBox.shrink(),
-            // No reviews: the tab's "New — no reviews" state says it all.
-            data: (s) => s.isNew
-                ? const SizedBox.shrink()
-                : Padding(
-                    padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                    child: ReviewSummaryPanel(
-                      summary: s,
-                      selectedStars: _stars,
-                      sort: _sort,
-                      // Tap a bar → only those reviews; tap again → all.
-                      onStarsTap: (stars) => setState(
-                        () => _stars = _stars == stars ? null : stars,
-                      ),
-                      onSort: (v) => setState(() => _sort = v),
+        summary.when(
+          skipLoadingOnReload: true,
+          loading: () => const AppSkeleton(
+            height: AppSizes.stateMedallion + AppSpacing.xxl,
+            borderRadius: AppRadii.card,
+          ),
+          error: (_, __) => const SizedBox.shrink(),
+          // No reviews: the tab's "New — no reviews" state says it all.
+          data: (s) => s.isNew
+              ? const SizedBox.shrink()
+              : Padding(
+                  padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                  child: ReviewSummaryPanel(
+                    summary: s,
+                    selectedStars: _stars,
+                    sort: _sort,
+                    // Tap a bar → only those reviews; tap again → all.
+                    onStarsTap: (stars) => setState(
+                      () => _stars = _stars == stars ? null : stars,
                     ),
+                    onSort: (v) => setState(() => _sort = v),
                   ),
-          ),
-      ]),
-    );
-
-    // Footer: posts placeholder (file 05), the reviews tab's own
-    // loading/error/empty ("New — no reviews") states.
-    Widget? footer;
-    var status = AppPaginationStatus.idle;
-    var items = const <Review>[];
-    if (!reviewsTab) {
-      // docs/05: the attorney's posts as a grid (text posts as tiles).
-      // Owner 2026-10-18: briefs and reposts together, newest first.
-      footer = _tab == AttorneyProfileTab.reposts
-          ? ProfileBriefsAndReposts(
-              key: const ValueKey('reposts'),
-              attorneyId: p.id,
-              isSelf: p.isSelf,
-            )
-          : _tab == AttorneyProfileTab.reels
-              ? ProfilePostsGrid(
-                  key: const ValueKey('reels'),
-                  attorneyId: p.id,
-                  reelsOnly: true,
-                  emptyTitle: t.t('profile.reels.empty.title'),
-                  emptyMessage: t.t(
-                    p.isSelf
-                        ? 'profile.reels.empty.self'
-                        : 'profile.reels.empty.other',
-                  ),
-                )
-              : _tab == AttorneyProfileTab.news
-                  ? ProfilePostsGrid(
-                      key: const ValueKey('news'),
-                      attorneyId: p.id,
-                      newsOnly: true,
-                      emptyTitle: t.t('profile.news.empty.title'),
-                      emptyMessage: t.t(
-                        p.isSelf
-                            ? 'profile.news.empty.self'
-                            : 'profile.news.empty.other',
-                      ),
-                    )
-                  : ProfilePostsGrid(
-                      attorneyId: p.id,
-                      emptyTitle: t.t('profile.posts.empty.title'),
-                      emptyMessage: t.t(
-                        p.isSelf
-                            ? 'profile.posts.empty.self'
-                            : 'profile.posts.empty.other',
-                      ),
-                    );
-    } else if (reviews == null || reviews.isLoading && state == null) {
-      footer = const Column(
-        children: [
-          ReviewCardSkeleton(),
-          SizedBox(height: AppSpacing.md),
-          ReviewCardSkeleton(),
-        ],
-      );
-    } else if (reviews.hasError && state == null) {
-      final offline = isOfflineError(reviews.error);
-      footer = _TabMessage(
-        icon: offline ? AppIcons.wifiOffRounded : AppIcons.errorOutlineRounded,
-        title: t.t(offline ? 'offline.title' : 'error.default.title'),
-        message: t.t(offline ? 'offline.message' : 'reviews.error'),
-        actionLabel: t.t('error.retry'),
-        onAction: () => ref.invalidate(reviewsListProvider(_reviewsKey)),
-      );
-    } else if (state != null && state.items.isEmpty) {
-      footer = _stars != null
-          ? _TabMessage(
-              icon: AppIcons.starOutlineRounded,
-              title: t.t('reviews.filter.emptyTitle', {'stars': '$_stars'}),
-              message: t.t('reviews.filter.emptyMessage'),
-              actionLabel: t.t('reviews.filter.showAll'),
-              onAction: () => setState(() => _stars = null),
-            )
-          : _TabMessage(
-              icon: AppIcons.starOutlineRounded,
-              title: t.t('profile.rating.new'),
-              message:
-                  t.t(p.isSelf ? 'reviews.empty.self' : 'reviews.empty.other'),
-            );
-    } else if (state != null) {
-      items = state.items;
-      status = state.status;
-    }
-
-    return TabSwipe<AttorneyProfileTab>(
-      value: _tab,
-      values: _tabs,
-      onChanged: (v) => setState(() => _picked = v),
-      // Owner 2026-10-19 (Instagram): the header stays, the tab's content
-      // slides with the finger.
-      slideChild: false,
-      child: AppPaginatedListView<Review>(
-        items: items,
-        itemKey: (r) => r.id,
-        status: status,
-        // Owner 2026-10-12: the Briefs tab runs edge to edge (Threads); the
-        // header keeps its side padding. 2026-10-18: that is the merged
-        // Briefs & reposts tab now.
-        padding: _tab == AttorneyProfileTab.reposts
-            ? const EdgeInsets.only(top: AppSpacing.sm, bottom: AppSpacing.xxl)
-            : const EdgeInsets.fromLTRB(
-                AppSpacing.screenSide,
-                AppSpacing.sm,
-                AppSpacing.screenSide,
-                AppSpacing.xxl,
-              ),
-        // One widget shape for every tab (only the padding value changes),
-        // so switching tabs keeps the header — avatar, counters, buttons —
-        // in place instead of rebuilding the page.
-        header: Padding(
-          padding: EdgeInsets.symmetric(
-            horizontal:
-                _tab == AttorneyProfileTab.reposts ? AppSpacing.screenSide : 0,
-          ),
-          child: header,
-        ),
-        // Owner 2026-10-19 («данные прыгают»): the tab's area keeps at least
-        // half a screen whatever it shows (loading, empty, a short list),
-        // so switching tabs or the data arriving does not pull the page.
-        footer: footer == null
-            ? null
-            : TabSwipeSlide(
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    minHeight: MediaQuery.sizeOf(context).height * 0.5,
-                  ),
-                  child: footer,
                 ),
-              ),
-        labels: AppPaginationLabels(
-          loadingMore: t.t('pagination.loadingMore'),
-          error: t.t('pagination.error'),
-          retry: t.t('error.retry'),
-          end: t.t('reviews.end'),
         ),
-        // Only the Reviews tab paginates; the posts placeholder must not
-        // wake the (autoDispose) reviews list.
-        onLoadMore: () {
-          if (reviewsTab) {
-            ref.read(reviewsListProvider(_reviewsKey).notifier).loadMore();
-          }
-        },
-        onRetry: () {
-          if (reviewsTab) {
-            ref.read(reviewsListProvider(_reviewsKey).notifier).loadMore();
-          }
-        },
-        onRefresh: () async {
-          ref
-            ..invalidate(reviewSummaryProvider(p.id))
-            ..invalidate(reviewsListProvider(_reviewsKey));
-          await widget.onRefresh();
-        },
-        itemBuilder: (context, review, index) => TabSwipeSlide(
-          // Owner 2026-10-19: no rise-in per row (it read as a jump when the
-          // tab opened).
-          child: ReviewCard(
+        if (reviewsState != null) reviewsState,
+        for (final review in items) ...[
+          ReviewCard(
             review: review,
             // Owner 2026-10-01 (Google-style): anyone but the author flags;
             // the author edits / deletes; the attorney replies; others vote.
@@ -555,8 +488,70 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
             onHelpful:
                 review.isMine || p.isSelf ? null : () => _helpful(t, review),
           ),
+          const SizedBox(height: AppSpacing.md),
+        ],
+        if (items.isNotEmpty)
+          AppPaginationFooter(
+            status: status,
+            labels: AppPaginationLabels(
+              loadingMore: t.t('pagination.loadingMore'),
+              error: t.t('pagination.error'),
+              retry: t.t('error.retry'),
+              end: t.t('reviews.end'),
+            ),
+            onRetry: () =>
+                ref.read(reviewsListProvider(_reviewsKey).notifier).loadMore(),
+          ),
+      ],
+    );
+
+    // Owner 2026-10-19: every page keeps at least half a screen (loading,
+    // empty or short), so nothing pulls the page when its data arrives.
+    Widget page(Widget child) => ConstrainedBox(
+          constraints: BoxConstraints(
+            minHeight: MediaQuery.sizeOf(context).height * 0.5,
+          ),
+          child: child,
+        );
+
+    return ProfileTabPages(
+      initialPage: tabs.indexOf(_tab).clamp(0, tabs.length - 1),
+      onPage: (i) => setState(() => _picked = tabs[i]),
+      header: header,
+      tabBar: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenSide),
+        child: _Tabs(
+          tabs: tabs,
+          selected: _tab,
+          onChanged: (tab) => setState(() => _picked = tab),
         ),
       ),
+      // Owner 2026-10-12: the Briefs & reposts tab runs edge to edge.
+      pagePadding: (i) => tabs[i] == AttorneyProfileTab.reposts
+          ? const EdgeInsets.only(top: AppSpacing.sm, bottom: AppSpacing.xxl)
+          : const EdgeInsets.fromLTRB(
+              AppSpacing.screenSide,
+              2,
+              AppSpacing.screenSide,
+              AppSpacing.xxl,
+            ),
+      onNearEnd: (i) {
+        if (tabs[i] == AttorneyProfileTab.reviews) {
+          ref.read(reviewsListProvider(_reviewsKey).notifier).loadMore();
+        }
+      },
+      onRefresh: () async {
+        ref
+          ..invalidate(reviewSummaryProvider(p.id))
+          ..invalidate(reviewsListProvider(_reviewsKey));
+        await widget.onRefresh();
+      },
+      pages: [
+        for (final tab in tabs)
+          page(
+            tab == AttorneyProfileTab.reviews ? reviewsPage : _gridPage(t, tab),
+          ),
+      ],
     );
   }
 }
@@ -1351,6 +1346,25 @@ class _Tabs extends ConsumerWidget {
         },
     ];
     final index = tabs.indexOf(selected).clamp(0, tabs.length - 1);
+    // Owner 2026-10-19 (Instagram): the tabs are pages — a tap glides to the
+    // page, and the gold line follows the page as it is swiped.
+    final pages = ProfileTabPages.controllerOf(context);
+    void open(AttorneyProfileTab tab) {
+      final i = tabs.indexOf(tab);
+      if (pages != null && pages.hasClients && i >= 0) {
+        unawaited(
+          pages.animateToPage(
+            i,
+            duration:
+                reduce ? Duration.zero : const Duration(milliseconds: 250),
+            curve: Curves.easeOutCubic,
+          ),
+        );
+      } else {
+        onChanged(tab);
+      }
+    }
+
     return DecoratedBox(
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: colors.border)),
@@ -1366,11 +1380,11 @@ class _Tabs extends ConsumerWidget {
                     selected: tab == selected,
                     label: label,
                     excludeSemantics: true,
-                    onTap: () => onChanged(tab),
+                    onTap: () => open(tab),
                     child: GestureDetector(
                       key: ValueKey('profile-tab-${tab.name}'),
                       behavior: HitTestBehavior.opaque,
-                      onTap: () => onChanged(tab),
+                      onTap: () => open(tab),
                       child: SizedBox(
                         height: AppSizes.touchTarget,
                         child: AppIcon(
@@ -1387,51 +1401,42 @@ class _Tabs extends ConsumerWidget {
             ],
           ),
           Positioned.fill(
-            // Owner 2026-10-19 (Instagram): the bar follows the finger while
-            // the content is pulled (a whole width = one tab).
-            child: _FollowDrag(
-              tabCount: tabs.length,
-              child: AnimatedAlign(
-                // Directional: the tab Row flips in RTL, so must the bar.
-                alignment: AlignmentDirectional(
-                  tabs.length < 2 ? -1 : -1 + 2 * index / (tabs.length - 1),
-                  1,
-                ),
-                duration: reduce ? Duration.zero : AppMotion.stateChange,
-                curve: AppMotion.enterCurve,
-                child: FractionallySizedBox(
-                  widthFactor: 1 / tabs.length,
-                  child: Container(height: 2, color: colors.gold),
-                ),
-              ),
-            ),
+            child: pages == null
+                ? AnimatedAlign(
+                    // Directional: the tab Row flips in RTL, so must the bar.
+                    alignment: AlignmentDirectional(
+                      tabs.length < 2 ? -1 : -1 + 2 * index / (tabs.length - 1),
+                      1,
+                    ),
+                    duration: reduce ? Duration.zero : AppMotion.stateChange,
+                    curve: AppMotion.enterCurve,
+                    child: FractionallySizedBox(
+                      widthFactor: 1 / tabs.length,
+                      child: Container(height: 2, color: colors.gold),
+                    ),
+                  )
+                : AnimatedBuilder(
+                    animation: pages,
+                    builder: (context, child) {
+                      final at = profileTabPosition(pages, index);
+                      return Align(
+                        alignment: AlignmentDirectional(
+                          tabs.length < 2
+                              ? -1
+                              : -1 + 2 * at / (tabs.length - 1),
+                          1,
+                        ),
+                        child: child,
+                      );
+                    },
+                    child: FractionallySizedBox(
+                      widthFactor: 1 / tabs.length,
+                      child: Container(height: 2, color: colors.gold),
+                    ),
+                  ),
           ),
         ],
       ),
-    );
-  }
-}
-
-/// Moves the tab bar's gold line with the finger while a [TabSwipe]
-/// section is pulled.
-class _FollowDrag extends StatelessWidget {
-  const _FollowDrag({required this.tabCount, required this.child});
-
-  final int tabCount;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final drag = TabSwipe.dragOf(context);
-    if (drag == null || tabCount < 2) return child;
-    final rtl = Directionality.of(context) == TextDirection.rtl;
-    return ValueListenableBuilder<double>(
-      valueListenable: drag,
-      builder: (context, dx, child) => Transform.translate(
-        offset: Offset((rtl ? dx : -dx) / tabCount, 0),
-        child: child,
-      ),
-      child: child,
     );
   }
 }

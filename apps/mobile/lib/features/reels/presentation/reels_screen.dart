@@ -584,9 +584,10 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                     ),
                   ),
                 // Owner 2026-10-19 (Instagram): a small sound on / off
-                // button above the play / pause spot; a tap on it never
-                // pauses the reel.
-                if (widget.soundButton && video != null)
+                // button above the play icon — shown and hidden together
+                // with it (a tap pauses: both appear; a tap plays: both
+                // go); a tap on it never pauses the reel.
+                if (widget.soundButton && video != null && _paused)
                   Center(
                     child: Transform.translate(
                       offset: const Offset(0, -64),

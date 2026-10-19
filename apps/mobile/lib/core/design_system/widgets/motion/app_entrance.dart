@@ -12,7 +12,7 @@ extension AppMotionContext on BuildContext {
 }
 
 /// Staggered entrance for screen content (UI modernization pass,
-/// 2026-09-27): fade + short rise, [index] steps the start by
+/// 2026-09-27): a fade, [index] steps the start by
 /// [AppMotion.entranceStagger]. With reduce-motion on, returns [child]
 /// untouched — no animation, no delay.
 ///
@@ -25,7 +25,12 @@ class AppEntrance extends StatelessWidget {
     super.key,
     this.index = 0,
     this.scale = false,
+    this.animated = false,
   });
+
+  /// Owner 2026-10-19: off by default (no entrance anywhere); true only
+  /// where a screen really wants the fade in.
+  final bool animated;
 
   final Widget child;
 
@@ -37,24 +42,23 @@ class AppEntrance extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (context.reduceMotion) return child;
+    // Owner 2026-10-19 («мигание», everywhere — Instagram has no entrance
+    // animations): content, empty states and rows appear at once. A list,
+    // a tab or a filter that is rebuilt no longer fades or rises in again,
+    // which read as a blink. The old animation is kept below for a screen
+    // that asks for it explicitly ([animated]).
+    if (!animated || context.reduceMotion) return child;
     final delay = AppMotion.entranceStagger * index;
-    var animated = child
-        .animate()
-        .fadeIn(
-          delay: delay,
-          duration: AppMotion.entrance,
-          curve: AppMotion.enterCurve,
-        )
-        .slideY(
-          begin: AppMotion.entranceRise,
-          end: 0,
+    var out = child.animate().fadeIn(
           delay: delay,
           duration: AppMotion.entrance,
           curve: AppMotion.enterCurve,
         );
+    // Owner 2026-10-19 («данные прыгают», everywhere): no rise from below —
+    // rows and blocks only fade in, nothing moves when a tab or a list
+    // opens. (AppMotion.entranceRise stays for an explicit motion.)
     if (scale) {
-      animated = animated.scaleXY(
+      out = out.scaleXY(
         begin: AppMotion.entranceScaleFrom,
         end: 1,
         delay: delay,
@@ -62,7 +66,7 @@ class AppEntrance extends StatelessWidget {
         curve: AppMotion.enterCurve,
       );
     }
-    return animated;
+    return out;
   }
 }
 

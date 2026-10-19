@@ -11,12 +11,12 @@ import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/cases/presentation/widgets/client_review_sheet.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
     show showConfirmSheet;
-import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/chat/presentation/open_direct_chat.dart';
 import 'package:lawbid/features/profile/data/client_reviews_repository.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/features/profile/presentation/widgets/profile_avatar.dart';
 import 'package:lawbid/features/profile/presentation/widgets/profile_quiet_button.dart';
+import 'package:lawbid/features/profile/presentation/widgets/profile_tab_pages.dart';
 import 'package:lawbid/features/profile/presentation/widgets/review_widgets.dart'
     show
         MapsReviewTile,
@@ -64,6 +64,28 @@ class ClientSocialProfile extends ConsumerStatefulWidget {
 
 class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
   _Tab _tab = _Tab.posts;
+
+  /// The tab pages (set by the tab row): a tap glides to its page.
+  PageController? _pages;
+
+  void _open(_Tab value) {
+    final tabs = p.canSeeReviews
+        ? _Tab.values
+        : const [_Tab.posts, _Tab.reels, _Tab.reposts];
+    final i = tabs.indexOf(value);
+    final pages = _pages;
+    if (pages != null && pages.hasClients && i >= 0) {
+      pages.animateToPage(
+        i,
+        duration: context.reduceMotion
+            ? Duration.zero
+            : const Duration(milliseconds: 250),
+        curve: Curves.easeOutCubic,
+      );
+    } else {
+      setState(() => _tab = value);
+    }
+  }
 
   PublicClientProfile get p => widget.profile;
 
@@ -135,7 +157,7 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
           excludeSemantics: true,
           child: AppPressable(
             key: ValueKey('client-tab-${value.name}'),
-            onTap: () => setState(() => _tab = value),
+            onTap: () => _open(value),
             // Owner 2026-10-18: four tabs — icons only, as on an attorney's
             // profile and Instagram (the label stays for screen readers).
             child: Container(
@@ -281,102 +303,101 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
               ],
             ),
           const SizedBox(height: AppSpacing.md),
-          Row(
-            children: [
-              tabButton(
-                _Tab.posts,
-                AppIcons.gridOnRounded,
-                t.t('client.tab.posts'),
-              ),
-              tabButton(
-                _Tab.reels,
-                AppIcons.playCircleOutlined,
-                t.t('profile.tab.reels'),
-              ),
-              // Owner 2026-10-18: the same «Брифы и репосты» tab as an
-              // attorney's (a client's text posts had no tab before).
-              tabButton(
-                _Tab.reposts,
-                AppIcons.autoModeRounded,
-                t.t('profile.tab.briefsReposts'),
-              ),
-              if (p.canSeeReviews)
-                tabButton(
-                  _Tab.reviews,
-                  AppIcons.starOutlineRounded,
-                  t.t('client.tab.reviews'),
-                ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.sm),
         ],
       ),
     );
 
-    return TabSwipe<_Tab>(
-      value: tab,
-      values: p.canSeeReviews
-          ? _Tab.values
-          : const [_Tab.posts, _Tab.reels, _Tab.reposts],
-      onChanged: (v) => setState(() => _tab = v),
-      // Owner 2026-10-19 (Instagram): the header stays, the tab's content
-      // slides with the finger.
-      slideChild: false,
-      child: RefreshIndicator(
-        color: colors.gold,
-        onRefresh: () async {
-          ref
-            ..invalidate(clientReviewsProvider)
-            ..invalidate(clientReviewSummaryProvider(p.id));
-          await widget.onRefresh();
-        },
-        child: ListView(
-          padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
-          children: [
-            header,
-            // Owner 2026-10-19 («данные прыгают»): at least half a screen
-            // whatever the tab shows, so nothing pulls the page.
-            TabSwipeSlide(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  minHeight: MediaQuery.sizeOf(context).height * 0.5,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    if (tab == _Tab.posts)
-                      ProfilePostsGrid(
-                        attorneyId: p.id,
-                        emptyTitle: t.t('client.posts.empty'),
-                        emptyMessage: '',
-                      )
-                    else if (tab == _Tab.reels)
-                      ProfilePostsGrid(
-                        key: const ValueKey('reels'),
-                        attorneyId: p.id,
-                        reelsOnly: true,
-                        emptyTitle: t.t('profile.reels.empty.title'),
-                        emptyMessage: t.t(
-                          p.isSelf
-                              ? 'profile.reels.empty.self'
-                              : 'profile.reels.empty.other',
-                        ),
-                      )
-                    else if (tab == _Tab.reposts)
-                      ProfileBriefsAndReposts(
-                        attorneyId: p.id,
-                        isSelf: p.isSelf,
-                        emptyOtherKey: 'profile.briefsReposts.empty.otherUser',
-                      )
-                    else
-                      _ReviewsList(clientId: p.id),
-                  ],
-                ),
+    final tabs = p.canSeeReviews
+        ? _Tab.values
+        : const [_Tab.posts, _Tab.reels, _Tab.reposts];
+    Widget pageOf(_Tab value) => switch (value) {
+          _Tab.posts => ProfilePostsGrid(
+              attorneyId: p.id,
+              emptyTitle: t.t('client.posts.empty'),
+              emptyMessage: '',
+            ),
+          _Tab.reels => ProfilePostsGrid(
+              key: const ValueKey('reels'),
+              attorneyId: p.id,
+              reelsOnly: true,
+              emptyTitle: t.t('profile.reels.empty.title'),
+              emptyMessage: t.t(
+                p.isSelf
+                    ? 'profile.reels.empty.self'
+                    : 'profile.reels.empty.other',
               ),
             ),
-          ],
-        ),
+          _Tab.reposts => ProfileBriefsAndReposts(
+              attorneyId: p.id,
+              isSelf: p.isSelf,
+              emptyOtherKey: 'profile.briefsReposts.empty.otherUser',
+            ),
+          _Tab.reviews => _ReviewsList(clientId: p.id),
+        };
+
+    // Owner 2026-10-19 (Instagram): the header scrolls away, the tabs stick
+    // and are pages side by side (swipe / tap glide), each kept alive — no
+    // blink, no jump when a tab changes.
+    return ProfileTabPages(
+      initialPage: tabs.indexOf(tab).clamp(0, tabs.length - 1),
+      onPage: (i) => setState(() => _tab = tabs[i]),
+      header: header,
+      tabBar: Builder(
+        builder: (context) {
+          _pages = ProfileTabPages.controllerOf(context);
+          return Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.screenSide,
+            ),
+            child: Row(
+              children: [
+                tabButton(
+                  _Tab.posts,
+                  AppIcons.gridOnRounded,
+                  t.t('client.tab.posts'),
+                ),
+                tabButton(
+                  _Tab.reels,
+                  AppIcons.playCircleOutlined,
+                  t.t('profile.tab.reels'),
+                ),
+                // Owner 2026-10-18: the same «Брифы и репосты» tab as an
+                // attorney's (a client's text posts had no tab before).
+                tabButton(
+                  _Tab.reposts,
+                  AppIcons.autoModeRounded,
+                  t.t('profile.tab.briefsReposts'),
+                ),
+                if (p.canSeeReviews)
+                  tabButton(
+                    _Tab.reviews,
+                    AppIcons.starOutlineRounded,
+                    t.t('client.tab.reviews'),
+                  ),
+              ],
+            ),
+          );
+        },
       ),
+      pagePadding: (_) => const EdgeInsets.only(
+        top: AppSpacing.sm,
+        bottom: AppSpacing.xxl,
+      ),
+      onRefresh: () async {
+        ref
+          ..invalidate(clientReviewsProvider)
+          ..invalidate(clientReviewSummaryProvider(p.id));
+        await widget.onRefresh();
+      },
+      pages: [
+        for (final value in tabs)
+          ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: MediaQuery.sizeOf(context).height * 0.5,
+            ),
+            child: pageOf(value),
+          ),
+      ],
     );
   }
 }

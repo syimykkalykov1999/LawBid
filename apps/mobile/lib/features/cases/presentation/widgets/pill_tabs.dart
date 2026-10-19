@@ -258,9 +258,6 @@ class _TabSwipeState<T> extends State<TabSwipe<T>>
   static const _out = Duration(milliseconds: 150);
   static const _in = Duration(milliseconds: 260);
 
-  /// Where the next section starts, as a part of the width.
-  static const _enterFrom = 0.28;
-
   double get _width {
     // Not Element.size: a tab tap changes the value during a build.
     final box = context.findRenderObject();
@@ -291,29 +288,13 @@ class _TabSwipeState<T> extends State<TabSwipe<T>>
     super.dispose();
   }
 
+  /// Owner 2026-10-19 («данные прыгают», on every screen): the next
+  /// section is put in place at once (Instagram) — no glide from the side,
+  /// no fade; only the finger moves a section during a swipe.
   void _enter({required bool forward}) {
     _drag.value = 0;
-    // Owner 2026-10-19 («данные прыгают»): a profile's tab content is put in
-    // place at once (Instagram) — no glide from the side, no fade.
-    if (_reduce || !widget.slideChild) {
-      _shift.value = 0;
-      _fade.value = 1;
-      return;
-    }
-    final start = (forward ? 1 : -1) * _width * _enterFrom;
-    _shift.value = start;
-    _fade.value = 0;
-    void tick() {
-      _fade.value = start == 0 ? 1 : (1 - _shift.value / start).clamp(0, 1);
-    }
-
-    _shift.addListener(tick);
-    _shift
-        .animateTo(0, duration: _in, curve: Curves.easeOutCubic)
-        .whenCompleteOrCancel(() {
-      _shift.removeListener(tick);
-      _fade.value = 1;
-    });
+    _shift.value = 0;
+    _fade.value = 1;
   }
 
   int get _index => widget.values.indexOf(widget.value);
