@@ -190,6 +190,33 @@ row + topic hint; budget step no jump.
   feature_boundaries (verification 4), essence_step / profile / onboarding
   goldens — other threads' files.
 
+## Guide, case files, keyboard (2026-10-19 thread, all committed locally, NOT pushed)
+- «Справочник»: «i» before the search in both case lists (`mine_grid.dart`
+  MineChipsSearchRow) → `/guide` (`features/guide/presentation/guide_screen.dart`),
+  8 sections, keys `guide.*` in `strings/guide_strings.dart` (85 languages).
+  Each section on/off = flags `guide_section_1..8` (on). Section 1 «Как мы
+  работаем» short; payment paragraph: agree and pay the attorney directly,
+  nothing about how LawBid earns. Full RU text: /mnt/project-files/guide_ru*.md.
+- Admin Система → Справочник (`apps/admin/.../guide/page.tsx`): edit per
+  language, «Перевести на все языки» (Google preview → confirm), «Сбросить»,
+  section switches. API `GET/PUT /admin/i18n/texts`, `texts/many`,
+  `texts/translate`, `texts/reset`. Edited cells get `admin_edited`
+  (migration 20261019010000) and the seed import skips them.
+- Username ideas: `GET /attorneys/username-suggestions`, suggestions in
+  `username-available`; sign-up profile step offers a free @username,
+  chips in both profile editors.
+- Case files: 9 photos/videos + 3 documents counted apart (`upload-limits.ts`
+  case = split, admin «Загрузки и файлы»; old cases untouched); WebP and
+  MP4/MOV allowed, videos compressed ≤720p (`case_media_picker.dart`); fixed
+  «Фото и видео» / «Файл» buttons with counters.
+- Budget «Проценты» greyed with a note for blocked topics (not hidden).
+- «Мой кейс» › Обзор: buttons «Как выглядит ваш кейс» (sheet with the real
+  feed card, until a bid is accepted) | «Вопросы по кейсу»; «опубл.» right.
+- Keyboard: `UnfocusOnNavigateObserver` + `dropKeyboard()` (TextInput.hide)
+  on the root and every tab navigator, tab switch, tap on empty space.
+- Payment in the app (Stripe) stays hidden: flag `payments_in_app` locked off.
+- «Клиент» wording: owner decided to keep everything as is (2026-10-19).
+
 ## Open / do next (in this order)
 1. DONE (session 2). Stale banner is confusing (owner didn't understand when/why it appeared).
    Rework the whole stale UX (case_stale_banner.dart, My cases, owner case,
