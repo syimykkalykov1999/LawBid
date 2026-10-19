@@ -6,5 +6,13 @@ export 'package:lawbid/features/chat/domain/chat_models.dart'
     show ChatAttachment;
 export 'package:lawbid/features/chat/presentation/attachment_widgets.dart'
     show fileSizeLabel, pickChatFiles;
+export 'package:lawbid/features/chat/presentation/chat_album.dart'
+    show
+        ChatAlbumItem,
+        ChatMediaAlbum,
+        ChatPhoto,
+        chatAspectOf,
+        chatMediaLimits,
+        chatPhotoBox;
 export 'package:lawbid/features/chat/presentation/chat_video.dart'
     show ChatVideoTile;

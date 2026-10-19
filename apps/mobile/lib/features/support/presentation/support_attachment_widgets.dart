@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
-import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/support/domain/support_models.dart';
 import 'package:lawbid/features/support/presentation/support_attach_controller.dart';
@@ -232,63 +231,78 @@ class SupportMessageFiles extends ConsumerWidget {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    final urls = [
+    // Owner 2026-10-19 (Telegram): photos and videos of one message in one
+    // album grid, sharp at the screen's pixel ratio; documents as rows.
+    ChatAttachment chatOf(SupportAttachment a) => ChatAttachment(
+          fileId: a.fileId,
+          name: a.name,
+          isImage: a.isImage,
+          mime: a.mime,
+          sizeBytes: a.sizeBytes,
+          url: a.url,
+          previewUrl: a.previewUrl,
+          width: a.width,
+          height: a.height,
+        );
+    final media = [
       for (final a in attachments)
-        if (a.isImage && a.url != null) a.url!,
+        if (a.isImage || a.isVideo) chatOf(a),
     ];
     final widgets = <Widget>[];
+    if (media.length > 1) {
+      widgets.add(
+        ChatMediaAlbum(
+          items: [
+            for (final a in media) ChatAlbumItem(id: a.fileId, attachment: a),
+          ],
+        ),
+      );
+    } else if (media.length == 1 && media.single.isVideo) {
+      widgets.add(
+        SizedBox(
+          width: 220,
+          child: ChatVideoTile(
+            attachment: media.single,
+            sending: false,
+            playLabel: t.t('chat.attach.videoPlay'),
+          ),
+        ),
+      );
+    } else if (media.length == 1) {
+      final a = media.single;
+      final limits = chatMediaLimits(context);
+      final box = chatPhotoBox(
+        chatAspectOf(a),
+        maxWidth: limits.maxWidth,
+        maxHeight: limits.maxHeight,
+      );
+      widgets.add(
+        Semantics(
+          button: a.url != null,
+          image: true,
+          label: a.name,
+          child: AppPressable(
+            onTap: a.url == null
+                ? null
+                : () => showPhotoGallery(
+                      context,
+                      urls: [a.url!],
+                      closeLabel: t.t('common.close'),
+                    ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(AppRadii.field),
+              child: SizedBox.fromSize(
+                size: box,
+                child: ChatPhoto(attachment: a, size: box),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
     for (final a in attachments) {
-      if (a.isImage) {
-        final src = a.previewUrl ?? a.url;
-        widgets.add(
-          Semantics(
-            button: a.url != null,
-            image: true,
-            label: a.name,
-            child: AppPressable(
-              onTap: a.url == null
-                  ? null
-                  : () => showPhotoGallery(
-                        context,
-                        urls: urls,
-                        initial: urls.indexOf(a.url!),
-                        closeLabel: t.t('common.close'),
-                      ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(AppRadii.field),
-                child: SizedBox.square(
-                  dimension: 132,
-                  child: src == null
-                      ? ColoredBox(color: colors.skeletonBase)
-                      : Image(
-                          image: appNetworkImage(src, 400),
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) =>
-                              ColoredBox(color: colors.skeletonBase),
-                        ),
-                ),
-              ),
-            ),
-          ),
-        );
-      } else if (a.isVideo) {
-        widgets.add(
-          SizedBox(
-            width: 220,
-            child: ChatVideoTile(
-              attachment: ChatAttachment(
-                fileId: a.fileId,
-                name: a.name,
-                isImage: false,
-                mime: a.mime,
-                sizeBytes: a.sizeBytes,
-                url: a.url,
-              ),
-              sending: false,
-              playLabel: t.t('chat.attach.videoPlay'),
-            ),
-          ),
-        );
+      if (a.isImage || a.isVideo) {
+        continue;
       } else {
         widgets.add(
           Semantics(

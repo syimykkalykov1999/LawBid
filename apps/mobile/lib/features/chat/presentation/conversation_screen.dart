@@ -33,7 +33,9 @@ import 'package:lawbid/features/chat/application/presence_providers.dart';
 import 'package:lawbid/features/chat/application/voice_player.dart';
 import 'package:lawbid/features/chat/application/voice_recorder.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
+import 'package:lawbid/features/chat/domain/message_groups.dart';
 import 'package:lawbid/features/chat/presentation/attachment_widgets.dart';
+import 'package:lawbid/features/chat/presentation/chat_album.dart';
 import 'package:lawbid/features/chat/presentation/chat_folders.dart';
 import 'package:lawbid/features/chat/presentation/contact_info_screen.dart';
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart';
@@ -161,7 +163,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
   }
 
   /// OQ-047: pick photos / documents and send each; the typed text goes
-  /// with the first as its caption.
+  /// with the last as its caption. Owner 2026-10-19 (albums): they upload
+  /// together but are sent in the picked order (one album bubble).
   Future<void> _attach() async {
     final t = ref.read(translatorProvider);
     final files = await pickChatFiles(
@@ -174,16 +177,18 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
     if (files.isEmpty || !mounted) return;
     final caption = _text.text.trim();
     if (caption.isNotEmpty) _text.clear();
+    Future<void>? previous;
     for (var i = 0; i < files.length; i++) {
       final f = files[i];
-      unawaited(
-        _thread.sendAttachment(
-          bytes: f.bytes,
-          name: f.name,
-          mime: f.mime,
-          caption: i == 0 && caption.isNotEmpty ? caption : null,
-        ),
+      final last = i == files.length - 1;
+      previous = _thread.sendAttachment(
+        bytes: f.bytes,
+        name: f.name,
+        mime: f.mime,
+        caption: last && caption.isNotEmpty ? caption : null,
+        after: previous,
       );
+      unawaited(previous);
     }
   }
 
@@ -560,6 +565,11 @@ class _MessageList extends ConsumerWidget {
     final newestOwnSeen = seenIndex < 0
         ? null
         : items.skip(seenIndex).where((m) => m.senderId == me).firstOrNull?.id;
+    // Owner 2026-10-19: photos / files sent together share one bubble.
+    final entries = groupChatMessages(items);
+    final seenIds = seenIndex < 0
+        ? const <String>{}
+        : items.skip(seenIndex).map((m) => m.id).toSet();
 
     return CustomPaint(
       // Owner 2026-10-17: a faint pattern of legal signs behind the
@@ -571,9 +581,9 @@ class _MessageList extends ConsumerWidget {
           horizontal: AppSpacing.screenSide,
           vertical: AppSpacing.md,
         ),
-        itemCount: items.length + (state.nextCursor != null ? 1 : 0),
+        itemCount: entries.length + (state.nextCursor != null ? 1 : 0),
         itemBuilder: (context, i) {
-          if (i == items.length) {
+          if (i == entries.length) {
             if (state.loadMoreFailed) {
               return Center(
                 child: TextButton(
@@ -598,14 +608,15 @@ class _MessageList extends ConsumerWidget {
               ),
             );
           }
-          final m = items[i];
-          final older = i + 1 < items.length ? items[i + 1] : null;
+          final entry = entries[i];
+          final m = entry.newest;
+          final older = i + 1 < entries.length ? entries[i + 1].newest : null;
           final newDay = older == null ||
               !DateUtils.isSameDay(
                 older.createdAt.toLocal(),
-                m.createdAt.toLocal(),
+                entry.oldest.createdAt.toLocal(),
               );
-          final seen = seenIndex >= 0 && i >= seenIndex && m.senderId == me;
+          final seen = seenIds.contains(m.id) && m.senderId == me;
           return Column(
             // Stretch: a bubble sits at the right (mine) or left (theirs)
             // edge like Telegram, never centered (owner 2026-09-29).
@@ -623,9 +634,11 @@ class _MessageList extends ConsumerWidget {
               else
                 _Bubble(
                   message: m,
+                  group: entry.isGroup ? entry.messages : null,
                   mine: m.senderId == me,
                   seen: seen,
-                  showSeenLabel: m.id == newestOwnSeen,
+                  showSeenLabel:
+                      entry.messages.any((x) => x.id == newestOwnSeen),
                   threadId: state.conversation?.id ?? m.conversationId,
                   // Owner 2026-10-01: the client sees "Assistant of <the
                   // attorney>", not the assistant's own account.
@@ -739,6 +752,7 @@ class _Bubble extends ConsumerWidget {
     required this.seen,
     required this.showSeenLabel,
     required this.threadId,
+    this.group,
     this.attorneyName,
   });
 
@@ -750,6 +764,20 @@ class _Bubble extends ConsumerWidget {
   final bool seen;
   final bool showSeenLabel;
   final String threadId;
+
+  /// Owner 2026-10-19: an album / a list of files sent together (oldest
+  /// first, [message] is the newest — its time, ticks and caption).
+  final List<ChatMessage>? group;
+
+  Widget _attachment(WidgetRef ref, ChatMessage m) {
+    final g = group;
+    if (g == null) return AttachmentMessageBody(message: m, mine: mine);
+    return ChatAttachmentGroupBody(
+      messages: g,
+      mine: mine,
+      onRetry: (x) => ref.read(chatThreadProvider(threadId).notifier).retry(x),
+    );
+  }
 
   /// Owner 2026-10-17: a voice note shows its sender's photo (WhatsApp).
   Widget _voice(WidgetRef ref, ChatMessage m) {
@@ -797,6 +825,13 @@ class _Bubble extends ConsumerWidget {
     // A photo / video without a caption: a thin frame, the time on it.
     final media =
         a != null && (a.isImage || a.isVideo) && m.body.trim().isEmpty;
+    final fileNames = [
+      for (final x in group ?? [m]) x.attachment?.name ?? '',
+    ].join(', ');
+    final failedItems = [
+      for (final x in group ?? [m])
+        if (x.delivery == DeliveryState.failed) x,
+    ];
     Widget ticks(Color plain) => AppIcon(
           switch (m.delivery) {
             DeliveryState.sending => AppIcons.scheduleRounded,
@@ -891,7 +926,7 @@ class _Bubble extends ConsumerWidget {
             child: media
                 ? Stack(
                     children: [
-                      AttachmentMessageBody(message: m, mine: mine),
+                      _attachment(ref, m),
                       // WhatsApp: the time (and ticks) on the picture.
                       Positioned(
                         right: 6,
@@ -932,7 +967,7 @@ class _Bubble extends ConsumerWidget {
                         _voice(ref, m)
                       else if (m.kind == MessageKind.attachment &&
                           m.attachment != null)
-                        AttachmentMessageBody(message: m, mine: mine)
+                        _attachment(ref, m)
                       else
                         _MessageText(
                           message: m,
@@ -1011,7 +1046,7 @@ class _Bubble extends ConsumerWidget {
                 else if (m.kind == MessageKind.sticker)
                   '${t.t('stickers.label')} ${m.sticker?.emoji ?? ''}'
                 else if (m.kind == MessageKind.attachment)
-                  '${t.t('chat.attach.label')}: ${m.attachment?.name ?? ''}'
+                  '${t.t('chat.attach.label')}: $fileNames'
                 else
                   m.body.replaceAll(kContactMask, t.t('chat.masked')),
                 if (mine) t.t(_deliveryKey(m.delivery, seen)),
@@ -1031,7 +1066,7 @@ class _Bubble extends ConsumerWidget {
               ),
             ),
           // One row; in long languages the labels shrink instead of moving.
-          if (failed)
+          if (failedItems.isNotEmpty)
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -1043,17 +1078,23 @@ class _Bubble extends ConsumerWidget {
                 ),
                 Flexible(
                   child: TextButton(
-                    onPressed: () => ref
-                        .read(chatThreadProvider(threadId).notifier)
-                        .retry(m),
+                    onPressed: () {
+                      final n = ref.read(chatThreadProvider(threadId).notifier);
+                      for (final x in failedItems) {
+                        unawaited(n.retry(x));
+                      }
+                    },
                     child: FitText(t.t('error.retry')),
                   ),
                 ),
                 Flexible(
                   child: TextButton(
-                    onPressed: () => ref
-                        .read(chatThreadProvider(threadId).notifier)
-                        .discard(m),
+                    onPressed: () {
+                      final n = ref.read(chatThreadProvider(threadId).notifier);
+                      for (final x in failedItems) {
+                        unawaited(n.discard(x));
+                      }
+                    },
                     child: FitText(t.t('chat.discard')),
                   ),
                 ),

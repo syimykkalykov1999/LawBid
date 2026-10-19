@@ -8,15 +8,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
-import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/files/file_types.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
-import 'package:lawbid/features/cases/presentation/widgets/case_photos.dart'
-    show openCaseDocument;
 import 'package:lawbid/features/chat/data/chat_repository.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
+import 'package:lawbid/features/chat/presentation/chat_album.dart';
 import 'package:lawbid/features/chat/presentation/chat_video.dart';
 
 export 'package:lawbid/features/chat/presentation/chat_files_screen.dart'
@@ -221,6 +219,10 @@ String fileSizeLabel(int? bytes) {
 /// OQ-047: the inside of an attachment bubble — a photo (tap → full
 /// screen) or a document card (tap → the phone's viewer), the upload
 /// progress while sending, and the caption under it.
+///
+/// Owner 2026-10-19 (Telegram): a photo keeps its shape inside about two
+/// thirds of the chat's width and ~320 tall (cover-cropped beyond that),
+/// sharp at the screen's pixel ratio ([ChatPhoto]).
 class AttachmentMessageBody extends ConsumerWidget {
   const AttachmentMessageBody({
     required this.message,
@@ -234,7 +236,6 @@ class AttachmentMessageBody extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translatorProvider);
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final a = message.attachment!;
     final sending = message.delivery == DeliveryState.sending;
@@ -243,6 +244,7 @@ class AttachmentMessageBody extends ConsumerWidget {
     final pct = a.progress > 0 && a.progress < 1 ? a.progress : null;
 
     final Widget content;
+    var captionWidth = 240.0;
     if (a.isVideo) {
       // Owner 2026-10-17 (WhatsApp): first frame, play button, length.
       content = ChatVideoTile(
@@ -250,20 +252,15 @@ class AttachmentMessageBody extends ConsumerWidget {
         sending: sending,
         playLabel: t.t('chat.attach.videoPlay'),
       );
+      captionWidth = 220;
     } else if (a.isImage) {
-      final image = a.localBytes != null
-          ? Image.memory(a.localBytes!, fit: BoxFit.cover, cacheWidth: 600)
-          : (a.previewUrl ?? a.url) != null
-              ? Image(
-                  image: appNetworkImage((a.previewUrl ?? a.url)!, 600),
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) =>
-                      ColoredBox(color: colors.skeletonBase),
-                )
-              : ColoredBox(color: colors.skeletonBase);
-      final ratio = (a.width != null && a.height != null && a.height! > 0)
-          ? (a.width! / a.height!).clamp(0.6, 1.8)
-          : 4 / 3;
+      final limits = chatMediaLimits(context);
+      final box = chatPhotoBox(
+        chatAspectOf(a),
+        maxWidth: limits.maxWidth,
+        maxHeight: limits.maxHeight,
+      );
+      captionWidth = box.width;
       content = Semantics(
         button: a.url != null,
         image: true,
@@ -278,125 +275,34 @@ class AttachmentMessageBody extends ConsumerWidget {
                   ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(12),
-            child: SizedBox(
-              width: 220,
-              child: AspectRatio(
-                aspectRatio: ratio,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    image,
-                    if (sending)
-                      ColoredBox(
-                        color: Colors.black26,
-                        child: Center(
-                          child: SizedBox.square(
-                            dimension: 32,
-                            child: CircularProgressIndicator(
-                              value: pct,
-                              strokeWidth: 3,
-                              color: Colors.white,
-                            ),
+            child: SizedBox.fromSize(
+              size: box,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  ChatPhoto(attachment: a, size: box),
+                  if (sending)
+                    ColoredBox(
+                      color: Colors.black26,
+                      child: Center(
+                        child: SizedBox.square(
+                          dimension: 32,
+                          child: CircularProgressIndicator(
+                            value: pct,
+                            strokeWidth: 3,
+                            color: Colors.white,
                           ),
                         ),
                       ),
-                  ],
-                ),
+                    ),
+                ],
               ),
             ),
           ),
         ),
       );
     } else {
-      final look = docLook(a.extension);
-      content = Semantics(
-        button: a.url != null,
-        label: '${a.name}, ${fileSizeLabel(a.sizeBytes)}',
-        excludeSemantics: true,
-        child: AppPressable(
-          onTap: a.url == null ? () {} : () => openCaseDocument(a.url!),
-          child: SizedBox(
-            width: 240,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: look.color,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          AppIcon(look.icon, size: 20, color: Colors.white),
-                          if (a.extension.isNotEmpty)
-                            Text(
-                              a.extension.toUpperCase(),
-                              maxLines: 1,
-                              style: type.caption.copyWith(
-                                color: Colors.white,
-                                fontSize: 8,
-                                fontWeight: FontWeight.w700,
-                                height: 1,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: AppSpacing.sm),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            a.name,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: type.bodySmall.copyWith(
-                              color: fg,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          Text(
-                            [
-                              fileSizeLabel(a.sizeBytes),
-                              if (a.extension.isNotEmpty)
-                                a.extension.toUpperCase(),
-                            ].where((s) => s.isNotEmpty).join(' · '),
-                            style: type.caption
-                                .copyWith(color: fg.withValues(alpha: 0.75)),
-                          ),
-                        ],
-                      ),
-                    ),
-                    if (a.url != null)
-                      AppIcon(
-                        AppIcons.openInNewRounded,
-                        size: 18,
-                        color: fg.withValues(alpha: 0.75),
-                      ),
-                  ],
-                ),
-                if (sending)
-                  Padding(
-                    padding: const EdgeInsets.only(top: AppSpacing.xs),
-                    child: LinearProgressIndicator(
-                      value: pct,
-                      minHeight: 3,
-                      color: colors.gold,
-                      backgroundColor: fg.withValues(alpha: 0.2),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      );
+      content = ChatDocumentRow(attachment: a, fg: fg, sending: sending);
     }
 
     return Column(
@@ -407,7 +313,7 @@ class AttachmentMessageBody extends ConsumerWidget {
         if (message.body.isNotEmpty) ...[
           const SizedBox(height: AppSpacing.xs),
           SizedBox(
-            width: a.isImage ? 220 : 240,
+            width: captionWidth,
             child: Text(
               message.body,
               style: type.body.copyWith(color: fg, height: 1.35),
