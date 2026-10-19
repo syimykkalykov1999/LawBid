@@ -60,23 +60,24 @@ describe('Text limits (e2e)', () => {
       where: { key: 'limits.comment_chars' },
     });
     await redis.del(APP_CONFIG_CACHE_KEY);
-    expect(await validate(body(1000))).toHaveLength(0);
-    expect((await validate(body(1001))).length).toBeGreaterThan(0);
+    // Owner 2026-10-19: the starting value is Instagram's 2200.
+    expect(await validate(body(2200))).toHaveLength(0);
+    expect((await validate(body(2201))).length).toBeGreaterThan(0);
 
     await prisma.appConfig.upsert({
       where: { key: 'limits.comment_chars' },
-      create: { key: 'limits.comment_chars', value: 2200 },
-      update: { value: 2200 },
+      create: { key: 'limits.comment_chars', value: 500 },
+      update: { value: 500 },
     });
     await redis.del(APP_CONFIG_CACHE_KEY);
-    expect(await validate(body(2200))).toHaveLength(0);
-    expect((await validate(body(2201))).length).toBeGreaterThan(0);
+    expect(await validate(body(500))).toHaveLength(0);
+    expect((await validate(body(501))).length).toBeGreaterThan(0);
   });
 
   it('the public bootstrap carries the limits for the app', async () => {
     const res = await request(base).get('/api/v1/config/bootstrap').expect(200);
     const cfg = (res.body as { data: { app_config: Record<string, unknown> } })
       .data.app_config;
-    expect(cfg['limits.comment_chars']).toBe(2200);
+    expect(cfg['limits.comment_chars']).toBe(500);
   });
 });

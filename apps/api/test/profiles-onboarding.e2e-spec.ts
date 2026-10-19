@@ -287,7 +287,8 @@ describe('Profiles onboarding (e2e) — client_profiles / attorney_profiles', ()
 
   it('attorney: attorney_profiles with generated unique username, bio/firm/languages, licensed states', async () => {
     const first = await onboardedTo('attorney');
-    const bio = 'b'.repeat(300);
+    // Owner 2026-10-19: a bio is at most 150 characters (Instagram).
+    const bio = 'b'.repeat(150);
     const saved = await saveProfile(first.auth, {
       firstName: 'Avery',
       lastName: 'Quill',
