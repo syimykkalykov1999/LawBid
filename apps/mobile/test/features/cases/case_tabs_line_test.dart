@@ -5,17 +5,17 @@ import 'package:lawbid/features/cases/presentation/widgets/case_parts.dart';
 
 import '../../helpers/ux_harness.dart';
 
-/// Owner 2026-10-19: the line under the chosen tab is as wide as that tab's
-/// label on every tab, and slides with the swipe between them.
+/// Owner 2026-10-19: no line under the case tabs; the chosen tab is told
+/// by its text colour, which follows the swipe between two tabs.
 void main() {
-  Finder line(WidgetTester t) {
-    final gold = AppTheme.light().extension<AppColorTokens>()!.gold;
-    return find.byWidgetPredicate((w) => w is ColoredBox && w.color == gold);
-  }
+  Color colorOf(WidgetTester t, int i) =>
+      t.widget<Text>(find.byKey(ValueKey('case-tab-label-$i'))).style!.color!;
 
-  testWidgets('the line spans the chosen tab and follows the pages', (t) async {
+  testWidgets('no line; the text colour follows the pages', (t) async {
     final pages = PageController();
     addTearDown(pages.dispose);
+    final theme = AppTheme.light();
+    final colors = theme.extension<AppColorTokens>()!;
     await t.pumpWidget(
       uxApp(
         Scaffold(
@@ -37,29 +37,26 @@ void main() {
             ],
           ),
         ),
-        theme: AppTheme.light(),
+        theme: theme,
         size: const Size(360, 800),
       ),
     );
     await t.pump();
-    await t.pump();
-    final first = t.getRect(find.text('Overview'));
-    final second = t.getRect(find.text('Files'));
-    final at0 = t.getRect(line(t));
-    expect(at0.left, closeTo(first.left, 0.5));
-    expect(at0.width, closeTo(first.width, 0.5));
-    expect(at0.height, 2);
+    expect(
+      find.byWidgetPredicate((w) => w is ColoredBox && w.color == colors.gold),
+      findsNothing,
+    );
+    expect(colorOf(t, 0), colors.text);
+    expect(colorOf(t, 1), colors.textSecondary);
 
     pages.jumpTo(pages.position.maxScrollExtent / 2);
     await t.pump();
-    final half = t.getRect(line(t));
-    expect(half.left, greaterThan(at0.left));
-    expect(half.left, lessThan(second.left));
+    expect(colorOf(t, 0), isNot(colors.text));
+    expect(colorOf(t, 1), isNot(colors.textSecondary));
 
     pages.jumpTo(pages.position.maxScrollExtent);
     await t.pump();
-    final at1 = t.getRect(line(t));
-    expect(at1.left, closeTo(second.left, 0.5));
-    expect(at1.width, closeTo(second.width, 0.5));
+    expect(colorOf(t, 0), colors.textSecondary);
+    expect(colorOf(t, 1), colors.text);
   });
 }

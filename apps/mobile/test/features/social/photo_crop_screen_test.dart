@@ -72,7 +72,8 @@ void main() {
     await tester.pumpAndSettle();
     // Decoding runs outside the fake clock.
     await tester.runAsync(
-        () => Future<void>.delayed(const Duration(milliseconds: 200)));
+      () => Future<void>.delayed(const Duration(milliseconds: 200)),
+    );
     await tester.pump();
     expect(tester.takeException(), isNull);
     await act();

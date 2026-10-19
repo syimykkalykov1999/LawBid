@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
@@ -405,56 +403,17 @@ class CaseTextTabs extends StatefulWidget {
 class _CaseTextTabsState extends State<CaseTextTabs> {
   late List<GlobalKey> _keys =
       List.generate(widget.items.length, (_) => GlobalKey());
-  final _row = GlobalKey();
-
-  /// Each tab's line: from its left edge, its label's full width (the gap
-  /// after it is not underlined). Measured after layout.
-  List<(double, double)> _spans = const [];
-
   static const double _gap = 18;
 
-  void _measure() {
-    final row = _row.currentContext?.findRenderObject() as RenderBox?;
-    if (row == null || !row.hasSize) return;
-    final spans = <(double, double)>[];
-    for (final k in _keys) {
-      final box = k.currentContext?.findRenderObject() as RenderBox?;
-      if (box == null || !box.hasSize) return;
-      final left = box.localToGlobal(Offset.zero, ancestor: row).dx;
-      spans.add((left, box.size.width - _gap));
-    }
-    if (!_same(spans, _spans) && mounted) setState(() => _spans = spans);
-  }
-
-  static bool _same(List<(double, double)> a, List<(double, double)> b) {
-    if (a.length != b.length) return false;
-    for (var i = 0; i < a.length; i++) {
-      if ((a[i].$1 - b[i].$1).abs() > 0.5 || (a[i].$2 - b[i].$2).abs() > 0.5) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  /// Where the line is: between two tabs while the page is being swiped.
-  (double, double)? _line() {
-    if (_spans.isEmpty) return null;
+  /// How chosen tab [i] is, 0…1: follows the finger between two tabs.
+  double _chosen(int i) {
     final pages = widget.pages;
     var at = widget.index.toDouble();
     if (pages != null && pages.hasClients && pages.positions.length == 1) {
       at = pages.page ?? at;
     }
-    at = at.clamp(0, _spans.length - 1).toDouble();
-    final i = at.floor();
-    final j = math.min(i + 1, _spans.length - 1);
-    final f = at - i;
-    return (
-      _lerp(_spans[i].$1, _spans[j].$1, f),
-      _lerp(_spans[i].$2, _spans[j].$2, f),
-    );
+    return (1 - (at - i).abs()).clamp(0.0, 1.0);
   }
-
-  static double _lerp(double a, double b, double f) => a + (b - a) * f;
 
   @override
   void didUpdateWidget(CaseTextTabs old) {
@@ -485,26 +444,8 @@ class _CaseTextTabsState extends State<CaseTextTabs> {
     final onChanged = widget.onChanged;
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    WidgetsBinding.instance.addPostFrameCallback((_) => _measure());
-    // Owner 2026-10-19: one gold line under the chosen tab, as wide as its
-    // label on every tab, sliding with the swipe (Instagram) instead of
-    // jumping from tab to tab.
-    final line = AnimatedBuilder(
-      animation: widget.pages ?? const AlwaysStoppedAnimation(0),
-      builder: (context, _) {
-        final l = _line();
-        if (l == null) return const SizedBox.shrink();
-        // Measured left to right, so placed from the left in both
-        // directions.
-        return Positioned(
-          left: l.$1,
-          bottom: 0,
-          width: l.$2,
-          height: 2,
-          child: ColoredBox(color: colors.gold),
-        );
-      },
-    );
+    // Owner 2026-10-19: no line under the tabs — the chosen one is told by
+    // its text colour, which follows the finger between two tabs.
     return DecoratedBox(
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: colors.border)),
@@ -512,73 +453,72 @@ class _CaseTextTabsState extends State<CaseTextTabs> {
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenSide),
-        child: Stack(
+        child: Row(
           children: [
-            Row(
-              key: _row,
-              children: [
-                for (final (i, it) in items.indexed)
-                  Semantics(
-                    key: _keys[i],
-                    button: true,
-                    selected: i == index,
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: () => onChanged(i),
-                      child: Container(
-                        // Owner 2026-10-15: smaller tabs, like Instagram — 13sp
-                        // (the active one semibold), ~44dp high, 2dp indicator.
-                        margin: const EdgeInsetsDirectional.only(end: _gap),
-                        // The line is drawn over this 2 dp (see `line`).
-                        padding: const EdgeInsets.only(top: 14, bottom: 12),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              it.label,
-                              style: type.bodySmall.copyWith(
-                                fontWeight: i == index
-                                    ? FontWeight.w600
-                                    : FontWeight.w500,
-                                color: i == index
-                                    ? colors.text
-                                    : colors.textSecondary,
+            for (final (i, it) in items.indexed)
+              Semantics(
+                key: _keys[i],
+                button: true,
+                selected: i == index,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => onChanged(i),
+                  child: Container(
+                    // Owner 2026-10-15: smaller tabs, like Instagram — 13sp
+                    // (the active one semibold), ~44dp high.
+                    margin: const EdgeInsetsDirectional.only(end: _gap),
+                    padding: const EdgeInsets.only(top: 14, bottom: 12),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        AnimatedBuilder(
+                          animation: widget.pages ??
+                              const AlwaysStoppedAnimation<double>(0),
+                          builder: (context, _) => Text(
+                            it.label,
+                            key: ValueKey('case-tab-label-$i'),
+                            style: type.bodySmall.copyWith(
+                              fontWeight: i == index
+                                  ? FontWeight.w600
+                                  : FontWeight.w500,
+                              color: Color.lerp(
+                                colors.textSecondary,
+                                colors.text,
+                                _chosen(i),
                               ),
                             ),
-                            if (it.locked) ...[
-                              const SizedBox(width: 4),
-                              AppIcon(
-                                AppIcons.lockOutlineRounded,
-                                size: 14,
-                                color: colors.textSecondary,
-                              ),
-                            ],
-                            if (it.count != null && it.count! > 0) ...[
-                              const SizedBox(width: 5),
-                              Container(
-                                padding:
-                                    const EdgeInsets.symmetric(horizontal: 6),
-                                decoration: BoxDecoration(
-                                  color: colors.chip,
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Text(
-                                  context.digits(it.count ?? 0),
-                                  style: type.caption.copyWith(
-                                    color: colors.text,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ],
+                          ),
                         ),
-                      ),
+                        if (it.locked) ...[
+                          const SizedBox(width: 4),
+                          AppIcon(
+                            AppIcons.lockOutlineRounded,
+                            size: 14,
+                            color: colors.textSecondary,
+                          ),
+                        ],
+                        if (it.count != null && it.count! > 0) ...[
+                          const SizedBox(width: 5),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6),
+                            decoration: BoxDecoration(
+                              color: colors.chip,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              context.digits(it.count ?? 0),
+                              style: type.caption.copyWith(
+                                color: colors.text,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ),
-              ],
-            ),
-            Positioned.fill(child: Stack(children: [line])),
+                ),
+              ),
           ],
         ),
       ),

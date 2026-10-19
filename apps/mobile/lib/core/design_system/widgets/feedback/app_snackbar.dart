@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/icons/app_icon.dart';
 import 'package:lawbid/core/design_system/icons/app_icons.dart';
@@ -62,46 +64,50 @@ void _showOverlayMessage(
   entry = OverlayEntry(
     builder: (context) {
       final mq = MediaQuery.of(context);
-      return Positioned(
-        left: AppSpacing.lg,
-        right: AppSpacing.lg,
-        bottom: AppSpacing.lg + mq.viewInsets.bottom + mq.padding.bottom,
-        child: Material(
-          key: const ValueKey('app-overlay-message'),
-          color: colors.text,
-          elevation: 6,
-          borderRadius: BorderRadius.circular(AppRadii.field),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.lg,
-              vertical: AppSpacing.md,
-            ),
-            child: Row(
-              children: [
-                AppIcon(
-                  AppIcons.infoOutlineRounded,
-                  size: AppSizes.iconSm,
-                  color: colors.gold,
-                ),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: Text(
-                    message,
-                    style: typography.body.copyWith(color: colors.inverseText),
+      return _AutoClose(
+        onClose: close,
+        child: Positioned(
+          left: AppSpacing.lg,
+          right: AppSpacing.lg,
+          bottom: AppSpacing.lg + mq.viewInsets.bottom + mq.padding.bottom,
+          child: Material(
+            key: const ValueKey('app-overlay-message'),
+            color: colors.text,
+            elevation: 6,
+            borderRadius: BorderRadius.circular(AppRadii.field),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.lg,
+                vertical: AppSpacing.md,
+              ),
+              child: Row(
+                children: [
+                  AppIcon(
+                    AppIcons.infoOutlineRounded,
+                    size: AppSizes.iconSm,
+                    color: colors.gold,
                   ),
-                ),
-                if (actionLabel != null && onAction != null)
-                  TextButton(
-                    onPressed: () {
-                      close();
-                      onAction();
-                    },
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
                     child: Text(
-                      actionLabel,
-                      style: typography.body.copyWith(color: colors.gold),
+                      message,
+                      style:
+                          typography.body.copyWith(color: colors.inverseText),
                     ),
                   ),
-              ],
+                  if (actionLabel != null && onAction != null)
+                    TextButton(
+                      onPressed: () {
+                        close();
+                        onAction();
+                      },
+                      child: Text(
+                        actionLabel,
+                        style: typography.body.copyWith(color: colors.gold),
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
         ),
@@ -110,7 +116,36 @@ void _showOverlayMessage(
   );
   _overlayMessage = entry;
   overlay.insert(entry);
-  Future<void>.delayed(const Duration(seconds: 4), close);
+}
+
+/// Closes the message after 4 s; the timer ends with the widget.
+class _AutoClose extends StatefulWidget {
+  const _AutoClose({required this.onClose, required this.child});
+
+  final VoidCallback onClose;
+  final Widget child;
+
+  @override
+  State<_AutoClose> createState() => _AutoCloseState();
+}
+
+class _AutoCloseState extends State<_AutoClose> {
+  late final Timer _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer(const Duration(seconds: 4), widget.onClose);
+  }
+
+  @override
+  void dispose() {
+    _timer.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
 
 void _showScaffoldSnackBar(

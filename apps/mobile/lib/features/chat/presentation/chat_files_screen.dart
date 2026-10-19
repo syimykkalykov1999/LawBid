@@ -220,7 +220,9 @@ class _ChatFilesScreenState extends ConsumerState<ChatFilesScreen>
             controller: _tabs,
             labelColor: colors.text,
             unselectedLabelColor: colors.textSecondary,
-            indicatorColor: colors.goldAccent,
+            // Owner 2026-10-19: no line under the tabs; the chosen one is
+            // told by its text colour (it follows the swipe).
+            indicator: const BoxDecoration(),
             dividerColor: colors.border,
             labelStyle: type.bodySmall.copyWith(fontWeight: FontWeight.w700),
             unselectedLabelStyle: type.bodySmall,
