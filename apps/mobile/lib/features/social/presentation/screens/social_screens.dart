@@ -246,52 +246,6 @@ class PracticePostsScreen extends ConsumerWidget {
   }
 }
 
-/// Owner 2026-09-30: the feed filtered by one topic (hashtag), newest
-/// first — what a topic in the clients' slider shows.
-class TopicPostsView extends ConsumerWidget {
-  const TopicPostsView({required this.tag, this.stateCode, super.key});
-
-  final String tag;
-
-  /// OQ-034: only attorneys licensed in this state.
-  final String? stateCode;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final t = ref.watch(translatorProvider);
-    final key = (tag: tag, sort: TagSort.fresh, state: stateCode);
-    final notifier = ref.read(tagPostsProvider(key).notifier);
-    return LayoutBuilder(
-      builder: (context, box) {
-        final height =
-            feedChromeCardHeight(context) ?? feedCardHeight(box.maxHeight);
-        return PagedListBody<Post>(
-          value: _withoutDeleted(
-            ref.watch(tagPostsProvider(key)),
-            ref.watch(deletedPostsProvider),
-          ),
-          t: t,
-          edgeToEdge: true,
-          skeleton: const PostListSkeleton(),
-          itemKey: (p) => p.id,
-          prefetch: prefetchPost,
-          itemBuilder: (context, p, _) => PostImpressionTracker(
-            post: p,
-            child: PostCard(post: p, feedHeight: height),
-          ),
-          empty: AppEmptyState(
-            icon: AppIcons.tagRounded,
-            message: t.t('tag.empty'),
-          ),
-          onRefresh: notifier.refresh,
-          onLoadMore: notifier.loadMore,
-          onRetryMore: notifier.retryLoadMore,
-        );
-      },
-    );
-  }
-}
-
 /// docs/05 §3.5 post screen: the post, the disclaimer, comments with
 /// replies and the composer.
 class PostScreen extends ConsumerWidget {
@@ -697,89 +651,9 @@ class RepostersScreen extends ConsumerWidget {
   }
 }
 
-/// Owner 2026-10-18: the profile's «Репосты» tab — one widget for every
-/// role. Newest first; every card carries the "↻ … сделал(а) репост" header
-/// and a green ↻ whose sheet undoes it (the card then leaves the list).
-class ProfileRepostsList extends ConsumerWidget {
-  const ProfileRepostsList({
-    required this.userId,
-    required this.isSelf,
-    super.key,
-  });
-
-  final String userId;
-  final bool isSelf;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final t = ref.watch(translatorProvider);
-    final deleted = ref.watch(deletedPostsProvider);
-    final overrides = ref.watch(postOverridesProvider);
-    final value = ref.watch(userRepostsProvider(userId));
-    return value.when(
-      skipLoadingOnReload: true,
-      loading: () => Column(
-        children: List.generate(
-          2,
-          (_) => const Padding(
-            padding: EdgeInsets.all(AppSpacing.lg),
-            child: AppSkeleton(height: 96, borderRadius: AppRadii.card),
-          ),
-        ),
-      ),
-      error: (_, __) => Center(
-        child: TextButton(
-          onPressed: () => ref.invalidate(userRepostsProvider(userId)),
-          child: Text(t.t('error.retry')),
-        ),
-      ),
-      data: (page) {
-        // Undone from here (or from the post's own ↻): gone at once.
-        final posts = page.items
-            .where(
-              (p) =>
-                  !deleted.contains(p.id) &&
-                  !(isSelf && overrides[p.id]?.repostedByMe == false),
-            )
-            .toList();
-        if (posts.isEmpty) {
-          return SizedBox(
-            height: 280,
-            child: AppEmptyState(
-              icon: AppIcons.autoModeRounded,
-              title: t.t('profile.reposts.empty.title'),
-              message: t.t(
-                isSelf
-                    ? 'profile.reposts.empty.self'
-                    : 'profile.reposts.empty.other',
-              ),
-            ),
-          );
-        }
-        return Column(
-          children: [
-            for (final p in posts)
-              PostImpressionTracker(
-                key: ValueKey('imp-${p.id}'),
-                post: p,
-                child: PostCard(key: ValueKey(p.id), post: p),
-              ),
-            if (page.canLoadMore)
-              TextButton(
-                onPressed: () =>
-                    ref.read(userRepostsProvider(userId).notifier).loadMore(),
-                child: Text(t.t('pagination.loadingMore')),
-              ),
-          ],
-        );
-      },
-    );
-  }
-}
-
 /// Owner 2026-10-18: the attorney profile's «Брифы и репосты» tab — their
 /// briefs (text posts, as in the old «Текст» tab: pinned ones first, with
-/// the pin) and their reposts (as in [ProfileRepostsList]) in one list,
+/// the pin) and their reposts (each with its «↻ … репост» header) in one list,
 /// newest first: a brief by its publish time, a repost by its repost time.
 /// Both sources page on their own; [mergeNewestFirst] only shows what no
 /// unloaded page could precede, so «ещё» never skips or repeats a card.

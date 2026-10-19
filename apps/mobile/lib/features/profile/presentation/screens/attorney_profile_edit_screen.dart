@@ -22,8 +22,6 @@ import 'package:lawbid/features/profile/presentation/widgets/username_suggestion
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 
-/// docs/03 §4.1 limits (the server enforces the same).
-const kAttorneyNameMax = 50;
 int get kAttorneyBioMax => TextLimits.of(TextLimit.bio);
 const kAttorneyFirmMax = 80;
 

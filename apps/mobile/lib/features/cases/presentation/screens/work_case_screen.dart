@@ -27,6 +27,8 @@ import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
 import 'package:lawbid/features/cases/presentation/widgets/private_details_card.dart';
 import 'package:lawbid/features/cases/workspace/workspace_view.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
+import 'package:lawbid/features/profile/domain/profile_models.dart'
+    show initialsOf;
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -459,7 +461,11 @@ class _ContactsBlock extends ConsumerWidget {
               Row(
                 children: [
                   AppAvatar(
-                    initials: initialsOf(value.firstName, value.lastName),
+                    initials: initialsOf(
+                      value.firstName,
+                      value.lastName,
+                      fallback: '·',
+                    ),
                   ),
                   const SizedBox(width: AppSpacing.md),
                   Expanded(

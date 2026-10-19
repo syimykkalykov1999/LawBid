@@ -96,35 +96,3 @@ class ProfileAvatar extends StatelessWidget {
     );
   }
 }
-
-/// Blue check (docs/03 §6.3). Status blue from docs/01 §8.1 (`info`).
-class VerifiedBadge extends StatelessWidget {
-  const VerifiedBadge({
-    required this.semanticLabel,
-    super.key,
-    this.size = AppSizes.iconSm,
-    this.gold = false,
-  });
-
-  final String semanticLabel;
-  final double size;
-
-  /// Owner 2026-10-13: only the client's gold check exists; with `gold`
-  /// false nothing is drawn (attorneys wear no check).
-  final bool gold;
-
-  @override
-  Widget build(BuildContext context) {
-    if (!gold) return const SizedBox.shrink();
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    return Semantics(
-      label: semanticLabel,
-      excludeSemantics: true,
-      child: AppIcon(
-        AppIcons.verifiedUserOutlined,
-        size: size,
-        color: colors.goldAccent,
-      ),
-    );
-  }
-}

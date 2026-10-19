@@ -1119,35 +1119,6 @@ class _PracticeGroupSheetState extends ConsumerState<PracticeGroupSheet> {
   }
 }
 
-/// Small caption with a leading icon, used above chip rows.
-class StepLabel extends StatelessWidget {
-  const StepLabel({required this.icon, required this.label, super.key});
-
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    return Row(
-      children: [
-        AppIcon(icon, size: AppSpacing.lg, color: colors.goldStroke),
-        const SizedBox(width: AppSpacing.xs),
-        Flexible(
-          child: Text(
-            label,
-            style: typography.bodySmall.copyWith(
-              color: colors.textSecondary,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
 /// Quiet banner above the buttons while a block is in effect (OQ-028).
 class _BlockNotice extends StatelessWidget {
   const _BlockNotice({required this.text});

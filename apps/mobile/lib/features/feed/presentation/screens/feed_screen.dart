@@ -326,51 +326,6 @@ class _TopicFeedState extends ConsumerState<_TopicFeed> {
   }
 }
 
-/// Two content-card silhouettes, the back one smaller and fading into
-/// the background — a calm "deck" hinting at posts to come. Static
-/// (no shimmer): it is an illustration, not a loading indicator.
-class FeedPreviewIllustration extends StatelessWidget {
-  const FeedPreviewIllustration({super.key});
-
-  static const double _width = 280;
-  static const double _backScale = 0.9;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    return SizedBox(
-      width: _width,
-      child: Stack(
-        clipBehavior: Clip.none,
-        alignment: Alignment.topCenter,
-        children: [
-          Transform.scale(
-            scale: _backScale,
-            alignment: Alignment.topCenter,
-            child: const Opacity(
-              opacity: 0.5,
-              child: AppContentCardSkeleton(shimmer: false),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.only(top: AppSpacing.xl),
-            child: ShaderMask(
-              blendMode: BlendMode.dstIn,
-              shaderCallback: (rect) => LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [colors.bg, colors.bg.withValues(alpha: 0)],
-                stops: const [0.55, 1],
-              ).createShader(rect),
-              child: const AppContentCardSkeleton(shimmer: false),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 /// The Reels tab (owner 2026-10-12): the vertical player over the whole
 /// screen; the app header (same as in Posts) and the topic filters lie over
 /// the video in white, no bar or fill; the nav bar floats over it.

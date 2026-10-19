@@ -5,7 +5,6 @@ import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/files/file_types.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/dio_client.dart';
-import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/features/cases/application/paged_notifier.dart';
 import 'package:lawbid/features/feed/application/feed_topics.dart'
@@ -934,23 +933,6 @@ class SocialActions {
 }
 
 final socialActionsProvider = Provider<SocialActions>(SocialActions.new);
-
-/// Owner 2026-10-15 (Instagram): a viewer can hide like counters under other
-/// people's posts; kept on the phone.
-class HideLikeCounts extends Notifier<bool> {
-  static const _key = 'social.hide_like_counts';
-
-  @override
-  bool build() => ref.read(localKvStoreProvider).getString(_key) == '1';
-
-  Future<void> set({required bool hide}) async {
-    state = hide;
-    await ref.read(localKvStoreProvider).setString(_key, hide ? '1' : '0');
-  }
-}
-
-final hideLikeCountsProvider =
-    NotifierProvider<HideLikeCounts, bool>(HideLikeCounts.new);
 
 /// Whether to draw [post]'s like counter for this viewer: the author always
 /// sees it; others unless the author hid it or the viewer hides them all

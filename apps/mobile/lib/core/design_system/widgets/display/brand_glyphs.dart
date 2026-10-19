@@ -32,56 +32,7 @@ Color _fallbackColor(BuildContext context) {
 /// carved out, since file 07 doesn't specify one (Google's real brand
 /// guidelines call for a full-color glyph here; flagged as a possible
 /// follow-up in docs/CHANGELOG.md rather than assumed).
-/// Envelope outline (email). Stroke-only: `rect(3,5,18,14,rx2)` + the
-/// flap path `M3,7 L12,13 L21,7`.
-class EmailGlyph extends StatelessWidget {
-  const EmailGlyph({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final color = IconTheme.of(context).color ?? _fallbackColor(context);
-    return CustomPaint(size: const Size(20, 20), painter: _EmailPainter(color));
-  }
-}
-
-class _EmailPainter extends CustomPainter {
-  _EmailPainter(this.color);
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final scale = size.width / 24;
-    canvas.save();
-    // ignore: cascade_invocations
-    canvas.scale(scale, scale);
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.6
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(3, 5, 18, 14),
-        const Radius.circular(2),
-      ),
-      paint,
-    );
-    final flap = Path()
-      ..moveTo(3, 7)
-      ..lineTo(12, 13)
-      ..lineTo(21, 7);
-    canvas.drawPath(flap, paint);
-    // ignore: cascade_invocations
-    canvas.restore();
-  }
-
-  @override
-  bool shouldRepaint(covariant _EmailPainter oldDelegate) =>
-      oldDelegate.color != color;
-}
-
+///
 /// Apple silhouette (body + leaf), filled, viewBox 24x24. Bezier control
 /// points hand-resolved from the reference SVG's relative `c`/`s` commands
 /// (see class doc comment) — do not "simplify"/redraw freehand, the exact

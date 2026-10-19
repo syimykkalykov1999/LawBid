@@ -27,10 +27,6 @@ import 'package:lawbid/features/profile/presentation/widgets/avatar_picker_field
 import 'package:lawbid/features/profile/presentation/widgets/username_suggestions.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 
-/// Server limit for first/last name (apps/api UpdateProfileDto @Length(1, 80)).
-// docs/03 §4.1 limits (server enforces the same).
-const kNameMaxLength = 50;
-
 /// Max attorney bio length (docs/01_FOUNDATION_AUTH.md §11 Шаг 3B).
 int get kBioMaxLength => TextLimits.of(TextLimit.bio);
 

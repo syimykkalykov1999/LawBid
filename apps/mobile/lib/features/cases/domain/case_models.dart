@@ -29,9 +29,6 @@ export 'package:lawbid_api/lawbid_api.dart'
 /// docs/04 §6.1: at most 5 counter-offers per bid.
 const int kMaxNegotiationRounds = 5;
 
-/// docs/04 §4.2: a case younger than 24 hours shows NEW.
-const Duration kCaseNewBadgeAge = Duration(hours: 24);
-
 /// Practice area as the cases API returns it (leaf + its category).
 @immutable
 class PracticeRef {

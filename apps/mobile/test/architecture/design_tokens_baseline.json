@@ -1,9 +1,7 @@
 {
  "core/account_status/account_suspended.dart": 1,
  "features/auth/presentation/widgets/password_form_widgets.dart": 1,
- "features/cases/presentation/widgets/case_actions_bar.dart": 3,
  "features/cases/presentation/widgets/case_cards.dart": 4,
- "features/cases/presentation/widgets/case_dossier.dart": 1,
  "features/cases/presentation/widgets/case_facts.dart": 3,
  "features/cases/presentation/widgets/case_parts.dart": 2,
  "features/cases/presentation/widgets/case_wizard_steps.dart": 1,

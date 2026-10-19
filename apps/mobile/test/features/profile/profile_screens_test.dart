@@ -73,8 +73,6 @@ void main() {
         overrides: profileOverrides(),
       );
       expect(find.textContaining('@jane.doe'), findsOneWidget);
-      // Owner 2026-10-13: attorneys have no check, only the avatar badge.
-      expect(find.byType(VerifiedBadge), findsNothing);
       expect(find.text('Jane Doe'), findsOneWidget);
       // Owner 2026-09-30: the "★ 4.5 · 12 reviews" line under the avatar is
       // gone; the rating lives on the Reviews tab.
@@ -190,8 +188,6 @@ void main() {
       );
       // Owner 2026-09-30: no "★ — · New" line under the avatar any more.
       expect(find.text('—'), findsNothing);
-      // unverified → no blue check (docs/03 §6.3)
-      expect(find.byType(VerifiedBadge), findsNothing);
       // the Reviews tab (star icon) shows the empty state
       await tester.tap(find.bySemanticsLabel('Reviews'));
       await tester.pumpAndSettle();

@@ -3,7 +3,6 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
-import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 
 /// Owner 2026-09-30: every case / post card carries artwork for its practice
 /// category on the right, dissolving into the card background (brighter on
@@ -185,98 +184,6 @@ const Set<String> kPracticeArtAssets = {
   'veterans_and_military',
   'workers_compensation',
 };
-
-/// The art layer: fills its box, fades to transparent towards the left.
-class PracticeArt extends StatelessWidget {
-  const PracticeArt({
-    required this.categoryCode,
-    this.practiceCode,
-    this.imageUrl,
-    this.cover,
-    super.key,
-  });
-
-  /// Owner 2026-10-04: a case's own cover (CaseCover) in place of the
-  /// practice photo; [imageUrl] still wins.
-  final Widget? cover;
-
-  final String? categoryCode;
-
-  /// The leaf practice (owner 2026-09-30: a CDL case shows a truck, not
-  /// the generic traffic art).
-  final String? practiceCode;
-
-  /// A network image (e.g. a post's first photo) wins over the category art.
-  final String? imageUrl;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    final artKey = [practiceCode, categoryCode].firstWhere(
-      (c) => c != null && kPracticeArtAssets.contains(c),
-      orElse: () => null,
-    );
-    final asset = artKey == null ? null : 'assets/practice_art/$artKey.jpg';
-
-    Widget fallback() => Stack(
-          fit: StackFit.expand,
-          children: [
-            DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: RadialGradient(
-                  center: const Alignment(0.55, -0.1),
-                  radius: 0.9,
-                  colors: [
-                    colors.gold.withValues(alpha: dark ? 0.22 : 0.18),
-                    colors.gold.withValues(alpha: 0),
-                  ],
-                ),
-              ),
-            ),
-            Align(
-              alignment: const Alignment(0.55, 0),
-              child: AppIcon(
-                practiceGlyph(categoryCode),
-                size: 120,
-                color: colors.gold.withValues(alpha: dark ? 0.22 : 0.20),
-              ),
-            ),
-          ],
-        );
-
-    final picture = imageUrl != null
-        ? Image(
-            image: appNetworkImage(imageUrl!, 720),
-            fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => fallback(),
-          )
-        : cover ??
-            (asset != null
-                ? Image.asset(
-                    asset,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => fallback(),
-                  )
-                : fallback());
-
-    // Fade: transparent at the text side, visible at the right edge.
-    return ExcludeSemantics(
-      child: ShaderMask(
-        blendMode: BlendMode.dstIn,
-        shaderCallback: (rect) => LinearGradient(
-          colors: [
-            Colors.white.withValues(alpha: 0),
-            Colors.white.withValues(alpha: dark ? 0.55 : 0.75),
-            Colors.white.withValues(alpha: dark ? 0.8 : 0.95),
-          ],
-          stops: const [0, 0.55, 1],
-        ).createShader(rect),
-        child: picture,
-      ),
-    );
-  }
-}
 
 /// Owner 2026-09-30: our default photo for a practice, shown full-bleed at
 /// the bottom of feed cards (a post without photos, every case card — a

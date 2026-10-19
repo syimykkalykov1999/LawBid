@@ -21,9 +21,6 @@ IconData dutyIcon(AssistantDuty d) => switch (d) {
       AssistantDuty.publish => AppIcons.campaignRounded,
     };
 
-String requestKindLabel(Translator t, RequestKind k) =>
-    t.t('team.request.${k.wire}');
-
 /// "act.<key>" or the raw action for unknown routes.
 String activityLabel(Translator t, String action) {
   final key = 'act.$action';

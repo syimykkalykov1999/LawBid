@@ -78,9 +78,6 @@ abstract interface class TeamRepository {
   /// reminder); nothing else changes.
   Future<TaskItem> moveTask(String id, DateTime dueAt);
 
-  /// Owner 2026-10-05: addresses used before (suggestions in the editor).
-  Future<List<TaskPlaceSuggestion>> taskPlaces();
-
   /// People to add: the team, chats, contacts used before; [q] (2+
   /// letters) also finds attorneys by name.
   Future<List<TaskPersonSuggestion>> taskPeople([String? q]);
@@ -627,19 +624,6 @@ class ApiTeamRepository implements TeamRepository {
         ))
             .data,
       );
-
-  @override
-  Future<List<TaskPlaceSuggestion>> taskPlaces() async {
-    final env = await guardApiCall(_api.taskPlaces);
-    return [
-      for (final p in env.data)
-        TaskPlaceSuggestion(
-          address: p.address,
-          label: p.label,
-          uses: p.uses.toInt(),
-        ),
-    ];
-  }
 
   @override
   Future<List<TaskPersonSuggestion>> taskPeople([String? q]) async {

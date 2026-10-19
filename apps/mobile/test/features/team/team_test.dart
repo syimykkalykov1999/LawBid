@@ -8,7 +8,8 @@ import 'package:lawbid/core/l10n/static_translator.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/features/team/presentation/assistant_join_screen.dart';
-import 'package:lawbid/features/team/presentation/task_editor_screen.dart';
+import 'package:lawbid/features/team/presentation/task_sheet.dart'
+    show normalizeTaskPhone;
 import 'package:lawbid/features/team/presentation/task_widgets.dart';
 import 'package:lawbid/features/team/presentation/tasks_tab.dart';
 import 'package:lawbid/features/team/presentation/team_inbox_tab.dart';
@@ -142,92 +143,6 @@ void main() {
     });
   });
 
-  testWidgets('TaskEditorScreen: kind, title → created', (tester) async {
-    await pump(tester, const TaskEditorScreen());
-    await tester.tap(find.byKey(const ValueKey('task-kind-court')));
-    await tester.pumpAndSettle();
-    // Owner 2026-10-01: the fields open once a kind is picked.
-    expect(find.byKey(const ValueKey('task-kind-picked')), findsOneWidget);
-    final save = find.byKey(const ValueKey('task-save'));
-    await tester.scrollUntilVisible(
-      save,
-      300,
-      scrollable: find.byType(Scrollable).first,
-    );
-    await tester.ensureVisible(save);
-    await tester.pumpAndSettle();
-    // Owner 2026-10-11: Save is grey and inert until the title is in.
-    await tester.tap(save);
-    await tester.pump();
-    await tester.scrollUntilVisible(
-      find.byKey(const ValueKey('task-title')),
-      -300,
-      scrollable: find.byType(Scrollable).first,
-    );
-    await tester.enterText(
-      find.byKey(const ValueKey('task-title')),
-      'Hearing at 10',
-    );
-    FocusManager.instance.primaryFocus?.unfocus();
-    await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(
-      save,
-      300,
-      scrollable: find.byType(Scrollable).first,
-    );
-    await tester.tap(save);
-    await tester.pump();
-    await tester.pump();
-    expect(repo.calls, contains('create:court:Hearing at 10'));
-  });
-
-  testWidgets('TaskEditorScreen: each kind asks for its own fields',
-      (tester) async {
-    // A tall screen: the whole form is built at once.
-    tester.view.physicalSize = const Size(1200, 4000);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
-    await tester.pumpWidget(
-      uxApp(
-        const Scaffold(body: TaskEditorScreen()),
-        theme: AppTheme.light(),
-        size: const Size(1200, 4000),
-        disableAnimations: true,
-        overrides: uxOverrides(
-          extra: [
-            teamRepositoryProvider.overrideWithValue(repo),
-            seatLimitRepositoryProvider
-                .overrideWithValue(FakeSeatLimitRepository()),
-          ],
-        ),
-      ),
-    );
-    await tester.pump();
-    // Only "What to do" until a kind is picked.
-    expect(find.byKey(const ValueKey('task-title')), findsNothing);
-    await tester.tap(find.byKey(const ValueKey('task-kind-call')));
-    await tester.pump();
-    // Call: whom first; people are added from the team / chats / contacts
-    // (no fake "+1 312…" placeholders any more).
-    expect(find.text('Whom to call'), findsOneWidget);
-    expect(find.byKey(const ValueKey('task-person-add')), findsOneWidget);
-    expect(find.byKey(const ValueKey('task-place-add')), findsOneWidget);
-    expect(find.text('+1 312 555 0123'), findsNothing);
-    // Email: whom to write to ("Change" opens the kinds again).
-    await tester.tap(find.byKey(const ValueKey('task-kind-change')));
-    await tester.pump();
-    await tester.tap(find.byKey(const ValueKey('task-kind-email')));
-    await tester.pump();
-    expect(find.text('Whom to write to'), findsOneWidget);
-    // Visit: where to go.
-    await tester.tap(find.byKey(const ValueKey('task-kind-change')));
-    await tester.pump();
-    await tester.ensureVisible(find.byKey(const ValueKey('task-kind-visit')));
-    await tester.tap(find.byKey(const ValueKey('task-kind-visit')));
-    await tester.pump();
-    expect(find.text('Where to go (address)'), findsOneWidget);
-  });
-
   test('contact phones typed the usual way become +1…', () {
     expect(normalizeTaskPhone('(312) 555-0123'), '+13125550123');
     expect(normalizeTaskPhone('312 555 0123'), '+13125550123');
@@ -271,40 +186,6 @@ void main() {
       await openSheet(tester, 'Task d2');
       expect(find.byKey(const ValueKey('task-edit')), findsOneWidget);
       expect(find.byKey(const ValueKey('task-delete')), findsNothing);
-    });
-
-    testWidgets('the editor opens prefilled and saves an update',
-        (tester) async {
-      tester.view.physicalSize = const Size(1200, 4000);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.reset);
-      await tester.pumpWidget(
-        uxApp(
-          Scaffold(body: TaskEditorScreen(existing: makeTask('e1', by: null))),
-          theme: AppTheme.light(),
-          size: const Size(1200, 4000),
-          disableAnimations: true,
-          overrides: uxOverrides(
-            extra: [
-              teamRepositoryProvider.overrideWithValue(repo),
-              seatLimitRepositoryProvider
-                  .overrideWithValue(FakeSeatLimitRepository()),
-            ],
-          ),
-        ),
-      );
-      await tester.pump();
-      expect(find.text('Edit task'), findsWidgets);
-      expect(find.text('Task e1'), findsOneWidget);
-      // The checklist is managed on the task itself, not here.
-      expect(find.byKey(const ValueKey('task-editor-step-add')), findsNothing);
-      await tester.enterText(
-        find.byKey(const ValueKey('task-title')),
-        'Call Ann back',
-      );
-      await tester.tap(find.byKey(const ValueKey('task-save')));
-      await tester.pumpAndSettle();
-      expect(repo.calls, contains('update:e1:Call Ann back'));
     });
   });
 
@@ -408,50 +289,6 @@ void main() {
       await tester.tap(find.text('Task s'));
       await tester.pumpAndSettle();
       expect(repo.calls, contains('step:s:s1:done:null'));
-    });
-
-    testWidgets('the editor adds steps to one task', (tester) async {
-      tester.view.physicalSize = const Size(1200, 4000);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.reset);
-      await tester.pumpWidget(
-        uxApp(
-          const Scaffold(body: TaskEditorScreen()),
-          theme: AppTheme.light(),
-          size: const Size(1200, 4000),
-          disableAnimations: true,
-          overrides: uxOverrides(
-            extra: [
-              teamRepositoryProvider.overrideWithValue(repo),
-              seatLimitRepositoryProvider
-                  .overrideWithValue(FakeSeatLimitRepository()),
-            ],
-          ),
-        ),
-      );
-      await tester.pump();
-      await tester.tap(find.byKey(const ValueKey('task-kind-call')));
-      await tester.pump();
-      await tester.enterText(
-        find.byKey(const ValueKey('task-title')),
-        'Monday calls',
-      );
-      for (final name in ['Brown', 'Lee']) {
-        await tester.tap(find.byKey(const ValueKey('task-editor-step-add')));
-        await tester.pumpAndSettle();
-        await tester.enterText(
-          find.byKey(const ValueKey('step-title')),
-          'Call $name',
-        );
-        await tester.tap(find.byKey(const ValueKey('step-save')));
-        await tester.pumpAndSettle();
-      }
-      expect(find.text('Call Brown'), findsOneWidget);
-      expect(find.text('Call Lee'), findsOneWidget);
-      await tester.tap(find.byKey(const ValueKey('task-save')));
-      await tester.pump();
-      await tester.pump();
-      expect(repo.calls, contains('steps:Call Brown|Call Lee'));
     });
   });
 

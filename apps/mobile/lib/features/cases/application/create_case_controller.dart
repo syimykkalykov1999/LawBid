@@ -48,10 +48,6 @@ class CasePhotoUpload {
   bool get uploading => fileId == null && !failed;
 }
 
-/// OQ-031: photos per case.
-/// OQ-031 default; the live count is the admin's (bug 17, [UploadPlace.kase]).
-const kCaseMaxPhotos = 9;
-
 class CreateCaseState {
   const CreateCaseState({
     required this.draft,

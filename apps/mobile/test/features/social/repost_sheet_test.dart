@@ -86,7 +86,8 @@ void main() {
     await settle(t);
   });
 
-  testWidgets('Reposts tab lists reposts; undo removes the card', (t) async {
+  testWidgets('Briefs & reposts tab lists reposts; undo removes the card',
+      (t) async {
     final repo = FakeSocialRepository()
       ..reposts = [
         other(reposted: true, count: 3).copyWith(),
@@ -98,7 +99,7 @@ void main() {
       uxApp(
         const Scaffold(
           body: SingleChildScrollView(
-            child: ProfileRepostsList(userId: 'me', isSelf: true),
+            child: ProfileBriefsAndReposts(attorneyId: 'me', isSelf: true),
           ),
         ),
         theme: AppTheme.light(),
@@ -114,14 +115,13 @@ void main() {
     await t.tap(find.byKey(const ValueKey('repost-sheet-undo')));
     await t.pumpAndSettle();
     expect(find.byType(PostCard), findsNothing);
-    expect(find.text('No reposts yet'), findsOneWidget);
+    expect(find.text('No briefs or reposts yet'), findsOneWidget);
     await settle(t);
   });
 
   // Owner 2026-10-18: a client's reposts sit with their briefs, as on an
   // attorney's profile.
-  testWidgets('a client profile has the same Briefs & reposts tab',
-      (t) async {
+  testWidgets('a client profile has the same Briefs & reposts tab', (t) async {
     final repo = FakeSocialRepository()..reposts = [other()];
     t.view.physicalSize = const Size(400, 1200);
     t.view.devicePixelRatio = 1;

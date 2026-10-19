@@ -204,48 +204,6 @@ List<TaskSection> groupTasksForBoard(
   ];
 }
 
-/// Owner 2026-10-05: «Сегодня» by time of day — overdue, morning,
-/// afternoon, evening.
-List<TaskSection> groupTasksForToday(
-  List<TaskItem> tasks,
-  Translator t, {
-  required DateTime now,
-}) {
-  final today = DateTime(now.year, now.month, now.day);
-  final out = <String, List<TaskItem>>{
-    'overdue': [],
-    'morning': [],
-    'afternoon': [],
-    'evening': [],
-  };
-  for (final task in tasks) {
-    final due = task.nextDueAt?.toLocal();
-    if (due == null) continue;
-    final day = DateTime(due.year, due.month, due.day);
-    if (task.isOverdue(now) && day.isBefore(today)) {
-      out['overdue']!.add(task);
-    } else if (day == today) {
-      out[due.hour < 12
-              ? 'morning'
-              : due.hour < 17
-                  ? 'afternoon'
-                  : 'evening']!
-          .add(task);
-    }
-  }
-  return [
-    for (final e in out.entries)
-      if (e.value.isNotEmpty)
-        (
-          key: e.key == 'overdue' ? '0overdue' : e.key,
-          title: t.t(
-            e.key == 'overdue' ? 'tasks.overdue' : 'tasks.today.${e.key}',
-          ),
-          items: e.value,
-        ),
-  ];
-}
-
 /// OQ-048 (owner 2026-09-30) — Mine → «Задачи»: the attorney's planner.
 /// Owner 2026-10-05: «Сегодня», «Все», «Архив»; filters; swipe right —
 /// done (or the next step), swipe left — later; a long press picks

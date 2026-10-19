@@ -17,10 +17,6 @@ export 'package:lawbid/core/files/file_types.dart' show sniffImageMime;
 export 'package:lawbid/features/verification/domain/verification_repository.dart'
     show UploadCancellation, UploadCancelledException;
 
-/// Max avatar size (docs/03 §9 `files.avatar_max_size_mb` = 5); the server
-/// re-checks it in the S3 policy and on confirm.
-const kAvatarMaxBytes = 5 * 1024 * 1024;
-
 /// A presigned S3 POST (`POST /files/presign`).
 class PresignedUpload {
   const PresignedUpload({

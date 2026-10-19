@@ -445,16 +445,6 @@ class TaskPersonSuggestion {
       );
 }
 
-/// An address used before in this planner (`GET /tasks/places`).
-@immutable
-class TaskPlaceSuggestion {
-  const TaskPlaceSuggestion({required this.address, this.label, this.uses = 1});
-
-  final String address;
-  final String? label;
-  final int uses;
-}
-
 /// Owner 2026-10-05: one action on many selected tasks.
 enum TaskBulkAction {
   delete,

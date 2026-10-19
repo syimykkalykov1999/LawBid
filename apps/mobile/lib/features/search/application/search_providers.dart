@@ -75,26 +75,6 @@ bool myCaseMatches(String title, List<String> names, String query) {
 
 typedef SearchKey = ({String q, SearchFilters filters});
 
-class AttorneySearchNotifier extends PagedNotifier<AttorneyRow> {
-  AttorneySearchNotifier(this.key);
-
-  final SearchKey key;
-
-  @override
-  Future<CursorPage<AttorneyRow>> fetch(String? cursor) => ref
-      .read(searchRepositoryProvider)
-      .attorneys(key.q, key.filters, cursor: cursor);
-
-  @override
-  Object idOf(AttorneyRow item) => item.id;
-}
-
-final attorneySearchProvider = AsyncNotifierProvider.autoDispose
-    .family<AttorneySearchNotifier, PaginatedList<AttorneyRow>, SearchKey>(
-  AttorneySearchNotifier.new,
-  retry: _noRetry,
-);
-
 /// OQ-026 People tab: attorneys and clients in one ranked list.
 class PeopleSearchNotifier extends PagedNotifier<PersonRow> {
   PeopleSearchNotifier(this.key);

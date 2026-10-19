@@ -88,8 +88,3 @@ class ConnectivityStatusNotifier extends Notifier<ConnectivityStatus> {
   /// Banner "Retry": probes right away. Returns true when back online.
   Future<bool> retry() => ref.read(connectivityServiceProvider).retryNow();
 }
-
-/// Convenience: true while offline for any reason.
-final isOfflineProvider = Provider<bool>(
-  (ref) => ref.watch(connectivityStatusProvider).isOffline,
-);

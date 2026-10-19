@@ -2,10 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
-import 'package:lawbid/core/l10n/static_translator.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
-import 'package:lawbid/features/team/presentation/task_editor_screen.dart';
 import 'package:lawbid/features/team/presentation/task_links.dart';
 import 'package:lawbid/features/team/presentation/tasks_tab.dart';
 
@@ -104,128 +102,6 @@ void main() {
       expect(ids(const TaskFilter(assignee: 'm-Sam')), ['none']);
       expect(ids(const TaskFilter(), q: 'task lat'), ['later']);
       expect(ids(const TaskFilter(sort: TaskSort.priority)).first, 'week');
-    });
-
-    test('«Сегодня» by time of day', () {
-      final s = groupTasksForToday(
-        [
-          makeTask('m', dueAt: DateTime(2026, 10, 5, 9)),
-          makeTask('a', dueAt: DateTime(2026, 10, 5, 13)),
-          makeTask('e', dueAt: DateTime(2026, 10, 5, 19)),
-          makeTask('o', dueAt: DateTime(2026, 10, 3, 9)),
-          makeTask('tomorrow', dueAt: DateTime(2026, 10, 6, 9)),
-        ],
-        const StaticTranslatorEn(),
-        now: now,
-      );
-      expect(
-        s.map((x) => x.title),
-        ['Overdue', 'Morning', 'Afternoon', 'Evening'],
-      );
-      expect(
-        s.expand((x) => x.items).map((t) => t.id),
-        isNot(contains('tomorrow')),
-      );
-    });
-  });
-
-  group('the editor', () {
-    testWidgets('several addresses and people in one task', (tester) async {
-      repo
-        ..placeList = const [
-          TaskPlaceSuggestion(address: '50 W Washington St', label: 'Court'),
-        ]
-        ..peopleList = const [
-          TaskPersonSuggestion(
-            source: TaskPersonSource.assistant,
-            name: 'Sam Helper',
-            userId: 'u-sam',
-            membershipId: 'm1',
-          ),
-        ];
-      await pump(
-        tester,
-        const TaskEditorScreen(initialKind: TaskKind.meeting),
-        size: const Size(800, 3000),
-      );
-      await tester.enterText(
-        find.byKey(const ValueKey('task-title')),
-        'Meet the witnesses',
-      );
-      // Address 1: from the ones used before.
-      await tester.tap(find.byKey(const ValueKey('task-place-add')));
-      await tester.pumpAndSettle();
-      await tester.tap(
-        find.byKey(const ValueKey('place-suggestion-50 W Washington St')),
-      );
-      await tester.pumpAndSettle();
-      // Address 2: typed.
-      await tester.tap(find.byKey(const ValueKey('task-place-add')));
-      await tester.pumpAndSettle();
-      await tester.enterText(
-        find.byKey(const ValueKey('place-address')),
-        '233 S Wacker Dr',
-      );
-      await tester.tap(find.byKey(const ValueKey('place-save')));
-      await tester.pumpAndSettle();
-      // People: one from the team + a new outside contact.
-      await tester.tap(find.byKey(const ValueKey('task-person-add')));
-      await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const ValueKey('person-suggestion-u-sam')));
-      await tester.pump();
-      await tester.tap(find.byKey(const ValueKey('person-new')));
-      await tester.pumpAndSettle();
-      await tester.enterText(
-        find.byKey(const ValueKey('contact-name')),
-        'Mary Witness',
-      );
-      await tester.enterText(
-        find.byKey(const ValueKey('contact-phone')),
-        '312 555 0123',
-      );
-      await tester.tap(find.byKey(const ValueKey('contact-save')));
-      await tester.pumpAndSettle();
-      expect(find.text('Sam Helper'), findsOneWidget);
-      expect(find.text('Mary Witness'), findsOneWidget);
-      await tester.tap(find.byKey(const ValueKey('task-priority-high')));
-      await tester.ensureVisible(find.byKey(const ValueKey('task-save')));
-      await tester.tap(find.byKey(const ValueKey('task-save')));
-      await tester.pumpAndSettle();
-      final d = repo.lastDraft!;
-      expect(d.places.map((p) => p.address), [
-        '50 W Washington St',
-        '233 S Wacker Dr',
-      ]);
-      expect(d.places.first.label, 'Court');
-      expect(d.people.map((p) => p.name), ['Sam Helper', 'Mary Witness']);
-      expect(d.people.first.userId, 'u-sam');
-      expect(d.people.last.phone, '+13125550123');
-      expect(d.priority, TaskPriority.high);
-    });
-
-    testWidgets('from a case / a chat: already linked', (tester) async {
-      await pump(
-        tester,
-        const TaskEditorScreen(
-          initialKind: TaskKind.call,
-          initialCase: (id: 'c1', title: 'Custody'),
-          initialChat: (id: 'ch1', title: 'Ann Client'),
-          initialPeople: [
-            TaskPerson(name: 'Ann Client', userId: 'u-ann', userRole: 'client'),
-          ],
-        ),
-        size: const Size(800, 3000),
-      );
-      expect(find.text('Custody'), findsOneWidget);
-      expect(find.byKey(const ValueKey('task-chat')), findsOneWidget);
-      await tester.enterText(find.byKey(const ValueKey('task-title')), 'Call');
-      await tester.pumpAndSettle();
-      await tester.ensureVisible(find.byKey(const ValueKey('task-save')));
-      await tester.tap(find.byKey(const ValueKey('task-save')));
-      await tester.pumpAndSettle();
-      expect(repo.lastDraft!.caseId, 'c1');
-      expect(repo.lastDraft!.conversationId, 'ch1');
-      expect(repo.lastDraft!.people.single.userId, 'u-ann');
     });
   });
 
@@ -396,29 +272,5 @@ void main() {
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
     });
-  });
-
-  testWidgets('owner 2026-10-07: 10 files at most — counter, grey button, hint',
-      (tester) async {
-    await pump(
-      tester,
-      TaskEditorScreen(
-        existing: makeTask(
-          'f',
-          kind: TaskKind.meeting,
-          files: [
-            for (var i = 0; i < 10; i++)
-              TaskFile(fileId: 'f$i', url: 'https://x.test/$i.pdf'),
-          ],
-        ),
-      ),
-      size: const Size(800, 3000),
-    );
-    expect(find.text('10/10'), findsOneWidget);
-    expect(find.text('A task can hold up to 10 files'), findsOneWidget);
-    await tester.tap(find.byKey(const ValueKey('task-attach')));
-    await tester.pump();
-    // The hint as a snackbar too; no file picker opened.
-    expect(find.text('A task can hold up to 10 files'), findsNWidgets(2));
   });
 }

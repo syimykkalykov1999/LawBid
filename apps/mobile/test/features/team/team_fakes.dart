@@ -316,11 +316,7 @@ class FakeTeamRepository implements TeamRepository {
   }
 
   TaskDraft? lastDraft;
-  List<TaskPlaceSuggestion> placeList = [];
   List<TaskPersonSuggestion> peopleList = [];
-
-  @override
-  Future<List<TaskPlaceSuggestion>> taskPlaces() async => placeList;
 
   @override
   Future<List<TaskPersonSuggestion>> taskPeople([String? q]) async =>

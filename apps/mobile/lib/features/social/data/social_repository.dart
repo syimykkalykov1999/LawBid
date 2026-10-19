@@ -37,10 +37,6 @@ const kPostMaxDocuments = 9;
 const kPostDocumentDefaultMaxMb = 10;
 const kPostDocumentsDefaultTotalMb = 30;
 
-/// Extensions the document picker offers (same list as the server's
-/// `post_attachment` rule, apps/api files.policy.ts).
-const kPostDocumentExtensions = ['pdf', 'doc', 'docx', 'txt', 'rtf', 'odt'];
-
 /// MIME of a post document by its name, or null when not allowed.
 String? postDocumentMimeForName(String name) {
   final dot = name.lastIndexOf('.');

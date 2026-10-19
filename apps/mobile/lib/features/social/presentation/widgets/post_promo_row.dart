@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
-import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/promotions/application/promotions_providers.dart';
@@ -148,87 +147,6 @@ class PostPromoRow extends ConsumerWidget {
                 : const SizedBox.shrink(),
           ),
         ],
-      ),
-    );
-  }
-}
-
-/// Owner 2026-10-18: the post's numbers, for its owner only (a short
-/// sheet; «Статистика» now opens the full PostInsightsScreen).
-Future<void> showPostStatsSheet(BuildContext context, Post post) {
-  return showAppBottomSheet<void>(
-    context: context,
-    builder: (sheet) => _PostStatsSheet(post: post),
-  );
-}
-
-class _PostStatsSheet extends ConsumerWidget {
-  const _PostStatsSheet({required this.post});
-
-  final Post post;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final t = ref.watch(translatorProvider);
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    Widget cell(IconData icon, int n, String key) => Expanded(
-          child: Column(
-            children: [
-              AppIcon(icon, color: colors.textSecondary),
-              const SizedBox(height: AppSpacing.xs),
-              Text(
-                ref.watch(l10nFormatsProvider).number(n),
-                style: type.titleMedium.copyWith(color: colors.text),
-              ),
-              Text(
-                t.t(key),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: type.caption.copyWith(color: colors.textSecondary),
-              ),
-            ],
-          ),
-        );
-    return SafeArea(
-      top: false,
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              t.t('post.stats.title'),
-              style: type.titleMedium.copyWith(color: colors.text),
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            Row(
-              children: [
-                cell(
-                  AppIcons.favoriteBorderRounded,
-                  post.likeCount,
-                  'post.stats.likes',
-                ),
-                cell(
-                  AppIcons.chatBubbleOutlineRounded,
-                  post.commentCount,
-                  'post.stats.comments',
-                ),
-                cell(
-                  AppIcons.autoModeRounded,
-                  post.repostCount,
-                  'post.stats.reposts',
-                ),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            Text(
-              t.t('post.stats.soon'),
-              style: type.caption.copyWith(color: colors.textSecondary),
-            ),
-          ],
-        ),
       ),
     );
   }
