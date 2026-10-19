@@ -657,15 +657,15 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                         followMaxWidth: 140,
                         showFollow: !p.isMine,
                         boostPostId: p.isMine ? p.id : null,
-                        // Owner 2026-10-19: the role word «Клиент» is never
-                        // shown here (only on the welcome screen's role
-                        // choice); the @username stays.
+                        // Owner 2026-10-19: no @username (only in the
+                        // profile and search) and no role word «Клиент»
+                        // (only on the welcome screen's role choice).
                         subtitle: p.promotionId != null
                             ? t.t('promote.sponsored')
                             : p.locationName ??
                                 (p.author.verified && !p.author.isClient
                                     ? t.t('post.licensedAttorney')
-                                    : '@${p.author.username}'),
+                                    : ''),
                       ),
                       if (caption.isNotEmpty) ...[
                         const SizedBox(height: AppSpacing.sm),
