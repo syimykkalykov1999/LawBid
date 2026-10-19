@@ -93,3 +93,9 @@ POST /admin/verification/requests/{id}/licenses/{licenseId}/decision added the n
 POST /admin/verification/requests/{id}/reject added the new `format_unusual` enum value to the `data/licenses/items/registryFlag` response property for the response status `200`
 POST /admin/verification/requests/{id}/request-info added the new `format_unusual` enum value to the `data/licenses/items/registryFlag` response property for the response status `200`
 POST /admin/verification/requests/{id}/take added the new `format_unusual` enum value to the `data/licenses/items/registryFlag` response property for the response status `200`
+GET /admin/storage/uploads added the new `mov` enum value to the `data/places/items/defaults/formats/items/` response property for the response status `200`
+GET /admin/storage/uploads added the new `mp4` enum value to the `data/places/items/defaults/formats/items/` response property for the response status `200`
+GET /admin/storage/uploads added the new `webm` enum value to the `data/places/items/defaults/formats/items/` response property for the response status `200`
+PUT /admin/storage/uploads added the new `mov` enum value to the `data/places/items/defaults/formats/items/` response property for the response status `200`
+PUT /admin/storage/uploads added the new `mp4` enum value to the `data/places/items/defaults/formats/items/` response property for the response status `200`
+PUT /admin/storage/uploads added the new `webm` enum value to the `data/places/items/defaults/formats/items/` response property for the response status `200`
