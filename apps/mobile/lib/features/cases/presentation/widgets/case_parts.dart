@@ -139,9 +139,12 @@ class CaseFigures extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    final money = budget.isClarifyLater
-        ? t.t('cases.facts.negotiable')
-        : CaseFormat.money(formats, budget.amountCents!);
+    // Owner 2026-10-19: a percent budget has no amount (it crashed here).
+    final money = budget.isPercent
+        ? CaseFormat.percent(t, formats, budget.percentBps!)
+        : budget.isClarifyLater
+            ? t.t('cases.facts.negotiable')
+            : CaseFormat.money(formats, budget.amountCents!);
     final deadline = CaseUrgencyText.label(t, formats, urgency);
     Widget fig(String label, String value, {bool last = false}) => Container(
           padding: EdgeInsetsDirectional.only(end: last ? 0 : AppSpacing.md),
@@ -549,9 +552,12 @@ class CaseHero extends StatelessWidget {
     final accent = practiceAccent(categoryCode, surface: base);
     final top = Color.alphaBlend(accent.withValues(alpha: 0.2), base);
     final fg = readableOn(accent, top);
-    final money = budget.isClarifyLater
-        ? t.t('cases.facts.negotiable')
-        : CaseFormat.money(formats, budget.amountCents!);
+    // Owner 2026-10-19: a percent budget has no amount (it crashed here).
+    final money = budget.isPercent
+        ? CaseFormat.percent(t, formats, budget.percentBps!)
+        : budget.isClarifyLater
+            ? t.t('cases.facts.negotiable')
+            : CaseFormat.money(formats, budget.amountCents!);
     final deadline = CaseUrgencyText.label(t, formats, urgency);
     Widget fact(IconData icon, String text) => Container(
           height: 26,

@@ -4,6 +4,8 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/features/cases/application/create_case_controller.dart';
+import 'package:lawbid/features/cases/domain/case_draft.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_cards.dart';
 
@@ -13,13 +15,14 @@ import 'package:lawbid/features/cases/presentation/widgets/case_cards.dart';
 /// files or private details; only their counts), and not tappable.
 class AttorneyViewPreview extends StatelessWidget {
   const AttorneyViewPreview({
-    required this.kase,
+    required this.item,
     required this.t,
     required this.formats,
     super.key,
   });
 
-  final OwnerCase kase;
+  /// The case as an attorney's feed gets it ([feedViewOf] / [feedViewOfDraft]).
+  final FeedCase item;
   final Translator t;
   final L10nFormats formats;
 
@@ -65,6 +68,66 @@ class AttorneyViewPreview extends StatelessWidget {
     );
   }
 
+  /// Owner 2026-10-19: the same, for a case not published yet (the last
+  /// step of the case wizard).
+  static FeedCase feedViewOfDraft(
+    CaseDraft d,
+    List<CasePhotoUpload> files,
+  ) {
+    final media = files.where((f) => !f.isDocument).length;
+    final code = d.practiceCode ?? '';
+    final percent = d.budgetIsPercent && d.budgetPercentBps != null;
+    final amount = !percent && d.budgetIsAmount && d.budgetDollars != null;
+    final urgency = d.urgency == null ? null : CaseUrgency.fromJson(d.urgency!);
+    return FeedCase(
+      id: 'draft',
+      title: d.title.trim(),
+      practice: PracticeRef(
+        id: d.practiceAreaId ?? '',
+        code: code,
+        i18nKey: d.practiceI18nKey ?? '',
+        nameEn: d.practiceNameEn ?? '',
+        categoryCode: code.isEmpty ? null : code.split('.').first,
+      ),
+      primaryStateCode: d.primaryStateCode ?? '',
+      additionalStateCodes: d.additionalStateCodes,
+      city: d.city.trim().isEmpty ? null : d.city.trim(),
+      status: CaseStatus.open,
+      budget: CaseBudget(
+        mode: percent
+            ? BudgetMode.percent
+            : amount
+                ? BudgetMode.amount
+                : BudgetMode.clarifyLater,
+        amountCents: amount ? d.budgetDollars! * 100 : null,
+        percentBps: percent ? d.budgetPercentBps : null,
+      ),
+      viewCount: 0,
+      bidsCount: 0,
+      createdAt: DateTime.now(),
+      isNew: true,
+      hasOwnBid: false,
+      description: d.description.trim(),
+      photosCount: media,
+      extraPracticeCount: d.extraPractices.length,
+      coverKey: d.coverKey,
+      urgency: urgency,
+      urgencyDetail: CaseUrgencyInfo.of(
+        urgency: urgency,
+        deadlineAt: parseIsoDay(d.deadlineAt),
+        kind: d.deadlineKind == null
+            ? null
+            : CaseDeadlineKind.fromJson(d.deadlineKind!),
+      ),
+      dossier: CaseDossier(
+        imagesCount: media,
+        documentsCount: files.length - media,
+        descriptionLength: d.description.trim().length,
+        privateDetailsLength: d.privateDetails.trim().length,
+      ),
+    );
+  }
+
   static bool _isDocument(String mime) =>
       !mime.startsWith('image/') && !mime.startsWith('video/');
 
@@ -84,7 +147,7 @@ class AttorneyViewPreview extends StatelessWidget {
         IgnorePointer(
           child: ExcludeSemantics(
             child: FeedCaseCard(
-              item: feedViewOf(kase),
+              item: item,
               t: t,
               formats: formats,
               onTap: () {},
@@ -111,7 +174,7 @@ class AttorneyViewPreview extends StatelessWidget {
 /// button as a sheet (not inline in «Обзор»).
 Future<void> showAttorneyViewPreview(
   BuildContext context, {
-  required OwnerCase kase,
+  required FeedCase item,
   required Translator t,
   required L10nFormats formats,
 }) =>
@@ -138,7 +201,7 @@ Future<void> showAttorneyViewPreview(
                   style: type.titleMedium.copyWith(color: colors.text),
                 ),
                 const SizedBox(height: AppSpacing.sm),
-                AttorneyViewPreview(kase: kase, t: t, formats: formats),
+                AttorneyViewPreview(item: item, t: t, formats: formats),
               ],
             ),
           ),

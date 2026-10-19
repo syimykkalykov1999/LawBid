@@ -655,7 +655,7 @@ class _OwnerOpenCaseState extends ConsumerState<_OwnerOpenCase> {
                           variant: AppButtonVariant.secondary,
                           onPressed: () => showAttorneyViewPreview(
                             context,
-                            kase: c,
+                            item: AttorneyViewPreview.feedViewOf(c),
                             t: t,
                             formats: formats,
                           ),

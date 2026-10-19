@@ -12,6 +12,7 @@ import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/cases/application/create_case_controller.dart';
 import 'package:lawbid/features/cases/domain/case_draft.dart';
 import 'package:lawbid/features/cases/domain/case_urgency.dart';
+import 'package:lawbid/features/cases/presentation/widgets/attorney_view_preview.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_photos.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_urgency_picker.dart';
@@ -518,6 +519,21 @@ class _ReviewStep extends ConsumerWidget {
               ),
             ),
           ],
+        ),
+        // Owner 2026-10-19: the case as attorneys will see it, before
+        // publishing (the same sheet as in «Мой кейс»).
+        const SizedBox(height: AppSpacing.lg),
+        AppButton(
+          key: const ValueKey('case-wizard-preview'),
+          label: t.t('cases.preview.button'),
+          icon: AppIcons.visibilityOutlined,
+          variant: AppButtonVariant.secondary,
+          onPressed: () => showAttorneyViewPreview(
+            context,
+            item: AttorneyViewPreview.feedViewOfDraft(d, state.photos),
+            t: t,
+            formats: formats,
+          ),
         ),
         // Owner 2026-09-30 (OQ-039): what happens to the case and who sees
         // what, right above Publish.
