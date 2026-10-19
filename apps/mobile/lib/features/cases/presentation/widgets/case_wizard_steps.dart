@@ -247,12 +247,35 @@ class _PracticeStepState extends ConsumerState<PracticeStep> {
               ),
               const SizedBox(height: AppSpacing.lg),
             ],
+            // Owner 2026-10-19: the icon above the text, both centred (the
+            // full-screen empty state overlapped them inside this list).
             if (q.isNotEmpty && matches.isEmpty)
               Padding(
+                key: const ValueKey('practice-no-match'),
                 padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl),
-                child: AppEmptyState(
-                  icon: AppIcons.searchOffRounded,
-                  message: t.t('cases.create.practice.noMatch'),
+                child: Column(
+                  children: [
+                    AppIcon(
+                      AppIcons.searchOffRounded,
+                      size: 40,
+                      color: Theme.of(context)
+                          .extension<AppColorTokens>()!
+                          .textSecondary,
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    Text(
+                      t.t('cases.create.practice.noMatch'),
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context)
+                          .extension<AppTypographyTokens>()!
+                          .body
+                          .copyWith(
+                            color: Theme.of(context)
+                                .extension<AppColorTokens>()!
+                                .textSecondary,
+                          ),
+                    ),
+                  ],
                 ),
               ),
             if (q.isNotEmpty)
