@@ -131,7 +131,8 @@ row + topic hint; budget step no jump.
   In progress: scroll smoothness measured on the iPhone (integration_test).
 - RELEASE NOTE (prod): if the production admin already saved «Загрузки и
   файлы», it keeps the OLD list of formats — after the deploy switch on WebP
-  for avatar, reviews and verification in the admin (checkboxes).
+  for avatar, reviews and verification, and webm for chat, in the admin
+  (checkboxes).
 - APK: build ONLY when the owner says (he checks the iPhone first).
 - iPhone: install a RELEASE build (`flutter run --release …`) — a debug build
   stops working when the cable/session drops.
