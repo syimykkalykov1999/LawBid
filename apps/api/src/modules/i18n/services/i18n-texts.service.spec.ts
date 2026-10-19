@@ -9,8 +9,8 @@ describe('I18nTextsService (owner 2026-10-18, admin «Справочник»)', 
         ),
       },
       i18nLanguage: {
-        findUnique: jest.fn(() =>
-          Promise.resolve(opts.lang === false ? null : { code: 'ru' }),
+        findMany: jest.fn(() =>
+          Promise.resolve(opts.lang === false ? [] : [{ code: 'ru' }]),
         ),
       },
       i18nBundleVersion: {

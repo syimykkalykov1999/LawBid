@@ -1,6 +1,12 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsString, Length, Matches } from 'class-validator';
+import {
+  IsObject,
+  IsOptional,
+  IsString,
+  Length,
+  Matches,
+} from 'class-validator';
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
@@ -63,4 +69,55 @@ export class I18nTextsDto {
 
   @ApiProperty({ type: [I18nTextRowDto] })
   keys!: I18nTextRowDto[];
+}
+
+/** POST /admin/i18n/texts/translate — a preview, nothing is saved. */
+export class TranslateI18nTextDto {
+  @ApiProperty({ description: 'The source text as edited.' })
+  @IsString()
+  @Length(1, 20000)
+  text!: string;
+
+  @ApiProperty({ example: 'ru' })
+  @IsString()
+  @Length(2, 10)
+  source!: string;
+}
+
+export class TranslatedI18nTextDto {
+  @ApiProperty({
+    type: 'object',
+    additionalProperties: { type: 'string' },
+    description: 'lang → machine translation',
+  })
+  values!: Record<string, string>;
+
+  @ApiProperty({ type: [String], description: 'Languages that failed.' })
+  failed!: string[];
+}
+
+/** PUT /admin/i18n/texts/many — one text in several languages. */
+export class UpdateI18nTextManyDto {
+  @ApiProperty({ example: 'guide.s1.title' })
+  @IsString()
+  @Length(1, 200)
+  key!: string;
+
+  @ApiProperty({ type: 'object', additionalProperties: { type: 'string' } })
+  @IsObject()
+  values!: Record<string, string>;
+}
+
+/** POST /admin/i18n/texts/reset — back to the built-in text. */
+export class ResetI18nTextDto {
+  @ApiProperty({ example: 'guide.s1.title' })
+  @IsString()
+  @Length(1, 200)
+  key!: string;
+
+  @ApiProperty({ required: false, description: 'Omit for every language.' })
+  @IsOptional()
+  @IsString()
+  @Length(2, 10)
+  lang?: string;
 }

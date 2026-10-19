@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 
 /// Owner 2026-10-18: «Справочник» — the «i» left of the search in the case
@@ -16,6 +17,13 @@ class GuideScreen extends ConsumerWidget {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    // Owner 2026-10-18: the admin switches each section on or off
+    // (flags `guide_section_<n>`, on by default).
+    final flags = ref.watch(featureFlagsControllerProvider);
+    final shown = [
+      for (var i = 1; i <= sectionCount; i++)
+        if (flags.isEnabled('guide_section_$i')) i,
+    ];
     return Scaffold(
       backgroundColor: colors.bg,
       appBar: AppTopBar(
@@ -41,7 +49,7 @@ class GuideScreen extends ConsumerWidget {
               style: type.body.copyWith(color: colors.textSecondary),
             ),
             const SizedBox(height: AppSpacing.lg),
-            for (var i = 1; i <= sectionCount; i++) ...[
+            for (final i in shown) ...[
               _GuideSection(
                 key: ValueKey('guide-s$i'),
                 title: t.t('guide.s$i.title'),

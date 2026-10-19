@@ -6,6 +6,7 @@ import { I18nBundleService } from './services/i18n-bundle.service';
 import { I18nImportService } from './services/i18n-import.service';
 import { I18nExportService } from './services/i18n-export.service';
 import { I18nTextsService } from './services/i18n-texts.service';
+import { TranslationCoreModule } from '../translation/translation.module';
 
 /**
  * docs/01_FOUNDATION_AUTH.md §15, stage 1.6 ("Бэкенд: модуль i18n").
@@ -16,6 +17,8 @@ import { I18nTextsService } from './services/i18n-texts.service';
  * exports.
  */
 @Module({
+  // Owner 2026-10-18: «Перевести на все языки» in the admin «Справочник».
+  imports: [TranslationCoreModule],
   controllers: [I18nController, I18nAdminController],
   providers: [
     I18nLanguagesService,

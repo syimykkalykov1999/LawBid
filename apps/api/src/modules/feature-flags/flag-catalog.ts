@@ -99,6 +99,63 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
       'Clients pay the accepted attorney through the platform (Stripe Connect)',
   },
   {
+    // Owner 2026-10-18: the admin shows or hides each «Справочник» section.
+    key: 'guide_section_1',
+    enabled: true,
+    app: true,
+    description: 'Guide («Справочник») section 1: What LawBid is',
+  },
+  {
+    // Owner 2026-10-18: the admin shows or hides each «Справочник» section.
+    key: 'guide_section_2',
+    enabled: true,
+    app: true,
+    description: 'Guide («Справочник») section 2: Who sees your case',
+  },
+  {
+    // Owner 2026-10-18: the admin shows or hides each «Справочник» section.
+    key: 'guide_section_3',
+    enabled: true,
+    app: true,
+    description: 'Guide («Справочник») section 3: Contacts and chat',
+  },
+  {
+    // Owner 2026-10-18: the admin shows or hides each «Справочник» section.
+    key: 'guide_section_4',
+    enabled: true,
+    app: true,
+    description: 'Guide («Справочник») section 4: Attorney assistants',
+  },
+  {
+    // Owner 2026-10-18: the admin shows or hides each «Справочник» section.
+    key: 'guide_section_5',
+    enabled: true,
+    app: true,
+    description: 'Guide («Справочник») section 5: Files and messages',
+  },
+  {
+    // Owner 2026-10-18: the admin shows or hides each «Справочник» section.
+    key: 'guide_section_6',
+    enabled: true,
+    app: true,
+    description:
+      'Guide («Справочник») section 6: Bids, case stages and payment',
+  },
+  {
+    // Owner 2026-10-18: the admin shows or hides each «Справочник» section.
+    key: 'guide_section_7',
+    enabled: true,
+    app: true,
+    description: 'Guide («Справочник») section 7: Reviews, reports and rules',
+  },
+  {
+    // Owner 2026-10-18: the admin shows or hides each «Справочник» section.
+    key: 'guide_section_8',
+    enabled: true,
+    app: true,
+    description: 'Guide («Справочник») section 8: Deleting your account',
+  },
+  {
     key: 'chat_translate',
     enabled: false,
     app: true,

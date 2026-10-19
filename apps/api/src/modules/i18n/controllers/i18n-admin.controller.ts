@@ -38,7 +38,11 @@ import { I18nTextsService } from '../services/i18n-texts.service';
 import {
   I18nTextsDto,
   I18nTextsQueryDto,
+  ResetI18nTextDto,
+  TranslateI18nTextDto,
+  TranslatedI18nTextDto,
   UpdateI18nTextDto,
+  UpdateI18nTextManyDto,
 } from '../dto/i18n-texts.dto';
 
 /** Admin-only, so a single file this size is not a real DoS surface, but
@@ -81,6 +85,45 @@ export class I18nAdminController {
   })
   async updateText(@Body() dto: UpdateI18nTextDto): Promise<void> {
     await this.texts.update(dto.key, dto.lang, dto.value);
+  }
+
+  /** «Перевести на все языки»: a machine-translation preview of the
+   * edited text into every other language (nothing is saved). */
+  @Post('texts/translate')
+  @HttpCode(HttpStatus.OK)
+  @ApiEnvelopeResponse(TranslatedI18nTextDto)
+  @ApiErrors({
+    400: [ErrorCode.VALIDATION_ERROR, ErrorCode.TRANSLATION_UNAVAILABLE],
+    503: [ErrorCode.TRANSLATION_UNAVAILABLE],
+  })
+  async translateText(
+    @Body() dto: TranslateI18nTextDto,
+  ): Promise<TranslatedI18nTextDto> {
+    return this.texts.translatePreview(dto.text, dto.source);
+  }
+
+  /** The confirmed preview: one text in many languages at once. */
+  @Put('texts/many')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiErrors({
+    400: [ErrorCode.VALIDATION_ERROR, ErrorCode.I18N_LANGUAGE_NOT_FOUND],
+    404: [ErrorCode.NOT_FOUND],
+  })
+  async updateTextMany(@Body() dto: UpdateI18nTextManyDto): Promise<void> {
+    const values = Object.fromEntries(
+      Object.entries(dto.values)
+        .filter(([, v]) => typeof v === 'string' && v.trim().length > 0)
+        .map(([l, v]) => [l, v.trim()]),
+    );
+    await this.texts.saveMany(dto.key, values);
+  }
+
+  /** «Сбросить к встроенному тексту» (one language or all). */
+  @Post('texts/reset')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiErrors({ 400: [ErrorCode.VALIDATION_ERROR], 404: [ErrorCode.NOT_FOUND] })
+  async resetText(@Body() dto: ResetI18nTextDto): Promise<void> {
+    await this.texts.reset(dto.key, dto.lang);
   }
 
   @Post('import')
