@@ -29,12 +29,14 @@ Future<void> openPostPromotion(
     final p = state.promotion;
     if (p != null && p.isRunning) {
       await context.push(AppRoutes.myPromotions);
-    } else if (state.quote.enabled && state.canPromote) {
+    } else if (state.quote.enabled &&
+        (state.canPromote || p?.status == PromotionStatus.pendingPayment)) {
       await PromoteSheet.show(
         context,
         target: PromotionTarget.post,
         id: postId,
         state: state,
+        resume: p?.status == PromotionStatus.pendingPayment ? p : null,
       );
     } else {
       showAppSnackBar(context, t.t('promote.unavailable'));
@@ -218,6 +220,8 @@ class BoostButton extends ConsumerWidget {
           target: target,
           id: postId,
           state: state,
+          // Owner 2026-10-19: «Завершить оплату» goes straight to the payment.
+          resume: pending ? p : null,
         );
       }
       refresh();

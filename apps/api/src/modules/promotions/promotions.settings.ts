@@ -72,7 +72,7 @@ export const DEFAULT_PROMOTION_SETTINGS: PromotionSettings = {
   clientsEnabled: true,
   reelsEnabled: true,
   ctaEnabled: true,
-  ctaTypes: ['more', 'message', 'profile', 'download', 'call'],
+  ctaTypes: ['more', 'message', 'profile', 'call'],
   caseFeedSlots: 3,
   frequencyCapPerDay: 3,
   impressionsPerPerson: 1.6,
@@ -98,14 +98,18 @@ export type PromotionStatus = (typeof PROMOTION_STATUSES)[number];
 
 export const PROMOTION_TARGETS = ['case', 'post'] as const;
 
-/** Owner 2026-10-15: the buttons under a promoted post. */
+/** Owner 2026-10-15: the buttons under a promoted post. Owner 2026-10-19:
+ * no «Download» — a file link from an ad can carry a virus to our users; it
+ * is no longer offered, accepted or shown (RETIRED_PROMOTION_CTA_TYPES). */
 export const PROMOTION_CTA_TYPES: string[] = [
   'more',
   'message',
   'profile',
-  'download',
   'call',
 ];
+
+/** Button types an older promotion may still carry: shown without them. */
+export const RETIRED_PROMOTION_CTA_TYPES: string[] = ['download'];
 export const PROMOTION_GOALS = ['views', 'clicks', 'messages', 'followers'];
 
 /** Links an advertiser may not use: shorteners and messengers (the site

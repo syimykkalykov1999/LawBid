@@ -40,6 +40,26 @@ const _quote = PromotionQuote(
 class _FakeRepo extends PromotionsRepository {
   _FakeRepo() : super(Dio());
 
+  final bought = <(int, String?, String?)>[];
+
+  @override
+  Future<PromotionPurchase> buy(
+    String id, {
+    required int days,
+    PromotionTarget target = PromotionTarget.case_,
+    int? dailyBudgetCents,
+    PromotionAudience? audience,
+    bool useCredits = true,
+    String? promoCode,
+    String? goal,
+    String? ctaType,
+    String? ctaValue,
+    bool extend = false,
+  }) async {
+    bought.add((days, goal, ctaType));
+    throw StateError('payments off');
+  }
+
   @override
   Future<PromotionQuote> quote(
     int days, {
@@ -62,12 +82,15 @@ CasePromotion _promo(PromotionStatus s) => CasePromotion(
 Future<void> main() async {
   await initializeDateFormatting();
 
+  late _FakeRepo repo;
+
   Future<void> open(
     WidgetTester t, {
     required bool isMine,
     CasePromotion? promotion,
     bool canPromote = true,
   }) async {
+    repo = _FakeRepo();
     final router = GoRouter(
       routes: [
         GoRoute(
@@ -96,7 +119,7 @@ Future<void> main() async {
       ProviderScope(
         overrides: [
           ...uxOverrides(),
-          promotionsRepositoryProvider.overrideWithValue(_FakeRepo()),
+          promotionsRepositoryProvider.overrideWithValue(repo),
           postPromotionProvider('p1').overrideWith(
             (ref) async => CasePromotionState(
               promotion: promotion,
@@ -173,5 +196,34 @@ Future<void> main() async {
     await t.tap(find.text('Running'));
     await t.pumpAndSettle();
     expect(find.text('stats-screen-pr1'), findsOneWidget);
+  });
+
+  // Owner 2026-10-19: «Завершить оплату» keeps the promotion's settings and
+  // goes straight to the payment (not step 1); a failure is said on top.
+  testWidgets('unpaid: «Complete payment» pays at once with its settings',
+      (t) async {
+    await open(
+      t,
+      isMine: true,
+      promotion: const CasePromotion(
+        id: 'pr1',
+        target: PromotionTarget.post,
+        postId: 'p1',
+        status: PromotionStatus.pendingPayment,
+        days: 7,
+        totalCents: 3500,
+        impressions: 0,
+        goal: 'clicks',
+        ctaType: 'message',
+      ),
+      canPromote: false,
+    );
+    await t.tap(find.text('Complete payment'));
+    await t.pump();
+    await t.pump(const Duration(seconds: 1));
+    expect(find.byType(PromoteSheet), findsOneWidget);
+    expect(repo.bought, [(7, 'clicks', 'message')]);
+    expect(find.byKey(const ValueKey('app-overlay-message')), findsOneWidget);
+    await t.pump(const Duration(seconds: 5));
   });
 }

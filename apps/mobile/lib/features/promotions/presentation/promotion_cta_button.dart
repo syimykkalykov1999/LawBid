@@ -52,6 +52,9 @@ class PromotionCtaButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Owner 2026-10-19: an older ad's «Download» is not shown (a file link
+    // can carry a virus).
+    if (cta.type == 'download') return const SizedBox.shrink();
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;

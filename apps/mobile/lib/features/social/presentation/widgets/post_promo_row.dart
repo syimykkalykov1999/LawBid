@@ -71,6 +71,8 @@ class PostPromoRow extends ConsumerWidget {
         target: PromotionTarget.post,
         id: postId,
         state: state!,
+        // Owner 2026-10-19: «Завершить оплату» goes straight to the payment.
+        resume: pending ? p : null,
       );
       refresh();
     }

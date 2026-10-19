@@ -9,6 +9,7 @@ import {
   type PromotionAudience,
   type PromotionSettings,
   type PromotionTarget,
+  RETIRED_PROMOTION_CTA_TYPES,
 } from './promotions.settings';
 
 /** A running promotion as the feeds see it. */
@@ -156,8 +157,10 @@ export class PromotionDeliveryService {
         targetImpressions: r.target_impressions,
         startsAt: r.starts_at ?? now,
         endsAt: r.ends_at ?? now,
-        ctaType: r.cta_type,
-        ctaValue: r.cta_value,
+        // Owner 2026-10-19: a retired button («Download») is not shown.
+        ...(r.cta_type && RETIRED_PROMOTION_CTA_TYPES.includes(r.cta_type)
+          ? { ctaType: null, ctaValue: null }
+          : { ctaType: r.cta_type, ctaValue: r.cta_value }),
       }));
     this.live.set(target, { at: Date.now(), rows: list });
     return list;
