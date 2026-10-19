@@ -1138,13 +1138,16 @@ model I18nKey {
 }
 
 model I18nTranslation {
-  key_id     String       @db.Uuid
-  i18n_key   I18nKey      @relation(fields: [key_id], references: [id], onDelete: Restrict)
-  lang       String
-  language   I18nLanguage @relation(fields: [lang], references: [code], onDelete: Restrict)
-  value      String
-  version    Int
-  updated_at DateTime     @updatedAt @db.Timestamptz
+  key_id       String       @db.Uuid
+  i18n_key     I18nKey      @relation(fields: [key_id], references: [id], onDelete: Restrict)
+  lang         String
+  language     I18nLanguage @relation(fields: [lang], references: [code], onDelete: Restrict)
+  value        String
+  version      Int
+  updated_at   DateTime     @updatedAt @db.Timestamptz
+  /// Owner 2026-10-18: changed in the admin (Справочник) — the deploy's
+  /// seed import leaves it as it is.
+  admin_edited Boolean      @default(false)
 
   // No created_at — docs/02_DATABASE.md §4.B lists only key_id/lang/value/
   // version/updated_at for this table.

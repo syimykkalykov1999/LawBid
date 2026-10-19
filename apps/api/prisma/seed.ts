@@ -159,7 +159,14 @@ async function seedI18nTranslations(): Promise<void> {
     const existingValues = new Map(
       (existing?.translations ?? []).map((t) => [t.lang, t.value]),
     );
+    // Owner 2026-10-18: a text changed in the admin stays as it is.
+    const adminEdited = new Set(
+      (existing?.translations ?? [])
+        .filter((t) => t.admin_edited)
+        .map((t) => t.lang),
+    );
     for (const [lang, value] of Object.entries(row.values)) {
+      if (adminEdited.has(lang)) continue;
       if (existingValues.get(lang) !== value) {
         changedKeys.push({ key: row.key, lang });
         affectedLangs.add(lang);

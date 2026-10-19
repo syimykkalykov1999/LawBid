@@ -1,9 +1,12 @@
 import {
   BadRequestException,
   Controller,
+  HttpCode,
   HttpStatus,
   Get,
   Post,
+  Put,
+  Body,
   Query,
   Res,
   UploadedFile,
@@ -31,6 +34,12 @@ import {
 import { I18nImportQueryDto } from '../dto/import-query.dto';
 import { I18nImportService } from '../services/i18n-import.service';
 import { I18nExportService } from '../services/i18n-export.service';
+import { I18nTextsService } from '../services/i18n-texts.service';
+import {
+  I18nTextsDto,
+  I18nTextsQueryDto,
+  UpdateI18nTextDto,
+} from '../dto/i18n-texts.dto';
 
 /** Admin-only, so a single file this size is not a real DoS surface, but
  * there's no reason to accept more than a translation workbook plausibly
@@ -51,7 +60,28 @@ export class I18nAdminController {
   constructor(
     private readonly importService: I18nImportService,
     private readonly exportService: I18nExportService,
+    private readonly texts: I18nTextsService,
   ) {}
+
+  /** Owner 2026-10-18: the texts under a key prefix in every language
+   * (admin «Справочник»: `guide.`). */
+  @Get('texts')
+  @ApiEnvelopeResponse(I18nTextsDto)
+  @ApiErrors({ 400: [ErrorCode.VALIDATION_ERROR] })
+  async listTexts(@Query() query: I18nTextsQueryDto): Promise<I18nTextsDto> {
+    return this.texts.list(query.prefix);
+  }
+
+  /** One text in one language; phones get it on their next bundle sync. */
+  @Put('texts')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiErrors({
+    400: [ErrorCode.VALIDATION_ERROR, ErrorCode.I18N_LANGUAGE_NOT_FOUND],
+    404: [ErrorCode.NOT_FOUND],
+  })
+  async updateText(@Body() dto: UpdateI18nTextDto): Promise<void> {
+    await this.texts.update(dto.key, dto.lang, dto.value);
+  }
 
   @Post('import')
   @ApiConsumes('multipart/form-data')
