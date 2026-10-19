@@ -9,7 +9,7 @@ const guideRu = <String, String>{
   'cases.preview.note':
       'Так ваш кейс выглядит для всех проверенных адвокатов: без вашего имени, фото и контактов. Файлы и подробности они не видят, только сколько их.',
   'cases.preview.more': 'Подробнее в справочнике',
-  'cases.preview.button': 'Как выглядит ваш кейс',
+  'cases.preview.button': 'Просмотр кейса',
   'guide.title': 'Справочник',
   'guide.intro':
       'Как устроен LawBid: кто что видит, как защищены ваши данные и какие правила действуют. Нажмите на раздел, чтобы раскрыть его.',
@@ -44,7 +44,7 @@ const guideEn = <String, String>{
   'cases.preview.note':
       'This is how your case looks to all verified attorneys: without your name, photo or contacts. They do not see your files or details, only how many there are.',
   'cases.preview.more': 'More in the Guide',
-  'cases.preview.button': 'How your case looks',
+  'cases.preview.button': 'Preview',
   'guide.title': 'Guide',
   'guide.intro':
       'How LawBid works: who sees what, how your data is protected and which rules apply. Tap a section to open it.',

@@ -643,37 +643,41 @@ class _OwnerOpenCaseState extends ConsumerState<_OwnerOpenCase> {
                 // ваш кейс» (until a bid is accepted) and «Вопросы по
                 // кейсу» (OQ-034: attorneys' questions under the case).
                 const SizedBox(height: AppSpacing.lg),
-                Row(
-                  children: [
-                    if (c.status == CaseStatus.open &&
-                        c.acceptedBid == null) ...[
-                      Expanded(
-                        child: AppButton(
-                          key: const ValueKey('case-preview-open'),
-                          label: t.t('cases.preview.button'),
-                          icon: AppIcons.visibilityOutlined,
-                          variant: AppButtonVariant.secondary,
-                          onPressed: () => showAttorneyViewPreview(
-                            context,
-                            item: AttorneyViewPreview.feedViewOf(c),
-                            t: t,
-                            formats: formats,
+                // Owner 2026-10-19: both buttons always the same height.
+                IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (c.status == CaseStatus.open &&
+                          c.acceptedBid == null) ...[
+                        Expanded(
+                          child: AppButton(
+                            key: const ValueKey('case-preview-open'),
+                            label: t.t('cases.preview.button'),
+                            icon: AppIcons.visibilityOutlined,
+                            variant: AppButtonVariant.secondary,
+                            onPressed: () => showAttorneyViewPreview(
+                              context,
+                              item: AttorneyViewPreview.feedViewOf(c),
+                              t: t,
+                              formats: formats,
+                            ),
                           ),
                         ),
+                        const SizedBox(width: AppSpacing.sm),
+                      ],
+                      Expanded(
+                        child: AppButton(
+                          key: const ValueKey('case-questions-open'),
+                          label: t.t('cases.comments.title'),
+                          icon: AppIcons.modeCommentOutlined,
+                          variant: AppButtonVariant.secondary,
+                          onPressed: () =>
+                              context.push(AppRoutes.caseComments(c.id)),
+                        ),
                       ),
-                      const SizedBox(width: AppSpacing.sm),
                     ],
-                    Expanded(
-                      child: AppButton(
-                        key: const ValueKey('case-questions-open'),
-                        label: t.t('cases.comments.title'),
-                        icon: AppIcons.modeCommentOutlined,
-                        variant: AppButtonVariant.secondary,
-                        onPressed: () =>
-                            context.push(AppRoutes.caseComments(c.id)),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
                 DetailSection(
                   title: t.t('cases.detail.details'),
