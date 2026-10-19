@@ -166,6 +166,24 @@ row + topic hint; budget step no jump.
 - Both builds pass from the branch: `flutter build web --wasm -t
   lib/main_prod.dart` (all required files) and `next build` (admin).
 
+## Case cabinet audit (2026-10-19, all committed locally, NOT pushed)
+- Workspace notifications: `case_workspace_activity` (payload `{caseId, actorId,
+  kind}`; kinds update / task_added / task_done / task_files / details),
+  emitted in `cases/workspace/case-workspace.service.ts` (`tell`) and
+  `CasesService.updatePrivateDetails`; push text by kind in
+  `notification-template.service.ts`; app text/route in notifications_view.dart.
+- «Подробности»: `PATCH /cases/:id/private-details` (client; open or in work);
+  app `presentation/widgets/private_details_card.dart` (owner edits, attorney
+  reads).
+- Workspace rights: `side(user, caseId, need)` — assistant needs «cases»,
+  «tasks» for task changes; closed / archived = read-only (409), DTO flags
+  `canWrite` (summary) / `canEdit` (tasks); app shows `WorkspaceReadOnlyNote`.
+- Joint tasks open (task sheet lists `joint`); attorney list «Ход работы».
+- Migration 20261019030000 applied to the dev DB; `npm run seed:i18n` done.
+- Full `flutter test` (accidentally run once) had failures outside this work:
+  feature_boundaries (verification 4), essence_step / profile / onboarding
+  goldens — other threads' files.
+
 ## Open / do next (in this order)
 1. DONE (session 2). Stale banner is confusing (owner didn't understand when/why it appeared).
    Rework the whole stale UX (case_stale_banner.dart, My cases, owner case,

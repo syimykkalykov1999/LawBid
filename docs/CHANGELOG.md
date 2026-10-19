@@ -5,6 +5,17 @@ All notable changes to this project are documented here, per
 .cursorrules (each stage ends with a CHANGELOG update + commit on
 branch cursor/stage-X-Y-description).
 
+## Case cabinet: 5 audit fixes (2026-10-19)
+
+Audit «Кейс: кто что добавляет» (case_flow_ru.html): five problems of the case workspace.
+
+- Notifications: a new update, task, done mark, note / files on a task, and the client's changed «Подробности» now reach the other side — type `case_workspace_activity` (migration 20261019030000, category «Кейсы», important), push body per `payload.kind` (`notif.workspace.<kind>`), bell text «{name} добавил(а) задачу…», tap opens the case. Not for private tasks or one's own action.
+- «Подробности»: shown as text in the client's Overview (open and in work) and in the hired attorney's work card; the client changes them after hiring (`PATCH /cases/:id/private-details`, state-machine action `client_set_private_details`, journal without the text).
+- Tasks: a joint task opened as an endless skeleton (the sheet skipped the joint list) — fixed; a missing task says so; the attorney's «Общие» (shared) list is «Ход работы», only joint tasks are «Общие»; a joint task has «Отметить выполненной» in its sheet.
+- Assistant / closed case: the workspace checks the assistant's duties («cases» to open, «tasks» to change tasks); a closed / archived case is read-only (409 CASE_INVALID_STATE; `canWrite` / `canEdit` in the DTOs; the app hides the buttons and says why).
+- The hired attorney's Overview has «Вопросы по кейсу».
+- 25 keys in 85 languages; API contract regenerated. Tests: workspace unit spec, template spec, state machine, e2e owner-case-cabinet-audit; app task_sheet_test, private_details_card_test, case_workspace_notification_test.
+
 ## Web and admin on an iPhone (2026-10-18)
 
 Owner: "the web and the admin on the phone: half the screen is missing, files/posts/videos do not upload".
