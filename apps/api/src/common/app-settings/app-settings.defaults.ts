@@ -161,14 +161,22 @@ export const OWNER_MEDIA_SETTINGS = {
   // JPEG quality — no visible loss, small files. Videos are re-encoded by
   // Bunny for viewers.
   // Owner 2026-10-15: lighter (Instagram stores 1080 px): 1440 px / 80 %.
+  // Owner 2026-10-19 (Instagram quality, «too compressed, avatars are
+  // blurry»): 1440 px keeps a 4:5 portrait 1080 px wide (Instagram's size)
+  // and quality 90 — the server re-encodes once more for its sizes, two
+  // passes at 80–85 were visibly soft.
   'media.photo_max_px': 1440,
-  'media.photo_quality': 80,
+  'media.photo_quality': 90,
   'media.avatar_max_px': 1024,
+  // Owner 2026-10-19: the profile photo is small and seen up close — its
+  // own, higher quality.
+  'media.avatar_quality': 95,
   // Owner 2026-10-05: reels are re-encoded on the phone before upload —
   // at most this height (1080 = Full HD, no visible loss on a phone),
   // 0 = upload as recorded. Frame rate cap keeps files small.
   // Owner 2026-10-15: 720 p — about half the size of 1080 p, same on a phone.
-  'media.video_max_height': 720,
+  // Owner 2026-10-19 (Instagram): 1080 p again — 720 p looked soft.
+  'media.video_max_height': 1080,
   'media.video_frame_rate': 30,
   // Owner 2026-10-05: document templates the admin uploads (PDF, Word).
   'files.document_template_max_size_mb': 10,

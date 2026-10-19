@@ -147,6 +147,7 @@ const KEY_TEXT: Record<string, string> = {
   'media.video_frame_rate': 'Видео: кадров в секунду после сжатия (24–60)',
   'files.document_template_max_size_mb': 'Максимальный размер шаблона документа (PDF, Word), МБ.',
   'media.avatar_max_px': 'Фото профиля: длинная сторона после сжатия, px',
+  'media.avatar_quality': 'Фото профиля: качество JPEG после сжатия на телефоне (50–100)',
   'translate.scope': 'Где работает переводчик: all = везде, zones = только в разделах ниже, где стоит true. Удобнее менять в «Ключи и сервисы» → Google Translate.',
   'translate.chat': 'Перевод в чатах (при «только выбранные»).',
   'translate.posts': 'Перевод постов и комментариев в ленте (при «только выбранные»).',
