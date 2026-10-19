@@ -227,6 +227,41 @@ describe('People search + client usernames (e2e, OQ-026)', () => {
     expect(await found('Эмили Вандербилт')).not.toContain(att.id);
   });
 
+  it('after sign-up the onboarding step cannot change the @username (cooldown path only)', async () => {
+    const u = await prisma.user.create({
+      data: { role: 'client', first_name: 'Late', last_name: token },
+    });
+    const a = auth(u.id, 'client');
+    const first = await api()
+      .patch('/api/v1/users/me/onboarding')
+      .set(a)
+      .send({
+        currentStep: 'push',
+        profile: { firstName: 'Late', lastName: token, stateCode: 'NY' },
+      });
+    expect(first.status).toBe(200);
+    const before = first.body.data.profile.username as string;
+    await prisma.onboardingState.upsert({
+      where: { user_id: u.id },
+      create: { user_id: u.id, current_step: 'done', completed_at: new Date() },
+      update: { completed_at: new Date() },
+    });
+    const again = await api()
+      .patch('/api/v1/users/me/onboarding')
+      .set(a)
+      .send({
+        currentStep: 'push',
+        profile: {
+          firstName: 'Late',
+          lastName: token,
+          stateCode: 'NY',
+          username: `${token}.sneaky`,
+        },
+      });
+    expect(again.status).toBe(200);
+    expect(again.body.data.profile.username).toBe(before);
+  });
+
   it('GET /clients/:username — mini-profile for anyone signed in; 404 for unknown/blocked', async () => {
     const cli = await client(['Mini', token], `${token}.mini`);
     const att = await attorney(`${token}.viewer`, ['View', 'Er']);

@@ -272,8 +272,18 @@ export class UserProfilesService {
           preferred_contact_note: dto.contactNote || null,
         }),
       };
+      // Owner 2026-10-18: a chosen @username only during sign-up (after
+      // onboarding the profile edit and its cooldown apply).
+      const signedUp =
+        existing &&
+        (
+          await tx.onboardingState.findUnique({
+            where: { user_id: userId },
+            select: { completed_at: true },
+          })
+        )?.completed_at;
       const chosen =
-        dto.username === undefined
+        dto.username === undefined || signedUp
           ? null
           : await this.chosenUsername(tx, userId, dto.username);
       if (existing) {
@@ -379,8 +389,19 @@ export class UserProfilesService {
             }),
             ...(dto.languages !== undefined && { languages: dto.languages }),
           };
+          // Owner 2026-10-18: a chosen @username is taken during sign-up
+          // only; after onboarding a change goes through the profile edit
+          // (with its cooldown), never through this step.
+          const signedUp =
+            existing &&
+            (
+              await tx.onboardingState.findUnique({
+                where: { user_id: userId },
+                select: { completed_at: true },
+              })
+            )?.completed_at;
           const chosen =
-            dto.username === undefined
+            dto.username === undefined || signedUp
               ? null
               : await this.chosenUsername(tx, userId, dto.username, reserved);
           if (existing) {
