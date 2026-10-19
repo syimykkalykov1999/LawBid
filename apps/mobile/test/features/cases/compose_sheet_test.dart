@@ -36,8 +36,10 @@ Future<void> main() async {
       expect(find.byTooltip('Due date'), findsOneWidget);
       expect(find.byTooltip('Reminder'), findsOneWidget);
       expect(find.byTooltip('Checklist item'), findsOneWidget);
-      // the kinds (For client · Shared · Private) are for a case only
-      expect(find.text('Shared'), planner ? findsNothing : findsOneWidget);
+      // the kinds (For client · Progress · Joint · Private) are for a case
+      // only; audit 2026-10-19: two of them were both called «Общие».
+      expect(find.text('Progress'), planner ? findsNothing : findsOneWidget);
+      expect(find.text('Joint'), planner ? findsNothing : findsOneWidget);
       expect(
         find.byTooltip('Details'),
         planner ? findsOneWidget : findsNothing,

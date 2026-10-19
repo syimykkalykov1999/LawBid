@@ -413,7 +413,10 @@ class _ComposeSheetState extends ConsumerState<_ComposeSheet> {
     final kinds = widget.isAttorney
         ? [
             (api.CreateCaseTaskDtoKind.forClient, t.t('cases.tasks.forClient')),
-            (api.CreateCaseTaskDtoKind.shared, t.t('cases.tasks.shared')),
+            (
+              api.CreateCaseTaskDtoKind.shared,
+              t.t('cases.tasks.progressMine'),
+            ),
             (api.CreateCaseTaskDtoKind.joint, t.t('cases.tasks.joint')),
             (api.CreateCaseTaskDtoKind.private, t.t('cases.tasks.private')),
           ]

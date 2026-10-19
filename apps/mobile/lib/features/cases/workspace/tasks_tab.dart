@@ -75,7 +75,8 @@ class _TasksTabState extends ConsumerState<TasksTab> {
         final labels = widget.isAttorney
             ? [
                 t.t('cases.tasks.forClient'),
-                t.t('cases.tasks.shared'),
+                // Audit 2026-10-19: «Общие» was the name of two lists.
+                t.t('cases.tasks.progressMine'),
                 t.t('cases.tasks.joint'),
                 t.t('cases.tasks.private'),
               ]
@@ -436,14 +437,30 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final ws = ref.watch(caseWorkspaceProvider(widget.caseId)).value;
     final tasks = ref.watch(caseTasksProvider(widget.caseId)).value;
+    // Audit 2026-10-19: joint tasks were missing here, so they opened as
+    // an endless skeleton.
     final all = tasks == null
         ? const <api.CaseTaskDto>[]
-        : [...tasks.forClient, ...tasks.shared, ...tasks.private];
+        : [
+            ...tasks.forClient,
+            ...tasks.shared,
+            ...tasks.joint,
+            ...tasks.private,
+          ];
     final task = all.where((x) => x.id == widget.taskId).firstOrNull;
     final isAttorney = tasks?.role == api.CaseTasksDtoRole.attorney;
     final actions = ref.read(caseWorkspaceActionsProvider);
     if (task == null) {
-      return const SizedBox(height: 200, child: AppSkeleton(height: 120));
+      if (tasks == null) {
+        return const SizedBox(height: 200, child: AppSkeleton(height: 120));
+      }
+      return Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Text(
+          t.t('cases.tasks.notFound'),
+          style: type.body.copyWith(color: colors.textSecondary),
+        ),
+      );
     }
     final done = task.status == api.CaseTaskDtoStatus.done;
     final forClient = task.kind == api.CaseTaskDtoKind.forClient;
@@ -524,9 +541,17 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
               children: [
                 Text(
                   switch (task.kind) {
-                    api.CaseTaskDtoKind.forClient =>
-                      t.t('cases.tasks.forClient'),
-                    api.CaseTaskDtoKind.shared => t.t('cases.tasks.shared'),
+                    api.CaseTaskDtoKind.forClient => t.t(
+                        isAttorney
+                            ? 'cases.tasks.forClient'
+                            : 'cases.tasks.yours',
+                      ),
+                    api.CaseTaskDtoKind.shared => t.t(
+                        isAttorney
+                            ? 'cases.tasks.progressMine'
+                            : 'cases.tasks.lawyerProgress',
+                      ),
+                    api.CaseTaskDtoKind.joint => t.t('cases.tasks.joint'),
                     _ => t.t('cases.tasks.private'),
                   },
                   style: type.caption.copyWith(color: colors.textSecondary),
