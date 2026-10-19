@@ -167,7 +167,9 @@ export const PLACE_SPECS: Record<UploadPlace, PlaceSpec> = {
       maxFiles: 3,
       fileMb: 10,
       totalMb: 0,
-      formats: ['jpeg', 'png', 'heic', 'pdf', 'docx'],
+      // Owner 2026-10-19: WebP too — the app's picked photos may be WebP
+      // (a case with them could not be published).
+      formats: ['jpeg', 'png', 'heic', 'webp', 'pdf', 'docx'],
     },
   },
   // Owner 2026-10-17: videos too (compressed to 720p on the phone).

@@ -169,7 +169,7 @@ const kDefaultUploadLimits = <UploadPlace, PlaceUploadLimits>{
     maxFiles: 3,
     fileMb: 10,
     totalMb: 0,
-    formats: {'jpeg', 'png', 'heic', 'pdf', 'docx'},
+    formats: {'jpeg', 'png', 'heic', 'webp', 'pdf', 'docx'},
   ),
   UploadPlace.chat: PlaceUploadLimits(
     maxPhotos: 0,

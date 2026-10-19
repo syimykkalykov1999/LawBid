@@ -10,6 +10,8 @@ import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/domain/case_draft.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
+import 'package:lawbid/features/profile/data/avatar_upload_repository.dart'
+    show sniffImageMime;
 import 'package:lawbid/features/social/application/social_providers.dart';
 
 /// Number of wizard steps (docs/04 §3.1).
@@ -206,6 +208,16 @@ class CreateCaseController extends Notifier<CreateCaseState> {
     CasePhotoUpload done;
     try {
       final limits = ref.read(uploadLimitsProvider)[UploadPlace.kase];
+      // Owner 2026-10-19: a format the admin has off fails here, on the
+      // tile of that file, not at «Опубликовать»; the others still upload.
+      final mime = sniffImageMime(item.bytes) ??
+          (item.name == null ? null : limits.mimeForName(item.name!));
+      if (mime != null && !limits.allowsMime(mime)) {
+        throw const ApiException(
+          code: ApiErrorCodes.fileTypeNotAllowed,
+          message: 'type',
+        );
+      }
       final id = await ref.read(socialActionsProvider).uploadPhoto(
             item.bytes,
             casePhoto: true,
