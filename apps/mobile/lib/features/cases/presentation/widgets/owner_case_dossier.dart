@@ -4,12 +4,10 @@ import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
-import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
-import 'package:lawbid/core/media/photo_limits.dart';
+import 'package:lawbid/features/cases/application/case_media_picker.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_dossier.dart';
@@ -40,27 +38,27 @@ class _OwnerCaseDossierState extends ConsumerState<OwnerCaseDossier> {
   PlaceUploadLimits get _limits =>
       ref.read(uploadLimitsProvider)[UploadPlace.kase];
 
-  // Owner 2026-10-19: photos and documents have their own limits.
+  // Owner 2026-10-19: photos and videos share one limit, documents have
+  // their own.
+  static bool _media(String mime) =>
+      mime.startsWith('image/') || mime.startsWith('video/');
+
   int get _photosLeft =>
       _limits.maxPhotos -
-      widget.kase.photos.where((p) => p.mime.startsWith('image/')).length;
+      widget.kase.photos.where((p) => _media(p.mime)).length;
 
   int get _filesLeft =>
       _limits.maxFiles -
-      widget.kase.photos.where((p) => !p.mime.startsWith('image/')).length;
+      widget.kase.photos.where((p) => !_media(p.mime)).length;
 
   Future<void> _pickPhotos() async {
-    final limits = photoLimitsOf(ref.read(featureFlagsControllerProvider));
-    final picked = await ImagePicker().pickMultiImage(
-      maxWidth: limits.maxPx,
-      maxHeight: limits.maxPx,
-      imageQuality: limits.quality,
-      limit: _photosLeft > 1 ? _photosLeft : null,
+    await _add(
+      await pickCaseMedia(
+        ref,
+        left: _photosLeft,
+        videos: _limits.allowsVideo,
+      ),
     );
-    await _add([
-      for (final f in picked.take(_photosLeft))
-        (bytes: await f.readAsBytes(), name: null),
-    ]);
   }
 
   Future<void> _pickDocuments() async {

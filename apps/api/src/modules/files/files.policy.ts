@@ -116,7 +116,8 @@ export const PURPOSE_RULES: Record<FilePurpose, PurposeRule> = {
   // OQ-034: case documents — photos, PDF, Word; private like case photos
   // (only the owner and the attorney whose bid was accepted open them).
   case_attachment: {
-    mimes: [...IMAGES, ...DOCS],
+    // Owner 2026-10-19: and videos (from the phone's gallery or a computer).
+    mimes: [...IMAGES, ...DOCS, FILE_MIME.mp4, FILE_MIME.mov],
     bucket: 'documents',
   },
   // OQ-047: photos and documents in a chat once the bid is accepted;

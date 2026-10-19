@@ -55,7 +55,7 @@ const kUploadFormatMime = <String, String>{
 
 const kPhotoFormats = {'jpeg', 'png', 'heic', 'webp', 'gif'};
 
-/// Owner 2026-10-17: video formats (chat only).
+/// Owner 2026-10-17: video formats (chat; cases since 2026-10-19).
 const kVideoFormats = {'mp4', 'mov'};
 
 /// File-name extensions of a format (what the picker offers).
@@ -167,9 +167,10 @@ const kDefaultUploadLimits = <UploadPlace, PlaceUploadLimits>{
   UploadPlace.kase: PlaceUploadLimits(
     maxPhotos: 9,
     maxFiles: 3,
-    fileMb: 10,
+    fileMb: 50,
     totalMb: 0,
-    formats: {'jpeg', 'png', 'heic', 'webp', 'pdf', 'docx'},
+    // Owner 2026-10-19: and videos (they count with the photos).
+    formats: {'jpeg', 'png', 'heic', 'webp', 'pdf', 'docx', 'mp4', 'mov'},
   ),
   UploadPlace.chat: PlaceUploadLimits(
     maxPhotos: 0,

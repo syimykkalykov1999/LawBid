@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
+import 'package:lawbid/features/cases/application/case_media_picker.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/domain/case_draft.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
@@ -35,7 +36,11 @@ class CasePhotoUpload {
 
   /// OQ-034: set for a document (PDF / Word) — shown as a file tile.
   final String? name;
-  bool get isDocument => name != null;
+
+  /// Owner 2026-10-19: a video counts with the photos.
+  bool get isVideo => isCaseVideoName(name);
+
+  bool get isDocument => name != null && !isVideo;
 
   /// Set once the upload passed the antivirus scan.
   final String? fileId;
@@ -192,11 +197,17 @@ class CreateCaseController extends Notifier<CreateCaseState> {
   /// their own admin limits.
   void addFiles(List<({Uint8List bytes, String? name})> picked) {
     final limits = ref.read(uploadLimitsProvider)[UploadPlace.kase];
-    final docs = picked.isNotEmpty && picked.first.name != null;
-    final have = state.photos.where((p) => p.isDocument == docs).length;
-    final left = (docs ? limits.maxFiles : limits.maxPhotos) - have;
-    if (left <= 0) return;
-    for (final f in picked.take(left)) {
+    bool doc(String? name) => name != null && !isCaseVideoName(name);
+    var media = state.photos.where((p) => !p.isDocument).length;
+    var docs = state.photos.length - media;
+    for (final f in picked) {
+      if (doc(f.name)) {
+        if (docs >= limits.maxFiles) continue;
+        docs++;
+      } else {
+        if (media >= limits.maxPhotos) continue;
+        media++;
+      }
       final item =
           CasePhotoUpload(key: _photoKey++, bytes: f.bytes, name: f.name);
       state = state.copyWith(photos: [...state.photos, item]);

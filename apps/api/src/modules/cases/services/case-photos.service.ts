@@ -44,8 +44,10 @@ export class CasePhotosService {
       if (!kept.has(id)) await this.files.assertFitsPlace('case', file);
       files.push(file);
     }
-    // Owner 2026-10-19: photos and documents have their own limits.
-    const isPhoto = (mime: string) => mime.startsWith('image/');
+    // Owner 2026-10-19: photos and videos share one limit, documents
+    // have their own.
+    const isPhoto = (mime: string) =>
+      mime.startsWith('image/') || mime.startsWith('video/');
     const limits = await this.files.uploadLimits();
     const photos = files.filter((f) => isPhoto(f.mime)).length;
     const hadPhotos = had.filter((p) => isPhoto(p.file.mime)).length;

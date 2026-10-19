@@ -353,7 +353,12 @@ const file06Ru = <String, String>{
   'cases.photos.tilePhoto': 'Фото',
   'cases.photos.tileFile': 'Файл',
   'cases.photos.limitReached': 'Достигнут лимит: {max}',
-  'cases.photos.privacySplit': 'До {photos} фото и до {files} файлов (PDF, Word).',
+  'cases.photos.privacyMedia':
+      'До {photos} фото и видео и до {files} документов (PDF, Word).',
+  'cases.photos.tileMedia': 'Фото и видео',
+  'cases.files.video': 'Видео',
+  'cases.photos.privacySplit':
+      'До {photos} фото и до {files} файлов (PDF, Word).',
   'cases.field.noContacts':
       'Без паспорта, SSN, номеров счетов, имён и адресов.',
   'cases.field.brief': 'Кратко о деле',
@@ -815,7 +820,12 @@ const file06En = <String, String>{
   'cases.photos.tilePhoto': 'Photo',
   'cases.photos.tileFile': 'File',
   'cases.photos.limitReached': 'Limit reached: {max}',
-  'cases.photos.privacySplit': 'Up to {photos} photos and up to {files} files (PDF, Word).',
+  'cases.photos.privacyMedia':
+      'Up to {photos} photos and videos and up to {files} documents (PDF, Word).',
+  'cases.photos.tileMedia': 'Photo & video',
+  'cases.files.video': 'Video',
+  'cases.photos.privacySplit':
+      'Up to {photos} photos and up to {files} files (PDF, Word).',
   'cases.field.noContacts':
       'No passport, SSN, account numbers, names or addresses.',
   'cases.field.brief': 'Case in brief',

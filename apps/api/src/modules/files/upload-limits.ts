@@ -160,16 +160,18 @@ export const PLACE_SPECS: Record<UploadPlace, PlaceSpec> = {
   // separately (was 9 together).
   case: {
     count: 'split',
-    safeFormats: [...PHOTOS, ...DOC_FORMATS],
+    // Owner 2026-10-19: videos count with the photos (9 photos and videos
+    // + 3 documents); 50 MB a file so a phone video fits.
+    safeFormats: [...PHOTOS, ...DOC_FORMATS, ...VIDEO_FORMATS],
     ceiling: { count: 20, fileMb: 50, totalMb: 0 },
     defaults: {
       maxPhotos: 9,
       maxFiles: 3,
-      fileMb: 10,
+      fileMb: 50,
       totalMb: 0,
       // Owner 2026-10-19: WebP too — the app's picked photos may be WebP
-      // (a case with them could not be published).
-      formats: ['jpeg', 'png', 'heic', 'webp', 'pdf', 'docx'],
+      // (a case with them could not be published); and videos.
+      formats: ['jpeg', 'png', 'heic', 'webp', 'pdf', 'docx', 'mp4', 'mov'],
     },
   },
   // Owner 2026-10-17: videos too (compressed to 720p on the phone).

@@ -1,17 +1,13 @@
-import 'dart:typed_data';
-
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
-import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
-import 'package:lawbid/core/media/photo_limits.dart';
 import 'package:lawbid/core/text/bidi.dart';
+import 'package:lawbid/features/cases/application/case_media_picker.dart';
 import 'package:lawbid/features/cases/application/create_case_controller.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -37,20 +33,15 @@ class CasePhotosPicker extends ConsumerWidget {
     final photoCount = photos.where((p) => !p.isDocument).length;
     final fileCount = photos.length - photoCount;
 
+    // Owner 2026-10-19: one gallery for photos and videos (videos are
+    // compressed on the phone and count with the photos).
     Future<void> pick() async {
-      final left = maxPhotos - photoCount;
-      if (left <= 0) return;
-      final limits = photoLimitsOf(ref.read(featureFlagsControllerProvider));
-      final picked = await ImagePicker().pickMultiImage(
-        maxWidth: limits.maxPx,
-        maxHeight: limits.maxPx,
-        imageQuality: limits.quality,
-        limit: left > 1 ? left : null,
+      final picked = await pickCaseMedia(
+        ref,
+        left: maxPhotos - photoCount,
+        videos: upload.allowsVideo,
       );
-      final bytes = <Uint8List>[
-        for (final f in picked.take(left)) await f.readAsBytes(),
-      ];
-      c.addPhotos(bytes);
+      c.addFiles(picked);
     }
 
     // OQ-034: PDF / Word documents next to the photos.
@@ -59,7 +50,12 @@ class CasePhotosPicker extends ConsumerWidget {
       if (left <= 0) return;
       final result = await FilePicker.pickFiles(
         type: FileType.custom,
-        allowedExtensions: upload.documentExtensions,
+        // Owner 2026-10-19: a video from a computer too (counts with the
+        // photos).
+        allowedExtensions: [
+          ...upload.documentExtensions,
+          if (upload.allowsVideo) ...kCaseVideoExtensions,
+        ],
         allowMultiple: true,
         withData: true,
       );
@@ -99,10 +95,14 @@ class CasePhotosPicker extends ConsumerWidget {
         ),
         const SizedBox(height: AppSpacing.xs),
         Text(
-          t.t('cases.photos.privacySplit', {
-            'photos': '$maxPhotos',
-            'files': '$maxFiles',
-          }),
+          t.t(
+              upload.allowsVideo
+                  ? 'cases.photos.privacyMedia'
+                  : 'cases.photos.privacySplit',
+              {
+                'photos': '$maxPhotos',
+                'files': '$maxFiles',
+              }),
           style: type.caption.copyWith(color: colors.textSecondary),
         ),
         const SizedBox(height: AppSpacing.sm),
@@ -114,7 +114,11 @@ class CasePhotosPicker extends ConsumerWidget {
             Expanded(
               child: _AddButton(
                 icon: AppIcons.addPhotoAlternateOutlined,
-                label: t.t('cases.photos.tilePhoto'),
+                label: t.t(
+                  upload.allowsVideo
+                      ? 'cases.photos.tileMedia'
+                      : 'cases.photos.tilePhoto',
+                ),
                 semantic: t.t('cases.photos.add'),
                 count: photoCount < maxPhotos
                     ? ltrIsolate('$photoCount / $maxPhotos')
@@ -153,19 +157,24 @@ class CasePhotosPicker extends ConsumerWidget {
                       children: [
                         ClipRRect(
                           borderRadius: BorderRadius.circular(AppRadii.field),
-                          child: p.isDocument
-                              ? _DocTile(name: p.name!)
-                              // A photo restored with a saved draft has no
-                              // bytes on the device any more.
-                              : p.bytes.isEmpty
-                                  ? ColoredBox(
-                                      color: colors.surface,
-                                      child: AppIcon(
-                                        AppIcons.imageOutlined,
-                                        color: colors.goldDark,
-                                      ),
-                                    )
-                                  : Image.memory(p.bytes, fit: BoxFit.cover),
+                          child: p.isVideo
+                              ? const _VideoTile()
+                              : p.isDocument
+                                  ? _DocTile(name: p.name!)
+                                  // A photo restored with a saved draft has no
+                                  // bytes on the device any more.
+                                  : p.bytes.isEmpty
+                                      ? ColoredBox(
+                                          color: colors.surface,
+                                          child: AppIcon(
+                                            AppIcons.imageOutlined,
+                                            color: colors.goldDark,
+                                          ),
+                                        )
+                                      : Image.memory(
+                                          p.bytes,
+                                          fit: BoxFit.cover,
+                                        ),
                         ),
                         if (p.uploading)
                           const Center(
@@ -361,6 +370,20 @@ class CasePhotosStrip extends ConsumerWidget {
 
   Widget _tile(BuildContext context, Translator t, int i) {
     final p = photos[i];
+    // Owner 2026-10-19: a video plays in the system player.
+    if (p.mime.startsWith('video/')) {
+      return AppPressable(
+        onTap: () => openCaseDocument(p.url),
+        child: Semantics(
+          button: true,
+          label: t.t('cases.files.video'),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(AppRadii.field),
+            child: const SizedBox.square(dimension: 112, child: _VideoTile()),
+          ),
+        ),
+      );
+    }
     // OQ-034: documents open in the system viewer.
     if (!p.isImage) {
       final pdf = p.mime == 'application/pdf';
@@ -406,6 +429,26 @@ class CasePhotosStrip extends ConsumerWidget {
             height: 112,
             fit: BoxFit.cover,
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Owner 2026-10-19: a video tile (play sign on the theme's surface).
+class _VideoTile extends StatelessWidget {
+  const _VideoTile();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    return ColoredBox(
+      color: colors.surface,
+      child: Center(
+        child: AppIcon(
+          AppIcons.playCircleOutlined,
+          size: 40,
+          color: colors.goldDark,
         ),
       ),
     );
