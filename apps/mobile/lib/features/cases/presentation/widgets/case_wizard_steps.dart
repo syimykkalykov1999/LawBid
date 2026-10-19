@@ -1122,10 +1122,11 @@ class _BudgetStepState extends ConsumerState<BudgetStep> {
           value: kind,
           options: [
             (_BudgetKind.amount, t.t('cases.budget.specify')),
-            if (percentAllowed)
-              (_BudgetKind.percent, t.t('cases.budget.percent')),
+            (_BudgetKind.percent, t.t('cases.budget.percent')),
             (_BudgetKind.later, t.t('cases.budget.clarifyLater')),
           ],
+          // Owner 2026-10-19: shown greyed with a note, not hidden.
+          disabled: {if (!percentAllowed) _BudgetKind.percent},
           onChanged: (v) => widget.onChange(
             (x) => x.copyWith(
               budgetIsAmount: v == _BudgetKind.amount,
@@ -1133,6 +1134,14 @@ class _BudgetStepState extends ConsumerState<BudgetStep> {
             ),
           ),
         ),
+        if (!percentAllowed) ...[
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            t.t('cases.budget.percentForbidden'),
+            key: const ValueKey('budget-percent-forbidden'),
+            style: typography.caption.copyWith(color: colors.textSecondary),
+          ),
+        ],
         const SizedBox(height: AppSpacing.xl),
         // Owner 2026-10-18: the three choices share one box as tall as the
         // tallest, so nothing below jumps when switching (they cross-fade).
@@ -1252,12 +1261,16 @@ class SegmentedChoice<T> extends StatelessWidget {
     required this.value,
     required this.options,
     required this.onChanged,
+    this.disabled = const {},
     super.key,
   });
 
   final T value;
   final List<(T, String)> options;
   final ValueChanged<T> onChanged;
+
+  /// Options shown greyed that cannot be picked.
+  final Set<T> disabled;
 
   @override
   Widget build(BuildContext context) {
@@ -1299,11 +1312,14 @@ class SegmentedChoice<T> extends StatelessWidget {
                       child: Semantics(
                         button: true,
                         selected: i == index,
+                        enabled: !disabled.contains(options[i].$1),
                         label: options[i].$2,
                         excludeSemantics: true,
                         child: GestureDetector(
                           behavior: HitTestBehavior.opaque,
-                          onTap: () => onChanged(options[i].$1),
+                          onTap: disabled.contains(options[i].$1)
+                              ? null
+                              : () => onChanged(options[i].$1),
                           child: ConstrainedBox(
                             constraints: const BoxConstraints(
                               minHeight: AppSizes.touchTarget,
@@ -1318,7 +1334,10 @@ class SegmentedChoice<T> extends StatelessWidget {
                                   style: typography.button.copyWith(
                                     color: i == index
                                         ? colors.onAccent
-                                        : colors.textSecondary,
+                                        : disabled.contains(options[i].$1)
+                                            ? colors.textSecondary
+                                                .withValues(alpha: 0.4)
+                                            : colors.textSecondary,
                                   ),
                                   child: Text(
                                     options[i].$2,

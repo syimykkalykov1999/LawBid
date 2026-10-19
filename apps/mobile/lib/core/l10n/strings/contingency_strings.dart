@@ -2,6 +2,7 @@
 
 const contingencyRu = <String, String>{
   'cases.budget.percent': 'Проценты',
+  'cases.budget.percentForbidden': 'Для этой темы процент запрещён',
   'cases.field.budgetPercent': 'Процент от компенсации',
   'cases.field.budgetPercentError': 'Введите процент от 0,01 до {max}',
   'cases.create.budget.percentHint':
@@ -28,6 +29,7 @@ const contingencyRu = <String, String>{
 };
 
 const contingencyEn = <String, String>{
+  'cases.budget.percentForbidden': 'A percent is not allowed for this topic',
   'cases.budget.percent': 'Percent',
   'cases.field.budgetPercent': 'Percent of the recovery',
   'cases.field.budgetPercentError': 'Enter a percent from 0.01 to {max}',
