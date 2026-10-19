@@ -142,7 +142,14 @@ Future<List<PickedChatFile>> pickChatFiles(
       }
   }
   if (skipped > 0 && context.mounted) {
-    showAppSnackBar(context, t.t('chat.attach.skipped', {'count': '$skipped'}));
+    // Owner 2026-10-18: the real limit (admin «Загрузки и файлы»), not 25.
+    final maxMb =
+        ((limits?.fileBytes ?? kChatAttachmentMaxBytes) / (1024 * 1024))
+            .round();
+    showAppSnackBar(
+      context,
+      t.t('chat.attach.skipped', {'count': '$skipped', 'max': '$maxMb'}),
+    );
   }
   return out;
 }

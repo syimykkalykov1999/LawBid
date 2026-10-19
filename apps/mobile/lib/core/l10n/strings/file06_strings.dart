@@ -11,7 +11,7 @@ const file06Ru = <String, String>{
   'chat.attach.photo': 'Фото',
   'chat.attach.label': 'Файл',
   'chat.attach.skipped':
-      'Не добавлено файлов: {count} — неподдерживаемый формат или больше 25 МБ',
+      'Не добавлено файлов: {count} — неподдерживаемый формат или больше {max} МБ',
   'chat.files.title': 'Файлы и фото',
   'chat.files.photos': 'Фото',
   'chat.files.documents': 'Документы',
@@ -480,7 +480,7 @@ const file06En = <String, String>{
   'chat.attach.files': 'Documents (PDF, Word, Excel…)',
   'chat.attach.photo': 'Photo',
   'chat.attach.label': 'File',
-  'chat.attach.skipped': '{count} not added — unsupported format or over 25 MB',
+  'chat.attach.skipped': '{count} not added — unsupported format or over {max} MB',
   'chat.files.title': 'Files and photos',
   'chat.files.photos': 'Photos',
   'chat.files.documents': 'Documents',
