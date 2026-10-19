@@ -39,8 +39,10 @@ class ChatFolderPills extends ConsumerWidget {
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenSide),
         children: [
           // "General" tab is hidden: it meant the same as "All".
+          // Owner 2026-10-19: «Основные» (primary) is hidden too; its
+          // filter stays in the code.
           for (final f in ChatListFolder.values)
-            if (f != ChatListFolder.general) ...[
+            if (f != ChatListFolder.general && f != ChatListFolder.primary) ...[
               Semantics(
                 selected: f == value,
                 button: true,
