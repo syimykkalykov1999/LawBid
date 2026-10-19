@@ -95251,6 +95251,11 @@
               "client"
             ],
             "type": "string"
+          },
+          "repostedAt": {
+            "type": "string",
+            "nullable": true,
+            "description": "Owner 2026-10-18: when this person reposted it (profile «Брифы и\nрепосты» orders briefs and reposts by time); null in other lists."
           }
         },
         "required": [

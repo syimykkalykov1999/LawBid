@@ -40,6 +40,9 @@ import 'package:lawbid/shared/domain/user_role.dart';
 import 'package:lawbid/shared/presentation/share_sheet.dart';
 
 // Owner 2026-09-30: News — the attorney's news posts, apart.
+// Owner 2026-10-18: three tabs — Posts | Briefs & reposts | Reviews (plus
+// News while it is on). [threads] has no tab of its own any more: opening
+// it lands on [reposts], the merged «Брифы и репосты» tab.
 enum AttorneyProfileTab { posts, threads, reposts, news, reviews }
 
 /// Public link of an attorney profile (docs/03 §4.2 «Поделиться», deep
@@ -118,14 +121,21 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
   late AttorneyProfileTab _picked = widget.initialTab;
 
   /// Owner 2026-10-06: without News (flag off) its tab is gone.
+  /// Owner 2026-10-18: the briefs live in the Reposts tab (no Threads tab).
   List<AttorneyProfileTab> get _tabs => [
         for (final tab in AttorneyProfileTab.values)
-          if (tab != AttorneyProfileTab.news || ref.watch(newsEnabledProvider))
+          if (tab != AttorneyProfileTab.threads &&
+              (tab != AttorneyProfileTab.news ||
+                  ref.watch(newsEnabledProvider)))
             tab,
       ];
 
-  AttorneyProfileTab get _tab =>
-      _tabs.contains(_picked) ? _picked : AttorneyProfileTab.posts;
+  AttorneyProfileTab get _tab {
+    final picked = _picked == AttorneyProfileTab.threads
+        ? AttorneyProfileTab.reposts
+        : _picked;
+    return _tabs.contains(picked) ? picked : AttorneyProfileTab.posts;
+  }
 
   /// Reviews tab: star filter (null = all) and date order.
   int? _stars;
@@ -380,45 +390,34 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
     var items = const <Review>[];
     if (!reviewsTab) {
       // docs/05: the attorney's posts as a grid (text posts as tiles).
+      // Owner 2026-10-18: briefs and reposts together, newest first.
       footer = _tab == AttorneyProfileTab.reposts
-          ? ProfileRepostsList(
+          ? ProfileBriefsAndReposts(
               key: const ValueKey('reposts'),
-              userId: p.id,
+              attorneyId: p.id,
               isSelf: p.isSelf,
             )
-          : _tab == AttorneyProfileTab.threads
+          : _tab == AttorneyProfileTab.news
               ? ProfilePostsGrid(
-                  key: const ValueKey('threads'),
+                  key: const ValueKey('news'),
                   attorneyId: p.id,
-                  threadsOnly: true,
+                  newsOnly: true,
+                  emptyTitle: t.t('profile.news.empty.title'),
+                  emptyMessage: t.t(
+                    p.isSelf
+                        ? 'profile.news.empty.self'
+                        : 'profile.news.empty.other',
+                  ),
+                )
+              : ProfilePostsGrid(
+                  attorneyId: p.id,
                   emptyTitle: t.t('profile.posts.empty.title'),
                   emptyMessage: t.t(
                     p.isSelf
                         ? 'profile.posts.empty.self'
                         : 'profile.posts.empty.other',
                   ),
-                )
-              : _tab == AttorneyProfileTab.news
-                  ? ProfilePostsGrid(
-                      key: const ValueKey('news'),
-                      attorneyId: p.id,
-                      newsOnly: true,
-                      emptyTitle: t.t('profile.news.empty.title'),
-                      emptyMessage: t.t(
-                        p.isSelf
-                            ? 'profile.news.empty.self'
-                            : 'profile.news.empty.other',
-                      ),
-                    )
-                  : ProfilePostsGrid(
-                      attorneyId: p.id,
-                      emptyTitle: t.t('profile.posts.empty.title'),
-                      emptyMessage: t.t(
-                        p.isSelf
-                            ? 'profile.posts.empty.self'
-                            : 'profile.posts.empty.other',
-                      ),
-                    );
+                );
     } else if (reviews == null || reviews.isLoading && state == null) {
       footer = const Column(
         children: [
@@ -465,8 +464,9 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
         itemKey: (r) => r.id,
         status: status,
         // Owner 2026-10-12: the Briefs tab runs edge to edge (Threads); the
-        // header keeps its side padding.
-        padding: _tab == AttorneyProfileTab.threads
+        // header keeps its side padding. 2026-10-18: that is the merged
+        // Briefs & reposts tab now.
+        padding: _tab == AttorneyProfileTab.reposts
             ? const EdgeInsets.only(top: AppSpacing.sm, bottom: AppSpacing.xxl)
             : const EdgeInsets.fromLTRB(
                 AppSpacing.screenSide,
@@ -480,7 +480,7 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
         header: Padding(
           padding: EdgeInsets.symmetric(
             horizontal:
-                _tab == AttorneyProfileTab.threads ? AppSpacing.screenSide : 0,
+                _tab == AttorneyProfileTab.reposts ? AppSpacing.screenSide : 0,
           ),
           child: header,
         ),
@@ -1299,7 +1299,7 @@ class _Tabs extends ConsumerWidget {
             ),
           AttorneyProfileTab.reposts => (
               tab,
-              t.t('profile.tab.reposts'),
+              t.t('profile.tab.briefsReposts'),
               AppIcons.autoModeRounded
             ),
           AttorneyProfileTab.news => (

@@ -379,6 +379,11 @@ export class PostReposterDto {
 
   @ApiProperty({ enum: ['attorney', 'client'] })
   role!: 'attorney' | 'client';
+
+  /** Owner 2026-10-18: when this person reposted it (profile «Брифы и
+   * репосты» orders briefs and reposts by time); null in other lists. */
+  @ApiPropertyOptional({ type: String, nullable: true })
+  repostedAt?: string | null;
 }
 
 export class PostMediaDto {

@@ -15,6 +15,7 @@ class PostReposterDto {
     required this.username,
     required this.name,
     required this.role,
+    this.repostedAt,
   });
 
   factory PostReposterDto.fromJson(Map<String, Object?> json) =>
@@ -26,6 +27,10 @@ class PostReposterDto {
   /// Display name ("First Last"), empty when none is set.
   final String name;
   final PostReposterDtoRole role;
+
+  /// Owner 2026-10-18: when this person reposted it (profile «Брифы и.
+  /// репосты» orders briefs and reposts by time); null in other lists.
+  final String? repostedAt;
 
   Map<String, Object?> toJson() => _$PostReposterDtoToJson(this);
 }

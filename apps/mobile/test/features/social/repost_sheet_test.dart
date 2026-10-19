@@ -149,4 +149,37 @@ void main() {
     expect(find.byType(PostCard), findsOneWidget);
     await settle(t);
   });
+
+  testWidgets('a client profile has three tabs: Posts, Reposts, Reviews',
+      (t) async {
+    t.view.physicalSize = const Size(400, 1200);
+    t.view.devicePixelRatio = 1;
+    addTearDown(t.view.reset);
+    await t.pumpWidget(
+      uxApp(
+        Scaffold(
+          body: ClientSocialProfile(
+            profile: PublicClientProfile(
+              id: 'c1',
+              username: 'cleo',
+              state: const StateRef(code: 'NY', name: 'New York'),
+              memberSince: DateTime(2026),
+              isSelf: true,
+              canSeeReviews: true,
+            ),
+            onRefresh: () async {},
+          ),
+        ),
+        theme: AppTheme.light(),
+        size: const Size(400, 1200),
+        overrides: uxOverrides(social: FakeSocialRepository()),
+      ),
+    );
+    await t.pumpAndSettle();
+    for (final label in ['Posts', 'Reposts', 'Reviews']) {
+      expect(find.bySemanticsLabel(label), findsOneWidget, reason: label);
+    }
+    expect(find.bySemanticsLabel('Briefs & reposts'), findsNothing);
+    await settle(t);
+  });
 }

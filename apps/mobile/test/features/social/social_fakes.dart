@@ -126,15 +126,36 @@ class FakeSocialRepository implements SocialRepository {
     bool newsOnly = false,
   }) async {
     attorneyPostsCalls++;
-    return CursorPage(items: posts);
+    return _page(posts, cursor);
   }
 
   List<Post> reposts = const [];
   List<PersonRow> reposters = const [];
 
+  /// Set: [attorneyPosts] and [userReposts] page by this many items (the
+  /// cursor is the next index); null = everything on one page.
+  int? pageSize;
+  final userRepostsCursors = <String?>[];
+
+  CursorPage<Post> _page(List<Post> all, String? cursor) {
+    final size = pageSize;
+    if (size == null) return CursorPage(items: all);
+    final from = cursor == null ? 0 : int.parse(cursor);
+    final to = (from + size).clamp(0, all.length);
+    return CursorPage(
+      items: all.sublist(from, to),
+      nextCursor: to < all.length ? '$to' : null,
+    );
+  }
+
   @override
-  Future<CursorPage<Post>> userReposts(String userId, {String? cursor}) async =>
-      CursorPage(items: reposts);
+  Future<CursorPage<Post>> userReposts(
+    String userId, {
+    String? cursor,
+  }) async {
+    userRepostsCursors.add(cursor);
+    return _page(reposts, cursor);
+  }
 
   @override
   Future<CursorPage<PersonRow>> postReposters(

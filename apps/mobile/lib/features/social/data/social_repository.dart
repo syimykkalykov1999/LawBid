@@ -15,7 +15,8 @@ import 'package:lawbid/features/social/data/social_local_database.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
-export 'package:lawbid/features/social/domain/post_text.dart' show kPostTitleMaxChars;
+export 'package:lawbid/features/social/domain/post_text.dart'
+    show kPostTitleMaxChars;
 
 /// docs/05 §3.2: post photos up to 10 MB each; at most 9 per post (owner
 /// 2026-09-30, same as cases).
@@ -1071,6 +1072,9 @@ abstract final class SocialMappers {
                 username: d.repostedBy!.username,
                 name: d.repostedBy!.name,
                 isClient: d.repostedBy!.role == api.PostReposterDtoRole.client,
+                repostedAt: d.repostedBy!.repostedAt == null
+                    ? null
+                    : DateTime.parse(d.repostedBy!.repostedAt!).toLocal(),
               ),
         likedByMe: d.likedByMe,
         savedByMe: d.savedByMe,

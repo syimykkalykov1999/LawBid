@@ -208,10 +208,16 @@ class PostReposter {
     required this.username,
     this.name = '',
     this.isClient = false,
+    this.repostedAt,
   });
 
   final String id;
   final String username;
+
+  /// Owner 2026-10-18: when this person made the repost — the profile's
+  /// «Брифы и репосты» tab orders a repost by it. Null while the API does
+  /// not send it (the tab then estimates it, see ProfileBriefsAndReposts).
+  final DateTime? repostedAt;
 
   /// Display name ("First Last"); empty when the person has none.
   final String name;

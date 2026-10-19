@@ -183,7 +183,15 @@ export class PostEngagementService {
     );
     const who = names.get(userId);
     const reposters = new Map(
-      who ? page.map((r) => [r.post_id, who] as const) : [],
+      who
+        ? page.map(
+            (r) =>
+              [
+                r.post_id,
+                { ...who, repostedAt: r.created_at.toISOString() },
+              ] as const,
+          )
+        : [],
     );
     return {
       items: await this.presenter.present(

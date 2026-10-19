@@ -11,6 +11,7 @@ import 'package:lawbid/features/feed/presentation/widgets/feed_chrome.dart';
 import 'package:lawbid/features/practice/practice_options.dart'
     as practice_options;
 import 'package:lawbid/features/practice/practice_options.dart' as practices;
+import 'package:lawbid/features/social/application/merged_paging.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/screens/posts_feed_screen.dart';
@@ -718,6 +719,172 @@ class ProfileRepostsList extends ConsumerWidget {
           ],
         );
       },
+    );
+  }
+}
+
+/// Owner 2026-10-18: the attorney profile's «Брифы и репосты» tab — their
+/// briefs (text posts, as in the old «Текст» tab: pinned ones first, with
+/// the pin) and their reposts (as in [ProfileRepostsList]) in one list,
+/// newest first: a brief by its publish time, a repost by its repost time.
+/// Both sources page on their own; [mergeNewestFirst] only shows what no
+/// unloaded page could precede, so «ещё» never skips or repeats a card.
+class ProfileBriefsAndReposts extends ConsumerWidget {
+  const ProfileBriefsAndReposts({
+    required this.attorneyId,
+    required this.isSelf,
+    super.key,
+  });
+
+  final String attorneyId;
+  final bool isSelf;
+
+  static const _briefs = 0;
+  static const _reposts = 1;
+
+  /// A repost's time: the API's repost time when it sends one; otherwise
+  /// the post's own time, never newer than the repost above it (a repost
+  /// always comes after the post was published, and the list is newest
+  /// repost first).
+  static List<DateTime> repostTimes(List<Post> reposts) => monotoneTimes(
+        reposts,
+        exact: (p) => p.repostedBy?.repostedAt,
+        estimate: (p) => p.createdAt,
+      );
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    final deleted = ref.watch(deletedPostsProvider);
+    final overrides = ref.watch(postOverridesProvider);
+    final postsValue = ref.watch(attorneyPostsProvider(attorneyId));
+    final repostsValue = ref.watch(userRepostsProvider(attorneyId));
+    final posts = postsValue.value;
+    final reposts = repostsValue.value;
+
+    if (posts == null || reposts == null) {
+      final failed = (posts == null && postsValue.hasError) ||
+          (reposts == null && repostsValue.hasError);
+      if (failed && !postsValue.isLoading && !repostsValue.isLoading) {
+        return Center(
+          child: TextButton(
+            onPressed: () {
+              if (posts == null) {
+                ref.invalidate(attorneyPostsProvider(attorneyId));
+              }
+              if (reposts == null) {
+                ref.invalidate(userRepostsProvider(attorneyId));
+              }
+            },
+            child: Text(t.t('error.retry')),
+          ),
+        );
+      }
+      return Column(
+        children: List.generate(
+          2,
+          (_) => const Padding(
+            padding: EdgeInsets.all(AppSpacing.lg),
+            child: AppSkeleton(height: 96, borderRadius: AppRadii.card),
+          ),
+        ),
+      );
+    }
+
+    // Pinned posts lead the API's first page out of date order; pinned
+    // briefs stay on top here too.
+    final dated = [
+      for (final p in posts.items)
+        if (p.pinSlot == null) p,
+    ];
+    final pinned = [
+      for (final p in posts.items)
+        if (p.pinSlot != null && PostCard.isThreadsStyle(p)) p,
+    ];
+    final times = repostTimes(reposts.items);
+    final merged = mergeNewestFirst<Post>(
+      [
+        MergeSource(
+          items: [
+            for (final p in dated)
+              if (PostCard.isThreadsStyle(p)) (p, p.createdAt),
+          ],
+          hasMore: posts.hasMore,
+          boundary: dated.isEmpty ? null : dated.last.createdAt,
+        ),
+        MergeSource(
+          items: [
+            for (var i = 0; i < reposts.items.length; i++)
+              (reposts.items[i], times[i]),
+          ],
+          hasMore: reposts.hasMore,
+          boundary: times.isEmpty ? null : times.last,
+        ),
+      ],
+      idOf: (p) => p.id,
+    );
+
+    bool visible(Post p, int source) =>
+        !deleted.contains(p.id) &&
+        // Undone from here (or from the post's own ↻): gone at once.
+        !(source == _reposts &&
+            isSelf &&
+            overrides[p.id]?.repostedByMe == false);
+    final pinnedShown = [
+      for (final p in pinned)
+        if (visible(p, _briefs)) p,
+    ];
+    final shown = [
+      for (final e in merged.entries)
+        if (!pinned.any((p) => p.id == e.item.id) && visible(e.item, e.source))
+          e,
+    ];
+
+    if (pinnedShown.isEmpty && shown.isEmpty && !merged.hasMore) {
+      return SizedBox(
+        height: 280,
+        child: AppEmptyState(
+          icon: AppIcons.autoModeRounded,
+          title: t.t('profile.briefsReposts.empty.title'),
+          message: t.t(
+            isSelf
+                ? 'profile.briefsReposts.empty.self'
+                : 'profile.briefsReposts.empty.other',
+          ),
+        ),
+      );
+    }
+
+    void loadMore() {
+      final next = merged.nextSource;
+      if (next == null) return;
+      if (next == _briefs) {
+        final n = ref.read(attorneyPostsProvider(attorneyId).notifier);
+        posts.loadMoreError != null ? n.retryLoadMore() : n.loadMore();
+      } else {
+        final n = ref.read(userRepostsProvider(attorneyId).notifier);
+        reposts.loadMoreError != null ? n.retryLoadMore() : n.loadMore();
+      }
+    }
+
+    return Column(
+      children: [
+        for (final p in pinnedShown)
+          PostCard(key: ValueKey(p.id), post: p, showPin: true),
+        for (final e in shown)
+          PostCard(
+            key: ValueKey(e.item.id),
+            post: e.item,
+            // As in the old «Текст» tab; a repost keeps its own look.
+            showPin: e.source == _briefs,
+          ),
+        if (merged.hasMore)
+          TextButton(
+            key: const ValueKey('briefs-reposts-more'),
+            onPressed: loadMore,
+            child: Text(t.t('pagination.loadingMore')),
+          ),
+      ],
     );
   }
 }

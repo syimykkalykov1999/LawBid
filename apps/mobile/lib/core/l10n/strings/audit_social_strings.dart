@@ -20,6 +20,13 @@ const auditSocialRu = <String, String>{
   'profile.reposts.empty.self':
       'Нажмите ↻ под публикацией, и она появится здесь.',
   'profile.reposts.empty.other': 'Этот пользователь пока ничего не репостил.',
+  // Owner 2026-10-18: the attorney profile's briefs + reposts tab.
+  'profile.tab.briefsReposts': 'Брифы и репосты',
+  'profile.briefsReposts.empty.title': 'Пока нет брифов и репостов',
+  'profile.briefsReposts.empty.self':
+      'Здесь появятся ваши брифы и публикации, которые вы репостнули.',
+  'profile.briefsReposts.empty.other':
+      'Этот юрист пока не публиковал брифов и ничего не репостил.',
   'error.api.REPOST_OWN_POST': 'Свой пост нельзя репостнуть.',
   'notif.list.post_repost': '{name} сделал(а) репост вашей публикации',
 };
@@ -42,6 +49,13 @@ const auditSocialEn = <String, String>{
   'profile.reposts.empty.title': 'No reposts yet',
   'profile.reposts.empty.self': 'Tap ↻ under a post and it will appear here.',
   'profile.reposts.empty.other': "This user hasn't reposted anything yet.",
+  // Owner 2026-10-18: the attorney profile's briefs + reposts tab.
+  'profile.tab.briefsReposts': 'Briefs & reposts',
+  'profile.briefsReposts.empty.title': 'No briefs or reposts yet',
+  'profile.briefsReposts.empty.self':
+      'Your briefs and the posts you repost will appear here.',
+  'profile.briefsReposts.empty.other':
+      "This attorney hasn't posted briefs or reposted anything yet.",
   'error.api.REPOST_OWN_POST': "You can't repost your own post.",
   'notif.list.post_repost': '{name} reposted your post',
 };

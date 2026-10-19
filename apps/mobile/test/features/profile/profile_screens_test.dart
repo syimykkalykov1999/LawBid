@@ -12,6 +12,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/navigation/guards/app_router_guard.dart';
 import 'package:lawbid/core/startup/app_startup.dart';
+import 'package:lawbid/features/feed/application/news_flag.dart';
 import 'package:lawbid/features/mine/presentation/screens/mine_screen.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/onboarding/domain/current_user.dart';
@@ -121,7 +122,7 @@ void main() {
     });
 
     test(
-        'public profile mapper prefers the 256 px variant, falls back to the main photo',
+        'public profile mapper uses the full avatar (owner 2026-10-18: sharp header), else the 256 px variant',
         () {
       Map<String, Object?> json(String? main, String? small) => {
             'id': 'att-1',
@@ -151,8 +152,9 @@ void main() {
           );
       expect(
         map('https://m/a', 'https://m/a_w256').avatarUrl,
-        'https://m/a_w256',
+        'https://m/a',
       );
+      expect(map(null, 'https://m/a_w256').avatarUrl, 'https://m/a_w256');
       expect(map('https://m/a', null).avatarUrl, 'https://m/a');
       expect(map(null, null).avatarUrl, isNull);
     });
@@ -199,6 +201,89 @@ void main() {
         scrollable: find.byType(Scrollable).first,
       );
       expect(find.text('This attorney has no reviews yet.'), findsOneWidget);
+      await _teardown(tester);
+    });
+
+    // Owner 2026-10-18: Posts | Briefs & reposts | Reviews — no separate
+    // Threads («Текст») tab.
+    Set<String> tabKeys(WidgetTester tester) => {
+          for (final e in find
+              .byWidgetPredicate(
+                (w) =>
+                    w.key is ValueKey<String> &&
+                    (w.key! as ValueKey<String>)
+                        .value
+                        .startsWith('profile-tab-'),
+              )
+              .evaluate())
+            (e.widget.key! as ValueKey<String>).value,
+        };
+
+    testWidgets('three tabs: Posts, Briefs & reposts, Reviews', (tester) async {
+      await _pumpScreen(
+        tester,
+        const AttorneyProfileScreen(username: 'jane.doe'),
+        user: clientMe(),
+        overrides: [
+          ...profileOverrides(),
+          newsEnabledProvider.overrideWithValue(false),
+        ],
+      );
+      expect(tabKeys(tester), {
+        'profile-tab-posts',
+        'profile-tab-reposts',
+        'profile-tab-reviews',
+      });
+      expect(find.bySemanticsLabel('Briefs & reposts'), findsOneWidget);
+      expect(find.bySemanticsLabel('Text'), findsNothing);
+      await _teardown(tester);
+    });
+
+    testWidgets('with News on, News is one more tab', (tester) async {
+      await _pumpScreen(
+        tester,
+        const AttorneyProfileScreen(username: 'jane.doe'),
+        user: clientMe(),
+        overrides: [
+          ...profileOverrides(),
+          newsEnabledProvider.overrideWithValue(true),
+        ],
+      );
+      expect(tabKeys(tester), {
+        'profile-tab-posts',
+        'profile-tab-reposts',
+        'profile-tab-news',
+        'profile-tab-reviews',
+      });
+      await _teardown(tester);
+    });
+
+    testWidgets('opening the old Threads tab lands on Briefs & reposts',
+        (tester) async {
+      final handle = tester.ensureSemantics();
+      await _pumpScreen(
+        tester,
+        const AttorneyProfileScreen(
+          username: 'jane.doe',
+          initialTab: AttorneyProfileTab.threads,
+        ),
+        user: clientMe(),
+        overrides: [
+          ...profileOverrides(),
+          newsEnabledProvider.overrideWithValue(false),
+        ],
+      );
+      expect(
+        tester.getSemantics(find.bySemanticsLabel('Briefs & reposts')),
+        matchesSemantics(
+          label: 'Briefs & reposts',
+          isButton: true,
+          isSelected: true,
+          hasSelectedState: true,
+          hasTapAction: true,
+        ),
+      );
+      handle.dispose();
       await _teardown(tester);
     });
 
