@@ -1035,7 +1035,7 @@ class ProfilePostsGrid extends ConsumerWidget {
             height: 280,
             child: AppEmptyState(
               icon: reelsOnly
-                  ? AppIcons.filmReelOutlined
+                  ? AppIcons.playCircleOutlined
                   : AppIcons.articleOutlined,
               title: emptyTitle,
               message: emptyMessage,

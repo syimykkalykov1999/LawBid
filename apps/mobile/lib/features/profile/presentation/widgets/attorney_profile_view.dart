@@ -1310,7 +1310,7 @@ class _Tabs extends ConsumerWidget {
           AttorneyProfileTab.reels => (
               tab,
               t.t('profile.tab.reels'),
-              AppIcons.filmReelOutlined
+              AppIcons.playCircleOutlined
             ),
           AttorneyProfileTab.threads => (
               tab,

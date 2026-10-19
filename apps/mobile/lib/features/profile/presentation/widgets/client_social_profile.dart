@@ -290,7 +290,7 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
               ),
               tabButton(
                 _Tab.reels,
-                AppIcons.filmReelOutlined,
+                AppIcons.playCircleOutlined,
                 t.t('profile.tab.reels'),
               ),
               // Owner 2026-10-18: the same «Брифы и репосты» tab as an
