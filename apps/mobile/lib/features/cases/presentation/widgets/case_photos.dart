@@ -103,8 +103,38 @@ class CasePhotosPicker extends ConsumerWidget {
           style: type.caption.copyWith(color: colors.textSecondary),
         ),
         const SizedBox(height: AppSpacing.sm),
-        // Owner 2026-10-19: three tiles a row across the full width (no
-        // empty column at 9 of 9); «+» tiles take ordinary cells.
+        // Owner 2026-10-19: the two add buttons stand still in their own
+        // row (greyed at the limit, never moving); the attachments below
+        // go three a row across the full width.
+        Row(
+          children: [
+            Expanded(
+              child: _AddButton(
+                icon: AppIcons.addPhotoAlternateOutlined,
+                label: t.t('cases.photos.tilePhoto'),
+                semantic: t.t('cases.photos.add'),
+                onTap: photos.length < maxFiles ? pick : null,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: _AddButton(
+                icon: AppIcons.noteAddOutlined,
+                label: t.t('cases.photos.tileFile'),
+                semantic: t.t('cases.files.add'),
+                onTap: photos.length < maxFiles ? pickFiles : null,
+              ),
+            ),
+          ],
+        ),
+        if (photos.length >= maxFiles) ...[
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            t.t('cases.photos.limitReached', {'max': '$maxFiles'}),
+            style: type.caption.copyWith(color: colors.textSecondary),
+          ),
+        ],
+        if (photos.isNotEmpty) const SizedBox(height: AppSpacing.sm),
         LayoutBuilder(
           builder: (context, box) {
             final tile =
@@ -180,52 +210,6 @@ class CasePhotosPicker extends ConsumerWidget {
                       ],
                     ),
                   ),
-                if (photos.length < maxFiles)
-                  Semantics(
-                    button: true,
-                    label: t.t('cases.photos.add'),
-                    child: AppPressable(
-                      onTap: pick,
-                      child: Container(
-                        width: tile,
-                        height: tile,
-                        // Owner 2026-10-18: the theme's own tile (no gold
-                        // fill).
-                        decoration: BoxDecoration(
-                          color: colors.chip,
-                          borderRadius: BorderRadius.circular(AppRadii.field),
-                          border: Border.all(color: colors.border),
-                        ),
-                        child: _TileLabel(
-                          icon: AppIcons.addPhotoAlternateOutlined,
-                          label: t.t('cases.photos.tilePhoto'),
-                        ),
-                      ),
-                    ),
-                  ),
-                if (photos.length < maxFiles)
-                  Semantics(
-                    button: true,
-                    label: t.t('cases.files.add'),
-                    child: AppPressable(
-                      onTap: pickFiles,
-                      child: Container(
-                        width: tile,
-                        height: tile,
-                        // Owner 2026-10-18: the theme's own tile (no gold
-                        // fill).
-                        decoration: BoxDecoration(
-                          color: colors.chip,
-                          borderRadius: BorderRadius.circular(AppRadii.field),
-                          border: Border.all(color: colors.border),
-                        ),
-                        child: _TileLabel(
-                          icon: AppIcons.noteAddOutlined,
-                          label: t.t('cases.photos.tileFile'),
-                        ),
-                      ),
-                    ),
-                  ),
               ],
             );
           },
@@ -246,27 +230,56 @@ class CasePhotosPicker extends ConsumerWidget {
 }
 
 /// Icon with a short caption under it, centred in an add tile.
-class _TileLabel extends StatelessWidget {
-  const _TileLabel({required this.icon, required this.label});
+/// «Фото» / «Файл»: fixed in place; [onTap] null = the limit is reached
+/// (greyed, not hidden).
+class _AddButton extends StatelessWidget {
+  const _AddButton({
+    required this.icon,
+    required this.label,
+    required this.semantic,
+    required this.onTap,
+  });
 
   final IconData icon;
   final String label;
+  final String semantic;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        AppIcon(icon, color: colors.textSecondary),
-        const SizedBox(height: AppSpacing.xs),
-        Text(
-          label,
-          textAlign: TextAlign.center,
-          style: type.caption.copyWith(color: colors.textSecondary),
+    final enabled = onTap != null;
+    return Semantics(
+      button: true,
+      enabled: enabled,
+      label: semantic,
+      child: Opacity(
+        opacity: enabled ? 1 : 0.45,
+        child: AppPressable(
+          onTap: onTap,
+          child: Container(
+            height: 48,
+            // Owner 2026-10-18: the theme's own tile (no gold fill).
+            decoration: BoxDecoration(
+              color: colors.chip,
+              borderRadius: BorderRadius.circular(AppRadii.field),
+              border: Border.all(color: colors.border),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                AppIcon(icon, color: colors.textSecondary),
+                const SizedBox(width: AppSpacing.sm),
+                Text(
+                  label,
+                  style: type.body.copyWith(color: colors.textSecondary),
+                ),
+              ],
+            ),
+          ),
         ),
-      ],
+      ),
     );
   }
 }

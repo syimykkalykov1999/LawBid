@@ -352,6 +352,7 @@ const file06Ru = <String, String>{
   'cases.photos.optional': '· необязательно',
   'cases.photos.tilePhoto': 'Фото',
   'cases.photos.tileFile': 'Файл',
+  'cases.photos.limitReached': 'Достигнут лимит: {max}',
   'cases.field.noContacts':
       'Без паспорта, SSN, номеров счетов, имён и адресов.',
   'cases.field.brief': 'Кратко о деле',
@@ -812,6 +813,7 @@ const file06En = <String, String>{
   'cases.photos.optional': '· optional',
   'cases.photos.tilePhoto': 'Photo',
   'cases.photos.tileFile': 'File',
+  'cases.photos.limitReached': 'Limit reached: {max}',
   'cases.field.noContacts':
       'No passport, SSN, account numbers, names or addresses.',
   'cases.field.brief': 'Case in brief',
