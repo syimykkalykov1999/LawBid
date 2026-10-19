@@ -12,9 +12,9 @@ const guideRu = <String, String>{
   'guide.title': 'Справочник',
   'guide.intro':
       'Как устроен LawBid: кто что видит, как защищены ваши данные и какие правила действуют. Нажмите на раздел, чтобы раскрыть его.',
-  'guide.s1.title': 'Что такое LawBid',
+  'guide.s1.title': 'Как мы работаем',
   'guide.s1.body':
-      'LawBid — площадка, где клиенты публикуют кейсы, а адвокаты присылают на них предложения (биды).\n\nLawBid не юридическая фирма и не даёт юридических советов. Услуги оказывает адвокат, которого вы выбрали. LawBid не отвечает за действия адвоката и не гарантирует исход дела.\n\nВидеть кейсы и присылать биды могут только адвокаты, прошедшие проверку.',
+      'LawBid — доска объявлений: клиенты публикуют кейсы, проверенные адвокаты присылают на них предложения (биды).\n\nLawBid не юридическая фирма, не даёт юридических советов и не отвечает за работу адвоката и исход дела.\n\nОб оплате вы договариваетесь с адвокатом и платите ему напрямую.',
   'guide.s2.title': 'Кто видит ваш кейс',
   'guide.s2.body':
       'Кейс состоит из двух частей, так же как форма создания кейса.\n\nЧто видят все проверенные адвокаты, без вашего имени:\n• квалификация, то есть о чём дело;\n• заголовок и «Кратко о деле»;\n• штаты и город;\n• бюджет и срочность;\n• обложка карточки;\n• сколько у кейса фото и файлов и есть ли подробности, но не они сами.\n\nЭта часть нужна, чтобы адвокаты нашли ваш кейс и прислали бид. Поэтому в заголовке и «Кратко о деле» не пишите паспорт, SSN, номера счетов, имена, адреса и контакты.\n\nЧто видит только адвокат, чей бид вы приняли:\n• «Подробности»: полная история, имена сторон, номер дела, адреса, даты;\n• фото и файлы кейса;\n• ваше имя и фото профиля;\n• ваши контакты, если у адвоката активна подписка.\nЭта часть открывается только после того, как вы примете бид. Её видят и помощники этого адвоката, которым он дал доступ к кейсам или чатам.\n\nКомментарии к кейсу видят все, кто видит кейс, а вы в них остаётесь анонимным. Видно ли адвокатам, что вы в сети, зависит от ваших настроек приватности.\n\nКогда вы принимаете бид, остальные биды отклоняются автоматически, а адвокаты получают уведомление.\n\nЕсли вы заблокировали адвоката или он вас, он не видит ваш кейс. Кейс на паузе пропадает из ленты и поиска адвокатов.',
@@ -46,9 +46,9 @@ const guideEn = <String, String>{
   'guide.title': 'Guide',
   'guide.intro':
       'How LawBid works: who sees what, how your data is protected and which rules apply. Tap a section to open it.',
-  'guide.s1.title': 'What LawBid is',
+  'guide.s1.title': 'How we work',
   'guide.s1.body':
-      "LawBid is a marketplace where clients post cases and attorneys send offers (bids) on them.\n\nLawBid is not a law firm and does not give legal advice. Services are provided by the attorney you choose. LawBid is not responsible for an attorney's actions and does not guarantee the outcome of a case.\n\nOnly attorneys who passed verification can see cases and send bids.",
+      "LawBid is a listing board: clients post cases and verified attorneys send offers (bids) on them.\n\nLawBid is not a law firm, does not give legal advice and is not responsible for the attorney's work or the outcome of a case.\n\nYou agree on payment with the attorney and pay them directly.",
   'guide.s2.title': 'Who sees your case',
   'guide.s2.body':
       "A case has two parts, just like the case form.\n\nWhat all verified attorneys see, without your name:\n• the practice area, that is what the case is about;\n• the title and the brief;\n• the states and city;\n• the budget and urgency;\n• the card cover;\n• how many photos and files the case has and whether it has details, but not the photos, files or details themselves.\n\nThis part lets attorneys find your case and send a bid. So do not put a passport, SSN, account numbers, names, addresses or contacts in the title or the brief.\n\nWhat only the attorney whose bid you accepted sees:\n• the details: the full story, names of the parties, case number, addresses, dates;\n• the case photos and files;\n• your name and profile photo;\n• your contacts, if the attorney has an active subscription.\nThis part opens only after you accept a bid. That attorney's assistants with access to cases or chats see it too.\n\nCase comments are visible to everyone who sees the case, and you stay anonymous in them. Whether attorneys see that you are online depends on your privacy settings.\n\nWhen you accept a bid, the other bids are declined automatically and those attorneys are notified.\n\nIf you blocked an attorney or they blocked you, they cannot see your case. A paused case leaves the attorneys' feed and search.",
