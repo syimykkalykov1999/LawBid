@@ -18,6 +18,21 @@ import 'package:lawbid/core/design_system/tokens/app_motion.dart';
 Future<void> scrollToTopAndRefresh(
   BuildContext root, {
   bool reduceMotion = false,
+}) =>
+    _scrollUp(root, reduceMotion: reduceMotion, refresh: true);
+
+/// Owner 2026-10-19: only the scroll back to the top (the feed's «New
+/// posts» pill refreshes on its own).
+Future<void> scrollVisibleToTop(
+  BuildContext root, {
+  bool reduceMotion = false,
+}) =>
+    _scrollUp(root, reduceMotion: reduceMotion, refresh: false);
+
+Future<void> _scrollUp(
+  BuildContext root, {
+  required bool reduceMotion,
+  required bool refresh,
 }) async {
   final rootBox = root.findRenderObject();
   if (rootBox is! RenderBox || !rootBox.hasSize) return;
@@ -60,7 +75,7 @@ Future<void> scrollToTopAndRefresh(
   await Future.wait([
     for (final s in scrollables) _toTop(s.position, reduceMotion),
   ]);
-  if (away || refreshers.isEmpty) return;
+  if (!refresh || away || refreshers.isEmpty) return;
   final refresher = refreshers.first;
   if (refresher.mounted) await refresher.show();
 }

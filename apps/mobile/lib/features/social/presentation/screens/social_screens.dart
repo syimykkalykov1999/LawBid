@@ -18,6 +18,7 @@ import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/screens/posts_feed_screen.dart';
 import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart';
 import 'package:lawbid/features/social/presentation/widgets/comment_widgets.dart';
+import 'package:lawbid/features/social/presentation/widgets/fresh_posts_pill.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_grid_tile.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_impression_tracker.dart';
@@ -66,35 +67,39 @@ class PostsFeedView extends ConsumerWidget {
       builder: (context, box) {
         final height =
             feedChromeCardHeight(context) ?? feedCardHeight(box.maxHeight);
-        return PagedListBody<Post>(
-          value: value,
-          t: t,
-          edgeToEdge: true,
-          skeleton: const PostListSkeleton(),
-          itemKey: (p) => p.id,
-          prefetch: prefetchPost,
-          itemBuilder: (context, p, _) => PostImpressionTracker(
-            post: p,
-            child: PostCard(post: p, feedHeight: height),
-          ),
-          // §2.3: "Пока в ленте пусто" + recommended attorneys to follow.
-          empty: ListView(
-            padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
-            children: [
-              SizedBox(
-                height: 340,
-                child: AppEmptyState(
-                  icon: AppIcons.dynamicFeedRounded,
-                  title: t.t('feed.empty.title'),
-                  message: t.t('feed.empty.message'),
+        // Owner 2026-10-19 (Instagram): new posts wait in the «New posts»
+        // pill on top; the list never jumps.
+        return FreshPostsOverlay(
+          child: PagedListBody<Post>(
+            value: value,
+            t: t,
+            edgeToEdge: true,
+            skeleton: const PostListSkeleton(),
+            itemKey: (p) => p.id,
+            prefetch: prefetchPost,
+            itemBuilder: (context, p, _) => PostImpressionTracker(
+              post: p,
+              child: PostCard(post: p, feedHeight: height),
+            ),
+            // §2.3: "Пока в ленте пусто" + recommended attorneys to follow.
+            empty: ListView(
+              padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
+              children: [
+                SizedBox(
+                  height: 340,
+                  child: AppEmptyState(
+                    icon: AppIcons.dynamicFeedRounded,
+                    title: t.t('feed.empty.title'),
+                    message: t.t('feed.empty.message'),
+                  ),
                 ),
-              ),
-              const SuggestedAttorneys(),
-            ],
+                const SuggestedAttorneys(),
+              ],
+            ),
+            onRefresh: notifier.refresh,
+            onLoadMore: notifier.loadMore,
+            onRetryMore: notifier.retryLoadMore,
           ),
-          onRefresh: notifier.refresh,
-          onLoadMore: notifier.loadMore,
-          onRetryMore: notifier.retryLoadMore,
         );
       },
     );

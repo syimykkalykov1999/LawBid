@@ -18,6 +18,7 @@ import 'package:lawbid/core/l10n/strings/contingency_strings.dart';
 import 'package:lawbid/core/l10n/strings/demo_strings.dart';
 import 'package:lawbid/core/l10n/strings/email_flows_strings.dart';
 import 'package:lawbid/core/l10n/strings/feed_content_strings.dart';
+import 'package:lawbid/core/l10n/strings/feed_fresh_strings.dart';
 import 'package:lawbid/core/l10n/strings/file05_strings.dart';
 import 'package:lawbid/core/l10n/strings/file06_strings.dart';
 import 'package:lawbid/core/l10n/strings/file07_strings.dart';
@@ -1179,6 +1180,7 @@ class StaticTranslatorRu extends _MapTranslator {
         ...boostRu,
         ...feedContentRu,
         ...newsOffRu,
+        ...feedFreshRu,
         ...caseWorkspaceRu,
         ...themeRu,
         ...postInnerRu,
@@ -2599,6 +2601,7 @@ class StaticTranslatorEn extends _MapTranslator {
         ...boostEn,
         ...feedContentEn,
         ...newsOffEn,
+        ...feedFreshEn,
         ...caseWorkspaceEn,
         ...themeEn,
         ...postInnerEn,

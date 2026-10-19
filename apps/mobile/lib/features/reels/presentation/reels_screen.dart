@@ -102,8 +102,46 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
   bool get _underNavBar =>
       Navigator.of(context) != Navigator.of(context, rootNavigator: true);
 
+  /// Owner 2026-10-19 (Instagram): while the viewer watches, fresh reels
+  /// join the stream on their own — when the next page loads, the newest
+  /// page is read too (at most every [_freshGap]) and the reels not seen
+  /// yet come in a few reels ahead, never under the one playing.
+  DateTime _freshAt = DateTime.now();
+  static const _freshGap = Duration(minutes: 3);
+
+  Future<void> _mixFresh() async {
+    if (DateTime.now().difference(_freshAt) < _freshGap) return;
+    _freshAt = DateTime.now();
+    try {
+      final page = await ref.read(reelsRepositoryProvider).reels(
+            practice: widget.practice,
+          );
+      if (!mounted) return;
+      final seen = _items.map((p) => p.id).toSet();
+      final fresh = [
+        for (final p in page.items)
+          if (!seen.contains(p.id)) p,
+      ];
+      if (fresh.isEmpty) return;
+      // After the reel on screen and the next one (already warmed).
+      final deleted = ref.read(deletedPostsProvider);
+      final shown = [
+        for (final p in _items)
+          if (!deleted.contains(p.id) && (widget.filter?.call(p) ?? true)) p,
+      ];
+      final current = _index < shown.length ? shown[_index] : null;
+      final at = current == null
+          ? _items.length
+          : (_items.indexOf(current) + 2).clamp(0, _items.length);
+      setState(() => _items.insertAll(at, fresh));
+    } on Object {
+      // Quiet: the stream goes on without them.
+    }
+  }
+
   Future<void> _load() async {
     if (_loading || !_more) return;
+    unawaited(_mixFresh());
     setState(() => _loading = true);
     try {
       final page = await ref.read(reelsRepositoryProvider).reels(
@@ -144,6 +182,7 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
         _more = page.hasMore;
         _error = null;
         _index = 0;
+        _freshAt = DateTime.now();
       });
       if (_pages.hasClients) _pages.jumpToPage(0);
     } on Object catch (e) {
