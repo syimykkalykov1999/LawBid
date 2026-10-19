@@ -272,7 +272,10 @@ class _OrganizeSheetState extends ConsumerState<_OrganizeSheet> {
                       hintText: t.t('chat.organize.noteHint'),
                       semanticLabel: t.t('chat.organize.noteHint'),
                       maxLength: 280,
-                      maxLines: 3,
+                      // Owner 2026-10-19: the field grows with the text
+                      // (about 220 characters on screen), then scrolls.
+                      maxLines: 8,
+                      keyboardType: TextInputType.multiline,
                       leading: AppIcon(
                         AppIcons.stickyNote2Outlined,
                         color: colors.goldDark,

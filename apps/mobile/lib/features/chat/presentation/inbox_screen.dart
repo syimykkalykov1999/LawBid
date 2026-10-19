@@ -782,6 +782,40 @@ class ConversationRow extends ConsumerWidget {
         : (c.myRequestPending
             ? AppIcons.scheduleSendOutlined
             : AppIcons.personOutlineRounded);
+    final hasNote = c.note != null && c.note!.trim().isNotEmpty;
+    // Owner 2026-10-19: the time sits in the row's bottom right corner.
+    final time = c.lastMessageAt == null
+        ? null
+        : ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 110),
+            child: Text(
+              SocialFormat.ago(t, f, c.lastMessageAt!),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: type.caption.copyWith(
+                color: unread ? colors.goldAccent : colors.textSecondary,
+              ),
+            ),
+          );
+    final metas = <Widget>[
+      // Owner 2026-10-01: my note on the chat, visible without opening it
+      // ("send him the documents").
+      if (hasNote)
+        _MetaLine(
+          key: ValueKey('chat-note-${c.id}'),
+          icon: AppIcons.stickyNote2Outlined,
+          text: c.note!,
+        ),
+      if (labelText != null) _MetaLine(icon: labelIcon, text: labelText),
+      if (c.waiting)
+        _MetaLine(
+          key: ValueKey('chat-waiting-${c.id}'),
+          icon: AppIcons.hourglassTopRounded,
+          text: t.t('chat.waiting.chip', {
+            'ago': SocialFormat.ago(t, f, c.waitingSince!),
+          }),
+        ),
+    ];
     return AppPressable(
       key: ValueKey('chat-organize-${c.id}'),
       onTap: picking != null
@@ -884,21 +918,14 @@ class ConversationRow extends ConsumerWidget {
                                 ],
                               ),
                             ),
-                            if (c.lastMessageAt != null) ...[
+                            // Owner 2026-10-19: «Прочитать» — the chat's
+                            // note in a sheet, without opening the chat.
+                            if (hasNote && picking == null) ...[
                               const SizedBox(width: AppSpacing.sm),
-                              ConstrainedBox(
-                                constraints:
-                                    const BoxConstraints(maxWidth: 110),
-                                child: Text(
-                                  SocialFormat.ago(t, f, c.lastMessageAt!),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: type.caption.copyWith(
-                                    color: unread
-                                        ? colors.goldAccent
-                                        : colors.textSecondary,
-                                  ),
-                                ),
+                              _ReadNoteChip(
+                                key: ValueKey('chat-read-note-${c.id}'),
+                                label: t.t('chat.note.read'),
+                                onTap: () => showChatNoteSheet(context, ref, c),
                               ),
                             ],
                           ],
@@ -982,29 +1009,241 @@ class ConversationRow extends ConsumerWidget {
                               const SizedBox(width: AppSpacing.sm),
                               CountPill(count: c.unreadCount),
                             ],
+                            if (metas.isEmpty && time != null) ...[
+                              const SizedBox(width: AppSpacing.sm),
+                              time,
+                            ],
                           ],
                         ),
-                        // Owner 2026-10-01: my note on the chat, visible
-                        // without opening it ("send him the documents").
-                        if (c.note != null && c.note!.isNotEmpty)
-                          _MetaLine(
-                            key: ValueKey('chat-note-${c.id}'),
-                            icon: AppIcons.stickyNote2Outlined,
-                            text: c.note!,
-                          ),
-                        if (labelText != null)
-                          _MetaLine(icon: labelIcon, text: labelText),
-                        if (c.waiting)
-                          _MetaLine(
-                            key: ValueKey('chat-waiting-${c.id}'),
-                            icon: AppIcons.hourglassTopRounded,
-                            text: t.t('chat.waiting.chip', {
-                              'ago': SocialFormat.ago(t, f, c.waitingSince!),
-                            }),
-                          ),
+                        for (var m = 0; m < metas.length; m++)
+                          if (m == metas.length - 1 && time != null)
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Expanded(child: metas[m]),
+                                const SizedBox(width: AppSpacing.sm),
+                                time,
+                              ],
+                            )
+                          else
+                            metas[m],
                       ],
                     ),
                   ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Owner 2026-10-19: a chat's note read from the chat list — a sheet with
+/// the note, whether the chat waits for my answer, «Открыть чат» and
+/// «Изменить» (the chat's own menu), without opening the chat.
+Future<void> showChatNoteSheet(
+  BuildContext context,
+  WidgetRef ref,
+  Conversation c,
+) =>
+    showAppBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheet) =>
+          _ChatNoteSheet(conversation: c, host: context, hostRef: ref),
+    );
+
+class _ChatNoteSheet extends ConsumerWidget {
+  const _ChatNoteSheet({
+    required this.conversation,
+    required this.host,
+    required this.hostRef,
+  });
+
+  /// The list row's ref (alive after the sheet closes).
+  final WidgetRef hostRef;
+
+  final Conversation conversation;
+
+  /// The list's context (the sheet's own one is gone once it closes).
+  final BuildContext host;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    final f = ref.watch(l10nFormatsProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    final c = conversation;
+    final canEdit = !c.awaitingMyAnswer && !ref.watch(isAssistantProvider);
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.screenSide,
+          AppSpacing.sm,
+          AppSpacing.screenSide,
+          AppSpacing.lg,
+        ),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(context).height * 0.8,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const AppSheetHandle(),
+              Row(
+                children: [
+                  CounterpartAvatar(counterpart: c.counterpart, size: 36),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: Text(
+                      counterpartName(t, c),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: type.body.copyWith(
+                        color: colors.text,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Flexible(
+                child: Container(
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  decoration: BoxDecoration(
+                    color: colors.goldTint,
+                    borderRadius: BorderRadius.circular(AppRadii.card),
+                  ),
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            AppIcon(
+                              AppIcons.stickyNote2Outlined,
+                              size: 16,
+                              color: colors.goldDark,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              t.t('chat.note.title'),
+                              style: type.caption.copyWith(
+                                color: colors.textSecondary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+                        SelectableText(
+                          c.note ?? '',
+                          style: type.body.copyWith(color: colors.text),
+                        ),
+                        if (c.waiting && c.waitingSince != null) ...[
+                          const SizedBox(height: AppSpacing.sm),
+                          Row(
+                            children: [
+                              AppIcon(
+                                AppIcons.hourglassTopRounded,
+                                size: 14,
+                                color: colors.textSecondary,
+                              ),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  t.t('chat.waiting.chip', {
+                                    'ago':
+                                        SocialFormat.ago(t, f, c.waitingSince!),
+                                  }),
+                                  style: type.caption.copyWith(
+                                    color: colors.textSecondary,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              AppButton(
+                key: const ValueKey('chat-note-open'),
+                label: t.t('chat.note.openChat'),
+                icon: AppIcons.chatBubbleOutlineRounded,
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  host.push(ChatRoutes.conversation(c.id));
+                },
+              ),
+              if (canEdit) ...[
+                const SizedBox(height: AppSpacing.sm),
+                AppButton(
+                  key: const ValueKey('chat-note-edit'),
+                  label: t.t('common.edit'),
+                  icon: AppIcons.editOutlined,
+                  variant: AppButtonVariant.secondary,
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    showChatOrganizeSheet(host, hostRef, c);
+                  },
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Owner 2026-10-19: «Прочитать» at a chat's top right — opens its note.
+class _ReadNoteChip extends StatelessWidget {
+  const _ReadNoteChip({required this.label, required this.onTap, super.key});
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    return Semantics(
+      button: true,
+      label: label,
+      excludeSemantics: true,
+      child: AppPressable(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: colors.goldTint,
+            borderRadius: BorderRadius.circular(AppRadii.pill),
+            border: Border.all(color: colors.gold.withValues(alpha: 0.5)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AppIcon(
+                AppIcons.stickyNote2Outlined,
+                size: 13,
+                color: colors.goldDark,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                label,
+                style: type.caption.copyWith(
+                  color: colors.text,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ],
