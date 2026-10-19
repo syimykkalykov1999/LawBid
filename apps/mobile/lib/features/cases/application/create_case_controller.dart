@@ -186,10 +186,14 @@ class CreateCaseController extends Notifier<CreateCaseState> {
         for (final b in picked) (bytes: b, name: null),
       ]);
 
-  /// OQ-034: photos and documents share the admin's slots (bug 17).
+  /// OQ-034 / owner 2026-10-19: photos (no `name`) and documents have
+  /// their own admin limits.
   void addFiles(List<({Uint8List bytes, String? name})> picked) {
-    final left = ref.read(uploadLimitsProvider)[UploadPlace.kase].maxFiles -
-        state.photos.length;
+    final limits = ref.read(uploadLimitsProvider)[UploadPlace.kase];
+    final docs = picked.isNotEmpty && picked.first.name != null;
+    final have = state.photos.where((p) => p.isDocument == docs).length;
+    final left = (docs ? limits.maxFiles : limits.maxPhotos) - have;
+    if (left <= 0) return;
     for (final f in picked.take(left)) {
       final item =
           CasePhotoUpload(key: _photoKey++, bytes: f.bytes, name: f.name);

@@ -31,10 +31,14 @@ class CasePhotosPicker extends ConsumerWidget {
     final c = ref.read(createCaseControllerProvider.notifier);
     // Owner 2026-10-07 (bug 17): count and formats from the admin.
     final upload = ref.watch(uploadLimitsProvider)[UploadPlace.kase];
+    // Owner 2026-10-19: photos and documents have their own limits.
+    final maxPhotos = upload.maxPhotos;
     final maxFiles = upload.maxFiles;
+    final photoCount = photos.where((p) => !p.isDocument).length;
+    final fileCount = photos.length - photoCount;
 
     Future<void> pick() async {
-      final left = maxFiles - photos.length;
+      final left = maxPhotos - photoCount;
       if (left <= 0) return;
       final limits = photoLimitsOf(ref.read(featureFlagsControllerProvider));
       final picked = await ImagePicker().pickMultiImage(
@@ -51,7 +55,7 @@ class CasePhotosPicker extends ConsumerWidget {
 
     // OQ-034: PDF / Word documents next to the photos.
     Future<void> pickFiles() async {
-      final left = maxFiles - photos.length;
+      final left = maxFiles - fileCount;
       if (left <= 0) return;
       final result = await FilePicker.pickFiles(
         type: FileType.custom,
@@ -91,15 +95,14 @@ class CasePhotosPicker extends ConsumerWidget {
                 ),
               ),
             ),
-            Text(
-              ltrIsolate('${photos.length} / $maxFiles'),
-              style: type.caption.copyWith(color: colors.textSecondary),
-            ),
           ],
         ),
         const SizedBox(height: AppSpacing.xs),
         Text(
-          t.t('cases.photos.privacy', {'max': '$maxFiles'}),
+          t.t('cases.photos.privacySplit', {
+            'photos': '$maxPhotos',
+            'files': '$maxFiles',
+          }),
           style: type.caption.copyWith(color: colors.textSecondary),
         ),
         const SizedBox(height: AppSpacing.sm),
@@ -113,7 +116,10 @@ class CasePhotosPicker extends ConsumerWidget {
                 icon: AppIcons.addPhotoAlternateOutlined,
                 label: t.t('cases.photos.tilePhoto'),
                 semantic: t.t('cases.photos.add'),
-                onTap: photos.length < maxFiles ? pick : null,
+                count: photoCount < maxPhotos
+                    ? ltrIsolate('$photoCount / $maxPhotos')
+                    : t.t('cases.photos.limitReached', {'max': '$maxPhotos'}),
+                onTap: photoCount < maxPhotos ? pick : null,
               ),
             ),
             const SizedBox(width: AppSpacing.sm),
@@ -122,18 +128,14 @@ class CasePhotosPicker extends ConsumerWidget {
                 icon: AppIcons.noteAddOutlined,
                 label: t.t('cases.photos.tileFile'),
                 semantic: t.t('cases.files.add'),
-                onTap: photos.length < maxFiles ? pickFiles : null,
+                count: fileCount < maxFiles
+                    ? ltrIsolate('$fileCount / $maxFiles')
+                    : t.t('cases.photos.limitReached', {'max': '$maxFiles'}),
+                onTap: fileCount < maxFiles ? pickFiles : null,
               ),
             ),
           ],
         ),
-        if (photos.length >= maxFiles) ...[
-          const SizedBox(height: AppSpacing.xs),
-          Text(
-            t.t('cases.photos.limitReached', {'max': '$maxFiles'}),
-            style: type.caption.copyWith(color: colors.textSecondary),
-          ),
-        ],
         if (photos.isNotEmpty) const SizedBox(height: AppSpacing.sm),
         LayoutBuilder(
           builder: (context, box) {
@@ -237,12 +239,16 @@ class _AddButton extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.semantic,
+    required this.count,
     required this.onTap,
   });
 
   final IconData icon;
   final String label;
   final String semantic;
+
+  /// «3 / 9» under the button; at the limit «Достигнут лимит: 9».
+  final String count;
   final VoidCallback? onTap;
 
   @override
@@ -250,36 +256,47 @@ class _AddButton extends StatelessWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final enabled = onTap != null;
-    return Semantics(
-      button: true,
-      enabled: enabled,
-      label: semantic,
-      child: Opacity(
-        opacity: enabled ? 1 : 0.45,
-        child: AppPressable(
-          onTap: onTap,
-          child: Container(
-            height: 48,
-            // Owner 2026-10-18: the theme's own tile (no gold fill).
-            decoration: BoxDecoration(
-              color: colors.chip,
-              borderRadius: BorderRadius.circular(AppRadii.field),
-              border: Border.all(color: colors.border),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                AppIcon(icon, color: colors.textSecondary),
-                const SizedBox(width: AppSpacing.sm),
-                Text(
-                  label,
-                  style: type.body.copyWith(color: colors.textSecondary),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Semantics(
+          button: true,
+          enabled: enabled,
+          label: semantic,
+          child: Opacity(
+            opacity: enabled ? 1 : 0.45,
+            child: AppPressable(
+              onTap: onTap,
+              child: Container(
+                height: 48,
+                // Owner 2026-10-18: the theme's own tile (no gold fill).
+                decoration: BoxDecoration(
+                  color: colors.chip,
+                  borderRadius: BorderRadius.circular(AppRadii.field),
+                  border: Border.all(color: colors.border),
                 ),
-              ],
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    AppIcon(icon, color: colors.textSecondary),
+                    const SizedBox(width: AppSpacing.sm),
+                    Text(
+                      label,
+                      style: type.body.copyWith(color: colors.textSecondary),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
         ),
-      ),
+        const SizedBox(height: AppSpacing.xs),
+        Text(
+          count,
+          textAlign: TextAlign.center,
+          style: type.caption.copyWith(color: colors.textSecondary),
+        ),
+      ],
     );
   }
 }

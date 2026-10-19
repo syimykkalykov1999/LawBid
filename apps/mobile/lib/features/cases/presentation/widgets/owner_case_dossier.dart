@@ -40,7 +40,14 @@ class _OwnerCaseDossierState extends ConsumerState<OwnerCaseDossier> {
   PlaceUploadLimits get _limits =>
       ref.read(uploadLimitsProvider)[UploadPlace.kase];
 
-  int get _left => _limits.maxFiles - widget.kase.photos.length;
+  // Owner 2026-10-19: photos and documents have their own limits.
+  int get _photosLeft =>
+      _limits.maxPhotos -
+      widget.kase.photos.where((p) => p.mime.startsWith('image/')).length;
+
+  int get _filesLeft =>
+      _limits.maxFiles -
+      widget.kase.photos.where((p) => !p.mime.startsWith('image/')).length;
 
   Future<void> _pickPhotos() async {
     final limits = photoLimitsOf(ref.read(featureFlagsControllerProvider));
@@ -48,10 +55,10 @@ class _OwnerCaseDossierState extends ConsumerState<OwnerCaseDossier> {
       maxWidth: limits.maxPx,
       maxHeight: limits.maxPx,
       imageQuality: limits.quality,
-      limit: _left > 1 ? _left : null,
+      limit: _photosLeft > 1 ? _photosLeft : null,
     );
     await _add([
-      for (final f in picked.take(_left))
+      for (final f in picked.take(_photosLeft))
         (bytes: await f.readAsBytes(), name: null),
     ]);
   }
@@ -64,7 +71,8 @@ class _OwnerCaseDossierState extends ConsumerState<OwnerCaseDossier> {
       withData: true,
     );
     await _add([
-      for (final f in (result?.files ?? const <PlatformFile>[]).take(_left))
+      for (final f
+          in (result?.files ?? const <PlatformFile>[]).take(_filesLeft))
         if (f.bytes != null) (bytes: f.bytes!, name: f.name),
     ]);
   }
@@ -130,25 +138,29 @@ class _OwnerCaseDossierState extends ConsumerState<OwnerCaseDossier> {
 
   void _choose() {
     final t = ref.read(translatorProvider);
-    if (_left <= 0) {
+    if (_photosLeft <= 0 && _filesLeft <= 0) {
       showAppSnackBar(
         context,
-        t.t('cases.dossier.filesFull', {'max': '${_limits.maxFiles}'}),
+        t.t('cases.dossier.filesFull', {
+          'max': '${_limits.maxPhotos + _limits.maxFiles}',
+        }),
       );
       return;
     }
     showActionSheet(context, [
-      ActionSheetItem(
-        icon: AppIcons.addPhotoAlternateOutlined,
-        label: t.t('cases.photos.add'),
-        onTap: _pickPhotos,
-      ),
-      ActionSheetItem(
-        icon: AppIcons.noteAddOutlined,
-        label: t.t('cases.files.add'),
-        onTap: _pickDocuments,
-      ),
-      if (ref.read(templatesEnabledProvider))
+      if (_photosLeft > 0)
+        ActionSheetItem(
+          icon: AppIcons.addPhotoAlternateOutlined,
+          label: t.t('cases.photos.add'),
+          onTap: _pickPhotos,
+        ),
+      if (_filesLeft > 0)
+        ActionSheetItem(
+          icon: AppIcons.noteAddOutlined,
+          label: t.t('cases.files.add'),
+          onTap: _pickDocuments,
+        ),
+      if (_filesLeft > 0 && ref.read(templatesEnabledProvider))
         ActionSheetItem(
           icon: AppIcons.descriptionOutlined,
           label: t.t('cases.files.fromTemplate'),
@@ -167,7 +179,7 @@ class _OwnerCaseDossierState extends ConsumerState<OwnerCaseDossier> {
       status: c.status,
       t: t,
       rule: CaseDossierRule.owner,
-      action: open && _left > 0
+      action: open && (_photosLeft > 0 || _filesLeft > 0)
           ? AppButton(
               label: t.t('cases.dossier.addFiles'),
               icon: AppIcons.attachFileRounded,

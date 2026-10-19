@@ -31,24 +31,32 @@ export class CasePhotosService {
     const had = caseId
       ? await this.prisma.casePhoto.findMany({
           where: { case_id: caseId },
-          select: { file_id: true },
+          select: { file_id: true, file: { select: { mime: true } } },
         })
       : [];
     const kept = new Set(had.map((p) => p.file_id));
-    assertUploadCount(
-      await this.files.uploadLimits(),
-      'case',
-      'files',
-      fileIds.length,
-      had.length,
-    );
+    const files = [];
     for (const id of fileIds) {
       const file = await this.files.assertAttachable(userId, id, [
         'case_photo',
         'case_attachment',
       ]);
       if (!kept.has(id)) await this.files.assertFitsPlace('case', file);
+      files.push(file);
     }
+    // Owner 2026-10-19: photos and documents have their own limits.
+    const isPhoto = (mime: string) => mime.startsWith('image/');
+    const limits = await this.files.uploadLimits();
+    const photos = files.filter((f) => isPhoto(f.mime)).length;
+    const hadPhotos = had.filter((p) => isPhoto(p.file.mime)).length;
+    assertUploadCount(limits, 'case', 'photos', photos, hadPhotos);
+    assertUploadCount(
+      limits,
+      'case',
+      'files',
+      files.length - photos,
+      had.length - hadPhotos,
+    );
   }
 
   async attach(tx: Tx, caseId: string, fileIds: string[]): Promise<void> {

@@ -156,13 +156,15 @@ export const PLACE_SPECS: Record<UploadPlace, PlaceSpec> = {
       formats: POST_DEFAULT,
     },
   },
+  // Owner 2026-10-19: up to 9 photos AND up to 3 documents, counted
+  // separately (was 9 together).
   case: {
-    count: 'combined',
+    count: 'split',
     safeFormats: [...PHOTOS, ...DOC_FORMATS],
     ceiling: { count: 20, fileMb: 50, totalMb: 0 },
     defaults: {
-      maxPhotos: 0,
-      maxFiles: 9,
+      maxPhotos: 9,
+      maxFiles: 3,
       fileMb: 10,
       totalMb: 0,
       formats: ['jpeg', 'png', 'heic', 'pdf', 'docx'],
@@ -275,7 +277,12 @@ export function sanitizeUploadLimits(raw: unknown): UploadLimits {
     const spec = PLACE_SPECS[place];
     const d = spec.defaults;
     const v = src[place];
-    const p = v && typeof v === 'object' ? (v as Record<string, unknown>) : {};
+    let p = v && typeof v === 'object' ? (v as Record<string, unknown>) : {};
+    // A case limit saved while photos and documents were counted together
+    // (no maxPhotos) is read as the new split defaults; formats and MB stay.
+    if (place === 'case' && p.maxPhotos === undefined) {
+      p = { ...p, maxFiles: undefined };
+    }
     const picked = Array.isArray(p.formats) ? (p.formats as unknown[]) : null;
     out[place] = {
       maxPhotos:

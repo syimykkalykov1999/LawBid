@@ -163,9 +163,10 @@ const kDefaultUploadLimits = <UploadPlace, PlaceUploadLimits>{
     totalMb: 30,
     formats: _postFormats,
   ),
+  // Owner 2026-10-19: 9 photos and 3 documents, counted separately.
   UploadPlace.kase: PlaceUploadLimits(
-    maxPhotos: 0,
-    maxFiles: 9,
+    maxPhotos: 9,
+    maxFiles: 3,
     fileMb: 10,
     totalMb: 0,
     formats: {'jpeg', 'png', 'heic', 'pdf', 'docx'},
