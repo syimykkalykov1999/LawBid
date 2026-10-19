@@ -6,7 +6,6 @@ import 'package:lawbid/core/l10n/app_language.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/static_translator.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
-import 'package:lawbid/features/cases/domain/case_urgency.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_parts.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 

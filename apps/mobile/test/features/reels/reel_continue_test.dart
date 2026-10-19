@@ -62,7 +62,7 @@ void main() {
   });
   tearDown(() => debugReelPlayerFactory = null);
 
-  testWidgets('the full-screen player goes on from the feed\'s spot',
+  testWidgets("the full-screen player goes on from the feed's spot",
       (tester) async {
     Widget app(Key key) => MaterialApp(
           theme: AppTheme.dark(),

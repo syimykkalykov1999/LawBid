@@ -63,7 +63,7 @@ Future<void> main() async {
     CasePhotoUpload(key: 3, bytes: Uint8List(0), name: 'report.pdf'),
   ];
 
-  test('the draft becomes the attorneys\' card data', () {
+  test("the draft becomes the attorneys' card data", () {
     final item = AttorneyViewPreview.feedViewOfDraft(draft, files);
     expect(item.title, 'Ошибка при операции на колене');
     expect(item.practice.artCode, 'medical_malpractice');
