@@ -142,6 +142,11 @@ row + topic hint; budget step no jump.
 - RELEASE NOTE (media quality, 1f2099b2): in Bunny Stream switch on 1080p
   encoding; if `media.*` were ever saved in the prod admin, set photo quality
   90, `media.avatar_quality` 95 and video max height 1080 there.
+- State 2026-10-19 ~04:10 UTC: iPhone + APK built from b7b29ef7 (all the
+  day's work: insights, reels publishing, sound without clicks, Instagram-like
+  tab pages everywhere incl. the case workspace, guide in 85 languages, case
+  files 9+3 with videos, upload formats, text limits). APK at
+  http://<mac-ip>:8080/LawBid.apk. The owner is testing; RELEASE is next.
 - APK: build ONLY when the owner says (he checks the iPhone first).
 - iPhone: install a RELEASE build (`flutter run --release …`) — a debug build
   stops working when the cable/session drops.
