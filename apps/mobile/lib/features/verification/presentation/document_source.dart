@@ -2,8 +2,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lawbid/features/profile/data/avatar_upload_repository.dart'
-    show sniffImageMime;
+import 'package:lawbid/core/files/file_types.dart';
 import 'package:lawbid/features/verification/domain/verification_models.dart';
 import 'package:lawbid/features/verification/presentation/screens/camera_capture_screen.dart';
 

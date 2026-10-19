@@ -9,6 +9,7 @@ import 'package:image_picker/image_picker.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
+import 'package:lawbid/core/files/file_types.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
@@ -17,8 +18,6 @@ import 'package:lawbid/features/cases/presentation/widgets/case_photos.dart'
 import 'package:lawbid/features/chat/data/chat_repository.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/presentation/chat_video.dart';
-import 'package:lawbid/features/profile/data/avatar_upload_repository.dart'
-    show sniffImageMime;
 
 export 'package:lawbid/features/chat/presentation/chat_files_screen.dart'
     show ChatFilesScreen, ChatFilesTab;

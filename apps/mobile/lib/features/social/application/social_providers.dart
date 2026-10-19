@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
+import 'package:lawbid/core/files/file_types.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
@@ -10,8 +11,6 @@ import 'package:lawbid/features/cases/application/paged_notifier.dart';
 import 'package:lawbid/features/feed/application/feed_topics.dart'
     show topicTagFor;
 import 'package:lawbid/features/profile/application/profile_providers.dart';
-import 'package:lawbid/features/profile/data/avatar_upload_repository.dart'
-    show sniffImageMime;
 import 'package:lawbid/features/social/data/social_local_database.dart';
 import 'package:lawbid/features/social/data/social_repository.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';

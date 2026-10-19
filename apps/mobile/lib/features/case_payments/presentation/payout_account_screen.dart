@@ -68,7 +68,9 @@ class _PayoutAccountScreenState extends ConsumerState<PayoutAccountScreen>
     try {
       final url = await link();
       if (!mounted) return;
-      await openExternal(url);
+      if (!await openCheckout(url) && mounted) {
+        showAppSnackBar(context, t.t('plans.cantOpen'));
+      }
     } on Object catch (e) {
       if (mounted) showAppSnackBar(context, errorText(t, e));
     } finally {

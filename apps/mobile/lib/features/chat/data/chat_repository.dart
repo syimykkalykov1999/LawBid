@@ -10,6 +10,8 @@ import 'package:lawbid/features/stickers/data/stickers_repository.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
+export 'package:lawbid/core/files/file_types.dart' show chatMimeForName;
+
 /// Owner 2026-10-05 (storage like Telegram): counts and bytes of a chat's
 /// files; `quotaBytes` null = no cap.
 typedef ChatStorageSummary = ({
@@ -546,41 +548,8 @@ const kChatAttachmentMaxBytes = 50 * 1024 * 1024;
 /// The most any setting allows per chat or task file (the API's ceiling).
 const kChatAttachmentCeilingBytes = 100 * 1024 * 1024;
 
-/// OQ-047: what the server accepts in a chat, by extension (the server
-/// re-checks the bytes). Null for anything else.
-String? chatMimeForName(String name) {
-  final dot = name.lastIndexOf('.');
-  final ext = dot < 0 ? '' : name.substring(dot + 1).toLowerCase();
-  return switch (ext) {
-    'jpg' || 'jpeg' => 'image/jpeg',
-    'png' => 'image/png',
-    'heic' || 'heif' => 'image/heic',
-    'webp' => 'image/webp',
-    'gif' => 'image/gif',
-    'pdf' => 'application/pdf',
-    'doc' => 'application/msword',
-    'docx' =>
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'xls' => 'application/vnd.ms-excel',
-    'xlsx' =>
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    'ppt' => 'application/vnd.ms-powerpoint',
-    'pptx' =>
-      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-    'odt' => 'application/vnd.oasis.opendocument.text',
-    'ods' => 'application/vnd.oasis.opendocument.spreadsheet',
-    'odp' => 'application/vnd.oasis.opendocument.presentation',
-    'rtf' => 'application/rtf',
-    'txt' => 'text/plain',
-    'csv' => 'text/csv',
-    'mp4' => 'video/mp4',
-    'mov' => 'video/quicktime',
-    'webm' => 'video/webm',
-    _ => null,
-  };
-}
 
-/// Extensions for the file picker (same list as [chatMimeForName]).
+/// Extensions for the file picker (same list as `chatMimeForName`).
 const kChatFileExtensions = [
   'pdf',
   'doc',

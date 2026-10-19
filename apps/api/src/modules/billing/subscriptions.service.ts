@@ -212,8 +212,16 @@ export class SubscriptionsService implements OnModuleDestroy {
       },
       ...(couponId ? { couponId } : {}),
     });
+    // Owner 2026-10-19: never hand the app an empty link (a pay tap that
+    // does nothing) — say the payment page is unavailable.
+    if (!session.url) {
+      throw new ServiceUnavailableException({
+        code: ErrorCode.PAYMENTS_NOT_CONFIGURED,
+        message: 'The checkout page is not available.',
+      });
+    }
     return {
-      url: session.url ?? '',
+      url: session.url,
       sessionId: session.id,
       trialEligible: eligible,
       priceCents,

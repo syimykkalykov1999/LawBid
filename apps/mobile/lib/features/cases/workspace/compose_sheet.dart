@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/files/file_types.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -16,10 +17,6 @@ import 'package:lawbid/features/cases/domain/case_models.dart'
 import 'package:lawbid/features/cases/presentation/widgets/case_header.dart'
     show ActionSheetItem, showActionSheet;
 import 'package:lawbid/features/cases/workspace/workspace_data.dart';
-import 'package:lawbid/features/chat/data/chat_repository.dart'
-    show chatMimeForName;
-import 'package:lawbid/features/profile/data/avatar_upload_repository.dart'
-    show sniffImageMime;
 import 'package:lawbid/features/team/application/team_providers.dart'
     show
         invalidateAllTasks,

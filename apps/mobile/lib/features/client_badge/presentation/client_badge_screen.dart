@@ -14,7 +14,7 @@ import 'package:lawbid/features/verification/domain/verification_models.dart';
 import 'package:lawbid/features/verification/domain/verification_repository.dart';
 import 'package:lawbid/features/verification/presentation/document_source.dart';
 import 'package:lawbid/features/verification/verification_providers.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:lawbid/shared/domain/payment_page_launch_mode.dart';
 
 /// Owner 2026-10-02 — Settings → "Verify account" for clients: send
 /// documents, wait for the admin's approval, then $10/month for the gold
@@ -118,8 +118,8 @@ class _ClientBadgeScreenState extends ConsumerState<ClientBadgeScreen>
     setState(() => _busy = true);
     try {
       final url = await ref.read(clientBadgeRepositoryProvider).checkout();
-      if (url.scheme == 'https' || url.scheme == 'http') {
-        await launchUrl(url, mode: LaunchMode.externalApplication);
+      if (!await openPaymentPage(url) && mounted) {
+        showAppSnackBar(context, t.t('plans.cantOpen'));
       }
     } on Object catch (e) {
       if (mounted) showAppSnackBar(context, errorText(t, e));

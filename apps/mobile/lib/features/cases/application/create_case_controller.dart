@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:lawbid/core/files/file_types.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
@@ -11,8 +12,6 @@ import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/domain/case_draft.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
-import 'package:lawbid/features/profile/data/avatar_upload_repository.dart'
-    show sniffImageMime;
 import 'package:lawbid/features/social/application/social_providers.dart';
 
 /// Number of wizard steps (docs/04 §3.1).
