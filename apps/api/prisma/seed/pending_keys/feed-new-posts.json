@@ -1,0 +1,26 @@
+{
+  "feed.newPosts": {
+    "en": "New posts", "ru": "Новые посты", "es": "Nuevas publicaciones", "fr": "Nouvelles publications",
+    "de": "Neue Beiträge", "it": "Nuovi post", "pt": "Novas publicações", "nl": "Nieuwe berichten",
+    "pl": "Nowe posty", "uk": "Нові дописи", "tr": "Yeni gönderiler", "el": "Νέες αναρτήσεις",
+    "cs": "Nové příspěvky", "sk": "Nové príspevky", "hu": "Új bejegyzések", "ro": "Postări noi",
+    "bg": "Нови публикации", "hr": "Nove objave", "sr": "Нове објаве", "sl": "Nove objave",
+    "da": "Nye opslag", "sv": "Nya inlägg", "nb": "Nye innlegg", "fi": "Uusia julkaisuja",
+    "ca": "Publicacions noves", "zh": "新帖子", "ja": "新しい投稿", "ko": "새 게시물",
+    "vi": "Bài viết mới", "th": "โพสต์ใหม่", "id": "Postingan baru", "ms": "Siaran baharu",
+    "tl": "Mga bagong post", "hi": "नई पोस्ट", "bn": "নতুন পোস্ট", "ur": "نئی پوسٹس",
+    "ta": "புதிய இடுகைகள்", "te": "కొత్త పోస్ట్‌లు", "mr": "नवीन पोस्ट", "gu": "નવી પોસ્ટ",
+    "kn": "ಹೊಸ ಪೋಸ್ಟ್‌ಗಳು", "ml": "പുതിയ പോസ്റ്റുകൾ", "pa": "ਨਵੀਆਂ ਪੋਸਟਾਂ", "ar": "منشورات جديدة",
+    "he": "פוסטים חדשים", "fa": "پست‌های جدید", "ky": "Жаңы посттор", "kk": "Жаңа жазбалар",
+    "uz": "Yangi postlar", "ht": "Nouvo piblikasyon", "hy": "Նոր գրառումներ", "am": "አዲስ ልጥፎች",
+    "so": "Qoraallo cusub", "ne": "नयाँ पोस्टहरू", "km": "ការបង្ហោះថ្មី", "sq": "Postime të reja",
+    "az": "Yeni paylaşımlar", "ka": "ახალი პოსტები", "tg": "Пастҳои нав", "tk": "Täze ýazgylar",
+    "mn": "Шинэ нийтлэл", "be": "Новыя допісы", "lt": "Nauji įrašai", "lv": "Jaunas ziņas",
+    "et": "Uued postitused", "mk": "Нови објави", "bs": "Nove objave", "sw": "Machapisho mapya",
+    "af": "Nuwe plasings", "zu": "Okuthunyelwe okusha", "yo": "Àwọn ìfiránṣẹ́ tuntun", "ig": "Ozi ọhụrụ",
+    "ha": "Sabbin rubuce-rubuce", "ps": "نوې خپرونې", "ku": "Şandiyên nû", "my": "ပို့စ်အသစ်များ",
+    "lo": "ໂພສໃໝ່", "si": "නව පළ කිරීම්", "eu": "Argitalpen berriak", "gl": "Novas publicacións",
+    "is": "Nýjar færslur", "ga": "Postálacha nua", "cy": "Postiadau newydd", "mt": "Postijiet ġodda",
+    "zh-tw": "新貼文"
+  }
+}
