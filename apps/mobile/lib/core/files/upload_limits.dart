@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 
@@ -106,9 +107,12 @@ class PlaceUploadLimits {
           if (kPhotoFormats.contains(f)) kUploadFormatMime[f]!,
       };
 
-  /// Every format that is on, as picker extensions.
+  /// Every format that is on, as picker extensions. In the browser HEIC is
+  /// left out: the page can't show a HEIC, and without it in the list
+  /// iPhone Safari hands over the photo as a JPEG.
   List<String> get allExtensions => [
-        for (final f in formats) ...(_extensions[f] ?? [f]),
+        for (final f in formats)
+          if (!(kIsWeb && f == 'heic')) ...(_extensions[f] ?? [f]),
       ];
 
   /// MIME of a file name when its format is on here, else null.

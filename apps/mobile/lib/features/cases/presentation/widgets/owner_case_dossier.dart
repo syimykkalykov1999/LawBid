@@ -63,6 +63,9 @@ class _OwnerCaseDossierState extends ConsumerState<OwnerCaseDossier> {
 
   Future<void> _pickDocuments() async {
     final result = await FilePicker.pickFiles(
+      // Web: a big file from iCloud or a HEIC to convert arrives after the
+      // window gets focus back; don't drop it.
+      cancelUploadOnWindowBlur: false,
       type: FileType.custom,
       allowedExtensions: _limits.documentExtensions,
       allowMultiple: true,

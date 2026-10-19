@@ -1,4 +1,5 @@
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/features/profile/data/avatar_upload_repository.dart'
@@ -46,11 +47,23 @@ class DeviceDocumentSource implements DocumentSource {
   @override
   Future<PickedDocument?> pickFile({required bool allowPdf}) async {
     final result = await FilePicker.pickFiles(
+      // Web: a big file from iCloud or a HEIC to convert arrives after the
+      // window gets focus back; don't drop it.
+      cancelUploadOnWindowBlur: false,
       type: allowPdf ? FileType.custom : FileType.image,
       allowedExtensions:
           // Owner 2026-10-19: WebP too (saved web pictures).
           allowPdf
-              ? const ['jpg', 'jpeg', 'png', 'heic', 'heif', 'webp', 'pdf']
+              ? [
+                  'jpg',
+                  'jpeg',
+                  'png',
+                  // The browser can't show a HEIC; without it iPhone Safari
+                  // hands over a JPEG.
+                  if (!kIsWeb) ...['heic', 'heif'],
+                  'webp',
+                  'pdf',
+                ]
               : null,
       withData: true,
     );

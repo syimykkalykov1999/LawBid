@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:camera/camera.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -198,8 +199,16 @@ class _CameraCaptureScreenState extends ConsumerState<CameraCaptureScreen>
             FittedBox(
               fit: BoxFit.cover,
               child: SizedBox(
-                width: controller.value.previewSize?.height ?? 1,
-                height: controller.value.previewSize?.width ?? 1,
+                // A phone's sensor reports landscape; the browser reports
+                // the picture as it is (already upright on a phone).
+                width: (kIsWeb
+                        ? controller.value.previewSize?.width
+                        : controller.value.previewSize?.height) ??
+                    1,
+                height: (kIsWeb
+                        ? controller.value.previewSize?.height
+                        : controller.value.previewSize?.width) ??
+                    1,
                 child: CameraPreview(controller),
               ),
             )

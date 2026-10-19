@@ -53,8 +53,7 @@ class RecentSearches extends Table {
 class SocialLocalDatabase extends _$SocialLocalDatabase {
   SocialLocalDatabase([QueryExecutor? executor])
       : super(
-          executor ??
-              appDriftDatabase('lawbid_social'),
+          executor ?? appDriftDatabase('lawbid_social'),
         );
 
   @override

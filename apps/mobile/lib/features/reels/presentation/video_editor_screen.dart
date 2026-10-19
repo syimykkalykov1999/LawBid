@@ -98,7 +98,11 @@ class _VideoEditorScreenState extends ConsumerState<VideoEditorScreen>
         ? VideoPlayerController.networkUrl(Uri.parse(widget.file.path))
         : VideoPlayerController.file(File(widget.file.path));
     try {
-      await c.initialize();
+      // iOS Safari may never say a picked video can play: after 10 s the
+      // editor works from the frames alone instead of waiting forever.
+      await (kIsWeb
+          ? c.initialize().timeout(const Duration(seconds: 10))
+          : c.initialize());
       await c.setLooping(true);
       await c.setVolume(0);
     } on Object {

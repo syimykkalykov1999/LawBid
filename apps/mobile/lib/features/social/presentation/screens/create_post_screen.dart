@@ -196,7 +196,8 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
         maxWidth: limits.maxPx,
         maxHeight: limits.maxPx,
         imageQuality: limits.quality,
-        limit: left,
+        // image_picker refuses a limit under 2.
+        limit: left > 1 ? left : null,
       );
       final video = picked.where(_isVideo).firstOrNull;
       if (video != null) {
@@ -222,7 +223,8 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
         maxWidth: limits.maxPx,
         maxHeight: limits.maxPx,
         imageQuality: limits.quality,
-        limit: left,
+        // image_picker refuses a limit under 2.
+        limit: left > 1 ? left : null,
       );
     }
     for (final file in picked.take(left)) {

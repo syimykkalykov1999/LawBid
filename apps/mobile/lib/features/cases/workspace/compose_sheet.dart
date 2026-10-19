@@ -194,6 +194,9 @@ class _ComposeSheetState extends ConsumerState<_ComposeSheet> {
   Future<void> _attach({required bool sample}) async {
     final upload = ref.read(uploadLimitsProvider)[UploadPlace.kase];
     final result = await FilePicker.pickFiles(
+      // Web: a big file from iCloud or a HEIC to convert arrives after the
+      // window gets focus back; don't drop it.
+      cancelUploadOnWindowBlur: false,
       type: FileType.custom,
       allowedExtensions: upload.documentExtensions,
       allowMultiple: true,

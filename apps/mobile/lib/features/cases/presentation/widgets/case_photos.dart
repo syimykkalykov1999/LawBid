@@ -49,6 +49,9 @@ class CasePhotosPicker extends ConsumerWidget {
       final left = maxFiles - fileCount;
       if (left <= 0) return;
       final result = await FilePicker.pickFiles(
+        // Web: a big file from iCloud or a HEIC to convert arrives after the
+        // window gets focus back; don't drop it.
+        cancelUploadOnWindowBlur: false,
         type: FileType.custom,
         // Owner 2026-10-19: a video from a computer too (counts with the
         // photos).

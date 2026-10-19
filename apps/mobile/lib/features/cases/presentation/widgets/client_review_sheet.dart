@@ -135,7 +135,7 @@ class _SheetState extends ConsumerState<_Sheet> {
       imageQuality: limits.quality,
       maxWidth: limits.maxPx,
       maxHeight: limits.maxPx,
-      limit: room,
+      limit: room > 1 ? room : null,
     );
     for (final x in picked.take(room)) {
       final bytes = await x.readAsBytes();

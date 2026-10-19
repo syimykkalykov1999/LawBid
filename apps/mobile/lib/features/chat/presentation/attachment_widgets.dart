@@ -2,6 +2,7 @@
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
@@ -16,6 +17,8 @@ import 'package:lawbid/features/cases/presentation/widgets/case_photos.dart'
 import 'package:lawbid/features/chat/data/chat_repository.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/presentation/chat_video.dart';
+import 'package:lawbid/features/profile/data/avatar_upload_repository.dart'
+    show sniffImageMime;
 
 export 'package:lawbid/features/chat/presentation/chat_files_screen.dart'
     show ChatFilesScreen, ChatFilesTab;
@@ -78,10 +81,18 @@ Future<List<PickedChatFile>> pickChatFiles(
   if (choice == null) return const [];
   final out = <PickedChatFile>[];
   var skipped = 0;
+  String? mimeFor(String name) =>
+      limits == null ? chatMimeForName(name) : limits.mimeForName(name);
+  final maxBytes = limits?.fileBytes ?? kChatAttachmentMaxBytes;
   void add(Uint8List bytes, String name) {
+    // A photo's real type from its first bytes (a browser may hand over a
+    // name with no extension, or a «.HEIC» that is already a JPEG), when
+    // that type is allowed here; everything else by its name.
+    final sniffed = sniffImageMime(bytes);
     final mime =
-        limits == null ? chatMimeForName(name) : limits.mimeForName(name);
-    final maxBytes = limits?.fileBytes ?? kChatAttachmentMaxBytes;
+        sniffed != null && mimeFor('f.${sniffed.split('/').last}') != null
+            ? sniffed
+            : mimeFor(name);
     if (mime == null || bytes.length > maxBytes) {
       skipped++;
       return;
@@ -109,6 +120,13 @@ Future<List<PickedChatFile>> pickChatFiles(
               imageQuality: 90,
             );
       for (final f in picked) {
+        // Too big: said at once, never read whole into the page's memory
+        // (a long iPhone clip could close a Safari tab).
+        if (await f.length() > maxBytes &&
+            !(videoOn && _isVideo(f) && !kIsWeb)) {
+          skipped++;
+          continue;
+        }
         if (videoOn && _isVideo(f)) {
           final ready = await prepareVideo(f);
           final name =
@@ -128,6 +146,9 @@ Future<List<PickedChatFile>> pickChatFiles(
       if (f != null) add(await f.readAsBytes(), f.name);
     case 'files':
       final result = await FilePicker.pickFiles(
+        // Web: a big file from iCloud or a HEIC to convert arrives after the
+        // window gets focus back; don't drop it.
+        cancelUploadOnWindowBlur: false,
         type: FileType.custom,
         allowedExtensions: limits?.allExtensions ?? kChatFileExtensions,
         allowMultiple: true,

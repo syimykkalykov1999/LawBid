@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/account_status/account_restricted.dart';
 import 'package:lawbid/core/account_status/account_suspended.dart';
@@ -62,12 +63,17 @@ final dioProvider = Provider<Dio>((ref) {
 /// docs/03 §2.2): NO app interceptors — the bearer token, app headers and
 /// the API retry policy must never reach the storage host. Only upload
 /// repositories use it; overridable in tests.
+///
+/// On the web the browser has one timer for the whole request (Dio adds
+/// connect + receive), so a photo or video that takes longer than that to
+/// send on phone data was cut off: the web waits as long as the upload
+/// needs, the browser still ends a dead connection itself.
 final storageDioProvider = Provider<Dio>(
   (ref) => Dio(
     BaseOptions(
       connectTimeout: const Duration(seconds: 15),
-      sendTimeout: const Duration(seconds: 60),
-      receiveTimeout: const Duration(seconds: 30),
+      sendTimeout: kIsWeb ? null : const Duration(seconds: 60),
+      receiveTimeout: kIsWeb ? null : const Duration(seconds: 30),
     ),
   ),
 );

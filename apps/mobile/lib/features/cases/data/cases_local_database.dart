@@ -32,8 +32,7 @@ class SeenBids extends Table {
 class CasesLocalDatabase extends _$CasesLocalDatabase {
   CasesLocalDatabase([QueryExecutor? executor])
       : super(
-          executor ??
-              appDriftDatabase('lawbid_cases'),
+          executor ?? appDriftDatabase('lawbid_cases'),
         );
 
   @override
