@@ -42,6 +42,7 @@ import {
   StillNeededAnswerDto,
   UpdateCaseDto,
   UpdateCaseUrgencyDto,
+  UpdatePrivateDetailsDto,
 } from './dto/case-requests.dto';
 import {
   CaseDeletedDto,
@@ -119,6 +120,26 @@ export class CasesController {
     @Body() dto: UpdateCaseDto,
   ): Promise<CaseDto> {
     return this.cases.update(user, params.id, dto);
+  }
+
+  @Patch('cases/:id/private-details')
+  @ApiOperation({
+    summary:
+      'Change the private details («Подробности») — the client, while the case is open or in work (audit 2026-10-19)',
+  })
+  @ApiEnvelopeResponse(CaseDto)
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    403: [E.FORBIDDEN],
+    404: [E.CASE_NOT_FOUND],
+    409: [E.CASE_INVALID_STATE],
+  })
+  updateCasePrivateDetails(
+    @CurrentUser() user: RequestUser,
+    @Param() params: CaseIdParamDto,
+    @Body() dto: UpdatePrivateDetailsDto,
+  ): Promise<CaseDto> {
+    return this.cases.updatePrivateDetails(user, params.id, dto);
   }
 
   @Patch('cases/:id/urgency')

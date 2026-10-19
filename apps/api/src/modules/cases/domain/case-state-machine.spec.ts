@@ -59,6 +59,16 @@ const ALLOWED: [CaseStatus, CaseAction, CaseStatus, string][] = [
   ['open', 'set_urgency', 'open', 'updated'],
   ['in_progress', 'set_urgency', 'in_progress', 'updated'],
   ['pending_completion', 'set_urgency', 'pending_completion', 'updated'],
+  // Audit 2026-10-19: the private details, also once hired.
+  ['open', 'client_set_private_details', 'open', 'updated'],
+  ['in_progress', 'client_set_private_details', 'in_progress', 'updated'],
+  [
+    'pending_completion',
+    'client_set_private_details',
+    'pending_completion',
+    'updated',
+  ],
+  ['disputed', 'client_set_private_details', 'disputed', 'updated'],
   ['open', 'client_keep_alive', 'open', 'updated'],
   ['open', 'system_stale_prompt', 'open', 'updated'],
   ['open', 'system_stale_pause', 'open', 'updated'],
@@ -87,9 +97,9 @@ describe('CaseStateMachine (docs/04 §10.1)', () => {
     CASE_ACTIONS.map((a) => [s, a] as const),
   );
 
-  it('covers every status × action pair (6 × 24)', () => {
-    expect(CASE_ACTIONS).toHaveLength(24);
-    expect(pairs).toHaveLength(144);
+  it('covers every status × action pair (6 × 25)', () => {
+    expect(CASE_ACTIONS).toHaveLength(25);
+    expect(pairs).toHaveLength(150);
   });
 
   it.each(pairs)('%s + %s', (from, action) => {

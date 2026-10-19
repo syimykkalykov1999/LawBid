@@ -63,6 +63,8 @@ export type CaseAction =
   | 'client_edit'
   // Owner 2026-10-05: the urgency / date, also after an attorney is hired.
   | 'set_urgency'
+  // Audit 2026-10-19: the client's private details, also once hired.
+  | 'client_set_private_details'
   | 'client_keep_alive'
   | 'client_delete'
   // OQ-054: the stale-case job asked «Вам ещё нужен адвокат?»
@@ -145,6 +147,11 @@ export const CASE_TRANSITIONS: Readonly<
   client_edit: { from: ['open'], to: null, event: 'updated' },
   set_urgency: {
     from: ['open', 'in_progress', 'pending_completion'],
+    to: null,
+    event: 'updated',
+  },
+  client_set_private_details: {
+    from: ['open', 'in_progress', 'pending_completion', 'disputed'],
     to: null,
     event: 'updated',
   },
@@ -270,6 +277,7 @@ export function planCaseTransition(
       };
       break;
     case 'client_edit':
+    case 'client_set_private_details':
       // OQ-054: editing the case is the client's own action.
       data = { last_activity_at: now, client_active_at: now };
       break;

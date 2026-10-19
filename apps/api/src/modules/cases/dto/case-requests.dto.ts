@@ -507,3 +507,17 @@ export class UpdateCaseUrgencyDto {
   @IsIn(CASE_DEADLINE_KINDS)
   deadlineKind?: CaseDeadlineKind | null;
 }
+
+/** Audit 2026-10-19: «Подробности» (private details) can be changed after
+ * a bid is accepted too; an empty text clears them. */
+export class UpdatePrivateDetailsDto {
+  @ApiProperty({
+    maxLength: 50_000,
+    description:
+      'Only the owner and the accepted attorney read them; empty clears.',
+  })
+  @Transform(tidy)
+  @IsString()
+  @MaxTextChars('limits.case_private_details_chars')
+  privateDetails!: string;
+}

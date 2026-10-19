@@ -63,6 +63,7 @@ import {
   type MyCasesFilter,
   type StillNeededAnswer,
   type UpdateCaseDto,
+  type UpdatePrivateDetailsDto,
 } from './dto/case-requests.dto';
 import type {
   CaseDto,
@@ -896,6 +897,55 @@ export class CasesService {
           );
         }
       }
+      return afterCase;
+    });
+    return this.toFullDto(updated);
+  }
+
+  /** PATCH /cases/:id/private-details — audit 2026-10-19: the client's
+   * «Подробности» were write-once (the case edit is for open cases only).
+   * Now the client changes them while the case is open or in work; the
+   * journal never gets the text. */
+  async updatePrivateDetails(
+    user: RequestUser,
+    caseId: string,
+    dto: UpdatePrivateDetailsDto,
+  ): Promise<CaseDto> {
+    this.assertClientRole(user);
+    const updated = await withTxRetry(this.prisma, async (tx) => {
+      const current = await tx.case.findUnique({
+        where: { id: caseId },
+        select: {
+          client_id: true,
+          deleted_at: true,
+          status: true,
+          private_details: true,
+          accepted_bid: { select: { attorney_id: true } },
+        },
+      });
+      if (!current || current.deleted_at || current.client_id !== user.sub) {
+        throw caseNotFound();
+      }
+      const next = dto.privateDetails.trim() || null;
+      const { case: afterCase, plan } = await this.caseMachine.apply(tx, {
+        caseId,
+        action: 'client_set_private_details',
+        extra:
+          next !== current.private_details ? { private_details: next } : {},
+      });
+      if (next === current.private_details) return afterCase;
+      await this.journal.append(tx, {
+        caseId,
+        clientId: user.sub,
+        actor: { userId: user.sub, role: 'client' },
+        event: plan.event,
+        payload: {
+          privateDetailsChanged: {
+            old: current.private_details !== null,
+            new: next !== null,
+          },
+        },
+      });
       return afterCase;
     });
     return this.toFullDto(updated);
