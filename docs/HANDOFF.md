@@ -133,6 +133,9 @@ row + topic hint; budget step no jump.
   файлы», it keeps the OLD list of formats — after the deploy switch on WebP
   for avatar, reviews and verification, and webm for chat, in the admin
   (checkboxes).
+- RELEASE NOTE (media quality, 1f2099b2): in Bunny Stream switch on 1080p
+  encoding; if `media.*` were ever saved in the prod admin, set photo quality
+  90, `media.avatar_quality` 95 and video max height 1080 there.
 - APK: build ONLY when the owner says (he checks the iPhone first).
 - iPhone: install a RELEASE build (`flutter run --release …`) — a debug build
   stops working when the cable/session drops.
