@@ -143,6 +143,22 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
   Duration _lastPos = Duration.zero;
   bool _endFaded = false;
 
+  /// Owner 2026-10-19 (Instagram): a video opened full screen from the feed,
+  /// a profile or search goes on from where it was being watched, and back
+  /// in the feed it goes on from where the player left it. The last spot of
+  /// every video played in the last 10 minutes, by its stream.
+  static final _lastSpot = <String, ({Duration at, DateTime when})>{};
+
+  static Duration? _recentSpot(String url) {
+    final s = _lastSpot[url];
+    if (s == null) return null;
+    if (DateTime.now().difference(s.when) > const Duration(minutes: 10)) {
+      _lastSpot.remove(url);
+      return null;
+    }
+    return s.at;
+  }
+
   double get _target =>
       widget.active && !widget.paused && playbackVisible && !widget.muted
           ? 1
@@ -264,7 +280,7 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
       await c.setLooping(true);
       final clip = ReelClip.of(widget.video, c.value.duration);
       _clip = clip;
-      final at = _resumeAt;
+      final at = _recentSpot(url) ?? _resumeAt;
       _resumeAt = null;
       if (at != null && !clip.outside(at)) {
         await c.seekTo(at);
@@ -300,6 +316,10 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
     }
     final looped = pos + const Duration(milliseconds: 500) < _lastPos;
     _lastPos = pos;
+    if (c.value.isPlaying) {
+      final url = widget.video.playerUrl(web: kIsWeb);
+      if (url != null) _lastSpot[url] = (at: pos, when: DateTime.now());
+    }
     if (looped && _endFaded) {
       _endFaded = false;
       _fade(c, _target);
