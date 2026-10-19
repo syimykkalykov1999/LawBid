@@ -24,6 +24,7 @@ import 'package:lawbid/features/cases/presentation/widgets/case_parts.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:lawbid/features/cases/presentation/widgets/client_review_sheet.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
+import 'package:lawbid/features/cases/presentation/widgets/private_details_card.dart';
 import 'package:lawbid/features/cases/workspace/workspace_view.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
@@ -244,6 +245,13 @@ class _WorkCaseScreenState extends ConsumerState<WorkCaseScreen> {
         CaseText(
           text: c.description ?? '',
           moreLabel: t.t('post.more'),
+        ),
+        // Audit 2026-10-19: the client's «Подробности» for the hired
+        // attorney, as text.
+        PrivateDetailsCard(
+          caseId: c.id,
+          text: c.privateDetails,
+          isOwner: false,
         ),
         if (c.ownBidId != null)
           Padding(

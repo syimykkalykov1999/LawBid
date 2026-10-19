@@ -29,6 +29,7 @@ import 'package:lawbid/features/cases/presentation/widgets/case_urgency_picker.d
 import 'package:lawbid/features/cases/presentation/widgets/case_wizard_steps.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
 import 'package:lawbid/features/cases/presentation/widgets/owner_case_dossier.dart';
+import 'package:lawbid/features/cases/presentation/widgets/private_details_card.dart';
 import 'package:lawbid/features/cases/presentation/widgets/review_nudge_sheet.dart';
 import 'package:lawbid/features/cases/workspace/workspace_view.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
@@ -430,6 +431,15 @@ class _OwnerCaseBody extends ConsumerWidget {
             text: c.description,
             moreLabel: t.t('post.more'),
           ),
+          // Audit 2026-10-19: «Подробности» stay readable and editable
+          // once a bid is accepted.
+          PrivateDetailsCard(
+            caseId: c.id,
+            text: c.privateDetails,
+            isOwner: true,
+            hired: true,
+            onSaved: () => ref.invalidate(ownerCaseProvider(c.id)),
+          ),
           Padding(
             padding: const EdgeInsets.fromLTRB(
               AppSpacing.lg,
@@ -649,6 +659,16 @@ class _OwnerOpenCaseState extends ConsumerState<_OwnerOpenCase> {
                       c.description,
                       style: typography.body.copyWith(color: colors.text),
                     ),
+                  ),
+                  // Audit 2026-10-19: the owner reads their «Подробности».
+                  PrivateDetailsCard(
+                    caseId: c.id,
+                    text: c.privateDetails,
+                    isOwner: true,
+                    padding: EdgeInsets.zero,
+                    onSaved: c.status == CaseStatus.open
+                        ? () => ref.invalidate(ownerCaseProvider(c.id))
+                        : null,
                   ),
                   if (c.photos.isNotEmpty)
                     DetailSection(

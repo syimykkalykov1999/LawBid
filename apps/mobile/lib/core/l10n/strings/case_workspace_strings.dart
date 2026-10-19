@@ -97,6 +97,20 @@ const caseWorkspaceRu = <String, String>{
   'cases.compose.file': 'Файл',
   'cases.compose.samplePhoto': 'Образец (фото)',
   'cases.compose.sampleFile': 'Образец (файл)',
+  // Audit 2026-10-19: «Подробности» once a bid is accepted.
+  'cases.details.title': 'Подробности',
+  'cases.details.add': 'Добавить',
+  'cases.details.edit': 'Изменить',
+  'cases.details.save': 'Сохранить',
+  'cases.details.saved': 'Подробности сохранены',
+  'cases.details.empty':
+      'Пока пусто. Сюда можно написать имена сторон, номер дела, адреса — то, что нельзя показывать всем.',
+  'cases.details.ownerHint':
+      'Видите только вы и адвокат, которого вы выбрали. Остальные адвокаты видят лишь, что подробности есть.',
+  'cases.details.attorneyHint':
+      'Клиент открыл это только вам, как выбранному адвокату.',
+  'cases.details.hiredNote':
+      'Ваш адвокат сразу увидит изменения и получит уведомление.',
   // Audit 2026-10-19: the other side added something in a case in work.
   'notif.cases.case_workspace_activity.title': 'Новое в кейсе',
   'notif.cases.case_workspace_activity.body':
@@ -211,6 +225,20 @@ const caseWorkspaceEn = <String, String>{
   'cases.compose.file': 'File',
   'cases.compose.samplePhoto': 'Sample (photo)',
   'cases.compose.sampleFile': 'Sample (file)',
+  // Audit 2026-10-19: «Подробности» once a bid is accepted.
+  'cases.details.title': 'Details',
+  'cases.details.add': 'Add',
+  'cases.details.edit': 'Edit',
+  'cases.details.save': 'Save',
+  'cases.details.saved': 'Details saved',
+  'cases.details.empty':
+      'Nothing here yet. Write the names of the parties, the case number, addresses — what should not be shown to everyone.',
+  'cases.details.ownerHint':
+      'Only you and the attorney you chose see this. Other attorneys only see that details exist.',
+  'cases.details.attorneyHint':
+      'The client shared this only with you, as the chosen attorney.',
+  'cases.details.hiredNote':
+      'Your attorney sees the change right away and gets a notification.',
   // Audit 2026-10-19: the other side added something in a case in work.
   'notif.cases.case_workspace_activity.title': 'New in your case',
   'notif.cases.case_workspace_activity.body':

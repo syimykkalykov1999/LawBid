@@ -129,6 +129,10 @@ abstract interface class CasesRepository {
     DateTime? deadline,
     String? deadlineKind,
   });
+
+  /// Audit 2026-10-19: «Подробности» — the client, also once hired; an
+  /// empty text clears them.
+  Future<void> setPrivateDetails(String caseId, String text);
   Future<CursorPage<CaseSummary>> myCases(
     MyCasesFilter filter, {
     String? cursor,
@@ -337,6 +341,16 @@ class ApiCasesRepository implements CasesRepository {
               ? api.CaseDeadlineKind.fromJson(draft.deadlineKind!)
               : null,
         ),
+      ),
+    );
+  }
+
+  @override
+  Future<void> setPrivateDetails(String caseId, String text) async {
+    await guardApiCall(
+      () => _cases.updateCasePrivateDetails(
+        id: caseId,
+        body: api.UpdatePrivateDetailsDto(privateDetails: text.trim()),
       ),
     );
   }

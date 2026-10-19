@@ -60,6 +60,7 @@ Future<void> main() async {
     shared: const [],
     joint: [_task('j1', api.CaseTaskDtoKind.joint, 'Sign the lease')],
     private: const [],
+    canEdit: true,
   );
 
   testWidgets('a joint task opens', (tester) async {
