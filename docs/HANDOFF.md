@@ -119,6 +119,16 @@ row + topic hint; budget step no jump.
   штата — проверить вручную»).
 - Test accounts (dev DB): password Test1234! for +12125550101 (attorney,
   subscription), +12125550102 (attorney, none), +12125550103 (client).
+- Evening 2026-10-18 (all committed): post card title ONE line + text max
+  2 + one «ещё»; one title rule (domain/post_text.dart splitPostText);
+  composer: separate «Заголовок» / «Описание», media-only posts ('' title =
+  no title, NULL = older post; migration 20261018170000); videos: no cover
+  flash + every player pauses when not visible (core/media/
+  playback_visibility.dart); demo avatars 512 px; attorney profile 3 tabs
+  (briefs merged into «Брифы и репосты», merged_paging.dart, API repostedAt);
+  Android dev flavor allows http (dev manifest) — the Samsung needs a NEW APK
+  for videos (asked the owner). Waiting: photo/video quality numbers 1–4.
+  In progress: scroll smoothness measured on the iPhone (integration_test).
 - APK: build ONLY when the owner says (he checks the iPhone first).
 - iPhone: install a RELEASE build (`flutter run --release …`) — a debug build
   stops working when the cable/session drops.
