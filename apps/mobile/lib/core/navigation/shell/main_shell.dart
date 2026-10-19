@@ -51,6 +51,8 @@ class _MainShellState extends ConsumerState<MainShell> {
 
   void _onTabSelected(int index) {
     final reselect = index == navigationShell.currentIndex;
+    // Owner 2026-10-19: switching tabs drops the keyboard of the tab left.
+    FocusManager.instance.primaryFocus?.unfocus();
     navigationShell.goBranch(index, initialLocation: reselect);
     if (reselect) unawaited(_scrollToTopAndRefresh());
   }

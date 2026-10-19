@@ -96,7 +96,7 @@ GoRouter appRouter(Ref ref) {
     // goes through the splash like every start; DeepLinkController opens it
     // right after (and after sign-in).
     overridePlatformDefaultLocation: kIsWeb,
-    observers: [routeObserver],
+    observers: [routeObserver, UnfocusOnNavigateObserver()],
     refreshListenable: refresh,
     redirect: (context, state) {
       CrashReporter.setRoute(state.matchedLocation);
