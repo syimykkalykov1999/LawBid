@@ -77,12 +77,22 @@ async function transcode(guid) {
       '-y', '-i', input, '-ss', '0.5', '-frames:v', '1', join(out, 'thumbnail.jpg'),
     ]).catch(() => undefined);
     const st = await stat(input);
+    // A phone's portrait clip is stored landscape + a ±90° display matrix;
+    // ffmpeg turns it upright, so report the upright size like Bunny does.
+    const rot = Math.abs(
+      Number(
+        (v.side_data_list ?? []).find((d) => d.rotation != null)?.rotation ??
+          v.tags?.rotate ??
+          0,
+      ),
+    ) % 180;
+    const [w, h] = rot === 90 ? [v.height, v.width] : [v.width, v.height];
     await writeMeta(guid, {
       ...m,
       status: 4,
       length: Number(probe.format.duration ?? 0),
-      width: v.width ?? 0,
-      height: v.height ?? 0,
+      width: w ?? 0,
+      height: h ?? 0,
       storageSize: st.size,
     });
     console.log(`[fake-bunny] ${guid} ready`);
