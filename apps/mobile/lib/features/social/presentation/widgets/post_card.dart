@@ -924,7 +924,7 @@ class _InstagramPost extends ConsumerWidget {
           // A new text (translation) starts collapsed again.
           key: ValueKey(text.hashCode),
           body: text,
-          leading: hasMedia ? p.author.username : null,
+          leading: hasMedia ? p.author.displayName : null,
           onLeadingTap: () => openAuthorProfile(context, ref, p.author),
           expanded: inDetail,
           // Owner 2026-10-07: two lines in the feed, the rest inside.
@@ -1222,19 +1222,17 @@ class _ThreadsPost extends ConsumerWidget {
                       ],
                     ],
                   ),
-                  // Owner 2026-10-18: no «Клиент» role; the @username stays.
-                  Text(
-                    promotionId != null
-                        ? t.t('promote.sponsored')
-                        : a.isClient
-                            ? '@${a.username}'
-                            : a.verified
-                                ? t.t('post.licensedAttorney')
-                                : '@${a.username}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: type.caption.copyWith(color: colors.textSecondary),
-                  ),
+                  // Owner 2026-10-18 (final): in content no «Клиент» and no
+                  // @username (they stay in profiles and search).
+                  if (promotionId != null || (!a.isClient && a.verified))
+                    Text(
+                      promotionId != null
+                          ? t.t('promote.sponsored')
+                          : t.t('post.licensedAttorney'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: type.caption.copyWith(color: colors.textSecondary),
+                    ),
                 ],
               ),
             ),
@@ -1790,12 +1788,9 @@ class _AuthorRow extends ConsumerWidget {
         subtitle: sponsored
             ? t.t('promote.sponsored')
             : post.locationName ??
-                // Owner 2026-10-18: no «Клиент» role; the @username stays.
-                (a.isClient
-                    ? '@${a.username}'
-                    : a.verified
-                        ? t.t('post.licensedAttorney')
-                        : '@${a.username}'),
+                // Owner 2026-10-18 (final): in content no «Клиент» and no
+                // @username (they stay in profiles and search).
+                (!a.isClient && a.verified ? t.t('post.licensedAttorney') : ''),
         trailing: AppIconButton(
           icon: AppIcon(
             AppIcons.moreHorizRounded,
@@ -1844,7 +1839,7 @@ class _OwnMenuRow extends ConsumerWidget {
           const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Text(
-              post.author.username,
+              post.author.displayName,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: type.body.copyWith(
