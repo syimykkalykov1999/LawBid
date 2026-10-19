@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:flutter/scheduler.dart';
 import 'package:lawbid/core/design_system/icons/app_icon.dart';
 import 'package:lawbid/core/design_system/icons/app_icons.dart';
@@ -239,7 +240,14 @@ class AppPaginatedListView<T> extends StatefulWidget {
     this.itemSpacing = AppSpacing.md,
     this.loadMoreExtent = 320,
     this.controller,
+    this.scrollCacheExtent,
   });
+
+  /// Owner 2026-10-19 (smooth scroll): how far past the screen rows are
+  /// built ahead (null: Flutter's 250 px). A feed of screen-tall cards
+  /// passes about a screen, so the next card is built and its pictures
+  /// decoded before it scrolls in, not in the frame it appears.
+  final ScrollCacheExtent? scrollCacheExtent;
 
   final List<T> items;
   final Widget Function(BuildContext context, T item, int index) itemBuilder;
@@ -327,6 +335,7 @@ class _AppPaginatedListViewState<T> extends State<AppPaginatedListView<T>> {
       controller: _controller,
       physics: const AlwaysScrollableScrollPhysics(),
       padding: widget.padding,
+      scrollCacheExtent: widget.scrollCacheExtent,
       itemCount: count,
       itemBuilder: (context, index) {
         if (hasHeader && index == 0) return widget.header;

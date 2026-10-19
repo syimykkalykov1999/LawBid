@@ -708,13 +708,17 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                   bottom: widget.embedded
                       ? 0
                       : MediaQuery.paddingOf(context).bottom,
-                  child: ValueListenableBuilder<double>(
-                    valueListenable: _progress,
-                    builder: (_, v, __) => LinearProgressIndicator(
-                      value: v,
-                      minHeight: 2,
-                      backgroundColor: Colors.white24,
-                      color: Colors.white,
+                  // Owner 2026-10-19 (smooth): the bar moves every frame —
+                  // only it repaints, not the reel's text and icons.
+                  child: RepaintBoundary(
+                    child: ValueListenableBuilder<double>(
+                      valueListenable: _progress,
+                      builder: (_, v, __) => LinearProgressIndicator(
+                        value: v,
+                        minHeight: 2,
+                        backgroundColor: Colors.white24,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
                 ),

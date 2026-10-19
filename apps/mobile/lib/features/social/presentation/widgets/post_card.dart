@@ -2421,6 +2421,11 @@ class _PostBodyTextState extends ConsumerState<PostBodyText> {
   }
 }
 
+/// Owner 2026-10-19 (smooth scroll): a post photo's blurred backdrop is
+/// drawn (only around a "contain" photo); the prefetch warms it only then.
+const bool kPostPhotoBackdrop =
+    _PostMediaCarouselState._frontFit != BoxFit.cover;
+
 /// Photos of a post: swipe between them, a gold pill page indicator, and
 /// double tap = like with a heart that blooms and fades (§2.4).
 class PostMediaCarousel extends StatefulWidget {
@@ -2654,37 +2659,41 @@ class _HeartBurst extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
-    return AnimatedBuilder(
-      animation: animation,
-      builder: (context, _) {
-        final v = animation.value;
-        if (v == 0 || v == 1) return const SizedBox.shrink();
-        // Bloom (0–35%), hold, fade (70–100%).
-        final scale = v < 0.35
-            ? Curves.easeOutBack.transform(v / 0.35) * 1.1
-            : 1.1 - 0.1 * ((v - 0.35) / 0.65).clamp(0, 1);
-        final opacity = v < 0.7 ? 1.0 : 1 - (v - 0.7) / 0.3;
-        return Center(
-          child: Opacity(
-            opacity: opacity.clamp(0, 1),
-            child: Transform.scale(
-              scale: scale,
-              child: AppIcon(
-                AppIcons.favoriteRounded,
-                size: 108,
-                color: Colors.white,
-                shadows: [
-                  Shadow(
-                    color: colors.gold.withValues(alpha: 0.6),
-                    blurRadius: 28,
-                  ),
-                  Shadow(color: colors.shadow, blurRadius: 12),
-                ],
+    // Owner 2026-10-19 (smooth): the heart's frames repaint only the heart,
+    // not the photo and the card under it.
+    return RepaintBoundary(
+      child: AnimatedBuilder(
+        animation: animation,
+        builder: (context, _) {
+          final v = animation.value;
+          if (v == 0 || v == 1) return const SizedBox.shrink();
+          // Bloom (0–35%), hold, fade (70–100%).
+          final scale = v < 0.35
+              ? Curves.easeOutBack.transform(v / 0.35) * 1.1
+              : 1.1 - 0.1 * ((v - 0.35) / 0.65).clamp(0, 1);
+          final opacity = v < 0.7 ? 1.0 : 1 - (v - 0.7) / 0.3;
+          return Center(
+            child: Opacity(
+              opacity: opacity.clamp(0, 1),
+              child: Transform.scale(
+                scale: scale,
+                child: AppIcon(
+                  AppIcons.favoriteRounded,
+                  size: 108,
+                  color: Colors.white,
+                  shadows: [
+                    Shadow(
+                      color: colors.gold.withValues(alpha: 0.6),
+                      blurRadius: 28,
+                    ),
+                    Shadow(color: colors.shadow, blurRadius: 12),
+                  ],
+                ),
               ),
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 }

@@ -361,6 +361,21 @@ class _InlineReelState extends State<InlineReel> {
 
   Timer? _viewTimer;
 
+  /// Owner 2026-10-19 (smooth scroll): a reel the finger flings past opens
+  /// no player — it opens once the card stays on screen a moment.
+  Timer? _settle;
+  static const _settleDelay = Duration(milliseconds: 140);
+
+  void _apply({required bool visible, required bool near}) {
+    if (!mounted || (visible == _visible && near == _near)) return;
+    final viewChanged = visible != _visible;
+    setState(() {
+      _visible = visible;
+      _near = near;
+    });
+    if (viewChanged) _trackView();
+  }
+
   /// Owner 2026-10-12: a reel counts as viewed after a few seconds on
   /// screen (once per viewer; the server dedups).
   /// Owner 2026-10-18: after ~2 s; the server counts one view per viewer
@@ -379,6 +394,7 @@ class _InlineReelState extends State<InlineReel> {
   @override
   void dispose() {
     _viewTimer?.cancel();
+    _settle?.cancel();
     super.dispose();
   }
 
@@ -390,13 +406,17 @@ class _InlineReelState extends State<InlineReel> {
       onVisibilityChanged: (info) {
         final v = info.visibleFraction > 0.6;
         final near = info.visibleFraction > 0;
-        if (!mounted || (v == _visible && near == _near)) return;
-        final viewChanged = v != _visible;
-        setState(() {
-          _visible = v;
-          _near = near;
-        });
-        if (viewChanged) _trackView();
+        _settle?.cancel();
+        // Leaving frees the player at once; arriving waits for the scroll
+        // to settle on it.
+        if ((v && !_visible) || (near && !_near)) {
+          _settle = Timer(
+            _settleDelay,
+            () => _apply(visible: v, near: near),
+          );
+        } else {
+          _apply(visible: v, near: near);
+        }
       },
       child: GestureDetector(
         // Owner 2026-10-13: in the feed a tap on the playing video opens the

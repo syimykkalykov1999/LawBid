@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -157,6 +158,10 @@ class PagedListBody<T> extends ConsumerWidget {
                   AppSpacing.xxl,
                 ),
           itemKey: itemKey,
+          // Owner 2026-10-19 (smooth scroll, Instagram): screen-tall feed
+          // cards are built one screen ahead.
+          scrollCacheExtent:
+              edgeToEdge ? const ScrollCacheExtent.viewport(1) : null,
           status: value.loadMoreError != null
               ? AppPaginationStatus.error
               : value.isLoadingMore
