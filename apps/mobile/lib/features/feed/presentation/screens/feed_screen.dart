@@ -376,7 +376,9 @@ class _ReelsTabState extends ConsumerState<_ReelsTab> {
 
   bool _accepts(Post p, {required bool legalOnly}) {
     // The topic itself is filtered by the server (one tag algorithm).
-    return !(legalOnly && p.isGeneral);
+    // Owner 2026-10-19 («мои рилсы пропали»): «Legal posts only» hides
+    // other people's general reels, never my own.
+    return !(legalOnly && p.isGeneral && !p.isMine);
   }
 
   @override

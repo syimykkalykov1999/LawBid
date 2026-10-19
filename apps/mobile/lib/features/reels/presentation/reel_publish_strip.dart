@@ -48,12 +48,13 @@ class _ReelPublishStripState extends ConsumerState<ReelPublishStrip> {
       ReelPublishPhase.uploading =>
         t.t('reels.uploading', {'percent': percent}),
       ReelPublishPhase.posting => t.t('reels.posting'),
+      ReelPublishPhase.processing => t.t('reels.processing'),
       ReelPublishPhase.done => t.t('post.brief.published'),
       _ => t.t('reels.upload.failed'),
     };
     final action = failed
         ? (t.t('error.retry'), job.retry)
-        : done
+        : done || s.phase == ReelPublishPhase.processing
             ? null
             : (t.t('common.cancel'), job.cancel);
     return Material(
@@ -104,7 +105,10 @@ class _ReelPublishStripState extends ConsumerState<ReelPublishStrip> {
             ),
             if (s.busy)
               LinearProgressIndicator(
-                value: s.phase == ReelPublishPhase.posting ? null : s.progress,
+                value: s.phase == ReelPublishPhase.posting ||
+                        s.phase == ReelPublishPhase.processing
+                    ? null
+                    : s.progress,
                 minHeight: 2,
                 color: colors.gold,
                 backgroundColor: colors.border,

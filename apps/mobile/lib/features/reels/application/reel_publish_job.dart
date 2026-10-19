@@ -11,11 +11,37 @@ import 'package:lawbid/features/reels/application/reels_providers.dart';
 import 'package:lawbid/features/reels/domain/reel_cut.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/data/social_repository.dart';
+import 'package:lawbid/features/social/domain/social_models.dart';
 
 /// Owner 2026-10-15: publishing a reel no longer holds the screen — the
 /// form closes at once, the video is compressed, uploaded and posted by
 /// this job in the background, with a thin progress strip over the app.
-enum ReelPublishPhase { idle, compressing, uploading, posting, done, failed }
+/// Owner 2026-10-19 («шкала — обманка»): after the upload the video is
+/// still being processed (Bunny); [processing] says so honestly and the
+/// strip turns «Published» only when the reel can really be watched.
+enum ReelPublishPhase {
+  idle,
+  compressing,
+  uploading,
+  posting,
+  processing,
+  done,
+  failed,
+}
+
+/// Owner 2026-10-19: the reel the viewer just published, once it is ready —
+/// the Reels tab puts it right after the reel on screen, the feed and the
+/// profile show it at once.
+final freshOwnReelProvider =
+    NotifierProvider<FreshOwnReel, Post?>(FreshOwnReel.new);
+
+class FreshOwnReel extends Notifier<Post?> {
+  @override
+  Post? build() => null;
+
+  // ignore: use_setters_to_change_properties
+  void announce(Post p) => state = p;
+}
 
 class ReelPublishState {
   const ReelPublishState({
@@ -31,7 +57,8 @@ class ReelPublishState {
   bool get busy =>
       phase == ReelPublishPhase.compressing ||
       phase == ReelPublishPhase.uploading ||
-      phase == ReelPublishPhase.posting;
+      phase == ReelPublishPhase.posting ||
+      phase == ReelPublishPhase.processing;
 }
 
 /// Everything the job needs, captured when «Publish» is pressed.
@@ -105,19 +132,26 @@ class ReelPublishJob extends Notifier<ReelPublishState> {
         phase: ReelPublishPhase.posting,
         progress: 1,
       );
-      await ref.read(socialRepositoryProvider).createPost(
-            PostDraft(
-              // Owner 2026-10-18: the title and the description as typed —
-              // both optional, a reel's video is enough.
-              title: r.title,
-              body: r.text,
-              videoAssetId: upload.videoAssetId,
-              mediaFileIds: r.photoIds,
-              attachments: r.attachments,
-              locationName: r.place.isEmpty ? null : r.place,
-              commentsEnabled: r.commentsEnabled,
-            ),
-          );
+      final social = ref.read(socialRepositoryProvider);
+      final created = await social.createPost(
+        PostDraft(
+          // Owner 2026-10-18: the title and the description as typed —
+          // both optional, a reel's video is enough.
+          title: r.title,
+          body: r.text,
+          videoAssetId: upload.videoAssetId,
+          mediaFileIds: r.photoIds,
+          attachments: r.attachments,
+          locationName: r.place.isEmpty ? null : r.place,
+          commentsEnabled: r.commentsEnabled,
+        ),
+      );
+      // Owner 2026-10-19: «Published» only once the video plays — until then
+      // «The video is processing…» (the upload alone is not the end).
+      state = const ReelPublishState(phase: ReelPublishPhase.processing);
+      final ready = await _waitReady(social, created);
+      if (ready == null) return; // cancelled / replaced
+      _announce(ready);
       state = const ReelPublishState(phase: ReelPublishPhase.done, progress: 1);
     } on Object catch (e) {
       if (assetId != null) repo.cancel(assetId).ignore();
@@ -127,6 +161,42 @@ class ReelPublishJob extends Notifier<ReelPublishState> {
         state = ReelPublishState(phase: ReelPublishPhase.failed, error: e);
       }
     }
+  }
+
+  /// Polls the new post until its video is ready (or failed): every 3 s,
+  /// for at most 20 minutes. Null when another publish took over.
+  Future<Post?> _waitReady(SocialRepository social, Post created) async {
+    var post = created;
+    final until = DateTime.now().add(const Duration(minutes: 20));
+    while (post.video != null && !post.video!.ready) {
+      if (post.video!.status == 'failed') {
+        throw StateError('video processing failed');
+      }
+      if (DateTime.now().isAfter(until)) {
+        throw StateError('video processing timed out');
+      }
+      await Future<void>.delayed(const Duration(seconds: 3));
+      if (state.phase != ReelPublishPhase.processing) return null;
+      try {
+        post = await social.post(created.id);
+      } on Object {
+        // A network blip: try again on the next tick.
+      }
+    }
+    return post;
+  }
+
+  /// The ready reel shows at once: first in the feed, in the own profile's
+  /// Reels, and next in the Reels tab.
+  void _announce(Post post) {
+    try {
+      ref.read(feedProvider.notifier).prepend(post);
+    } on Object {
+      // The feed is not loaded: it reads the reel when it opens.
+    }
+    final me = ref.read(currentUserIdProvider);
+    if (me != null) ref.invalidate(attorneyReelsProvider(me));
+    ref.read(freshOwnReelProvider.notifier).announce(post);
   }
 
   /// Up to the admin's height on the phone first (smaller upload).

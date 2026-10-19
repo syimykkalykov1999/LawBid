@@ -10,6 +10,7 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/shell/web_media_width.dart';
 import 'package:lawbid/features/promotions/presentation/promotion_cta_button.dart';
+import 'package:lawbid/features/reels/application/reel_publish_job.dart';
 import 'package:lawbid/features/reels/application/reels_providers.dart';
 import 'package:lawbid/features/reels/presentation/reel_video.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
@@ -202,6 +203,15 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Owner 2026-10-19: the reel I just published comes right after the one
+    // on screen (and stays in the list), once its video is ready.
+    ref.listen(freshOwnReelProvider, (_, post) {
+      if (post == null || _items.any((p) => p.id == post.id)) return;
+      setState(() {
+        final at = (_index + 1).clamp(0, _items.length);
+        _items.insert(at, post);
+      });
+    });
     final t = ref.watch(translatorProvider);
     final muted = ref.watch(reelsMutedProvider);
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
