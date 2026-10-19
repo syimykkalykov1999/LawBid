@@ -1222,16 +1222,19 @@ class _ThreadsPost extends ConsumerWidget {
                       ],
                     ],
                   ),
-                  // Owner 2026-10-18: no «Клиент» role and no @username.
-                  if (promotionId != null || (!a.isClient && a.verified))
-                    Text(
-                      promotionId != null
-                          ? t.t('promote.sponsored')
-                          : t.t('post.licensedAttorney'),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: type.caption.copyWith(color: colors.textSecondary),
-                    ),
+                  // Owner 2026-10-18: no «Клиент» role; the @username stays.
+                  Text(
+                    promotionId != null
+                        ? t.t('promote.sponsored')
+                        : a.isClient
+                            ? '@${a.username}'
+                            : a.verified
+                                ? t.t('post.licensedAttorney')
+                                : '@${a.username}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: type.caption.copyWith(color: colors.textSecondary),
+                  ),
                 ],
               ),
             ),
@@ -1787,10 +1790,12 @@ class _AuthorRow extends ConsumerWidget {
         subtitle: sponsored
             ? t.t('promote.sponsored')
             : post.locationName ??
-                // Owner 2026-10-18: no «Клиент» role and no @username.
-                (!a.isClient && a.verified
-                    ? t.t('post.licensedAttorney')
-                    : ''),
+                // Owner 2026-10-18: no «Клиент» role; the @username stays.
+                (a.isClient
+                    ? '@${a.username}'
+                    : a.verified
+                        ? t.t('post.licensedAttorney')
+                        : '@${a.username}'),
         trailing: AppIconButton(
           icon: AppIcon(
             AppIcons.moreHorizRounded,
