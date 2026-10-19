@@ -9,6 +9,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/language_catalog.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/limits/text_limits.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/onboarding/domain/us_states.dart';
 import 'package:lawbid/features/onboarding/presentation/widgets/option_picker_sheet.dart';
@@ -280,7 +281,9 @@ class _ClientEditFormState extends ConsumerState<_ClientEditForm> {
         label: t.t('onboarding.profile.firstName'),
         errorText: required(_first),
         textCapitalization: TextCapitalization.words,
-        inputFormatters: [LengthLimitingTextInputFormatter(kAttorneyNameMax)],
+        inputFormatters: [
+          LengthLimitingTextInputFormatter(TextLimits.of(TextLimit.name)),
+        ],
         onChanged: (_) => setState(() {}),
       ),
       AppTextField(
@@ -288,7 +291,9 @@ class _ClientEditFormState extends ConsumerState<_ClientEditForm> {
         label: t.t('onboarding.profile.lastName'),
         errorText: required(_last),
         textCapitalization: TextCapitalization.words,
-        inputFormatters: [LengthLimitingTextInputFormatter(kAttorneyNameMax)],
+        inputFormatters: [
+          LengthLimitingTextInputFormatter(TextLimits.of(TextLimit.name)),
+        ],
         onChanged: (_) => setState(() {}),
       ),
       PickerField(

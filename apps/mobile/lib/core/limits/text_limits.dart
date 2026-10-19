@@ -4,8 +4,9 @@
 /// the app uses before the first answer and what the admin panel starts
 /// with. A field stops at [TextLimits.of] and shows `n/limit` under it.
 enum TextLimit {
-  chatMessage('limits.chat_message_chars', 2000),
-  comment('limits.comment_chars', 1000),
+  // Owner 2026-10-19: starter values as in Instagram.
+  chatMessage('limits.chat_message_chars', 1000),
+  comment('limits.comment_chars', 2200),
   postBrief('post.max_chars_brief', 3000),
   postMedia('post.max_chars_media', 2200),
   postTitle('limits.post_title_chars', 120),
@@ -19,7 +20,8 @@ enum TextLimit {
   workspaceNote('limits.workspace_note_chars', 1000),
   workspaceUpdate('limits.workspace_update_chars', 5000),
   supportMessage('limits.support_message_chars', 5000),
-  bio('limits.bio_chars', 300);
+  bio('limits.bio_chars', 150),
+  name('limits.name_chars', 30);
 
   const TextLimit(this.key, this.fallback);
 

@@ -26,6 +26,7 @@ const LIMITS: { key: string; label: string }[] = [
   { key: 'limits.workspace_update_chars', label: 'Обновление по кейсу в рабочем пространстве' },
   { key: 'limits.support_message_chars', label: 'Сообщение в поддержку' },
   { key: 'limits.bio_chars', label: 'О себе (адвокат)' },
+  { key: 'limits.name_chars', label: 'Имя и фамилия (каждое поле)' },
 ];
 
 export const isTextLimitKey = (key: string) => LIMITS.some((l) => l.key === key);

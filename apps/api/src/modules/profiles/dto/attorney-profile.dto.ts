@@ -46,12 +46,14 @@ export class UpdateAttorneyProfileDto {
   @Transform(trim)
   @IsString()
   @Length(1, ATTORNEY_NAME_MAX)
+  @MaxTextChars('limits.name_chars')
   firstName?: string;
 
   @IsOptional()
   @Transform(trim)
   @IsString()
   @Length(1, ATTORNEY_NAME_MAX)
+  @MaxTextChars('limits.name_chars')
   lastName?: string;
 
   @IsOptional()

@@ -67,12 +67,14 @@ export class OnboardingProfileDto {
   @Transform(trim)
   @IsString()
   @Length(1, PERSON_NAME_MAX_LENGTH)
+  @MaxTextChars('limits.name_chars')
   firstName?: string;
 
   @IsOptional()
   @Transform(trim)
   @IsString()
   @Length(1, PERSON_NAME_MAX_LENGTH)
+  @MaxTextChars('limits.name_chars')
   lastName?: string;
 
   /** Owner 2026-10-18 («как в инсте»): the @username picked on the form;

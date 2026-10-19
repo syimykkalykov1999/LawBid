@@ -435,7 +435,9 @@ class _ProfileStepScreenState extends ConsumerState<ProfileStepScreen> {
           textCapitalization: TextCapitalization.words,
           textInputAction: TextInputAction.next,
           autofillHints: const [AutofillHints.givenName],
-          inputFormatters: [LengthLimitingTextInputFormatter(kNameMaxLength)],
+          inputFormatters: [
+            LengthLimitingTextInputFormatter(TextLimits.of(TextLimit.name)),
+          ],
           onChanged: (_) {
             setState(() {});
             _onNameChanged();
@@ -449,7 +451,9 @@ class _ProfileStepScreenState extends ConsumerState<ProfileStepScreen> {
           textCapitalization: TextCapitalization.words,
           textInputAction: TextInputAction.next,
           autofillHints: const [AutofillHints.familyName],
-          inputFormatters: [LengthLimitingTextInputFormatter(kNameMaxLength)],
+          inputFormatters: [
+            LengthLimitingTextInputFormatter(TextLimits.of(TextLimit.name)),
+          ],
           onChanged: (_) {
             setState(() {});
             _onNameChanged();

@@ -10,14 +10,16 @@
  * raised as far as the data layer allows).
  */
 export const TEXT_LIMIT_DEFS = {
+  // Owner 2026-10-19: starter values as in Instagram (DM 1000, comment and
+  // caption 2200, bio 150, name 30); the admin may change every one.
   'limits.chat_message_chars': {
-    def: 2000,
+    def: 1000,
     min: 1,
     max: 10_000,
     label: 'A chat message',
   },
   'limits.comment_chars': {
-    def: 1000,
+    def: 2200,
     min: 1,
     max: 5000,
     label: 'A comment under a post, reel or case',
@@ -90,10 +92,16 @@ export const TEXT_LIMIT_DEFS = {
     label: 'A message to support',
   },
   'limits.bio_chars': {
-    def: 300,
+    def: 150,
     min: 1,
     max: 1000,
     label: "An attorney's bio",
+  },
+  'limits.name_chars': {
+    def: 30,
+    min: 1,
+    max: 50, // PERSON_NAME_MAX_LENGTH / ATTORNEY_NAME_MAX
+    label: 'A first or last name',
   },
 } as const;
 

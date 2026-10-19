@@ -329,7 +329,9 @@ class _AttorneyEditFormState extends ConsumerState<_AttorneyEditForm> {
         label: t.t('onboarding.profile.firstName'),
         errorText: required(_first),
         textCapitalization: TextCapitalization.words,
-        inputFormatters: [LengthLimitingTextInputFormatter(kAttorneyNameMax)],
+        inputFormatters: [
+          LengthLimitingTextInputFormatter(TextLimits.of(TextLimit.name)),
+        ],
         onChanged: (_) => setState(() {}),
       ),
       AppTextField(
@@ -337,7 +339,9 @@ class _AttorneyEditFormState extends ConsumerState<_AttorneyEditForm> {
         label: t.t('onboarding.profile.lastName'),
         errorText: required(_last),
         textCapitalization: TextCapitalization.words,
-        inputFormatters: [LengthLimitingTextInputFormatter(kAttorneyNameMax)],
+        inputFormatters: [
+          LengthLimitingTextInputFormatter(TextLimits.of(TextLimit.name)),
+        ],
         onChanged: (_) => setState(() {}),
       ),
       Column(
