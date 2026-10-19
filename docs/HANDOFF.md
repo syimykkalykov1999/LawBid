@@ -222,6 +222,21 @@ row + topic hint; budget step no jump.
 - Payment in the app (Stripe) stays hidden: flag `payments_in_app` locked off.
 - «Клиент» wording: owner decided to keep everything as is (2026-10-19).
 
+## Web parity pass (2026-10-19, all committed locally, NOT pushed)
+- Web opens even when the browser can't open its storage (in-tab SQLite
+  fallback, core/persistence/drift_web.dart `appDriftDatabase`).
+- In a phone's browser the web looks like the app: Instagram web sizes only
+  from 600 px windows (`webWideWindow` in shell_layout.dart).
+- iPhone safe area (notch, home indicator, Safari toolbar) fed to MediaQuery
+  on the web (core/platform/web_safe_area.dart, wraps the app in app.dart).
+- Uploads on the web: storage Dio has no total timeout on web; file_picker
+  `cancelUploadOnWindowBlur: false`; picker `limit` only when > 1; web camera
+  preview not swapped; chat files typed by bytes + size checked before read;
+  video editor init 10 s timeout on web; HEIC left out of browser pickers.
+- Release check: the prod media bucket's CORS must allow OPTIONS/POST from
+  the web origin and Bunny TUS must expose Location / Upload-Offset.
+- Preview from the phone: http://172.20.10.4:8686 (release web, LawBid-stable).
+
 ## Open / do next (in this order)
 1. DONE (session 2). Stale banner is confusing (owner didn't understand when/why it appeared).
    Rework the whole stale UX (case_stale_banner.dart, My cases, owner case,
