@@ -293,7 +293,9 @@ class _TabSwipeState<T> extends State<TabSwipe<T>>
 
   void _enter({required bool forward}) {
     _drag.value = 0;
-    if (_reduce) {
+    // Owner 2026-10-19 («данные прыгают»): a profile's tab content is put in
+    // place at once (Instagram) — no glide from the side, no fade.
+    if (_reduce || !widget.slideChild) {
       _shift.value = 0;
       _fade.value = 1;
       return;

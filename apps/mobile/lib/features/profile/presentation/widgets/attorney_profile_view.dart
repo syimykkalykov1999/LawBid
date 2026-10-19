@@ -502,7 +502,19 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
           ),
           child: header,
         ),
-        footer: footer == null ? null : TabSwipeSlide(child: footer),
+        // Owner 2026-10-19 («данные прыгают»): the tab's area keeps at least
+        // half a screen whatever it shows (loading, empty, a short list),
+        // so switching tabs or the data arriving does not pull the page.
+        footer: footer == null
+            ? null
+            : TabSwipeSlide(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    minHeight: MediaQuery.sizeOf(context).height * 0.5,
+                  ),
+                  child: footer,
+                ),
+              ),
         labels: AppPaginationLabels(
           loadingMore: t.t('pagination.loadingMore'),
           error: t.t('pagination.error'),
@@ -528,21 +540,20 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
           await widget.onRefresh();
         },
         itemBuilder: (context, review, index) => TabSwipeSlide(
-          child: AppEntrance(
-            index: index % 6,
-            child: ReviewCard(
-              review: review,
-              // Owner 2026-10-01 (Google-style): anyone but the author flags;
-              // the author edits / deletes; the attorney replies; others vote.
-              onReport: review.isMine ? null : () => _report(t, review),
-              onEdit: review.isMine ? () => _writeReview(t, review) : null,
-              onDelete: review.isMine ? () => _deleteReview(t, review) : null,
-              onReply: p.isSelf ? () => _reply(t, review) : null,
-              onDeleteReply:
-                  p.isSelf ? () => _reply(t, review, remove: true) : null,
-              onHelpful:
-                  review.isMine || p.isSelf ? null : () => _helpful(t, review),
-            ),
+          // Owner 2026-10-19: no rise-in per row (it read as a jump when the
+          // tab opened).
+          child: ReviewCard(
+            review: review,
+            // Owner 2026-10-01 (Google-style): anyone but the author flags;
+            // the author edits / deletes; the attorney replies; others vote.
+            onReport: review.isMine ? null : () => _report(t, review),
+            onEdit: review.isMine ? () => _writeReview(t, review) : null,
+            onDelete: review.isMine ? () => _deleteReview(t, review) : null,
+            onReply: p.isSelf ? () => _reply(t, review) : null,
+            onDeleteReply:
+                p.isSelf ? () => _reply(t, review, remove: true) : null,
+            onHelpful:
+                review.isMine || p.isSelf ? null : () => _helpful(t, review),
           ),
         ),
       ),
