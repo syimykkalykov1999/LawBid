@@ -50,6 +50,35 @@ describe('Search text audit (e2e)', () => {
     });
     return { id: u.id, h: as(u.id, 'client') };
   };
+  /** Every result id over all pages (a shared CI database holds many
+   * attorneys of the same practice / state, so the first page may not). */
+  const allIds = async (path: string, q: string) => {
+    const v = await viewer();
+    const out: (string | undefined)[] = [];
+    let cursor: string | null = null;
+    for (let page = 0; page < 30; page++) {
+      const r: {
+        status: number;
+        body: { data: unknown; meta?: { nextCursor?: string | null } };
+      } = await api()
+        .get(
+          `/api/v1${path}?q=${encodeURIComponent(q)}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`,
+        )
+        .set(v.h);
+      expect(r.status).toBe(200);
+      for (const x of r.body.data as {
+        id?: string;
+        attorney?: { id: string };
+        client?: { id: string };
+      }[]) {
+        out.push(x.id ?? x.attorney?.id ?? x.client?.id);
+      }
+      cursor = r.body.meta?.nextCursor ?? null;
+      if (!cursor) break;
+    }
+    return out;
+  };
+
   const ids = async (path: string, q: string, extra = '') => {
     const v = await viewer();
     const r = await api()
@@ -256,7 +285,7 @@ describe('Search text audit (e2e)', () => {
 
   it('people: attorneys by practice name in RU and EN, by state name; blocked users hidden', async () => {
     for (const q of [topicEn, topicRu, 'new jersey']) {
-      expect(await ids('/search/people', q)).toContain(attorneyId);
+      expect(await allIds('/search/people', q)).toContain(attorneyId);
     }
     const v = await viewer();
     await prisma.userBlock.create({
