@@ -30,6 +30,7 @@ import 'package:lawbid/features/client_badge/presentation/client_badge_screen.da
 import 'package:lawbid/features/client_plan/client_plan_routes.dart';
 import 'package:lawbid/features/create/presentation/screens/create_screen.dart';
 import 'package:lawbid/features/feed/presentation/screens/feed_screen.dart';
+import 'package:lawbid/features/guide/presentation/guide_screen.dart';
 import 'package:lawbid/features/legal/presentation/dmca_notice_screen.dart';
 import 'package:lawbid/features/legal/presentation/legal_accept_screen.dart';
 import 'package:lawbid/features/mine/presentation/screens/mine_screen.dart';
@@ -433,6 +434,12 @@ GoRouter appRouter(Ref ref) {
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) =>
             AppPageTransitions.push(state, const ArchiveScreen()),
+      ),
+      GoRoute(
+        path: AppRoutes.guide,
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            AppPageTransitions.push(state, const GuideScreen()),
       ),
       GoRoute(
         path: AppRoutes.dataExport,

@@ -2,12 +2,14 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_cover.dart';
@@ -498,10 +500,11 @@ class _MineSearchBarState extends ConsumerState<MineSearchBar> {
         PickerOption(value: '', label: t.t('mine.search.any')),
         for (final st in kRegions)
           PickerOption(
-              value: st.code,
-              label: st.name,
-              sublabel: st.code,
-              keywords: st.aliases,),
+            value: st.code,
+            label: st.name,
+            sublabel: st.code,
+            keywords: st.aliases,
+          ),
       ],
     );
     if (picked == null) return;
@@ -637,6 +640,16 @@ class _MineChipsSearchRowState extends ConsumerState<MineChipsSearchRow> {
                   )
                 : chips,
           ),
+          // Owner 2026-10-18: «Справочник» in the empty space before the
+          // search.
+          if (!open)
+            AppIconButton(
+              key: const ValueKey('mine-guide-open'),
+              icon:
+                  AppIcon(AppIcons.infoOutlineRounded, color: colors.goldDark),
+              semanticLabel: t.t('guide.title'),
+              onPressed: () => context.push(AppRoutes.guide),
+            ),
           if (!open)
             AppIconButton(
               key: const ValueKey('mine-search-open'),
