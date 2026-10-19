@@ -19,7 +19,7 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   // Owner 2026-10-16 (web): as high as the feed's header, not higher.
   Size get preferredSize =>
-      Size.fromHeight(adaptiveShellOn ? AppSizes.feedHeader : 56);
+      Size.fromHeight(webWideWindow ? AppSizes.feedHeader : 56);
 
   @override
   Widget build(BuildContext context) {

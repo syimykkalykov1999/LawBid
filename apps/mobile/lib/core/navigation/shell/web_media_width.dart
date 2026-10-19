@@ -100,4 +100,4 @@ class WebReelFrame extends StatelessWidget {
 /// The backdrop behind the reels: black on a phone, the page's own colour on
 /// the web where only the 9:16 player is black (instagram.com/reels).
 Color reelsBackdrop(BuildContext context, Color pageColor) =>
-    adaptiveShellOn ? pageColor : Colors.black;
+    webWideWindow ? pageColor : Colors.black;

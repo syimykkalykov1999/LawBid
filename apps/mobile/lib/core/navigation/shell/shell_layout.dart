@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart' show kIsWeb, visibleForTesting;
+import 'package:flutter/widgets.dart' show WidgetsBinding;
 
 /// Owner 2026-10-15 (web): how the main shell lays out its navigation.
 enum ShellLayout {
@@ -33,6 +34,18 @@ bool? adaptiveShellOverride;
 
 /// Whether the adaptive layout is on (tests may force it).
 bool get adaptiveShellOn => adaptiveShellOverride ?? kAdaptiveShell;
+
+/// Whether the web's wide-window sizes apply (Instagram's web column, 3:4
+/// grid tiles, the lower header): the adaptive layout in a window at least
+/// [kShellRailMinWidth] wide. Owner 2026-10-18: in a phone's browser the web
+/// looks exactly like the app.
+bool get webWideWindow {
+  if (!adaptiveShellOn) return false;
+  final views = WidgetsBinding.instance.platformDispatcher.views;
+  if (views.isEmpty) return true;
+  final v = views.first;
+  return v.physicalSize.width / v.devicePixelRatio >= kShellRailMinWidth;
+}
 
 /// The layout for a window [width] wide.
 ShellLayout shellLayoutFor(double width, {bool adaptive = kAdaptiveShell}) {

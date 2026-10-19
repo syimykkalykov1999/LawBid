@@ -117,7 +117,7 @@ const kPostGridDelegate = SliverGridDelegateWithFixedCrossAxisCount(
 /// Owner 2026-10-16 (web): a profile's grid like Instagram's: three 3:4
 /// tiles, a 1 px gap (measured: 311 x 414 in a 935 px container). Phones
 /// keep the square tiles.
-SliverGridDelegate profileGridDelegate() => adaptiveShellOn
+SliverGridDelegate profileGridDelegate() => webWideWindow
     ? const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 3,
         mainAxisSpacing: kWebGridGap,

@@ -229,7 +229,7 @@ class PostCard extends ConsumerWidget {
   /// window height.
   double? get _feedH => feedHeight == null
       ? null
-      : adaptiveShellOn
+      : webWideWindow
           ? math.min(feedHeight!, kWebPostMaxWidth / 0.9 + _kVideoCardChrome)
           : feedHeight;
 
