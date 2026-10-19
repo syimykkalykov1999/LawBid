@@ -70,8 +70,10 @@ abstract final class ProfileMappers {
         isFollowing: d.isFollowing,
         isBlocked: d.isBlocked,
         hasBlockedMe: d.hasBlockedMe,
-        // The header avatar is small: prefer the 256 px square variant.
-        avatarUrl: d.avatarUrl256 ?? d.avatarUrl,
+        // Owner 2026-10-18: the profile header shows the full avatar (the
+        // 256 px variant looked soft at ~100 dp on a Retina screen);
+        // AppAvatar decodes it at the size it is drawn.
+        avatarUrl: d.avatarUrl ?? d.avatarUrl256,
       );
 
   static LicenseState license(api.LicenseStatus s) => switch (s) {

@@ -1,11 +1,14 @@
 import { deflateSync } from 'node:zlib';
 
 /**
- * Owner 2026-10-05 (demo mode): a tiny PNG for demo attorneys' avatars — a
- * coloured disc on a soft background — so the demo world needs no real
- * photos and no image library. Pure Node (zlib + CRC32), ~2 KB per file.
+ * Owner 2026-10-05 (demo mode): a PNG for demo people's avatars — a
+ * coloured silhouette on a soft background — so the demo world needs no
+ * real photos and no image library. Pure Node (zlib + CRC32).
+ * Owner 2026-10-18: 512 px with smooth (4×4 supersampled) edges — the old
+ * 128 px discs looked pixelated on a Retina screen.
  */
-export const DEMO_AVATAR_SIZE = 128;
+export const DEMO_AVATAR_SIZE = 512;
+const SUPERSAMPLE = 4;
 
 const PALETTE: [number, number, number][] = [
   [0x1f, 0x4e, 0x8c],
@@ -52,30 +55,42 @@ export function renderDemoAvatarPng(seed: string): Buffer {
   const size = DEMO_AVATAR_SIZE;
   const raw = Buffer.alloc((size * 3 + 1) * size);
   const cx = size / 2;
-  const cy = size / 2 + 6;
+  const cy = size / 2 + size * (6 / 128);
   const headR = size * 0.21;
   const bodyR = size * 0.42;
+  const bg: [number, number, number] = [
+    Math.min(255, 215 + (r >> 3)),
+    Math.min(255, 215 + (g >> 3)),
+    Math.min(255, 215 + (b >> 3)),
+  ];
+  const inside = (x: number, y: number): boolean => {
+    const dxh = x - cx;
+    const dyh = y - (cy - size * 0.16);
+    if (dxh * dxh + dyh * dyh <= headR * headR) return true;
+    const dyb = y - size * 1.05;
+    return dxh * dxh + dyb * dyb <= bodyR * bodyR;
+  };
+  const n = SUPERSAMPLE * SUPERSAMPLE;
   let o = 0;
   for (let y = 0; y < size; y += 1) {
     raw[o] = 0; // filter: none
     o += 1;
     for (let x = 0; x < size; x += 1) {
-      const dxh = x - cx;
-      const dyh = y - (cy - size * 0.16);
-      const inHead = dxh * dxh + dyh * dyh <= headR * headR;
-      const dxb = x - cx;
-      const dyb = y - size * 1.05;
-      const inBody = dxb * dxb + dyb * dyb <= bodyR * bodyR;
-      if (inHead || inBody) {
-        raw[o] = r;
-        raw[o + 1] = g;
-        raw[o + 2] = b;
-      } else {
-        // Soft tinted background.
-        raw[o] = Math.min(255, 215 + (r >> 3));
-        raw[o + 1] = Math.min(255, 215 + (g >> 3));
-        raw[o + 2] = Math.min(255, 215 + (b >> 3));
+      // Coverage of the pixel by the silhouette → a smooth edge.
+      let hits = 0;
+      for (let sy = 0; sy < SUPERSAMPLE; sy += 1) {
+        for (let sx = 0; sx < SUPERSAMPLE; sx += 1) {
+          if (
+            inside(x + (sx + 0.5) / SUPERSAMPLE, y + (sy + 0.5) / SUPERSAMPLE)
+          ) {
+            hits += 1;
+          }
+        }
       }
+      const a = hits / n;
+      raw[o] = Math.round(r * a + bg[0] * (1 - a));
+      raw[o + 1] = Math.round(g * a + bg[1] * (1 - a));
+      raw[o + 2] = Math.round(b * a + bg[2] * (1 - a));
       o += 3;
     }
   }
