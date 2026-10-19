@@ -134,6 +134,51 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
   ReelClip? _clip;
   bool _seeking = false;
 
+  /// Owner 2026-10-19 (the click at the start / end): the sound never jumps
+  /// between silence and full volume — it rises over ~100 ms when a reel
+  /// starts or loops, and falls over ~80 ms before a pause, the loop's jump
+  /// back and the player's close (a hard cut is heard as a click).
+  double _vol = 0;
+  Timer? _ramp;
+  Duration _lastPos = Duration.zero;
+  bool _endFaded = false;
+
+  double get _target =>
+      widget.active && !widget.paused && playbackVisible && !widget.muted
+          ? 1
+          : 0;
+
+  void _fade(
+    VideoPlayerController c,
+    double to, {
+    Duration over = const Duration(milliseconds: 100),
+    VoidCallback? then,
+  }) {
+    _ramp?.cancel();
+    const steps = 5;
+    final from = _vol;
+    if ((from - to).abs() < 0.01) {
+      _vol = to;
+      unawaited(c.setVolume(to));
+      then?.call();
+      return;
+    }
+    var i = 0;
+    _ramp = Timer.periodic(over ~/ steps, (timer) {
+      if (_c != c) {
+        timer.cancel();
+        return;
+      }
+      i++;
+      _vol = from + (to - from) * (i / steps);
+      unawaited(c.setVolume(_vol));
+      if (i >= steps) {
+        timer.cancel();
+        then?.call();
+      }
+    });
+  }
+
   @override
   void initState() {
     super.initState();
@@ -235,11 +280,33 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
     if (!_rendered && _ready && c.value.isPlaying && pos != _openedAt) {
       setState(() => _rendered = true);
     }
+    // Owner 2026-10-19: just before the end the sound fades out, after the
+    // loop back it rises again (no click at the seam).
+    final left = clip.end - pos;
+    if (c.value.isPlaying &&
+        !_endFaded &&
+        left > Duration.zero &&
+        left < const Duration(milliseconds: 160)) {
+      _endFaded = true;
+      _fade(c, 0, over: const Duration(milliseconds: 80));
+    }
+    final looped = pos + const Duration(milliseconds: 500) < _lastPos;
+    _lastPos = pos;
+    if (looped && _endFaded) {
+      _endFaded = false;
+      _fade(c, _target);
+    }
     // Only the trimmed part plays: past its end (or after the player's own
     // loop to 0) it jumps back to the start.
     if (clip.outside(pos) && !_seeking) {
       _seeking = true;
-      c.seekTo(clip.start).whenComplete(() => _seeking = false);
+      _vol = 0;
+      unawaited(c.setVolume(0));
+      c.seekTo(clip.start).whenComplete(() {
+        _seeking = false;
+        _endFaded = false;
+        if (_c == c) _fade(c, _target);
+      });
       return;
     }
     widget.onProgress?.call(clip.progress(pos));
@@ -249,13 +316,28 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
     final c = _c;
     if (c == null || !_ready) return;
     final play = widget.active && !widget.paused && playbackVisible;
-    // Exactly one reel is heard: the one playing; the volume is set before
-    // play and taken to 0 before a pause.
-    c.setVolume(play && !widget.muted ? 1 : 0);
+    // Exactly one reel is heard: the one playing. It starts silent and the
+    // sound rises; before a pause it falls first (no click either way).
     if (play && !c.value.isPlaying) {
+      _ramp?.cancel();
+      _vol = 0;
+      unawaited(c.setVolume(0));
       c.play();
+      _fade(c, _target);
     } else if (!play && c.value.isPlaying) {
-      c.pause();
+      _fade(
+        c,
+        0,
+        over: const Duration(milliseconds: 80),
+        then: () {
+          final stillOff =
+              !(widget.active && !widget.paused && playbackVisible);
+          if (_c == c && stillOff && c.value.isPlaying) c.pause();
+        },
+      );
+    } else {
+      // Playing on (sound on / off) or paused: the volume follows smoothly.
+      _fade(c, _target);
     }
   }
 
@@ -269,8 +351,21 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
     _slow = false;
     _clip = null;
     _seeking = false;
+    _ramp?.cancel();
+    _vol = 0;
+    _lastPos = Duration.zero;
+    _endFaded = false;
     c?.removeListener(_tick);
-    c?.dispose();
+    // Silent before it goes (a playing player cut off clicks).
+    if (c != null) {
+      unawaited(
+        c
+            .setVolume(0)
+            .then<void>((_) {}, onError: (Object _) {})
+            .timeout(const Duration(milliseconds: 200), onTimeout: () {})
+            .whenComplete(c.dispose),
+      );
+    }
   }
 
   @override
