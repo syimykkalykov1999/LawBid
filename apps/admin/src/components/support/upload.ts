@@ -1,4 +1,4 @@
-import { sha256Hex, sleep } from '@/components/media/media-utils';
+import { fileMime, sha256Hex, sleep } from '@/components/media/media-utils';
 import { api } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
 
@@ -10,7 +10,7 @@ const POLL_TRIES = 40;
 /** Safe types the support place accepts (the server checks content and the
  * admin's formats in «Загрузки и файлы»). */
 export const SUPPORT_ACCEPT =
-  'image/*,video/mp4,video/quicktime,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.odt,.ods,.odp,.rtf,.txt,.csv';
+  'image/*,.heic,.heif,video/mp4,video/quicktime,video/webm,.mov,.webm,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.odt,.ods,.odp,.rtf,.txt,.csv';
 
 /**
  * One file for a reply: presign → S3 → confirm → wait for a clean scan
@@ -20,7 +20,7 @@ export const SUPPORT_ACCEPT =
 export async function uploadSupportFile(file: File, onStep?: (text: string) => void): Promise<string> {
   onStep?.('Считаем контрольную сумму…');
   const sha256 = await sha256Hex(file);
-  const mime = (file.type || 'application/octet-stream') as Mime; // the server refuses types it does not allow
+  const mime = fileMime(file) as Mime; // the server refuses types it does not allow
   onStep?.('Готовим загрузку…');
   // A refusal (type, size) throws an ApiError the caller shows as is.
   const presigned = (await api.POST('/admin/support/uploads', { body: { mime, sizeBytes: file.size, sha256 } })).data!.data;
