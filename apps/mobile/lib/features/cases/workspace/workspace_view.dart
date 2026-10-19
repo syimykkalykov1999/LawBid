@@ -500,7 +500,7 @@ class _WriteRow extends StatelessWidget {
 
 String roleLine(Translator t, api.CaseUpdateDto u) {
   if (u.authorRole == api.CaseUpdateDtoAuthorRole.client) {
-    return t.t('cases.role.client');
+    return '';
   }
   final label = t.t('cases.role.attorney');
   return u.authorStates.isEmpty
@@ -581,10 +581,11 @@ class UpdateEntry extends StatelessWidget {
                     ),
                   ],
                 ),
-                Text(
-                  roleLine(t, u),
-                  style: type.caption.copyWith(color: colors.textSecondary),
-                ),
+                if (roleLine(t, u).isNotEmpty)
+                  Text(
+                    roleLine(t, u),
+                    style: type.caption.copyWith(color: colors.textSecondary),
+                  ),
                 if (lead != null)
                   Padding(
                     padding: const EdgeInsets.only(top: 4),

@@ -651,7 +651,8 @@ class ClientTile extends ConsumerWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    '${t.t('person.client')} · ${row.stateCode}',
+                    // Owner 2026-10-18: no «Клиент» role label.
+                    row.stateCode,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: type.caption.copyWith(color: colors.textSecondary),

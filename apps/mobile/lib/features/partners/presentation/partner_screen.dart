@@ -35,11 +35,9 @@ class PartnerScreen extends ConsumerWidget {
       return ' ($until)';
     }
 
-    String roleText(ReferredUser r) => t.t(
-          r.isAttorney
-              ? 'partner.referred.attorney'
-              : 'partner.referred.client',
-        );
+    // Owner 2026-10-18: no «Клиент» role label.
+    String roleText(ReferredUser r) =>
+        r.isAttorney ? t.t('partner.referred.attorney') : '';
 
     return Scaffold(
       backgroundColor: colors.bg,
@@ -174,8 +172,8 @@ class PartnerScreen extends ConsumerWidget {
                         style: type.body.copyWith(color: colors.text),
                       ),
                       subtitle: Text(
-                        '${roleText(r)}'
-                        ' · ${f.date(r.joinedAt)}'
+                        '${roleText(r).isEmpty ? '' : '${roleText(r)} · '}'
+                        '${f.date(r.joinedAt)}'
                         ' · ${t.t('partner.referred.status.${r.status}')}',
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
