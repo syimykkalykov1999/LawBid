@@ -31,7 +31,21 @@ interface Side {
   role: Role;
   clientId: string;
   attorneyId: string;
+  /** Audit 2026-10-19: false once the case is closed / archived — the
+   * workspace stays readable but nothing more is added or changed. */
+  writable: boolean;
 }
+
+/** The case statuses in which the workspace takes changes. */
+const WORKING_STATUSES = new Set([
+  'in_progress',
+  'pending_completion',
+  'disputed',
+]);
+
+/** Assistant duties (OQ-048) the workspace needs: [cases] to open it at all,
+ * [tasks] as well to add, tick, close or answer tasks. */
+type WorkspaceNeed = 'read' | 'write' | 'tasks';
 
 /**
  * Owner 2026-10-13: the case workspace — files with notes, tasks of three
@@ -39,7 +53,8 @@ interface Side {
  * only for the two sides of the case (the client, the accepted attorney;
  * an assistant acts as the attorney): everyone else gets a 404, an
  * unaccepted case a 403, checked here on the server and not only in the
- * app.
+ * app. Audit 2026-10-19: an assistant needs the attorney's "cases" duty
+ * (and "tasks" for task changes), and a closed case is read-only.
  */
 @Injectable()
 export class CaseWorkspaceService {
@@ -48,12 +63,29 @@ export class CaseWorkspaceService {
     private readonly files: FilesService,
   ) {}
 
-  /** The viewer's side of an accepted case. */
-  async side(user: RequestUser, caseId: string): Promise<Side> {
+  /** The viewer's side of an accepted case; [need] = what the call does. */
+  async side(
+    user: RequestUser,
+    caseId: string,
+    need: WorkspaceNeed = 'read',
+  ): Promise<Side> {
+    const a = user.assistant;
+    if (a) {
+      const duties = need === 'tasks' ? ['cases', 'tasks'] : ['cases'];
+      const missing = duties.find((d) => !a.duties.includes(d));
+      if (missing) {
+        throw new ForbiddenException({
+          code: ErrorCode.ASSISTANT_NOT_ALLOWED,
+          message: 'The attorney has not given you this duty.',
+          details: { duty: missing },
+        });
+      }
+    }
     const c = await this.prisma.case.findFirst({
       where: { id: caseId, deleted_at: null },
       select: {
         client_id: true,
+        status: true,
         accepted_bid: { select: { attorney_id: true } },
       },
     });
@@ -72,7 +104,14 @@ export class CaseWorkspaceService {
         message: 'The case workspace opens once a bid is accepted.',
       });
     }
-    return { role, clientId: c.client_id, attorneyId };
+    const writable = WORKING_STATUSES.has(c.status);
+    if (need !== 'read' && !writable) {
+      throw new ConflictException({
+        code: ErrorCode.CASE_INVALID_STATE,
+        message: 'The case is closed: its workspace is read-only.',
+      });
+    }
+    return { role, clientId: c.client_id, attorneyId, writable };
   }
 
   private roleOf(userId: string | null, s: { clientId: string }): Role {
@@ -239,6 +278,9 @@ export class CaseWorkspaceService {
       shared: dtos.filter((t) => t.kind === 'shared'),
       joint: dtos.filter((t) => t.kind === 'joint'),
       private: priv,
+      canEdit:
+        s.writable &&
+        (!user.assistant || user.assistant.duties.includes('tasks')),
     };
   }
 
@@ -289,7 +331,7 @@ export class CaseWorkspaceService {
     caseId: string,
     dto: CreateCaseTaskDto,
   ): Promise<CaseTasksDto> {
-    const s = await this.side(user, caseId);
+    const s = await this.side(user, caseId, 'tasks');
     // Owner 2026-10-15: both sides add tasks; the client's are their own
     // to-do (`for_client`) or a task of both (`joint`).
     if (
@@ -386,7 +428,7 @@ export class CaseWorkspaceService {
     taskId: string,
     done: boolean,
   ): Promise<CaseTasksDto> {
-    const s = await this.side(user, caseId);
+    const s = await this.side(user, caseId, 'tasks');
     const t = await this.taskOf(caseId, taskId);
     // A shared task: the attorney only; a joint one: either side; a
     // for-client task: the client marks it done (once every line is
@@ -442,7 +484,7 @@ export class CaseWorkspaceService {
     itemId: string,
     done: boolean,
   ): Promise<CaseTasksDto> {
-    const s = await this.side(user, caseId);
+    const s = await this.side(user, caseId, 'tasks');
     const t = await this.taskOf(caseId, taskId);
     const item = t.items.find((i) => i.id === itemId);
     if (!item) throw caseNotFound();
@@ -465,7 +507,7 @@ export class CaseWorkspaceService {
     taskId: string,
     closed: boolean,
   ): Promise<CaseTasksDto> {
-    const s = await this.side(user, caseId);
+    const s = await this.side(user, caseId, 'tasks');
     if (s.role !== 'attorney') throw this.denied('Only the attorney.');
     const t = await this.taskOf(caseId, taskId);
     if (t.kind !== 'for_client') {
@@ -499,7 +541,7 @@ export class CaseWorkspaceService {
     taskId: string,
     dto: TaskSubmissionDto,
   ): Promise<CaseTasksDto> {
-    const s = await this.side(user, caseId);
+    const s = await this.side(user, caseId, 'tasks');
     const t = await this.taskOf(caseId, taskId);
     if (s.role === 'client') {
       if (t.kind !== 'for_client') {
@@ -657,7 +699,7 @@ export class CaseWorkspaceService {
     caseId: string,
     dto: CreateCaseUpdateDto,
   ): Promise<CaseUpdateDto[]> {
-    await this.side(user, caseId);
+    await this.side(user, caseId, 'write');
     await withTxRetry(this.prisma, async (tx) => {
       const u = await tx.caseUpdate.create({
         data: { case_id: caseId, author_id: user.sub, body: dto.body },
@@ -739,6 +781,8 @@ export class CaseWorkspaceService {
    * planner board: the viewer's own side, newest first; done ones for 45
    * days (the archive). */
   async board(user: RequestUser): Promise<BoardCaseTaskDto[]> {
+    // Audit 2026-10-19: an assistant sees case tasks only with "cases".
+    if (user.assistant && !user.assistant.duties.includes('cases')) return [];
     const since = new Date(Date.now() - 45 * 24 * 3600e3);
     const rows = await this.prisma.caseTask.findMany({
       where: {
@@ -866,6 +910,7 @@ export class CaseWorkspaceService {
       publishedAt: k.created_at.toISOString(),
       acceptedAt: k.accepted_bid?.decided_at?.toISOString() ?? null,
       bidsCount: k.bids_count,
+      canWrite: s.writable,
     };
   }
 }
