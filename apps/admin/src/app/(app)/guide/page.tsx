@@ -276,11 +276,13 @@ function TextCard({
             {f.multiline ? (
               <Textarea
                 rows={10}
+                // Arabic, Hebrew, Persian, Urdu read right to left.
+                dir="auto"
                 value={draft[f.key] ?? ''}
                 onChange={(e) => setDraft({ ...draft, [f.key]: e.target.value })}
               />
             ) : (
-              <Input value={draft[f.key] ?? ''} onChange={(e) => setDraft({ ...draft, [f.key]: e.target.value })} />
+              <Input dir="auto" value={draft[f.key] ?? ''} onChange={(e) => setDraft({ ...draft, [f.key]: e.target.value })} />
             )}
           </label>
         ))}

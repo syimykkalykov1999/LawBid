@@ -125,9 +125,10 @@ class _GuideSectionState extends State<_GuideSection> {
               ),
             ),
           ),
-          AnimatedSize(
+          // A zero-length AnimatedSize re-dirties its own layout, so under
+          // reduce-motion the body just appears.
+          _MaybeAnimatedSize(
             duration: motion,
-            alignment: Alignment.topCenter,
             child: _open
                 ? Padding(
                     padding: const EdgeInsets.fromLTRB(
@@ -147,4 +148,21 @@ class _GuideSectionState extends State<_GuideSection> {
       ),
     );
   }
+}
+
+/// AnimatedSize, or the plain child under reduce-motion.
+class _MaybeAnimatedSize extends StatelessWidget {
+  const _MaybeAnimatedSize({required this.duration, required this.child});
+
+  final Duration duration;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => duration == Duration.zero
+      ? child
+      : AnimatedSize(
+          duration: duration,
+          alignment: Alignment.topCenter,
+          child: child,
+        );
 }
