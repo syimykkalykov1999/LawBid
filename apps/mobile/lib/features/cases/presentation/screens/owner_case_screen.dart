@@ -802,6 +802,7 @@ class _OwnerOpenCaseState extends ConsumerState<_OwnerOpenCase> {
       ),
       tabBar: Builder(
         builder: (context) => CaseTextTabs(
+          pages: ProfileTabPages.controllerOf(context),
           items: tabs,
           index: tab,
           onChanged: (i) {

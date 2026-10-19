@@ -270,6 +270,7 @@ class _BodyState extends ConsumerState<_Body> {
       ),
       tabBar: Builder(
         builder: (context) => CaseTextTabs(
+          pages: ProfileTabPages.controllerOf(context),
           items: [
             CaseTabItem(t.t('cases.tab.overview')),
             CaseTabItem(

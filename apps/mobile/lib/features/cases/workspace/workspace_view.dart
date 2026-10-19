@@ -164,6 +164,7 @@ class _CaseWorkspaceBodyState extends ConsumerState<CaseWorkspaceBody> {
           ),
           tabBar: Builder(
             builder: (context) => CaseTextTabs(
+              pages: ProfileTabPages.controllerOf(context),
               items: labels,
               index: tab - shift,
               onChanged: (i) {
