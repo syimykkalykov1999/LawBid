@@ -144,6 +144,7 @@ export const WIPE_TABLES: Readonly<Record<string, string>> = {
   post_likes: 'likes',
   post_reposts: 'reposts',
   post_views: 'post views',
+  post_view_events: 'post view events (post statistics)',
   contact_matches: 'address-book matches',
   contact_sync_settings: 'contacts sync switches',
   case_tasks: 'case tasks',
