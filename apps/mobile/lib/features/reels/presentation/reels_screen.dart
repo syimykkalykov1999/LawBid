@@ -249,6 +249,7 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
                         warm: (i - _index).abs() == 1,
                         muted: muted,
                         embedded: true,
+                        soundButton: true,
                       ),
                     ),
                   ),
@@ -374,12 +375,17 @@ class _ReelPage extends ConsumerStatefulWidget {
     required this.muted,
     this.warm = false,
     this.embedded = false,
+    this.soundButton = false,
     super.key,
   });
 
   final Post post;
   final bool active;
   final bool muted;
+
+  /// Owner 2026-10-19 (Instagram): the small speaker above the middle of
+  /// the reel (the Reels tab; the pushed player has it in its top bar).
+  final bool soundButton;
 
   /// The next or previous reel: its stream is opened ahead.
   final bool warm;
@@ -575,6 +581,44 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                       AppIcons.playArrowRounded,
                       size: 72,
                       color: Colors.white70,
+                    ),
+                  ),
+                // Owner 2026-10-19 (Instagram): a small sound on / off
+                // button above the play / pause spot; a tap on it never
+                // pauses the reel.
+                if (widget.soundButton && video != null)
+                  Center(
+                    child: Transform.translate(
+                      offset: const Offset(0, -64),
+                      child: Semantics(
+                        button: true,
+                        label:
+                            t.t(widget.muted ? 'reels.unmute' : 'reels.mute'),
+                        excludeSemantics: true,
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () =>
+                              ref.read(reelsMutedProvider.notifier).toggle(),
+                          child: Padding(
+                            padding: const EdgeInsets.all(AppSpacing.sm),
+                            child: Container(
+                              width: 30,
+                              height: 30,
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.45),
+                                shape: BoxShape.circle,
+                              ),
+                              child: AppIcon(
+                                widget.muted
+                                    ? AppIcons.speakerSlash
+                                    : AppIcons.speakerHigh,
+                                size: 16,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                 // Bottom shade so the caption reads on any video.

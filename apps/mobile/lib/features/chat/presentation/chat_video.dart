@@ -237,6 +237,16 @@ class _ChatVideoScreenState extends State<ChatVideoScreen>
   /// Held down: paused until the finger lifts (it was playing).
   bool _heldPause = false;
 
+  /// Owner 2026-10-19 (Instagram): the small speaker in the corner; the
+  /// video starts with sound.
+  bool _muted = false;
+
+  void _toggleSound() {
+    unawaited(HapticFeedback.selectionClick());
+    setState(() => _muted = !_muted);
+    unawaited(_c.setVolume(_muted ? 0 : 1));
+  }
+
   @override
   void initState() {
     super.initState();
@@ -539,6 +549,16 @@ class _ChatVideoScreenState extends State<ChatVideoScreen>
                                   ),
                                 ),
                                 Text(voiceClock(total), style: clock),
+                                IconButton(
+                                  onPressed: _toggleSound,
+                                  icon: AppIcon(
+                                    _muted
+                                        ? AppIcons.speakerSlash
+                                        : AppIcons.speakerHigh,
+                                    color: Colors.white,
+                                    size: 20,
+                                  ),
+                                ),
                               ],
                             ),
                           ),
