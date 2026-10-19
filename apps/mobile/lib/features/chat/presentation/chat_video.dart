@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
+import 'package:lawbid/core/media/playback_visibility.dart';
 import 'package:lawbid/features/chat/application/voice_recorder.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:video_player/video_player.dart';
@@ -215,7 +216,8 @@ class ChatVideoScreen extends StatefulWidget {
 /// play button shows only while paused; the bottom bar has play / pause,
 /// the time and the seek bar; the controls hide by themselves after 3 s of
 /// playing and come back on a tap; a swipe down closes.
-class _ChatVideoScreenState extends State<ChatVideoScreen> {
+class _ChatVideoScreenState extends State<ChatVideoScreen>
+    with PlaybackVisibility {
   late final VideoPlayerController _c =
       VideoPlayerController.networkUrl(Uri.parse(widget.url));
   bool _controls = true;
@@ -236,7 +238,9 @@ class _ChatVideoScreenState extends State<ChatVideoScreen> {
         (_) async {
           if (!mounted) return;
           setState(() {});
-          await _c.play();
+          // Owner 2026-10-18: not in the background (the app was left
+          // while it loaded) — it starts when back.
+          await playWhenVisible(_c);
           _scheduleHide();
         },
         onError: (Object _) {
@@ -245,6 +249,12 @@ class _ChatVideoScreenState extends State<ChatVideoScreen> {
       ),
     );
   }
+
+  /// Owner 2026-10-18: the app in the background or a screen over it
+  /// pauses the video; back, it plays on (if it was playing).
+  @override
+  void didChangePlaybackVisibility({required bool visible}) =>
+      holdPlayback(_c, visible: visible);
 
   void _tick() {
     if (!mounted) return;

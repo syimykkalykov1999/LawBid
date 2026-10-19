@@ -99,23 +99,22 @@ const bool _showLegalSwitch = false;
 const bool _showDisclaimer = false;
 
 class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
-  /// Owner 2026-10-07: one field, like Threads: the first line is the
-  /// post's title (bold in the feed), the rest its text.
-  late final _text = TextEditingController(
-    text: widget.editing == null
-        ? ''
-        : [
-            widget.editing!.title ?? splitPostBody(widget.editing!.body).$1,
-            if (widget.editing!.title != null)
-              widget.editing!.body
-            else
-              splitPostBody(widget.editing!.body).$2,
-          ].where((s) => s.trim().isNotEmpty).join('\n'),
-  );
+  /// Owner 2026-10-18: two fields, the same for photo, text and video
+  /// posts — a one-line «Заголовок» above a multi-line «Описание», both
+  /// optional. An older post without a stored title splits its text (the
+  /// first line is the title, the rest the description).
+  late final (String, String) _initial = switch (widget.editing) {
+    null => ('', ''),
+    final Post p when p.title != null => (p.title!, p.body),
+    final Post p => splitPostText(p.body),
+  };
+  late final _title = TextEditingController(text: _initial.$1);
+  late final _body = TextEditingController(text: _initial.$2);
+  final _bodyFocus = FocusNode();
 
-  /// The typed text as (title, body): the first line, cut at a word to
-  /// [kPostTitleMaxChars]; what is cut off starts the body.
-  (String, String) get _parts => splitPostText(_text.text);
+  /// The typed (title, description) as they are published.
+  (String, String) get _parts =>
+      (postTitleOf(_title.text), postBodyOf(_body.text));
 
   late final _photos = <_Photo>[
     for (var i = 0; i < widget.debugPhotoCount; i++)
@@ -161,7 +160,9 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
   @override
   void dispose() {
     _docs.dispose();
-    _text.dispose();
+    _title.dispose();
+    _body.dispose();
+    _bodyFocus.dispose();
     super.dispose();
   }
 
@@ -425,9 +426,24 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
           .configInt('post.max_chars_media', kPostMaxChars)
       : _briefMax;
 
+  /// Photos, a video or files — on the form, or already on the edited post.
+  bool get _hasMedia =>
+      _hasFiles ||
+      (widget.editing != null &&
+          (widget.editing!.media.isNotEmpty ||
+              widget.editing!.video != null ||
+              widget.editing!.attachments.isNotEmpty));
+
+  /// Owner 2026-10-18: no text is needed with photos, a video or files; an
+  /// empty post stays grey.
   bool get _ready =>
-      _text.text.characters.length <= _maxChars &&
-      _parts.$1.isNotEmpty &&
+      _body.text.characters.length <= _maxChars &&
+      _title.text.characters.length <= kPostTitleMaxChars &&
+      postHasContent(
+        title: _parts.$1,
+        body: _parts.$2,
+        hasMedia: _hasMedia,
+      ) &&
       _photos.every((p) => p.fileId != null) &&
       _docs.ready;
 
@@ -789,24 +805,40 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                     ),
                   ],
                   const SizedBox(height: AppSpacing.lg),
+                  // Owner 2026-10-18: «Заголовок» (one line) above
+                  // «Описание» — the same for photo, text and video posts.
                   PostTextField(
-                    controller: _text,
+                    controller: _title,
+                    fieldKey: const ValueKey('post-title-field'),
+                    singleLine: true,
+                    maxChars: kPostTitleMaxChars,
+                    hint: t.t('post.create.hintTitle'),
+                    textInputAction: TextInputAction.next,
+                    onSubmitted: (_) => _bodyFocus.requestFocus(),
+                  ),
+                  // OQ-042: "@…" suggests people to mention.
+                  MentionSuggestions(controller: _title),
+                  const SizedBox(height: AppSpacing.sm),
+                  PostTextField(
+                    controller: _body,
+                    fieldKey: const ValueKey('post-body-field'),
+                    focusNode: _bodyFocus,
                     maxChars: _maxChars,
                     limitHint: _hasFiles ? t.t('post.create.limitHint') : null,
-                    hint: _video != null || _hasFiles
-                        ? t.t('post.create.hintCaption')
-                        : t.t(
-                            'post.create.hintBrief',
-                            {'max': '$_briefMax'},
-                          ),
+                    hint: t.t('post.create.hintDescription'),
                   ),
-                  ValueListenableBuilder<TextEditingValue>(
-                    valueListenable: _text,
-                    builder: (context, _, __) => missing && _parts.$1.isEmpty
+                  ListenableBuilder(
+                    listenable: Listenable.merge([_title, _body]),
+                    builder: (context, _) => missing &&
+                            !postHasContent(
+                              title: _parts.$1,
+                              body: _parts.$2,
+                              hasMedia: _hasMedia,
+                            )
                         ? Padding(
                             padding: const EdgeInsets.only(top: AppSpacing.xs),
                             child: Text(
-                              t.t('post.create.required'),
+                              t.t('post.create.empty'),
                               style:
                                   type.caption.copyWith(color: colors.danger),
                             ),
@@ -814,7 +846,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                         : const SizedBox.shrink(),
                   ),
                   // OQ-042: "@…" suggests people to mention.
-                  MentionSuggestions(controller: _text),
+                  MentionSuggestions(controller: _body),
                   const SizedBox(height: AppSpacing.lg),
                   const SizedBox(height: AppSpacing.xl),
                   if (_showDisclaimer) const PostDisclaimer(),
@@ -823,9 +855,9 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
             ),
             Padding(
               padding: const EdgeInsets.all(AppSpacing.screenSide),
-              child: ValueListenableBuilder<TextEditingValue>(
-                valueListenable: _text,
-                builder: (context, _, __) => AppButton(
+              child: ListenableBuilder(
+                listenable: Listenable.merge([_title, _body]),
+                builder: (context, _) => AppButton(
                   label: t.t(
                     _editing
                         ? 'common.save'
@@ -840,7 +872,8 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                   ),
                   icon: _editing ? AppIcons.checkRounded : AppIcons.sendRounded,
                   isLoading: _publishing,
-                  // Grey until there is text and the photos are uploaded.
+                  // Grey until there is a title, a text, photos, a video or
+                  // files, and the photos are uploaded.
                   isEnabled: !_publishing && _ready,
                   onPressed: _publish,
                 ),

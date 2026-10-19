@@ -107,12 +107,10 @@ class ReelPublishJob extends Notifier<ReelPublishState> {
       );
       await ref.read(socialRepositoryProvider).createPost(
             PostDraft(
-              title: r.title.isNotEmpty
-                  ? r.title
-                  : String.fromCharCodes(r.text.runes.take(60)),
-              // The server needs a non-empty text; a reel without a caption
-              // reuses its title.
-              body: r.text.isNotEmpty ? r.text : r.title,
+              // Owner 2026-10-18: the title and the description as typed —
+              // both optional, a reel's video is enough.
+              title: r.title,
+              body: r.text,
               videoAssetId: upload.videoAssetId,
               mediaFileIds: r.photoIds,
               attachments: r.attachments,

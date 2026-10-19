@@ -88,11 +88,12 @@ export class PostAttachmentInputDto {
 
 /** POST /posts (docs/05 §3.1). */
 export class CreatePostDto {
-  /** Owner 2026-09-30: the card's title. */
-  @ApiProperty({ minLength: 1, maxLength: POST_TITLE_MAX })
+  /** Owner 2026-09-30: the card's title. Owner 2026-10-18: optional
+   * ('' is fine) — a post needs a title, a text, photos, a video or files
+   * (checked in PostsService.create). */
+  @ApiProperty({ maxLength: POST_TITLE_MAX })
   @Transform(trim)
   @IsString()
-  @MinLength(1)
   @MaxTextChars('limits.post_title_chars')
   title!: string;
 
@@ -194,11 +195,12 @@ export class CreatePostDto {
 
 /** PATCH /posts/:id — the title, the text and the qualification. */
 export class UpdatePostDto {
-  @ApiPropertyOptional({ minLength: 1, maxLength: POST_TITLE_MAX })
+  /** Owner 2026-10-18: '' clears the title (the post keeps its text,
+   * photos, video or files). */
+  @ApiPropertyOptional({ maxLength: POST_TITLE_MAX })
   @IsOptional()
   @Transform(trim)
   @IsString()
-  @MinLength(1)
   @MaxTextChars('limits.post_title_chars')
   title?: string;
 

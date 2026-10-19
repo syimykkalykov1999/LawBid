@@ -95515,8 +95515,7 @@
         "properties": {
           "title": {
             "type": "string",
-            "description": "Owner 2026-09-30: the card's title.",
-            "minLength": 1,
+            "description": "Owner 2026-09-30: the card's title. Owner 2026-10-18: optional\n('' is fine) — a post needs a title, a text, photos, a video or files\n(checked in PostsService.create).",
             "maxLength": 120
           },
           "practiceCode": {
@@ -95613,7 +95612,7 @@
         "properties": {
           "title": {
             "type": "string",
-            "minLength": 1,
+            "description": "Owner 2026-10-18: '' clears the title (the post keeps its text,\nphotos, video or files).",
             "maxLength": 120
           },
           "practiceCode": {

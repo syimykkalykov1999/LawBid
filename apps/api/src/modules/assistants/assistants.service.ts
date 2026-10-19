@@ -659,7 +659,13 @@ export class AssistantsService {
     const p = r.payload as Record<string, unknown>;
     let resultId: string | null = null;
     if (r.kind === 'post') {
-      const post = await this.posts.create(user, p as unknown as CreatePostDto);
+      // Owner 2026-10-18: the title and the text may be left out.
+      const dto: CreatePostDto = {
+        ...(p as unknown as CreatePostDto),
+        title: typeof p.title === 'string' ? p.title.trim() : '',
+        body: typeof p.body === 'string' ? p.body : '',
+      };
+      const post = await this.posts.create(user, dto);
       resultId = post.id;
     } else if (r.kind === 'comment') {
       const c = await this.comments.create(
@@ -853,10 +859,22 @@ function validatePayload(dto: CreateAssistantRequestDto): void {
   const p = dto.payload ?? {};
   const str = (k: string, max: number) =>
     typeof p[k] === 'string' && p[k].trim().length > 0 && p[k].length <= max;
+  // Owner 2026-10-18: a post's title and text may be empty ('' or left out)
+  // when photos or files are attached; PostsService.create refuses a post
+  // with nothing at all when the attorney approves it.
+  const optStr = (k: string, max: number) =>
+    p[k] === undefined ||
+    p[k] === null ||
+    (typeof p[k] === 'string' && p[k].length <= max);
+  const listed = (k: string) => Array.isArray(p[k]) && p[k].length > 0;
   const ok =
     dto.kind === 'post'
-      ? str('title', 120) &&
-        str('body', 5000) &&
+      ? optStr('title', 120) &&
+        optStr('body', 5000) &&
+        (str('title', 120) ||
+          str('body', 5000) ||
+          listed('mediaFileIds') ||
+          listed('attachments')) &&
         // Owner 2026-10-01: the qualification is optional.
         (p.practiceCode === undefined ||
           p.practiceCode === null ||
@@ -878,7 +896,9 @@ function validatePayload(dto: CreateAssistantRequestDto): void {
 function summaryOf(dto: CreateAssistantRequestDto): string {
   const p = dto.payload;
   const s = (k: string) => (typeof p[k] === 'string' ? p[k] : '');
-  return dto.kind === 'post' ? s('title') : s('body') || dto.kind;
+  return dto.kind === 'post'
+    ? s('title') || s('body') || dto.kind
+    : s('body') || dto.kind;
 }
 
 export interface RequestMeta {

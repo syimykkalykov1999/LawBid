@@ -641,9 +641,9 @@ class PostCard extends ConsumerWidget {
   /// [titleAndRest] with [body] in place of the post's (a translation).
   static (String, String) _titleAndBody(Post p, String body) {
     final title = p.title;
-    if (title != null && title.trim().isNotEmpty) {
-      return (title.trim(), body.trim());
-    }
+    // Owner 2026-10-18: '' = the author chose no title (separate fields):
+    // the text is the description only. NULL = an older post, split.
+    if (title != null) return (title.trim(), body.trim());
     return _split(body);
   }
 

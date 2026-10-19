@@ -170,7 +170,9 @@ class _AutoplayVideoState extends ConsumerState<_AutoplayVideo> {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          if (_on) ReelVideo(video: v, active: _on),
+          // Owner 2026-10-18: no black box over the tile — its cover stays
+          // until the video's first frame is drawn over it.
+          if (_on) ReelVideo(video: v, active: _on, backdrop: false),
           if (widget.post.viewCount > 0)
             Positioned(
               left: 6,

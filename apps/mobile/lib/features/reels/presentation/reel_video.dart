@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
+import 'package:lawbid/core/media/playback_visibility.dart';
 import 'package:lawbid/features/reels/application/reels_providers.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
@@ -58,9 +59,21 @@ ImageProvider reelPosterProvider(String url) => ResizeImage.resizeIfNeeded(
       CachedNetworkImageProvider(url, cacheKey: stableImageCacheKey(url)),
     );
 
-/// Owner 2026-10-01 — one reel video: the poster frame until the stream is
-/// ready, then the video filling its box (cover), looping. Plays only while
-/// [active]; an inactive reel or one that leaves the tree frees its player.
+/// Tests: makes the player instead of the network one.
+@visibleForTesting
+VideoPlayerController Function(Uri url, VideoPlayerOptions options)?
+    debugReelPlayerFactory;
+
+/// Owner 2026-10-01 — one reel video filling its box (cover), looping.
+/// Plays only while [active] and on screen (its tab, its route, the app in
+/// the foreground — [PlaybackVisibility]); an inactive reel or one that
+/// leaves the tree frees its player.
+///
+/// Owner 2026-10-18 (Instagram): no cover flash — the author's cover (often
+/// another frame, or a picture from the gallery) is not drawn before the
+/// video; the box stays [backdrop] until the video's first frame covers
+/// it. The cover shows only when there is no video to play (still
+/// processing, or it failed).
 class ReelVideo extends StatefulWidget {
   const ReelVideo({
     required this.video,
@@ -68,12 +81,17 @@ class ReelVideo extends StatefulWidget {
     this.muted = true,
     this.paused = false,
     this.warm = false,
+    this.backdrop = true,
     this.onProgress,
     super.key,
   });
 
   final PostVideo video;
   final bool active;
+
+  /// Black under the video (feed, reels). False: nothing — a grid tile's
+  /// own cover stays visible until the first frame is really drawn.
+  final bool backdrop;
 
   /// Owner 2026-10-15: the next/previous reel opens its stream ahead and
   /// waits at the first frame, so swiping to it starts at once.
@@ -90,10 +108,15 @@ class ReelVideo extends StatefulWidget {
   State<ReelVideo> createState() => _ReelVideoState();
 }
 
-class _ReelVideoState extends State<ReelVideo> {
+class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
   VideoPlayerController? _c;
   bool _ready = false;
   bool _failed = false;
+
+  /// Without a [ReelVideo.backdrop]: the video has moved past the spot it
+  /// opened at, so its frames are on screen (until then the tile's cover).
+  bool _rendered = false;
+  Duration _openedAt = Duration.zero;
 
   /// Owner 2026-10-15: no loading wheel flashing for a split second — it
   /// shows only when the stream is really slow (over 1.2 s), the poster
@@ -108,9 +131,10 @@ class _ReelVideoState extends State<ReelVideo> {
   void initState() {
     super.initState();
     if (widget.active || widget.warm) _open();
-    // The poster frame is on screen at once (it is cached by the list).
+    // The poster is drawn only for a video that cannot play (see build);
+    // then it is on screen at once (it is cached by the list).
     final thumb = widget.video.thumbnailUrl;
-    if (thumb != null) {
+    if (thumb != null && !_playable) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
           unawaited(
@@ -148,16 +172,25 @@ class _ReelVideoState extends State<ReelVideo> {
     _apply();
   }
 
+  /// There is a stream to play.
+  bool get _playable =>
+      widget.video.ready && widget.video.playerUrl(web: kIsWeb) != null;
+
+  @override
+  void didChangePlaybackVisibility({required bool visible}) => _apply();
+
   Future<void> _open() async {
     final url = widget.video.playerUrl(web: kIsWeb);
     if (url == null) return;
-    final c = VideoPlayerController.networkUrl(
-      Uri.parse(url),
-      formatHint: widget.video.usesMp4(web: kIsWeb)
-          ? VideoFormat.other
-          : VideoFormat.hls,
-      videoPlayerOptions: VideoPlayerOptions(mixWithOthers: widget.muted),
-    );
+    final options = VideoPlayerOptions(mixWithOthers: widget.muted);
+    final c = debugReelPlayerFactory?.call(Uri.parse(url), options) ??
+        VideoPlayerController.networkUrl(
+          Uri.parse(url),
+          formatHint: widget.video.usesMp4(web: kIsWeb)
+              ? VideoFormat.other
+              : VideoFormat.hls,
+          videoPlayerOptions: options,
+        );
     _c = c;
     _slowTimer?.cancel();
     _slow = false;
@@ -178,6 +211,7 @@ class _ReelVideoState extends State<ReelVideo> {
         await c.seekTo(clip.start);
       }
       if (!mounted || _c != c) return;
+      _openedAt = c.value.position;
       setState(() => _ready = true);
       _apply();
     } on Object {
@@ -190,6 +224,9 @@ class _ReelVideoState extends State<ReelVideo> {
     final clip = _clip;
     if (c == null || clip == null || !c.value.isInitialized) return;
     final pos = c.value.position;
+    if (!_rendered && _ready && c.value.isPlaying && pos != _openedAt) {
+      setState(() => _rendered = true);
+    }
     // Only the trimmed part plays: past its end (or after the player's own
     // loop to 0) it jumps back to the start.
     if (clip.outside(pos) && !_seeking) {
@@ -204,7 +241,7 @@ class _ReelVideoState extends State<ReelVideo> {
     final c = _c;
     if (c == null || !_ready) return;
     c.setVolume(widget.muted ? 0 : 1);
-    final play = widget.active && !widget.paused;
+    final play = widget.active && !widget.paused && playbackVisible;
     if (play && !c.value.isPlaying) {
       c.play();
     } else if (!play && c.value.isPlaying) {
@@ -216,6 +253,7 @@ class _ReelVideoState extends State<ReelVideo> {
     final c = _c;
     _c = null;
     _ready = false;
+    _rendered = false;
     _failed = false;
     _slowTimer?.cancel();
     _slow = false;
@@ -236,12 +274,14 @@ class _ReelVideoState extends State<ReelVideo> {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final thumb = widget.video.thumbnailUrl;
     final c = _c;
+    // Owner 2026-10-18: the cover only when nothing will play over it.
+    final poster = thumb != null && (!_playable || _failed);
     return ColoredBox(
-      color: Colors.black,
+      color: widget.backdrop ? Colors.black : Colors.transparent,
       child: Stack(
         fit: StackFit.expand,
         children: [
-          if (thumb != null)
+          if (poster)
             CachedNetworkImage(
               imageUrl: thumb,
               cacheKey: stableImageCacheKey(thumb),
@@ -250,7 +290,7 @@ class _ReelVideoState extends State<ReelVideo> {
               fadeInDuration: Duration.zero,
               errorWidget: (_, __, ___) => const SizedBox.shrink(),
             ),
-          if (c != null && _ready)
+          if (c != null && _ready && (widget.backdrop || _rendered))
             FittedBox(
               fit: BoxFit.cover,
               clipBehavior: Clip.hardEdge,
@@ -303,6 +343,9 @@ class InlineReel extends StatefulWidget {
 
 class _InlineReelState extends State<InlineReel> {
   bool _visible = false;
+
+  /// Any part of it on screen.
+  bool _near = false;
   int _flash = 0;
 
   Timer? _viewTimer;
@@ -333,10 +376,14 @@ class _InlineReelState extends State<InlineReel> {
       key: ValueKey('reel-${widget.post.id}'),
       onVisibilityChanged: (info) {
         final v = info.visibleFraction > 0.6;
-        if (v != _visible && mounted) {
-          setState(() => _visible = v);
-          _trackView();
-        }
+        final near = info.visibleFraction > 0;
+        if (!mounted || (v == _visible && near == _near)) return;
+        final viewChanged = v != _visible;
+        setState(() {
+          _visible = v;
+          _near = near;
+        });
+        if (viewChanged) _trackView();
       },
       child: GestureDetector(
         // Owner 2026-10-13: in the feed a tap on the playing video opens the
@@ -349,6 +396,9 @@ class _InlineReelState extends State<InlineReel> {
               builder: (context, ref, _) => ReelVideo(
                 video: video,
                 active: _visible && video.ready,
+                // Owner 2026-10-18: the stream opens as soon as the card
+                // peeks in, so its first frame is there when it plays.
+                warm: _near && video.ready,
                 muted: ref.watch(reelsMutedProvider),
               ),
             ),

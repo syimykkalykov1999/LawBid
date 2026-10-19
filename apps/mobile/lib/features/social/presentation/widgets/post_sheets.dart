@@ -562,7 +562,8 @@ Future<void> showEditPostSheet(BuildContext context, WidgetRef ref, Post post) {
   );
 }
 
-/// Multi-line post text with a live "n / 2200" counter.
+/// Multi-line post text with a live "n / 2200" counter. Owner 2026-10-18:
+/// [singleLine] = the post's title (one line, cut at [maxChars]).
 class PostTextField extends ConsumerWidget {
   const PostTextField({
     required this.controller,
@@ -570,8 +571,22 @@ class PostTextField extends ConsumerWidget {
     this.hint,
     this.maxChars = kPostMaxChars,
     this.limitHint,
+    this.singleLine = false,
+    this.textInputAction,
+    this.onSubmitted,
+    this.focusNode,
+    this.fieldKey,
     super.key,
   });
+
+  /// One line, no more than [maxChars] (the title field).
+  final bool singleLine;
+  final TextInputAction? textInputAction;
+  final ValueChanged<String>? onSubmitted;
+  final FocusNode? focusNode;
+
+  /// Key of the inner [TextField] (tests).
+  final Key? fieldKey;
 
   /// Shown small and red under the counter once the text is over the limit
   /// of a post with files (Owner 2026-10-12).
@@ -592,13 +607,19 @@ class PostTextField extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
         TextField(
+          key: fieldKey,
           onTapOutside: hideKeyboardOnTapOutside,
           controller: controller,
+          focusNode: focusNode,
           autofocus: autofocus,
-          minLines: 4,
-          maxLines: 10,
+          minLines: singleLine ? 1 : 4,
+          maxLines: singleLine ? 1 : 10,
           maxLength: maxChars,
-          maxLengthEnforcement: MaxLengthEnforcement.none,
+          maxLengthEnforcement: singleLine
+              ? MaxLengthEnforcement.enforced
+              : MaxLengthEnforcement.none,
+          textInputAction: textInputAction,
+          onSubmitted: onSubmitted,
           buildCounter: (
             _, {
             required currentLength,

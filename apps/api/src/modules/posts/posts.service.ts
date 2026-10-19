@@ -149,6 +149,9 @@ export class PostsService {
         details: { field: 'body', maxChars },
       });
     }
+    // Owner 2026-10-18: the title and the text are optional when photos, a
+    // video or files are attached (Instagram / TikTok); an empty post is not.
+    assertNotEmptyPost(dto.title, dto.body, hasFiles);
     // Owner 2026-10-13: documents need the right to attach (the admin's
     // setting + plan). Owner 2026-10-16: photos (up to the admin's count,
     // 9) and a reel's video never do.
@@ -211,7 +214,11 @@ export class PostsService {
           .create({
             data: {
               author_id: user.sub,
-              title: dto.title,
+              // Owner 2026-10-18: a title typed in the composer is stored
+              // as is; '' = the author chose no title (the app then shows
+              // the description only). Not sent at all = NULL (older
+              // clients: the first line is the title).
+              title: dto.title === undefined ? null : dto.title.trim(),
               practice_area_id: practice?.id ?? null,
               kind,
               // Owner 2026-10-05: legal vs general (personal) post.
@@ -471,7 +478,11 @@ export class PostsService {
         details: { field: 'body', maxChars },
       });
     }
-    const title = dto.title ?? current.title;
+    // Owner 2026-10-18: '' clears the title ('' = no title, see create).
+    const title = dto.title === undefined ? current.title : dto.title.trim();
+    // Owner 2026-10-18: an edit may clear the title and the text only while
+    // the post keeps photos, a video or files.
+    assertNotEmptyPost(title, body, files > 0);
     const practice = dto.practiceCode
       ? await this.practiceByCode(dto.practiceCode)
       : null;
@@ -898,4 +909,19 @@ export class PostsService {
       skipDuplicates: true,
     });
   }
+}
+
+/** Owner 2026-10-18: a post carries a title, a text, photos, a video or
+ * files — one of them at least. */
+function assertNotEmptyPost(
+  title: string | null | undefined,
+  body: string | null | undefined,
+  hasFiles: boolean,
+): void {
+  if (hasFiles || (title ?? '').trim() || (body ?? '').trim()) return;
+  throw new BadRequestException({
+    code: ErrorCode.VALIDATION_ERROR,
+    message: 'Add a title, a text, photos, a video or files.',
+    details: { field: 'body' },
+  });
 }

@@ -32,8 +32,10 @@ void prefetchPost(BuildContext context, Post p) {
   // the same cache keys and decode widths their widgets draw them at
   // (ReelVideo: 720 px; the card's author avatar: AppAvatar's size × the
   // screen's pixel ratio), so the warm decode is the one found on screen.
+  // Owner 2026-10-18: a playable video draws no poster in the feed (no
+  // cover flash before the video), so only a not-ready one's is warmed.
   final thumb = p.video?.thumbnailUrl;
-  if (thumb != null) {
+  if (thumb != null && p.video?.ready != true) {
     precacheImage(reelPosterProvider(thumb), context, onError: (_, __) {});
   }
   final avatar = p.author.avatarUrl;

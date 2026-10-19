@@ -211,6 +211,10 @@ const planRu = <String, String>{
   'post.create.hintBrief':
       'Первая строка станет заголовком поста, остальное — описанием. До {max} знаков',
   'post.create.hintCaption': 'Подпись к посту…',
+  // Owner 2026-10-18: two fields on every post form.
+  'post.create.hintTitle': 'Заголовок',
+  'post.create.hintDescription': 'Описание',
+  'post.create.empty': 'Добавьте заголовок, описание, фото или видео',
   'post.create.noTopic': 'Без темы',
   'post.src.galleryHint': 'Фото и видео',
   'post.src.galleryHintMax': 'До {max} фото или 1 видео',
@@ -449,6 +453,10 @@ const planEn = <String, String>{
   'post.create.hintBrief':
       'The first line becomes the post title, the rest its text. Up to {max} characters',
   'post.create.hintCaption': 'Write a caption for your post…',
+  // Owner 2026-10-18: two fields on every post form.
+  'post.create.hintTitle': 'Title',
+  'post.create.hintDescription': 'Description',
+  'post.create.empty': 'Add a title, a description, a photo or a video',
   'post.create.noTopic': 'No topic',
   'post.src.galleryHint': 'Photos and video',
   'post.src.galleryHintMax': 'Up to {max} photos or 1 video',
