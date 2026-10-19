@@ -21,8 +21,6 @@ import 'package:url_launcher/url_launcher.dart';
 class CasePhotosPicker extends ConsumerWidget {
   const CasePhotosPicker({super.key});
 
-  static const double _tile = 96;
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translatorProvider);
@@ -105,124 +103,132 @@ class CasePhotosPicker extends ConsumerWidget {
           style: type.caption.copyWith(color: colors.textSecondary),
         ),
         const SizedBox(height: AppSpacing.sm),
-        // Tiles sit centred, not against the left edge.
-        Wrap(
-          alignment: WrapAlignment.center,
-          spacing: AppSpacing.sm,
-          runSpacing: AppSpacing.sm,
-          children: [
-            for (final p in photos)
-              SizedBox.square(
-                dimension: _tile,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(AppRadii.field),
-                      child: p.isDocument
-                          ? _DocTile(name: p.name!)
-                          // A photo restored with a saved draft has no
-                          // bytes on the device any more.
-                          : p.bytes.isEmpty
-                              ? ColoredBox(
-                                  color: colors.surface,
-                                  child: AppIcon(
-                                    AppIcons.imageOutlined,
-                                    color: colors.goldDark,
-                                  ),
-                                )
-                              : Image.memory(p.bytes, fit: BoxFit.cover),
-                    ),
-                    if (p.uploading)
-                      const Center(
-                        child: SizedBox.square(
-                          dimension: 24,
-                          child: CircularProgressIndicator(strokeWidth: 2),
+        // Owner 2026-10-19: three tiles a row across the full width (no
+        // empty column at 9 of 9); «+» tiles take ordinary cells.
+        LayoutBuilder(
+          builder: (context, box) {
+            final tile =
+                ((box.maxWidth - 2 * AppSpacing.sm) / 3).floorToDouble();
+            return Wrap(
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.sm,
+              children: [
+                for (final p in photos)
+                  SizedBox.square(
+                    dimension: tile,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(AppRadii.field),
+                          child: p.isDocument
+                              ? _DocTile(name: p.name!)
+                              // A photo restored with a saved draft has no
+                              // bytes on the device any more.
+                              : p.bytes.isEmpty
+                                  ? ColoredBox(
+                                      color: colors.surface,
+                                      child: AppIcon(
+                                        AppIcons.imageOutlined,
+                                        color: colors.goldDark,
+                                      ),
+                                    )
+                                  : Image.memory(p.bytes, fit: BoxFit.cover),
                         ),
-                      ),
-                    if (p.failed)
-                      Center(
-                        child: AppIconButton(
-                          plain: false,
-                          icon: AppIcon(
-                            AppIcons.refreshRounded,
-                            color: colors.danger,
-                          ),
-                          semanticLabel: t.t('error.retry'),
-                          onPressed: () => c.retryPhoto(p.key),
-                        ),
-                      ),
-                    Positioned(
-                      top: 2,
-                      right: 2,
-                      child: GestureDetector(
-                        onTap: () => c.removePhoto(p.key),
-                        child: Semantics(
-                          button: true,
-                          label: t.t('cases.photos.remove'),
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: colors.bg.withValues(alpha: 0.85),
-                              shape: BoxShape.circle,
-                            ),
-                            padding: const EdgeInsets.all(2),
-                            child: AppIcon(
-                              AppIcons.closeRounded,
-                              size: 18,
-                              color: colors.text,
+                        if (p.uploading)
+                          const Center(
+                            child: SizedBox.square(
+                              dimension: 24,
+                              child: CircularProgressIndicator(strokeWidth: 2),
                             ),
                           ),
+                        if (p.failed)
+                          Center(
+                            child: AppIconButton(
+                              plain: false,
+                              icon: AppIcon(
+                                AppIcons.refreshRounded,
+                                color: colors.danger,
+                              ),
+                              semanticLabel: t.t('error.retry'),
+                              onPressed: () => c.retryPhoto(p.key),
+                            ),
+                          ),
+                        Positioned(
+                          top: 2,
+                          right: 2,
+                          child: GestureDetector(
+                            onTap: () => c.removePhoto(p.key),
+                            child: Semantics(
+                              button: true,
+                              label: t.t('cases.photos.remove'),
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: colors.bg.withValues(alpha: 0.85),
+                                  shape: BoxShape.circle,
+                                ),
+                                padding: const EdgeInsets.all(2),
+                                child: AppIcon(
+                                  AppIcons.closeRounded,
+                                  size: 18,
+                                  color: colors.text,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                if (photos.length < maxFiles)
+                  Semantics(
+                    button: true,
+                    label: t.t('cases.photos.add'),
+                    child: AppPressable(
+                      onTap: pick,
+                      child: Container(
+                        width: tile,
+                        height: tile,
+                        // Owner 2026-10-18: the theme's own tile (no gold
+                        // fill).
+                        decoration: BoxDecoration(
+                          color: colors.chip,
+                          borderRadius: BorderRadius.circular(AppRadii.field),
+                          border: Border.all(color: colors.border),
+                        ),
+                        child: _TileLabel(
+                          icon: AppIcons.addPhotoAlternateOutlined,
+                          label: t.t('cases.photos.tilePhoto'),
                         ),
                       ),
                     ),
-                  ],
-                ),
-              ),
-            if (photos.length < maxFiles)
-              Semantics(
-                button: true,
-                label: t.t('cases.photos.add'),
-                child: AppPressable(
-                  onTap: pick,
-                  child: Container(
-                    width: _tile,
-                    height: _tile,
-                    // Owner 2026-10-18: the theme's own tile (no gold fill).
-                    decoration: BoxDecoration(
-                      color: colors.chip,
-                      borderRadius: BorderRadius.circular(AppRadii.field),
-                      border: Border.all(color: colors.border),
-                    ),
-                    child: _TileLabel(
-                      icon: AppIcons.addPhotoAlternateOutlined,
-                      label: t.t('cases.photos.tilePhoto'),
+                  ),
+                if (photos.length < maxFiles)
+                  Semantics(
+                    button: true,
+                    label: t.t('cases.files.add'),
+                    child: AppPressable(
+                      onTap: pickFiles,
+                      child: Container(
+                        width: tile,
+                        height: tile,
+                        // Owner 2026-10-18: the theme's own tile (no gold
+                        // fill).
+                        decoration: BoxDecoration(
+                          color: colors.chip,
+                          borderRadius: BorderRadius.circular(AppRadii.field),
+                          border: Border.all(color: colors.border),
+                        ),
+                        child: _TileLabel(
+                          icon: AppIcons.noteAddOutlined,
+                          label: t.t('cases.photos.tileFile'),
+                        ),
+                      ),
                     ),
                   ),
-                ),
-              ),
-            if (photos.length < maxFiles)
-              Semantics(
-                button: true,
-                label: t.t('cases.files.add'),
-                child: AppPressable(
-                  onTap: pickFiles,
-                  child: Container(
-                    width: _tile,
-                    height: _tile,
-                    // Owner 2026-10-18: the theme's own tile (no gold fill).
-                    decoration: BoxDecoration(
-                      color: colors.chip,
-                      borderRadius: BorderRadius.circular(AppRadii.field),
-                      border: Border.all(color: colors.border),
-                    ),
-                    child: _TileLabel(
-                      icon: AppIcons.noteAddOutlined,
-                      label: t.t('cases.photos.tileFile'),
-                    ),
-                  ),
-                ),
-              ),
-          ],
+              ],
+            );
+          },
         ),
         if (photos.any((p) => p.failed)) ...[
           const SizedBox(height: AppSpacing.sm),
