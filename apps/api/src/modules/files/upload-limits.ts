@@ -208,7 +208,9 @@ export const PLACE_SPECS: Record<UploadPlace, PlaceSpec> = {
       maxFiles: 0,
       fileMb: 10,
       totalMb: 0,
-      formats: ['jpeg', 'png', 'heic'],
+      // Owner 2026-10-19: WebP too — a picked photo is often WebP (saved
+      // from the web), and it was refused here.
+      formats: ['jpeg', 'png', 'heic', 'webp'],
     },
   },
   avatar: {
@@ -220,7 +222,8 @@ export const PLACE_SPECS: Record<UploadPlace, PlaceSpec> = {
       maxFiles: 0,
       fileMb: 5,
       totalMb: 0,
-      formats: ['jpeg', 'png', 'heic'],
+      // Owner 2026-10-19: WebP too (see review).
+      formats: ['jpeg', 'png', 'heic', 'webp'],
     },
   },
   verification: {
@@ -232,7 +235,8 @@ export const PLACE_SPECS: Record<UploadPlace, PlaceSpec> = {
       maxFiles: 3,
       fileMb: 10,
       totalMb: 0,
-      formats: ['jpeg', 'png', 'heic', 'pdf'],
+      // Owner 2026-10-19: WebP too (see review).
+      formats: ['jpeg', 'png', 'heic', 'webp', 'pdf'],
     },
   },
   // Owner 2026-10-18 (OQ-055): files in a support ticket message, both

@@ -1,6 +1,8 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/features/profile/data/avatar_upload_repository.dart'
+    show sniffImageMime;
 import 'package:lawbid/features/verification/domain/verification_models.dart';
 import 'package:lawbid/features/verification/presentation/screens/camera_capture_screen.dart';
 
@@ -46,15 +48,24 @@ class DeviceDocumentSource implements DocumentSource {
     final result = await FilePicker.pickFiles(
       type: allowPdf ? FileType.custom : FileType.image,
       allowedExtensions:
-          allowPdf ? const ['jpg', 'jpeg', 'png', 'heic', 'heif', 'pdf'] : null,
+          // Owner 2026-10-19: WebP too (saved web pictures).
+          allowPdf
+              ? const ['jpg', 'jpeg', 'png', 'heic', 'heif', 'webp', 'pdf']
+              : null,
       withData: true,
     );
     final file = result?.files.singleOrNull;
     final bytes = file?.bytes;
     if (file == null || bytes == null) return null;
-    // Photo-library images may come without a known extension; they are
-    // JPEG then (the API re-checks the real type by magic bytes).
-    final mime = mimeForFileName(file.name) ?? 'image/jpeg';
+    // Owner 2026-10-19: the real type from the first bytes (a WebP / PNG
+    // picture named or labelled as JPEG was refused by the server's byte
+    // check); the name only for a PDF; JPEG as the last guess.
+    final pdf = bytes.length >= 4 &&
+        String.fromCharCodes(bytes.sublist(0, 4)) == '%PDF';
+    final mime = sniffImageMime(bytes) ??
+        (pdf ? 'application/pdf' : null) ??
+        mimeForFileName(file.name) ??
+        'image/jpeg';
     if (!allowPdf && mime == 'application/pdf') return null;
     return PickedDocument(name: file.name, mime: mime, bytes: bytes);
   }

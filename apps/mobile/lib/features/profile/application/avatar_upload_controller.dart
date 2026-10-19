@@ -80,10 +80,14 @@ class AvatarUploadController extends Notifier<AvatarUploadState> {
         AvatarUploadState(stage: AvatarUploadStage.preparing, preview: bytes);
     try {
       final mime = sniffImageMime(bytes);
-      if (mime == null) throw _local(ApiErrorCodes.fileTypeNotAllowed);
+      final limits = ref.read(uploadLimitsProvider)[UploadPlace.avatar];
+      // Owner 2026-10-19: a photo type the admin has off here is refused at
+      // once (not after the upload).
+      if (mime == null || !limits.photoMimes.contains(mime)) {
+        throw _local(ApiErrorCodes.fileTypeNotAllowed);
+      }
       // Owner 2026-10-07 (bug 17): the admin's «Фото профиля» MB.
-      if (bytes.length >
-          ref.read(uploadLimitsProvider)[UploadPlace.avatar].fileBytes) {
+      if (bytes.length > limits.fileBytes) {
         throw _local(ApiErrorCodes.fileTooLarge);
       }
       final target = await repo.presign(

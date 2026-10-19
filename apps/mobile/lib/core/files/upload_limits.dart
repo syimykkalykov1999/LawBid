@@ -97,6 +97,13 @@ class PlaceUploadLimits {
   /// A video format is on here (owner 2026-10-17: chat).
   bool get allowsVideo => formats.any(kVideoFormats.contains);
 
+  /// Owner 2026-10-19: the photo types turned on here (image/jpeg, …), to
+  /// refuse a photo the moment it is picked instead of after the upload.
+  Set<String> get photoMimes => {
+        for (final f in formats)
+          if (kPhotoFormats.contains(f)) kUploadFormatMime[f]!,
+      };
+
   /// Every format that is on, as picker extensions.
   List<String> get allExtensions => [
         for (final f in formats) ...(_extensions[f] ?? [f]),
@@ -191,21 +198,24 @@ const kDefaultUploadLimits = <UploadPlace, PlaceUploadLimits>{
     maxFiles: 0,
     fileMb: 10,
     totalMb: 0,
-    formats: {'jpeg', 'png', 'heic'},
+    // Owner 2026-10-19: WebP too (as on the server).
+    formats: {'jpeg', 'png', 'heic', 'webp'},
   ),
   UploadPlace.avatar: PlaceUploadLimits(
     maxPhotos: 0,
     maxFiles: 0,
     fileMb: 5,
     totalMb: 0,
-    formats: {'jpeg', 'png', 'heic'},
+    // Owner 2026-10-19: WebP too (as on the server).
+    formats: {'jpeg', 'png', 'heic', 'webp'},
   ),
   UploadPlace.verification: PlaceUploadLimits(
     maxPhotos: 0,
     maxFiles: 3,
     fileMb: 10,
     totalMb: 0,
-    formats: {'jpeg', 'png', 'heic', 'pdf'},
+    // Owner 2026-10-19: WebP too (as on the server).
+    formats: {'jpeg', 'png', 'heic', 'webp', 'pdf'},
   ),
   // Owner 2026-10-18 (OQ-055): files in a support ticket, both ways.
   UploadPlace.support: PlaceUploadLimits(

@@ -980,16 +980,18 @@ class ApiSocialRepository implements SocialRepository {
     );
   }
 
-  static String _extOf(String mime) => switch (mime) {
-        kPdfMime => 'pdf',
-        'application/msword' => 'doc',
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document' =>
-          'docx',
-        'text/plain' => 'txt',
-        'application/rtf' => 'rtf',
-        'application/vnd.oasis.opendocument.text' => 'odt',
-        _ => '',
-      };
+  /// Owner 2026-10-19: every document format the admin may turn on for a
+  /// post (xls, pptx, csv, … too — not only PDF / Word / text).
+  static String _extOf(String mime) {
+    for (final e in kUploadFormatMime.entries) {
+      if (e.value == mime &&
+          !kPhotoFormats.contains(e.key) &&
+          !kVideoFormats.contains(e.key)) {
+        return e.key;
+      }
+    }
+    return '';
+  }
 
   /// Presign → S3 POST → confirm → wait for a clean scan.
   Future<String> _upload(

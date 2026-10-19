@@ -376,6 +376,9 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
     try {
       final id = await ref.read(socialActionsProvider).uploadPhoto(
         photo.bytes,
+        // Owner 2026-10-19: the admin's MB and photo formats of a post.
+        maxBytes: _limits.fileBytes,
+        allowedMimes: _limits.photoMimes,
         onProgress: (p) {
           if (mounted) setState(() => photo.progress = p);
         },

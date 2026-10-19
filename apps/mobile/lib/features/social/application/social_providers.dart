@@ -10,6 +10,8 @@ import 'package:lawbid/features/cases/application/paged_notifier.dart';
 import 'package:lawbid/features/feed/application/feed_topics.dart'
     show topicTagFor;
 import 'package:lawbid/features/profile/application/profile_providers.dart';
+import 'package:lawbid/features/profile/data/avatar_upload_repository.dart'
+    show sniffImageMime;
 import 'package:lawbid/features/social/data/social_local_database.dart';
 import 'package:lawbid/features/social/data/social_repository.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
@@ -894,15 +896,28 @@ class SocialActions {
     bool reviewPhoto = false,
     String? fileName,
     int? maxBytes,
-  }) =>
-      _repo.uploadPostPhoto(
-        bytes,
-        onProgress: onProgress,
-        casePhoto: casePhoto,
-        reviewPhoto: reviewPhoto,
-        fileName: fileName,
-        maxBytes: maxBytes,
+    // Owner 2026-10-19: the photo types the place allows (admin «Загрузки и
+    // файлы»); another type is refused at once, before any upload.
+    Set<String>? allowedMimes,
+  }) async {
+    final image = sniffImageMime(bytes);
+    if (allowedMimes != null &&
+        image != null &&
+        !allowedMimes.contains(image)) {
+      throw const ApiException(
+        code: ApiErrorCodes.fileTypeNotAllowed,
+        message: 'type',
       );
+    }
+    return _repo.uploadPostPhoto(
+      bytes,
+      onProgress: onProgress,
+      casePhoto: casePhoto,
+      reviewPhoto: reviewPhoto,
+      fileName: fileName,
+      maxBytes: maxBytes,
+    );
+  }
 
   /// Owner 2026-10-05: a post / reel document.
   Future<String> uploadDocument(

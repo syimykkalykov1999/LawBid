@@ -371,6 +371,15 @@ class VerificationWizardController extends AsyncNotifier<WizardState> {
         message: 'File too large.',
       );
     }
+    // Owner 2026-10-19: a format the admin has off is refused at once.
+    if (!ref
+        .read(uploadLimitsProvider)[UploadPlace.verification]
+        .allowsMime(barCard.mime)) {
+      throw const ApiException(
+        code: ApiErrorCodes.fileTypeNotAllowed,
+        message: 'File type not allowed.',
+      );
+    }
     await addLicense(
       stateCode: stateCode,
       barNumber: barNumber,
@@ -435,6 +444,15 @@ class VerificationWizardController extends AsyncNotifier<WizardState> {
       throw const ApiException(
         code: ApiErrorCodes.fileTooLarge,
         message: 'File too large.',
+      );
+    }
+    // Owner 2026-10-19: a format the admin has off is refused at once.
+    if (!ref
+        .read(uploadLimitsProvider)[UploadPlace.verification]
+        .allowsMime(document.mime)) {
+      throw const ApiException(
+        code: ApiErrorCodes.fileTypeNotAllowed,
+        message: 'File type not allowed.',
       );
     }
     final task = UploadTask(

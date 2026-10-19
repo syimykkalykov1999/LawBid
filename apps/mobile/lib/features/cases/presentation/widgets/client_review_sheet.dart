@@ -149,6 +149,7 @@ class _SheetState extends ConsumerState<_Sheet> {
               bytes,
               reviewPhoto: true,
               maxBytes: _limits.fileBytes,
+              allowedMimes: _limits.photoMimes,
             );
         if (!mounted) return;
         setState(() => _photos.add((fileId: id, url: null)));

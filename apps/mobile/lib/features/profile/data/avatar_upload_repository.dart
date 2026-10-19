@@ -48,7 +48,10 @@ String? sniffImageMime(Uint8List bytes) {
   if (bytes.length >= 12 &&
       String.fromCharCodes(bytes.sublist(4, 8)) == 'ftyp') {
     final brand = String.fromCharCodes(bytes.sublist(8, 12));
-    if (const {'heic', 'heix', 'hevc', 'mif1', 'msf1'}.contains(brand)) {
+    // Owner 2026-10-19: every HEVC brand the server accepts (iPhone burst
+    // and sequence photos say heim / heis / hevx).
+    if (const {'heic', 'heix', 'hevc', 'hevx', 'heim', 'heis', 'mif1', 'msf1'}
+        .contains(brand)) {
       return 'image/heic';
     }
   }
