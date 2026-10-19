@@ -29,7 +29,17 @@ class AttorneyViewPreview extends StatelessWidget {
     return FeedCase(
       id: c.id,
       title: c.title,
-      practice: c.practice,
+      // The feed card colours by the category code, which the owner's case
+      // may lack: the same fallback as the case head (owner 2026-10-19).
+      practice: PracticeRef(
+        id: c.practice.id,
+        code: c.practice.code,
+        i18nKey: c.practice.i18nKey,
+        nameEn: c.practice.nameEn,
+        categoryI18nKey: c.practice.categoryI18nKey,
+        categoryNameEn: c.practice.categoryNameEn,
+        categoryCode: c.practice.artCode,
+      ),
       primaryStateCode: c.primaryStateCode,
       additionalStateCodes: c.additionalStateCodes,
       city: c.city,
