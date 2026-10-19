@@ -16,6 +16,7 @@ import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/active_case_cards.dart'
     show caseStageOf;
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
+import 'package:lawbid/features/cases/presentation/widgets/attorney_view_preview.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_cards.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_header.dart';
@@ -630,6 +631,17 @@ class _OwnerOpenCaseState extends ConsumerState<_OwnerOpenCase> {
                       archivesAt: c.archivesAt,
                     ),
                   ],
+                  // Owner 2026-10-19: how attorneys see the case, until a
+                  // bid is accepted.
+                  if (c.status == CaseStatus.open && c.acceptedBid == null)
+                    DetailSection(
+                      title: t.t('cases.preview.title'),
+                      child: AttorneyViewPreview(
+                        kase: c,
+                        t: t,
+                        formats: formats,
+                      ),
+                    ),
                   // Owner 2026-10-05: attorneys the client offered the case to.
                   CaseInvitesSection(caseId: c.id),
                   if (c.acceptedBid != null)

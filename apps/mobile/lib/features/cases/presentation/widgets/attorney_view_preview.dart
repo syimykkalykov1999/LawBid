@@ -1,0 +1,98 @@
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/l10n/l10n_formats.dart';
+import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/features/cases/domain/case_models.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_cards.dart';
+
+/// Owner 2026-10-19: «Как ваш кейс видят адвокаты» on the client's own case
+/// until a bid is accepted — the very card of the attorneys' feed, built
+/// only from what every verified attorney gets (no name, photo, contacts,
+/// files or private details; only their counts), and not tappable.
+class AttorneyViewPreview extends StatelessWidget {
+  const AttorneyViewPreview({
+    required this.kase,
+    required this.t,
+    required this.formats,
+    super.key,
+  });
+
+  final OwnerCase kase;
+  final Translator t;
+  final L10nFormats formats;
+
+  /// What an attorney's feed gets for this case.
+  static FeedCase feedViewOf(OwnerCase c) {
+    final images = c.photos.where((p) => !_isDocument(p.mime)).length;
+    return FeedCase(
+      id: c.id,
+      title: c.title,
+      practice: c.practice,
+      primaryStateCode: c.primaryStateCode,
+      additionalStateCodes: c.additionalStateCodes,
+      city: c.city,
+      status: c.status,
+      budget: c.budget,
+      viewCount: c.viewCount,
+      bidsCount: c.bidsCount,
+      createdAt: c.createdAt,
+      isNew: false,
+      hasOwnBid: false,
+      description: c.description,
+      photosCount: images,
+      extraPracticeCount: c.extraPractices.length,
+      coverKey: c.coverKey,
+      urgency: c.urgency,
+      urgencyDetail: c.urgencyDetail,
+      dossier: CaseDossier(
+        imagesCount: images,
+        documentsCount: c.photos.length - images,
+        descriptionLength: c.description.length,
+        privateDetailsLength: c.privateDetails?.length ?? 0,
+      ),
+    );
+  }
+
+  static bool _isDocument(String mime) =>
+      !mime.startsWith('image/') && !mime.startsWith('video/');
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          t.t('cases.preview.note'),
+          style: type.bodySmall.copyWith(color: colors.textSecondary),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        // The same widget attorneys see; taps do nothing here.
+        IgnorePointer(
+          child: ExcludeSemantics(
+            child: FeedCaseCard(
+              item: feedViewOf(kase),
+              t: t,
+              formats: formats,
+              onTap: () {},
+            ),
+          ),
+        ),
+        Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: TextButton(
+            key: const ValueKey('case-preview-more'),
+            onPressed: () => context.push(AppRoutes.guide),
+            child: Text(
+              t.t('cases.preview.more'),
+              style: type.bodySmall.copyWith(color: colors.goldDark),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}

@@ -4,6 +4,11 @@
 // Merged into StaticTranslatorRu/En.
 
 const guideRu = <String, String>{
+  // Owner 2026-10-19: the attorney's-view preview on the client's case.
+  'cases.preview.title': 'Как ваш кейс видят адвокаты',
+  'cases.preview.note':
+      'Так ваш кейс выглядит для всех проверенных адвокатов: без вашего имени, фото и контактов. Файлы и подробности они не видят, только сколько их.',
+  'cases.preview.more': 'Подробнее в справочнике',
   'guide.title': 'Справочник',
   'guide.intro':
       'Как устроен LawBid: кто что видит, как защищены ваши данные и какие правила действуют. Нажмите на раздел, чтобы раскрыть его.',
@@ -34,6 +39,10 @@ const guideRu = <String, String>{
 };
 
 const guideEn = <String, String>{
+  'cases.preview.title': 'How attorneys see your case',
+  'cases.preview.note':
+      'This is how your case looks to all verified attorneys: without your name, photo or contacts. They do not see your files or details, only how many there are.',
+  'cases.preview.more': 'More in the Guide',
   'guide.title': 'Guide',
   'guide.intro':
       'How LawBid works: who sees what, how your data is protected and which rules apply. Tap a section to open it.',
