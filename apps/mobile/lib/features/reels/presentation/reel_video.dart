@@ -151,11 +151,15 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
   void _fade(
     VideoPlayerController c,
     double to, {
-    Duration over = const Duration(milliseconds: 100),
+    Duration over = const Duration(milliseconds: 240),
     VoidCallback? then,
   }) {
     _ramp?.cancel();
-    const steps = 5;
+    // Owner 2026-10-19 (still a «тк» as each new video starts): five big
+    // steps of 0.2 were themselves heard as clicks. Now one step every
+    // ~8 ms, eased (gentle at the start of a rise), so the change is a
+    // smooth slope.
+    final steps = (over.inMilliseconds / 8).ceil().clamp(4, 40);
     final from = _vol;
     if ((from - to).abs() < 0.01) {
       _vol = to;
@@ -164,13 +168,17 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
       return;
     }
     var i = 0;
-    _ramp = Timer.periodic(over ~/ steps, (timer) {
+    _ramp = Timer.periodic(Duration(microseconds: over.inMicroseconds ~/ steps),
+        (timer) {
       if (_c != c) {
         timer.cancel();
         return;
       }
       i++;
-      _vol = from + (to - from) * (i / steps);
+      final x = i / steps;
+      // Rising: ease in (x²); falling: ease out — no jump at either end.
+      final eased = to > from ? x * x : 1 - (1 - x) * (1 - x);
+      _vol = from + (to - from) * eased;
       unawaited(c.setVolume(_vol));
       if (i >= steps) {
         timer.cancel();
