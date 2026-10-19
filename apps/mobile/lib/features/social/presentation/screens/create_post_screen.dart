@@ -99,22 +99,22 @@ const bool _showLegalSwitch = false;
 const bool _showDisclaimer = false;
 
 class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
-  /// Owner 2026-10-18: two fields, the same for photo, text and video
-  /// posts — a one-line «Заголовок» above a multi-line «Описание», both
-  /// optional. An older post without a stored title splits its text (the
-  /// first line is the title, the rest the description).
-  late final (String, String) _initial = switch (widget.editing) {
-    null => ('', ''),
-    final Post p when p.title != null => (p.title!, p.body),
-    final Post p => splitPostText(p.body),
+  /// Owner 2026-10-19: one caption field, as in Instagram, for clients and
+  /// attorneys alike (it replaces the «Заголовок» + «Описание» pair).
+  /// Published with an empty title, so the card shows the caption only.
+  /// Editing a post that has a title puts it on the caption's first line;
+  /// posts nobody edits keep their title as it is.
+  late final String _initial = switch (widget.editing) {
+    null => '',
+    final Post p when (p.title ?? '').trim().isNotEmpty =>
+      p.body.trim().isEmpty ? p.title!.trim() : '${p.title!.trim()}\n${p.body}',
+    final Post p => p.body,
   };
-  late final _title = TextEditingController(text: _initial.$1);
-  late final _body = TextEditingController(text: _initial.$2);
+  late final _body = TextEditingController(text: _initial);
   final _bodyFocus = FocusNode();
 
-  /// The typed (title, description) as they are published.
-  (String, String) get _parts =>
-      (postTitleOf(_title.text), postBodyOf(_body.text));
+  /// The typed (title, caption) as they are published: never a title.
+  (String, String) get _parts => ('', postBodyOf(_body.text));
 
   late final _photos = <_Photo>[
     for (var i = 0; i < widget.debugPhotoCount; i++)
@@ -160,7 +160,6 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
   @override
   void dispose() {
     _docs.dispose();
-    _title.dispose();
     _body.dispose();
     _bodyFocus.dispose();
     super.dispose();
@@ -443,7 +442,6 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
   /// empty post stays grey.
   bool get _ready =>
       _body.text.characters.length <= _maxChars &&
-      _title.text.characters.length <= kPostTitleMaxChars &&
       postHasContent(
         title: _parts.$1,
         body: _parts.$2,
@@ -812,30 +810,17 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                     ),
                   ],
                   const SizedBox(height: AppSpacing.lg),
-                  // Owner 2026-10-18: «Заголовок» (one line) above
-                  // «Описание» — the same for photo, text and video posts.
-                  PostTextField(
-                    controller: _title,
-                    fieldKey: const ValueKey('post-title-field'),
-                    singleLine: true,
-                    maxChars: kPostTitleMaxChars,
-                    hint: t.t('post.create.hintTitle'),
-                    textInputAction: TextInputAction.next,
-                    onSubmitted: (_) => _bodyFocus.requestFocus(),
-                  ),
-                  // OQ-042: "@…" suggests people to mention.
-                  MentionSuggestions(controller: _title),
-                  const SizedBox(height: AppSpacing.sm),
+                  // Owner 2026-10-19: one caption, as in Instagram.
                   PostTextField(
                     controller: _body,
                     fieldKey: const ValueKey('post-body-field'),
                     focusNode: _bodyFocus,
                     maxChars: _maxChars,
                     limitHint: _hasFiles ? t.t('post.create.limitHint') : null,
-                    hint: t.t('post.create.hintDescription'),
+                    hint: t.t('post.create.hintCaption'),
                   ),
                   ListenableBuilder(
-                    listenable: Listenable.merge([_title, _body]),
+                    listenable: _body,
                     builder: (context, _) => missing &&
                             !postHasContent(
                               title: _parts.$1,
@@ -863,7 +848,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
             Padding(
               padding: const EdgeInsets.all(AppSpacing.screenSide),
               child: ListenableBuilder(
-                listenable: Listenable.merge([_title, _body]),
+                listenable: _body,
                 builder: (context, _) => AppButton(
                   label: t.t(
                     _editing

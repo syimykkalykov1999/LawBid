@@ -13,9 +13,9 @@ import '../../helpers/long_locale.dart';
 import '../../helpers/ux_harness.dart';
 import 'social_fakes.dart';
 
-/// Owner 2026-10-18: every post form has a one-line «Заголовок» above a
-/// multi-line «Описание», both optional; photos (or a video, or files)
-/// alone can be published, an empty post cannot.
+/// Owner 2026-10-19: one caption field, as in Instagram, for clients and
+/// attorneys; photos (or a video, or files) alone can be published, an empty
+/// post cannot. Posts go out without a title.
 void main() {
   setUpAll(initializeDateFormatting);
 
@@ -38,32 +38,22 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
   }
 
-  final titleField = find.byKey(const ValueKey('post-title-field'));
   final bodyField = find.byKey(const ValueKey('post-body-field'));
 
   bool publishEnabled(WidgetTester tester) =>
       tester.widget<AppButton>(find.byType(AppButton).last).isEnabled;
 
-  testWidgets('two fields: a one-line title above a description', (
-    tester,
-  ) async {
+  testWidgets('one caption field, no title field', (tester) async {
     await open(tester);
-    expect(titleField, findsOneWidget);
+    expect(find.byKey(const ValueKey('post-title-field')), findsNothing);
     expect(bodyField, findsOneWidget);
-    expect(find.text('Title'), findsOneWidget);
-    expect(find.text('Description'), findsOneWidget);
-    final title = tester.widget<TextField>(titleField);
-    expect(title.maxLines, 1);
-    expect(title.maxLength, kPostTitleMaxChars);
+    expect(find.text('Title'), findsNothing);
+    expect(find.text('Description'), findsNothing);
+    expect(find.text('Write a caption for your post…'), findsOneWidget);
     expect(tester.widget<TextField>(bodyField).maxLines, greaterThan(1));
-    expect(
-      tester.getTopLeft(titleField).dy,
-      lessThan(tester.getTopLeft(bodyField).dy),
-    );
-    expect(find.textContaining('brief'), findsNothing);
   });
 
-  testWidgets('an empty post is refused, a title or a description is enough', (
+  testWidgets('an empty post is refused, a caption is enough', (
     tester,
   ) async {
     await open(tester);
@@ -71,43 +61,40 @@ void main() {
     await tester.enterText(bodyField, '   ');
     await tester.pump();
     expect(publishEnabled(tester), isFalse);
-    await tester.enterText(bodyField, 'Only a description');
-    await tester.pump();
-    expect(publishEnabled(tester), isTrue);
-    await tester.enterText(bodyField, '');
-    await tester.enterText(titleField, 'Only a title');
+    await tester.enterText(bodyField, 'Only a caption');
     await tester.pump();
     expect(publishEnabled(tester), isTrue);
   });
 
   testWidgets('photos without any text can be published', (tester) async {
     await open(tester, photos: 2);
-    expect(tester.widget<TextField>(titleField).controller!.text, isEmpty);
     expect(tester.widget<TextField>(bodyField).controller!.text, isEmpty);
     expect(publishEnabled(tester), isTrue);
   });
 
-  testWidgets('editing fills the title and the description', (tester) async {
+  testWidgets("editing a post with a title puts it on the caption's first line",
+      (tester) async {
     await open(
       tester,
       editing: fakePost('p1').copyWith(title: 'Stored title', body: 'Text'),
     );
     expect(
-      tester.widget<TextField>(titleField).controller!.text,
-      'Stored title',
+      tester.widget<TextField>(bodyField).controller!.text,
+      'Stored title\nText',
     );
-    expect(tester.widget<TextField>(bodyField).controller!.text, 'Text');
   });
 
-  testWidgets('an older post without a title splits its text', (
+  testWidgets('an older post without a title keeps its text whole', (
     tester,
   ) async {
     await open(
       tester,
       editing: fakePost('p2').copyWith(body: 'First line\nThe rest'),
     );
-    expect(tester.widget<TextField>(titleField).controller!.text, 'First line');
-    expect(tester.widget<TextField>(bodyField).controller!.text, 'The rest');
+    expect(
+      tester.widget<TextField>(bodyField).controller!.text,
+      'First line\nThe rest',
+    );
   });
 
   testWidgets('a photo-only post shows no title, no text and no «more»', (

@@ -322,7 +322,7 @@ void main() {
           });
         }
 
-        // 5. The post form: title / description, counters, media tiles.
+        // 5. The post form: one caption, its counter, media tiles.
         for (final photos in [0, 2]) {
           testWidgets('create post ($photos photos)', (tester) async {
             await pump(
@@ -331,14 +331,10 @@ void main() {
               overrides: overrides(),
             );
             expect(
-              find.byKey(const ValueKey('post-title-field')),
+              find.byKey(const ValueKey('post-body-field')),
               findsOneWidget,
             );
             expect(tester.takeException(), isNull);
-            await tester.enterText(
-              find.byKey(const ValueKey('post-title-field')),
-              'Tenant rights in five points, explained',
-            );
             await tester.enterText(
               find.byKey(const ValueKey('post-body-field')),
               'Text ' * 40,
