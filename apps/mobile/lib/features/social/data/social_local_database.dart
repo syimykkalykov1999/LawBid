@@ -1,5 +1,4 @@
 import 'package:drift/drift.dart';
-import 'package:drift_flutter/drift_flutter.dart';
 import 'package:lawbid/core/persistence/drift_web.dart';
 
 part 'social_local_database.g.dart';
@@ -55,7 +54,7 @@ class SocialLocalDatabase extends _$SocialLocalDatabase {
   SocialLocalDatabase([QueryExecutor? executor])
       : super(
           executor ??
-              driftDatabase(name: 'lawbid_social', web: appDriftWebOptions),
+              appDriftDatabase('lawbid_social'),
         );
 
   @override

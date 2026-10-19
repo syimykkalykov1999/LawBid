@@ -1,5 +1,4 @@
 import 'package:drift/drift.dart';
-import 'package:drift_flutter/drift_flutter.dart';
 import 'package:lawbid/core/persistence/drift_web.dart';
 
 part 'cases_local_database.g.dart';
@@ -34,7 +33,7 @@ class CasesLocalDatabase extends _$CasesLocalDatabase {
   CasesLocalDatabase([QueryExecutor? executor])
       : super(
           executor ??
-              driftDatabase(name: 'lawbid_cases', web: appDriftWebOptions),
+              appDriftDatabase('lawbid_cases'),
         );
 
   @override
