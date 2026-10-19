@@ -22063,6 +22063,194 @@
         ]
       }
     },
+    "/posts/events": {
+      "post": {
+        "operationId": "recordPostEvents",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordPostEventsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Record post impressions / profile visits from a post (batch)",
+        "tags": [
+          "posts"
+        ]
+      }
+    },
+    "/posts/{id}/insights": {
+      "get": {
+        "operationId": "postInsights",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "tzOffset",
+            "required": false,
+            "in": "query",
+            "description": "The viewer's UTC offset in minutes (e.g. 180 for UTC+3): the days of\nthe series are the viewer's local days.",
+            "schema": {
+              "minimum": -840,
+              "maximum": 840,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostInsightsEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ASSISTANT_NOT_ALLOWED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: POST_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Statistics of an own post: totals and the last 30 days by day (author only)",
+        "tags": [
+          "posts"
+        ]
+      }
+    },
     "/posts/{id}/repost": {
       "post": {
         "operationId": "repostPost",
@@ -96133,6 +96321,202 @@
           "video",
           "visual",
           "text"
+        ]
+      },
+      "PostEventItemDto": {
+        "type": "object",
+        "properties": {
+          "postId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "enum": [
+              "impression",
+              "profile_visit"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "postId",
+          "kind"
+        ]
+      },
+      "RecordPostEventsDto": {
+        "type": "object",
+        "properties": {
+          "events": {
+            "minItems": 1,
+            "maxItems": 50,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PostEventItemDto"
+            }
+          }
+        },
+        "required": [
+          "events"
+        ]
+      },
+      "PostInsightsCountsDto": {
+        "type": "object",
+        "properties": {
+          "impressions": {
+            "type": "integer",
+            "description": "Times the card was shown"
+          },
+          "reach": {
+            "type": "integer",
+            "description": "Unique accounts reached"
+          },
+          "views": {
+            "type": "integer",
+            "description": "Video views"
+          },
+          "likes": {
+            "type": "integer"
+          },
+          "comments": {
+            "type": "integer"
+          },
+          "saves": {
+            "type": "integer"
+          },
+          "reposts": {
+            "type": "integer"
+          },
+          "shares": {
+            "type": "integer"
+          },
+          "profileVisits": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "impressions",
+          "reach",
+          "views",
+          "likes",
+          "comments",
+          "saves",
+          "reposts",
+          "shares",
+          "profileVisits"
+        ]
+      },
+      "PostInsightsDayDto": {
+        "type": "object",
+        "properties": {
+          "impressions": {
+            "type": "integer",
+            "description": "Times the card was shown"
+          },
+          "reach": {
+            "type": "integer",
+            "description": "Unique accounts reached"
+          },
+          "views": {
+            "type": "integer",
+            "description": "Video views"
+          },
+          "likes": {
+            "type": "integer"
+          },
+          "comments": {
+            "type": "integer"
+          },
+          "saves": {
+            "type": "integer"
+          },
+          "reposts": {
+            "type": "integer"
+          },
+          "shares": {
+            "type": "integer"
+          },
+          "profileVisits": {
+            "type": "integer"
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-10-18"
+          }
+        },
+        "required": [
+          "impressions",
+          "reach",
+          "views",
+          "likes",
+          "comments",
+          "saves",
+          "reposts",
+          "shares",
+          "profileVisits",
+          "date"
+        ]
+      },
+      "PostInsightsDto": {
+        "type": "object",
+        "properties": {
+          "postId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "publishedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "totals": {
+            "description": "All time.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PostInsightsCountsDto"
+              }
+            ]
+          },
+          "interactions": {
+            "type": "integer",
+            "description": "likes + comments + saves + reposts + shares, all time."
+          },
+          "reachFollowers": {
+            "type": "integer",
+            "description": "Of [totals.reach]: accounts that follow the author now."
+          },
+          "reachNonFollowers": {
+            "type": "integer"
+          },
+          "days": {
+            "description": "One entry per local day, oldest first: the last 30 days, or since the\npost was published.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PostInsightsDayDto"
+            }
+          }
+        },
+        "required": [
+          "postId",
+          "publishedAt",
+          "totals",
+          "interactions",
+          "reachFollowers",
+          "reachNonFollowers",
+          "days"
+        ]
+      },
+      "PostInsightsEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PostInsightsDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
         ]
       },
       "PersonRole": {

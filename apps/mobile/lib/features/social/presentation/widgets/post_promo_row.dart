@@ -9,14 +9,16 @@ import 'package:lawbid/features/promotions/application/promotions_providers.dart
 import 'package:lawbid/features/promotions/domain/promotion_models.dart';
 import 'package:lawbid/features/promotions/presentation/boost_wizard.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
+import 'package:lawbid/features/social/social_routes.dart';
 import 'package:lawbid/features/team/application/team_providers.dart'
     show isAssistantProvider;
 
 /// Owner 2026-10-18 (Instagram): under the author's own PHOTO / VIDEO post,
 /// between the media and the likes row — «Статистика» as a text link on the
-/// left (always: the post's numbers; the promotion's statistics once it was
-/// boosted) and a filled «Продвигать публикацию» button over the right half
-/// (the boost wizard; a running boost shows its state and opens its stats).
+/// left (always: the post's statistics screen, which links to the
+/// promotion's statistics once it was boosted) and a filled «Продвигать
+/// публикацию» button over the right half (the boost wizard; a running
+/// boost shows its state and opens its stats).
 /// Briefs keep the Boost pill in their header. Only the author sees it.
 class PostPromoRow extends ConsumerWidget {
   const PostPromoRow({required this.post, super.key});
@@ -45,17 +47,25 @@ class PostPromoRow extends ConsumerWidget {
     void refresh() => ref
       ..invalidate(postPromotionProvider(postId))
       ..invalidate(myPromotionsProvider);
+    // Owner 2026-10-18: «Статистика» opens the post's own statistics for
+    // every own post; a promoted post links to its promotion's statistics
+    // from there («Продвижение»).
     Future<void> openStats() async {
+      await context.push<void>(SocialRoutes.insights(postId), extra: post);
+      refresh();
+    }
+
+    Future<void> openPromoStats() async {
       if (hasPromoStats) {
         await context.push<void>(AppRoutes.promotionStats(p.id));
         refresh();
       } else {
-        await showPostStatsSheet(context, post);
+        await openStats();
       }
     }
 
     Future<void> openBoost() async {
-      if (live) return openStats();
+      if (live) return openPromoStats();
       await PromoteSheet.show(
         context,
         target: PromotionTarget.post,
@@ -141,8 +151,8 @@ class PostPromoRow extends ConsumerWidget {
   }
 }
 
-/// Owner 2026-10-18: the post's numbers, for its owner only, until the full
-/// Instagram-like statistics screen is ready.
+/// Owner 2026-10-18: the post's numbers, for its owner only (a short
+/// sheet; «Статистика» now opens the full PostInsightsScreen).
 Future<void> showPostStatsSheet(BuildContext context, Post post) {
   return showAppBottomSheet<void>(
     context: context,

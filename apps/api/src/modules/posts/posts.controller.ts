@@ -47,6 +47,12 @@ import {
   type PostPage,
 } from './dto/posts.dto';
 import { PostEngagementService } from './post-engagement.service';
+import { PostInsightsService } from './post-insights.service';
+import {
+  PostInsightsDto,
+  PostInsightsQueryDto,
+  RecordPostEventsDto,
+} from './dto/post-insights.dto';
 import { PostAttachmentsPolicy } from './post-attachments.policy';
 import { PostsService } from './posts.service';
 import { PostAttachmentsAllowedDto } from './dto/posts.dto';
@@ -64,6 +70,7 @@ export class PostsController {
     private readonly posts: PostsService,
     private readonly engagement: PostEngagementService,
     private readonly attachmentsPolicy: PostAttachmentsPolicy,
+    private readonly insightsService: PostInsightsService,
   ) {}
 
   @Get('posts/attachments-allowed')
@@ -294,6 +301,41 @@ export class PostsController {
     @Param() p: PostIdParamDto,
   ): Promise<void> {
     return this.engagement.view(user.sub, p.id);
+  }
+
+  // Owner 2026-10-18: impressions of cards the viewer saw in a list (≥ 50 %
+  // on screen for about a second) and profile visits made from a post, in
+  // batches; one per viewer + post + kind per 24 h, never the author's own.
+  @Post('posts/events')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Record post impressions / profile visits from a post (batch)',
+  })
+  @ApiErrors({ 400: [E.VALIDATION_ERROR] })
+  recordPostEvents(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: RecordPostEventsDto,
+  ): Promise<void> {
+    return this.insightsService.record(user, dto.events);
+  }
+
+  // Owner 2026-10-18 (Instagram Insights): the author only — an assistant
+  // with the "posts" duty for the attorney; anyone else 404 (403 for an
+  // assistant without the duty).
+  @AttorneyOnly('posts')
+  @Get('posts/:id/insights')
+  @ApiOperation({
+    summary:
+      'Statistics of an own post: totals and the last 30 days by day (author only)',
+  })
+  @ApiEnvelopeResponse(PostInsightsDto)
+  @ApiErrors({ 403: [E.ASSISTANT_NOT_ALLOWED], 404: [E.POST_NOT_FOUND] })
+  postInsights(
+    @CurrentUser() user: RequestUser,
+    @Param() p: PostIdParamDto,
+    @Query() q: PostInsightsQueryDto,
+  ): Promise<PostInsightsDto> {
+    return this.insightsService.insights(user, p.id, q.tzOffset ?? 0);
   }
 
   @Delete('posts/:id/like')

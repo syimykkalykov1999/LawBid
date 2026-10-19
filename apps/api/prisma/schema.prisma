@@ -2193,6 +2193,8 @@ model SavedItem {
 
   @@id([user_id, item_type, item_id])
   @@index([user_id, item_type, created_at(sort: Desc)])
+  // Owner 2026-10-18: a post's saves by day (post statistics).
+  @@index([item_type, item_id, created_at])
   @@map("saved_items")
 }
 

@@ -10,6 +10,7 @@ import { BunnyWebhookController } from './bunny-webhook.controller';
 import { ContentFilterService } from './content-filter.service';
 import { PostAttachmentsPolicy } from './post-attachments.policy';
 import { PostEventsService } from './post-events.service';
+import { PostInsightsService } from './post-insights.service';
 import { PostEngagementService } from './post-engagement.service';
 import { PostVideosController } from './post-videos.controller';
 import { PostVideosService } from './post-videos.service';
@@ -33,6 +34,7 @@ import { PostsService } from './posts.service';
   providers: [
     PostsService,
     PostEventsService,
+    PostInsightsService,
     PostPresenter,
     PostEngagementService,
     PostVideosService,

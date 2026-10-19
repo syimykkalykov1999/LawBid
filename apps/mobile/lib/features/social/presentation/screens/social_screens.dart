@@ -20,6 +20,7 @@ import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart';
 import 'package:lawbid/features/social/presentation/widgets/comment_widgets.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_grid_tile.dart';
+import 'package:lawbid/features/social/presentation/widgets/post_impression_tracker.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_prefetch.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:lawbid/shared/presentation/list_search_field.dart';
@@ -72,7 +73,10 @@ class PostsFeedView extends ConsumerWidget {
           skeleton: const PostListSkeleton(),
           itemKey: (p) => p.id,
           prefetch: prefetchPost,
-          itemBuilder: (context, p, _) => PostCard(post: p, feedHeight: height),
+          itemBuilder: (context, p, _) => PostImpressionTracker(
+            post: p,
+            child: PostCard(post: p, feedHeight: height),
+          ),
           // §2.3: "Пока в ленте пусто" + recommended attorneys to follow.
           empty: ListView(
             padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
@@ -123,7 +127,10 @@ class LatestPostsView extends ConsumerWidget {
           skeleton: const PostListSkeleton(),
           itemKey: (p) => p.id,
           prefetch: prefetchPost,
-          itemBuilder: (context, p, _) => PostCard(post: p, feedHeight: height),
+          itemBuilder: (context, p, _) => PostImpressionTracker(
+            post: p,
+            child: PostCard(post: p, feedHeight: height),
+          ),
           empty: AppEmptyState(
             icon: AppIcons.mapOutlined,
             message: t.t('feed.state.empty'),
@@ -187,7 +194,10 @@ class FilteredPostsView extends ConsumerWidget {
           skeleton: const PostListSkeleton(),
           itemKey: (p) => p.id,
           prefetch: prefetchPost,
-          itemBuilder: (context, p, _) => PostCard(post: p, feedHeight: height),
+          itemBuilder: (context, p, _) => PostImpressionTracker(
+            post: p,
+            child: PostCard(post: p, feedHeight: height),
+          ),
           empty: AppEmptyState(
             icon: newsOnly ? AppIcons.newspaperRounded : AppIcons.tagRounded,
             message: t.t(
@@ -260,7 +270,10 @@ class TopicPostsView extends ConsumerWidget {
           skeleton: const PostListSkeleton(),
           itemKey: (p) => p.id,
           prefetch: prefetchPost,
-          itemBuilder: (context, p, _) => PostCard(post: p, feedHeight: height),
+          itemBuilder: (context, p, _) => PostImpressionTracker(
+            post: p,
+            child: PostCard(post: p, feedHeight: height),
+          ),
           empty: AppEmptyState(
             icon: AppIcons.tagRounded,
             message: t.t('tag.empty'),
@@ -335,10 +348,13 @@ class PostScreen extends ConsumerWidget {
                               AppSpacing.xl,
                         ),
                         children: [
-                          PostCard(
+                          PostImpressionTracker(
                             post: p,
-                            inDetail: true,
-                            fromProfile: fromProfile,
+                            child: PostCard(
+                              post: p,
+                              inDetail: true,
+                              fromProfile: fromProfile,
+                            ),
                           ),
                           const Padding(
                             padding: EdgeInsets.symmetric(
@@ -514,7 +530,10 @@ class _TagScreenState extends ConsumerState<TagScreen> {
               t: t,
               skeleton: const PostListSkeleton(),
               itemKey: (p) => p.id,
-              itemBuilder: (context, p, _) => PostCard(post: p),
+              itemBuilder: (context, p, _) => PostImpressionTracker(
+                post: p,
+                child: PostCard(post: p),
+              ),
               empty: AppEmptyState(
                 icon: AppIcons.tagRounded,
                 message: t.t('tag.empty'),
@@ -710,7 +729,12 @@ class ProfileRepostsList extends ConsumerWidget {
         }
         return Column(
           children: [
-            for (final p in posts) PostCard(key: ValueKey(p.id), post: p),
+            for (final p in posts)
+              PostImpressionTracker(
+                key: ValueKey('imp-${p.id}'),
+                post: p,
+                child: PostCard(key: ValueKey(p.id), post: p),
+              ),
             if (page.canLoadMore)
               TextButton(
                 onPressed: () =>
@@ -874,13 +898,21 @@ class ProfileBriefsAndReposts extends ConsumerWidget {
     return Column(
       children: [
         for (final p in pinnedShown)
-          PostCard(key: ValueKey(p.id), post: p, showPin: true),
+          PostImpressionTracker(
+            key: ValueKey('imp-${p.id}'),
+            post: p,
+            child: PostCard(key: ValueKey(p.id), post: p, showPin: true),
+          ),
         for (final e in shown)
-          PostCard(
-            key: ValueKey(e.item.id),
+          PostImpressionTracker(
+            key: ValueKey('imp-${e.item.id}'),
             post: e.item,
-            // As in the old «Текст» tab; a repost keeps its own look.
-            showPin: e.source == _briefs,
+            child: PostCard(
+              key: ValueKey(e.item.id),
+              post: e.item,
+              // As in the old «Текст» tab; a repost keeps its own look.
+              showPin: e.source == _briefs,
+            ),
           ),
         if (merged.hasMore)
           TextButton(
@@ -939,7 +971,10 @@ class SavedPostsList extends ConsumerWidget {
                 ],
               ),
             )
-          : PostCard(post: s.post!),
+          : PostImpressionTracker(
+              post: s.post!,
+              child: PostCard(post: s.post!),
+            ),
       empty: AppEmptyState(
         icon: AppIcons.bookmarkBorderRounded,
         message: t.t('mine.savedPosts.empty'),
@@ -1046,7 +1081,11 @@ class ProfilePostsGrid extends ConsumerWidget {
           return Column(
             children: [
               for (final p in posts)
-                PostCard(key: ValueKey(p.id), post: p, showPin: true),
+                PostImpressionTracker(
+                  key: ValueKey('imp-${p.id}'),
+                  post: p,
+                  child: PostCard(key: ValueKey(p.id), post: p, showPin: true),
+                ),
               if (page.canLoadMore)
                 TextButton(
                   onPressed: () => ref.read(_provider.notifier).loadMore(),
@@ -1170,11 +1209,14 @@ class _ThreadDetailState extends ConsumerState<_ThreadDetail> {
             child: CustomScrollView(
               slivers: [
                 SliverToBoxAdapter(
-                  child: PostCard(
+                  child: PostImpressionTracker(
                     post: p,
-                    inDetail: true,
-                    fromProfile: widget.fromProfile,
-                    onReply: _focus.requestFocus,
+                    child: PostCard(
+                      post: p,
+                      inDetail: true,
+                      fromProfile: widget.fromProfile,
+                      onReply: _focus.requestFocus,
+                    ),
                   ),
                 ),
                 SliverToBoxAdapter(

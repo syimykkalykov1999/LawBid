@@ -17,12 +17,14 @@ import 'package:lawbid/features/blocks/presentation/block_actions.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
     show showConfirmSheet;
 import 'package:lawbid/features/promotions/presentation/promote_case_card.dart';
+import 'package:lawbid/features/social/application/post_insights_providers.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/data/social_repository.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/screens/create_post_screen.dart';
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart'
     show RepostersScreen;
+import 'package:lawbid/features/social/presentation/widgets/post_impression_tracker.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
@@ -125,15 +127,27 @@ void openProfile(
   );
 }
 
-/// [openProfile] for a post's author.
-void openAuthorProfile(BuildContext context, WidgetRef ref, PostAuthor a) =>
-    openProfile(
-      context,
-      ref,
-      id: a.id,
-      username: a.username,
-      isClient: a.isClient,
-    );
+/// [openProfile] for a post's author. Owner 2026-10-18: opened from a post
+/// ([fromPostId], else the [PostSourceScope] around [context]) it counts as
+/// a profile visit in that post's statistics (never one's own).
+void openAuthorProfile(
+  BuildContext context,
+  WidgetRef ref,
+  PostAuthor a, {
+  String? fromPostId,
+}) {
+  final from = fromPostId ?? PostSourceScope.maybeOf(context);
+  if (from != null && a.id != ref.read(currentUserIdProvider)) {
+    ref.read(postEventsQueueProvider).profileVisit(from);
+  }
+  openProfile(
+    context,
+    ref,
+    id: a.id,
+    username: a.username,
+    isClient: a.isClient,
+  );
+}
 
 /// Reloads every post list after a block (the blocked person's posts go).
 void refreshPostLists(WidgetRef ref) {

@@ -6,6 +6,7 @@ import 'package:lawbid/core/navigation/shell/web_page_frame.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
+import 'package:lawbid/features/social/presentation/widgets/post_impression_tracker.dart';
 
 /// Owner 2026-10-07 (Instagram): a tap on a tile of someone's grid opens
 /// their posts as a feed, starting at the tapped one; scrolling up shows
@@ -75,7 +76,10 @@ class _PostsFeedScreenState extends ConsumerState<PostsFeedScreen> {
     Widget card(Post p) => Padding(
           key: ValueKey(p.id),
           padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-          child: PostCard(post: p, fromProfile: widget.oneAuthor),
+          child: PostImpressionTracker(
+            post: p,
+            child: PostCard(post: p, fromProfile: widget.oneAuthor),
+          ),
         );
     return Scaffold(
       backgroundColor: colors.bg,

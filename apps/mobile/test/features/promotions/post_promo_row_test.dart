@@ -11,6 +11,7 @@ import 'package:lawbid/features/promotions/data/promotions_repository.dart';
 import 'package:lawbid/features/promotions/domain/promotion_models.dart';
 import 'package:lawbid/features/promotions/presentation/boost_wizard.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_promo_row.dart';
+import 'package:lawbid/features/social/social_routes.dart';
 
 import '../../helpers/ux_harness.dart';
 import '../social/social_fakes.dart';
@@ -78,6 +79,12 @@ Future<void> main() async {
           ),
         ),
         GoRoute(
+          path: SocialRoutes.insightsPattern,
+          builder: (_, s) => Scaffold(
+            body: Text('insights-screen-${s.pathParameters['id']}'),
+          ),
+        ),
+        GoRoute(
           path: AppRoutes.promotionStatsPattern,
           builder: (_, s) => Scaffold(
             body: Text('stats-screen-${s.pathParameters['id']}'),
@@ -123,7 +130,10 @@ Future<void> main() async {
     expect(find.byType(PromoteSheet), findsOneWidget);
   });
 
-  testWidgets('running: state shown, both buttons open its stats', (t) async {
+  // Owner 2026-10-18: «Статистика» opens the post's own statistics for
+  // every own post (they link to the promotion's statistics from there).
+  testWidgets('running: state shown, «Stats» opens the post insights',
+      (t) async {
     await open(
       t,
       isMine: true,
@@ -133,7 +143,14 @@ Future<void> main() async {
     expect(find.text('Running'), findsOneWidget);
     await t.tap(find.text('Stats'));
     await t.pumpAndSettle();
-    expect(find.text('stats-screen-pr1'), findsOneWidget);
+    expect(find.text('insights-screen-p1'), findsOneWidget);
+  });
+
+  testWidgets('never promoted: «Stats» opens the post insights', (t) async {
+    await open(t, isMine: true);
+    await t.tap(find.text('Stats'));
+    await t.pumpAndSettle();
+    expect(find.text('insights-screen-p1'), findsOneWidget);
   });
 
   testWidgets('finished: stats on the left, Boost again on the right',

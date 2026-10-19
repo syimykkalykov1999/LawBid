@@ -7,7 +7,8 @@ const auditSocialRu = <String, String>{
   'post.stats.likes': 'Нравится',
   'post.stats.comments': 'Комментарии',
   'post.stats.reposts': 'Репосты',
-  'post.stats.soon': 'Видно только вам. Подробная статистика по дням — просмотры, охват, сохранения и переходы в профиль — скоро появится здесь.',
+  'post.stats.soon':
+      'Видно только вам. Подробная статистика по дням — просмотры, охват, сохранения и переходы в профиль — скоро появится здесь.',
   'post.toReel.title': 'Сделать рилс?',
   'post.toReel.message': 'В рилсе одно видео. Выбранные фото не сохранятся.',
   'post.toReel.confirm': 'К рилсу',
@@ -57,6 +58,29 @@ const auditSocialRu = <String, String>{
   'archive.empty.message':
       'Архивируйте публикацию в меню ⋯ — она пропадёт из профиля и лент, но сохранит лайки и комментарии.',
   'archive.post.note': 'В архиве — этот пост видите только вы',
+  // Owner 2026-10-18: post insights (PostInsightsScreen).
+  'post.insights.published': 'Опубликовано {date}',
+  'post.insights.overview': 'Обзор',
+  'post.insights.reach': 'Охваченные аккаунты',
+  'post.insights.impressions': 'Показы',
+  'post.insights.views': 'Просмотры',
+  'post.insights.interactions': 'Взаимодействия',
+  'post.insights.profileVisits': 'Переходы в профиль',
+  'post.insights.saves': 'Сохранения',
+  'post.insights.shares': 'Отправки',
+  'post.insights.byDay': 'По дням',
+  'post.insights.range': '{from} – {to}',
+  'post.insights.noData': 'За эти дни пока ничего нет.',
+  'post.insights.audience': 'Кого охватила публикация',
+  'post.insights.followers': 'Подписчики',
+  'post.insights.nonFollowers': 'Не подписаны',
+  'post.insights.promotion': 'Продвижение',
+  'post.insights.promotionHint':
+      'Охват, клики и расходы оплаченного продвижения.',
+  'post.insights.promotionOpen': 'Статистика продвижения',
+  'post.insights.onlyYou': 'Статистику публикации видите только вы.',
+  'post.insights.unavailable': 'Статистику публикации видит только её автор.',
+  'post.insights.retry': 'Повторить',
 };
 
 const auditSocialEn = <String, String>{
@@ -64,7 +88,8 @@ const auditSocialEn = <String, String>{
   'post.stats.likes': 'Likes',
   'post.stats.comments': 'Comments',
   'post.stats.reposts': 'Reposts',
-  'post.stats.soon': 'Only you can see this. Detailed daily insights — views, reach, saves and profile visits — will appear here soon.',
+  'post.stats.soon':
+      'Only you can see this. Detailed daily insights — views, reach, saves and profile visits — will appear here soon.',
   'post.toReel.title': 'Make it a reel?',
   'post.toReel.message':
       'A reel has one video. The chosen photos will be removed.',
@@ -114,4 +139,27 @@ const auditSocialEn = <String, String>{
   'archive.empty.message':
       'Archive a post from its ⋯ menu: it leaves your profile and feeds but keeps its likes and comments.',
   'archive.post.note': 'Archived — only you can see this post',
+  // Owner 2026-10-18: post insights (PostInsightsScreen).
+  'post.insights.published': 'Posted {date}',
+  'post.insights.overview': 'Overview',
+  'post.insights.reach': 'Accounts reached',
+  'post.insights.impressions': 'Impressions',
+  'post.insights.views': 'Views',
+  'post.insights.interactions': 'Interactions',
+  'post.insights.profileVisits': 'Profile visits',
+  'post.insights.saves': 'Saves',
+  'post.insights.shares': 'Shares',
+  'post.insights.byDay': 'By day',
+  'post.insights.range': '{from} – {to}',
+  'post.insights.noData': 'Nothing for these days yet.',
+  'post.insights.audience': 'Who it reached',
+  'post.insights.followers': 'Followers',
+  'post.insights.nonFollowers': 'Non-followers',
+  'post.insights.promotion': 'Promotion',
+  'post.insights.promotionHint':
+      'Reach, clicks and spend of the paid promotion.',
+  'post.insights.promotionOpen': 'Promotion insights',
+  'post.insights.onlyYou': 'Only you can see these insights.',
+  'post.insights.unavailable': "Only the post's author can see its insights.",
+  'post.insights.retry': 'Retry',
 };

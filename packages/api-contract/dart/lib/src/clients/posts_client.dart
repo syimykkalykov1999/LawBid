@@ -13,9 +13,11 @@ import '../models/post_comments_setting_dto.dart';
 import '../models/post_counters_dto.dart';
 import '../models/post_deleted_envelope.dart';
 import '../models/post_envelope.dart';
+import '../models/post_insights_envelope.dart';
 import '../models/post_kind.dart';
 import '../models/post_list_envelope.dart';
 import '../models/post_media_filter.dart';
+import '../models/record_post_events_dto.dart';
 import '../models/saved_post_item_list_envelope.dart';
 import '../models/update_post_dto.dart';
 
@@ -156,6 +158,24 @@ abstract class PostsClient {
   @POST('/posts/{id}/view')
   Future<void> viewPost({
     @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Record post impressions / profile visits from a post (batch)
+  @POST('/posts/events')
+  Future<void> recordPostEvents({
+    @Body() required RecordPostEventsDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Statistics of an own post: totals and the last 30 days by day (author only).
+  ///
+  /// [tzOffset] - The viewer's UTC offset in minutes (e.g. 180 for UTC+3): the days of.
+  /// the series are the viewer's local days.
+  @GET('/posts/{id}/insights')
+  Future<PostInsightsEnvelope> postInsights({
+    @Path('id') required String id,
+    @Query('tzOffset') int? tzOffset,
     @Extras() Map<String, dynamic>? extras,
   });
 
