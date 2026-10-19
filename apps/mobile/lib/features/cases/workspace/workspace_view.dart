@@ -9,6 +9,7 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_parts.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
+import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/cases/workspace/compose_sheet.dart';
 import 'package:lawbid/features/cases/workspace/file_actions.dart';
 import 'package:lawbid/features/cases/workspace/tasks_tab.dart';
@@ -235,39 +236,21 @@ class FilterRow extends StatelessWidget {
   final int index;
   final ValueChanged<int> onChanged;
 
+  /// Owner 2026-10-19 («подумал, что это просто тексты»): the filters are
+  /// the app's chips — clearly something to tap, theme colours, the same
+  /// as every other filter row.
   @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.lg,
-        AppSpacing.md,
-        AppSpacing.lg,
-        AppSpacing.xs,
-      ),
-      child: Row(
-        children: [
-          for (final (i, l) in labels.indexed)
-            GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () => onChanged(i),
-              child: Padding(
-                padding: const EdgeInsetsDirectional.only(end: 20),
-                child: Text(
-                  l,
-                  style: type.bodySmall.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: i == index ? colors.text : colors.textSecondary,
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(
+          top: AppSpacing.md,
+          bottom: AppSpacing.xs,
+        ),
+        child: FilterChips<int>(
+          value: index,
+          options: [for (final (i, l) in labels.indexed) (i, l)],
+          onChanged: onChanged,
+        ),
+      );
 }
 
 // ---------------------------------------------------------------- Files
