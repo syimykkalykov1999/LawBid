@@ -625,6 +625,32 @@ export class BidsService {
     tx: Prisma.TransactionClient;
   }): Promise<void> {
     const { caseId, attorneyId, clientId, bidId, action, by, plan, tx } = input;
+    // Owner 2026-10-19: a counter-offer puts the bid's chat in the other
+    // side's «Ожидают ответа» (and takes it out of the sender's); any other
+    // end of the round takes it out for both.
+    const actorId = by === 'client' ? clientId : attorneyId;
+    const otherId = by === 'client' ? attorneyId : clientId;
+    const chats = await tx.conversation.findMany({
+      where: { bid_id: bidId },
+      select: { id: true },
+    });
+    for (const { id } of chats) {
+      if (action === 'counter') {
+        await tx.conversationParticipant.updateMany({
+          where: { conversation_id: id, user_id: otherId, waiting_since: null },
+          data: { waiting_since: new Date() },
+        });
+        await tx.conversationParticipant.updateMany({
+          where: { conversation_id: id, user_id: actorId },
+          data: { waiting_since: null },
+        });
+      } else {
+        await tx.conversationParticipant.updateMany({
+          where: { conversation_id: id, user_id: { in: [actorId, otherId] } },
+          data: { waiting_since: null },
+        });
+      }
+    }
     if (plan.to === 'failed_negotiation') {
       // §6.2: both sides, "Стороны не договорились" (notif.bids.* text,
       // file 05 delivery).
