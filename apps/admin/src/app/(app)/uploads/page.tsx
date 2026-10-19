@@ -60,6 +60,7 @@ const FORMAT_LABEL: Record<Format, string> = {
   csv: 'CSV',
   mp4: 'MP4',
   mov: 'MOV',
+  webm: 'WebM',
 };
 const PHOTO: readonly Format[] = ['jpeg', 'png', 'heic', 'webp', 'gif'];
 /** Owner 2026-10-17: videos (chat and support; the app compresses them to 720p). */
