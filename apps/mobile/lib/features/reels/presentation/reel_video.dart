@@ -165,14 +165,10 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
       _close();
       _resumeAt = at;
     }
-    // With sound a reel takes the audio focus (other music pauses, like
-    // Instagram); muted previews mix with it. The mode is fixed when the
-    // player is created, so a mute change re-opens it at the same spot.
-    if (widget.muted != old.muted && _c != null) {
-      final at = _c!.value.position;
-      _close();
-      _resumeAt = at;
-    }
+    // Owner 2026-10-19 (the «тк» before the sound): a mute change no longer
+    // re-opens the player (that restart was heard), and every player uses
+    // the same audio mode, so the phone's audio session is set once and
+    // never switched while another reel plays — only the volume changes.
     if (widget.video.playbackUrl != old.video.playbackUrl) _close();
     if ((widget.active || widget.warm) && _c == null) _open();
     _apply();
@@ -188,7 +184,9 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
   Future<void> _open() async {
     final url = widget.video.playerUrl(web: kIsWeb);
     if (url == null) return;
-    final options = VideoPlayerOptions(mixWithOthers: widget.muted);
+    // One audio mode for every reel (see didUpdateWidget): with sound a
+    // reel takes the audio focus, like Instagram.
+    final options = VideoPlayerOptions();
     final c = debugReelPlayerFactory?.call(Uri.parse(url), options) ??
         VideoPlayerController.networkUrl(
           Uri.parse(url),
@@ -206,6 +204,9 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
     c.addListener(_tick);
     try {
       await c.initialize();
+      // Silent until it is the one on screen: a warmed neighbour never
+      // makes a sound (not even while it seeks to its start).
+      await c.setVolume(0);
       await c.setLooping(true);
       final clip = ReelClip.of(widget.video, c.value.duration);
       _clip = clip;
@@ -246,8 +247,10 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
   void _apply() {
     final c = _c;
     if (c == null || !_ready) return;
-    c.setVolume(widget.muted ? 0 : 1);
     final play = widget.active && !widget.paused && playbackVisible;
+    // Exactly one reel is heard: the one playing; the volume is set before
+    // play and taken to 0 before a pause.
+    c.setVolume(play && !widget.muted ? 1 : 0);
     if (play && !c.value.isPlaying) {
       c.play();
     } else if (!play && c.value.isPlaying) {
