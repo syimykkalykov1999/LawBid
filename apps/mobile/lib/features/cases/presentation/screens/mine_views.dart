@@ -503,10 +503,17 @@ class _AttorneySavedState extends ConsumerState<_AttorneySaved> {
           onChanged: (v) => setState(() => _kind = v),
         ),
         const SizedBox(height: AppSpacing.sm),
+        // Owner 2026-10-19 (Instagram): cases and posts slide side by side.
         Expanded(
-          child: _kind == _SavedKind.cases
-              ? _SavedGrid(search: widget.search)
-              : const SavedPostsList(),
+          child: SwipePages<_SavedKind>(
+            value: _kind,
+            values: _SavedKind.values,
+            onChanged: (v) => setState(() => _kind = v),
+            pageBuilder: (_, kind) => switch (kind) {
+              _SavedKind.cases => _SavedGrid(search: widget.search),
+              _SavedKind.posts => const SavedPostsList(),
+            },
+          ),
         ),
       ],
     );

@@ -8,6 +8,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/text/bidi.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_photos.dart'
     show openCaseDocument;
+import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/application/voice_player.dart';
 import 'package:lawbid/features/chat/application/voice_recorder.dart';
@@ -94,7 +95,14 @@ class _ChatFilesScreenState extends ConsumerState<ChatFilesScreen>
     length: ChatFilesTab.values.length,
     vsync: this,
     initialIndex: widget.initialTab.index,
-  )..addListener(_onTab);
+  )
+    ..addListener(_onTab)
+    // The pages follow the tab row (a tap slides them to the tab).
+    ..addListener(_rebuild);
+
+  void _rebuild() {
+    if (mounted) setState(() {});
+  }
 
   @override
   void initState() {
@@ -224,53 +232,63 @@ class _ChatFilesScreenState extends ConsumerState<ChatFilesScreen>
             ],
           ),
           Expanded(
-            child: TabBarView(
-              controller: _tabs,
-              children: [
-                _MediaTab(
-                  media: media,
-                  storage: _storage,
-                  loading: _loading,
-                  error: _error,
-                  onRetry: _load,
-                  onScroll: _onScroll,
-                  countLabel: t.t('files.count.media', {
-                    'photos': plus(
-                      media.where((m) => m.attachment!.isImage).length,
-                      partial: !_done,
-                    ),
-                    'videos': plus(
-                      media.where((m) => m.attachment!.isVideo).length,
-                      partial: !_done,
-                    ),
-                  }),
-                ),
-                _DocsTab(
-                  docs: docs,
-                  loading: _loading,
-                  error: _error,
-                  onRetry: _load,
-                  onScroll: _onScroll,
-                  countLabel: t.t('files.count.documents', {
-                    'n': plus(docs.length, partial: !_done),
-                  }),
-                ),
-                _LinksTab(
-                  links: links,
-                  loading: thread.loadingMore || (thread.loading && more),
-                  countLabel: t.t('files.count.links', {
-                    'n': plus(links.length, partial: thread.nextCursor != null),
-                  }),
-                ),
-                _VoiceTab(
-                  voice: voice,
-                  conversationId: widget.conversationId,
-                  loading: thread.loadingMore,
-                  countLabel: t.t('files.count.voice', {
-                    'n': plus(voice.length, partial: thread.nextCursor != null),
-                  }),
-                ),
-              ],
+            // Owner 2026-10-19 (Instagram): the next section slides in with
+            // the finger, a tap slides to it, each keeps its scroll.
+            child: SwipePages<ChatFilesTab>(
+              value: ChatFilesTab.values[_tabs.index],
+              values: ChatFilesTab.values,
+              onChanged: (v) => _tabs.animateTo(v.index),
+              pageBuilder: (_, tab) => switch (tab) {
+                ChatFilesTab.media => _MediaTab(
+                    media: media,
+                    storage: _storage,
+                    loading: _loading,
+                    error: _error,
+                    onRetry: _load,
+                    onScroll: _onScroll,
+                    countLabel: t.t('files.count.media', {
+                      'photos': plus(
+                        media.where((m) => m.attachment!.isImage).length,
+                        partial: !_done,
+                      ),
+                      'videos': plus(
+                        media.where((m) => m.attachment!.isVideo).length,
+                        partial: !_done,
+                      ),
+                    }),
+                  ),
+                ChatFilesTab.documents => _DocsTab(
+                    docs: docs,
+                    loading: _loading,
+                    error: _error,
+                    onRetry: _load,
+                    onScroll: _onScroll,
+                    countLabel: t.t('files.count.documents', {
+                      'n': plus(docs.length, partial: !_done),
+                    }),
+                  ),
+                ChatFilesTab.links => _LinksTab(
+                    links: links,
+                    loading: thread.loadingMore || (thread.loading && more),
+                    countLabel: t.t('files.count.links', {
+                      'n': plus(
+                        links.length,
+                        partial: thread.nextCursor != null,
+                      ),
+                    }),
+                  ),
+                ChatFilesTab.voice => _VoiceTab(
+                    voice: voice,
+                    conversationId: widget.conversationId,
+                    loading: thread.loadingMore,
+                    countLabel: t.t('files.count.voice', {
+                      'n': plus(
+                        voice.length,
+                        partial: thread.nextCursor != null,
+                      ),
+                    }),
+                  ),
+              },
             ),
           ),
         ],

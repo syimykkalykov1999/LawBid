@@ -502,12 +502,6 @@ class _TagScreenState extends ConsumerState<TagScreen> {
         ),
       );
     }
-    final key = (tag: widget.tag, sort: _sort, state: null);
-    final value = _withoutDeleted(
-      ref.watch(tagPostsProvider(key)),
-      ref.watch(deletedPostsProvider),
-    );
-    final notifier = ref.read(tagPostsProvider(key).notifier);
     return Scaffold(
       backgroundColor: colors.bg,
       appBar: AppTopBar(
@@ -528,28 +522,58 @@ class _TagScreenState extends ConsumerState<TagScreen> {
             ],
             onChanged: (v) => setState(() => _sort = v),
           ),
+          // Owner 2026-10-19: the sections slide with the finger and on a
+          // tap (Instagram); each keeps its list and scroll once built.
           Expanded(
-            child: PagedListBody<Post>(
-              key: ValueKey(_sort),
-              value: value,
-              t: t,
-              skeleton: const PostListSkeleton(),
-              itemKey: (p) => p.id,
-              itemBuilder: (context, p, _) => PostImpressionTracker(
-                post: p,
-                child: PostCard(post: p),
+            child: SwipePages<TagSort>(
+              value: _sort,
+              values: const [TagSort.top, TagSort.fresh, TagSort.video],
+              onChanged: (v) => setState(() => _sort = v),
+              pageBuilder: (_, sort) => _TagSortPage(
+                key: ValueKey(sort),
+                tag: widget.tag,
+                sort: sort,
               ),
-              empty: AppEmptyState(
-                icon: AppIcons.tagRounded,
-                message: t.t('tag.empty'),
-              ),
-              onRefresh: notifier.refresh,
-              onLoadMore: notifier.loadMore,
-              onRetryMore: notifier.retryLoadMore,
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+/// One section of [TagScreen] (Top, New or Video).
+class _TagSortPage extends ConsumerWidget {
+  const _TagSortPage({required this.tag, required this.sort, super.key});
+
+  final String tag;
+  final TagSort sort;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    final key = (tag: tag, sort: sort, state: null);
+    final value = _withoutDeleted(
+      ref.watch(tagPostsProvider(key)),
+      ref.watch(deletedPostsProvider),
+    );
+    final notifier = ref.read(tagPostsProvider(key).notifier);
+    return PagedListBody<Post>(
+      value: value,
+      t: t,
+      skeleton: const PostListSkeleton(),
+      itemKey: (p) => p.id,
+      itemBuilder: (context, p, _) => PostImpressionTracker(
+        post: p,
+        child: PostCard(post: p),
+      ),
+      empty: AppEmptyState(
+        icon: AppIcons.tagRounded,
+        message: t.t('tag.empty'),
+      ),
+      onRefresh: notifier.refresh,
+      onLoadMore: notifier.loadMore,
+      onRetryMore: notifier.retryLoadMore,
     );
   }
 }
