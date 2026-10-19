@@ -272,6 +272,22 @@ POST; Bunny TUS must expose Location / Upload-Offset).
   owner can paste TEST keys in the LOCAL admin «Интеграции → Stripe» and pay
   with 4242 4242 4242 4242.
 
+## 2026-10-19 evening (all committed locally, NOT pushed)
+- Tasks: one sheet everywhere (planner_task_sheet.dart); old TaskEditorScreen and
+  other dead code removed (~3,800 lines). Magnifier left of «+».
+- Chats: sharp photos (ChatPhoto decodes the stored photo), Telegram albums
+  (client rule in chat/domain/message_groups.dart), smaller bubbles.
+- Search topics: one topic per area of law (search_screen.dart _splitTags).
+- Counter-offer → bid chat goes to the other side's «Ожидают ответа».
+- Push/calls with screen off: code ready; owner pastes NEW keys at the end
+  (admin fcm + apns; Firebase console APNs key; GoogleService-Info.plist in
+  ios/Runner, google-services.json in android/app/src/prod; Push capability).
+- OPEN: Cases tab (folder) does not react on the owner's iPhone (works on web);
+  notifications sorting waits for answers 1–3; declining a call on the system
+  screen of a killed app doesn't reach the server (needs a decision).
+- Build folder note: reset its project.pbxproj with `git show HEAD:path > path`
+  before checkout (the local signing team copy blocks it).
+
 ## Open / do next (in this order)
 1. DONE (session 2). Stale banner is confusing (owner didn't understand when/why it appeared).
    Rework the whole stale UX (case_stale_banner.dart, My cases, owner case,
