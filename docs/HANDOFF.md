@@ -237,6 +237,41 @@ row + topic hint; budget step no jump.
   the web origin and Bunny TUS must expose Location / Upload-Offset.
 - Preview from the phone: http://172.20.10.4:8686 (release web, LawBid-stable).
 
+## RELEASE PLAN — owner 2026-10-19 night (do in this order, nothing else first)
+Owner: «к утру начнем с релиза … запиши план чтобы не отвлекались».
+Accounts ready: Apple, Google Play, Firebase, AWS, Stripe, Bunny etc.
+1. Push the fresh code to GitHub (only with the owner present; branch
+   claude/chat-for-everyone → main as he decides).
+2. Change the keys in every service (rotate everything that was ever shared
+   or in dev; set them in the PROD admin «Интеграции», never in code).
+3. Deploy to AWS (API, admin, web; terraform apply for CSP; WEB_DEPLOY_ENABLED).
+4. Upload to Play Store and App Store.
+5. Then: motion / video editing for promo, then ads.
+Release details still open from before: Bunny 1080p, prod admin media
+quality / formats (WebP, webm), storage CORS for the web origin (OPTIONS/
+POST; Bunny TUS must expose Location / Upload-Offset).
+
+## Day 2026-10-19 (all committed locally, NOT pushed)
+- Web: in-tab DB fallback, phone-width = app sizes, iPhone safe area, upload
+  fixes (no 45 s cut-off, iCloud picks, HEIC → JPEG, camera preview).
+- Counters inside fields (core/design_system/widgets/inputs/field_counter.dart);
+  password-reset SMS code field: plain box, no counter (owner).
+- Languages: overflow tests also in real Nepali/Arabic (test/l10n/lang_*.json,
+  scripts/gen-longest-strings.mjs); @username LTR-isolated (core/text/bidi.dart
+  atHandle); all 85 languages have English names in the picker.
+- Cases icons compact; case tabs: NO line, chosen tab = text colour following
+  the swipe (owner); chat files tabs the same.
+- New post: ONE caption field (title '' on publish); photo framing screen
+  (photo_crop_screen.dart) for every photo, original/square, cut to ≤1080 px
+  before upload; lists show up to 4:5 (was square).
+- Sliding sections: hashtag, chat files, attorney Saved (SwipePages).
+- Payments: messages from sheets/dialogs show on top (app_snackbar.dart
+  overlay); «Завершить оплату» resumes with saved settings and pays at once;
+  ad button «Download» retired (RETIRED_PROMOTION_CTA_TYPES).
+- Local Stripe has no keys → «Оплата временно недоступна» is expected here;
+  owner can paste TEST keys in the LOCAL admin «Интеграции → Stripe» and pay
+  with 4242 4242 4242 4242.
+
 ## Open / do next (in this order)
 1. DONE (session 2). Stale banner is confusing (owner didn't understand when/why it appeared).
    Rework the whole stale UX (case_stale_banner.dart, My cases, owner case,
