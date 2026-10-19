@@ -624,7 +624,15 @@ class _MessageList extends ConsumerWidget {
             children: [
               if (newDay) _DaySeparator(label: _dayLabel(t, f, m.createdAt)),
               if (m.kind == MessageKind.system)
-                _SystemMessage(text: systemLineText(t, m.body, formats: f))
+                _SystemMessage(
+                  text: systemLineText(t, m.body, formats: f),
+                  // Owner 2026-10-19: a tap opens what the line is about.
+                  target: _systemTarget(
+                    m.body,
+                    caseId: state.conversation?.caseId,
+                    attorney: ref.read(actsAsAttorneyProvider),
+                  ),
+                )
               else if (m.kind == MessageKind.call && m.callLog != null)
                 CallLogEntry(
                   message: m,
@@ -700,44 +708,92 @@ class _DaySeparator extends StatelessWidget {
   }
 }
 
+/// Owner 2026-10-19: where a system line leads — the case it is about
+/// (the hired attorney's work card, the client's case), or null.
+String? _systemTarget(
+  String body, {
+  required String? caseId,
+  required bool attorney,
+}) {
+  if (caseId == null) return null;
+  final key = body.split(':').first;
+  return switch (key) {
+    'offer_accepted' ||
+    'case_closed' ||
+    'payment_received' ||
+    'payment_requested' ||
+    'payment_request_canceled' ||
+    'payment_fee_countered' ||
+    'payment_fee_agreed' =>
+      attorney ? AppRoutes.workCase(caseId) : AppRoutes.myCase(caseId),
+    'no_agreement' ||
+    'accepted_by_other' =>
+      attorney ? AppRoutes.caseDetail(caseId) : AppRoutes.myCase(caseId),
+    _ => attorney ? AppRoutes.caseDetail(caseId) : AppRoutes.myCase(caseId),
+  };
+}
+
 class _SystemMessage extends StatelessWidget {
-  const _SystemMessage({required this.text});
+  const _SystemMessage({required this.text, this.target});
 
   final String text;
+
+  /// The route a tap opens (null: not tappable).
+  final String? target;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    final to = target;
+    final onTap = to == null ? null : () => context.push(to);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
       child: Center(
-        child: Container(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.md,
-            vertical: AppSpacing.sm,
-          ),
-          decoration: BoxDecoration(
-            color: colors.goldTint,
-            borderRadius: BorderRadius.circular(AppRadii.pill),
-            border: Border.all(color: colors.goldStroke),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              AppIcon(AppIcons.gavelRounded, size: 14, color: colors.goldDark),
-              const SizedBox(width: AppSpacing.xs),
-              Flexible(
-                child: Text(
-                  text,
-                  textAlign: TextAlign.center,
-                  style: type.caption.copyWith(
-                    color: colors.text,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
+        child: Semantics(
+          button: onTap != null,
+          child: AppPressable(
+            onTap: onTap,
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md,
+                vertical: AppSpacing.sm,
               ),
-            ],
+              decoration: BoxDecoration(
+                color: colors.goldTint,
+                borderRadius: BorderRadius.circular(AppRadii.pill),
+                border: Border.all(color: colors.goldStroke),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  AppIcon(
+                    AppIcons.gavelRounded,
+                    size: 14,
+                    color: colors.goldDark,
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                  Flexible(
+                    child: Text(
+                      text,
+                      textAlign: TextAlign.center,
+                      style: type.caption.copyWith(
+                        color: colors.text,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  if (onTap != null) ...[
+                    const SizedBox(width: AppSpacing.xs),
+                    AppIcon(
+                      AppIcons.chevronRightRounded,
+                      size: 14,
+                      color: colors.goldDark,
+                    ),
+                  ],
+                ],
+              ),
+            ),
           ),
         ),
       ),
