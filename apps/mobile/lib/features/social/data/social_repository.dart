@@ -15,6 +15,7 @@ import 'package:lawbid/features/social/data/social_local_database.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
+export 'package:lawbid/features/social/domain/post_text.dart' show kPostTitleMaxChars;
 
 /// docs/05 §3.2: post photos up to 10 MB each; at most 9 per post (owner
 /// 2026-09-30, same as cases).
@@ -27,9 +28,6 @@ const kPostMaxChars = 2200;
 /// Owner 2026-10-15: a text-only brief is up to 3000 characters (the live
 /// value is `post.max_chars_brief` from the admin panel).
 const kThreadMaxChars = 3000;
-
-/// Owner 2026-09-30: the card title limit (server-enforced too).
-const kPostTitleMaxChars = 120;
 
 /// Owner 2026-10-05: up to 9 documents (PDF, Word, text) per post, each
 /// ≤ `files.post_attachment_max_size_mb` (10 MB by default; the server

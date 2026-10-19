@@ -12,7 +12,6 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/media/video_frames.dart';
 import 'package:lawbid/core/text/bidi.dart';
-import 'package:lawbid/core/text/tidy_text.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
     show showConfirmSheet;
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
@@ -31,6 +30,7 @@ import 'package:lawbid/features/reels/presentation/reel_video.dart'
 import 'package:lawbid/features/reels/presentation/video_editor_screen.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/data/social_repository.dart';
+import 'package:lawbid/features/social/domain/post_text.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/widgets/mention_suggestions.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
@@ -115,20 +115,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
 
   /// The typed text as (title, body): the first line, cut at a word to
   /// [kPostTitleMaxChars]; what is cut off starts the body.
-  (String, String) get _parts {
-    final s = tidyText(_text.text).trim();
-    final nl = s.indexOf('\n');
-    var title = (nl < 0 ? s : s.substring(0, nl)).trim();
-    var body = nl < 0 ? '' : s.substring(nl + 1).trim();
-    if (title.length > kPostTitleMaxChars) {
-      var cut = title.lastIndexOf(' ', kPostTitleMaxChars);
-      if (cut <= 0) cut = kPostTitleMaxChars;
-      final rest = title.substring(cut).trim();
-      title = title.substring(0, cut).trim();
-      body = [rest, body].where((x) => x.isNotEmpty).join('\n');
-    }
-    return (title, body);
-  }
+  (String, String) get _parts => splitPostText(_text.text);
 
   late final _photos = <_Photo>[
     for (var i = 0; i < widget.debugPhotoCount; i++)

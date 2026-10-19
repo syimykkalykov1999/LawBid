@@ -209,7 +209,7 @@ const planRu = <String, String>{
   'mine.bidNext.failed': 'Договориться не удалось',
   'mine.price.negotiable': 'Договорная',
   'post.create.hintBrief':
-      'Первая строка станет заголовком брифа. Пишите подробно — до {max} знаков',
+      'Первая строка станет заголовком поста, остальное — описанием. До {max} знаков',
   'post.create.hintCaption': 'Подпись к посту…',
   'post.create.noTopic': 'Без темы',
   'post.src.galleryHint': 'Фото и видео',
@@ -447,7 +447,7 @@ const planEn = <String, String>{
   'mine.bidNext.failed': 'No agreement was reached',
   'mine.price.negotiable': 'Negotiable',
   'post.create.hintBrief':
-      "The first line becomes the brief's title. Write in detail, up to {max} characters",
+      'The first line becomes the post title, the rest its text. Up to {max} characters',
   'post.create.hintCaption': 'Write a caption for your post…',
   'post.create.noTopic': 'No topic',
   'post.src.galleryHint': 'Photos and video',

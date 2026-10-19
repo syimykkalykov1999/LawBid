@@ -28,6 +28,7 @@ import 'package:lawbid/features/promotions/presentation/promotion_cta_button.dar
 import 'package:lawbid/features/reels/presentation/reel_video.dart';
 import 'package:lawbid/features/reels/presentation/reels_screen.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
+import 'package:lawbid/features/social/domain/post_text.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart'
     show PracticePostsScreen;
@@ -647,21 +648,9 @@ class PostCard extends ConsumerWidget {
   }
 
   /// "Title" = the first line (or sentence) of the post, the rest below.
-  static (String, String) _split(String body) {
-    final text = tidyText(body);
-    final nl = text.indexOf('\n');
-    if (nl > 0 && nl <= 120) {
-      return (text.substring(0, nl).trim(), text.substring(nl + 1).trim());
-    }
-    final dot = text.indexOf(RegExp(r'[.!?](\s|$)'));
-    if (dot > 0 && dot <= 100) {
-      return (
-        text.substring(0, dot + 1).trim(),
-        text.substring(dot + 1).trim(),
-      );
-    }
-    return (text, '');
-  }
+  // Owner 2026-10-18: the same rule as publishing (domain/post_text.dart):
+  // the first line is the title, the rest the text.
+  static (String, String) _split(String body) => splitPostText(body);
 
   /// Owner 2026-09-30 design, open post: author, topics, title, full text,
   /// photos, then the actions.
