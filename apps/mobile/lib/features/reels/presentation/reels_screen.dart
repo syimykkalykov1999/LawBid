@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/widgets/buttons/player_round_button.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -575,53 +576,48 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                       ),
                     ),
                   ),
-                if (_paused)
-                  const Center(
-                    child: AppIcon(
-                      AppIcons.playArrowRounded,
-                      size: 72,
-                      color: Colors.white70,
-                    ),
-                  ),
-                // Owner 2026-10-19 (Instagram): a small sound on / off
-                // button above the play icon — shown and hidden together
-                // with it (a tap pauses: both appear; a tap plays: both
-                // go); a tap on it never pauses the reel.
-                if (widget.soundButton && video != null && _paused)
-                  Center(
-                    child: Transform.translate(
-                      offset: const Offset(0, -64),
-                      child: Semantics(
-                        button: true,
-                        label:
-                            t.t(widget.muted ? 'reels.unmute' : 'reels.mute'),
-                        excludeSemantics: true,
-                        child: GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: () =>
-                              ref.read(reelsMutedProvider.notifier).toggle(),
-                          child: Padding(
-                            padding: const EdgeInsets.all(AppSpacing.sm),
-                            child: Container(
-                              width: 30,
-                              height: 30,
-                              decoration: BoxDecoration(
-                                color: Colors.black.withValues(alpha: 0.45),
-                                shape: BoxShape.circle,
+                // Owner 2026-10-19: the play button and, above it, the small
+                // sound button — one look with the app (PlayerRoundButton);
+                // they fade in and out together with the pause. A tap on the
+                // play button plays (the reel's own tap); the speaker only
+                // switches the sound.
+                Center(
+                  child: AnimatedOpacity(
+                    opacity: _paused ? 1 : 0,
+                    duration: context.reduceMotion
+                        ? Duration.zero
+                        : const Duration(milliseconds: 160),
+                    child: IgnorePointer(
+                      ignoring: !_paused,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (widget.soundButton && video != null) ...[
+                            PlayerRoundButton(
+                              icon: widget.muted
+                                  ? AppIcons.speakerSlash
+                                  : AppIcons.speakerHigh,
+                              size: 34,
+                              semanticLabel: t.t(
+                                widget.muted ? 'reels.unmute' : 'reels.mute',
                               ),
-                              child: AppIcon(
-                                widget.muted
-                                    ? AppIcons.speakerSlash
-                                    : AppIcons.speakerHigh,
-                                size: 16,
-                                color: Colors.white,
-                              ),
+                              onTap: () => ref
+                                  .read(reelsMutedProvider.notifier)
+                                  .toggle(),
+                            ),
+                            const SizedBox(height: AppSpacing.sm),
+                          ],
+                          const IgnorePointer(
+                            child: PlayerRoundButton(
+                              icon: AppIcons.playArrowRounded,
+                              size: 64,
                             ),
                           ),
-                        ),
+                        ],
                       ),
                     ),
                   ),
+                ),
                 // Bottom shade so the caption reads on any video.
                 const Positioned(
                   left: 0,

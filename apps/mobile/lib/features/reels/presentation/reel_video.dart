@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/widgets/buttons/player_round_button.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/design_system/widgets/display/pinch_to_zoom.dart';
 import 'package:lawbid/core/media/playback_visibility.dart';
@@ -459,27 +460,14 @@ class _InlineReelState extends State<InlineReel> {
               child: Consumer(
                 builder: (context, ref, _) {
                   final muted = ref.watch(reelsMutedProvider);
-                  return GestureDetector(
-                    behavior: HitTestBehavior.opaque,
+                  // Owner 2026-10-19: the app's player button look.
+                  return PlayerRoundButton(
+                    icon: muted ? AppIcons.speakerSlash : AppIcons.speakerHigh,
+                    size: 28,
                     onTap: () {
                       ref.read(reelsMutedProvider.notifier).toggle();
                       setState(() => _flash++);
                     },
-                    child: Container(
-                      width: 28,
-                      height: 28,
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.55),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        muted
-                            ? Icons.volume_off_rounded
-                            : Icons.volume_up_rounded,
-                        size: 16,
-                        color: Colors.white,
-                      ),
-                    ),
                   );
                 },
               ),
@@ -497,20 +485,10 @@ class _InlineReelState extends State<InlineReel> {
                         curve: Curves.easeIn,
                         builder: (_, v, child) =>
                             Opacity(opacity: v, child: child),
-                        child: Container(
-                          width: 56,
-                          height: 56,
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.5),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            muted
-                                ? Icons.volume_off_rounded
-                                : Icons.volume_up_rounded,
-                            size: 28,
-                            color: Colors.white,
-                          ),
+                        child: PlayerRoundButton(
+                          icon: muted
+                              ? AppIcons.speakerSlash
+                              : AppIcons.speakerHigh,
                         ),
                       );
                     },

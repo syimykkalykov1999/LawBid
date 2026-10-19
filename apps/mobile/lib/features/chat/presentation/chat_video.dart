@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/widgets/buttons/player_round_button.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/media/playback_visibility.dart';
 import 'package:lawbid/features/chat/application/voice_recorder.dart';
@@ -132,29 +133,29 @@ class _ChatVideoTileState extends State<ChatVideoTile> {
                       ),
                     ),
                   Center(
-                    child: Container(
-                      width: widget.fill ? 32 : 48,
-                      height: widget.fill ? 32 : 48,
-                      decoration: const BoxDecoration(
-                        color: Colors.black54,
-                        shape: BoxShape.circle,
-                      ),
-                      alignment: Alignment.center,
-                      child: widget.sending
-                          ? SizedBox.square(
+                    child: widget.sending
+                        ? Container(
+                            width: widget.fill ? 32 : 48,
+                            height: widget.fill ? 32 : 48,
+                            decoration: const BoxDecoration(
+                              color: Colors.black54,
+                              shape: BoxShape.circle,
+                            ),
+                            alignment: Alignment.center,
+                            child: SizedBox.square(
                               dimension: 28,
                               child: CircularProgressIndicator(
                                 value: pct,
                                 strokeWidth: 3,
                                 color: Colors.white,
                               ),
-                            )
-                          : AppIcon(
-                              AppIcons.playArrowRounded,
-                              color: Colors.white,
-                              size: widget.fill ? 22 : 32,
                             ),
-                    ),
+                          )
+                        // Owner 2026-10-19: the app's player button look.
+                        : PlayerRoundButton(
+                            icon: AppIcons.playArrowRounded,
+                            size: widget.fill ? 32 : 48,
+                          ),
                   ),
                   if (_ready)
                     Positioned(
@@ -413,22 +414,11 @@ class _ChatVideoScreenState extends State<ChatVideoScreen>
               if (paused && _drag == 0)
                 Positioned.fill(
                   child: Center(
-                    child: AppPressable(
+                    // Owner 2026-10-19: the app's player button look.
+                    child: PlayerRoundButton(
+                      icon: AppIcons.playArrowRounded,
+                      size: 72,
                       onTap: _toggle,
-                      child: Container(
-                        width: 72,
-                        height: 72,
-                        decoration: const BoxDecoration(
-                          color: Colors.black54,
-                          shape: BoxShape.circle,
-                        ),
-                        alignment: Alignment.center,
-                        child: const AppIcon(
-                          AppIcons.playArrowRounded,
-                          color: Colors.white,
-                          size: 44,
-                        ),
-                      ),
                     ),
                   ),
                 ),
