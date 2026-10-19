@@ -66,6 +66,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   /// OQ-036: every tab keeps its own filters.
   final Map<SearchTab, SearchFilters> _filters = {};
 
+  SearchFilters _filtersOf(SearchTab tab) =>
+      _filters[tab] ?? const SearchFilters();
+
+  /// Owner 2026-10-19: every tab is a page — the one on screen shows what
+  /// is typed now, the others their own last search (never this one).
+  String _queryOf(SearchTab tab) =>
+      tab == _tab ? _query : (_queries[tab] ?? '');
+
   /// Owner 2026-10-18: every tab also keeps its own typed text and applied
   /// query (the other tabs' are saved here while one is shown).
   final Map<SearchTab, String> _texts = {};
@@ -309,47 +317,47 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 Expanded(
                   child: NotificationListener<ScrollNotification>(
                     onNotification: _chrome.onScroll,
-                    child: TabSwipe<SearchTab>(
+                    // Owner 2026-10-19 (Instagram): People | Posts | Topics
+                    // are pages — the next one slides in with the finger, a
+                    // tap slides to it.
+                    child: SwipePages<SearchTab>(
                       value: _tab,
                       values: [for (final (v, _) in tabs) v],
                       onChanged: _selectTab,
-                      child: AnimatedSwitcher(
-                        // Owner 2026-10-19 («мигание»): loading, data
-                        // and tab bodies swap at once (Instagram), no
-                        // cross-fade.
-                        duration: Duration.zero,
-                        child: _query.isEmpty && _focused
-                            // Instagram: tapping the field shows the history
-                            // right under it, each line with a × and "Clear".
-                            ? _RecentHistory(
-                                key: ValueKey('history:${_tab.name}'),
-                                tab: _tab,
-                                onPick: _useRecent,
-                              )
-                            : _query.isEmpty
-                                ? _BeforeTyping(
-                                    key: ValueKey(
-                                      'idle:$_tab:${filters.hashCode}',
-                                    ),
-                                    tab: _tab,
-                                    filters: filters,
-                                    onFilters: (f) =>
-                                        setState(() => _filters[_tab] = f),
-                                    onRecent: _useRecent,
-                                  )
-                                : KeyedSubtree(
-                                    key: ValueKey(
-                                      '$_tab:$_query:${filters.hashCode}',
-                                    ),
-                                    child: _Results(
-                                      tab: _tab,
-                                      query: _query,
-                                      filters: filters,
+                      pageBuilder: (_, tab) =>
+                          _queryOf(tab).isEmpty && _focused && tab == _tab
+                              // Instagram: tapping the field shows the
+                              // history right under it, each line with a ×
+                              // and "Clear".
+                              ? _RecentHistory(
+                                  key: ValueKey('history:${tab.name}'),
+                                  tab: tab,
+                                  onPick: _useRecent,
+                                )
+                              : _queryOf(tab).isEmpty
+                                  ? _BeforeTyping(
+                                      key: ValueKey(
+                                        'idle:$tab:${_filtersOf(tab).hashCode}',
+                                      ),
+                                      tab: tab,
+                                      filters: _filtersOf(tab),
                                       onFilters: (f) =>
-                                          setState(() => _filters[_tab] = f),
+                                          setState(() => _filters[tab] = f),
+                                      onRecent: _useRecent,
+                                    )
+                                  : KeyedSubtree(
+                                      key: ValueKey(
+                                        '$tab:${_queryOf(tab)}:'
+                                        '${_filtersOf(tab).hashCode}',
+                                      ),
+                                      child: _Results(
+                                        tab: tab,
+                                        query: _queryOf(tab),
+                                        filters: _filtersOf(tab),
+                                        onFilters: (f) =>
+                                            setState(() => _filters[tab] = f),
+                                      ),
                                     ),
-                                  ),
-                      ),
                     ),
                   ),
                 ),

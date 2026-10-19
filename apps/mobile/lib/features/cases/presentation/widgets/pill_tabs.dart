@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -433,4 +436,108 @@ class _EdgeAwareDrag extends HorizontalDragGestureRecognizer {
   @override
   bool isPointerAllowed(PointerEvent event) =>
       event.position.dx > TabSwipe.edge && super.isPointerAllowed(event);
+}
+
+/// Owner 2026-10-19 (Instagram, «вот так немного слайд делаешь и виден
+/// контент в том разделе»): sections side by side as pages — while the
+/// finger drags, the next section slides in with its real content (both
+/// ways); a tap on a tab slides to it (~250 ms). Every section stays alive
+/// once built (its scroll position, its lists), nothing fades or blinks.
+/// A swipe that starts at the left edge is left to "back".
+class SwipePages<T> extends StatefulWidget {
+  const SwipePages({
+    required this.value,
+    required this.values,
+    required this.onChanged,
+    required this.pageBuilder,
+    super.key,
+  });
+
+  final T value;
+  final List<T> values;
+  final ValueChanged<T> onChanged;
+  final Widget Function(BuildContext context, T value) pageBuilder;
+
+  @override
+  State<SwipePages<T>> createState() => _SwipePagesState<T>();
+}
+
+class _SwipePagesState<T> extends State<SwipePages<T>> {
+  late final PageController _pages = PageController(
+    initialPage: math.max(0, widget.values.indexOf(widget.value)),
+  );
+
+  /// The page the controller is on or animating to.
+  late int _target = math.max(0, widget.values.indexOf(widget.value));
+
+  /// A tap's slide is running (the pages it passes are not chosen).
+  bool _animating = false;
+
+  @override
+  void didUpdateWidget(SwipePages<T> old) {
+    super.didUpdateWidget(old);
+    final i = widget.values.indexOf(widget.value);
+    if (i < 0 || i == _target) return;
+    _target = i;
+    if (!_pages.hasClients) return;
+    // A tap on a tab: slide to it.
+    if (context.reduceMotion) {
+      _pages.jumpToPage(i);
+    } else {
+      _animating = true;
+      unawaited(
+        _pages
+            .animateToPage(
+              i,
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeOutCubic,
+            )
+            .whenComplete(() => _animating = false),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _pages.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => PageView.builder(
+        controller: _pages,
+        itemCount: widget.values.length,
+        onPageChanged: (i) {
+          // Mid-animation pages of a tap are passed by, not chosen.
+          if (_animating && i != _target) return;
+          _target = i;
+          if (widget.values[i] != widget.value) {
+            widget.onChanged(widget.values[i]);
+          }
+        },
+        itemBuilder: (context, i) => _KeepPage(
+          child: widget.pageBuilder(context, widget.values[i]),
+        ),
+      );
+}
+
+class _KeepPage extends StatefulWidget {
+  const _KeepPage({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_KeepPage> createState() => _KeepPageState();
+}
+
+class _KeepPageState extends State<_KeepPage>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return widget.child;
+  }
 }

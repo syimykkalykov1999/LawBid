@@ -276,56 +276,63 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
               ),
             ),
             Expanded(
-              child: TabSwipe<InboxTab>(
-                value: tab,
-                values: [
-                  if (chatsAllowed) InboxTab.chats,
-                  if (showTeam) InboxTab.team,
-                ],
-                onChanged: (v) => setState(() => _tab = v),
-                child: IndexedStack(
-                  index: tab.index,
-                  children: [
-                    if (chatsAllowed)
-                      ConversationsView(
-                        folder: _folder,
-                        onFolder: (f) => setState(() => _folder = f),
-                        query: _query,
-                        onQuery: (q) => setState(() => _query = q),
-                      )
-                    else
-                      const SizedBox.shrink(),
-                    NotificationsView(
-                      // Audit 2026-10-04: an Inbox tab target switches the
-                      // tab here instead of pushing a second Inbox.
-                      onInboxTab: (v) => setState(() => _tab = v),
-                      // Owner 2026-10-01: on the same line as All ·
-                      // Assistants.
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (badges.notifications > 0)
-                            ConstrainedBox(
-                              constraints: const BoxConstraints(maxWidth: 160),
-                              child: TextButton(
-                                onPressed: () => ref
-                                    .read(notificationsProvider.notifier)
-                                    .markRead(),
-                                child: Text(
-                                  t.t('notif.markAllRead'),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
+              // Owner 2026-10-19 (Instagram): Chats and Team are pages — the
+              // next one slides in with the finger, a tap slides to it.
+              child: Builder(
+                builder: (context) {
+                  final values = [
+                    if (chatsAllowed) InboxTab.chats,
+                    if (showTeam) InboxTab.team,
+                  ];
+                  Widget pageFor(InboxTab v) => switch (v) {
+                        InboxTab.chats => chatsAllowed
+                            ? ConversationsView(
+                                folder: _folder,
+                                onFolder: (f) => setState(() => _folder = f),
+                                query: _query,
+                                onQuery: (q) => setState(() => _query = q),
+                              )
+                            : const SizedBox.shrink(),
+                        InboxTab.notifications => NotificationsView(
+                            // Audit 2026-10-04: an Inbox tab target switches the
+                            // tab here instead of pushing a second Inbox.
+                            onInboxTab: (v) => setState(() => _tab = v),
+                            // Owner 2026-10-01: on the same line as All ·
+                            // Assistants.
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (badges.notifications > 0)
+                                  ConstrainedBox(
+                                    constraints:
+                                        const BoxConstraints(maxWidth: 160),
+                                    child: TextButton(
+                                      onPressed: () => ref
+                                          .read(notificationsProvider.notifier)
+                                          .markRead(),
+                                      child: Text(
+                                        t.t('notif.markAllRead'),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ),
+                              ],
                             ),
-                        ],
-                      ),
-                    ),
-                    // Requests moved into Chats (kept for the stack index).
-                    const SizedBox.shrink(),
-                    if (showTeam) const TeamInboxTab(),
-                  ],
-                ),
+                          ),
+                        InboxTab.requests => const SizedBox.shrink(),
+                        InboxTab.team => const TeamInboxTab(),
+                      };
+                  if (values.length > 1 && values.contains(tab)) {
+                    return SwipePages<InboxTab>(
+                      value: tab,
+                      values: values,
+                      onChanged: (v) => setState(() => _tab = v),
+                      pageBuilder: (_, v) => pageFor(v),
+                    );
+                  }
+                  return pageFor(tab);
+                },
               ),
             ),
             if (selecting) ChatSelectionBar(chats: chats),
