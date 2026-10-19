@@ -161,7 +161,8 @@ bool _isVideo(XFile f) {
   return n.endsWith('.mp4') ||
       n.endsWith('.mov') ||
       n.endsWith('.m4v') ||
-      n.endsWith('.3gp');
+      n.endsWith('.3gp') ||
+      n.endsWith('.webm');
 }
 
 /// "12.4 MB", "830 KB".

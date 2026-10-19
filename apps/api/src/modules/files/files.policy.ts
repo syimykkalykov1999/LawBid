@@ -35,6 +35,9 @@ export const FILE_MIME = {
   // phone. Stored as uploaded — never decoded on the server.
   mp4: 'video/mp4',
   mov: 'video/quicktime',
+  // Owner 2026-10-19: a WebM video from a computer (the browser sends it
+  // as it is; phones can play it only in the web version).
+  webmVideo: 'video/webm',
 } as const;
 export type FileMime = (typeof FILE_MIME)[keyof typeof FILE_MIME];
 export const ALL_FILE_MIMES: readonly FileMime[] = Object.values(FILE_MIME);
@@ -123,14 +126,28 @@ export const PURPOSE_RULES: Record<FilePurpose, PurposeRule> = {
   // OQ-047: photos and documents in a chat once the bid is accepted;
   // private. Owner 2026-10-17: and videos.
   chat_attachment: {
-    mimes: [...IMAGES, FILE_MIME.gif, ...DOCS, FILE_MIME.mp4, FILE_MIME.mov],
+    mimes: [
+      ...IMAGES,
+      FILE_MIME.gif,
+      ...DOCS,
+      FILE_MIME.mp4,
+      FILE_MIME.mov,
+      FILE_MIME.webmVideo,
+    ],
     bucket: 'documents',
   },
   // Owner 2026-10-18 (OQ-055): files in a support ticket, both ways —
   // photos, documents and videos like a chat; private, opened only by the
   // ticket's user and the support staff.
   support_attachment: {
-    mimes: [...IMAGES, FILE_MIME.gif, ...DOCS, FILE_MIME.mp4, FILE_MIME.mov],
+    mimes: [
+      ...IMAGES,
+      FILE_MIME.gif,
+      ...DOCS,
+      FILE_MIME.mp4,
+      FILE_MIME.mov,
+      FILE_MIME.webmVideo,
+    ],
     bucket: 'documents',
   },
   // OQ-048: documents an assistant attaches to a task (same formats).

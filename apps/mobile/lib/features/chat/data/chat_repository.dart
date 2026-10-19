@@ -575,6 +575,7 @@ String? chatMimeForName(String name) {
     'csv' => 'text/csv',
     'mp4' => 'video/mp4',
     'mov' => 'video/quicktime',
+    'webm' => 'video/webm',
     _ => null,
   };
 }

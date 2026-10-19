@@ -49,7 +49,7 @@ export const DOC_FORMATS = [
   'csv',
 ] as const;
 /** Owner 2026-10-17: video formats — chat only. */
-export const VIDEO_FORMATS = ['mp4', 'mov'] as const;
+export const VIDEO_FORMATS = ['mp4', 'mov', 'webm'] as const;
 export type UploadFormat =
   | (typeof PHOTO_FORMATS)[number]
   | (typeof DOC_FORMATS)[number]
@@ -85,6 +85,7 @@ export const FORMAT_MIME: Record<UploadFormat, FileMime> = {
   csv: FILE_MIME.csv,
   mp4: FILE_MIME.mp4,
   mov: FILE_MIME.mov,
+  webm: FILE_MIME.webmVideo,
 };
 
 /** How a place counts files:

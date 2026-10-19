@@ -43,6 +43,11 @@ export function detectMime(
     return declared;
   }
   if (isM4a(b)) return FILE_MIME.m4a;
+  // Owner 2026-10-19: a WebM video (declared so) — the same container as
+  // a browser voice note, with a VP8 / VP9 / AV1 picture track.
+  if (declared === FILE_MIME.webmVideo && isWebmVideo(b)) {
+    return FILE_MIME.webmVideo;
+  }
   if (isWebmOpus(b)) return FILE_MIME.webm;
   const family = detectFamily(b);
   if (family) {
@@ -180,20 +185,37 @@ function readVint(
  * MediaRecorder writes before the first cluster).
  */
 function isWebmOpus(b: Buffer): boolean {
-  if (b.length < 8 || !EBML_MAGIC.every((v, i) => b[i] === v)) return false;
+  const end = webmHeaderEnd(b);
+  if (end === null) return false;
+  const head = b.subarray(end, Math.min(b.length, 64 * 1024));
+  return head.includes('A_OPUS', 0, 'latin1');
+}
+
+/** A WebM file whose tracks carry a VP8, VP9 or AV1 picture. */
+function isWebmVideo(b: Buffer): boolean {
+  const end = webmHeaderEnd(b);
+  if (end === null) return false;
+  const head = b.subarray(end, Math.min(b.length, 256 * 1024));
+  return ['V_VP8', 'V_VP9', 'V_AV1'].some((c) => head.includes(c, 0, 'latin1'));
+}
+
+/** Where the EBML header of a file with DocType exactly "webm" ends, or
+ * null (not EBML, plain Matroska, broken header). */
+function webmHeaderEnd(b: Buffer): number | null {
+  if (b.length < 8 || !EBML_MAGIC.every((v, i) => b[i] === v)) return null;
   const size = readVint(b, 4, 8, false);
-  if (!size) return false;
+  if (!size) return null;
   const start = 4 + size.len;
   const end = start + size.value;
-  if (end > b.length) return false;
+  if (end > b.length) return null;
   let docType: string | null = null;
   for (let off = start; off < end;) {
     const id = readVint(b, off, 4, true);
-    if (!id) return false;
+    if (!id) return null;
     const len = readVint(b, off + id.len, 8, false);
-    if (!len) return false;
+    if (!len) return null;
     const data = off + id.len + len.len;
-    if (data + len.value > end) return false;
+    if (data + len.value > end) return null;
     if (id.value === EBML_DOCTYPE_ID) {
       docType = b
         .subarray(data, data + len.value)
@@ -202,9 +224,7 @@ function isWebmOpus(b: Buffer): boolean {
     }
     off = data + len.value;
   }
-  if (docType !== 'webm') return false;
-  const head = b.subarray(end, Math.min(b.length, 64 * 1024));
-  return head.includes('A_OPUS', 0, 'latin1');
+  return docType === 'webm' ? end : null;
 }
 
 /** An ISO-BMFF file with an audio brand (checked after HEIC, which shares

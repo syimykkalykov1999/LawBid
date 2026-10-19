@@ -51,12 +51,14 @@ const kUploadFormatMime = <String, String>{
   // Owner 2026-10-17: videos in a chat.
   'mp4': 'video/mp4',
   'mov': 'video/quicktime',
+  // Owner 2026-10-19: a WebM video from a computer (chat, support).
+  'webm': 'video/webm',
 };
 
 const kPhotoFormats = {'jpeg', 'png', 'heic', 'webp', 'gif'};
 
 /// Owner 2026-10-17: video formats (chat; cases since 2026-10-19).
-const kVideoFormats = {'mp4', 'mov'};
+const kVideoFormats = {'mp4', 'mov', 'webm'};
 
 /// File-name extensions of a format (what the picker offers).
 const _extensions = <String, List<String>>{

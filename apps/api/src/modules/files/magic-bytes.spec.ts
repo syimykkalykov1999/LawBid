@@ -132,6 +132,18 @@ describe('detectMime (docs/03 §2.2 magic bytes)', () => {
       expect(detectMime(webm('webm'), 'audio/mp4')).toBe('audio/webm');
     });
 
+    it('recognises a declared WebM video (VP8 / VP9 / AV1)', () => {
+      expect(detectMime(webm('webm', 'V_VP9'), 'video/webm')).toBe(
+        'video/webm',
+      );
+      expect(detectMime(webm('webm', 'V_AV1'), 'video/webm')).toBe(
+        'video/webm',
+      );
+      // Not a video track, or Matroska: no.
+      expect(detectMime(webm('webm'), 'video/webm')).toBe('audio/webm');
+      expect(detectMime(webm('matroska', 'V_VP9'), 'video/webm')).toBeNull();
+    });
+
     it('refuses Matroska, non-Opus WebM and broken EBML headers', () => {
       expect(detectMime(webm('matroska'))).toBeNull();
       expect(detectMime(webm('webmx'))).toBeNull();

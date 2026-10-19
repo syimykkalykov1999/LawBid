@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -14,6 +16,10 @@ import 'package:lawbid/features/cases/domain/case_models.dart'
 import 'package:lawbid/features/cases/presentation/widgets/case_header.dart'
     show ActionSheetItem, showActionSheet;
 import 'package:lawbid/features/cases/workspace/workspace_data.dart';
+import 'package:lawbid/features/chat/data/chat_repository.dart'
+    show chatMimeForName;
+import 'package:lawbid/features/profile/data/avatar_upload_repository.dart'
+    show sniffImageMime;
 import 'package:lawbid/features/team/application/team_providers.dart'
     show
         invalidateAllTasks,
@@ -940,19 +946,13 @@ class _PickedTile extends ConsumerWidget {
   }
 }
 
-String _mimeOf(String name) {
-  final e = name.split('.').last.toLowerCase();
-  return switch (e) {
-    'pdf' => 'application/pdf',
-    'jpg' || 'jpeg' => 'image/jpeg',
-    'png' => 'image/png',
-    'heic' => 'image/heic',
-    'doc' => 'application/msword',
-    'docx' =>
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    _ => 'application/octet-stream',
-  };
-}
+/// Owner 2026-10-19: a photo's real type from its first bytes (WebP, GIF,
+/// every HEIF went as application/octet-stream and was refused), every
+/// other file by its name (the chat's list of formats).
+String _mimeOf(String name, Uint8List bytes) =>
+    sniffImageMime(bytes) ??
+    chatMimeForName(name) ??
+    'application/octet-stream';
 
 /// Saves what the compose sheet returned as a task of the Planner (Mine):
 /// the checklist lines become the task's steps, the clip's files its files,
@@ -961,7 +961,7 @@ Future<void> createPlannerTaskFrom(WidgetRef ref, ComposeResult r) async {
   final repo = ref.read(teamRepositoryProvider);
   final ids = <String>[
     for (final f in r.files)
-      await repo.uploadTaskFile(f.bytes, _mimeOf(f.name)),
+      await repo.uploadTaskFile(f.bytes, _mimeOf(f.name, f.bytes)),
   ];
   await repo.createTask(
     TaskDraft(
