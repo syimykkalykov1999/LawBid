@@ -680,6 +680,8 @@ class CaseHero extends StatelessWidget {
                   t.t('cases.hero.published', {
                     'date': formats.dayMonth(publishedAt),
                   }),
+                  // Owner 2026-10-19: dates stay at the right edge.
+                  textAlign: TextAlign.end,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: type.caption.copyWith(color: colors.textSecondary),

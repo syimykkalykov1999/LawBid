@@ -96,3 +96,42 @@ class AttorneyViewPreview extends StatelessWidget {
     );
   }
 }
+
+/// Owner 2026-10-19: the preview opens from the «Как выглядит ваш кейс»
+/// button as a sheet (not inline in «Обзор»).
+Future<void> showAttorneyViewPreview(
+  BuildContext context, {
+  required OwnerCase kase,
+  required Translator t,
+  required L10nFormats formats,
+}) =>
+    showAppBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheet) {
+        final type = Theme.of(sheet).extension<AppTypographyTokens>()!;
+        final colors = Theme.of(sheet).extension<AppColorTokens>()!;
+        return SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.screenSide,
+              0,
+              AppSpacing.screenSide,
+              AppSpacing.lg,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const AppSheetHandle(),
+                Text(
+                  t.t('cases.preview.title'),
+                  style: type.titleMedium.copyWith(color: colors.text),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                AttorneyViewPreview(kase: kase, t: t, formats: formats),
+              ],
+            ),
+          ),
+        );
+      },
+    );
