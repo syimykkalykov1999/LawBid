@@ -1188,6 +1188,16 @@ class BidCard extends StatelessWidget {
             const SizedBox(height: AppSpacing.md),
             Container(height: 1, color: colors.gold.withValues(alpha: 0.4)),
           ],
+          // Owner 2026-10-19: say what comes next — the bid's screen, where
+          // it is accepted, answered with a counter-offer or declined.
+          const SizedBox(height: AppSpacing.md),
+          AppButton(
+            key: ValueKey('bid-card-view-${bid.id}'),
+            label: t.t('bids.card.view'),
+            icon: AppIcons.chevronRightRounded,
+            variant: AppButtonVariant.secondary,
+            onPressed: onTap,
+          ),
         ],
       ),
     );

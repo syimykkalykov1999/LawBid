@@ -201,6 +201,7 @@ const planRu = <String, String>{
   'mine.bids.title': 'Ставки',
   'cases.create.practice.upTo': 'Можно выбрать до {n}',
   'mine.bidNext.yourTurn': 'Ваш ход: ответьте клиенту',
+  'bids.card.view': 'Посмотреть бид',
   'mine.bidNext.waitingClient': 'Клиент ещё не выбрал. Бид можно изменить',
   'mine.bidNext.done': 'Вы выбраны, работа завершена',
   'mine.bidNext.rejected': 'Клиент выбрал другого адвоката',
@@ -443,6 +444,7 @@ const planEn = <String, String>{
   'mine.bids.title': 'Bids',
   'cases.create.practice.upTo': 'You can choose up to {n}',
   'mine.bidNext.yourTurn': 'Your move: reply to the client',
+  'bids.card.view': 'View bid',
   'mine.bidNext.waitingClient':
       'The client has not chosen yet. You can edit the bid',
   'mine.bidNext.done': 'You were chosen, the work is done',
