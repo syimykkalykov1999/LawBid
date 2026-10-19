@@ -302,6 +302,7 @@ class FakeTeamRepository implements TeamRepository {
   @override
   Future<TaskItem> updateTask(String id, TaskDraft draft) async {
     calls.add('update:$id:${draft.title}');
+    lastDraft = draft;
     final t = makeTask(id, kind: draft.kind, by: null);
     // ignore: prefer_if_elements_to_conditional_expressions
     active = [for (final x in active) x.id == id ? t : x];

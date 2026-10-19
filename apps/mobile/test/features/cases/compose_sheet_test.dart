@@ -21,7 +21,6 @@ Future<void> main() async {
                   context,
                   mode: planner ? ComposeMode.planner : ComposeMode.task,
                   isAttorney: !planner,
-                  moreLabel: planner ? 'Details' : null,
                 ),
                 child: const Text('open'),
               ),
@@ -40,10 +39,8 @@ Future<void> main() async {
       // only; audit 2026-10-19: two of them were both called «Общие».
       expect(find.text('Progress'), planner ? findsNothing : findsOneWidget);
       expect(find.text('Joint'), planner ? findsNothing : findsOneWidget);
-      expect(
-        find.byTooltip('Details'),
-        planner ? findsOneWidget : findsNothing,
-      );
+      // Owner 2026-10-19: no «all options» link to a full editor any more.
+      expect(find.byTooltip('Details'), findsNothing);
       expect(tester.takeException(), isNull);
     });
   }

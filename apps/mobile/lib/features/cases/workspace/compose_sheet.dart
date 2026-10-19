@@ -24,7 +24,17 @@ import 'package:lawbid/features/team/application/team_providers.dart'
         taskPeopleProvider,
         teamRepositoryProvider;
 import 'package:lawbid/features/team/domain/team_models.dart'
-    show TaskDraft, TaskKind, TaskPersonSource, TaskPriority, TaskStepDraft;
+    show
+        TaskDraft,
+        TaskFile,
+        TaskItem,
+        TaskKind,
+        TaskPerson,
+        TaskPersonSource,
+        TaskPriority,
+        TaskRepeat,
+        TaskStatus,
+        TaskStepDraft;
 import 'package:lawbid/features/team/presentation/task_pickers.dart'
     show showChoiceSheet, taskPriorityLabel, taskRemindChoices, taskRemindLabel;
 import 'package:lawbid/features/team/presentation/task_sheet.dart'
@@ -41,12 +51,13 @@ class ComposeResult {
     this.kind,
     this.dueAt,
     this.remindBeforeMin,
-    this.openFull = false,
     this.caseId,
     this.caseTitle,
     this.priority,
     this.assigneeMembershipId,
     this.assigneeName,
+    this.itemIds = const [],
+    this.keptFileIds = const [],
   });
 
   /// Owner 2026-10-15 (the Planner's «+»): the case it is about, how urgent
@@ -69,8 +80,11 @@ class ComposeResult {
   final DateTime? dueAt;
   final int? remindBeforeMin;
 
-  /// The Planner's "details": the full editor instead.
-  final bool openFull;
+  /// Owner 2026-10-19 (editing a planner task in the sheet): the step each
+  /// checklist line came from (parallel to [items]; null = a new line), and
+  /// the task's files that stay on it.
+  final List<String?> itemIds;
+  final List<String> keptFileIds;
 }
 
 /// [planner]: a task of the attorney's / the client's own Planner (Mine) —
@@ -84,7 +98,9 @@ Future<ComposeResult?> showComposeSheet(
   BuildContext context, {
   required ComposeMode mode,
   required bool isAttorney,
-  String? moreLabel,
+  TaskItem? existing,
+  String? initialCaseId,
+  String? initialCaseTitle,
 }) =>
     showAppBottomSheet<ComposeResult>(
       context: context,
@@ -92,18 +108,24 @@ Future<ComposeResult?> showComposeSheet(
       builder: (_) => _ComposeSheet(
         mode: mode,
         isAttorney: isAttorney,
-        moreLabel: moreLabel,
+        existing: existing,
+        initialCaseId: initialCaseId,
+        initialCaseTitle: initialCaseTitle,
       ),
     );
 
 class _Line {
-  _Line({this.check = false, String text = ''})
+  _Line({this.check = false, String text = '', this.stepId, this.done = false})
       : c = TextEditingController(text: text),
         f = FocusNode();
 
   final TextEditingController c;
   final FocusNode f;
   bool check;
+
+  /// Owner 2026-10-19: the step of the edited task this line shows.
+  final String? stepId;
+  final bool done;
 
   void dispose() {
     c.dispose();
@@ -115,30 +137,43 @@ class _ComposeSheet extends ConsumerStatefulWidget {
   const _ComposeSheet({
     required this.mode,
     required this.isAttorney,
-    this.moreLabel,
+    this.existing,
+    this.initialCaseId,
+    this.initialCaseTitle,
   });
 
   final ComposeMode mode;
   final bool isAttorney;
-  final String? moreLabel;
+
+  /// Owner 2026-10-19: a planner task edited in the sheet (prefilled).
+  final TaskItem? existing;
+  final String? initialCaseId;
+  final String? initialCaseTitle;
 
   @override
   ConsumerState<_ComposeSheet> createState() => _ComposeSheetState();
 }
 
 class _ComposeSheetState extends ConsumerState<_ComposeSheet> {
-  final _title = TextEditingController();
-  final _lines = <_Line>[_Line()];
+  late final _title = TextEditingController(text: widget.existing?.title);
+  late final _lines = _initialLines();
   final _files = <PickedCaseFile>[];
+
+  /// Owner 2026-10-19: the edited task's own files (a cross removes one).
+  late final _kept = <TaskFile>[...?widget.existing?.files];
   api.CreateCaseTaskDtoKind _kind = api.CreateCaseTaskDtoKind.forClient;
   int _focused = 0;
-  DateTime? _due;
-  int? _remind;
-  String? _caseId;
-  String? _caseTitle;
-  TaskPriority _priority = TaskPriority.normal;
-  String? _assigneeId;
-  String? _assigneeName;
+  late DateTime? _due = widget.existing?.dueAt?.toLocal();
+  late int? _remind = widget.existing?.remindBeforeMin;
+  late String? _caseId =
+      widget.existing == null ? widget.initialCaseId : widget.existing!.caseId;
+  late String? _caseTitle = widget.existing == null
+      ? widget.initialCaseTitle
+      : widget.existing!.caseTitle;
+  late TaskPriority _priority =
+      widget.existing?.priority ?? TaskPriority.normal;
+  late String? _assigneeId = widget.existing?.assigneeMembershipId;
+  late String? _assigneeName = widget.existing?.assigneeName;
   final _sheet = DraggableScrollableController();
   bool _keyboardWas = false;
 
@@ -149,6 +184,26 @@ class _ComposeSheetState extends ConsumerState<_ComposeSheet> {
   /// task of the Planner.
   bool get _timed => _task;
   bool get _planner => widget.mode == ComposeMode.planner;
+  bool get _editing => _planner && widget.existing != null;
+
+  /// The edited task: its notes as text lines, its steps as checklist lines.
+  List<_Line> _initialLines() {
+    final e = widget.existing;
+    if (e == null) return [_Line()];
+    final notes = e.notes?.trim() ?? '';
+    return [
+      if (notes.isNotEmpty)
+        for (final l in notes.split('\n')) _Line(text: l),
+      for (final s in e.steps)
+        _Line(
+          check: true,
+          text: s.title,
+          stepId: s.id,
+          done: s.status == TaskStatus.done,
+        ),
+      if (notes.isEmpty && e.steps.isEmpty) _Line(),
+    ];
+  }
 
   @override
   void dispose() {
@@ -199,7 +254,7 @@ class _ComposeSheetState extends ConsumerState<_ComposeSheet> {
       allowMultiple: true,
       withData: true,
     );
-    final room = 20 - _files.length;
+    final room = 20 - _files.length - _kept.length;
     final add = [
       for (final f in result?.files ?? const <PlatformFile>[])
         if (f.bytes != null)
@@ -209,7 +264,7 @@ class _ComposeSheetState extends ConsumerState<_ComposeSheet> {
   }
 
   Future<void> _attachPhoto({required bool sample}) async {
-    final room = 20 - _files.length;
+    final room = 20 - _files.length - _kept.length;
     if (room <= 0) return;
     final picked = await ImagePicker().pickMultiImage(
       maxWidth: 2048,
@@ -362,10 +417,11 @@ class _ComposeSheetState extends ConsumerState<_ComposeSheet> {
       for (final l in _lines)
         if (!l.check) l.c.text,
     ].join('\n').trim();
-    final items = [
+    final checked = [
       for (final l in _lines)
-        if (l.check && l.c.text.trim().isNotEmpty) l.c.text.trim(),
+        if (l.check && l.c.text.trim().isNotEmpty) l,
     ];
+    final items = [for (final l in checked) l.c.text.trim()];
     final title = _title.text.trim();
     if (_task && title.isEmpty) return null;
     if (!_task && plain.isEmpty && _files.isEmpty) return null;
@@ -385,6 +441,8 @@ class _ComposeSheetState extends ConsumerState<_ComposeSheet> {
       priority: _planner && _priority != TaskPriority.normal ? _priority : null,
       assigneeMembershipId: _planner ? _assigneeId : null,
       assigneeName: _planner ? _assigneeName : null,
+      itemIds: [for (final l in checked) l.stepId],
+      keptFileIds: [for (final f in _kept) f.fileId],
     );
   }
 
@@ -449,6 +507,7 @@ class _ComposeSheetState extends ConsumerState<_ComposeSheet> {
                     child: Text(
                       t.t(
                         switch (widget.mode) {
+                          ComposeMode.planner when _editing => 'tasks.edit',
                           ComposeMode.task ||
                           ComposeMode.planner =>
                             'cases.compose.newTask',
@@ -466,7 +525,11 @@ class _ComposeSheetState extends ConsumerState<_ComposeSheet> {
                         : null,
                     child: Text(
                       t.t(
-                        _task ? 'cases.compose.create' : 'cases.compose.send',
+                        _editing
+                            ? 'post.save'
+                            : _task
+                                ? 'cases.compose.create'
+                                : 'cases.compose.send',
                       ),
                       style: TextStyle(
                         fontWeight: FontWeight.w700,
@@ -544,8 +607,11 @@ class _ComposeSheetState extends ConsumerState<_ComposeSheet> {
                               height: 20,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
+                                color: l.done ? colors.goldDark : null,
                                 border: Border.all(
-                                  color: colors.textSecondary,
+                                  color: l.done
+                                      ? colors.goldDark
+                                      : colors.textSecondary,
                                   width: 1.6,
                                 ),
                               ),
@@ -696,6 +762,11 @@ class _ComposeSheetState extends ConsumerState<_ComposeSheet> {
                         ],
                       ),
                     ),
+                  for (final (i, f) in _kept.indexed)
+                    _KeptTile(
+                      file: f,
+                      onRemove: () => setState(() => _kept.removeAt(i)),
+                    ),
                   for (final (i, f) in _files.indexed)
                     _PickedTile(
                       file: f,
@@ -808,20 +879,6 @@ class _ComposeSheetState extends ConsumerState<_ComposeSheet> {
                       ),
                     ),
                   ),
-                  if (widget.moreLabel != null)
-                    IconButton(
-                      tooltip: widget.moreLabel,
-                      onPressed: () => Navigator.of(context).pop(
-                        const ComposeResult(
-                          title: '',
-                          text: '',
-                          items: [],
-                          files: [],
-                          openFull: true,
-                        ),
-                      ),
-                      icon: AppIcon(AppIcons.tuneRounded, color: colors.text),
-                    ),
                   if (_files.isNotEmpty)
                     Text(
                       '${_files.length} / 20',
@@ -832,6 +889,68 @@ class _ComposeSheetState extends ConsumerState<_ComposeSheet> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Owner 2026-10-19: a file the edited task already has; the cross takes
+/// it off the task when it is saved.
+class _KeptTile extends StatelessWidget {
+  const _KeptTile({required this.file, required this.onRemove});
+
+  final TaskFile file;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final url = file.url;
+    return Container(
+      margin: const EdgeInsets.only(top: AppSpacing.sm),
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: colors.chip,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: SizedBox.square(
+              dimension: 44,
+              child: file.isImage && url != null
+                  ? Image.network(
+                      url,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => ColoredBox(
+                        color: colors.surface,
+                        child: AppIcon(
+                          AppIcons.imageOutlined,
+                          color: colors.text,
+                        ),
+                      ),
+                    )
+                  : ColoredBox(
+                      color: colors.surface,
+                      child: AppIcon(
+                        AppIcons.descriptionOutlined,
+                        color: colors.text,
+                      ),
+                    ),
+            ),
+          ),
+          const Spacer(),
+          IconButton(
+            visualDensity: VisualDensity.compact,
+            onPressed: onRemove,
+            icon: AppIcon(
+              AppIcons.closeRounded,
+              size: 18,
+              color: colors.textSecondary,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1003,7 +1122,17 @@ String _mimeOf(String name, Uint8List bytes) =>
 /// Saves what the compose sheet returned as a task of the Planner (Mine):
 /// the checklist lines become the task's steps, the clip's files its files,
 /// the calendar its time, the bell its reminder.
-Future<void> createPlannerTaskFrom(WidgetRef ref, ComposeResult r) async {
+///
+/// Owner 2026-10-19: the sheet is the only way to add a planner task, so a
+/// task started from a chat keeps that chat ([conversationId]) and its
+/// person ([people]) — the sheet has no field for them. A new task's kind
+/// is «other» (the kind grid is gone; old tasks keep theirs).
+Future<void> createPlannerTaskFrom(
+  WidgetRef ref,
+  ComposeResult r, {
+  String? conversationId,
+  List<TaskPerson> people = const [],
+}) async {
   final repo = ref.read(teamRepositoryProvider);
   final ids = <String>[
     for (final f in r.files)
@@ -1021,7 +1150,89 @@ Future<void> createPlannerTaskFrom(WidgetRef ref, ComposeResult r) async {
       remindBeforeMin: r.dueAt == null ? null : r.remindBeforeMin,
       fileIds: ids,
       steps: [for (final l in r.items) TaskStepDraft(title: l)],
+      people: people,
+      conversationId: conversationId,
     ),
   );
+  invalidateAllTasks(ref);
+}
+
+/// Owner 2026-10-19: saves the sheet's edit of [task]. What the sheet does
+/// not show stays as it was: the kind, places, people, the repeat, the chat,
+/// «keep forever». Checklist: a removed line removes its step, a new line
+/// adds one, a renamed line replaces its step (its kind, time, address and
+/// contact and a done mark carry over).
+Future<void> updatePlannerTaskFrom(
+  WidgetRef ref,
+  TaskItem task,
+  ComposeResult r,
+) async {
+  final repo = ref.read(teamRepositoryProvider);
+  final ids = <String>[
+    ...r.keptFileIds,
+    for (final f in r.files)
+      await repo.uploadTaskFile(f.bytes, _mimeOf(f.name, f.bytes)),
+  ];
+  final timed = r.dueAt != null;
+  await repo.updateTask(
+    task.id,
+    TaskDraft(
+      kind: task.kind,
+      title: r.title,
+      notes: r.text.isEmpty ? null : r.text,
+      caseId: r.caseId,
+      priority: r.priority ?? TaskPriority.normal,
+      assigneeMembershipId: r.assigneeMembershipId,
+      dueAt: r.dueAt,
+      remindBeforeMin: timed ? r.remindBeforeMin : null,
+      fileIds: ids,
+      places: task.places,
+      people: task.people,
+      // A repeat needs a time.
+      repeat: timed ? task.repeat : TaskRepeat.none,
+      repeatUntil:
+          timed && task.repeat != TaskRepeat.none ? task.repeatUntil : null,
+      conversationId: task.conversationId,
+      keepForever: task.keepForever,
+    ),
+  );
+  final byId = {for (final s in task.steps) s.id: s};
+  final kept = <String>{};
+  final known = <String>{...byId.keys};
+  for (final (i, title) in r.items.indexed) {
+    final id = i < r.itemIds.length ? r.itemIds[i] : null;
+    final old = id == null ? null : byId[id];
+    if (old != null && old.title == title) {
+      kept.add(old.id);
+      continue;
+    }
+    final added = await repo.addTaskStep(
+      task.id,
+      TaskStepDraft(
+        title: title,
+        kind: old?.kind,
+        dueAt: old?.dueAt,
+        location: old?.location,
+        contactName: old?.contactName,
+        contactPhone: old?.contactPhone,
+        contactEmail: old?.contactEmail,
+      ),
+    );
+    final fresh = [
+      for (final s in added.steps)
+        if (known.add(s.id)) s,
+    ];
+    if (old != null && old.status != TaskStatus.open && fresh.isNotEmpty) {
+      await repo.updateTaskStep(
+        task.id,
+        fresh.first.id,
+        status: old.status,
+        note: old.note,
+      );
+    }
+  }
+  for (final s in task.steps) {
+    if (!kept.contains(s.id)) await repo.removeTaskStep(task.id, s.id);
+  }
   invalidateAllTasks(ref);
 }

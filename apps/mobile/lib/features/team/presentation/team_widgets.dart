@@ -58,18 +58,19 @@ class AddTaskButton extends StatelessWidget {
       child: AppPressable(
         onTap: onTap,
         child: compact
+            // Owner 2026-10-19: a 32 px circle in a 44 px touch area.
             ? Padding(
-                padding: const EdgeInsets.all(5),
+                padding: const EdgeInsets.all(6),
                 child: Container(
-                  width: 34,
-                  height: 34,
+                  width: 32,
+                  height: 32,
                   decoration: BoxDecoration(
                     color: colors.ctaBright,
                     shape: BoxShape.circle,
                   ),
                   child: AppIcon(
                     AppIcons.addRounded,
-                    size: 22,
+                    size: 20,
                     color: colors.onCtaBright,
                   ),
                 ),

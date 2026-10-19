@@ -8,7 +8,7 @@ import 'package:lawbid/features/onboarding/application/current_user_controller.d
 import 'package:lawbid/features/social/presentation/screens/create_post_screen.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
-import 'package:lawbid/features/team/presentation/task_editor_screen.dart';
+import 'package:lawbid/features/team/presentation/planner_task_sheet.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 
 /// The "+" full-screen creation flow (file 07 §3.4). Clients (OQ-038): a
@@ -32,6 +32,13 @@ enum _Kind { caseKind, post, task }
 class _CreateScreenState extends ConsumerState<CreateScreen> {
   late _Kind? _kind = widget.startWithCase ? _Kind.caseKind : null;
 
+  /// The sheet opens over the chooser; once the task is saved the «+» flow
+  /// closes (as the full editor did), cancelled — the chooser stays.
+  Future<void> _newTask() async {
+    final saved = await showPlannerTaskSheet(context, ref);
+    if (saved && mounted) await Navigator.of(context).maybePop(true);
+  }
+
   @override
   Widget build(BuildContext context) {
     final attorney = ref.watch(currentUserRoleProvider) != UserRole.client;
@@ -41,10 +48,11 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
     return switch (kind) {
       _Kind.caseKind => const CreateCaseScreen(),
       _Kind.post => const CreatePostScreen(),
-      _Kind.task => const TaskEditorScreen(),
-      null => _Chooser(
+      // Owner 2026-10-19: a task is the «Новая задача» sheet, not a screen.
+      _Kind.task || null => _Chooser(
           attorney: attorney,
-          onPick: (k) => setState(() => _kind = k),
+          onPick: (k) =>
+              k == _Kind.task ? _newTask() : setState(() => _kind = k),
         ),
     };
   }

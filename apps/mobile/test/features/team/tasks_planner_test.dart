@@ -314,6 +314,10 @@ void main() {
       repo.active = [makeTask('a1'), makeTask('b2')];
       await pump(tester, const TasksTab());
       await tester.pumpAndSettle();
+      // Owner 2026-10-19: the field opens from the magnifier by «+».
+      expect(find.byKey(const ValueKey('tasks-search')), findsNothing);
+      await tester.tap(find.byKey(const ValueKey('tasks-search-open')));
+      await tester.pumpAndSettle();
       expect(find.text('Search tasks'), findsOneWidget);
       await tester.enterText(
         find.byKey(const ValueKey('tasks-search')),
@@ -322,6 +326,11 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Task a1'), findsNothing);
       expect(find.text('Task b2'), findsOneWidget);
+      // Its cross closes it and the whole list is back.
+      await tester.tap(find.byKey(const ValueKey('tasks-search-close')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('tasks-search')), findsNothing);
+      expect(find.text('Task a1'), findsOneWidget);
     });
 
     testWidgets('the archive tells about the yearly cleanup', (tester) async {
@@ -347,6 +356,8 @@ void main() {
         findsOneWidget,
       );
       // Search in the archive.
+      await tester.tap(find.byKey(const ValueKey('tasks-search-open')));
+      await tester.pumpAndSettle();
       await tester.enterText(
         find.byKey(const ValueKey('tasks-archive-search')),
         'a2',
