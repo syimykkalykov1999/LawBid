@@ -148,6 +148,8 @@ const _postFormats = {
   'png',
   'heic',
   'webp',
+  // Owner 2026-10-19: GIFs too (as on the server).
+  'gif',
   'pdf',
   'doc',
   'docx',
@@ -201,7 +203,7 @@ const kDefaultUploadLimits = <UploadPlace, PlaceUploadLimits>{
     fileMb: 10,
     totalMb: 0,
     // Owner 2026-10-19: WebP too (as on the server).
-    formats: {'jpeg', 'png', 'heic', 'webp'},
+    formats: {'jpeg', 'png', 'heic', 'webp', 'gif'},
   ),
   UploadPlace.avatar: PlaceUploadLimits(
     maxPhotos: 0,
@@ -209,7 +211,7 @@ const kDefaultUploadLimits = <UploadPlace, PlaceUploadLimits>{
     fileMb: 5,
     totalMb: 0,
     // Owner 2026-10-19: WebP too (as on the server).
-    formats: {'jpeg', 'png', 'heic', 'webp'},
+    formats: {'jpeg', 'png', 'heic', 'webp', 'gif'},
   ),
   UploadPlace.verification: PlaceUploadLimits(
     maxPhotos: 0,

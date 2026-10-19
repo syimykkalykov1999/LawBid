@@ -117,12 +117,17 @@ export interface PlaceSpec {
 }
 
 const PHOTOS: readonly UploadFormat[] = ['jpeg', 'png', 'heic', 'webp'];
+/** Owner 2026-10-19: places whose photos may also be a GIF (posts, reels,
+ * reviews, the profile photo) — stored as a still picture. */
+const PHOTOS_GIF: readonly UploadFormat[] = [...PHOTOS, 'gif'];
 const POST_DEFAULT: UploadFormat[] = [
   'jpeg',
   'png',
   'heic',
   // Owner 2026-10-16: saved web images are often WebP.
   'webp',
+  // Owner 2026-10-19: and GIFs.
+  'gif',
   'pdf',
   'doc',
   'docx',
@@ -135,7 +140,7 @@ const POST_DEFAULT: UploadFormat[] = [
 export const PLACE_SPECS: Record<UploadPlace, PlaceSpec> = {
   post: {
     count: 'split',
-    safeFormats: [...PHOTOS, ...DOC_FORMATS],
+    safeFormats: [...PHOTOS_GIF, ...DOC_FORMATS],
     ceiling: { count: 20, fileMb: 50, totalMb: 200 },
     defaults: {
       maxPhotos: 9,
@@ -147,7 +152,7 @@ export const PLACE_SPECS: Record<UploadPlace, PlaceSpec> = {
   },
   reel: {
     count: 'split',
-    safeFormats: [...PHOTOS, ...DOC_FORMATS],
+    safeFormats: [...PHOTOS_GIF, ...DOC_FORMATS],
     ceiling: { count: 20, fileMb: 50, totalMb: 200 },
     defaults: {
       maxPhotos: 9,
@@ -202,7 +207,7 @@ export const PLACE_SPECS: Record<UploadPlace, PlaceSpec> = {
   },
   review: {
     count: 'photos',
-    safeFormats: PHOTOS,
+    safeFormats: PHOTOS_GIF,
     ceiling: { count: 20, fileMb: 50, totalMb: 0 },
     defaults: {
       maxPhotos: 10,
@@ -211,12 +216,12 @@ export const PLACE_SPECS: Record<UploadPlace, PlaceSpec> = {
       totalMb: 0,
       // Owner 2026-10-19: WebP too — a picked photo is often WebP (saved
       // from the web), and it was refused here.
-      formats: ['jpeg', 'png', 'heic', 'webp'],
+      formats: ['jpeg', 'png', 'heic', 'webp', 'gif'],
     },
   },
   avatar: {
     count: 'none',
-    safeFormats: PHOTOS,
+    safeFormats: PHOTOS_GIF,
     ceiling: { count: 0, fileMb: 20, totalMb: 0 },
     defaults: {
       maxPhotos: 0,
@@ -224,7 +229,7 @@ export const PLACE_SPECS: Record<UploadPlace, PlaceSpec> = {
       fileMb: 5,
       totalMb: 0,
       // Owner 2026-10-19: WebP too (see review).
-      formats: ['jpeg', 'png', 'heic', 'webp'],
+      formats: ['jpeg', 'png', 'heic', 'webp', 'gif'],
     },
   },
   verification: {

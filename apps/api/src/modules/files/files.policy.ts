@@ -91,12 +91,13 @@ const DOCS: readonly FileMime[] = [
  * - verification_selfie: camera photo.
  */
 export const PURPOSE_RULES: Record<FilePurpose, PurposeRule> = {
+  // Owner 2026-10-19: a GIF too (its first frame, like any photo).
   avatar: {
-    mimes: IMAGES,
+    mimes: [...IMAGES, FILE_MIME.gif],
     bucket: 'media',
   },
   post_image: {
-    mimes: IMAGES,
+    mimes: [...IMAGES, FILE_MIME.gif],
     bucket: 'media',
   },
   // Owner 2026-10-01: sticker images — PNG/WebP with transparency, kept
@@ -108,7 +109,7 @@ export const PURPOSE_RULES: Record<FilePurpose, PurposeRule> = {
   },
   // Owner 2026-10-01: photos in reviews — public like post photos.
   review_photo: {
-    mimes: IMAGES,
+    mimes: [...IMAGES, FILE_MIME.gif],
     bucket: 'media',
   },
   // OQ-031: private (documents bucket, short signed links, never the CDN).
