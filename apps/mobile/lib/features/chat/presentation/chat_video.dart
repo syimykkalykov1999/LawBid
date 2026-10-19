@@ -229,10 +229,22 @@ class _ChatVideoScreenState extends State<ChatVideoScreen>
   /// While the thumb is dragged: its spot (the player catches up).
   double? _scrubMs;
 
+  /// Owner 2026-10-19 (Instagram): pinch zooms the video (1–5×) and moves
+  /// it; zoomed in, a swipe down does not close it.
+  final _zoom = TransformationController();
+  bool _zoomed = false;
+
+  /// Held down: paused until the finger lifts (it was playing).
+  bool _heldPause = false;
+
   @override
   void initState() {
     super.initState();
     _c.addListener(_tick);
+    _zoom.addListener(() {
+      final z = _zoom.value.getMaxScaleOnAxis() > 1.01;
+      if (z != _zoomed && mounted) setState(() => _zoomed = z);
+    });
     unawaited(
       _c.initialize().then(
         (_) async {
@@ -286,8 +298,15 @@ class _ChatVideoScreenState extends State<ChatVideoScreen>
   void dispose() {
     _hide?.cancel();
     _c.removeListener(_tick);
+    _zoom.dispose();
     unawaited(_c.dispose());
     super.dispose();
+  }
+
+  void _releaseHold() {
+    if (!_heldPause) return;
+    _heldPause = false;
+    unawaited(_c.play());
   }
 
   Future<void> _toggle() async {
@@ -327,16 +346,28 @@ class _ChatVideoScreenState extends State<ChatVideoScreen>
         body: GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: _tapScreen,
-          // Swipe down to close, like a photo.
-          onVerticalDragUpdate: (d) =>
-              setState(() => _drag = math.max(0, _drag + d.delta.dy)),
-          onVerticalDragEnd: (_) {
-            if (_drag > 120) {
-              Navigator.of(context).maybePop();
-            } else {
-              setState(() => _drag = 0);
+          // Owner 2026-10-19 (Instagram): hold = pause, let go = plays on.
+          onLongPressStart: (_) {
+            if (_c.value.isPlaying) {
+              _heldPause = true;
+              unawaited(_c.pause());
             }
           },
+          onLongPressEnd: (_) => _releaseHold(),
+          onLongPressCancel: _releaseHold,
+          // Swipe down to close, like a photo (not while zoomed in).
+          onVerticalDragUpdate: _zoomed
+              ? null
+              : (d) => setState(() => _drag = math.max(0, _drag + d.delta.dy)),
+          onVerticalDragEnd: _zoomed
+              ? null
+              : (_) {
+                  if (_drag > 120) {
+                    Navigator.of(context).maybePop();
+                  } else {
+                    setState(() => _drag = 0);
+                  }
+                },
           child: Stack(
             fit: StackFit.expand,
             children: [
@@ -345,9 +376,16 @@ class _ChatVideoScreenState extends State<ChatVideoScreen>
                   offset: Offset(0, _drag),
                   child: Center(
                     child: v.isInitialized
-                        ? AspectRatio(
-                            aspectRatio: v.aspectRatio,
-                            child: VideoPlayer(_c),
+                        ? InteractiveViewer(
+                            transformationController: _zoom,
+                            maxScale: 5,
+                            panEnabled: _zoomed,
+                            child: Center(
+                              child: AspectRatio(
+                                aspectRatio: v.aspectRatio,
+                                child: VideoPlayer(_c),
+                              ),
+                            ),
                           )
                         : _failed
                             ? const AppIcon(

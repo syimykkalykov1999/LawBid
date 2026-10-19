@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/widgets/display/pinch_to_zoom.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -1221,18 +1222,16 @@ class _ThreadsPost extends ConsumerWidget {
                       ],
                     ],
                   ),
-                  Text(
-                    promotionId != null
-                        ? t.t('promote.sponsored')
-                        : a.isClient
-                            ? '@${a.username} · ${t.t('person.client')}'
-                            : a.verified
-                                ? t.t('post.licensedAttorney')
-                                : '@${a.username}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: type.caption.copyWith(color: colors.textSecondary),
-                  ),
+                  // Owner 2026-10-18: no «Клиент» role and no @username.
+                  if (promotionId != null || (!a.isClient && a.verified))
+                    Text(
+                      promotionId != null
+                          ? t.t('promote.sponsored')
+                          : t.t('post.licensedAttorney'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: type.caption.copyWith(color: colors.textSecondary),
+                    ),
                 ],
               ),
             ),
@@ -1788,11 +1787,10 @@ class _AuthorRow extends ConsumerWidget {
         subtitle: sponsored
             ? t.t('promote.sponsored')
             : post.locationName ??
-                (a.isClient
-                    ? '@${a.username} · ${t.t('person.client')}'
-                    : a.verified
-                        ? t.t('post.licensedAttorney')
-                        : '@${a.username}'),
+                // Owner 2026-10-18: no «Клиент» role and no @username.
+                (!a.isClient && a.verified
+                    ? t.t('post.licensedAttorney')
+                    : ''),
         trailing: AppIconButton(
           icon: AppIcon(
             AppIcons.moreHorizRounded,
@@ -1955,7 +1953,7 @@ class AuthorHeader extends ConsumerWidget {
                                 : colors.textSecondary,
                             shadows: shadows,
                           )
-                        else
+                        else if (subtitle.isNotEmpty)
                           Text(
                             subtitle,
                             maxLines: 1,
@@ -2532,29 +2530,33 @@ class _PostMediaCarouselState extends State<PostMediaCarousel>
                       ),
                     ),
                   );
+              // Owner 2026-10-19 (Instagram): pinch lifts the photo over
+              // the screen, letting go glides it back.
               return GestureDetector(
                 onTap: widget.onTap == null ? null : () => widget.onTap!(i),
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    // Owner 2026-10-18 (speed): the sigma-24 blurred
-                    // backdrop only shows around a "contain" photo; a
-                    // "cover" front photo hides it completely, so it is not
-                    // built (no blur pass, no second decode).
-                    if (_frontFit != BoxFit.cover) ...[
-                      ImageFiltered(
-                        imageFilter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-                        child: img(
-                          BoxFit.cover,
-                          m.previewUrl,
-                          '${m.fileId}:320',
-                          96,
+                child: PinchToZoom(
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      // Owner 2026-10-18 (speed): the sigma-24 blurred
+                      // backdrop only shows around a "contain" photo; a
+                      // "cover" front photo hides it completely, so it is not
+                      // built (no blur pass, no second decode).
+                      if (_frontFit != BoxFit.cover) ...[
+                        ImageFiltered(
+                          imageFilter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+                          child: img(
+                            BoxFit.cover,
+                            m.previewUrl,
+                            '${m.fileId}:320',
+                            96,
+                          ),
                         ),
-                      ),
-                      ColoredBox(color: Colors.black.withValues(alpha: 0.18)),
+                        ColoredBox(color: Colors.black.withValues(alpha: 0.18)),
+                      ],
+                      img(_frontFit, m.mediumUrl, '${m.fileId}:1080', 1080),
                     ],
-                    img(_frontFit, m.mediumUrl, '${m.fileId}:1080', 1080),
-                  ],
+                  ),
                 ),
               );
             },

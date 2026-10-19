@@ -312,7 +312,11 @@ class _ReelPage extends ConsumerStatefulWidget {
 }
 
 class _ReelPageState extends ConsumerState<_ReelPage> {
+  /// Owner 2026-10-19 (Instagram): paused while the finger is held down.
   bool _paused = false;
+
+  /// A tap toggles the sound; the speaker flashes in the middle.
+  int _flash = 0;
   final _progress = ValueNotifier<double>(0);
   Timer? _viewTimer;
 
@@ -404,8 +408,9 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
       VoidCallback? onCountTap,
     }) =>
         Padding(
-          // Owner 2026-10-13: small, Instagram-like rail — a 22 icon, the
-          // count in 12, a tight step, whatever the system text size.
+          // Owner 2026-10-13: Instagram-like rail — the count in 12, a tight
+          // step, whatever the system text size; the icon [kReelRailIcon]
+          // (owner 2026-10-19: bigger).
           padding: const EdgeInsets.only(bottom: AppSpacing.md),
           child: MediaQuery.withNoTextScaling(
             child: Semantics(
@@ -417,7 +422,11 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                 behavior: HitTestBehavior.opaque,
                 child: Column(
                   children: [
-                    AppIcon(icon, size: 22, color: color ?? Colors.white),
+                    AppIcon(
+                      icon,
+                      size: kReelRailIcon,
+                      color: color ?? Colors.white,
+                    ),
                     if (count != null && count > 0) ...[
                       const SizedBox(height: 2),
                       GestureDetector(
@@ -447,8 +456,16 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
       children: [
         DoubleTapLike(
           onLike: () => run(() => actions.like(p)),
+          // Owner 2026-10-19 (Instagram): tap = sound on / off, hold =
+          // pause, let go = plays on.
           child: GestureDetector(
-            onTap: () => setState(() => _paused = !_paused),
+            onTap: () {
+              ref.read(reelsMutedProvider.notifier).toggle();
+              setState(() => _flash++);
+            },
+            onLongPressStart: (_) => setState(() => _paused = true),
+            onLongPressEnd: (_) => setState(() => _paused = false),
+            onLongPressCancel: () => setState(() => _paused = false),
             child: Stack(
               fit: StackFit.expand,
               children: [
@@ -459,6 +476,7 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                     warm: widget.warm && video.ready,
                     muted: widget.muted,
                     paused: _paused || covered,
+                    zoomable: true,
                     onProgress: (v) => _progress.value = v,
                   ),
                 if (video != null && !video.ready)
@@ -474,12 +492,32 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                       ),
                     ),
                   ),
-                if (_paused)
-                  const Center(
-                    child: AppIcon(
-                      AppIcons.playArrowRounded,
-                      size: 72,
-                      color: Colors.white70,
+                if (_flash > 0)
+                  Center(
+                    child: IgnorePointer(
+                      child: TweenAnimationBuilder<double>(
+                        key: ValueKey(_flash),
+                        tween: Tween(begin: 1, end: 0),
+                        duration: const Duration(milliseconds: 900),
+                        curve: Curves.easeIn,
+                        builder: (_, v, child) =>
+                            Opacity(opacity: v, child: child),
+                        child: Container(
+                          width: 64,
+                          height: 64,
+                          decoration: const BoxDecoration(
+                            color: Colors.black45,
+                            shape: BoxShape.circle,
+                          ),
+                          child: AppIcon(
+                            widget.muted
+                                ? AppIcons.speakerSlash
+                                : AppIcons.speakerHigh,
+                            size: 30,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                 // Bottom shade so the caption reads on any video.
@@ -515,7 +553,7 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                             children: [
                               const AppIcon(
                                 AppIcons.visibilityOutlined,
-                                size: 22,
+                                size: kReelRailIcon,
                                 color: Colors.white,
                               ),
                               const SizedBox(height: 2),
@@ -589,7 +627,7 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                   start: AppSpacing.lg,
                   // Owner 2026-10-15: the text and «Follow» reach out to the
                   // right, 8 dp short of the icon column.
-                  end: 52,
+                  end: 60,
                   bottom: moreSpace +
                       AppSpacing.sm +
                       MediaQuery.paddingOf(context).bottom,
@@ -619,15 +657,14 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                         followMaxWidth: 140,
                         showFollow: !p.isMine,
                         boostPostId: p.isMine ? p.id : null,
+                        // Owner 2026-10-19: no @username and no role word
+                        // under the name — only the name (and the avatar).
                         subtitle: p.promotionId != null
                             ? t.t('promote.sponsored')
                             : p.locationName ??
-                                (p.author.isClient
-                                    ? '@${p.author.username} · '
-                                        '${t.t('person.client')}'
-                                    : p.author.verified
-                                        ? t.t('post.licensedAttorney')
-                                        : '@${p.author.username}'),
+                                (p.author.verified && !p.author.isClient
+                                    ? t.t('post.licensedAttorney')
+                                    : ''),
                       ),
                       if (caption.isNotEmpty) ...[
                         const SizedBox(height: AppSpacing.sm),
@@ -783,6 +820,10 @@ class ReelFollowButton extends ConsumerWidget {
     );
   }
 }
+
+/// Owner 2026-10-19: the reel's action icons on the side, as big as on
+/// Instagram.
+const kReelRailIcon = 28.0;
 
 /// Owner 2026-10-15: in the feed's Reels tab the video runs under the
 /// floating nav bar (46 dp plus its margins); the caption, the icon column

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
+import 'package:lawbid/core/design_system/widgets/display/pinch_to_zoom.dart';
 import 'package:lawbid/core/media/playback_visibility.dart';
 import 'package:lawbid/features/reels/application/reels_providers.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
@@ -82,9 +83,14 @@ class ReelVideo extends StatefulWidget {
     this.paused = false,
     this.warm = false,
     this.backdrop = true,
+    this.zoomable = false,
     this.onProgress,
     super.key,
   });
+
+  /// Owner 2026-10-19 (Instagram): two fingers lift the video over the
+  /// screen and zoom it; letting go glides it back (feed, reels).
+  final bool zoomable;
 
   final PostVideo video;
   final bool active;
@@ -276,7 +282,7 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
     final c = _c;
     // Owner 2026-10-18: the cover only when nothing will play over it.
     final poster = thumb != null && (!_playable || _failed);
-    return ColoredBox(
+    final box = ColoredBox(
       color: widget.backdrop ? Colors.black : Colors.transparent,
       child: Stack(
         fit: StackFit.expand,
@@ -318,6 +324,8 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
         ],
       ),
     );
+    // The lifted copy draws the same player again (it keeps playing).
+    return PinchToZoom(enabled: widget.zoomable, child: box);
   }
 }
 
@@ -347,6 +355,9 @@ class _InlineReelState extends State<InlineReel> {
   /// Any part of it on screen.
   bool _near = false;
   int _flash = 0;
+
+  /// Owner 2026-10-19 (Instagram): held down = paused, let go = plays on.
+  bool _held = false;
 
   Timer? _viewTimer;
 
@@ -391,6 +402,9 @@ class _InlineReelState extends State<InlineReel> {
         // Owner 2026-10-13: in the feed a tap on the playing video opens the
         // full-screen player; pause / resume live in the player.
         onTap: widget.onOpen,
+        onLongPressStart: (_) => setState(() => _held = true),
+        onLongPressEnd: (_) => setState(() => _held = false),
+        onLongPressCancel: () => setState(() => _held = false),
         child: Stack(
           fit: StackFit.expand,
           children: [
@@ -402,6 +416,8 @@ class _InlineReelState extends State<InlineReel> {
                 // peeks in, so its first frame is there when it plays.
                 warm: _near && video.ready,
                 muted: ref.watch(reelsMutedProvider),
+                paused: _held,
+                zoomable: true,
               ),
             ),
             if (!video.ready)
