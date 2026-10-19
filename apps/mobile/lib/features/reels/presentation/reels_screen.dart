@@ -16,6 +16,7 @@ import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/widgets/comments_sheet.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_attachments_sheet.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
+import 'package:lawbid/features/social/presentation/widgets/post_impression_tracker.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_text_sheet.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
@@ -642,30 +643,39 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                           cta: p.promotionCta!,
                           authorId: p.author.id,
                           onDark: true,
-                          onProfile: () =>
-                              openAuthorProfile(context, ref, p.author),
+                          onProfile: () => openAuthorProfile(
+                            context,
+                            ref,
+                            p.author,
+                            fromPostId: p.id,
+                          ),
                         ),
                         const SizedBox(height: AppSpacing.sm),
                       ],
                       // The shared author row: Follow at its right edge.
-                      AuthorHeader(
-                        author: p.author,
-                        onDark: true,
-                        shadows: shadow,
-                        avatarSize: 32,
-                        gap: AppSpacing.sm,
-                        followMaxWidth: 140,
-                        showFollow: !p.isMine,
-                        boostPostId: p.isMine ? p.id : null,
-                        // Owner 2026-10-19: no @username (only in the
-                        // profile and search) and no role word «Клиент»
-                        // (only on the welcome screen's role choice).
-                        subtitle: p.promotionId != null
-                            ? t.t('promote.sponsored')
-                            : p.locationName ??
-                                (p.author.verified && !p.author.isClient
-                                    ? t.t('post.licensedAttorney')
-                                    : ''),
+                      // Owner 2026-10-19: a tap on the author counts as a
+                      // profile visit from this reel (post insights).
+                      PostSourceScope(
+                        postId: p.id,
+                        child: AuthorHeader(
+                          author: p.author,
+                          onDark: true,
+                          shadows: shadow,
+                          avatarSize: 32,
+                          gap: AppSpacing.sm,
+                          followMaxWidth: 140,
+                          showFollow: !p.isMine,
+                          boostPostId: p.isMine ? p.id : null,
+                          // Owner 2026-10-19: no @username (only in the
+                          // profile and search) and no role word «Клиент»
+                          // (only on the welcome screen's role choice).
+                          subtitle: p.promotionId != null
+                              ? t.t('promote.sponsored')
+                              : p.locationName ??
+                                  (p.author.verified && !p.author.isClient
+                                      ? t.t('post.licensedAttorney')
+                                      : ''),
+                        ),
                       ),
                       if (caption.isNotEmpty) ...[
                         const SizedBox(height: AppSpacing.sm),
