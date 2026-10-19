@@ -237,6 +237,23 @@ row + topic hint; budget step no jump.
   the web origin and Bunny TUS must expose Location / Upload-Offset.
 - Preview from the phone: http://172.20.10.4:8686 (release web, LawBid-stable).
 
+## HANDOVER FOR THE RELEASE SESSION (2026-10-19, 21:45)
+- Owner tested the APK: «всё ахуенно работает». Next = release plan above.
+- Local branch: claude/chat-for-everyone (NOT on GitHub). origin/main is its
+  ancestor; 176+ commits ahead. Everything is committed locally (only the
+  local signing change in ios/Runner.xcodeproj/project.pbxproj —
+  DEVELOPMENT_TEAM 78T56RPM74 — stays uncommitted on purpose).
+- Secret scan of origin/main..HEAD done: no keys / .env / .p8 / Firebase
+  files; only the dev test password Test1234! (local DB seed).
+- Push was NOT done here (blocked; the owner gave GitHub to another session).
+- Still open: Cases (folder) tab doesn't react on the owner's iPhone (web OK,
+  no log yet); notification sorting waits for owner's answers 1–3 (tab order
+  All·Important·Assistants·Other; team items → Assistants; «Other» silent by
+  default); push/calls code ready, waits for NEW keys (see evening section).
+- Local services for testing: docker (postgres/redis/minio/…), API :3000
+  (apps/api npm run start:dev), fake-bunny :4010, admin :3001, web preview
+  :8686 and APK :8080 from ~/Desktop/LawBid-stable and ~/Desktop/LawBid-download.
+
 ## RELEASE PLAN — owner 2026-10-19 night (do in this order, nothing else first)
 Owner: «к утру начнем с релиза … запиши план чтобы не отвлекались».
 Accounts ready: Apple, Google Play, Firebase, AWS, Stripe, Bunny etc.
