@@ -214,11 +214,23 @@ class FakeAttorneyRepo implements AttorneyProfileRepository {
   }
 
   @override
-  Future<UsernameCheck> checkUsername(String username) async {
+  Future<UsernameCheck> checkUsername(
+    String username, {
+    String? firstName,
+    String? lastName,
+  }) async {
     checked.add(username);
     return availability[username] ??
         UsernameCheck(username: username, available: true);
   }
+
+  @override
+  Future<List<String>> suggestUsernames({
+    String? typed,
+    String? firstName,
+    String? lastName,
+  }) async =>
+      const [];
 }
 
 class FakePracticesRepo implements PracticesRepository {

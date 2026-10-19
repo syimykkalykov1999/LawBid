@@ -108,3 +108,130 @@ export function pickUsernameFrom(
 ): string | null {
   return candidates.find((c) => !taken.has(c)) ?? null;
 }
+
+/** Cyrillic → Latin for username suggestions («Иван» → "ivan"). */
+const CYRILLIC: Record<string, string> = {
+  а: 'a',
+  б: 'b',
+  в: 'v',
+  г: 'g',
+  д: 'd',
+  е: 'e',
+  ё: 'e',
+  ж: 'zh',
+  з: 'z',
+  и: 'i',
+  й: 'y',
+  к: 'k',
+  л: 'l',
+  м: 'm',
+  н: 'n',
+  о: 'o',
+  п: 'p',
+  р: 'r',
+  с: 's',
+  т: 't',
+  у: 'u',
+  ф: 'f',
+  х: 'kh',
+  ц: 'ts',
+  ч: 'ch',
+  ш: 'sh',
+  щ: 'shch',
+  ъ: '',
+  ы: 'y',
+  ь: '',
+  э: 'e',
+  ю: 'yu',
+  я: 'ya',
+  і: 'i',
+  ї: 'yi',
+  є: 'ye',
+  ґ: 'g',
+  ң: 'n',
+  ө: 'o',
+  ү: 'u',
+  қ: 'k',
+  ғ: 'g',
+  ұ: 'u',
+  ә: 'a',
+  һ: 'h',
+};
+
+/** One name part as a bare latin token: "Jöhn O'Neil" → "johnoneil". */
+function suggestionToken(s: string | null | undefined): string {
+  return [...(s ?? '').toLowerCase().normalize('NFKD')]
+    .map((ch) => CYRILLIC[ch] ?? ch)
+    .join('')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '');
+}
+
+/** What the person typed, cleaned to the allowed alphabet ("@John..Roe_" →
+ * "john.roe"). */
+function typedBase(s: string | null | undefined): string {
+  return [...(s ?? '').toLowerCase().normalize('NFKD')]
+    .map((ch) => CYRILLIC[ch] ?? ch)
+    .join('')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9._]+/g, '')
+    .replace(/[._]{2,}/g, (m) => m[0])
+    .replace(/^[._]+/, '')
+    .slice(0, USERNAME_MAX)
+    .replace(/[._]+$/, '');
+}
+
+/** `base` + `sep` + `tail`, the base trimmed so the whole fits in 30. */
+function joined(base: string, sep: string, tail: string): string {
+  const head = base
+    .slice(0, USERNAME_MAX - sep.length - tail.length)
+    .replace(/[._]+$/g, '');
+  return `${head}${sep}${tail}`;
+}
+
+export interface UsernameSeeds {
+  firstName?: string | null;
+  lastName?: string | null;
+  /** What the person typed in the username field. */
+  typed?: string | null;
+}
+
+/**
+ * Owner 2026-10-18 ("как в инсте"): username ideas from the typed text and
+ * the name, in the order they are offered — the plain forms first
+ * (typed, first.last, first_last, firstlast, last.first), then the same
+ * with the year or a few digits. Every value is valid (3–30, latin,
+ * digits, `.`/`_`, no edge or double dots), lower-case and unique; the
+ * caller drops taken and reserved ones.
+ */
+export function suggestionCandidates(
+  seeds: UsernameSeeds,
+  year: number,
+  random: () => number = Math.random,
+): string[] {
+  const f = suggestionToken(seeds.firstName);
+  const l = suggestionToken(seeds.lastName);
+  const typed = typedBase(seeds.typed);
+  const bases = [
+    typed,
+    ...(f && l ? [`${f}.${l}`, `${f}_${l}`, `${f}${l}`, `${l}.${f}`] : []),
+    f || l,
+  ].filter((b) => b.length > 0);
+  const digits = (n: number) =>
+    String(10 ** (n - 1) + Math.floor(random() * 9 * 10 ** (n - 1)));
+  const out: string[] = [...bases];
+  for (const b of bases) {
+    out.push(
+      joined(b, '', String(year)),
+      joined(b, '_', String(year % 100).padStart(2, '0')),
+      joined(b, '.', digits(2)),
+      joined(b, '', digits(3)),
+    );
+  }
+  const seen = new Set<string>();
+  return out.filter((c) => {
+    if (!isValidUsername(c) || seen.has(c)) return false;
+    seen.add(c);
+    return true;
+  });
+}

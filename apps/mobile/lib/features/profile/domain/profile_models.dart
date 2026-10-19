@@ -268,10 +268,15 @@ class UsernameCheck {
     required this.username,
     required this.available,
     this.issue,
+    this.suggestions = const [],
   });
   final String username;
   final bool available;
   final UsernameIssue? issue;
+
+  /// Owner 2026-10-18 («как в инсте»): free handles to tap instead; empty
+  /// when [available].
+  final List<String> suggestions;
 }
 
 /// Review summary (docs/03 §7.4): average, count, distribution 5 → 1.

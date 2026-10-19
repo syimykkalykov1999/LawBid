@@ -18,6 +18,7 @@ import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/features/profile/presentation/widgets/avatar_picker_field.dart';
 import 'package:lawbid/features/profile/presentation/widgets/profile_avatar.dart';
+import 'package:lawbid/features/profile/presentation/widgets/username_suggestions.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 
@@ -118,6 +119,10 @@ class _AttorneyEditFormState extends ConsumerState<_AttorneyEditForm> {
   ];
   late Set<String> _languages = widget.profile.languages.toSet();
   UsernameStatus _usernameStatus = UsernameStatus.unchanged;
+
+  /// Owner 2026-10-18 («как в инсте»): free handles when the typed one
+  /// is not.
+  List<String> _suggestions = const [];
   Timer? _debounce;
   int _checkSeq = 0;
   bool _saving = false;
@@ -138,11 +143,17 @@ class _AttorneyEditFormState extends ConsumerState<_AttorneyEditForm> {
     _debounce?.cancel();
     final u = value.trim();
     if (u.toLowerCase() == p.username.toLowerCase()) {
-      setState(() => _usernameStatus = UsernameStatus.unchanged);
+      setState(() {
+        _usernameStatus = UsernameStatus.unchanged;
+        _suggestions = const [];
+      });
       return;
     }
     if (!usernamePattern.hasMatch(u)) {
-      setState(() => _usernameStatus = UsernameStatus.invalid);
+      setState(() {
+        _usernameStatus = UsernameStatus.invalid;
+        _suggestions = const [];
+      });
       return;
     }
     setState(() => _usernameStatus = UsernameStatus.checking);
@@ -150,9 +161,14 @@ class _AttorneyEditFormState extends ConsumerState<_AttorneyEditForm> {
     _debounce = Timer(const Duration(milliseconds: 450), () async {
       try {
         final r =
-            await ref.read(attorneyProfileRepositoryProvider).checkUsername(u);
+            await ref.read(attorneyProfileRepositoryProvider).checkUsername(
+                  u,
+                  firstName: _first.text,
+                  lastName: _last.text,
+                );
         if (!mounted || seq != _checkSeq) return;
         setState(() {
+          _suggestions = r.suggestions;
           _usernameStatus = r.available
               ? UsernameStatus.available
               : switch (r.issue) {
@@ -324,22 +340,34 @@ class _AttorneyEditFormState extends ConsumerState<_AttorneyEditForm> {
         inputFormatters: [LengthLimitingTextInputFormatter(kAttorneyNameMax)],
         onChanged: (_) => setState(() {}),
       ),
-      AppTextField(
-        key: const ValueKey('username-field'),
-        controller: _username,
-        label: t.t('profile.username.label'),
-        enabled: !usernameLocked,
-        leading: Text(
-          '@',
-          style: typography.body.copyWith(color: colors.textSecondary),
-        ),
-        helperText: usernameHelper,
-        errorText: usernameError,
-        inputFormatters: [
-          FilteringTextInputFormatter.allow(RegExp('[A-Za-z0-9._]')),
-          LengthLimitingTextInputFormatter(30),
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          AppTextField(
+            key: const ValueKey('username-field'),
+            controller: _username,
+            label: t.t('profile.username.label'),
+            enabled: !usernameLocked,
+            leading: Text(
+              '@',
+              style: typography.body.copyWith(color: colors.textSecondary),
+            ),
+            helperText: usernameHelper,
+            errorText: usernameError,
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp('[A-Za-z0-9._]')),
+              LengthLimitingTextInputFormatter(30),
+            ],
+            onChanged: _onUsernameChanged,
+          ),
+          UsernameSuggestions(
+            suggestions: _suggestions,
+            onPick: (v) {
+              _username.text = v;
+              _onUsernameChanged(v);
+            },
+          ),
         ],
-        onChanged: _onUsernameChanged,
       ),
       AppTextField(
         controller: _bio,

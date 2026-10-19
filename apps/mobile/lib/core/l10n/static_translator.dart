@@ -39,6 +39,7 @@ import 'package:lawbid/core/l10n/strings/tasks_planner_strings.dart';
 import 'package:lawbid/core/l10n/strings/templates_strings.dart';
 import 'package:lawbid/core/l10n/strings/theme_strings.dart';
 import 'package:lawbid/core/l10n/strings/trust_strings.dart';
+import 'package:lawbid/core/l10n/strings/username_strings.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 
 /// Stage-1.5-originated stopgap [Translator], now bilingual (owner request,
@@ -1148,6 +1149,7 @@ class StaticTranslatorRu extends _MapTranslator {
         ...contingencyRu,
         ...staleCaseRu,
         ...guideRu,
+        ...usernameRu,
         ...contactInfoRu,
         ...file07Ru,
         ...reelsRu,
@@ -2567,6 +2569,7 @@ class StaticTranslatorEn extends _MapTranslator {
         ...contingencyEn,
         ...staleCaseEn,
         ...guideEn,
+        ...usernameEn,
         ...contactInfoEn,
         ...file07En,
         ...reelsEn,

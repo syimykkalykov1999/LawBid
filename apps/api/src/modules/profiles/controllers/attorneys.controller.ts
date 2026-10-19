@@ -28,6 +28,8 @@ import {
   UpdateAttorneyProfileDto,
   UsernameAvailabilityDto,
   UsernameAvailableQueryDto,
+  UsernameSuggestionsDto,
+  UsernameSuggestionsQueryDto,
 } from '../dto/attorney-profile.dto';
 import {
   ReplacePracticeAreasDto,
@@ -123,7 +125,29 @@ export class AttorneysController {
     @CurrentUser() user: RequestUser,
     @Query() query: UsernameAvailableQueryDto,
   ): Promise<UsernameAvailabilityDto> {
-    return this.profiles.availability(query.u, user.sub);
+    return this.profiles.availability(query.u, user.sub, {
+      first: query.first,
+      last: query.last,
+    });
+  }
+
+  /** Owner 2026-10-18 («как в инсте»): free handles for the sign-up and
+   * edit forms. Rate-limited like the availability check. */
+  @Get('username-suggestions')
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @ApiEnvelopeResponse(UsernameSuggestionsDto)
+  @ApiErrors({ 400: [E.VALIDATION_ERROR] })
+  async usernameSuggestions(
+    @CurrentUser() user: RequestUser,
+    @Query() query: UsernameSuggestionsQueryDto,
+  ): Promise<UsernameSuggestionsDto> {
+    return {
+      suggestions: await this.profiles.suggestions(user.sub, {
+        first: query.first,
+        last: query.last,
+        typed: query.u,
+      }),
+    };
   }
 
   @Get(':username')

@@ -122,6 +122,27 @@ abstract final class ProfileMappers {
         },
       );
 
+  /// `GET /attorneys/username-available` read raw (it carries
+  /// `suggestions`, which the generated DTO does not have yet).
+  static UsernameCheck usernameJson(Map<String, dynamic> j, String asked) {
+    final available = j['available'] == true;
+    final suggestions = j['suggestions'];
+    return UsernameCheck(
+      username: j['username'] as String? ?? asked,
+      available: available,
+      issue: available
+          ? null
+          : switch (j['reason']) {
+              'reserved' => UsernameIssue.reserved,
+              'taken' => UsernameIssue.taken,
+              _ => UsernameIssue.invalid,
+            },
+      suggestions: suggestions is List
+          ? suggestions.whereType<String>().toList()
+          : const [],
+    );
+  }
+
   static ReviewSummary summary(api.ReviewSummaryDto d) => ReviewSummary(
         average: d.ratingAvg?.toDouble(),
         count: d.ratingCount,

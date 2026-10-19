@@ -22,7 +22,20 @@ abstract interface class AttorneyProfileRepository {
 
   Future<OwnAttorneyProfile> updateOwn(AttorneyProfilePatch patch);
 
-  Future<UsernameCheck> checkUsername(String username);
+  /// [firstName]/[lastName]: the name on the form, for the suggestions.
+  Future<UsernameCheck> checkUsername(
+    String username, {
+    String? firstName,
+    String? lastName,
+  });
+
+  /// Owner 2026-10-18 («как в инсте»): up to 5 free handles from what was
+  /// typed and the name (`GET /attorneys/username-suggestions`).
+  Future<List<String>> suggestUsernames({
+    String? typed,
+    String? firstName,
+    String? lastName,
+  });
 }
 
 /// docs/03 §3.2 practices. Throws [ApiException].
@@ -95,8 +108,11 @@ abstract interface class ClientProfileRepository {
 }
 
 class ApiAttorneyProfileRepository implements AttorneyProfileRepository {
-  ApiAttorneyProfileRepository(Dio dio) : _client = api.AttorneysClient(dio);
+  ApiAttorneyProfileRepository(Dio dio)
+      : _dio = dio,
+        _client = api.AttorneysClient(dio);
 
+  final Dio _dio;
   final api.AttorneysClient _client;
 
   @override
@@ -132,12 +148,49 @@ class ApiAttorneyProfileRepository implements AttorneyProfileRepository {
     );
   }
 
+  // Raw calls: the generated client predates `suggestions`.
   @override
-  Future<UsernameCheck> checkUsername(String username) async =>
-      ProfileMappers.username(
-        (await guardApiCall(() => _client.checkUsernameAvailable(u: username)))
-            .data,
-      );
+  Future<UsernameCheck> checkUsername(
+    String username, {
+    String? firstName,
+    String? lastName,
+  }) async {
+    final res = await guardApiCall(
+      () => _dio.get<Map<String, dynamic>>(
+        '/attorneys/username-available',
+        queryParameters: {
+          'u': username,
+          if (firstName?.trim().isNotEmpty ?? false) 'first': firstName!.trim(),
+          if (lastName?.trim().isNotEmpty ?? false) 'last': lastName!.trim(),
+        },
+      ),
+    );
+    return ProfileMappers.usernameJson(
+      res.data?['data'] as Map<String, dynamic>? ?? const {},
+      username,
+    );
+  }
+
+  @override
+  Future<List<String>> suggestUsernames({
+    String? typed,
+    String? firstName,
+    String? lastName,
+  }) async {
+    final res = await guardApiCall(
+      () => _dio.get<Map<String, dynamic>>(
+        '/attorneys/username-suggestions',
+        queryParameters: {
+          if (typed?.trim().isNotEmpty ?? false) 'u': typed!.trim(),
+          if (firstName?.trim().isNotEmpty ?? false) 'first': firstName!.trim(),
+          if (lastName?.trim().isNotEmpty ?? false) 'last': lastName!.trim(),
+        },
+      ),
+    );
+    final data = res.data?['data'];
+    final list = data is Map<String, dynamic> ? data['suggestions'] : null;
+    return list is List ? list.whereType<String>().toList() : const [];
+  }
 }
 
 class ApiPracticesRepository implements PracticesRepository {

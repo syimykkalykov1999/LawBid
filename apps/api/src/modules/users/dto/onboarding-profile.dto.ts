@@ -16,6 +16,7 @@ import { ContactMethod } from '@prisma/client';
 import { ISO_639_1_CODES } from '../iso-639-1';
 import { tidy } from '../../../common/utils/tidy-text';
 import { MaxTextChars } from '../../../common/app-settings/max-text-chars.decorator';
+import { USERNAME_PATTERN } from '../services/username.util';
 
 /** Longest bio (docs/02 §4.C "bio text? (≤300)", CHECK in the migration). */
 export const BIO_MAX_LENGTH = 300;
@@ -73,6 +74,14 @@ export class OnboardingProfileDto {
   @IsString()
   @Length(1, PERSON_NAME_MAX_LENGTH)
   lastName?: string;
+
+  /** Owner 2026-10-18 («как в инсте»): the @username picked on the form;
+   * without it the server derives one from the name. */
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @Matches(USERNAME_PATTERN, { message: 'username has an invalid format' })
+  username?: string;
 
   /** Owner 2026-10-13: e-mail, format only (no code, not verified). */
   @IsOptional()
