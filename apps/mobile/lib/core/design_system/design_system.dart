@@ -50,6 +50,7 @@ export 'widgets/feedback/app_state_layout.dart';
 export 'widgets/feedback/app_step_progress.dart';
 export 'widgets/inputs/app_otp_field.dart';
 export 'widgets/inputs/app_text_field.dart';
+export 'widgets/inputs/field_counter.dart';
 export 'widgets/lists/app_paginated_list_view.dart';
 export 'widgets/lists/app_picker_row.dart';
 export 'widgets/motion/app_entrance.dart';

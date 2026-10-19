@@ -415,7 +415,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
   }
 
   /// Owner 2026-10-12: no photos or documents = a thread (5000 characters),
-  /// with files a post (2200); the counter under the field follows.
+  /// with files a post (2200); the counter inside the field follows.
   bool get _hasFiles =>
       _photos.isNotEmpty || _docs.items.isNotEmpty || _video != null;
 

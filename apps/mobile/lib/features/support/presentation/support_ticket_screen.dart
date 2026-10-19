@@ -252,39 +252,62 @@ class _SupportTicketScreenState extends ConsumerState<SupportTicketScreen> {
                             controller: _files,
                             enabled: !_busy,
                           ),
+                          // Owner 2026-10-19: like the chat, the counter
+                          // shows near the limit, inside the field.
                           Expanded(
-                            child: TextField(
-                              controller: _text,
-                              minLines: 1,
-                              maxLines: 5,
-                              maxLength:
-                                  TextLimits.of(TextLimit.supportMessage),
-                              buildCounter: (
-                                _, {
-                                required currentLength,
-                                required isFocused,
-                                maxLength,
-                              }) =>
-                                  null,
-                              textCapitalization: TextCapitalization.sentences,
-                              style: type.body.copyWith(color: colors.text),
-                              decoration: InputDecoration(
-                                hintText: t.t('support.reply'),
-                                filled: true,
-                                fillColor: colors.bg,
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(24),
-                                  borderSide: BorderSide(color: colors.border),
-                                ),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(24),
-                                  borderSide: BorderSide(color: colors.border),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(24),
-                                  borderSide: BorderSide(color: colors.gold),
-                                ),
-                              ),
+                            child: ListenableBuilder(
+                              listenable: _text,
+                              builder: (context, _) {
+                                final max =
+                                    TextLimits.of(TextLimit.supportMessage);
+                                final from = (max * 0.9).ceil();
+                                final near =
+                                    _text.text.characters.length >= from;
+                                return InsideCounter(
+                                  controller: _text,
+                                  max: max,
+                                  showFrom: from,
+                                  child: TextField(
+                                    controller: _text,
+                                    minLines: 1,
+                                    maxLines: 5,
+                                    maxLength: max,
+                                    buildCounter: noFieldCounter,
+                                    textCapitalization:
+                                        TextCapitalization.sentences,
+                                    style:
+                                        type.body.copyWith(color: colors.text),
+                                    decoration: InputDecoration(
+                                      hintText: t.t('support.reply'),
+                                      // M3 outline padding + counter room.
+                                      contentPadding:
+                                          EdgeInsetsDirectional.fromSTEB(
+                                        12,
+                                        20,
+                                        12,
+                                        12 + (near ? kInsideCounterRoom : 0),
+                                      ),
+                                      filled: true,
+                                      fillColor: colors.bg,
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(24),
+                                        borderSide:
+                                            BorderSide(color: colors.border),
+                                      ),
+                                      enabledBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(24),
+                                        borderSide:
+                                            BorderSide(color: colors.border),
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(24),
+                                        borderSide:
+                                            BorderSide(color: colors.gold),
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
                             ),
                           ),
                           const SizedBox(width: AppSpacing.xs),

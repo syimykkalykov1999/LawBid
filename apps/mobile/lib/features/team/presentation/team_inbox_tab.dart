@@ -154,13 +154,27 @@ class _RejectDialogState extends State<_RejectDialog> {
     final t = widget.t;
     return AppAlertDialog(
       title: Text(t.t('team.reject')),
-      content: TextField(
-        onTapOutside: hideKeyboardOnTapOutside,
-        key: const ValueKey('reject-note'),
+      // Owner 2026-10-19: the «n/500» counter inside the field.
+      content: InsideCounter(
         controller: _note,
-        maxLength: 500,
-        maxLines: 3,
-        decoration: InputDecoration(hintText: t.t('team.note')),
+        max: 500,
+        child: TextField(
+          onTapOutside: hideKeyboardOnTapOutside,
+          key: const ValueKey('reject-note'),
+          controller: _note,
+          maxLength: 500,
+          maxLines: 3,
+          buildCounter: noFieldCounter,
+          decoration: InputDecoration(
+            hintText: t.t('team.note'),
+            contentPadding: const EdgeInsetsDirectional.fromSTEB(
+              12,
+              20,
+              12,
+              12 + kInsideCounterRoom,
+            ),
+          ),
+        ),
       ),
       actions: [
         TextButton(

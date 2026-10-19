@@ -12,7 +12,6 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/navigation/shell/web_page_frame.dart';
-import 'package:lawbid/core/text/bidi.dart';
 import 'package:lawbid/features/blocks/presentation/block_actions.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
     show showConfirmSheet;
@@ -645,7 +644,7 @@ Future<void> showEditPostSheet(BuildContext context, WidgetRef ref, Post post) {
   );
 }
 
-/// Multi-line post text with a live "n / 2200" counter. Owner 2026-10-18:
+/// Multi-line post text with a live "n/2200" counter inside the field. Owner 2026-10-18:
 /// [singleLine] = the post's title (one line, cut at [maxChars]).
 class PostTextField extends ConsumerWidget {
   const PostTextField({
@@ -686,79 +685,71 @@ class PostTextField extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    // Owner 2026-10-19: the «n/max» counter inside the field, bottom right.
     return Column(
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        TextField(
-          key: fieldKey,
-          onTapOutside: hideKeyboardOnTapOutside,
+        InsideCounter(
           controller: controller,
-          focusNode: focusNode,
-          autofocus: autofocus,
-          minLines: singleLine ? 1 : 4,
-          maxLines: singleLine ? 1 : 10,
-          maxLength: maxChars,
-          maxLengthEnforcement: singleLine
-              ? MaxLengthEnforcement.enforced
-              : MaxLengthEnforcement.none,
-          textInputAction: textInputAction,
-          onSubmitted: onSubmitted,
-          buildCounter: (
-            _, {
-            required currentLength,
-            required isFocused,
-            maxLength,
-          }) =>
-              null,
-          style: type.body.copyWith(color: colors.text),
-          decoration: InputDecoration(
-            hintText: hint,
-            filled: true,
-            fillColor: colors.bg,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(AppRadii.field),
-              borderSide: BorderSide(color: colors.border),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(AppRadii.field),
-              borderSide: BorderSide(color: colors.border),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(AppRadii.field),
-              borderSide: BorderSide(color: colors.gold, width: 1.5),
+          max: maxChars,
+          child: TextField(
+            key: fieldKey,
+            onTapOutside: hideKeyboardOnTapOutside,
+            controller: controller,
+            focusNode: focusNode,
+            autofocus: autofocus,
+            minLines: singleLine ? 1 : 4,
+            maxLines: singleLine ? 1 : 10,
+            maxLength: maxChars,
+            maxLengthEnforcement: singleLine
+                ? MaxLengthEnforcement.enforced
+                : MaxLengthEnforcement.none,
+            textInputAction: textInputAction,
+            onSubmitted: onSubmitted,
+            buildCounter: noFieldCounter,
+            style: type.body.copyWith(color: colors.text),
+            decoration: InputDecoration(
+              hintText: hint,
+              // M3 outline padding + room for the counter.
+              contentPadding: const EdgeInsetsDirectional.fromSTEB(
+                12,
+                20,
+                12,
+                12 + kInsideCounterRoom,
+              ),
+              filled: true,
+              fillColor: colors.bg,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppRadii.field),
+                borderSide: BorderSide(color: colors.border),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppRadii.field),
+                borderSide: BorderSide(color: colors.border),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppRadii.field),
+                borderSide: BorderSide(color: colors.gold, width: 1.5),
+              ),
             ),
           ),
         ),
-        const SizedBox(height: AppSpacing.xs),
-        ValueListenableBuilder<TextEditingValue>(
-          valueListenable: controller,
-          builder: (context, v, _) {
-            final n = v.text.characters.length;
-            final near = n > maxChars * 0.9;
-            final over = n > maxChars;
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  ltrIsolate('$n / $maxChars'),
-                  style: type.caption.copyWith(
-                    color: over
-                        ? colors.danger
-                        : (near ? colors.warning : colors.textSecondary),
-                  ),
-                ),
-                if (over && limitHint != null)
-                  Text(
-                    limitHint!,
-                    style: type.caption.copyWith(
-                      color: colors.danger,
-                      fontSize: 11,
+        if (limitHint != null)
+          ValueListenableBuilder<TextEditingValue>(
+            valueListenable: controller,
+            builder: (context, v, _) => v.text.characters.length > maxChars
+                ? Padding(
+                    padding: const EdgeInsets.only(top: AppSpacing.xs),
+                    child: Text(
+                      limitHint!,
+                      style: type.caption.copyWith(
+                        color: colors.danger,
+                        fontSize: 11,
+                      ),
                     ),
-                  ),
-              ],
-            );
-          },
-        ),
+                  )
+                : const SizedBox.shrink(),
+          ),
       ],
     );
   }

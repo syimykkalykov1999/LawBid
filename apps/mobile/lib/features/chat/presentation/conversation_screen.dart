@@ -20,6 +20,7 @@ import 'package:lawbid/core/limits/text_limits.dart';
 import 'package:lawbid/core/media/video_compression.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
+import 'package:lawbid/core/text/bidi.dart';
 import 'package:lawbid/features/blocks/application/blocks_providers.dart';
 import 'package:lawbid/features/blocks/presentation/block_actions.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
@@ -264,7 +265,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                   final name = c.counterpart.displayName ??
                       (c.counterpart.username == null
                           ? null
-                          : '@${c.counterpart.username}');
+                          : atHandle(c.counterpart.username));
                   context.push(
                     TeamRoutes.newTaskFor(
                       chatId: c.id,
@@ -1642,68 +1643,69 @@ class _ComposerState extends ConsumerState<_Composer> {
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final motion = context.reduceMotion ? Duration.zero : AppMotion.stateChange;
 
-    final field = TextField(
-      onTapOutside: hideKeyboardOnTapOutside,
-      controller: widget.controller,
-      minLines: 1,
-      maxLines: 5,
-      maxLength: kMessageMaxChars,
-      // Owner 2026-10-15: the counter shows up near the limit (Telegram).
-      buildCounter: (
-        _, {
-        required currentLength,
-        required isFocused,
-        maxLength,
-      }) =>
-          maxLength != null && currentLength >= maxLength * 0.9
-              ? Text(
-                  context.digits('$currentLength/$maxLength'),
-                  style: type.caption.copyWith(
-                    color: currentLength >= maxLength
-                        ? colors.danger
-                        : colors.textSecondary,
-                  ),
-                )
-              : null,
-      textCapitalization: TextCapitalization.sentences,
-      onChanged: (v) => widget.onTyping(v.isNotEmpty),
-      onTap: widget.onFieldTap,
-      style: type.body.copyWith(color: colors.text),
-      decoration: InputDecoration(
-        hintText: t.t('chat.hint'),
-        suffixIcon: widget.onStickers == null
-            ? null
-            : IconButton(
-                tooltip: t.t('stickers.button'),
-                onPressed: widget.onStickers,
-                icon: AppIcon(
-                  widget.stickersOpen
-                      ? AppIcons.keyboardRounded
-                      : AppIcons.smileyStickerOutlined,
-                  color: widget.stickersOpen
-                      ? colors.goldDark
-                      : colors.textSecondary,
-                ),
+    // Owner 2026-10-15: the counter shows up near the limit (Telegram).
+    // Owner 2026-10-19: inside the field, bottom right.
+    final maxChars = kMessageMaxChars;
+    final counterFrom = (maxChars * 0.9).ceil();
+    final field = ListenableBuilder(
+      listenable: widget.controller,
+      builder: (context, _) {
+        final near = widget.controller.text.characters.length >= counterFrom;
+        return InsideCounter(
+          controller: widget.controller,
+          max: maxChars,
+          showFrom: counterFrom,
+          child: TextField(
+            onTapOutside: hideKeyboardOnTapOutside,
+            controller: widget.controller,
+            minLines: 1,
+            maxLines: 5,
+            maxLength: maxChars,
+            buildCounter: noFieldCounter,
+            textCapitalization: TextCapitalization.sentences,
+            onChanged: (v) => widget.onTyping(v.isNotEmpty),
+            onTap: widget.onFieldTap,
+            style: type.body.copyWith(color: colors.text),
+            decoration: InputDecoration(
+              hintText: t.t('chat.hint'),
+              suffixIcon: widget.onStickers == null
+                  ? null
+                  : IconButton(
+                      tooltip: t.t('stickers.button'),
+                      onPressed: widget.onStickers,
+                      icon: AppIcon(
+                        widget.stickersOpen
+                            ? AppIcons.keyboardRounded
+                            : AppIcons.smileyStickerOutlined,
+                        color: widget.stickersOpen
+                            ? colors.goldDark
+                            : colors.textSecondary,
+                      ),
+                    ),
+              filled: true,
+              fillColor: colors.bg,
+              contentPadding: EdgeInsets.fromLTRB(
+                AppSpacing.md,
+                AppSpacing.md,
+                AppSpacing.md,
+                AppSpacing.md + (near ? kInsideCounterRoom : 0),
               ),
-        filled: true,
-        fillColor: colors.bg,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.md,
-          vertical: AppSpacing.md,
-        ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(24),
-          borderSide: BorderSide(color: colors.border),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(24),
-          borderSide: BorderSide(color: colors.border),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(24),
-          borderSide: BorderSide(color: colors.gold),
-        ),
-      ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(24),
+                borderSide: BorderSide(color: colors.border),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(24),
+                borderSide: BorderSide(color: colors.border),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(24),
+                borderSide: BorderSide(color: colors.gold),
+              ),
+            ),
+          ),
+        );
+      },
     );
 
     final recordingRow = Container(

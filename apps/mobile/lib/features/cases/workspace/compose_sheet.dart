@@ -917,22 +917,11 @@ class _PickedTile extends ConsumerWidget {
                       ),
                   ],
                 ),
-                TextField(
-                  controller: TextEditingController(text: file.description)
-                    ..selection = TextSelection.collapsed(
-                      offset: file.description.length,
-                    ),
-                  maxLength: 500,
-                  maxLines: null,
-                  textCapitalization: TextCapitalization.sentences,
-                  onChanged: (v) => file.description = v,
+                _FileNoteField(
+                  key: ObjectKey(file),
+                  file: file,
+                  hint: t.t('cases.compose.fileNoteHint'),
                   style: type.bodySmall,
-                  decoration: InputDecoration(
-                    hintText: t.t('cases.compose.fileNoteHint'),
-                    isDense: true,
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 4),
-                  ),
                 ),
               ],
             ),
@@ -950,6 +939,60 @@ class _PickedTile extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// A picked file's note. Owner 2026-10-19: its «n/500» counter sits inside
+/// the field, bottom right; the controller lives as long as the tile.
+class _FileNoteField extends StatefulWidget {
+  const _FileNoteField({
+    required this.file,
+    required this.hint,
+    required this.style,
+    super.key,
+  });
+
+  final PickedCaseFile file;
+  final String hint;
+  final TextStyle style;
+
+  @override
+  State<_FileNoteField> createState() => _FileNoteFieldState();
+}
+
+class _FileNoteFieldState extends State<_FileNoteField> {
+  late final _c = TextEditingController(text: widget.file.description);
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => InsideCounter(
+        controller: _c,
+        max: 500,
+        end: 0,
+        bottom: 2,
+        child: TextField(
+          controller: _c,
+          maxLength: 500,
+          maxLines: null,
+          buildCounter: noFieldCounter,
+          textCapitalization: TextCapitalization.sentences,
+          onChanged: (v) => widget.file.description = v,
+          style: widget.style,
+          decoration: InputDecoration(
+            hintText: widget.hint,
+            isDense: true,
+            border: InputBorder.none,
+            contentPadding: const EdgeInsets.only(
+              top: 4,
+              bottom: 4 + kInsideCounterRoom,
+            ),
+          ),
+        ),
+      );
 }
 
 /// Owner 2026-10-19: a photo's real type from its first bytes (WebP, GIF,
