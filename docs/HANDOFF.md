@@ -117,8 +117,14 @@ row + topic hint; budget step no jump.
   the server (then 12 h / 24 h), «Мой номер верный — отправить на проверку»
   → manual review with the bar card photo (admin badge «Номер не по формату
   штата — проверить вручную»).
-- Test accounts (dev DB): password Test1234! for +12125550101 (attorney,
-  subscription), +12125550102 (attorney, none), +12125550103 (client).
+- Test accounts (dev DB, password Test1234!): +12125550101 Thomas (attorney,
+  subscription, bid on Charlotte's open cases), +12125550102 Victor (attorney,
+  NO subscription → bids refused), +12125550103 Charlotte (client: 2 open
+  cases with bids, 1 in progress), +12125550104 Marcus (attorney, subscription,
+  Charlotte's in-progress «First DUI» case → case cabinet).
+- Builds: the iPhone gets RELEASE builds from a clean worktree
+  ~/Desktop/LawBid-stable checked out at HEAD (copy *.g.dart + pbxproj +
+  config/dev.json from the main tree) so other sessions' WIP never breaks it.
 - Evening 2026-10-18 (all committed): post card title ONE line + text max
   2 + one «ещё»; one title rule (domain/post_text.dart splitPostText);
   composer: separate «Заголовок» / «Описание», media-only posts ('' title =
