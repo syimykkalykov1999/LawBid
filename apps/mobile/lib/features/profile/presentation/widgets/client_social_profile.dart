@@ -8,6 +8,7 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/text/bidi.dart';
 import 'package:lawbid/features/cases/presentation/widgets/client_review_sheet.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
     show showConfirmSheet;
@@ -95,7 +96,7 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
       context,
       t: t,
       link: 'https://$host/client/${p.username}',
-      text: '@${p.username}',
+      text: atHandle(p.username),
     );
   }
 
@@ -105,7 +106,7 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
     final f = ref.watch(l10nFormatsProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    final name = p.fullName.isEmpty ? '@${p.username}' : p.fullName;
+    final name = p.fullName.isEmpty ? atHandle(p.username) : p.fullName;
     final tab = p.canSeeReviews || _tab != _Tab.reviews ? _tab : _Tab.posts;
     final blocked = p.isBlocked || p.hasBlockedMe;
 

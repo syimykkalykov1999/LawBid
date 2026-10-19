@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/text/bidi.dart';
 
 /// Top bar of profile screens (owner 2026-09-29, Instagram-style): a
 /// centered "@handle" between a left slot ([leading] — a back button or
@@ -29,7 +30,7 @@ class ProfileHandleBar extends StatelessWidget implements PreferredSizeWidget {
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final topInset = MediaQuery.paddingOf(context).top;
     final side = AppSizes.touchTarget * (actions.isEmpty ? 1 : actions.length);
-    final text = handle == null || handle!.isEmpty ? '' : '@$handle';
+    final text = handle == null || handle!.isEmpty ? '' : atHandle(handle);
     return Container(
       color: colors.bg,
       // Owner 2026-09-30: arrow / logo and icons near the edges.

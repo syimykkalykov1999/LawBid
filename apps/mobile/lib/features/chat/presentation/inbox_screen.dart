@@ -7,6 +7,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/text/bidi.dart';
 import 'package:lawbid/features/calls/presentation/call_log_entry.dart'
     show callLogKey;
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
@@ -1301,7 +1302,7 @@ String counterpartName(Translator t, Conversation c) {
         ? t.t('chat.hiddenClient.direct')
         : t.t('chat.hiddenClient', {'title': title});
   }
-  return p.displayName ?? (p.username == null ? '' : '@${p.username}');
+  return p.displayName ?? (p.username == null ? '' : atHandle(p.username));
 }
 
 class CounterpartAvatar extends StatelessWidget {

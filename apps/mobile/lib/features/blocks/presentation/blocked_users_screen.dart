@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/text/bidi.dart';
 import 'package:lawbid/features/blocks/application/blocks_providers.dart';
 import 'package:lawbid/features/blocks/data/blocks_repository.dart';
 import 'package:lawbid/features/blocks/presentation/block_actions.dart';
@@ -76,7 +77,7 @@ class BlockedUsersScreen extends ConsumerWidget {
                               ),
                               if (u.username != null)
                                 Text(
-                                  '@${u.username}',
+                                  atHandle(u.username),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: type.caption

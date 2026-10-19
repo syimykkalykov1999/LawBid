@@ -1,5 +1,6 @@
 // ignore_for_file: lines_longer_than_80_chars
 import 'package:flutter/foundation.dart';
+import 'package:lawbid/core/text/bidi.dart';
 import 'package:lawbid/features/promotions/domain/promotion_models.dart';
 
 /// docs/05 §2.4 post author: an attorney's public identity.
@@ -47,7 +48,7 @@ class PostAuthor {
 
   String get displayName {
     final name = [firstName, lastName].whereType<String>().join(' ').trim();
-    return name.isEmpty ? '@$username' : name;
+    return name.isEmpty ? atHandle(username) : name;
   }
 
   String get initials {
@@ -522,7 +523,7 @@ class AttorneyRow {
 
   String get displayName {
     final name = [firstName, lastName].whereType<String>().join(' ').trim();
-    return name.isEmpty ? '@$username' : name;
+    return name.isEmpty ? atHandle(username) : name;
   }
 
   AttorneyRow copyWith({bool? isFollowing}) => AttorneyRow(
@@ -617,7 +618,7 @@ class ClientRow {
 
   String get displayName {
     final name = [firstName, lastName].whereType<String>().join(' ').trim();
-    return name.isEmpty ? '@$username' : name;
+    return name.isEmpty ? atHandle(username) : name;
   }
 }
 

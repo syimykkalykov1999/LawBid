@@ -12,6 +12,7 @@ import 'package:lawbid/core/l10n/language_catalog.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/core/text/bidi.dart';
 import 'package:lawbid/features/blocks/presentation/block_actions.dart';
 import 'package:lawbid/features/cases/presentation/widgets/client_review_sheet.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
@@ -100,7 +101,7 @@ Future<void> showAttorneyMoreSheet(
           const AppSheetHandle(),
           BlockListRow(
             userId: p.id,
-            displayName: p.fullName.isEmpty ? '@${p.username}' : p.fullName,
+            displayName: p.fullName.isEmpty ? atHandle(p.username) : p.fullName,
             currentlyBlocked: p.isBlocked,
             onChanged: () =>
                 ref.invalidate(publicAttorneyProfileProvider(p.username)),
@@ -360,8 +361,9 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
               onPressed: () => showOfferCaseSheet(
                 context,
                 attorneyId: p.id,
-                attorneyName:
-                    p.fullName.trim().isEmpty ? '@${p.username}' : p.fullName,
+                attorneyName: p.fullName.trim().isEmpty
+                    ? atHandle(p.username)
+                    : p.fullName,
                 licensedStateCodes: {for (final s in p.licensedStates) s.code},
                 practiceIds: {for (final x in p.practices) x.id},
               ),
@@ -723,7 +725,7 @@ class _HeaderCard extends ConsumerWidget {
                 header: true,
                 child: Text(
                   profile.fullName.isEmpty
-                      ? '@${profile.username}'
+                      ? atHandle(profile.username)
                       : profile.fullName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,

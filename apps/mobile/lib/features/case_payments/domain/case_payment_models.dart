@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:lawbid/core/text/bidi.dart';
 
 /// Owner 2026-10-05 — the client pays the attorney at work on their case
 /// through the platform (Stripe Connect). The money goes straight to the
@@ -70,7 +71,7 @@ class PaymentParty {
   final String? username;
   final String? avatarUrl;
 
-  String get display => name ?? (username == null ? '' : '@$username');
+  String get display => name ?? (username == null ? '' : atHandle(username));
 }
 
 @immutable

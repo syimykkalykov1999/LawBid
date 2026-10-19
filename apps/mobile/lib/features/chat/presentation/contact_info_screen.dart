@@ -9,6 +9,7 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/navigation/shell/web_page_frame.dart';
+import 'package:lawbid/core/text/bidi.dart';
 import 'package:lawbid/features/blocks/application/blocks_providers.dart';
 import 'package:lawbid/features/blocks/presentation/block_actions.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
@@ -205,7 +206,8 @@ class _ContactInfoScreenState extends ConsumerState<ContactInfoScreen> {
         ref.watch(blockedIdsProvider).value?.contains(p.id) ?? false;
     final canBlock =
         p.id != null && !(c.caseId != null && c.contactsUnlocked && !c.closed);
-    final blockName = p.displayName ?? (username == null ? '' : '@$username');
+    final blockName =
+        p.displayName ?? (username == null ? '' : atHandle(username));
     final mediaCount =
         _storage == null ? null : _storage!.photos + _storage!.documents;
     final roleLine = hidden

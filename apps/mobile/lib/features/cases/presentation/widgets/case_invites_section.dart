@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/text/bidi.dart';
 import 'package:lawbid/features/cases/application/invites_providers.dart';
 import 'package:lawbid/features/cases/domain/case_invite.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
@@ -97,7 +98,7 @@ class _InviteRowState extends ConsumerState<_InviteRow> {
             .whereType<String>()
             .where((s) => s.trim().isNotEmpty)
             .join(' ')
-            .ifEmpty('@${a.username}');
+            .ifEmpty(atHandle(a.username));
     final reason = i.declineReason;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),

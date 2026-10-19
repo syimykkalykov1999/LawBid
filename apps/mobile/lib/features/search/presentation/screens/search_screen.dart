@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/text/bidi.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/data/cases_repository.dart'
     show CaseFeedExtras;
@@ -1065,7 +1066,7 @@ class _SuggestionRow extends ConsumerWidget {
           final s = items[i];
           final label = switch (s.kind) {
             SuggestionKind.tag => '#${s.text}',
-            SuggestionKind.person => '@${s.text}',
+            SuggestionKind.person => atHandle(s.text),
             SuggestionKind.practice => s.text,
           };
           return Center(

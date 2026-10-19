@@ -5,6 +5,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/text/bidi.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_photos.dart'
     show openCaseDocument;
 import 'package:lawbid/features/chat/application/chat_providers.dart';
@@ -634,7 +635,9 @@ class _VoiceTab extends ConsumerWidget {
                 final who = mine
                     ? t.t('chat.you')
                     : (other?.displayName ??
-                        (other?.username == null ? '' : '@${other!.username}'));
+                        (other?.username == null
+                            ? ''
+                            : atHandle(other!.username)));
                 final playable = v.url != null || v.localPath != null;
                 return ListTile(
                   key: ValueKey('voice-${m.id}'),

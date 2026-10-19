@@ -6,6 +6,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/text/bidi.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
@@ -644,7 +645,7 @@ class ClientTile extends ConsumerWidget {
                       ),
                     ),
                   Text(
-                    '@${row.username}',
+                    atHandle(row.username),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: type.caption.copyWith(color: colors.textSecondary),

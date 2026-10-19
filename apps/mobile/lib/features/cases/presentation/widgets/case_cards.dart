@@ -3,6 +3,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/text/bidi.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_actions_bar.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_cover.dart';
@@ -919,8 +920,9 @@ class AttorneyLine extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    final name =
-        attorney.fullName.isEmpty ? '@${attorney.username}' : attorney.fullName;
+    final name = attorney.fullName.isEmpty
+        ? atHandle(attorney.username)
+        : attorney.fullName;
     final rating = attorney.ratingCount == 0
         ? t.t('cases.attorney.noReviews')
         : t.t('cases.attorney.rating', {

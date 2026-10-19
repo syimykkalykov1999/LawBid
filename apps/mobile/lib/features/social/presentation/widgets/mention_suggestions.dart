@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
+import 'package:lawbid/core/text/bidi.dart';
 import 'package:lawbid/features/search/application/search_providers.dart';
 import 'package:lawbid/features/search/data/search_repository.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
@@ -122,7 +123,7 @@ class _MentionSuggestionsState extends ConsumerState<MentionSuggestions> {
                   for (final p in _people)
                     Semantics(
                       button: true,
-                      label: '@${p.username}',
+                      label: atHandle(p.username),
                       excludeSemantics: true,
                       child: AppPressable(
                         onTap: () => _pick(p),
@@ -146,7 +147,7 @@ class _MentionSuggestionsState extends ConsumerState<MentionSuggestions> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      '@${p.username}',
+                                      atHandle(p.username),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: type.bodySmall.copyWith(

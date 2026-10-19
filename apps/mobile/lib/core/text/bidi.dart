@@ -3,3 +3,8 @@
 /// A left-to-right isolate keeps the digits and the slash in order.
 String ltrIsolate(String s) =>
     '${String.fromCharCode(0x2066)}$s${String.fromCharCode(0x2069)}';
+
+/// `@username` for display. Owner 2026-10-19: in Arabic, Hebrew, Persian
+/// and Urdu the «@» went after the name («thomas.brennan@»); isolated left
+/// to right it reads «@thomas.brennan» in every language.
+String atHandle(String? username) => ltrIsolate('@${username ?? ''}');

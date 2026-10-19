@@ -2,6 +2,9 @@
 // for every key the longest translation among the languages the test fonts
 // can draw, written to apps/mobile/test/l10n/longest_strings.json.
 // Usage: node scripts/gen-longest-strings.mjs
+// Also writes test/l10n/lang_<code>.json for the languages whose real text
+// the overflow tests pump as is (Nepali, Arabic: other scripts, the longest
+// texts by owner's measure).
 import ExcelJS from 'exceljs';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -20,6 +23,8 @@ const ws = wb.worksheets[0];
 const header = Array.from(ws.getRow(1).values, text);
 const col = Object.fromEntries(header.map((h, i) => [h, i]));
 const out = {};
+const ONE_LANG = ['ne', 'ar'];
+const single = Object.fromEntries(ONE_LANG.map((l) => [l, {}]));
 ws.eachRow((row, n) => {
   if (n === 1) return;
   const v = row.values;
@@ -33,8 +38,17 @@ ws.eachRow((row, n) => {
     if (s && ph(s) === want && s.length > best.length) best = s;
   }
   out[key] = best;
+  for (const l of ONE_LANG) {
+    const s = text(v[col[l]]);
+    single[l][key] = s && ph(s) === want ? s : en;
+  }
 });
 const keys = Object.keys(out).sort();
 const file = path.join(ROOT, 'apps/mobile/test/l10n/longest_strings.json');
 fs.writeFileSync(file, '{\n' + keys.map((k) => `${JSON.stringify(k)}:${JSON.stringify(out[k])}`).join(',\n') + '\n}');
 console.log(`${keys.length} keys -> ${path.relative(ROOT, file)}`);
+for (const l of ONE_LANG) {
+  const f = path.join(ROOT, `apps/mobile/test/l10n/lang_${l}.json`);
+  fs.writeFileSync(f, '{\n' + keys.map((k) => `${JSON.stringify(k)}:${JSON.stringify(single[l][k])}`).join(',\n') + '\n}');
+  console.log(`${l} -> ${path.relative(ROOT, f)}`);
+}

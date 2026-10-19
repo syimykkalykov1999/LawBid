@@ -95,7 +95,8 @@ class AppAvatar extends StatelessWidget {
 /// never the "@" of a bare handle ("@sima" → "S"); "?" when empty.
 String avatarInitials(String name) {
   final words = name
-      .replaceAll('@', ' ')
+      // The invisible direction marks around a shown @handle too.
+      .replaceAll(RegExp('[@\u2066-\u2069]'), ' ')
       .split(RegExp(r'[\s._-]+'))
       .where((w) => w.isNotEmpty)
       .toList();

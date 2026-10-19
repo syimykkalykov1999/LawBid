@@ -443,7 +443,7 @@ class _Avatar extends StatelessWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final url = peer?.avatarUrl;
     final initials = (peer?.name ?? '?')
-        .replaceAll('@', '')
+        .replaceAll(RegExp('[@\u2066-\u2069]'), '')
         .split(' ')
         .where((w) => w.isNotEmpty)
         .take(2)

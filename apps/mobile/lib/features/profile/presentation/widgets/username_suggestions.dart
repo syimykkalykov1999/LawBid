@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/text/bidi.dart';
 
 /// Owner 2026-10-18 («как в инсте»): free @usernames under the username
 /// field; a tap puts one in the field.
@@ -38,7 +39,7 @@ class UsernameSuggestions extends ConsumerWidget {
               for (final s in suggestions)
                 Semantics(
                   button: true,
-                  label: '@$s',
+                  label: atHandle(s),
                   child: AppPressable(
                     key: ValueKey('username-suggestion-$s'),
                     onTap: () => onPick(s),
@@ -53,7 +54,7 @@ class UsernameSuggestions extends ConsumerWidget {
                         border: Border.all(color: colors.border),
                       ),
                       child: Text(
-                        '@$s',
+                        atHandle(s),
                         style: type.bodySmall.copyWith(color: colors.text),
                       ),
                     ),
