@@ -125,6 +125,20 @@ export class PushDispatcher
   /** Returns what happened (tests, dashboards). */
   async dispatch(data: PushJobData, jobId: string): Promise<DispatchResult> {
     if (data.kind === 'call') return this.dispatchCall(data);
+    if (data.kind === 'call_end') {
+      // Never held by settings or quiet hours: it only silences a ring.
+      await this.sender.send(
+        {
+          userId: data.recipientId,
+          title: '',
+          body: '',
+          data: { type: 'call_ended', callId: data.callId },
+          callEnd: true,
+        },
+        `ce:${data.callId}`,
+      );
+      return 'sent';
+    }
     return data.kind === 'message'
       ? this.dispatchMessage(data, jobId)
       : this.dispatchNotification(data, jobId);

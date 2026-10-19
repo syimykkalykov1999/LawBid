@@ -91,6 +91,16 @@ export class PushTokensService {
     return rows.filter((r) => r.alive).map((r) => r.token);
   }
 
+  /** Browser tokens: a browser push must show something, so silent
+   * pushes (call_ended) skip them. */
+  async webTokens(userId: string): Promise<string[]> {
+    const rows = await this.prisma.pushToken.findMany({
+      where: { user_id: userId, platform: 'web' },
+      select: { fcm_token: true },
+    });
+    return rows.map((r) => r.fcm_token);
+  }
+
   /** FCM said UNREGISTERED / invalid (§9.5). */
   async remove(token: string): Promise<void> {
     await this.prisma.pushToken.deleteMany({ where: { fcm_token: token } });

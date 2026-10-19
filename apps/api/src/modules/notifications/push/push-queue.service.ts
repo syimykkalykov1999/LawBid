@@ -117,6 +117,30 @@ export class PushQueueService
     }
   }
 
+  /** Push 2026-10-19: stop the ringing on [recipientId]'s devices. */
+  async enqueueCallEnded(data: { recipientId: string; callId: string }) {
+    if (demoContext.isDemo()) return;
+    if (!this.queue) return;
+    try {
+      await this.queue.add(
+        PUSH_JOB,
+        { kind: 'call_end', ...data },
+        {
+          attempts: 2,
+          backoff: { type: 'fixed', delay: 1_000 },
+          removeOnComplete: { count: 1000 },
+          removeOnFail: { count: 1000 },
+          jobId: `ce-${data.callId}-${data.recipientId}`,
+        },
+      );
+    } catch (error) {
+      this.logger.warn(
+        { callId: data.callId, err: errMsg(error) },
+        'push enqueue failed',
+      );
+    }
+  }
+
   /** Re-queue after the recipient's quiet hours. */
   async defer(data: PushJobData, until: Date, jobId: string): Promise<void> {
     if (!this.queue) return;

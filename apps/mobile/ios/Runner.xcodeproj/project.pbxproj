@@ -252,6 +252,7 @@
 				3B06AD1E1E4923F5004D2608 /* Thin Binary */,
 				4C1A5E2F2EA0B00100D1A501 /* Strip dev-only ATS (prod) */,
 				4C1A5E2F2EA0B00100D1A504 /* Auto build number */,
+				4C1A5E2F2EA0B00100D1A505 /* Bundle Firebase config if present */,
 				BD9BE40A1BF600A3555B1DCB /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
@@ -456,6 +457,21 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "# Store release 2026-10-06: Info.plist allows plain http:// for the local\n# dev backend (NSAllowsArbitraryLoads). The prod flavor talks only to\n# https://api.lawbid.dev, so the exception is removed from its bundle.\ncase \"${CONFIGURATION}\" in\n  *-prod)\n    /usr/libexec/PlistBuddy -c \"Delete :NSAppTransportSecurity\" \"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}\" 2>/dev/null || true\n    ;;\nesac\n";
+		};
+		4C1A5E2F2EA0B00100D1A505 /* Bundle Firebase config if present */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Bundle Firebase config if present";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Push 2026-10-19: ios/Runner/GoogleService-Info.plist is git-ignored and\n# not a project file, so it is copied into the app here when it exists.\n# Without it the build still succeeds and push simply stays off.\nSRC=\"${SRCROOT}/Runner/GoogleService-Info.plist\"\nDST=\"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/GoogleService-Info.plist\"\nif [ -f \"$SRC\" ]; then\n  cp -f \"$SRC\" \"$DST\"\nelse\n  rm -f \"$DST\"\n  echo \"note: no Runner/GoogleService-Info.plist - FCM push is off in this build\"\nfi\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 

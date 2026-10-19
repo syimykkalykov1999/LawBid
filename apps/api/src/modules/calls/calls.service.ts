@@ -249,7 +249,21 @@ export class CallsService {
         call: await this.toDto(fresh, uid),
       });
     }
+    await this.stopRingingPush(call);
     return this.toDto(fresh, user.sub);
+  }
+
+  /** Push 2026-10-19: phones asleep or closed show the system ringing
+   * screen with no socket to hear `call:ended` / `call:accepted` — a
+   * silent push takes it down (the answering phone keeps its call). */
+  private async stopRingingPush(call: Call): Promise<void> {
+    const ringing = [
+      call.callee_id,
+      ...(await this.callAssistants(call.callee_id)),
+    ];
+    for (const recipientId of ringing) {
+      await this.push.enqueueCallEnded({ recipientId, callId: call.id });
+    }
   }
 
   /** POST /calls/:id/decline — the callee rejects a ringing call. */
@@ -383,6 +397,7 @@ export class CallsService {
       where: { id: call.id },
     });
     if (count > 0) {
+      if (call.status === 'ringing') await this.stopRingingPush(call);
       await this.logCall(fresh, outcome);
       for (const uid of [call.caller_id, call.callee_id]) {
         this.realtime.toUsers([uid], 'call:ended', {

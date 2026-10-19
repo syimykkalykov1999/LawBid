@@ -75,6 +75,12 @@ import flutter_callkit_incoming
       completion()
       return
     }
+    // Without the plugin there is no CallKit provider to report to; finish
+    // the push instead of leaving iOS waiting.
+    guard let callkit = SwiftFlutterCallkitIncomingPlugin.sharedInstance else {
+      completion()
+      return
+    }
     let p = payload.dictionaryPayload
     let callId = (p["callId"] as? String) ?? UUID().uuidString
     let name = (p["callerName"] as? String) ?? "LawBid"
@@ -102,7 +108,7 @@ import flutter_callkit_incoming
     if (p["silent"] as? String) == "1" {
       data.ringtonePath = "silence"
     }
-    SwiftFlutterCallkitIncomingPlugin.sharedInstance?.showCallkitIncoming(
+    callkit.showCallkitIncoming(
       data,
       fromPushKit: true
     ) {

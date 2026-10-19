@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart' show appFlavor;
 import 'package:flutter_callkit_incoming/entities/entities.dart';
 import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -19,6 +18,7 @@ import 'package:lawbid/features/onboarding/application/current_user_controller.d
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// docs/05 §9.5 push on the device: FCM token registered for this session
 /// (`POST /push-tokens`), re-registered when it rotates, removed on
@@ -51,13 +51,14 @@ class PushService {
         .user
         ?.onboarding
         .data['pushOptIn'];
-    if (optIn == false) {
-      debugPrint('push: declined in onboarding, not prompting');
-      return;
-    }
+    // Push 2026-10-19: a «no» there only means no system prompt — the
+    // device is still registered (no dialog needed for that), so calls ring
+    // and pushes show once the person allows them in the phone's settings.
+    final prompt = optIn != false;
+    if (!prompt) debugPrint('push: declined in onboarding, not prompting');
     // Owner 2026-10-15: the phone's permission is asked here, whether or not
     // the push SDK is set up in this build.
-    unawaited(_ref.read(systemNotificationsProvider).request());
+    if (prompt) unawaited(_askSystemPermissions());
     // Owner 2026-10-17: iPhones ring for calls through Apple's VoIP pushes
     // (independent of Firebase).
     if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
@@ -69,6 +70,8 @@ class PushService {
       _startedFor = null;
       return;
     }
+    // The browser's token request is itself the permission prompt.
+    if (kIsWeb && !prompt) return;
     try {
       if (Firebase.apps.isEmpty) {
         await Firebase.initializeApp(
@@ -87,7 +90,7 @@ class PushService {
       if (!kIsWeb) {
         FirebaseMessaging.onBackgroundMessage(lawbidBackgroundMessage);
       }
-      await m.requestPermission();
+      if (prompt) await m.requestPermission();
       final token = await m.getToken(
         vapidKey: kIsWeb ? WebPushConfig.vapidKey : null,
       );
@@ -100,6 +103,13 @@ class PushService {
         ..add(
           FirebaseMessaging.onMessage.listen((msg) {
             // OQ-041: the socket may have missed the ring.
+            // Push 2026-10-19: the call is over — stop the system ringing
+            // (realtime updates the in-app screen).
+            if (msg.data['type'] == 'call_ended' &&
+                msg.data['callId'] is String) {
+              unawaited(stopLawbidIncoming(msg.data['callId'] as String));
+              return;
+            }
             if (msg.data['type'] == 'incoming_call' &&
                 msg.data['callId'] is String) {
               unawaited(
@@ -119,6 +129,26 @@ class PushService {
       _startedFor = null; // try again on the next shell start
     }
   }
+
+  /// Notifications, then (Android 14+) the «full-screen notifications»
+  /// switch an incoming call needs to cover the lock screen like a phone
+  /// call — asked once per install (the system's own settings page).
+  Future<void> _askSystemPermissions() async {
+    final allowed = await _ref.read(systemNotificationsProvider).request();
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
+    if (!allowed) return;
+    try {
+      if (await FlutterCallkitIncoming.canUseFullScreenIntent()) return;
+      final prefs = await SharedPreferences.getInstance();
+      if (prefs.getBool(_fullScreenAskedKey) ?? false) return;
+      await prefs.setBool(_fullScreenAskedKey, true);
+      await FlutterCallkitIncoming.requestFullIntentPermission();
+    } on Object catch (e) {
+      debugPrint('full-screen intent check failed: $e');
+    }
+  }
+
+  static const _fullScreenAskedKey = 'push.fullScreenIntentAsked';
 
   Future<void> _register(String token) async {
     _token = token;
@@ -146,9 +176,10 @@ class PushService {
         await _ref.read(notificationsRepositoryProvider).registerVoipToken(
               token,
               bundleId: info.packageName,
-              // Store builds (prod flavor) talk to Apple's production
-              // gateway; the server retries the other one if needed.
-              production: appFlavor == 'prod',
+              // Release builds (TestFlight / App Store) get production
+              // tokens, debug builds sandbox ones; the server retries the
+              // other gateway once and remembers it if this guess is off.
+              production: kReleaseMode,
             );
         _voipToken = token;
       } on Object {
