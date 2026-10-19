@@ -428,6 +428,7 @@
 "cases.chat.open":"المحادثة",
 "cases.chat.soon":"تُفتح المحادثات في قسم «المحادثات».",
 "cases.comments.ask":"اطرح سؤالًا…",
+"cases.comments.button":"أسئلة",
 "cases.comments.hint":"ظاهرة لصاحب القضية وللمحامين الذين يمكنهم رؤية القضية. لا تتم مشاركة بيانات الاتصال إلا بعد قبول العرض.",
 "cases.comments.owner":"صاحب القضية",
 "cases.comments.send":"إرسال السؤال",

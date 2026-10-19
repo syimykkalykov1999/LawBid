@@ -32,7 +32,10 @@ void main() {
           categoryCode: 'bankruptcy_and_debt',
         ),
         TagInfo(
-            tag: 'debt', postsCount: 3, categoryCode: 'bankruptcy_and_debt'),
+          tag: 'debt',
+          postsCount: 3,
+          categoryCode: 'bankruptcy_and_debt',
+        ),
         TagInfo(tag: 'mediation', postsCount: 2),
       ];
     await tester.pumpWidget(

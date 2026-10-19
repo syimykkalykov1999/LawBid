@@ -452,7 +452,7 @@ class _BodyState extends ConsumerState<_Body> {
       // OQ-034: questions and answers under the case.
       AppListRow(
         icon: AppIcons.modeCommentOutlined,
-        label: t.t('cases.comments.title'),
+        label: t.t('cases.comments.button'),
         trailingText: c.commentCount > 0
             ? SocialFormat.count(formats, c.commentCount)
             : null,

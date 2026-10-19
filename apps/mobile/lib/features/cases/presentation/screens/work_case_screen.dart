@@ -289,7 +289,7 @@ class _WorkCaseScreenState extends ConsumerState<WorkCaseScreen> {
         // the hired attorney's had no way to them.
         AppListRow(
           icon: AppIcons.modeCommentOutlined,
-          label: t.t('cases.comments.title'),
+          label: t.t('cases.comments.button'),
           onTap: () => context.push(AppRoutes.caseComments(c.id)),
         ),
       ],

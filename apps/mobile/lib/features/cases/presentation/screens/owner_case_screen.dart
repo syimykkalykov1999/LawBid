@@ -468,7 +468,7 @@ class _OwnerCaseBody extends ConsumerWidget {
           ),
           AppListRow(
             icon: AppIcons.modeCommentOutlined,
-            label: t.t('cases.comments.title'),
+            label: t.t('cases.comments.button'),
             onTap: () => context.push(AppRoutes.caseComments(c.id)),
           ),
         ],
@@ -669,7 +669,7 @@ class _OwnerOpenCaseState extends ConsumerState<_OwnerOpenCase> {
                       Expanded(
                         child: AppButton(
                           key: const ValueKey('case-questions-open'),
-                          label: t.t('cases.comments.title'),
+                          label: t.t('cases.comments.button'),
                           icon: AppIcons.modeCommentOutlined,
                           variant: AppButtonVariant.secondary,
                           onPressed: () =>
