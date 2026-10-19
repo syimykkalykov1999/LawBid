@@ -13,6 +13,7 @@ import 'package:lawbid/features/cases/workspace/compose_sheet.dart';
 import 'package:lawbid/features/cases/workspace/file_actions.dart';
 import 'package:lawbid/features/cases/workspace/tasks_tab.dart';
 import 'package:lawbid/features/cases/workspace/workspace_data.dart';
+import 'package:lawbid/features/profile/presentation/widgets/profile_tab_pages.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
@@ -113,13 +114,36 @@ class _CaseWorkspaceBodyState extends ConsumerState<CaseWorkspaceBody> {
           CaseTabItem(t.t('cases.tab.activity')),
         ];
         final shift = wide ? 1 : 0;
-        final main = RefreshIndicator(
-          color: colors.gold,
-          backgroundColor: colors.sheet,
+        // Owner 2026-10-19 (Instagram): the case header scrolls away, the
+        // tab row sticks, and the tabs are pages side by side — the next
+        // one slides in with the finger, a tap slides to it, each is kept.
+        final pages = [for (var i = shift; i < labels.length + shift; i++) i];
+        Widget pageFor(int tab) => switch (tab) {
+              0 => Column(children: widget.overview),
+              1 => FilesTab(
+                  caseId: widget.caseId,
+                  isAttorney: widget.isAttorney,
+                ),
+              2 => TasksTab(
+                  caseId: widget.caseId,
+                  isAttorney: widget.isAttorney,
+                ),
+              3 => UpdatesTab(
+                  caseId: widget.caseId,
+                  isAttorney: widget.isAttorney,
+                ),
+              _ => ActivityTab(caseId: widget.caseId),
+            };
+        final scale = MediaQuery.textScalerOf(context).scale(1);
+        final main = ProfileTabPages(
+          key: ValueKey('case-pages-$wide'),
+          initialPage: (tab - shift).clamp(0, labels.length - 1),
+          onPage: (i) => _select(i + shift),
           onRefresh: _refresh,
-          child: ListView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
+          tabBarHeight: 28 + 18 * scale,
+          pagePadding: (_) => const EdgeInsets.only(bottom: AppSpacing.xxl),
+          header: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               CaseHero(
                 t: t,
@@ -136,37 +160,37 @@ class _CaseWorkspaceBodyState extends ConsumerState<CaseWorkspaceBody> {
                 publishedAt: widget.publishedAt,
               ),
               const SizedBox(height: AppSpacing.md),
-              CaseTextTabs(
-                items: labels,
-                index: tab - shift,
-                onChanged: (i) => _select(i + shift),
-              ),
-              // Owner 2026-10-19 («данные прыгают»): a tab keeps at least
-              // half a screen while it loads or is short, so switching tabs
-              // does not pull the page.
+            ],
+          ),
+          tabBar: Builder(
+            builder: (context) => CaseTextTabs(
+              items: labels,
+              index: tab - shift,
+              onChanged: (i) {
+                final c = ProfileTabPages.controllerOf(context);
+                if (c != null && c.hasClients) {
+                  c.animateToPage(
+                    i,
+                    duration: context.reduceMotion
+                        ? Duration.zero
+                        : const Duration(milliseconds: 250),
+                    curve: Curves.easeOutCubic,
+                  );
+                } else {
+                  _select(i + shift);
+                }
+              },
+            ),
+          ),
+          pages: [
+            for (final p in pages)
               ConstrainedBox(
                 constraints: BoxConstraints(
                   minHeight: MediaQuery.sizeOf(context).height * 0.5,
                 ),
-                child: switch (tab) {
-                  0 => Column(children: widget.overview),
-                  1 => FilesTab(
-                      caseId: widget.caseId,
-                      isAttorney: widget.isAttorney,
-                    ),
-                  2 => TasksTab(
-                      caseId: widget.caseId,
-                      isAttorney: widget.isAttorney,
-                    ),
-                  3 => UpdatesTab(
-                      caseId: widget.caseId,
-                      isAttorney: widget.isAttorney,
-                    ),
-                  _ => ActivityTab(caseId: widget.caseId),
-                },
+                child: pageFor(p),
               ),
-            ],
-          ),
+          ],
         );
         if (!wide) return main;
         return Center(

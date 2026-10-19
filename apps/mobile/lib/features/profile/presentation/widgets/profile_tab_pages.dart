@@ -13,13 +13,17 @@ class ProfileTabPages extends StatefulWidget {
     required this.header,
     required this.tabBar,
     required this.pages,
-    required this.onRefresh,
+    this.onRefresh,
     this.initialPage = 0,
     this.onPage,
     this.onNearEnd,
     this.pagePadding,
+    this.tabBarHeight = AppSizes.touchTarget,
     super.key,
   });
+
+  /// The sticky tab row's height.
+  final double tabBarHeight;
 
   /// Everything above the tabs (avatar, counters, bio, buttons).
   final Widget header;
@@ -38,7 +42,8 @@ class ProfileTabPages extends StatefulWidget {
   /// Padding around each page's content (null: the screen's side margins).
   final EdgeInsetsGeometry Function(int page)? pagePadding;
 
-  final Future<void> Function() onRefresh;
+  /// Pull to refresh; null when the screen already has its own.
+  final Future<void> Function()? onRefresh;
 
   /// The page controller of the nearest [ProfileTabPages].
   static PageController? controllerOf(BuildContext context) => context
@@ -64,13 +69,9 @@ class _ProfileTabPagesState extends State<ProfileTabPages> {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     return _ProfilePagesScope(
       controller: _pages,
-      child: RefreshIndicator(
-        color: colors.gold,
-        backgroundColor: colors.sheet,
-        // The pages' own vertical lists pull to refresh too.
-        notificationPredicate: (n) => n.metrics.axis == Axis.vertical,
-        onRefresh: widget.onRefresh,
-        child: NestedScrollView(
+      child: _refreshable(
+        context,
+        NestedScrollView(
           headerSliverBuilder: (context, _) => [
             SliverToBoxAdapter(child: widget.header),
             SliverOverlapAbsorber(
@@ -80,6 +81,7 @@ class _ProfileTabPagesState extends State<ProfileTabPages> {
                 delegate: _TabBarDelegate(
                   child: widget.tabBar,
                   color: colors.bg,
+                  height: widget.tabBarHeight,
                 ),
               ),
             ),
@@ -128,6 +130,20 @@ class _ProfileTabPagesState extends State<ProfileTabPages> {
       ),
     );
   }
+
+  Widget _refreshable(BuildContext context, Widget child) {
+    final onRefresh = widget.onRefresh;
+    if (onRefresh == null) return child;
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    return RefreshIndicator(
+      color: colors.gold,
+      backgroundColor: colors.sheet,
+      // The pages' own vertical lists pull to refresh too.
+      notificationPredicate: (n) => n.metrics.axis == Axis.vertical,
+      onRefresh: onRefresh,
+      child: child,
+    );
+  }
 }
 
 class _ProfilePagesScope extends InheritedWidget {
@@ -141,24 +157,36 @@ class _ProfilePagesScope extends InheritedWidget {
 }
 
 class _TabBarDelegate extends SliverPersistentHeaderDelegate {
-  _TabBarDelegate({required this.child, required this.color});
+  _TabBarDelegate({
+    required this.child,
+    required this.color,
+    required this.height,
+  });
 
   final Widget child;
   final Color color;
+  final double height;
 
   @override
-  double get minExtent => AppSizes.touchTarget;
+  double get minExtent => height;
 
   @override
-  double get maxExtent => AppSizes.touchTarget;
+  double get maxExtent => height;
 
   @override
   Widget build(BuildContext context, double shrinkOffset, bool overlaps) =>
-      ColoredBox(color: color, child: child);
+      ColoredBox(
+        color: color,
+        // Exactly the row's height, whatever the child's own (a pinned
+        // header must paint as much as it takes).
+        child: SizedBox.expand(
+          child: Align(alignment: Alignment.bottomCenter, child: child),
+        ),
+      );
 
   @override
   bool shouldRebuild(_TabBarDelegate old) =>
-      child != old.child || color != old.color;
+      child != old.child || color != old.color || height != old.height;
 }
 
 /// Keeps a page (its scroll position, its lists, its providers) alive when
