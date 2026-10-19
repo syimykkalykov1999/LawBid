@@ -571,10 +571,8 @@ class _MineSearchBarState extends ConsumerState<MineSearchBar> {
                     ),
             ),
           ),
-          if (widget.action != null) ...[
-            const SizedBox(width: AppSpacing.sm),
-            widget.action!,
-          ],
+          // Owner 2026-10-19: a small even gap, the chips get the room.
+          if (widget.action != null) widget.action!,
         ],
       ),
     );
@@ -647,6 +645,7 @@ class _MineChipsSearchRowState extends ConsumerState<MineChipsSearchRow> {
           if (!open)
             AppIconButton(
               key: const ValueKey('mine-guide-open'),
+              compact: true,
               icon:
                   AppIcon(AppIcons.infoOutlineRounded, color: colors.goldDark),
               semanticLabel: t.t('guide.title'),
@@ -655,14 +654,13 @@ class _MineChipsSearchRowState extends ConsumerState<MineChipsSearchRow> {
           if (!open)
             AppIconButton(
               key: const ValueKey('mine-search-open'),
+              compact: true,
               icon: AppIcon(AppIcons.searchRounded, color: colors.goldDark),
               semanticLabel: t.t(widget.hintKey),
               onPressed: () => setState(() => _open = true),
             ),
-          if (widget.action != null) ...[
-            const SizedBox(width: AppSpacing.sm),
-            widget.action!,
-          ],
+          // Owner 2026-10-19: a small even gap, the chips get the room.
+          if (widget.action != null) widget.action!,
         ],
       ),
     );

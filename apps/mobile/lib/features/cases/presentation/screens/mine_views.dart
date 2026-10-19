@@ -239,6 +239,7 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
     // Owner 2026-10-15: «Saved» is a bookmark right of the search.
     final saved = AppIconButton(
       key: const ValueKey('mine-saved-toggle'),
+      compact: true,
       icon: AppIcon(
         _saved ? AppIcons.bookmarkRounded : AppIcons.bookmarkBorderRounded,
         color: _saved ? colors.goldDark : colors.text,
