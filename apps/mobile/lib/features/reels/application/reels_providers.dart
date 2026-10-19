@@ -19,11 +19,12 @@ final reelsEnabledProvider = Provider<bool>(
 );
 
 /// The reels' sound: one switch for every video of the session, like
-/// Instagram — videos start muted; turn the sound on once and the next
-/// ones play with it.
+/// Instagram. Owner 2026-10-19: every published video (reels and the feed)
+/// starts WITH sound; turn it off once and the next ones play muted, for
+/// the rest of the session.
 class ReelsMuted extends Notifier<bool> {
   @override
-  bool build() => true;
+  bool build() => false;
 
   void toggle() => state = !state;
 }

@@ -313,11 +313,11 @@ class _ReelPage extends ConsumerStatefulWidget {
 }
 
 class _ReelPageState extends ConsumerState<_ReelPage> {
-  /// Owner 2026-10-19 (Instagram): paused while the finger is held down.
+  /// The viewer paused it (tap on the reel).
   bool _paused = false;
 
-  /// A tap toggles the sound; the speaker flashes in the middle.
-  int _flash = 0;
+  /// Owner 2026-10-19 (Instagram): paused while the finger is held down.
+  bool _held = false;
   final _progress = ValueNotifier<double>(0);
   Timer? _viewTimer;
 
@@ -457,16 +457,13 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
       children: [
         DoubleTapLike(
           onLike: () => run(() => actions.like(p)),
-          // Owner 2026-10-19 (Instagram): tap = sound on / off, hold =
-          // pause, let go = plays on.
+          // Owner 2026-10-19: tap = pause / play (the sound is the speaker
+          // button); hold = pause, let go = plays on.
           child: GestureDetector(
-            onTap: () {
-              ref.read(reelsMutedProvider.notifier).toggle();
-              setState(() => _flash++);
-            },
-            onLongPressStart: (_) => setState(() => _paused = true),
-            onLongPressEnd: (_) => setState(() => _paused = false),
-            onLongPressCancel: () => setState(() => _paused = false),
+            onTap: () => setState(() => _paused = !_paused),
+            onLongPressStart: (_) => setState(() => _held = true),
+            onLongPressEnd: (_) => setState(() => _held = false),
+            onLongPressCancel: () => setState(() => _held = false),
             child: Stack(
               fit: StackFit.expand,
               children: [
@@ -476,7 +473,7 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                     active: widget.active && video.ready,
                     warm: widget.warm && video.ready,
                     muted: widget.muted,
-                    paused: _paused || covered,
+                    paused: _paused || _held || covered,
                     zoomable: true,
                     onProgress: (v) => _progress.value = v,
                   ),
@@ -493,32 +490,12 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                       ),
                     ),
                   ),
-                if (_flash > 0)
-                  Center(
-                    child: IgnorePointer(
-                      child: TweenAnimationBuilder<double>(
-                        key: ValueKey(_flash),
-                        tween: Tween(begin: 1, end: 0),
-                        duration: const Duration(milliseconds: 900),
-                        curve: Curves.easeIn,
-                        builder: (_, v, child) =>
-                            Opacity(opacity: v, child: child),
-                        child: Container(
-                          width: 64,
-                          height: 64,
-                          decoration: const BoxDecoration(
-                            color: Colors.black45,
-                            shape: BoxShape.circle,
-                          ),
-                          child: AppIcon(
-                            widget.muted
-                                ? AppIcons.speakerSlash
-                                : AppIcons.speakerHigh,
-                            size: 30,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
+                if (_paused)
+                  const Center(
+                    child: AppIcon(
+                      AppIcons.playArrowRounded,
+                      size: 72,
+                      color: Colors.white70,
                     ),
                   ),
                 // Bottom shade so the caption reads on any video.
