@@ -20,6 +20,7 @@ CaseTasksDto _$CaseTasksDtoFromJson(Map<String, dynamic> json) => CaseTasksDto(
   private: (json['private'] as List<dynamic>)
       .map((e) => CaseTaskDto.fromJson(e as Map<String, dynamic>))
       .toList(),
+  canEdit: json['canEdit'] as bool,
 );
 
 Map<String, dynamic> _$CaseTasksDtoToJson(CaseTasksDto instance) =>
@@ -29,4 +30,5 @@ Map<String, dynamic> _$CaseTasksDtoToJson(CaseTasksDto instance) =>
       'shared': instance.shared.map((e) => e.toJson()).toList(),
       'joint': instance.joint.map((e) => e.toJson()).toList(),
       'private': instance.private.map((e) => e.toJson()).toList(),
+      'canEdit': instance.canEdit,
     };

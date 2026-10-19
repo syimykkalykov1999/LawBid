@@ -46,6 +46,8 @@ enum UploadFormat {
   mp4('mp4'),
   @JsonValue('mov')
   mov('mov'),
+  @JsonValue('webm')
+  webm('webm'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

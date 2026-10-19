@@ -35,6 +35,7 @@ import '../models/task_done_dto.dart';
 import '../models/task_submission_dto.dart';
 import '../models/update_case_dto.dart';
 import '../models/update_case_urgency_dto.dart';
+import '../models/update_private_details_dto.dart';
 import '../models/workspace_file_list_envelope.dart';
 
 part 'cases_client.g.dart';
@@ -125,6 +126,14 @@ abstract class CasesClient {
   @GET('/cases/{id}')
   Future<CaseDetailForAttorneyEnvelope> getCaseDetail({
     @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Change the private details («Подробности») — the client, while the case is open or in work (audit 2026-10-19)
+  @PATCH('/cases/{id}/private-details')
+  Future<CaseEnvelope> updateCasePrivateDetails({
+    @Path('id') required String id,
+    @Body() required UpdatePrivateDetailsDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

@@ -14,6 +14,7 @@ class OnboardingProfileDto {
   const OnboardingProfileDto({
     this.firstName,
     this.lastName,
+    this.username,
     this.email,
     this.stateCode,
     this.languages,
@@ -29,6 +30,10 @@ class OnboardingProfileDto {
 
   final String? firstName;
   final String? lastName;
+
+  /// Owner 2026-10-18 («как в инсте»): the @username picked on the form;.
+  /// without it the server derives one from the name.
+  final String? username;
 
   /// Owner 2026-10-13: e-mail, format only (no code, not verified).
   final String? email;

@@ -24207,6 +24207,25 @@
               "maxLength": 64,
               "type": "string"
             }
+          },
+          {
+            "name": "first",
+            "required": false,
+            "in": "query",
+            "description": "The name as typed on the form (suggestions); the saved one if absent.",
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          },
+          {
+            "name": "last",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -24277,6 +24296,111 @@
           }
         ],
         "summary": "Rate-limited (§4.3): an enumeration aid otherwise.",
+        "tags": [
+          "attorneys"
+        ]
+      }
+    },
+    "/attorneys/username-suggestions": {
+      "get": {
+        "operationId": "usernameSuggestions",
+        "parameters": [
+          {
+            "name": "u",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "name": "first",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          },
+          {
+            "name": "last",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsernameSuggestionsEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Owner 2026-10-18 («как в инсте»): free handles for the sign-up and\nedit forms. Rate-limited like the availability check.",
         "tags": [
           "attorneys"
         ]
@@ -27979,6 +28103,133 @@
           }
         ],
         "summary": "Case detail for an attorney (docs/04 §4.3, no client field)",
+        "tags": [
+          "cases"
+        ]
+      }
+    },
+    "/cases/{id}/private-details": {
+      "patch": {
+        "operationId": "updateCasePrivateDetails",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePrivateDetailsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: CASE_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: CASE_INVALID_STATE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Change the private details («Подробности») — the client, while the case is open or in work (audit 2026-10-19)",
         "tags": [
           "cases"
         ]
@@ -52367,6 +52618,511 @@
         "summary": "GET /i18n/bundle/:lang?since=version. Bypasses the global\nResponseInterceptor's {data:...} envelope deliberately (@Res()\nwithout `passthrough`, per Nest's documented raw-response-control\npattern) — that's the only way to send a spec-correct empty-body 304\nfor a matching ETag (docs/01_FOUNDATION_AUTH.md §9.3: \"Поддержка\nETag/304\"). Every other route in this module returns normally and\ngets the standard envelope.\n\nETag/304 is the plain-GET HTTP-cache path (no `since`): if the\nclient's If-None-Match matches the language's current version, 304\nwith no body. `since` is the separate, explicit delta-poll path\n(§9.3: \"полный или дельта-набор + version\") — it always returns 200\nwith a (possibly empty) JSON body, never a 304, since it's a\nversioned query the client is actively asking for, not a cache\nrevalidation.",
         "tags": [
           "i18n"
+        ]
+      }
+    },
+    "/admin/i18n/texts": {
+      "get": {
+        "operationId": "listTexts",
+        "parameters": [
+          {
+            "name": "prefix",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "minLength": 2,
+              "maxLength": 100,
+              "pattern": "^[A-Za-z0-9_.-]+$",
+              "example": "guide.",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/I18nTextsEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Owner 2026-10-18: the texts under a key prefix in every language\n(admin «Справочник»: `guide.`).",
+        "tags": [
+          "admin-i18n"
+        ]
+      },
+      "put": {
+        "operationId": "updateText",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateI18nTextDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR, I18N_LANGUAGE_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "One text in one language; phones get it on their next bundle sync.",
+        "tags": [
+          "admin-i18n"
+        ]
+      }
+    },
+    "/admin/i18n/texts/translate": {
+      "post": {
+        "operationId": "translateText",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TranslateI18nTextDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranslatedI18nTextEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR, TRANSLATION_UNAVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable: TRANSLATION_UNAVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "«Перевести на все языки»: a machine-translation preview of the\nedited text into every other language (nothing is saved).",
+        "tags": [
+          "admin-i18n"
+        ]
+      }
+    },
+    "/admin/i18n/texts/many": {
+      "put": {
+        "operationId": "updateTextMany",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateI18nTextManyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR, I18N_LANGUAGE_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "The confirmed preview: one text in many languages at once.",
+        "tags": [
+          "admin-i18n"
+        ]
+      }
+    },
+    "/admin/i18n/texts/reset": {
+      "post": {
+        "operationId": "resetText",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetI18nTextDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "«Сбросить к встроенному тексту» (one language or all).",
+        "tags": [
+          "admin-i18n"
         ]
       }
     },
@@ -89402,7 +90158,7 @@
           "mime": {
             "type": "string",
             "example": "image/jpeg",
-            "description": "One of: image/jpeg, image/png, image/heic, application/pdf, application/vnd.openxmlformats-officedocument.wordprocessingml.document, audio/mp4, audio/webm, image/webp, image/gif, application/msword, application/vnd.ms-excel, application/vnd.ms-powerpoint, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.openxmlformats-officedocument.presentationml.presentation, application/vnd.oasis.opendocument.text, application/vnd.oasis.opendocument.spreadsheet, application/vnd.oasis.opendocument.presentation, application/rtf, text/plain, text/csv, video/mp4, video/quicktime (allowed set depends on purpose)."
+            "description": "One of: image/jpeg, image/png, image/heic, application/pdf, application/vnd.openxmlformats-officedocument.wordprocessingml.document, audio/mp4, audio/webm, image/webp, image/gif, application/msword, application/vnd.ms-excel, application/vnd.ms-powerpoint, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.openxmlformats-officedocument.presentationml.presentation, application/vnd.oasis.opendocument.text, application/vnd.oasis.opendocument.spreadsheet, application/vnd.oasis.opendocument.presentation, application/rtf, text/plain, text/csv, video/mp4, video/quicktime, video/webm (allowed set depends on purpose)."
           },
           "sizeBytes": {
             "type": "number",
@@ -97524,12 +98280,20 @@
                 "$ref": "#/components/schemas/UsernameUnavailableReason"
               }
             ]
+          },
+          "suggestions": {
+            "description": "Free handles to offer instead (owner 2026-10-18); empty when available.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         },
         "required": [
           "username",
           "available",
-          "reason"
+          "reason",
+          "suggestions"
         ]
       },
       "UsernameAvailabilityEnvelope": {
@@ -97537,6 +98301,34 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/UsernameAvailabilityDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "UsernameSuggestionsDto": {
+        "type": "object",
+        "properties": {
+          "suggestions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "suggestions"
+        ]
+      },
+      "UsernameSuggestionsEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/UsernameSuggestionsDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"
@@ -98002,8 +98794,8 @@
             "nullable": true,
             "enum": [
               "call",
-              "email",
               "sms",
+              "email",
               "in_app_chat"
             ],
             "type": "string"
@@ -98025,8 +98817,8 @@
             "nullable": true,
             "enum": [
               "call",
-              "email",
               "sms",
+              "email",
               "in_app_chat"
             ],
             "type": "string"
@@ -98629,6 +99421,10 @@
             "minLength": 1,
             "maxLength": 50
           },
+          "username": {
+            "type": "string",
+            "description": "Owner 2026-10-18 («как в инсте»): the @username picked on the form;\nwithout it the server derives one from the name."
+          },
           "email": {
             "type": "string",
             "description": "Owner 2026-10-13: e-mail, format only (no code, not verified).",
@@ -98838,8 +99634,8 @@
             "nullable": true,
             "enum": [
               "call",
-              "email",
               "sms",
+              "email",
               "in_app_chat"
             ]
           },
@@ -100181,6 +100977,19 @@
             }
           }
         }
+      },
+      "UpdatePrivateDetailsDto": {
+        "type": "object",
+        "properties": {
+          "privateDetails": {
+            "type": "string",
+            "maxLength": 50000,
+            "description": "Only the owner and the accepted attorney read them; empty clears."
+          }
+        },
+        "required": [
+          "privateDetails"
+        ]
       },
       "UpdateCaseUrgencyDto": {
         "type": "object",
@@ -101704,6 +102513,10 @@
           "newUpdates": {
             "type": "integer",
             "description": "The other side's updates since this side last opened Updates."
+          },
+          "canWrite": {
+            "type": "boolean",
+            "description": "Audit 2026-10-19: false once the case is closed — the workspace is then read-only (no new updates, files or tasks)."
           }
         },
         "required": [
@@ -101713,7 +102526,8 @@
           "updatesCount",
           "publishedAt",
           "bidsCount",
-          "newUpdates"
+          "newUpdates",
+          "canWrite"
         ]
       },
       "CaseWorkspaceEnvelope": {
@@ -102098,6 +102912,10 @@
             "items": {
               "$ref": "#/components/schemas/CaseTaskDto"
             }
+          },
+          "canEdit": {
+            "type": "boolean",
+            "description": "Audit 2026-10-19: false once the case is closed, or for an assistant without the \"tasks\" duty — the tasks are then read-only."
           }
         },
         "required": [
@@ -102105,7 +102923,8 @@
           "forClient",
           "shared",
           "joint",
-          "private"
+          "private",
+          "canEdit"
         ]
       },
       "CaseTasksEnvelope": {
@@ -110070,7 +110889,8 @@
               "text/plain",
               "text/csv",
               "video/mp4",
-              "video/quicktime"
+              "video/quicktime",
+              "video/webm"
             ],
             "example": "image/jpeg"
           },
@@ -111095,7 +111915,8 @@
           "txt",
           "csv",
           "mp4",
-          "mov"
+          "mov",
+          "webm"
         ]
       },
       "UploadPlaceLimitsDto": {
@@ -112963,6 +113784,209 @@
         },
         "required": [
           "data"
+        ]
+      },
+      "I18nTextLanguageDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "name"
+        ]
+      },
+      "I18nTextRowDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "values": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "lang → text"
+          },
+          "edited": {
+            "description": "Languages whose text was changed in the admin.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "key",
+          "values",
+          "edited"
+        ]
+      },
+      "I18nTextsDto": {
+        "type": "object",
+        "properties": {
+          "languages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/I18nTextLanguageDto"
+            }
+          },
+          "keys": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/I18nTextRowDto"
+            }
+          }
+        },
+        "required": [
+          "languages",
+          "keys"
+        ]
+      },
+      "I18nTextsEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/I18nTextsDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "UpdateI18nTextDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "example": "guide.s1.title"
+          },
+          "lang": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 10,
+            "example": "ru"
+          },
+          "value": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20000
+          }
+        },
+        "required": [
+          "key",
+          "lang",
+          "value"
+        ]
+      },
+      "TranslatedI18nTextDto": {
+        "type": "object",
+        "properties": {
+          "values": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "lang → machine translation"
+          },
+          "failed": {
+            "description": "Languages that failed.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "values",
+          "failed"
+        ]
+      },
+      "TranslateI18nTextDto": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20000,
+            "description": "The source text as edited."
+          },
+          "source": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 10,
+            "example": "ru"
+          }
+        },
+        "required": [
+          "text",
+          "source"
+        ]
+      },
+      "TranslatedI18nTextEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TranslatedI18nTextDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "UpdateI18nTextManyDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "example": "guide.s1.title"
+          },
+          "values": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "key",
+          "values"
+        ]
+      },
+      "ResetI18nTextDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "example": "guide.s1.title"
+          },
+          "lang": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 10,
+            "description": "Omit for every language."
+          }
+        },
+        "required": [
+          "key"
         ]
       },
       "I18nImportMode": {

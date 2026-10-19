@@ -11,6 +11,7 @@ OnboardingProfileDto _$OnboardingProfileDtoFromJson(
 ) => OnboardingProfileDto(
   firstName: json['firstName'] as String?,
   lastName: json['lastName'] as String?,
+  username: json['username'] as String?,
   email: json['email'] as String?,
   stateCode: json['stateCode'] as String?,
   languages: (json['languages'] as List<dynamic>?)
@@ -34,6 +35,7 @@ Map<String, dynamic> _$OnboardingProfileDtoToJson(
 ) => <String, dynamic>{
   'firstName': ?instance.firstName,
   'lastName': ?instance.lastName,
+  'username': ?instance.username,
   'email': ?instance.email,
   'stateCode': ?instance.stateCode,
   'languages': ?instance.languages?.map((e) => e.toJson()).toList(),

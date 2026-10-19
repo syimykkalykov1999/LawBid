@@ -14,6 +14,9 @@ UsernameAvailabilityDto _$UsernameAvailabilityDtoFromJson(
   reason: json['reason'] == null
       ? null
       : UsernameUnavailableReason.fromJson(json['reason'] as String),
+  suggestions: (json['suggestions'] as List<dynamic>)
+      .map((e) => e as String)
+      .toList(),
 );
 
 Map<String, dynamic> _$UsernameAvailabilityDtoToJson(
@@ -22,4 +25,5 @@ Map<String, dynamic> _$UsernameAvailabilityDtoToJson(
   'username': instance.username,
   'available': instance.available,
   'reason': ?instance.reason?.toJson(),
+  'suggestions': instance.suggestions,
 };

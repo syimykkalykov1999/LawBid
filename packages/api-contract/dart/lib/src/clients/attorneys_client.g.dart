@@ -182,11 +182,17 @@ class _AttorneysClient implements AttorneysClient {
   @override
   Future<UsernameAvailabilityEnvelope> checkUsernameAvailable({
     required String u,
+    String? first,
+    String? last,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
     _extra.addAll(extras ?? <String, dynamic>{});
-    final queryParameters = <String, dynamic>{r'u': u};
+    final queryParameters = <String, dynamic>{
+      r'u': u,
+      r'first': first,
+      r'last': last,
+    };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};
     const Map<String, dynamic>? _data = null;
@@ -204,6 +210,44 @@ class _AttorneysClient implements AttorneysClient {
     late UsernameAvailabilityEnvelope _value;
     try {
       _value = UsernameAvailabilityEnvelope.fromJson(_result.data!);
+    } on Object catch (e, s) {
+      errorLogger?.logError(e, s, _options, response: _result);
+      rethrow;
+    }
+    return _value;
+  }
+
+  @override
+  Future<UsernameSuggestionsEnvelope> usernameSuggestions({
+    String? u,
+    String? first,
+    String? last,
+    Map<String, dynamic>? extras,
+  }) async {
+    final _extra = <String, dynamic>{};
+    _extra.addAll(extras ?? <String, dynamic>{});
+    final queryParameters = <String, dynamic>{
+      r'u': u,
+      r'first': first,
+      r'last': last,
+    };
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{};
+    const Map<String, dynamic>? _data = null;
+    final _options = _setStreamType<UsernameSuggestionsEnvelope>(
+      Options(method: 'GET', headers: _headers, extra: _extra)
+          .compose(
+            _dio.options,
+            '/attorneys/username-suggestions',
+            queryParameters: queryParameters,
+            data: _data,
+          )
+          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
+    );
+    final _result = await _dio.fetch<Map<String, Object?>>(_options);
+    late UsernameSuggestionsEnvelope _value;
+    try {
+      _value = UsernameSuggestionsEnvelope.fromJson(_result.data!);
     } on Object catch (e, s) {
       errorLogger?.logError(e, s, _options, response: _result);
       rethrow;

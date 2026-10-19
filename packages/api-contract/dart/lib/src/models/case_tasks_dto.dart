@@ -17,6 +17,7 @@ class CaseTasksDto {
     required this.shared,
     required this.joint,
     required this.private,
+    required this.canEdit,
   });
 
   factory CaseTasksDto.fromJson(Map<String, Object?> json) =>
@@ -31,6 +32,9 @@ class CaseTasksDto {
 
   /// Attorney only; empty for the client.
   final List<CaseTaskDto> private;
+
+  /// Audit 2026-10-19: false once the case is closed, or for an assistant without the "tasks" duty — the tasks are then read-only.
+  final bool canEdit;
 
   Map<String, Object?> toJson() => _$CaseTasksDtoToJson(this);
 }

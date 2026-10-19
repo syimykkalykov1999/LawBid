@@ -106,6 +106,10 @@ enum AdminSupportUploadDtoMime {
   @JsonValue('video/quicktime')
   undefined21('video/quicktime'),
 
+  /// Incorrect name has been replaced. Original name: `video/webm`.
+  @JsonValue('video/webm')
+  undefined22('video/webm'),
+
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);
 
