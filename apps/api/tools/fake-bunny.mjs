@@ -47,6 +47,10 @@ const run = (cmd, args) =>
     );
   });
 
+/** The short side up to 1080 px (portrait and landscape alike), even sizes. */
+const SCALE_1080 =
+  "scale='if(gt(iw,ih),-2,min(1080,iw))':'if(gt(iw,ih),min(1080,ih),-2)'";
+
 async function transcode(guid) {
   const m = await readMeta(guid);
   const input = join(dir(guid), 'upload.bin');
@@ -63,12 +67,12 @@ async function transcode(guid) {
     await mkdir(out, { recursive: true });
     await run('ffmpeg', [
       '-y', '-i', input,
-      // Owner 2026-10-15: light like a real CDN's first rung — 720 px wide,
-      // ~1.5 Mbit/s, 2 s segments — so a reel starts after a short fetch.
-      '-vf', "scale='min(720,iw)':-2",
-      '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '26', '-maxrate', '1500k', '-bufsize', '3000k',
+      // Owner 2026-10-19 («качество видео хуевое»): like production Bunny at
+      // 1080p — the short side up to 1080 px, ~5 Mbit/s, 2 s segments.
+      '-vf', SCALE_1080,
+      '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20', '-maxrate', '5000k', '-bufsize', '10000k',
       '-pix_fmt', 'yuv420p',
-      '-c:a', 'aac', '-b:a', '96k',
+      '-c:a', 'aac', '-b:a', '128k',
       '-hls_time', '2', '-hls_playlist_type', 'vod',
       '-hls_segment_filename', join(out, 'seg%03d.ts'),
       join(out, 'playlist.m3u8'),
@@ -118,9 +122,10 @@ async function ensureMp4(guid) {
   if (!existsSync(input)) return null;
   await mkdir(join(dir(guid), 'hls'), { recursive: true });
   await run('ffmpeg', [
-    '-y', '-i', input, '-vf', "scale='min(720,iw)':-2",
-    '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '26', '-pix_fmt', 'yuv420p',
-    '-c:a', 'aac', '-b:a', '96k', '-movflags', '+faststart', out,
+    '-y', '-i', input, '-vf', SCALE_1080,
+    '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20', '-maxrate', '5000k', '-bufsize', '10000k',
+    '-pix_fmt', 'yuv420p',
+    '-c:a', 'aac', '-b:a', '128k', '-movflags', '+faststart', out,
   ]);
   return out;
 }
