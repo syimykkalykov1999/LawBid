@@ -127,6 +127,7 @@ GoRouter appRouter(Ref ref) {
         ),
         branches: [
           StatefulShellBranch(
+            observers: [UnfocusOnNavigateObserver()],
             routes: [
               GoRoute(
                 path: AppRoutes.feed,
@@ -135,6 +136,7 @@ GoRouter appRouter(Ref ref) {
             ],
           ),
           StatefulShellBranch(
+            observers: [UnfocusOnNavigateObserver()],
             routes: [
               GoRoute(
                 path: AppRoutes.search,
@@ -143,6 +145,7 @@ GoRouter appRouter(Ref ref) {
             ],
           ),
           StatefulShellBranch(
+            observers: [UnfocusOnNavigateObserver()],
             routes: [
               GoRoute(
                 path: AppRoutes.mine,
@@ -151,6 +154,7 @@ GoRouter appRouter(Ref ref) {
             ],
           ),
           StatefulShellBranch(
+            observers: [UnfocusOnNavigateObserver()],
             routes: [
               GoRoute(
                 path: AppRoutes.profile,

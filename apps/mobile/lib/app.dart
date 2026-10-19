@@ -11,6 +11,7 @@ import 'package:lawbid/core/l10n/language_providers.dart';
 import 'package:lawbid/core/navigation/app_router.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/navigation/root_messenger.dart';
+import 'package:lawbid/core/navigation/route_observer.dart';
 import 'package:lawbid/core/platform/web_consent_notice.dart';
 import 'package:lawbid/core/theme/preferences_sync.dart';
 import 'package:lawbid/features/calls/presentation/call_host.dart';
@@ -82,7 +83,7 @@ class LawBidApp extends ConsumerWidget {
                 child: SystemNavBand(
                   child: GestureDetector(
                     behavior: HitTestBehavior.translucent,
-                    onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+                    onTap: dropKeyboard,
                     child: AccountSuspendedGate(
                       child: AppUpdateGate(
                         child: child == null

@@ -9,6 +9,7 @@ import 'package:lawbid/core/design_system/widgets/bars/app_side_nav.dart';
 import 'package:lawbid/core/design_system/widgets/motion/app_entrance.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/navigation/route_observer.dart';
 import 'package:lawbid/core/navigation/shell/bottom_nav_config.dart';
 import 'package:lawbid/core/navigation/shell/shell_layout.dart';
 import 'package:lawbid/core/navigation/shell/tab_reselect.dart';
@@ -52,7 +53,7 @@ class _MainShellState extends ConsumerState<MainShell> {
   void _onTabSelected(int index) {
     final reselect = index == navigationShell.currentIndex;
     // Owner 2026-10-19: switching tabs drops the keyboard of the tab left.
-    FocusManager.instance.primaryFocus?.unfocus();
+    dropKeyboard();
     navigationShell.goBranch(index, initialLocation: reselect);
     if (reselect) unawaited(_scrollToTopAndRefresh());
   }
