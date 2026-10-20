@@ -173,6 +173,7 @@ void main() {
       addTearDown(sub.close);
       await _settle();
       await c.read(chatThreadProvider('c1').notifier).send('Hi');
+      await c.read(outboxSenderProvider).drain();
       await _settle();
       expect(
         c.read(chatThreadProvider('c1')).outbox.single.delivery,
