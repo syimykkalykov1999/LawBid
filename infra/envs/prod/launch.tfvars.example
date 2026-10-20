@@ -37,6 +37,13 @@ worker_cpu       = 512
 worker_memory    = 4096 # worker ≈ 1 GB + ClamAV sidecar ≈ 2.5 GB (≈ +$10/month)
 admin_tasks      = 1    # 2 → 1
 
+# Owner 2026-10-20 (cost): the first api and worker task stay on regular
+# Fargate (always up); tasks that autoscaling adds under load run on Spot
+# (up to −70 %). A Spot stop gives 2 minutes: the ALB drains it, the queue
+# retries the job, the app reconnects through the other tasks.
+worker_spot = true
+api_spot    = true
+
 redis_node_type = "cache.t4g.micro" # cache.r7g.large → t4g.micro (≈ $12)
 redis_replicas  = 0                 # 1 → 0 (no failover replica)
 
