@@ -52,6 +52,7 @@ class ConversationsNotifier extends PagedNotifier<Conversation> {
       if (e.name == 'message:new' ||
           e.name == 'conversation:update' ||
           e.name == 'message:read' ||
+          e.name == 'message:updated' ||
           // Audit 2026-10-02: reading a chat on this or another device
           // only sends the reader a badge update — refresh the unread pills.
           e.name == 'badge:update' ||
@@ -304,6 +305,8 @@ class ChatThreadState {
     this.editWindowMin = 15,
     this.deleteForAllHours = 48,
     this.maxPins = 3,
+    this.unreadFromId,
+    this.unreadCount = 0,
   });
 
   final Conversation? conversation;
@@ -314,6 +317,11 @@ class ChatThreadState {
   final int editWindowMin;
   final int deleteForAllHours;
   final int maxPins;
+
+  /// Owner 2026-10-20: the oldest message that was unread when the chat was
+  /// opened ("N unread messages" divider above it); fixed for the visit.
+  final String? unreadFromId;
+  final int unreadCount;
 
   /// Server messages, newest first.
   final List<ChatMessage> messages;
@@ -357,8 +365,12 @@ class ChatThreadState {
     int? editWindowMin,
     int? deleteForAllHours,
     int? maxPins,
+    String? unreadFromId,
+    int? unreadCount,
   }) =>
       ChatThreadState(
+        unreadFromId: unreadFromId ?? this.unreadFromId,
+        unreadCount: unreadCount ?? this.unreadCount,
         pins: pins ?? this.pins,
         editWindowMin: editWindowMin ?? this.editWindowMin,
         deleteForAllHours: deleteForAllHours ?? this.deleteForAllHours,
@@ -423,8 +435,22 @@ class ChatThread extends Notifier<ChatThreadState> {
       ]);
       if (!ref.mounted) return;
       final page = results[1] as CursorPage<ChatMessage>;
+      final conv = results[0] as Conversation;
+      final me = ref.read(currentUserIdProvider);
+      String? firstUnread;
+      if (state.unreadFromId == null && conv.unreadCount > 0) {
+        // Newest first: the unread ones are the newest from the other side.
+        var left = conv.unreadCount;
+        for (final m in page.items) {
+          if (m.senderId == me || m.isLocal) continue;
+          firstUnread = m.id;
+          if (--left == 0) break;
+        }
+      }
       state = state.copyWith(
-        conversation: results[0] as Conversation,
+        conversation: conv,
+        unreadFromId: firstUnread,
+        unreadCount: firstUnread == null ? null : conv.unreadCount,
         messages: page.items,
         nextCursor: page.nextCursor,
         clearCursor: page.nextCursor == null,
