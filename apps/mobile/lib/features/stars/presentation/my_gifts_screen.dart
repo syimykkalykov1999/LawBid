@@ -7,6 +7,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/stars/application/stars_providers.dart';
 import 'package:lawbid/features/stars/domain/stars_models.dart';
+import 'package:lawbid/features/stars/presentation/gift_names.dart';
 import 'package:lawbid/features/stars/presentation/gift_widgets.dart';
 
 /// Owner 2026-10-20 — gifts I received: show on / hide from my profile,
@@ -177,7 +178,7 @@ class _GiftRow extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      s.gift.title,
+                      giftTitle(t, s.gift),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: type.body.copyWith(color: colors.text),

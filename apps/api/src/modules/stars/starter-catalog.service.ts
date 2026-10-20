@@ -15,7 +15,7 @@ const LOCK_ID = 7_770_021;
 const SYSTEM_EMAIL = 'catalog@system.lawbid.invalid';
 
 interface Catalog {
-  gifts: { file: string; title: string; priceStars: number }[];
+  gifts: { file: string; code: string; title: string; priceStars: number }[];
   packs: {
     title: string;
     shortName: string;
@@ -185,6 +185,7 @@ export class StarterCatalogService implements OnApplicationBootstrap {
               await tx.gift.create({
                 data: {
                   title: g.title,
+                  code: g.code,
                   price_stars: g.priceStars,
                   position: i,
                   file_id: await image(g.file),

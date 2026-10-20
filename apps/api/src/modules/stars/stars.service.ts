@@ -600,6 +600,7 @@ export class StarsService {
     return {
       id: g.id,
       title: g.title,
+      code: g.code,
       priceStars: g.price_stars,
       url: urls.get(g.file_id) ?? null,
     };
@@ -926,6 +927,7 @@ export class StarsService {
     return {
       id: g.id,
       title: g.title,
+      code: g.code,
       priceStars: g.price_stars,
       fileId: g.file_id,
       url: urls.get(g.file_id) ?? null,

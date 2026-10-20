@@ -4326,6 +4326,9 @@ model Gift {
   id          String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   title       String     @db.VarChar(64)
   price_stars Int
+  // Starter gifts carry a code (the app translates `gift.<code>`); a gift an
+  // admin adds has none and shows its title as typed.
+  code        String?    @db.VarChar(24)
   file_id     String     @unique @db.Uuid
   file        File       @relation(fields: [file_id], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "gifts_file_fkey")
   position    Int        @default(0)

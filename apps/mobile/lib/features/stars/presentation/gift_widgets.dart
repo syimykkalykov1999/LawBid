@@ -13,6 +13,7 @@ import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/stars/application/stars_providers.dart';
 import 'package:lawbid/features/stars/domain/stars_models.dart';
+import 'package:lawbid/features/stars/presentation/gift_names.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 
 /// Owner 2026-10-20 — gifts: the picture, the picker under the chat input,
@@ -126,19 +127,20 @@ class GiftPicker extends ConsumerWidget {
   }
 }
 
-class _GiftCell extends StatelessWidget {
+class _GiftCell extends ConsumerWidget {
   const _GiftCell({required this.gift, required this.onTap});
 
   final Gift gift;
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     return Semantics(
       button: true,
-      label: '${gift.title}, ${gift.priceStars} ⭐',
+      label: '${giftTitle(t, gift)}, ${gift.priceStars} ⭐',
       excludeSemantics: true,
       child: AppPressable(
         onTap: onTap,
@@ -289,7 +291,7 @@ class _GiftSheetState extends ConsumerState<_GiftSheet> {
             Center(child: GiftImage(url: g.url, size: 120)),
             const SizedBox(height: AppSpacing.sm),
             Text(
-              g.title,
+              giftTitle(t, g),
               textAlign: TextAlign.center,
               style: type.titleMedium.copyWith(color: colors.text),
             ),
@@ -351,7 +353,7 @@ class _GiftSheetState extends ConsumerState<_GiftSheet> {
 }
 
 /// The gift inside a chat bubble.
-class GiftMessageBody extends StatelessWidget {
+class GiftMessageBody extends ConsumerWidget {
   const GiftMessageBody({
     required this.send,
     required this.note,
@@ -366,13 +368,14 @@ class GiftMessageBody extends StatelessWidget {
   final TextStyle style;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         GiftImage(url: send.gift.url, size: 132),
         Text(
-          send.gift.title,
+          giftTitle(t, send.gift),
           textAlign: TextAlign.center,
           style: style.copyWith(color: color, fontWeight: FontWeight.w600),
         ),
@@ -446,7 +449,7 @@ class GiftShowcase extends ConsumerWidget {
                 separatorBuilder: (_, __) =>
                     const SizedBox(width: AppSpacing.sm),
                 itemBuilder: (_, i) => Semantics(
-                  label: shown[i].gift.title,
+                  label: giftTitle(t, shown[i].gift),
                   excludeSemantics: true,
                   child: GiftImage(url: shown[i].gift.url),
                 ),

@@ -45,6 +45,7 @@ import 'package:lawbid/features/plans/presentation/plan_offer.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/stars/application/stars_providers.dart';
 import 'package:lawbid/features/stars/domain/stars_models.dart';
+import 'package:lawbid/features/stars/presentation/gift_names.dart';
 import 'package:lawbid/features/stars/presentation/gift_widgets.dart';
 import 'package:lawbid/features/stickers/presentation/sticker_widgets.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
@@ -902,6 +903,7 @@ class _Bubble extends ConsumerWidget {
     // A photo / video without a caption: a thin frame, the time on it.
     final media =
         a != null && (a.isImage || a.isVideo) && m.body.trim().isEmpty;
+    final giftName = m.gift == null ? '' : giftTitle(t, m.gift!.gift);
     final fileNames = [
       for (final x in group ?? [m]) x.attachment?.name ?? '',
     ].join(', ');
@@ -1130,7 +1132,7 @@ class _Bubble extends ConsumerWidget {
                 else if (m.kind == MessageKind.sticker)
                   '${t.t('stickers.label')} ${m.sticker?.emoji ?? ''}'
                 else if (m.kind == MessageKind.gift)
-                  '${t.t('stars.chat.label')}: ${m.gift?.gift.title ?? ''}'
+                  '${t.t('stars.chat.label')}: $giftName'
                 else if (m.kind == MessageKind.attachment)
                   '${t.t('chat.attach.label')}: $fileNames'
                 else

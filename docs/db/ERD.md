@@ -1719,6 +1719,7 @@ erDiagram
     String id PK
     String title
     Int price_stars
+    String code "nullable"
     String file_id FK,UK
     Int position
     String status

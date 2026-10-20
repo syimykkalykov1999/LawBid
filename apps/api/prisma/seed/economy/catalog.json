@@ -2,86 +2,103 @@
  "gifts": [
   {
    "file": "gifts/rose.png",
+   "code": "rose",
    "title": "Rose",
    "priceStars": 25
   },
   {
    "file": "gifts/heart.png",
+   "code": "heart",
    "title": "Heart",
    "priceStars": 15
   },
   {
    "file": "gifts/star.png",
+   "code": "star",
    "title": "Star",
    "priceStars": 30
   },
   {
    "file": "gifts/balloon.png",
+   "code": "balloon",
    "title": "Balloon",
    "priceStars": 20
   },
   {
    "file": "gifts/coffee.png",
+   "code": "coffee",
    "title": "Coffee",
    "priceStars": 35
   },
   {
    "file": "gifts/clover.png",
+   "code": "clover",
    "title": "Lucky clover",
    "priceStars": 40
   },
   {
    "file": "gifts/giftbox.png",
+   "code": "giftbox",
    "title": "Gift box",
    "priceStars": 50
   },
   {
    "file": "gifts/cake.png",
+   "code": "cake",
    "title": "Cake",
    "priceStars": 60
   },
   {
    "file": "gifts/gavel.png",
+   "code": "gavel",
    "title": "Gavel",
    "priceStars": 75
   },
   {
    "file": "gifts/scales.png",
+   "code": "scales",
    "title": "Scales of justice",
    "priceStars": 100
   },
   {
    "file": "gifts/shield.png",
+   "code": "shield",
    "title": "Shield",
    "priceStars": 120
   },
   {
    "file": "gifts/key.png",
+   "code": "key",
    "title": "Golden key",
    "priceStars": 150
   },
   {
    "file": "gifts/medal.png",
+   "code": "medal",
    "title": "Medal",
    "priceStars": 200
   },
   {
    "file": "gifts/rocket.png",
+   "code": "rocket",
    "title": "Rocket",
    "priceStars": 300
   },
   {
    "file": "gifts/trophy.png",
+   "code": "trophy",
    "title": "Trophy",
    "priceStars": 500
   },
   {
    "file": "gifts/diamond.png",
+   "code": "diamond",
    "title": "Diamond",
    "priceStars": 800
   },
   {
    "file": "gifts/crown.png",
+   "code": "crown",
    "title": "Crown",
    "priceStars": 1000
   }

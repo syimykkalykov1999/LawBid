@@ -106,6 +106,12 @@ export class StarsLedgerQueryDto {
 export class GiftDto {
   @ApiProperty({ format: 'uuid' }) id!: string;
   @ApiProperty() title!: string;
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'Starter gift code: the app shows the translation gift.<code>.',
+  })
+  code!: string | null;
   @ApiProperty({ type: 'integer' }) priceStars!: number;
   @ApiProperty({ type: String, nullable: true }) url!: string | null;
 }
@@ -223,6 +229,7 @@ export class SaveStarsSettingsDto {
 export class AdminGiftDto {
   @ApiProperty({ format: 'uuid' }) id!: string;
   @ApiProperty() title!: string;
+  @ApiProperty({ type: String, nullable: true }) code!: string | null;
   @ApiProperty({ type: 'integer' }) priceStars!: number;
   @ApiProperty({ format: 'uuid' }) fileId!: string;
   @ApiProperty({ type: String, nullable: true }) url!: string | null;

@@ -18,6 +18,7 @@ import 'package:lawbid/features/profile/data/avatar_upload_repository.dart'
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart';
 import 'package:lawbid/features/stars/domain/stars_models.dart';
+import 'package:lawbid/features/stars/presentation/gift_names.dart';
 import 'package:lawbid/features/stars/presentation/gift_widgets.dart';
 import 'package:lawbid/features/stickers/application/stickers_providers.dart';
 import 'package:lawbid/features/stickers/domain/sticker_models.dart';
@@ -479,7 +480,7 @@ class _StickerHub extends ConsumerWidget {
               ? AppIcon(AppIcons.stickerOutlined, color: colors.textSecondary)
               : StickerImage(sticker: p.cover!, size: 44),
           title: Text(
-            p.title,
+            packTitle(t, p.shortName, p.title),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: type.body.copyWith(color: colors.text),
@@ -742,7 +743,7 @@ class _PackSheetState extends ConsumerState<_PackSheet> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              pack.title,
+                              packTitle(t, pack.shortName, pack.title),
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                               style:

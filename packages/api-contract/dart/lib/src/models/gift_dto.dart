@@ -11,6 +11,7 @@ class GiftDto {
   const GiftDto({
     required this.id,
     required this.title,
+    required this.code,
     required this.priceStars,
     required this.url,
   });
@@ -20,6 +21,9 @@ class GiftDto {
 
   final String id;
   final String title;
+
+  /// Starter gift code: the app shows the translation gift.<code>.
+  final String? code;
   final int priceStars;
   final String? url;
 

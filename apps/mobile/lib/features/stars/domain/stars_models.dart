@@ -87,12 +87,16 @@ class Gift {
     required this.title,
     required this.priceStars,
     this.url,
+    this.code,
   });
 
   final String id;
   final String title;
   final int priceStars;
   final String? url;
+
+  /// Stable catalog code (`rose`…); the name is translated by `gift.<code>`.
+  final String? code;
 }
 
 /// A gift that was given (in a chat message or to a profile).

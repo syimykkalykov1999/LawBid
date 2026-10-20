@@ -13,6 +13,7 @@ class AdminGiftDto {
   const AdminGiftDto({
     required this.id,
     required this.title,
+    required this.code,
     required this.priceStars,
     required this.fileId,
     required this.url,
@@ -27,6 +28,7 @@ class AdminGiftDto {
 
   final String id;
   final String title;
+  final String? code;
   final int priceStars;
   final String fileId;
   final String? url;

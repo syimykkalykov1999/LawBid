@@ -125926,6 +125926,11 @@
           "title": {
             "type": "string"
           },
+          "code": {
+            "type": "string",
+            "nullable": true,
+            "description": "Starter gift code: the app shows the translation gift.<code>."
+          },
           "priceStars": {
             "type": "integer"
           },
@@ -125937,6 +125942,7 @@
         "required": [
           "id",
           "title",
+          "code",
           "priceStars",
           "url"
         ]
@@ -126207,6 +126213,10 @@
           "title": {
             "type": "string"
           },
+          "code": {
+            "type": "string",
+            "nullable": true
+          },
           "priceStars": {
             "type": "integer"
           },
@@ -126239,6 +126249,7 @@
         "required": [
           "id",
           "title",
+          "code",
           "priceStars",
           "fileId",
           "url",

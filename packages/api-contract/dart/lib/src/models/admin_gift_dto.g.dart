@@ -9,6 +9,7 @@ part of 'admin_gift_dto.dart';
 AdminGiftDto _$AdminGiftDtoFromJson(Map<String, dynamic> json) => AdminGiftDto(
   id: json['id'] as String,
   title: json['title'] as String,
+  code: json['code'] as String?,
   priceStars: (json['priceStars'] as num).toInt(),
   fileId: json['fileId'] as String,
   url: json['url'] as String?,
@@ -22,6 +23,7 @@ Map<String, dynamic> _$AdminGiftDtoToJson(AdminGiftDto instance) =>
     <String, dynamic>{
       'id': instance.id,
       'title': instance.title,
+      'code': ?instance.code,
       'priceStars': instance.priceStars,
       'fileId': instance.fileId,
       'url': ?instance.url,

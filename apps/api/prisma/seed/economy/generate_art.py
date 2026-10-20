@@ -422,7 +422,7 @@ if __name__ == '__main__':
             save(face(body, shade, eyes, mouth, extra), 'stickers', slug, f'{i + 1:02d}.png')
     import json
     cat = {
-        'gifts': [{'file': f'gifts/{k}.png', 'title': t, 'priceStars': pr} for k, t, pr, _ in GIFTS],
+        'gifts': [{'file': f'gifts/{k}.png', 'code': k, 'title': t, 'priceStars': pr} for k, t, pr, _ in GIFTS],
         'packs': [
             {'title': t, 'shortName': sn, 'priceStars': pr,
              'stickers': [{'file': f'stickers/{slug}/{i + 1:02d}.png', 'emoji': it[0]} for i, it in enumerate(items)]}
