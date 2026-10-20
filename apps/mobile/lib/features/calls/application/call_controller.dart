@@ -158,6 +158,10 @@ const kCallRingTimeout = Duration(seconds: 30);
 /// The link must come up this fast after pick-up, else "failed".
 const kCallConnectTimeout = Duration(seconds: 25);
 
+/// While a call lives, its state is re-read from the server this often (a
+/// missed `call:ended` must not leave the other phone ringing or talking).
+const kCallSyncInterval = Duration(seconds: 8);
+
 /// How long the "Call ended" screen stays.
 const kCallEndedLinger = Duration(milliseconds: 1600);
 
@@ -169,6 +173,7 @@ class CallController extends Notifier<CallSession> {
   StreamSubscription<RealtimeEvent>? _events;
   Timer? _ringTimer;
   Timer? _connectTimer;
+  Timer? _syncTimer;
   Timer? _linger;
   final _earlySignals = <Map<String, Object?>>[];
   bool _mediaOpen = false;
@@ -445,6 +450,14 @@ class CallController extends Notifier<CallSession> {
       },
     );
     _mediaOpen = true;
+    // The other side may hang up while this phone has no socket (app in the
+    // background, Doze): ask the server now and then, so the call and its
+    // ringing/ongoing UI never outlive it.
+    _syncTimer?.cancel();
+    _syncTimer = Timer.periodic(kCallSyncInterval, (_) {
+      final id = state.call?.id;
+      if (id != null && state.busy) unawaited(_resync(id));
+    });
   }
 
   void _armConnectTimeout() {
@@ -602,6 +615,7 @@ class CallController extends Notifier<CallSession> {
   void _clearTimers() {
     _ringTimer?.cancel();
     _connectTimer?.cancel();
+    _syncTimer?.cancel();
     _linger?.cancel();
   }
 }
