@@ -4620,6 +4620,7 @@
 "translate.same":"بلغتك بالفعل",
 "translate.unsupported":"لا يمكن ترجمة هذه اللغة",
 "translate.web":"ترجم داخل التطبيق",
+"translate.wifi":"التنزيل يتطلب Wi-Fi",
 "trust.chip.hint":"اضغط لمعرفة ما تم التحقق منه",
 "trust.chip.label":"مستوى الثقة: {level}",
 "trust.docs.bar_card":"تلزم بطاقة النقابة الخاصة بك.",

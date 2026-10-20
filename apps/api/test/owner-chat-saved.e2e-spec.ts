@@ -131,6 +131,16 @@ describe('Saved chat messages, contact cards, places (e2e)', () => {
       contactUserId: c.client.id,
     }).expect(400);
     await send(c.id, c.client.auth, { type: 'contact' }).expect(400);
+    // A suspended attorney is not shared.
+    const gone = await attorney('Gus');
+    await prisma.user.update({
+      where: { id: gone.id },
+      data: { status: 'suspended' },
+    });
+    await send(c.id, c.client.auth, {
+      type: 'contact',
+      contactUserId: gone.id,
+    }).expect(400);
 
     const place = await send(c.id, c.lawyer.auth, {
       type: 'place',

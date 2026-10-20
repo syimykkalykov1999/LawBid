@@ -2,7 +2,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/features/translation/data/device_translator.dart';
 
 class _Engine implements TranslationEngine {
-  _Engine({this.detected = 'ru', this.have = const {}, this.downloads = true});
+  _Engine({
+    this.detected = 'ru',
+    this.have = const {},
+    this.downloads = true,
+    this.wifi = true,
+  });
+
+  final bool wifi;
 
   final String? detected;
   final Set<String> have;
@@ -15,6 +22,9 @@ class _Engine implements TranslationEngine {
   @override
   Future<bool> hasModel(String code) async =>
       have.contains(code) || fetched.contains(code);
+
+  @override
+  Future<bool> onWifi() async => wifi;
 
   @override
   Future<bool> downloadModel(String code) async {
@@ -90,6 +100,20 @@ void main() {
         await _fails(_on(_Engine()).translate('привет', 'ky')),
         DeviceTranslateFailure.targetUnsupported,
       );
+    });
+
+    test('a missing model is never fetched over mobile data', () async {
+      final engine = _Engine(wifi: false);
+      expect(
+        await _fails(_on(engine).translate('привет', 'en')),
+        DeviceTranslateFailure.wifi,
+      );
+      expect(engine.fetched, isEmpty);
+    });
+
+    test('models already on the phone need no Wi-Fi', () async {
+      final engine = _Engine(have: {'ru', 'en'}, wifi: false);
+      expect(await _on(engine).translate('привет', 'en'), 'ru>en:привет');
     });
 
     test('a model that does not arrive is a download failure', () async {

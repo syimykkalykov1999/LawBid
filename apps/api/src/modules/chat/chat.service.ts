@@ -569,7 +569,7 @@ export class ChatService {
           details: { field: 'contactUserId' },
         });
       }
-      if (!(await this.sharableAttorney(dto.contactUserId))) {
+      if (!(await this.sharableAttorney(user.sub, dto.contactUserId))) {
         throw new BadRequestException({
           code: ErrorCode.VALIDATION_ERROR,
           message: 'Only an attorney profile can be shared.',
@@ -1240,10 +1240,16 @@ export class ChatService {
   }
 
   /** Owner 2026-10-20: only an attorney's public profile can be shared. */
-  private async sharableAttorney(userId: string): Promise<boolean> {
+  private async sharableAttorney(
+    viewerId: string,
+    userId: string,
+  ): Promise<boolean> {
+    // Not a person the sender blocked or who blocked the sender.
+    if ((await this.blocks.hiddenIds(viewerId)).has(userId)) return false;
     const u = await this.prisma.user.findFirst({
       where: {
         id: userId,
+        status: 'active',
         role: 'attorney',
         attorney_profile: { isNot: null },
       },
@@ -1259,7 +1265,7 @@ export class ChatService {
     const unique = [...new Set(ids)].filter((x) => UUID_RE.test(x));
     if (unique.length === 0) return new Map();
     const users = await this.prisma.user.findMany({
-      where: { id: { in: unique }, role: 'attorney' },
+      where: { id: { in: unique }, role: 'attorney', status: 'active' },
       select: {
         id: true,
         first_name: true,

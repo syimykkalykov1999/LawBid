@@ -29,6 +29,9 @@ class _Engine implements TranslationEngine {
   @override
   Future<bool> hasModel(String code) async => true;
   @override
+  Future<bool> onWifi() async => true;
+
+  @override
   Future<bool> downloadModel(String code) async => true;
   @override
   Future<String> translate(String text, String from, String to) async => text;

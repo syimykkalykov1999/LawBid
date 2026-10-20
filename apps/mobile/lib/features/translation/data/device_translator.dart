@@ -1,3 +1,4 @@
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -21,6 +22,10 @@ enum DeviceTranslateFailure {
 
   /// The text is already in the app language.
   sameLanguage('translate.same'),
+
+  /// A language model has to be fetched and the phone is not on Wi-Fi: the
+  /// ~30 MB download never uses mobile data.
+  wifi('translate.wifi'),
 
   /// The language model could not be downloaded (offline, storage).
   download('translate.download.failed'),
@@ -49,6 +54,9 @@ abstract interface class TranslationEngine {
 
   Future<bool> hasModel(String code);
 
+  /// The phone is on Wi-Fi or Ethernet (a model download is allowed).
+  Future<bool> onWifi();
+
   /// Downloads the model; false = it did not arrive.
   Future<bool> downloadModel(String code);
 
@@ -73,8 +81,14 @@ class MlKitTranslationEngine implements TranslationEngine {
   Future<bool> hasModel(String code) => _models.isModelDownloaded(code);
 
   @override
-  Future<bool> downloadModel(String code) =>
-      _models.downloadModel(code, isWifiRequired: false);
+  Future<bool> onWifi() async {
+    final now = await Connectivity().checkConnectivity();
+    return now.contains(ConnectivityResult.wifi) ||
+        now.contains(ConnectivityResult.ethernet);
+  }
+
+  @override
+  Future<bool> downloadModel(String code) => _models.downloadModel(code);
 
   @override
   Future<String> translate(String text, String from, String to) async {
@@ -170,6 +184,10 @@ class DeviceTranslator {
       var announced = false;
       for (final code in [from, to]) {
         if (await _engine.hasModel(code)) continue;
+        // Owner 2026-10-20: ~30 MB per language, Wi-Fi only.
+        if (!await _engine.onWifi()) {
+          throw const DeviceTranslateException(DeviceTranslateFailure.wifi);
+        }
         if (!announced) {
           announced = true;
           onDownloading?.call();

@@ -4620,6 +4620,7 @@
 "translate.same":"Schon in Ihrer Sprache",
 "translate.unsupported":"Sprache nicht übersetzbar",
 "translate.web":"Übersetzen in der App",
+"translate.wifi":"Download nur per WLAN",
 "trust.chip.hint":"Tippen, um die durchgeführten Prüfungen anzuzeigen",
 "trust.chip.label":"Vertrauensstufe: {level}",
 "trust.docs.bar_card":"Ihr Anwaltsausweis ist erforderlich.",
