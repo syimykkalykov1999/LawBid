@@ -199,7 +199,12 @@ class _FakeForeground implements CallForeground {
   Future<String?> pendingAction() async => null;
 
   @override
-  Future<void> start({required String name, int since = 0}) async =>
+  Future<void> start({
+    required String name,
+    int since = 0,
+    String status = '',
+    String hangup = '',
+  }) async =>
       started.add('$name|${since > 0}');
 
   @override

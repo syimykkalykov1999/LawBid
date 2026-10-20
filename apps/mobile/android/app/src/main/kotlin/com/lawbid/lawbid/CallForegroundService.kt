@@ -30,7 +30,9 @@ class CallForegroundService : Service() {
         }
         val name = intent?.getStringExtra(EXTRA_NAME) ?: ""
         val since = intent?.getLongExtra(EXTRA_SINCE, 0L) ?: 0L
-        val notification = build(name, since)
+        val status = intent?.getStringExtra(EXTRA_STATUS) ?: ""
+        val hangup = intent?.getStringExtra(EXTRA_HANGUP) ?: ""
+        val notification = build(name, since, status, hangup)
         try {
             if (Build.VERSION.SDK_INT >= 34) {
                 // Without the microphone permission (first call, before the
@@ -50,7 +52,7 @@ class CallForegroundService : Service() {
         return START_NOT_STICKY
     }
 
-    private fun build(name: String, since: Long): Notification {
+    private fun build(name: String, since: Long, status: String, hangup: String): Notification {
         val manager = getSystemService(NotificationManager::class.java)
         if (Build.VERSION.SDK_INT >= 26) {
             manager?.createNotificationChannel(
@@ -86,7 +88,9 @@ class CallForegroundService : Service() {
         b.setSmallIcon(applicationInfo.icon)
             .setContentTitle(name)
             .setContentText(
-                getString(if (since > 0) R.string.call_ongoing else R.string.call_connecting),
+                status.ifEmpty {
+                    getString(if (since > 0) R.string.call_ongoing else R.string.call_connecting)
+                },
             )
             .setContentIntent(open)
             .setOngoing(true)
@@ -103,7 +107,7 @@ class CallForegroundService : Service() {
             b.addAction(
                 Notification.Action.Builder(
                     null,
-                    getString(R.string.call_hangup),
+                    hangup.ifEmpty { getString(R.string.call_hangup) },
                     hangUp,
                 ).build(),
             )
@@ -119,6 +123,8 @@ class CallForegroundService : Service() {
         const val NOTIFICATION_ID = 7003
         const val EXTRA_NAME = "name"
         const val EXTRA_SINCE = "since"
+        const val EXTRA_STATUS = "status"
+        const val EXTRA_HANGUP = "hangup"
         const val ACTION_STOP = "com.lawbid.lawbid.CALL_STOP"
         const val ACTION_OPEN = "com.lawbid.lawbid.CALL_OPEN"
         const val ACTION_HANGUP = "com.lawbid.lawbid.CALL_HANGUP"
