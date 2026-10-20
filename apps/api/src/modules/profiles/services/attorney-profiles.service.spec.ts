@@ -83,7 +83,9 @@ describe('AttorneyProfilesService', () => {
       isTaken: jest.fn((_db: unknown, _lower: string, except?: string) =>
         Promise.resolve(holder !== null && holder.user_id !== except),
       ),
-      suggest: jest.fn(() => Promise.resolve(['anna.kim2026', 'anna_kim'])),
+      suggest: jest.fn<Promise<string[]>, [unknown, unknown, string?]>(() =>
+        Promise.resolve(['anna.kim2026', 'anna_kim']),
+      ),
       isReserved: jest.fn((lower: string) =>
         Promise.resolve(['admin', 'lawbid'].includes(lower)),
       ),
