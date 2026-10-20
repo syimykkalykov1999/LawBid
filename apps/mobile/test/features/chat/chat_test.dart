@@ -47,8 +47,10 @@ class _FakeChat implements ChatRepository {
   Future<ChatMessage> send(
     String id,
     String clientMessageId,
-    String body,
-  ) async {
+    String body, {
+    String? replyToId,
+    bool forwarded = false,
+  }) async {
     if (offline) throw _offline;
     final r = refuse;
     if (r != null) throw r;

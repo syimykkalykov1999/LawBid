@@ -98,6 +98,14 @@ abstract final class AppIcons {
 
   /// Owner 2026-10-19: the photo framing's «original / square» switch.
   static const IconData cornersOut = IconData(0xe1d0, fontFamily: lightFamily);
+
+  /// Owner 2026-10-20: chat message actions.
+  static const IconData copyOutlined =
+      IconData(0xe1ca, fontFamily: lightFamily);
+  static const IconData forwardRounded =
+      IconData(0xed52, fontFamily: lightFamily);
+  static const IconData selectChecksRounded =
+      IconData(0xeadc, fontFamily: lightFamily);
   static const IconData closeRounded =
       IconData(0xe4f6, fontFamily: lightFamily);
   static const IconData cloudUploadOutlined =

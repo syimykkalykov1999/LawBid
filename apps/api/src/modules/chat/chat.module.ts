@@ -8,6 +8,8 @@ import { FilesModule } from '../files/files.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { ChatController } from './chat.controller';
+import { ChatActionsController } from './chat-actions.controller';
+import { ChatActionsService } from './chat-actions.service';
 import { ChatService } from './chat.service';
 import { ChatTranslationService } from './chat-translation.service';
 import { TranslationCoreModule } from '../translation/translation.module';
@@ -25,8 +27,8 @@ import { TranslationCoreModule } from '../translation/translation.module';
     FeatureFlagsModule,
     TranslationCoreModule,
   ],
-  controllers: [ChatController],
-  providers: [ChatService, ChatTranslationService],
+  controllers: [ChatController, ChatActionsController],
+  providers: [ChatService, ChatTranslationService, ChatActionsService],
   exports: [ChatService],
 })
 export class ChatModule {}

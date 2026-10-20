@@ -90,6 +90,10 @@ export enum ErrorCode {
   REVIEW_ALREADY_EXISTS = 'REVIEW_ALREADY_EXISTS',
   // review.edit_window_days after publication have passed (§7.2).
   REVIEW_EDIT_WINDOW_EXPIRED = 'REVIEW_EDIT_WINDOW_EXPIRED',
+  // Owner 2026-10-20: a chat message can no longer be edited / deleted for
+  // everyone, or the chat already has the most pinned messages.
+  MESSAGE_WINDOW_EXPIRED = 'MESSAGE_WINDOW_EXPIRED',
+  MESSAGE_PIN_LIMIT = 'MESSAGE_PIN_LIMIT',
   // A moderator hid or removed the review; it can't be edited.
   REVIEW_NOT_EDITABLE = 'REVIEW_NOT_EDITABLE',
   /** Owner 2026-09-30: a client review was already appealed. */

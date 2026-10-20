@@ -113,12 +113,18 @@ export class FcmPushSender implements PushSender {
                     ? { priority: 'high', ttl: `${CALL_TTL_SEC}s` }
                     : {
                         priority: 'high',
+                        ...(message.collapseKey
+                          ? { collapse_key: message.collapseKey }
+                          : {}),
                         ...(message.sound
                           ? {
                               notification: {
                                 channel_id:
                                   PUSH_SOUNDS[message.sound].channelId,
                                 sound: PUSH_SOUNDS[message.sound].android,
+                                ...(message.collapseKey
+                                  ? { tag: message.collapseKey }
+                                  : {}),
                               },
                             }
                           : {}),
@@ -130,6 +136,14 @@ export class FcmPushSender implements PushSender {
                     headers: {
                       'apns-priority': '10',
                       'apns-push-type': 'alert',
+                      ...(message.collapseKey
+                        ? {
+                            'apns-collapse-id': message.collapseKey.slice(
+                              0,
+                              64,
+                            ),
+                          }
+                        : {}),
                       ...(message.call
                         ? {
                             'apns-expiration': String(
@@ -167,6 +181,9 @@ export class FcmPushSender implements PushSender {
                         // Lets a notification service extension (if one is
                         // added) enrich the alert; ignored without one.
                         'mutable-content': 1,
+                        ...(message.collapseKey
+                          ? { 'thread-id': message.collapseKey }
+                          : {}),
                       },
                     },
                   },

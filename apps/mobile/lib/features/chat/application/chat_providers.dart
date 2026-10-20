@@ -52,6 +52,7 @@ class ConversationsNotifier extends PagedNotifier<Conversation> {
       if (e.name == 'message:new' ||
           e.name == 'conversation:update' ||
           e.name == 'message:read' ||
+          e.name == 'message:updated' ||
           // Audit 2026-10-02: reading a chat on this or another device
           // only sends the reader a badge update — refresh the unread pills.
           e.name == 'badge:update' ||
@@ -251,8 +252,13 @@ class OutboxSender {
     for (final row in await db.pending(owner)) {
       if (row.failedCode != null) continue;
       try {
-        final m =
-            await repo.send(row.conversationId, row.clientMessageId, row.body);
+        final m = await repo.send(
+          row.conversationId,
+          row.clientMessageId,
+          row.body,
+          replyToId: row.replyToId,
+          forwarded: row.forwarded,
+        );
         // Merge into the thread before the outbox row disappears, so the
         // bubble never blinks out.
         _sent.add(m);
@@ -295,9 +301,27 @@ class ChatThreadState {
     this.loadMoreFailed = false,
     this.typing = false,
     this.voiceOutbox = const [],
+    this.pins = const [],
+    this.editWindowMin = 15,
+    this.deleteForAllHours = 48,
+    this.maxPins = 3,
+    this.unreadFromId,
+    this.unreadCount = 0,
   });
 
   final Conversation? conversation;
+
+  /// Owner 2026-10-20: pinned messages (newest pin first) and the rules the
+  /// server reports (admin-editable): edit window, delete-for-all window.
+  final List<ChatMessage> pins;
+  final int editWindowMin;
+  final int deleteForAllHours;
+  final int maxPins;
+
+  /// Owner 2026-10-20: the oldest message that was unread when the chat was
+  /// opened ("N unread messages" divider above it); fixed for the visit.
+  final String? unreadFromId;
+  final int unreadCount;
 
   /// Server messages, newest first.
   final List<ChatMessage> messages;
@@ -337,8 +361,20 @@ class ChatThreadState {
     bool? loadMoreFailed,
     bool? typing,
     List<ChatMessage>? voiceOutbox,
+    List<ChatMessage>? pins,
+    int? editWindowMin,
+    int? deleteForAllHours,
+    int? maxPins,
+    String? unreadFromId,
+    int? unreadCount,
   }) =>
       ChatThreadState(
+        unreadFromId: unreadFromId ?? this.unreadFromId,
+        unreadCount: unreadCount ?? this.unreadCount,
+        pins: pins ?? this.pins,
+        editWindowMin: editWindowMin ?? this.editWindowMin,
+        deleteForAllHours: deleteForAllHours ?? this.deleteForAllHours,
+        maxPins: maxPins ?? this.maxPins,
         conversation: conversation ?? this.conversation,
         messages: messages ?? this.messages,
         outbox: outbox ?? this.outbox,
@@ -399,16 +435,47 @@ class ChatThread extends Notifier<ChatThreadState> {
       ]);
       if (!ref.mounted) return;
       final page = results[1] as CursorPage<ChatMessage>;
+      final conv = results[0] as Conversation;
+      final me = ref.read(currentUserIdProvider);
+      String? firstUnread;
+      if (state.unreadFromId == null && conv.unreadCount > 0) {
+        // Newest first: the unread ones are the newest from the other side.
+        var left = conv.unreadCount;
+        for (final m in page.items) {
+          if (m.senderId == me || m.isLocal) continue;
+          firstUnread = m.id;
+          if (--left == 0) break;
+        }
+      }
       state = state.copyWith(
-        conversation: results[0] as Conversation,
+        conversation: conv,
+        unreadFromId: firstUnread,
+        unreadCount: firstUnread == null ? null : conv.unreadCount,
         messages: page.items,
         nextCursor: page.nextCursor,
         clearCursor: page.nextCursor == null,
         loading: false,
       );
       unawaited(ref.read(outboxSenderProvider).drain());
+      unawaited(loadPins());
     } on Object catch (e) {
       if (ref.mounted) state = state.copyWith(loading: false, error: e);
+    }
+  }
+
+  /// Pinned messages plus the edit/delete windows (all server-side rules).
+  Future<void> loadPins() async {
+    try {
+      final info = await _repo.pins(id);
+      if (!ref.mounted) return;
+      state = state.copyWith(
+        pins: info.items,
+        editWindowMin: info.editWindowMin,
+        deleteForAllHours: info.deleteForAllHours,
+        maxPins: info.maxPins,
+      );
+    } on Object {
+      // Keep the defaults; the server still enforces the rules.
     }
   }
 
@@ -433,7 +500,7 @@ class ChatThread extends Notifier<ChatThreadState> {
   }
 
   /// Written → shown at once as "отправляется" → sent by the outbox.
-  Future<void> send(String text) async {
+  Future<void> send(String text, {String? replyToId}) async {
     final body = text.trim();
     final owner = ref.read(currentUserIdProvider);
     if (body.isEmpty || owner == null) return;
@@ -442,6 +509,7 @@ class ChatThread extends Notifier<ChatThreadState> {
           ownerId: owner,
           conversationId: id,
           body: body,
+          replyToId: replyToId,
         );
     // OQ-044: a quick "sent" pop, like Telegram.
     unawaited(ref.read(appSoundsProvider).messageOut());
@@ -782,8 +850,86 @@ class ChatThread extends Notifier<ChatThreadState> {
       ownerId: owner,
       conversationId: id,
       body: local.body,
+      replyToId: local.replyTo?.id,
+      forwarded: local.forwarded,
     );
     unawaited(ref.read(outboxSenderProvider).drain());
+  }
+
+  // --- Owner 2026-10-20: what you can do with a message -------------------
+
+  /// Whether [m] is mine, a text, and still inside the edit window.
+  bool canEdit(ChatMessage m) =>
+      !m.isLocal &&
+      !m.revoked &&
+      m.kind == MessageKind.text &&
+      m.senderId == ref.read(currentUserIdProvider) &&
+      DateTime.now().difference(m.createdAt) <
+          Duration(minutes: state.editWindowMin);
+
+  /// Whether [m] is mine and can still be deleted for everyone.
+  bool canDeleteForAll(ChatMessage m) =>
+      !m.isLocal &&
+      !m.revoked &&
+      m.kind != MessageKind.system &&
+      m.kind != MessageKind.call &&
+      m.senderId == ref.read(currentUserIdProvider) &&
+      DateTime.now().difference(m.createdAt) <
+          Duration(hours: state.deleteForAllHours);
+
+  Future<void> edit(ChatMessage m, String body) async {
+    final sent = await _repo.editMessage(id, m.id, body.trim());
+    _apply(sent);
+  }
+
+  /// Throws the API error (the screen maps the code to a message).
+  Future<void> delete(ChatMessage m, {required bool all}) async {
+    await _repo.deleteMessage(id, m.id, all: all);
+    if (all) {
+      _apply(
+        m.copyWith(revoked: true, body: '', reactions: const [], pinned: false),
+      );
+    } else {
+      _drop(m.id);
+    }
+  }
+
+  Future<void> react(ChatMessage m, String? emoji) async {
+    final sent = await _repo.react(id, m.id, emoji);
+    _apply(sent);
+  }
+
+  Future<void> setPinned(ChatMessage m, {required bool pinned}) async {
+    final sent = await _repo.setPinned(id, m.id, pinned: pinned);
+    _apply(sent);
+  }
+
+  void _drop(String messageId) {
+    if (!ref.mounted) return;
+    state = state.copyWith(
+      messages: state.messages.where((x) => x.id != messageId).toList(),
+      pins: state.pins.where((x) => x.id != messageId).toList(),
+    );
+  }
+
+  /// A changed message (edit, reaction, pin, revoke): replace it in place and
+  /// keep the pinned list in step.
+  void _apply(ChatMessage m) {
+    if (!ref.mounted) return;
+    final known = state.messages.any((x) => x.id == m.id);
+    final pins = [
+      for (final p in state.pins)
+        if (p.id != m.id) p,
+    ];
+    if (m.pinned && !m.revoked) pins.insert(0, m);
+    state = state.copyWith(
+      messages: [
+        for (final x in state.messages)
+          if (x.id == m.id) m else x,
+      ],
+      pins: pins,
+    );
+    if (!known) _merge([m]);
   }
 
   Future<void> discard(ChatMessage local) async {
@@ -869,6 +1015,12 @@ class ChatThread extends Notifier<ChatThreadState> {
       ..invalidate(folderConversationsProvider);
   }
 
+  ReplyPreview? _previewOf(String? messageId) {
+    if (messageId == null) return null;
+    final m = state.messages.where((x) => x.id == messageId).firstOrNull;
+    return m == null ? null : ReplyPreview.of(m);
+  }
+
   void _onOutbox(List<OutboxRow> rows) {
     if (!ref.mounted) return;
     final sentIds = {
@@ -887,6 +1039,8 @@ class ChatThread extends Notifier<ChatThreadState> {
               body: r.body,
               clientMessageId: r.clientMessageId,
               createdAt: r.createdAt,
+              forwarded: r.forwarded,
+              replyTo: _previewOf(r.replyToId),
               delivery: r.failedCode == null
                   ? DeliveryState.sending
                   : DeliveryState.failed,
@@ -936,6 +1090,14 @@ class ChatThread extends Notifier<ChatThreadState> {
           _merge([m]);
           if (state.typing) state = state.copyWith(typing: false);
         }
+      case 'message:updated':
+        if (data is Map && data['conversationId'] == id) {
+          final gone = data['messageId'];
+          if (data['hiddenForMe'] == true && gone is String) _drop(gone);
+        } else {
+          final m = ChatMappers.fromEvent(data);
+          if (m != null && m.conversationId == id) _apply(m);
+        }
       case 'message:read':
         if (data is Map && data['conversationId'] == id) {
           final c = state.conversation;
@@ -955,10 +1117,19 @@ class ChatThread extends Notifier<ChatThreadState> {
                 unreadCount: c.unreadCount,
                 mutedUntil: c.mutedUntil,
                 counterpartLastReadId: last,
+                counterpartLastReadAt: DateTime.tryParse(
+                      '${data['readAt']}',
+                    ) ??
+                    DateTime.now(),
                 updatedAt: c.updatedAt,
                 isDirect: c.isDirect,
                 request: c.request,
                 requestedByMe: c.requestedByMe,
+                folder: c.folder,
+                folderAuto: c.folderAuto,
+                waitingSince: c.waitingSince,
+                note: c.note,
+                pinnedAt: c.pinnedAt,
               ),
             );
           }

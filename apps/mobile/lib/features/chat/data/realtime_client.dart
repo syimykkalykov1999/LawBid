@@ -39,6 +39,8 @@ class RealtimeClient {
 
   static const _serverEvents = [
     'message:new',
+    // Owner 2026-10-20: edited, deleted for all, reaction, pin.
+    'message:updated',
     'message:read',
     // OQ-040: the other side played a voice note.
     'message:listened',

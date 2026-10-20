@@ -13,6 +13,12 @@ MessageDto _$MessageDtoFromJson(Map<String, dynamic> json) => MessageDto(
   body: json['body'] as String,
   contactMasked: json['contactMasked'] as bool,
   createdAt: DateTime.parse(json['createdAt'] as String),
+  revoked: json['revoked'] as bool,
+  forwarded: json['forwarded'] as bool,
+  reactions: (json['reactions'] as List<dynamic>)
+      .map((e) => ReactionDto.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  pinned: json['pinned'] as bool,
   senderId: json['senderId'] as String?,
   sentByAssistant: json['sentByAssistant'] as String?,
   sticker: json['sticker'] == null
@@ -28,6 +34,13 @@ MessageDto _$MessageDtoFromJson(Map<String, dynamic> json) => MessageDto(
       ? null
       : CallLogDto.fromJson(json['call'] as Map<String, dynamic>),
   clientMessageId: json['clientMessageId'] as String?,
+  editedAt: json['editedAt'] == null
+      ? null
+      : DateTime.parse(json['editedAt'] as String),
+  forwardedFrom: json['forwardedFrom'] as String?,
+  replyTo: json['replyTo'] == null
+      ? null
+      : ReplyPreviewDto.fromJson(json['replyTo'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$MessageDtoToJson(MessageDto instance) =>
@@ -45,4 +58,11 @@ Map<String, dynamic> _$MessageDtoToJson(MessageDto instance) =>
       'contactMasked': instance.contactMasked,
       'clientMessageId': ?instance.clientMessageId,
       'createdAt': instance.createdAt.toIso8601String(),
+      'editedAt': ?instance.editedAt?.toIso8601String(),
+      'revoked': instance.revoked,
+      'forwarded': instance.forwarded,
+      'forwardedFrom': ?instance.forwardedFrom,
+      'replyTo': ?instance.replyTo?.toJson(),
+      'reactions': instance.reactions.map((e) => e.toJson()).toList(),
+      'pinned': instance.pinned,
     };

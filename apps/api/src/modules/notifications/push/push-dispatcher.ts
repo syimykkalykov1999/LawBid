@@ -369,6 +369,8 @@ export class PushDispatcher
           type: true,
           duration_ms: true,
           deleted_at: true,
+          revoked_at: true,
+          sender_id: true,
           sent_by_name: true,
         },
       }),
@@ -376,7 +378,20 @@ export class PushDispatcher
     if (!user || user.status !== 'active' || !part || !message) {
       return 'no_user';
     }
-    if (message.deleted_at) return 'no_push';
+    if (message.deleted_at || message.revoked_at) return 'no_push';
+    // Owner 2026-10-20: an edit only refreshes the alert of a message the
+    // recipient has not read yet (it replaces it); a read one stays quiet.
+    if (data.event === 'edit') {
+      if (part.last_read_message_id) {
+        const lastRead = await this.prisma.message.findUnique({
+          where: { id: part.last_read_message_id },
+          select: { created_at: true },
+        });
+        if (lastRead && lastRead.created_at >= message.created_at) {
+          return 'no_push';
+        }
+      }
+    }
     // Audit 2026-10-02: a push held by quiet hours is dropped when the
     // message was read in the meantime.
     if (data.deferred && part.last_read_message_id) {
@@ -435,11 +450,34 @@ export class PushDispatcher
         : "Attorney's assistant: "
       : '';
     const badge = (await this.badges.get(data.recipientId)).total;
+    let body = from + (preview || text.body);
+    let collapseKey: string | undefined;
+    let dedupeKey = `m:${data.messageId}`;
+    if (data.event === 'edit') {
+      // Same group as the message's own alert: it is rewritten in place.
+      body = `✏️ ${body}`;
+      collapseKey = `msg-${data.messageId}`;
+      dedupeKey = `e:${data.messageId}`;
+    } else if (data.event === 'reaction' && data.actorId) {
+      const actor = await this.prisma.user.findUnique({
+        where: { id: data.actorId },
+        select: { first_name: true },
+      });
+      const name = actor?.first_name?.trim() || (ru ? 'Собеседник' : 'Someone');
+      const quoted = preview ? ` «${[...preview].slice(0, 40).join('')}»` : '';
+      body = ru
+        ? `${name} отреагировал(а) ${data.emoji ?? ''} на${quoted || ' ваше сообщение'}`
+        : `${name} reacted ${data.emoji ?? ''} to${quoted || ' your message'}`;
+      collapseKey = `react-${data.messageId}`;
+      dedupeKey = `r:${data.messageId}:${data.actorId}:${data.emoji ?? ''}`;
+    } else {
+      collapseKey = `msg-${data.messageId}`;
+    }
     await this.sender.send(
       {
         userId: data.recipientId,
         title: text.title,
-        body: from + (preview || text.body),
+        body,
         data: {
           type: 'new_message',
           conversationId: data.conversationId,
@@ -447,8 +485,9 @@ export class PushDispatcher
         },
         badge,
         sound: 'message',
+        collapseKey,
       },
-      `m:${data.messageId}`,
+      dedupeKey,
     );
     return 'sent';
   }

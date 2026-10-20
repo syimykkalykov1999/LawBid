@@ -98,6 +98,10 @@ enum ErrorCode {
   reviewAlreadyExists('REVIEW_ALREADY_EXISTS'),
   @JsonValue('REVIEW_EDIT_WINDOW_EXPIRED')
   reviewEditWindowExpired('REVIEW_EDIT_WINDOW_EXPIRED'),
+  @JsonValue('MESSAGE_WINDOW_EXPIRED')
+  messageWindowExpired('MESSAGE_WINDOW_EXPIRED'),
+  @JsonValue('MESSAGE_PIN_LIMIT')
+  messagePinLimit('MESSAGE_PIN_LIMIT'),
   @JsonValue('REVIEW_NOT_EDITABLE')
   reviewNotEditable('REVIEW_NOT_EDITABLE'),
   @JsonValue('REVIEW_APPEAL_EXISTS')
