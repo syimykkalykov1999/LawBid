@@ -10,6 +10,7 @@ import 'package:lawbid/features/case_payments/case_payments_routes.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart';
+import 'package:lawbid/features/groups/group_routes.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
 import 'package:lawbid/features/notifications/data/notifications_repository.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
@@ -41,6 +42,9 @@ String? notificationRoute({
   final bidId = s('bidId');
   final postId = s('postId');
   switch (type) {
+    // Owner 2026-10-20: a group message opens the group.
+    case 'new_message' when s('groupId') != null:
+      return GroupRoutes.group(s('groupId')!);
     case 'new_message' || 'missed_call' || 'incoming_call':
       final c = s('conversationId');
       return c == null ? ChatRoutes.inbox : ChatRoutes.conversation(c);

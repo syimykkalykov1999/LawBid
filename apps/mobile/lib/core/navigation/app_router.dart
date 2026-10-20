@@ -26,6 +26,7 @@ import 'package:lawbid/features/cases/presentation/screens/mine_views.dart';
 import 'package:lawbid/features/cases/presentation/screens/owner_case_screen.dart';
 import 'package:lawbid/features/cases/presentation/screens/work_case_screen.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
+import 'package:lawbid/features/groups/group_router.dart';
 import 'package:lawbid/features/client_badge/presentation/client_badge_screen.dart';
 import 'package:lawbid/features/client_plan/client_plan_routes.dart';
 import 'package:lawbid/features/create/presentation/screens/create_screen.dart';
@@ -475,6 +476,8 @@ GoRouter appRouter(Ref ref) {
       ...socialRoutes(_rootNavigatorKey),
       // docs/05 chats, notifications, notification settings.
       ...chatRoutes(_rootNavigatorKey),
+      // Owner 2026-10-20: group chats, polls, join links.
+      ...groupRoutes(_rootNavigatorKey),
       // docs/06 §1.7: Settings → Подписка, payments, gate paywall.
       ...subscriptionRoutes(_rootNavigatorKey),
       // Owner 2026-10-05: payouts, case payments, Stripe return pages.
