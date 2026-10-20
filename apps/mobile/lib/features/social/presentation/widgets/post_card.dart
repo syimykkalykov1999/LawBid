@@ -2820,8 +2820,8 @@ class PostActionsBar extends ConsumerWidget {
                         commentsEnabled: post.commentsEnabled,
                       ),
                     ),
-                    if (showTime || post.commentCount > 0)
-                      _Count(post.commentCount),
+                    // A zero shows no number (Instagram), like likes / shares.
+                    if (post.commentCount > 0) _Count(post.commentCount),
                     BounceIcon(
                       extent: _kBarExtent,
                       active: false,
