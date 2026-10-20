@@ -5,13 +5,17 @@ import 'package:lawbid/features/social/domain/post_text.dart';
 /// is the title, the rest is the text.
 void main() {
   test('first line = title, the rest = text', () {
-    expect(splitPostText('Green card\nStep one.\nStep two.'),
-        ('Green card', 'Step one.\nStep two.'),);
+    expect(
+      splitPostText('Green card\nStep one.\nStep two.'),
+      ('Green card', 'Step one.\nStep two.'),
+    );
   });
 
   test('no line break: the whole short text is the title', () {
-    expect(splitPostText('A quiet Friday at the office. Coffee.'),
-        ('A quiet Friday at the office. Coffee.', ''),);
+    expect(
+      splitPostText('A quiet Friday at the office. Coffee.'),
+      ('A quiet Friday at the office. Coffee.', ''),
+    );
   });
 
   test('a first line over the limit is cut at a word; its rest starts the text',
