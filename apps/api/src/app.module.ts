@@ -2,6 +2,7 @@ import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { LoggerModule } from 'nestjs-pino';
 import type { Options as PinoHttpOptions } from 'pino-http';
+import { ViewerContextInterceptor } from './common/viewer/viewer-context';
 import { ConfigModule } from './config/config.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RedisModule } from './redis/redis.module';
@@ -332,6 +333,7 @@ const isDev =
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
     { provide: APP_INTERCEPTOR, useClass: ResponseInterceptor },
+    { provide: APP_INTERCEPTOR, useClass: ViewerContextInterceptor },
     // OQ-048: per signed-in user (assistants share an office IP).
     { provide: APP_GUARD, useClass: UserThrottlerGuard },
   ],

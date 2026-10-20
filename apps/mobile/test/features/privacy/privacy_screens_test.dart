@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/l10n/app_language.dart';
+import 'package:lawbid/core/l10n/l10n_translator.dart';
 import 'package:lawbid/core/l10n/static_translator.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/privacy/application/privacy_providers.dart';
@@ -79,6 +81,10 @@ void main() {
     'longest rtl': (LongestTranslator(), TextDirection.rtl),
     'ne': (ShippedTranslator('ne'), TextDirection.ltr),
     'ar': (ShippedTranslator('ar'), TextDirection.rtl),
+    'ru': (
+      L10nTranslator(language: AppLanguage.ru, cache: const {}),
+      TextDirection.ltr,
+    ),
   };
 
   Future<void> pump(

@@ -6,6 +6,7 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
+import { FilesService } from '../src/modules/files/files.service';
 import { RealtimeGateway } from '../src/modules/realtime/realtime.gateway';
 import { PrivacySettingsService } from '../src/modules/privacy-settings/privacy-settings.service';
 import { ModerationAppealsService } from '../src/modules/moderation/moderation-appeals.service';
@@ -406,7 +407,10 @@ describe('Privacy settings and moderation appeals (e2e, owner 2026-10-20)', () =
       emit: jest.fn(),
       leave: jest.fn(),
     }));
-    const gateway = app.get(RealtimeGateway);
+    const gateway = app.get<{
+      nsp: unknown;
+      announce(id: string, online: boolean, at: Date | null): Promise<void>;
+    }>(RealtimeGateway);
     gateway.nsp = {
       in: () => ({ fetchSockets: () => Promise.resolve(sockets) }),
     };
@@ -471,5 +475,61 @@ describe('Privacy settings and moderation appeals (e2e, owner 2026-10-20)', () =
         where: { target_id: post.id, action: 'restore' },
       }),
     ).toBe(1);
+  });
+
+  it('a hidden profile photo is not served to non-contacts anywhere (posts)', async () => {
+    const owner = await person('attorney', 'Vera');
+    const friend = await person('client', 'Ford');
+    const stranger = await person('client', 'Stan');
+    const avatar = await prisma.file.create({
+      data: {
+        owner_user_id: owner.id,
+        purpose: 'avatar',
+        s3_bucket: process.env.S3_BUCKET_MEDIA ?? 'lawbid-media',
+        s3_key: `avatars/${owner.id}/${randomUUID()}.jpg`,
+        mime: 'image/jpeg',
+        size_bytes: 10n,
+        sha256: 'c'.repeat(64),
+        width: 512,
+        height: 512,
+        scan_status: 'clean',
+      },
+    });
+    await prisma.user.update({
+      where: { id: owner.id },
+      data: { avatar_file_id: avatar.id },
+    });
+    await prisma.contactMatch.create({
+      data: { owner_id: owner.id, matched_id: friend.id },
+    });
+    const post = await prisma.post.create({
+      data: { author_id: owner.id, body: 'Hello', status: 'published' },
+    });
+    // The test storage is not configured: serve a fixed link for the file.
+    const link = jest
+      .spyOn(
+        FilesService.prototype as unknown as {
+          mediaUrlOf: () => Promise<string | null>;
+        },
+        'mediaUrlOf',
+      )
+      .mockResolvedValue('https://media.test/a.jpg');
+    const avatarSeenBy = async (viewer: { auth: Record<string, string> }) => {
+      const res = await api()
+        .get(`/api/v1/posts/${post.id}`)
+        .set(viewer.auth)
+        .expect(200);
+      return (res.body.data.author?.avatarUrl ?? null) as string | null;
+    };
+    expect(await avatarSeenBy(stranger)).not.toBeNull();
+    await api()
+      .put('/api/v1/users/me/privacy')
+      .set(owner.auth)
+      .send({ photoFrom: 'contacts' })
+      .expect(200);
+    expect(await avatarSeenBy(stranger)).toBeNull();
+    expect(await avatarSeenBy(friend)).not.toBeNull();
+    expect(await avatarSeenBy(owner)).not.toBeNull();
+    link.mockRestore();
   });
 });
