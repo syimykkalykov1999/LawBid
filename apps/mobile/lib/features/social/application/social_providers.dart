@@ -141,6 +141,12 @@ class FeedNotifier extends PagedNotifier<Post> {
   @override
   Duration? get keepAliveFor => const Duration(minutes: 5);
 
+  // Owner 2026-10-20 (speed): the feed opens on the page saved by the last
+  // visit and refreshes in the background (see PagedNotifier).
+  @override
+  Future<CursorPage<Post>?> cachedFirstPage() =>
+      ref.read(socialRepositoryProvider).cachedFeed();
+
   @override
   Future<CursorPage<Post>> fetch(String? cursor) async {
     final repo = ref.read(socialRepositoryProvider);
