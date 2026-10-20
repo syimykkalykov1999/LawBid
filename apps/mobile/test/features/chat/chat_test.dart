@@ -138,6 +138,57 @@ void main() {
     expect(s.outbox.single.failedCode, 'CONVERSATION_CLOSED');
   });
 
+  test('a temporary failure retries on its own, no new message needed',
+      () async {
+    final chat = _FakeChat()
+      ..refuse = const ApiException(
+        code: 'SERVER',
+        message: 'down',
+        statusCode: 503,
+      );
+    final c = _container(chat);
+    final sub = c.listen(chatThreadProvider('c1'), (_, __) {});
+    addTearDown(sub.close);
+    await _settle();
+    await c.read(chatThreadProvider('c1').notifier).send('Hi');
+    await _settle();
+    expect(chat.sends, isEmpty);
+    expect(
+      c.read(chatThreadProvider('c1')).outbox.single.delivery,
+      DeliveryState.sending,
+    );
+    // The server is back; nobody touches the app, the timer sends it.
+    chat.refuse = null;
+    await Future<void>.delayed(const Duration(milliseconds: 1500));
+    expect(chat.sends, hasLength(1));
+    expect(c.read(chatThreadProvider('c1')).outbox, isEmpty);
+  });
+
+  test('401 and 408 are waited out, not shown as "not sent"', () async {
+    for (final code in [401, 408]) {
+      final chat = _FakeChat()
+        ..refuse = ApiException(code: 'X', message: 'x', statusCode: code);
+      final c = _container(chat);
+      final sub = c.listen(chatThreadProvider('c1'), (_, __) {});
+      addTearDown(sub.close);
+      await _settle();
+      await c.read(chatThreadProvider('c1').notifier).send('Hi');
+      await _settle();
+      expect(
+        c.read(chatThreadProvider('c1')).outbox.single.delivery,
+        DeliveryState.sending,
+        reason: '$code',
+      );
+    }
+  });
+
+  test('outbox wait grows 1, 2, 4 … and stops at 30 s', () {
+    expect(
+      [for (var i = 1; i <= 8; i++) OutboxSender.backoff(i).inSeconds],
+      [1, 2, 4, 8, 16, 30, 30, 30],
+    );
+  });
+
   test('clientMessageId is a v4 UUID', () {
     final id = newClientMessageId();
     expect(

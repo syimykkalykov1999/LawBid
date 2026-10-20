@@ -3,6 +3,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show HapticFeedback;
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/audio/app_sounds.dart';
 import 'package:lawbid/core/connectivity/connectivity_providers.dart';
@@ -191,8 +192,10 @@ final messageRequestsCountProvider = FutureProvider.autoDispose<int>(
 /// clientMessageId (the server's UQ makes a retry a no-op, so a message is
 /// never delivered twice). Drains after each new message, when the
 /// connection comes back and after a socket reconnect.
-class OutboxSender {
+class OutboxSender with WidgetsBindingObserver {
   OutboxSender(this._ref) {
+    // Telegram/WhatsApp: coming back to the app flushes the queue at once.
+    WidgetsBinding.instance.addObserver(this);
     _ref
       ..listen(connectivityStatusProvider, (prev, next) {
         if (next.offlineReason == null && prev?.offlineReason != null) {
@@ -209,13 +212,54 @@ class OutboxSender {
         },
         fireImmediately: true,
       )
-      ..onDispose(() => _sub?.cancel());
+      ..onDispose(() {
+        _sub?.cancel();
+        _retry?.cancel();
+        WidgetsBinding.instance.removeObserver(this);
+      });
   }
 
   final Ref _ref;
   StreamSubscription<RealtimeEvent>? _sub;
   Future<void>? _running;
   bool _again = false;
+
+  /// A temporary failure schedules the next pass itself (a wait that grows
+  /// 1 → 2 → 4 … 30 s): without it a message stuck on one timeout would sit
+  /// at "sending" until the user wrote another one.
+  Timer? _retry;
+  int _failures = 0;
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) unawaited(drain());
+  }
+
+  /// The wait before retry number [failures] (1-based).
+  @visibleForTesting
+  static Duration backoff(int failures) {
+    final s = 1 << (failures - 1).clamp(0, 5);
+    return Duration(seconds: s > 30 ? 30 : s);
+  }
+
+  void _scheduleRetry() {
+    _failures++;
+    _retry?.cancel();
+    _retry = Timer(backoff(_failures), () => unawaited(drain()));
+  }
+
+  /// Whether [e] is worth repeating as it is: no connection, a server that
+  /// is down or busy, a token that is being renewed or a request that timed
+  /// out. Anything else is a refusal the user has to see.
+  static bool _temporary(ApiException e) {
+    final c = e.statusCode ?? 500;
+    return e.isNetworkError ||
+        c == 401 ||
+        c == 408 ||
+        c == 425 ||
+        c == 429 ||
+        c >= 500;
+  }
   final _sent = StreamController<ChatMessage>.broadcast();
 
   /// Messages the server accepted (for threads whose socket is down).
@@ -251,8 +295,13 @@ class OutboxSender {
     if (owner == null) return;
     final db = _ref.read(socialLocalDatabaseProvider);
     final repo = _ref.read(chatRepositoryProvider);
+    // A conversation whose message just failed temporarily keeps its order
+    // (nothing behind it goes first) but does not hold the other chats.
+    final waiting = <String>{};
+    var temporaryFailure = false;
     for (final row in await db.pending(owner)) {
       if (row.failedCode != null) continue;
+      if (waiting.contains(row.conversationId)) continue;
       try {
         final m = await repo.send(
           row.conversationId,
@@ -266,18 +315,29 @@ class OutboxSender {
         _sent.add(m);
         await db.sent(row.clientMessageId);
       } on ApiException catch (e) {
-        if (e.isNetworkError ||
-            e.statusCode == 429 ||
-            (e.statusCode ?? 500) >= 500) {
-          // Temporary: keep it and stop; the next trigger retries in order.
+        if (_temporary(e)) {
           await db.attempted(row.clientMessageId);
-          return;
+          waiting.add(row.conversationId);
+          temporaryFailure = true;
+          continue;
         }
         if (e.code == ApiErrorCodes.subscriptionRequired) {
           subscriptionRequired.value = true;
         }
         await db.attempted(row.clientMessageId, failedCode: e.code);
+      } on Object {
+        // Not an API answer at all (a dropped socket, a parse error): the
+        // message is still safe in the queue, try again later.
+        await db.attempted(row.clientMessageId);
+        waiting.add(row.conversationId);
+        temporaryFailure = true;
       }
+    }
+    if (temporaryFailure) {
+      _scheduleRetry();
+    } else {
+      _failures = 0;
+      _retry?.cancel();
     }
   }
 }
