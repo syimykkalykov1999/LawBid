@@ -146,25 +146,17 @@ class _FindGroupsScreenState extends ConsumerState<FindGroupsScreen> {
   Widget _body(Translator t) {
     final results = _results;
     if (results == null) {
-      return Center(
-        child: SingleChildScrollView(
-          child: AppEmptyState(
-            icon: AppIcons.searchRounded,
-            message: t.t(
-              _query.isEmpty ? 'group.find.initial' : 'group.find.short',
-            ),
-          ),
+      return AppEmptyState(
+        icon: AppIcons.searchRounded,
+        message: t.t(
+          _query.isEmpty ? 'group.find.initial' : 'group.find.short',
         ),
       );
     }
     return switch (results) {
-      AsyncData(:final value) when value.isEmpty => Center(
-          child: SingleChildScrollView(
-            child: AppEmptyState(
-              icon: AppIcons.searchOffRounded,
-              message: t.t('group.find.empty', {'query': _query}),
-            ),
-          ),
+      AsyncData(:final value) when value.isEmpty => AppEmptyState(
+          icon: AppIcons.searchOffRounded,
+          message: t.t('group.find.empty', {'query': _query}),
         ),
       AsyncData(:final value) => ListView.builder(
           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,

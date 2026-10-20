@@ -112,20 +112,16 @@ class _JoinGroupScreenState extends ConsumerState<JoinGroupScreen> {
         onRetry: () => ref.invalidate(_invitePreviewProvider(widget.code)),
       );
     }
-    return Center(
-      child: SingleChildScrollView(
-        child: AppEmptyState(
-          icon: AppIcons.linkOffRounded,
-          title: t.t('group.join.notFoundTitle'),
-          message: t.t('group.join.notFound'),
-          action: AppButton(
-            key: const ValueKey('join-back'),
-            label: t.t('common.back'),
-            variant: AppButtonVariant.secondary,
-            height: AppSizes.touchTarget,
-            onPressed: _close,
-          ),
-        ),
+    return AppEmptyState(
+      icon: AppIcons.linkOffRounded,
+      title: t.t('group.join.notFoundTitle'),
+      message: t.t('group.join.notFound'),
+      action: AppButton(
+        key: const ValueKey('join-back'),
+        label: t.t('common.back'),
+        variant: AppButtonVariant.secondary,
+        height: AppSizes.touchTarget,
+        onPressed: _close,
       ),
     );
   }

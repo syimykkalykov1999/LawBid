@@ -190,24 +190,16 @@ class _PeopleSelectorState extends ConsumerState<PeopleSelector> {
 
   Widget _list(Translator t, List<PickedPerson> all) {
     if (all.isEmpty) {
-      return Center(
-        child: SingleChildScrollView(
-          child: AppEmptyState(
-            icon: AppIcons.peopleOutlineRounded,
-            message: t.t('group.picker.empty'),
-          ),
-        ),
+      return AppEmptyState(
+        icon: AppIcons.peopleOutlineRounded,
+        message: t.t('group.picker.empty'),
       );
     }
     final shown = filterPeople(all, _query);
     if (shown.isEmpty) {
-      return Center(
-        child: SingleChildScrollView(
-          child: AppEmptyState(
-            icon: AppIcons.searchOffRounded,
-            message: t.t('group.picker.noMatch'),
-          ),
-        ),
+      return AppEmptyState(
+        icon: AppIcons.searchOffRounded,
+        message: t.t('group.picker.noMatch'),
       );
     }
     final ticked = {for (final p in widget.selected) p.userId};
