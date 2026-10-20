@@ -271,7 +271,7 @@ Future<void> main() async {
         (w) =>
             w is Text &&
             (w.data ?? '').replaceAll(RegExp('[\u2068\u2069]'), '') ==
-                '1 h 35 min · \$237.50',
+                r'1 h 35 min · $237.50',
       ),
       findsWidgets,
     );
