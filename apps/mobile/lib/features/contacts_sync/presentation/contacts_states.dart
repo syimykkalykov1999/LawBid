@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/contacts_sync/application/phone_contacts.dart';
-import 'package:permission_handler/permission_handler.dart';
+import 'package:lawbid/features/notifications/application/system_notifications.dart';
 
 /// "Find people from your contacts?" — shown before anything is read or
 /// sent (also again after the person turned the sync off and deleted it).
@@ -67,7 +67,7 @@ class ContactsDeniedView extends ConsumerWidget {
       action: AppButton(
         label: t.t('phoneContacts.openSettings'),
         onPressed: () async {
-          await openAppSettings();
+          await ref.read(systemNotificationsProvider).openAppSettings();
           ref.invalidate(phoneContactsProvider);
         },
       ),

@@ -1,5 +1,7 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 /// Owner 2026-10-15: the phone's own notification switch (Android 13+
 /// runtime permission and the per-app toggle), independent of Firebase:
@@ -32,6 +34,20 @@ class SystemNotifications {
   Future<void> openSettings() async {
     try {
       await _channel.invokeMethod<void>('openSettings');
+    } on Object {
+      // Nothing to open on this platform.
+    }
+  }
+
+  /// The app's own page in the phone's settings, where a refused
+  /// permission (contacts…) can be turned on again.
+  Future<void> openAppSettings() async {
+    try {
+      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
+        await launchUrl(Uri.parse('app-settings:'));
+        return;
+      }
+      await _channel.invokeMethod<void>('openAppSettings');
     } on Object {
       // Nothing to open on this platform.
     }
