@@ -109,7 +109,8 @@ export class GiftDto {
   @ApiProperty({
     type: String,
     nullable: true,
-    description: 'Starter gift code: the app shows the translation gift.<code>.',
+    description:
+      'Starter gift code: the app shows the translation gift.<code>.',
   })
   code!: string | null;
   @ApiProperty({ type: 'integer' }) priceStars!: number;
