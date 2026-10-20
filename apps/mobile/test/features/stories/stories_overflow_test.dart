@@ -58,8 +58,6 @@ void main() {
         });
 
         testWidgets('creator: text story with stickers row', (tester) async {
-          final semantics = tester.ensureSemantics();
-          addTearDown(semantics.dispose);
           await pump(tester, const StoryCreatorScreen());
           await tester.tap(find.byKey(const ValueKey('story-pick-text')));
           await tester.pump(const Duration(milliseconds: 300));
@@ -73,7 +71,7 @@ void main() {
           expect(tester.takeException(), isNull);
 
           // The sticker grid and the audience sheet.
-          await tester.tap(find.bySemanticsLabel('Add a sticker'));
+          await tester.tap(find.byKey(const ValueKey('story-sticker-add')));
           await tester.pumpAndSettle();
           expect(tester.takeException(), isNull);
           await tester.tap(find.text('😀'));

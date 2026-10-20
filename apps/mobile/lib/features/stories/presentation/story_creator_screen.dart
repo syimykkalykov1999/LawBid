@@ -605,6 +605,7 @@ class _StoryCreatorScreenState extends ConsumerState<StoryCreatorScreen> {
               Row(
                 children: [
                   AppIconButton(
+                    key: const ValueKey('story-sticker-add'),
                     icon: const Icon(AppIcons.stickerOutlined),
                     semanticLabel: t.t('story.emoji.add'),
                     onPressed: _addSticker,

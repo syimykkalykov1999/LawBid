@@ -108,6 +108,7 @@ void main() {
       '/u/*': 'u/jane_doe',
       '/q/*': 'q/Xk3_aB-9Qz1LmN4pR7sT0w',
       '/g/*': 'g/Xk3_aB-9Qz1LmN4pR7sT0w',
+      '/c/*': 'c/tax_news',
     };
     final aasa =
         jsonDecode(read('../../docs/deeplinks/apple-app-site-association'))

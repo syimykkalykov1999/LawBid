@@ -14,8 +14,6 @@ void main() {
   setUpAll(initializeDateFormatting);
 
   Future<FakeStoriesRepository> open(WidgetTester tester) async {
-    final semantics = tester.ensureSemantics();
-    addTearDown(semantics.dispose);
     useSmallPhone(tester);
     final repo = FakeStoriesRepository();
     await tester.pumpWidget(
@@ -81,7 +79,7 @@ void main() {
     await open(tester);
     await tester.tap(find.byKey(const ValueKey('story-pick-text')));
     await tester.pump(const Duration(milliseconds: 300));
-    await tester.tap(find.bySemanticsLabel('Add a sticker'));
+    await tester.tap(find.byKey(const ValueKey('story-sticker-add')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('🔥'));
     await tester.pumpAndSettle();
