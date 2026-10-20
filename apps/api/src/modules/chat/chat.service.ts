@@ -552,7 +552,7 @@ export class ChatService {
   private async forwardContent(
     user: RequestUser,
     dto: SendMessageDto,
-  ): Promise<SendMessageDto> {
+  ): Promise<SendMessageDto & { forwardedFromName?: string }> {
     const src = await this.prisma.message.findFirst({
       where: {
         id: dto.forwardFromId,
@@ -572,10 +572,25 @@ export class ChatService {
       });
     }
     const text = this.cipher?.open(src.body_display) ?? src.body_display;
+    // Telegram: "Forwarded from <name>". A message that was already
+    // forwarded keeps the first author's name.
+    const author = src.sender_id
+      ? await this.prisma.user.findUnique({
+          where: { id: src.sender_id },
+          select: { first_name: true, last_name: true },
+        })
+      : null;
+    const authorName = [author?.first_name, author?.last_name]
+      .filter(Boolean)
+      .join(' ')
+      .slice(0, 120);
     const base = {
       clientMessageId: dto.clientMessageId,
       forwarded: true,
       replyToId: dto.replyToId,
+      forwardedFromName:
+        src.forwarded_from_name ??
+        (authorName.length > 0 ? authorName : undefined),
     };
     if (src.type === 'sticker') {
       return {
@@ -607,7 +622,7 @@ export class ChatService {
   private async sendContent(
     user: RequestUser,
     id: string,
-    dto: SendMessageDto,
+    dto: SendMessageDto & { forwardedFromName?: string },
   ): Promise<MessageDto> {
     const voice = dto.type === 'voice';
     const attachment = dto.type === 'attachment';
@@ -893,6 +908,7 @@ export class ChatService {
             client_message_id: dto.clientMessageId,
             reply_to_id: replyToId,
             forwarded: dto.forwarded === true,
+            forwarded_from_name: dto.forwardedFromName ?? null,
             ...(voice
               ? {
                   file_id: dto.fileId,
@@ -1622,6 +1638,7 @@ export class ChatService {
       editedAt: m.edited_at,
       revoked,
       forwarded: m.forwarded && !revoked,
+      forwardedFrom: m.forwarded && !revoked ? m.forwarded_from_name : null,
       replyTo:
         target && !revoked
           ? {

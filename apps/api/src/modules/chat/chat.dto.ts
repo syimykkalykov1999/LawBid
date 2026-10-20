@@ -625,6 +625,13 @@ export class MessageDto {
   @ApiProperty()
   forwarded!: boolean;
 
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description: 'Telegram-style "Forwarded from": the first author\'s name.',
+  })
+  forwardedFrom!: string | null;
+
   @ApiPropertyOptional({ type: () => ReplyPreviewDto, nullable: true })
   replyTo!: ReplyPreviewDto | null;
 

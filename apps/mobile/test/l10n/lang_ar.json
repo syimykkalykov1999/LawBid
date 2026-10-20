@@ -1052,6 +1052,7 @@
 "chat.forward.send":"إرسال",
 "chat.forward.title":"إعادة التوجيه إلى…",
 "chat.forwarded":"معاد توجيهها",
+"chat.forwardedFrom":"محوّلة من {name}",
 "chat.hiddenClient":"عميل «{title}»",
 "chat.hiddenClient.direct":"عميل",
 "chat.hint":"رسالة…",

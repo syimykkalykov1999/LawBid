@@ -2369,31 +2369,31 @@ enum ChatFolder {
 }
 
 model ConversationParticipant {
-  conversation_id      String       @db.Uuid
-  conversation         Conversation @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
-  user_id              String       @db.Uuid
-  user                 User         @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  last_read_message_id String?      @db.Uuid
+  conversation_id           String       @db.Uuid
+  conversation              Conversation @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+  user_id                   String       @db.Uuid
+  user                      User         @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  last_read_message_id      String?      @db.Uuid
   /// When last_read_message_id last moved ("read at HH:MM", WhatsApp style).
-  last_read_at         DateTime?    @db.Timestamptz
+  last_read_at              DateTime?    @db.Timestamptz
   /// Owner 2026-10-20 (WhatsApp): the newest message that reached this
   /// person's device (two grey ticks for the sender). Read implies delivered.
-  last_delivered_message_id String?  @db.Uuid
-  last_delivered_at    DateTime?    @db.Timestamptz
-  muted_until          DateTime?    @db.Timestamptz
+  last_delivered_message_id String?      @db.Uuid
+  last_delivered_at         DateTime?    @db.Timestamptz
+  muted_until               DateTime?    @db.Timestamptz
   /// Owner 2026-10-01: my folder for this chat; null = automatic (a case
   /// chat is Primary, a direct chat General).
-  folder               ChatFolder?
+  folder                    ChatFolder?
   /// "Waiting for my answer" since (the Waiting folder).
-  waiting_since        DateTime?    @db.Timestamptz
+  waiting_since             DateTime?    @db.Timestamptz
   /// My note pinned on the chat ("send him the documents").
-  note                 String?      @db.VarChar(280)
-  pinned_at            DateTime?    @db.Timestamptz
+  note                      String?      @db.VarChar(280)
+  pinned_at                 DateTime?    @db.Timestamptz
   /// Owner 2026-10-02: "deleted" from my list (only for me); a new message
   /// brings the chat back. The history itself is never erased.
-  hidden_at            DateTime?    @db.Timestamptz
-  created_at           DateTime     @default(now()) @db.Timestamptz
-  updated_at           DateTime     @updatedAt @db.Timestamptz
+  hidden_at                 DateTime?    @db.Timestamptz
+  created_at                DateTime     @default(now()) @db.Timestamptz
+  updated_at                DateTime     @updatedAt @db.Timestamptz
 
   @@id([conversation_id, user_id])
   @@index([user_id])
@@ -2501,6 +2501,8 @@ model Message {
   reply_to              Message?           @relation("MessageReply", fields: [reply_to_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
   replies               Message[]          @relation("MessageReply")
   forwarded             Boolean            @default(false)
+  /// "Forwarded from <name>": the first author, kept through re-forwards.
+  forwarded_from_name   String?            @db.VarChar(120)
   hidden_for            MessageHidden[]
   reactions             MessageReaction[]
   edits                 MessageEdit[]

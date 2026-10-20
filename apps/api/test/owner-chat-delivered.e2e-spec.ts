@@ -5,7 +5,6 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
-import { S3StorageService } from '../src/modules/files/storage/s3-storage.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
 
 /**

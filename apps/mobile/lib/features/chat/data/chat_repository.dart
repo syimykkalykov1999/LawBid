@@ -775,6 +775,7 @@ abstract final class ChatMappers {
         editedAt: d.editedAt,
         revoked: d.revoked,
         forwarded: d.forwarded,
+        forwardedFrom: d.forwardedFrom,
         pinned: d.pinned,
         replyTo: d.replyTo == null
             ? null

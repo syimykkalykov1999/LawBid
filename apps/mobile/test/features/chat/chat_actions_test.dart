@@ -376,12 +376,14 @@ void main() {
         'createdAt': '2026-10-20T10:00:00.000Z',
         'revoked': true,
         'forwarded': true,
+        'forwardedFrom': 'Anna Kowalski',
         'pinned': false,
         'reactions': <dynamic>[],
       }),
     );
     expect(m.revoked, isTrue);
     expect(m.forwarded, isTrue);
+    expect(m.forwardedFrom, 'Anna Kowalski');
     expect(m.replyTo, isNull);
     expect(m.reactions, isEmpty);
   });

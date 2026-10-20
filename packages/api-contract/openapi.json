@@ -148109,6 +148109,11 @@
           "forwarded": {
             "type": "boolean"
           },
+          "forwardedFrom": {
+            "type": "string",
+            "nullable": true,
+            "description": "Telegram-style \"Forwarded from\": the first author's name."
+          },
           "replyTo": {
             "nullable": true,
             "type": "object",

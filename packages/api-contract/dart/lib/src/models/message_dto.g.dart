@@ -43,6 +43,7 @@ MessageDto _$MessageDtoFromJson(Map<String, dynamic> json) => MessageDto(
   editedAt: json['editedAt'] == null
       ? null
       : DateTime.parse(json['editedAt'] as String),
+  forwardedFrom: json['forwardedFrom'] as String?,
   replyTo: json['replyTo'] == null
       ? null
       : ReplyPreviewDto.fromJson(json['replyTo'] as Map<String, dynamic>),
@@ -68,6 +69,7 @@ Map<String, dynamic> _$MessageDtoToJson(MessageDto instance) =>
       'editedAt': ?instance.editedAt?.toIso8601String(),
       'revoked': instance.revoked,
       'forwarded': instance.forwarded,
+      'forwardedFrom': ?instance.forwardedFrom,
       'replyTo': ?instance.replyTo?.toJson(),
       'reactions': instance.reactions.map((e) => e.toJson()).toList(),
       'pinned': instance.pinned,
