@@ -51,7 +51,7 @@ Channel fakeChannel({
       isSubscribed: subscribed,
       isMuted: muted,
       myRole: role,
-      createdAt: DateTime(2026, 10, 1),
+      createdAt: DateTime(2026, 10),
     );
 
 ChannelPost fakePost(

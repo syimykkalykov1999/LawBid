@@ -50,7 +50,7 @@ Map<String, Object?> postJson(String id) => {
         {
           'fileId': 'f1',
           'url': 'https://x.test/1',
-          'previewUrl': 'https://x.test/1p'
+          'previewUrl': 'https://x.test/1p',
         },
       ],
       'video': {'status': 'ready', 'playbackUrl': 'https://x.test/v.m3u8'},
@@ -128,10 +128,8 @@ void main() {
 
   test('subscribe, unsubscribe and mute use the subscription resource',
       () async {
-    final c = (await (() async {
-      http.handler = (_) async => ok(channelJson());
-      return repo.get('tax_news');
-    })());
+    http.handler = (_) async => ok(channelJson());
+    final c = await repo.get('tax_news');
     expect(http.requests.last.path, '/channels/tax_news');
 
     http.handler = (_) async =>
@@ -316,7 +314,7 @@ void main() {
       ),
       username: 'New_Name',
     );
-    expect(http.requests.last.data['username'], 'new_name');
+    expect((http.requests.last.data as Map)['username'], 'new_name');
   });
 
   test('a channel or a post is reported with its target type', () async {
@@ -327,7 +325,7 @@ void main() {
       'reason': 'spam',
     });
     await repo.report(targetId: 'p1', reason: 'abuse', post: true);
-    expect(http.requests.last.data['targetType'], 'channel_post');
+    expect((http.requests.last.data as Map)['targetType'], 'channel_post');
   });
 
   test('the avatar goes presign → storage → confirm with purpose avatar',
@@ -364,8 +362,8 @@ void main() {
     );
     expect(id, 'file-9');
     final presign = http.requests.first;
-    expect(presign.data['purpose'], 'avatar');
-    expect(presign.data['mime'], 'image/png');
+    expect((presign.data as Map)['purpose'], 'avatar');
+    expect((presign.data as Map)['mime'], 'image/png');
     expect(storage.requests.single.uri.toString(), 'https://storage.test/up');
     expect(http.requests.last.path, '/files/file-9/confirm');
   });
@@ -379,7 +377,7 @@ void main() {
           'fileId': 'file-9',
           'upload': {
             'url': 'https://storage.test/up',
-            'fields': <String, String>{}
+            'fields': <String, String>{},
           },
           'expiresAt': '2026-10-20T10:00:00.000Z',
         });

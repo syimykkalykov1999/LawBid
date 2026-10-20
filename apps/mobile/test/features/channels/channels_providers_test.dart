@@ -5,7 +5,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:image_picker/image_picker.dart' show XFile;
 import 'package:lawbid/features/channels/application/channel_compose.dart';
 import 'package:lawbid/features/channels/application/channels_providers.dart';
-import 'package:lawbid/features/channels/domain/channel_models.dart';
 
 import 'channels_fakes.dart';
 
