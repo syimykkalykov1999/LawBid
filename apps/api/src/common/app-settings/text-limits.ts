@@ -97,6 +97,30 @@ export const TEXT_LIMIT_DEFS = {
     max: 1000,
     label: "An attorney's bio",
   },
+  'limits.question_title_chars': {
+    def: 120,
+    min: 5,
+    max: 160, // the column holds 160
+    label: 'The title of a question to a lawyer',
+  },
+  'limits.question_body_chars': {
+    def: 1500,
+    min: 10,
+    max: 3000, // the column holds 3000
+    label: 'The text of a question to a lawyer',
+  },
+  'limits.answer_chars': {
+    def: 2000,
+    min: 10,
+    max: 4000, // the column holds 4000
+    label: "A lawyer's answer to a question",
+  },
+  'limits.consultation_note_chars': {
+    def: 300,
+    min: 1,
+    max: 500, // the column holds 500
+    label: 'What the client wants to discuss in a booked consultation',
+  },
   'limits.name_chars': {
     def: 30,
     min: 1,

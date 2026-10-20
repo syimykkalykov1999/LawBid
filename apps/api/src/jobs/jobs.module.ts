@@ -7,6 +7,7 @@ import { CountryPartnersCoreModule } from '../modules/country-partners/country-p
 import { RewardsModule } from '../modules/rewards/rewards.module';
 import { SupportModule } from '../modules/support/support.module';
 import { StorageCoreModule } from '../modules/storage/storage.module';
+import { ConsultationsCoreModule } from '../modules/consultations/consultations-core.module';
 import { TreasuryCoreModule } from '../modules/treasury/treasury.module';
 import { FileReleaseService } from '../modules/files/storage/file-release.service';
 import { DynamicModule, Module } from '@nestjs/common';
@@ -97,6 +98,8 @@ export class JobsModule {
         StorageCoreModule,
         // Owner 2026-10-05: `treasury.daily` (profit and reserve).
         TreasuryCoreModule,
+        // Owner 2026-10-20: `consultations.sweep`.
+        ConsultationsCoreModule,
       ],
       providers: [
         { provide: JOBS_OPTIONS, useValue: options },

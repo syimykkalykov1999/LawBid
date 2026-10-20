@@ -17,7 +17,9 @@ export type ChatSystemKey =
   | 'payment_fee_countered'
   | 'payment_fee_agreed'
   // Owner 2026-10-04: one side disputed the completion.
-  | 'case_disputed';
+  | 'case_disputed'
+  // Consultation booking card (body `consult:<consultationId>`).
+  | 'consult';
 
 /** A conversation changed inside a transaction; published after commit. */
 export interface ChatChange {

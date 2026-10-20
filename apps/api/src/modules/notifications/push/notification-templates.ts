@@ -721,6 +721,29 @@ export const NOTIFICATION_TEMPLATES: Partial<
       body: 'В ваш аккаунт вошли с нового устройства.',
     },
   },
+  // Owner 2026-10-20: booking; the body says what happened
+  // (`notif.consult.<kind>`), this pair is the fallback.
+  consultation_update: {
+    group: 'cases',
+    en: { title: 'Consultation', body: 'Your consultation has an update.' },
+    ru: { title: 'Консультация', body: 'По консультации есть новости.' },
+  },
+  legal_question_new: {
+    group: 'cases',
+    en: {
+      title: 'New question',
+      body: 'A client asked a question in your practice area.',
+    },
+    ru: {
+      title: 'Новый вопрос',
+      body: 'Клиент задал вопрос по вашей специализации.',
+    },
+  },
+  legal_answer_update: {
+    group: 'cases',
+    en: { title: 'Question', body: 'Your question has a new answer.' },
+    ru: { title: 'Вопрос', body: 'На ваш вопрос есть новый ответ.' },
+  },
   security_phone_changed: {
     group: 'system',
     en: {

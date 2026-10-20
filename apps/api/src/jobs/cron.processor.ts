@@ -33,6 +33,7 @@ import { OpsMetricsJob } from './handlers/ops-metrics.job';
 import { OpsGuardJob } from './handlers/ops-guard.job';
 import { HEAVY_CRON_JOBS } from '../common/ops/ops.constants';
 import { OpsStateService } from '../common/ops/ops-state.service';
+import { ConsultationRemindersJob } from '../modules/consultations/consultation-reminders.job';
 import {
   TaskArchivePurgeJob,
   TaskRemindersJob,
@@ -110,6 +111,7 @@ export class CronProcessor {
     @Optional() private readonly searchLog?: SearchLogService,
     @Optional() private readonly searchSynonyms?: SearchSynonymsService,
     @Optional() private readonly crashReports?: CrashReportsService,
+    @Optional() private readonly consultationSweep?: ConsultationRemindersJob,
   ) {}
 
   async process(name: string): Promise<unknown> {
@@ -182,6 +184,8 @@ export class CronProcessor {
         return this.postVideos.sweep();
       case CRON_JOBS.promotionsExpire:
         return this.promotions.expire();
+      case CRON_JOBS.consultationsSweep:
+        return this.consultationSweep?.run() ?? null;
       case CRON_JOBS.taskReminders:
         return this.taskReminders.run();
       case CRON_JOBS.taskArchivePurge:
