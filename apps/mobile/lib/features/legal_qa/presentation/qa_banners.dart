@@ -53,18 +53,20 @@ class _QaLine extends StatelessWidget {
             ),
             child: Row(
               children: [
-                // Champagne accent, like the other feed cards.
+                // Owner 2026-10-20: on the feed card the «?» is a solid red
+                // dot so an attorney cannot miss it; elsewhere champagne.
                 DecoratedBox(
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color:
-                        colors.gold.withValues(alpha: prominent ? 0.34 : 0.16),
+                    color: prominent
+                        ? colors.danger
+                        : colors.gold.withValues(alpha: 0.16),
                   ),
                   child: Padding(
                     padding: const EdgeInsets.all(AppSpacing.xs),
                     child: AppIcon(
                       AppIcons.helpOutlineRounded,
-                      color: colors.goldDark,
+                      color: prominent ? colors.onDanger : colors.goldDark,
                     ),
                   ),
                 ),
