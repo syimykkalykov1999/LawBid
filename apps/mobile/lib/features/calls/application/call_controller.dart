@@ -231,7 +231,7 @@ class CallController extends Notifier<CallSession> {
       fireImmediately: true,
     );
     // The ongoing-call notification follows the call; its buttons come back.
-    ref.listenSelf((prev, next) => _syncForeground(prev, next));
+    listenSelf(_syncForeground);
     final fg = ref.read(callForegroundProvider);
     final actions = fg.actions.listen(_onNotificationAction);
     unawaited(

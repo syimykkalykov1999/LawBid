@@ -145,7 +145,9 @@ class _CallScreenState extends ConsumerState<CallScreen>
                                 _TopButton(
                                   icon: AppIcons.expandMoreRounded,
                                   label: t.t('call.minimize'),
-                                  onTap: () => unawaited(Navigator.of(context).maybePop()),
+                                  onTap: () => unawaited(
+                                    Navigator.of(context).maybePop(),
+                                  ),
                                 )
                               else
                                 const SizedBox(width: 44, height: 44),
@@ -157,7 +159,8 @@ class _CallScreenState extends ConsumerState<CallScreen>
                                 onTap: () =>
                                     ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
-                                    content: Text(t.t('call.addParticipantSoon')),
+                                    content:
+                                        Text(t.t('call.addParticipantSoon')),
                                   ),
                                 ),
                               ),

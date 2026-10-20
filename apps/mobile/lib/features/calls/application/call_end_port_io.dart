@@ -18,9 +18,8 @@ bool sendCallEnded(String callId) {
 void Function() listenCallEnded(void Function(String callId) onEnded) {
   try {
     final port = ReceivePort();
-    IsolateNameServer
-      ..removePortNameMapping(_name)
-      ..registerPortWithName(port.sendPort, _name);
+    IsolateNameServer.removePortNameMapping(_name);
+    IsolateNameServer.registerPortWithName(port.sendPort, _name);
     port.listen((Object? id) {
       if (id is String) onEnded(id);
     });

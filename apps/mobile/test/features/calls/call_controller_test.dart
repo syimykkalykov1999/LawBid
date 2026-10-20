@@ -189,7 +189,7 @@ class _Sounds implements AppSounds {
 
 class _FakeForeground implements CallForeground {
   final started = <String>[];
-  var stops = 0;
+  int stops = 0;
   final _actions = StreamController<String>.broadcast();
 
   @override
@@ -459,8 +459,9 @@ void main() {
     expect(h.foreground.stops, 1);
   });
 
-  test('a second tap on the call button asks for the call screen, not a new call',
-      () async {
+  test(
+      'a second tap on the call button asks for the call screen, '
+      'not a new call', () async {
     final h = _Harness();
     addTearDown(h.dispose);
 

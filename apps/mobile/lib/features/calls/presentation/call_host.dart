@@ -109,15 +109,16 @@ class _ReturnToCallBarState extends ConsumerState<_ReturnToCallBar> {
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final s = widget.session;
     final at = s.connectedAt;
+    final back = t.t('call.returnToCall');
     final label = s.phase == CallPhase.active && at != null
-        ? '${t.t('call.returnToCall')} · ${voiceClock(DateTime.now().difference(at))}'
-        : t.t('call.returnToCall');
-    const green = Color(0xFF1FA855);
+        ? '$back · ${voiceClock(DateTime.now().difference(at))}'
+        : back;
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
     return Semantics(
       button: true,
       label: label,
       child: Material(
-        color: green,
+        color: colors.success,
         child: InkWell(
           onTap: widget.onTap,
           child: SafeArea(
@@ -128,7 +129,11 @@ class _ReturnToCallBarState extends ConsumerState<_ReturnToCallBar> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const AppIcon(AppIcons.callRounded, size: 16, color: Colors.white),
+                    const AppIcon(
+                      AppIcons.callRounded,
+                      size: 16,
+                      color: Colors.white,
+                    ),
                     const SizedBox(width: AppSpacing.sm),
                     Text(
                       label,

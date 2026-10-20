@@ -46,7 +46,8 @@ class CallForeground {
   Future<void> start({required String name, int since = 0}) async {
     if (!_supported) return;
     try {
-      await _channel.invokeMethod<bool>('start', {'name': name, 'since': since});
+      await _channel
+          .invokeMethod<bool>('start', {'name': name, 'since': since});
     } on Object catch (e) {
       debugPrint('call service unavailable: $e');
     }
@@ -62,7 +63,8 @@ class CallForeground {
   }
 }
 
-final callForegroundProvider = Provider<CallForeground>((ref) => CallForeground());
+final callForegroundProvider =
+    Provider<CallForeground>((ref) => CallForeground());
 
 /// Bumped when something asks for the call screen (the minimised-call bar,
 /// the notification, a tap on a chat's call button during a call).
