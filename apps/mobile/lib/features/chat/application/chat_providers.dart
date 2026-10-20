@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/audio/app_sounds.dart';
 import 'package:lawbid/core/connectivity/connectivity_providers.dart';
 import 'package:lawbid/core/media/image_size.dart';
+import 'package:lawbid/core/media/video_size.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/features/cases/application/paged_notifier.dart';
@@ -738,7 +739,9 @@ class ChatThread extends Notifier<ChatThreadState> {
     if (owner == null) return;
     final cmid = newClientMessageId();
     final isImage = mime.startsWith('image/');
-    final px = isImage ? await imageSizeOf(bytes) : null;
+    final px = isImage
+        ? await imageSizeOf(bytes)
+        : (mime.startsWith('video/') ? videoSizeOf(bytes) : null);
     final local = ChatMessage(
       id: 'local:$cmid',
       conversationId: id,
