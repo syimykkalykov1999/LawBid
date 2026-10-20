@@ -7,6 +7,7 @@ import 'package:retrofit/retrofit.dart';
 
 import '../models/contact_sync_status_envelope.dart';
 import '../models/contact_upload_result_envelope.dart';
+import '../models/set_find_by_phone_dto.dart';
 import '../models/upload_contact_hashes_dto.dart';
 
 part 'contacts_sync_client.g.dart';
@@ -31,4 +32,11 @@ abstract class ContactsSyncClient {
   /// Turn contacts sync off and delete every match (idempotent)
   @DELETE('/contacts/sync')
   Future<void> remove({@Extras() Map<String, dynamic>? extras});
+
+  /// Clients: allow or forbid being found by people who have my number
+  @PUT('/contacts/sync/find-by-phone')
+  Future<void> setFindByPhone({
+    @Body() required SetFindByPhoneDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
 }
