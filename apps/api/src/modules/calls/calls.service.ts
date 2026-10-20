@@ -545,9 +545,9 @@ export class CallsService {
           peer?.client_profile?.username ??
           null,
         avatarUrl: peer?.avatar_file_id
-          ? ((avatars.get(peer.avatar_file_id)?.url ??
-              avatars.get(peer.avatar_file_id)?.url256 ??
-              null))
+          ? (avatars.get(peer.avatar_file_id)?.url ??
+            avatars.get(peer.avatar_file_id)?.url256 ??
+            null)
           : null,
         kind: peer?.role === 'attorney' ? 'attorney' : 'client',
       },
