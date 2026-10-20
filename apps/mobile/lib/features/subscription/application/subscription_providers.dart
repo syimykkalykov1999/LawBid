@@ -287,6 +287,8 @@ class SubscribeController extends Notifier<SubscribeState> {
     final extra = [
       if (theme != null) 'theme=$theme',
       if (lang != null) 'lang=$lang',
+      // The phone app: «Back to the app» opens lawbid://, not the web copy.
+      if (!kIsWeb) 'native=1',
     ].join('&');
     if (extra.isEmpty) return url;
     return url.replace(fragment: '${url.fragment}&$extra');
