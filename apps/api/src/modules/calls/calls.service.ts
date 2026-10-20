@@ -678,18 +678,18 @@ export class CallsService {
   }
 
   /** GET /groups/:id/call — the call running in this group (the chat shows
-   * "Join"), null when there is none. */
-  async groupCall(user: RequestUser, groupId: string): Promise<CallDto | null> {
+   * "Join"), 404 CALL_NOT_FOUND when there is none. */
+  async groupCall(user: RequestUser, groupId: string): Promise<CallDto> {
     const groups = this.groups;
-    if (!groups) return null;
+    if (!groups) throw notFound();
     await groups.assertMember(user.sub, groupId);
     await this.sweep();
     const call = await this.runningGroupCall(groupId);
-    if (!call) return null;
+    if (!call) throw notFound();
     // Silent for a while (everybody's app is gone): not a call to join.
     if (call.updated_at.getTime() < Date.now() - CALL_SILENT_MS) {
       await this.finish(call, 'ended', null);
-      return null;
+      throw notFound();
     }
     return this.toDto(call, user.sub);
   }

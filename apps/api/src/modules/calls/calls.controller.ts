@@ -98,13 +98,13 @@ export class CallsController {
   }
 
   @Get('groups/:id/call')
-  @ApiOperation({ summary: 'The call running in a group chat (or null)' })
+  @ApiOperation({ summary: 'The call running in a group chat (404 when none)' })
   @ApiEnvelopeResponse(CallDto)
-  @ApiErrors({ 404: [ErrorCode.GROUP_NOT_FOUND] })
+  @ApiErrors({ 404: [ErrorCode.GROUP_NOT_FOUND, ErrorCode.CALL_NOT_FOUND] })
   groupCall(
     @CurrentUser() user: RequestUser,
     @Param() p: GroupCallParamDto,
-  ): Promise<CallDto | null> {
+  ): Promise<CallDto> {
     return this.calls.groupCall(user, p.id);
   }
 

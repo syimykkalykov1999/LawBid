@@ -36,7 +36,7 @@ abstract class CallsClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// The call running in a group chat (or null)
+  /// The call running in a group chat (404 when none)
   @GET('/groups/{id}/call')
   Future<CallEnvelope> groupCall({
     @Path('id') required String id,

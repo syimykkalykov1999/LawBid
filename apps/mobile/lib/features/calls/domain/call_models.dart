@@ -90,6 +90,7 @@ class AppCall {
     required this.outgoing,
     required this.peer,
     required this.createdAt,
+    this.groupId,
     this.answeredAt,
     this.endedAt,
     this.durationSec,
@@ -110,7 +111,10 @@ class AppCall {
   final bool video;
 
   final String id;
-  final String conversationId;
+
+  /// Null for a call started from a group chat ([groupId] is set then).
+  final String? conversationId;
+  final String? groupId;
   final CallStatus status;
   final bool outgoing;
   final CallPeer peer;
@@ -127,6 +131,7 @@ class AppCall {
       AppCall(
         id: id,
         conversationId: conversationId,
+        groupId: groupId,
         status: status,
         outgoing: outgoing,
         peer: peer,

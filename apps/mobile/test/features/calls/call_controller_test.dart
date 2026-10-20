@@ -95,6 +95,20 @@ class _FakeRepo implements CallsRepository {
   List<CallMember> getMembers = const [];
 
   @override
+  Future<AppCall> startGroup(
+    String groupId, {
+    bool video = false,
+    List<String> userIds = const [],
+  }) async =>
+      throw UnimplementedError();
+
+  @override
+  Future<AppCall?> groupCall(String groupId) async => null;
+
+  @override
+  Future<AppCall> join(String callId) async => throw UnimplementedError();
+
+  @override
   Future<AppCall> start(String conversationId, {bool video = false}) async {
     startedVideo.add(video);
     if (startGate != null) await startGate!.future;

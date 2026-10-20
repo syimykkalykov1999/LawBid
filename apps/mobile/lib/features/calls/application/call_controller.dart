@@ -583,6 +583,94 @@ class CallController extends Notifier<CallSession> {
     if (state.notice != null) state = state.copyWith(clearNotice: true);
   }
 
+  // --- Calls from a group chat (owner 2026-10-20) ---------------------------
+
+  /// The phone / video buttons of a group chat: this phone becomes the host
+  /// of a call that lives in the group; [userIds] ring, the others join from
+  /// the chat. [peer] carries the group's name and photo for the screen.
+  /// Returns the API error code, or null when it worked.
+  Future<String?> startGroupCall(
+    String groupId, {
+    required CallPeer peer,
+    bool video = false,
+    List<String> userIds = const [],
+  }) =>
+      _enterGroupCall(
+        peer: peer,
+        video: video,
+        open: () => _repo.startGroup(groupId, video: video, userIds: userIds),
+      );
+
+  /// "Join" on the banner of a group chat with a call running.
+  Future<String?> joinGroupCall(AppCall running, {required CallPeer peer}) =>
+      _enterGroupCall(
+        peer: peer,
+        video: running.video,
+        open: () => _repo.join(running.id),
+      );
+
+  Future<String?> _enterGroupCall({
+    required CallPeer peer,
+    required bool video,
+    required Future<AppCall> Function() open,
+  }) async {
+    if (state.busy) {
+      ref.read(callOpenRequestProvider.notifier).bump();
+      return null;
+    }
+    _reset();
+    final gen = _gen;
+    state = CallSession(
+      phase: CallPhase.connecting,
+      peer: peer,
+      video: video,
+      speaker: video,
+    );
+    try {
+      if (!await ref.read(callMicPermissionProvider)()) {
+        if (gen != _gen || !ref.mounted) return null;
+        state = state.copyWith(errorCode: kMicDenied);
+        _finish(CallStatus.failed);
+        return kMicDenied;
+      }
+      if (gen != _gen || !ref.mounted) return null;
+      final call = await open();
+      if (!ref.mounted) return null;
+      if (gen != _gen) {
+        unawaited(_endQuietly(call.id, CallEndReason.hangup));
+        return null;
+      }
+      state = state.copyWith(call: call, peer: peer);
+      unawaited(ref.read(systemCallUiProvider).showOngoing(call));
+      _startSync();
+      await _openMedia(call.id, video: call.video);
+      if (gen != _gen || !ref.mounted) return null;
+      // In the room already: alone until somebody answers, linked to the
+      // others at once when joining (the later joiner offers).
+      state = state.copyWith(
+        phase: CallPhase.active,
+        connectedAt: DateTime.now(),
+      );
+      _applyMembers(call.hostId, call.participants);
+      return null;
+    } on ApiException catch (e) {
+      if (gen != _gen) return e.code;
+      final raw = (e.details ?? const <String, dynamic>{})['callId'];
+      final stale =
+          e.code == ApiErrorCodes.callInProgress && raw is String ? raw : null;
+      state = state.copyWith(errorCode: e.code, staleCallId: stale);
+      _finish(CallStatus.failed, keepOpen: stale != null);
+      return e.code;
+    } on Object catch (e) {
+      if (gen != _gen) return 'ERROR';
+      final id = state.call?.id;
+      if (_isMicDenied(e)) state = state.copyWith(errorCode: kMicDenied);
+      _finish(CallStatus.failed);
+      if (id != null) unawaited(_endQuietly(id, CallEndReason.failed));
+      return 'ERROR';
+    }
+  }
+
   // --- Group calls ---------------------------------------------------------
 
   /// Adds a person (by id or @username) to the running call. Returns the

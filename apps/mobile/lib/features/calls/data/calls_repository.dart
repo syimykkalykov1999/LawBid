@@ -13,6 +13,19 @@ abstract interface class CallsRepository {
   /// [video]: a video call — refused (FEATURE_DISABLED) unless the owner
   /// switched `video_calls` on and TURN is configured.
   Future<AppCall> start(String conversationId, {bool video = false});
+
+  /// Phone / video buttons of a group chat.
+  Future<AppCall> startGroup(
+    String groupId, {
+    bool video = false,
+    List<String> userIds = const [],
+  });
+
+  /// The call running in the group, or null.
+  Future<AppCall?> groupCall(String groupId);
+
+  /// Joins the call running in the group.
+  Future<AppCall> join(String callId);
   Future<AppCall> accept(String callId);
   Future<AppCall> decline(String callId);
   Future<AppCall> end(String callId, CallEndReason reason);
@@ -52,6 +65,39 @@ class ApiCallsRepository implements CallsRepository {
           ),
         ))
             .data,
+      );
+
+  @override
+  Future<AppCall> startGroup(
+    String groupId, {
+    bool video = false,
+    List<String> userIds = const [],
+  }) async =>
+      CallMappers.call(
+        (await guardApiCall(
+          () => _api.startGroupCall(
+            id: groupId,
+            body: api.StartGroupCallDto(video: video, userIds: userIds),
+          ),
+        ))
+            .data,
+      );
+
+  @override
+  Future<AppCall?> groupCall(String groupId) async {
+    try {
+      return CallMappers.call(
+        (await guardApiCall(() => _api.groupCall(id: groupId))).data,
+      );
+    } on ApiException catch (e) {
+      if (e.code == ApiErrorCodes.callNotFound) return null;
+      rethrow;
+    }
+  }
+
+  @override
+  Future<AppCall> join(String callId) async => CallMappers.call(
+        (await guardApiCall(() => _api.joinCall(id: callId))).data,
       );
 
   @override
@@ -158,6 +204,7 @@ abstract final class CallMappers {
   static AppCall call(api.CallDto d) => AppCall(
         id: d.id,
         conversationId: d.conversationId,
+        groupId: d.groupId,
         status: CallStatus.values.firstWhere(
           (s) => s.name == d.status.json,
           orElse: () => CallStatus.failed,

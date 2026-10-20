@@ -92,11 +92,7 @@ describe('Group chat calls (e2e)', () => {
       .expect(403);
 
     // Nothing running yet.
-    const none = await api()
-      .get(`/api/v1/groups/${gid}/call`)
-      .set(auth(bob.id))
-      .expect(200);
-    expect(none.body.data).toBeNull();
+    await api().get(`/api/v1/groups/${gid}/call`).set(auth(bob.id)).expect(404);
 
     // The owner rings Ann (and the outsider is ignored).
     const started = await api()
@@ -180,10 +176,6 @@ describe('Group chat calls (e2e)', () => {
     expect(
       (await prisma.call.findUniqueOrThrow({ where: { id: call.id } })).status,
     ).toBe('ended');
-    const after = await api()
-      .get(`/api/v1/groups/${gid}/call`)
-      .set(auth(cy.id))
-      .expect(200);
-    expect(after.body.data).toBeNull();
+    await api().get(`/api/v1/groups/${gid}/call`).set(auth(cy.id)).expect(404);
   });
 });

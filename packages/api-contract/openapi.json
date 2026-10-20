@@ -84321,7 +84321,7 @@
             }
           },
           "404": {
-            "description": "Not found: GROUP_NOT_FOUND",
+            "description": "Not found: GROUP_NOT_FOUND, CALL_NOT_FOUND",
             "content": {
               "application/json": {
                 "schema": {
@@ -84366,7 +84366,7 @@
             "bearer": []
           }
         ],
-        "summary": "The call running in a group chat (or null)",
+        "summary": "The call running in a group chat (404 when none)",
         "tags": [
           "calls"
         ]
