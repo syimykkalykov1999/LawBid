@@ -526,11 +526,11 @@ void main() {
     test('incoming: no "ended" ever arrives → the ringtone stops by itself',
         () {
       fakeAsync((async) {
-        final h = _Harness();
-        h.emit(
-          'call:incoming',
-          _event(_call('c2', CallStatus.ringing, outgoing: false)),
-        );
+        final h = _Harness()
+          ..emit(
+            'call:incoming',
+            _event(_call('c2', CallStatus.ringing, outgoing: false)),
+          );
         async.flushMicrotasks();
         expect(h.s.phase, CallPhase.incoming);
 
@@ -548,11 +548,11 @@ void main() {
 
     test('incoming: the caller hung up while this phone had no socket', () {
       fakeAsync((async) {
-        final h = _Harness();
-        h.emit(
-          'call:incoming',
-          _event(_call('c2', CallStatus.ringing, outgoing: false)),
-        );
+        final h = _Harness()
+          ..emit(
+            'call:incoming',
+            _event(_call('c2', CallStatus.ringing, outgoing: false)),
+          );
         async.flushMicrotasks();
         h.repo.getStatus = CallStatus.canceled;
         async.elapse(kCallSyncInterval + const Duration(seconds: 1));
