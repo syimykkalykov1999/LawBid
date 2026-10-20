@@ -83,6 +83,9 @@ export class StarLedgerItemDto {
       'gift_sent',
       'gift_converted',
       'sticker_pack',
+      'boost',
+      'boost_refund',
+      'reaction',
       'admin_grant',
       'refund',
     ],
@@ -194,24 +197,27 @@ export class SaveStarsSettingsDto {
   @Max(1000)
   giftsPerDayMax!: number;
 
-  @ApiProperty({ type: 'integer', minimum: 1, maximum: 1000 })
+  @ApiPropertyOptional({ type: 'integer', minimum: 1, maximum: 1000 })
+  @IsOptional()
   @IsInt()
   @Min(1)
   @Max(1000)
-  starCents!: number;
+  starCents?: number;
 
-  @ApiProperty({ type: 'integer', minimum: 1, maximum: 1000 })
+  @ApiPropertyOptional({ type: 'integer', minimum: 1, maximum: 1000 })
+  @IsOptional()
   @IsInt()
   @Min(1)
   @Max(1000)
-  reactionStars!: number;
+  reactionStars?: number;
 
-  @ApiProperty({ type: [String], maxItems: 24 })
+  @ApiPropertyOptional({ type: [String], maxItems: 24 })
+  @IsOptional()
   @IsArray()
   @ArrayMaxSize(24)
   @IsString({ each: true })
   @MaxLength(16, { each: true })
-  premiumReactions!: string[];
+  premiumReactions?: string[];
 }
 
 export class AdminGiftDto {

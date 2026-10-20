@@ -109,6 +109,15 @@ export class PromotionAudienceDto {
 }
 
 export class CreatePromotionDto {
+  @ApiPropertyOptional({
+    enum: ['card', 'stars'],
+    description:
+      'How to pay: the web card checkout (default) or the star balance.',
+  })
+  @IsOptional()
+  @IsIn(['card', 'stars'])
+  payWith?: 'card' | 'stars';
+
   @ApiProperty({ type: 'integer', minimum: 1, maximum: 365 })
   @IsInt()
   @Min(1)
@@ -191,6 +200,14 @@ export class PromotionQuoteDto {
 
   @ApiProperty({ type: 'integer', description: 'If credits are used.' })
   totalCents!: number;
+
+  @ApiProperty({
+    type: 'integer',
+    nullable: true,
+    description:
+      'The same total in stars; null while stars are switched off or nothing is due.',
+  })
+  starsTotal!: number | null;
 
   @ApiProperty({ type: 'integer', description: 'Whole credit days.' })
   creditDaysAvailable!: number;
@@ -277,6 +294,9 @@ export class CasePromotionDto {
 
   @ApiProperty({ type: 'integer', description: 'Charged amount.' })
   totalCents!: number;
+
+  @ApiProperty({ type: 'integer', description: 'Stars paid (0 = by card).' })
+  paidStars!: number;
 
   @ApiPropertyOptional({ type: String, format: 'date-time', nullable: true })
   startsAt!: string | null;
@@ -391,6 +411,12 @@ export class CreatePromotionResultDto {
 
   @ApiProperty({ type: 'integer' })
   totalCents!: number;
+
+  @ApiProperty({
+    type: 'integer',
+    description: 'Stars taken when paid with the star balance, else 0.',
+  })
+  starsCharged!: number;
 
   @ApiProperty({ type: 'integer', description: 'Whole credit days.' })
   creditDaysUsed!: number;

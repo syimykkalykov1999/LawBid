@@ -423,6 +423,84 @@ describe('Stars, gifts and paid stickers (e2e)', () => {
       .expect(201);
   });
 
+  it('Boost paid with stars: charged once, started, refunded on an admin cancel; a premium reaction is charged once', async () => {
+    await flag(true);
+    const stars = app.get(StarsService);
+    const admin = await adminSession(base, prisma, 'super_admin');
+    const u = await user('client', 'Booster');
+    const p = await prisma.post.create({
+      data: { author_id: u.id, title: 'Boost me', body: 'A useful post' },
+    });
+    const poor = await user('client', 'Poor');
+    const pp = await prisma.post.create({
+      data: { author_id: poor.id, title: 'Boost me', body: 'A useful post' },
+    });
+    await prisma.$transaction((tx) =>
+      stars.credit(tx, u.id, 100000, 'admin_grant', `t:${randomUUID()}`),
+    );
+
+    const st = await api()
+      .get(`/api/v1/posts/${p.id}/promotion`)
+      .set(u.auth)
+      .expect(200);
+    expect(st.body.data.quote.starsTotal).toBeGreaterThan(0);
+
+    // not enough stars: refused, nothing is created
+    await api()
+      .post(`/api/v1/posts/${pp.id}/promotions`)
+      .set({ ...poor.auth, 'Idempotency-Key': randomUUID() })
+      .send({ days: 3, dailyBudgetCents: 500, payWith: 'stars' })
+      .expect(402);
+    expect(
+      await prisma.casePromotion.count({ where: { post_id: pp.id } }),
+    ).toBe(0);
+
+    const made = await api()
+      .post(`/api/v1/posts/${p.id}/promotions`)
+      .set({ ...u.auth, 'Idempotency-Key': randomUUID() })
+      .send({ days: 3, dailyBudgetCents: 500, payWith: 'stars' })
+      .expect(201);
+    const d = made.body.data;
+    expect(d.checkoutUrl).toBeNull();
+    expect(d.starsCharged).toBeGreaterThan(0);
+    expect(['active', 'pending_review']).toContain(d.status);
+    const w = await prisma.starWallet.findUniqueOrThrow({
+      where: { user_id: u.id },
+    });
+    expect(w.balance).toBe(100000 - d.starsCharged);
+    expect(
+      await prisma.starLedger.count({
+        where: { user_id: u.id, kind: 'boost' },
+      }),
+    ).toBe(1);
+
+    // an admin cancels and returns everything
+    await api()
+      .post(`/api/v1/admin/promotions/${d.promotionId}/cancel`)
+      .set(admin.auth)
+      .send({ reason: 'test', refund: 'full' })
+      .expect(200);
+    expect(
+      (await prisma.starWallet.findUniqueOrThrow({ where: { user_id: u.id } }))
+        .balance,
+    ).toBe(100000);
+
+    // premium reaction: free emoji costs nothing, a premium one once
+    const msg = randomUUID();
+    const prem = (await stars.adminSettings()).premiumReactions[0];
+    const charge = (emoji: string) =>
+      prisma.$transaction((tx) => stars.chargeReaction(tx, u.id, msg, emoji));
+    expect(await charge('👍')).toBe(0);
+    const price = await charge(prem);
+    expect(price).toBeGreaterThan(0);
+    expect(await charge(prem)).toBe(0);
+    expect(
+      await prisma.starLedger.count({
+        where: { user_id: u.id, kind: 'reaction' },
+      }),
+    ).toBe(1);
+  });
+
   it('admin: packs, gifts, report, grant; the others are refused', async () => {
     await flag(true);
     const admin = await adminSession(base, prisma, 'super_admin');

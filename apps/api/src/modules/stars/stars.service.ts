@@ -51,6 +51,7 @@ import {
   convertedStars,
   FREE_REACTIONS,
   parsePremiumReactions,
+  starsForCents,
   parseStarsConfig,
   STARS_CHECKOUT_KIND,
   STARS_FLAG,
@@ -162,13 +163,16 @@ export class StarsService {
     dto: SaveStarsSettingsDto,
   ): Promise<StarsAdminSettingsDto> {
     assertUniquePackIds(dto.packs);
+    const cur = await this.cfg();
     const value = {
       packs: dto.packs,
       giftConvertPercent: dto.giftConvertPercent,
       giftsPerDayMax: dto.giftsPerDayMax,
-      starCents: dto.starCents,
-      reactionStars: dto.reactionStars,
-      premiumReactions: parsePremiumReactions(dto.premiumReactions),
+      starCents: dto.starCents ?? cur.starCents,
+      reactionStars: dto.reactionStars ?? cur.reactionStars,
+      premiumReactions: dto.premiumReactions
+        ? parsePremiumReactions(dto.premiumReactions)
+        : cur.premiumReactions,
     } as object;
     await this.prisma.appConfig.upsert({
       where: { key: STARS_SETTINGS_KEY },
@@ -198,6 +202,12 @@ export class StarsService {
       premiumReactions: (await this.cfg()).premiumReactions,
       freeReactions: [...FREE_REACTIONS],
     };
+  }
+
+  /** The price of [cents] in stars, or null while stars are off / free. */
+  async starsForCents(cents: number): Promise<number | null> {
+    if (cents <= 0 || !(await this.enabled())) return null;
+    return starsForCents(cents, (await this.cfg()).starCents);
   }
 
   /**
@@ -269,6 +279,32 @@ export class StarsService {
       UPDATE star_ledger SET balance_after = ${upd[0].balance}
       WHERE id = ${ins[0].id}::uuid`;
     return true;
+  }
+
+  /**
+   * A premium reaction costs [reactionStars] once per user, message and
+   * emoji (the chat's reaction endpoint calls this inside its own
+   * transaction, so a failed save never keeps the charge). Returns the
+   * stars taken — 0 for a free emoji or one already paid for.
+   */
+  async chargeReaction(
+    tx: Tx,
+    userId: string,
+    messageId: string,
+    emoji: string,
+  ): Promise<number> {
+    const cfg = await this.cfg();
+    if (!cfg.premiumReactions.includes(emoji)) return 0;
+    if (!(await this.enabled())) throw featureOff();
+    const ok = await this.debit(
+      tx,
+      userId,
+      cfg.reactionStars,
+      'reaction',
+      `reaction:${messageId}:${userId}:${emoji}`,
+      { refId: messageId },
+    );
+    return ok ? cfg.reactionStars : 0;
   }
 
   /** GET /stars/history */

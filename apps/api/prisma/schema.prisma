@@ -3985,6 +3985,10 @@ model CasePromotion {
   cta_value           String?   @db.VarChar(500)
   // Refunded part (admin cancel with refund).
   refunded_cents      Int       @default(0)
+  // Paid with the in-app star balance instead of Stripe (0 = not by stars),
+  // and the part of it given back on an admin cancel.
+  paid_stars          Int       @default(0)
+  refunded_stars      Int       @default(0)
   // Who approved it (null = automatic) and when.
   reviewed_by         String?   @db.Uuid
   reviewed_at         DateTime? @db.Timestamptz
