@@ -130,6 +130,8 @@ class _BodyState extends ConsumerState<_Body> {
                     child: Text(t.t('phoneContacts.limited')),
                   ),
                 ),
+              // At the top: below the invite list it is hundreds of rows away.
+              const SliverToBoxAdapter(child: _NotifyNewSwitch()),
               SliverToBoxAdapter(
                 child: ContactsSectionTitle(
                   t.t('phoneContacts.onLawBid'),
@@ -175,7 +177,6 @@ class _BodyState extends ConsumerState<_Body> {
               ],
               if (ref.watch(currentUserRoleProvider) == UserRole.client)
                 const SliverToBoxAdapter(child: _FindByPhoneSwitch()),
-              const SliverToBoxAdapter(child: _NotifyNewSwitch()),
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(
