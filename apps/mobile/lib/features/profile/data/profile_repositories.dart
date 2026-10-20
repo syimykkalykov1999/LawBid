@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/request_flags.dart';
+import 'package:lawbid/features/profile/data/own_profile_saved.dart';
 import 'package:lawbid/features/profile/data/profile_mappers.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
@@ -108,9 +109,12 @@ abstract interface class ClientProfileRepository {
 }
 
 class ApiAttorneyProfileRepository implements AttorneyProfileRepository {
-  ApiAttorneyProfileRepository(Dio dio)
+  ApiAttorneyProfileRepository(Dio dio, {this.saved})
       : _dio = dio,
         _client = api.AttorneysClient(dio);
+
+  /// Owner 2026-10-20: keeps my profile for the next start.
+  final OwnProfileSaved? saved;
 
   final Dio _dio;
   final api.AttorneysClient _client;
@@ -125,9 +129,11 @@ class ApiAttorneyProfileRepository implements AttorneyProfileRepository {
       );
 
   @override
-  Future<OwnAttorneyProfile> fetchOwn() async => ProfileMappers.ownProfile(
-        (await guardApiCall(_client.getMyAttorneyProfile)).data,
-      );
+  Future<OwnAttorneyProfile> fetchOwn() async {
+    final env = await guardApiCall(_client.getMyAttorneyProfile);
+    saved?.saveAttorney(env);
+    return ProfileMappers.ownProfile(env.data);
+  }
 
   @override
   Future<OwnAttorneyProfile> updateOwn(AttorneyProfilePatch patch) async {
@@ -399,19 +405,24 @@ class ApiReviewsRepository implements ReviewsRepository {
 }
 
 class ApiClientProfileRepository implements ClientProfileRepository {
-  ApiClientProfileRepository(Dio dio)
+  ApiClientProfileRepository(Dio dio, {this.saved})
       : _dio = dio,
         _client = api.ProfilesClient(dio),
         _clients = api.ClientsClient(dio);
+
+  /// Owner 2026-10-20: keeps my profile for the next start.
+  final OwnProfileSaved? saved;
 
   final Dio _dio;
   final api.ProfilesClient _client;
   final api.ClientsClient _clients;
 
   @override
-  Future<ClientProfileDetails> fetch() async => ProfileMappers.client(
-        (await guardApiCall(_client.getMyClientProfile)).data,
-      );
+  Future<ClientProfileDetails> fetch() async {
+    final env = await guardApiCall(_client.getMyClientProfile);
+    saved?.saveClient(env);
+    return ProfileMappers.client(env.data);
+  }
 
   @override
   Future<PublicClientProfile> fetchPublic(String username) async =>

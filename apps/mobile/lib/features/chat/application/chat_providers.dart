@@ -14,6 +14,7 @@ import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/features/cases/application/paged_notifier.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/chat/data/chat_extras_repository.dart';
+import 'package:lawbid/features/chat/data/chat_list_cache.dart';
 import 'package:lawbid/features/chat/data/chat_repository.dart';
 import 'package:lawbid/features/chat/data/realtime_client.dart';
 import 'package:lawbid/features/chat/data/voice_files.dart';
@@ -32,10 +33,16 @@ import 'package:lawbid/shared/domain/cursor_page.dart';
 
 Duration? _noRetry(int retryCount, Object error) => null;
 
+/// Owner 2026-10-20 (speed): the chat list's saved first page, per account.
+final chatListCacheProvider = Provider<ChatListCache>(
+  (ref) => ChatListCache(ref.watch(savedJsonProvider)),
+);
+
 final chatRepositoryProvider = Provider<ChatRepository>(
   (ref) => ApiChatRepository(
     ref.watch(dioProvider),
     storageDio: ref.watch(storageDioProvider),
+    listCache: ref.watch(chatListCacheProvider),
   ),
 );
 
@@ -77,6 +84,12 @@ class ConversationsNotifier extends PagedNotifier<Conversation> {
     return super.build();
   }
 
+  // Owner 2026-10-20 (speed, Telegram): the inbox opens on the list saved by
+  // the last visit and refreshes in the background (see PagedNotifier).
+  @override
+  Future<CursorPage<Conversation>?> cachedFirstPage() =>
+      ref.read(chatListCacheProvider).read();
+
   @override
   Future<CursorPage<Conversation>> fetch(String? cursor) =>
       ref.read(chatRepositoryProvider).conversations(cursor: cursor);
@@ -95,6 +108,10 @@ final conversationsProvider = AsyncNotifierProvider.autoDispose<
 
 /// Requests sent to me (the "Requests" folder).
 class MessageRequestsNotifier extends ConversationsNotifier {
+  // A different list: the saved copy is the plain inbox only.
+  @override
+  Future<CursorPage<Conversation>?> cachedFirstPage() async => null;
+
   @override
   Future<CursorPage<Conversation>> fetch(String? cursor) => ref
       .read(chatRepositoryProvider)
@@ -112,6 +129,11 @@ class FolderConversationsNotifier extends ConversationsNotifier {
   FolderConversationsNotifier(this.folder);
 
   final ChatListFolder folder;
+
+  // Only the "All" folder is the saved list.
+  @override
+  Future<CursorPage<Conversation>?> cachedFirstPage() async =>
+      folder == ChatListFolder.all ? super.cachedFirstPage() : null;
 
   @override
   Future<CursorPage<Conversation>> fetch(String? cursor) => ref
@@ -133,6 +155,9 @@ class SearchConversationsNotifier extends ConversationsNotifier {
   SearchConversationsNotifier(this.key);
 
   final ChatSearchKey key;
+
+  @override
+  Future<CursorPage<Conversation>?> cachedFirstPage() async => null;
 
   @override
   Future<CursorPage<Conversation>> fetch(String? cursor) =>

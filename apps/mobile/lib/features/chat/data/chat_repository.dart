@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/request_flags.dart';
+import 'package:lawbid/features/chat/data/chat_list_cache.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/profile/data/avatar_upload_repository.dart'
     show sha256Hex;
@@ -165,10 +166,13 @@ abstract interface class ChatRepository {
 }
 
 class ApiChatRepository implements ChatRepository {
-  ApiChatRepository(Dio dio, {Dio? storageDio})
+  ApiChatRepository(Dio dio, {Dio? storageDio, this.listCache})
       : _chat = api.ChatClient(dio),
         _files = api.FilesClient(dio),
         _storage = storageDio ?? dio;
+
+  /// Owner 2026-10-20: keeps the first page of the plain chat list.
+  final ChatListCache? listCache;
 
   final api.ChatClient _chat;
   final api.FilesClient _files;
@@ -503,6 +507,12 @@ class ApiChatRepository implements ChatRepository {
             : api.ConversationFolder.fromJson(f.name),
       ),
     );
+    if (cursor == null &&
+        updatedSince == null &&
+        (query == null || query.isEmpty) &&
+        f == ChatListFolder.all) {
+      listCache?.save(env);
+    }
     return CursorPage(
       items: env.data.map(ChatMappers.conversation).toList(),
       nextCursor: env.meta?.nextCursor,

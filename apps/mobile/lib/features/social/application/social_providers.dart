@@ -10,6 +10,7 @@ import 'package:lawbid/features/cases/application/paged_notifier.dart';
 import 'package:lawbid/features/feed/application/feed_topics.dart'
     show topicTagFor;
 import 'package:lawbid/features/profile/application/profile_providers.dart';
+import 'package:lawbid/features/social/data/saved_json.dart';
 import 'package:lawbid/features/social/data/social_local_database.dart';
 import 'package:lawbid/features/social/data/social_repository.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
@@ -27,6 +28,15 @@ final socialLocalDatabaseProvider = Provider<SocialLocalDatabase>((ref) {
   ref.onDispose(db.close);
   return db;
 });
+
+/// Owner 2026-10-20 (speed): the saved last answers of this account's
+/// screens (chat list, own profile) — see [SavedJson].
+final savedJsonProvider = Provider<SavedJson>(
+  (ref) => SavedJson(
+    ref.watch(socialLocalDatabaseProvider),
+    ref.watch(currentUserIdProvider),
+  ),
+);
 
 /// The signed-in user's id (JWT `sub`), or null signed out.
 /// The account the app acts as — for an assistant (OQ-048) the attorney
@@ -144,8 +154,12 @@ class FeedNotifier extends PagedNotifier<Post> {
   // Owner 2026-10-20 (speed): the feed opens on the page saved by the last
   // visit and refreshes in the background (see PagedNotifier).
   @override
-  Future<CursorPage<Post>?> cachedFirstPage() =>
-      ref.read(socialRepositoryProvider).cachedFeed();
+  Future<CursorPage<Post>?> cachedFirstPage() async {
+    final saved = await ref.read(socialRepositoryProvider).cachedFeed();
+    // The page on screen is the copy until the live first page arrives.
+    if (saved != null) fromCache = true;
+    return saved;
+  }
 
   @override
   Future<CursorPage<Post>> fetch(String? cursor) async {
