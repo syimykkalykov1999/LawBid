@@ -143,6 +143,22 @@ export default async function globalSetup(): Promise<void> {
       update: { value },
     });
   }
+  // The economy guard (flag missing = on) turns the sending of confirmation
+  // SMS (phone changes, contact checks) into a 503 as soon as the 5-minute
+  // `economy.guard` job of ANY suite's worker finds the month's counters
+  // above the allowance of an empty test database — a time-dependent
+  // failure in whichever suite ran next. The suites start with it off;
+  // owner-economy.e2e-spec.ts turns it on for itself and back off after.
+  await seed.featureFlag.upsert({
+    where: { key: 'economy_guard' },
+    create: {
+      key: 'economy_guard',
+      enabled: false,
+      rollout_percent: 100,
+      description: 'e2e: off unless a suite is about the guard',
+    },
+    update: { enabled: false },
+  });
   await seed.$disconnect();
   await admin.$disconnect();
 
