@@ -33,13 +33,23 @@ export const CONSULTATION_VIEWS = ['upcoming', 'pending', 'past'] as const;
 // --- the attorney's schedule -------------------------------------------------
 
 export class ConsultationWindowDto {
-  @ApiProperty({ type: 'integer', minimum: 1, maximum: 7, description: 'ISO weekday: 1 = Monday … 7 = Sunday' })
+  @ApiProperty({
+    type: 'integer',
+    minimum: 1,
+    maximum: 7,
+    description: 'ISO weekday: 1 = Monday … 7 = Sunday',
+  })
   @IsInt()
   @Min(1)
   @Max(7)
   weekday!: number;
 
-  @ApiProperty({ type: 'integer', minimum: 0, maximum: 1439, description: 'Minutes from midnight in the attorney time zone' })
+  @ApiProperty({
+    type: 'integer',
+    minimum: 0,
+    maximum: 1439,
+    description: 'Minutes from midnight in the attorney time zone',
+  })
   @IsInt()
   @Min(0)
   @Max(1439)
@@ -88,7 +98,11 @@ export class ConsultationSettingsDto {
   @ApiProperty({ description: 'true = a booking is confirmed at once' })
   autoConfirm!: boolean;
 
-  @ApiPropertyOptional({ type: String, nullable: true, example: 'America/New_York' })
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    example: 'America/New_York',
+  })
   timezone!: string | null;
 
   @ApiProperty({ type: ConsultationWindowDto, isArray: true })
@@ -235,7 +249,10 @@ export class CreateConsultationDto {
   @MaxTextChars('limits.consultation_note_chars')
   note?: string;
 
-  @ApiPropertyOptional({ format: 'uuid', description: "One of the client's cases" })
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: "One of the client's cases",
+  })
   @IsOptional()
   @IsUUID('all')
   caseId?: string;
@@ -301,7 +318,10 @@ export class ConsultationDto {
   @ApiProperty({ description: 'End (UTC ISO)' })
   endsAt!: string;
 
-  @ApiProperty({ enum: ['attorney', 'client'], description: "The viewer's side" })
+  @ApiProperty({
+    enum: ['attorney', 'client'],
+    description: "The viewer's side",
+  })
   viewerRole!: 'attorney' | 'client';
 
   @ApiProperty({ type: ConsultationPersonDto, description: 'The other side' })
@@ -322,7 +342,10 @@ export class ConsultationDto {
   @ApiPropertyOptional({ type: String, nullable: true })
   cancelReason!: string | null;
 
-  @ApiPropertyOptional({ enum: ['attorney', 'client', 'system'], nullable: true })
+  @ApiPropertyOptional({
+    enum: ['attorney', 'client', 'system'],
+    nullable: true,
+  })
   cancelledBy!: 'attorney' | 'client' | 'system' | null;
 
   @ApiPropertyOptional({ type: String, nullable: true })

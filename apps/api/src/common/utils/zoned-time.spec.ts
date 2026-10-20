@@ -44,8 +44,17 @@ describe('zoned time', () => {
   });
 
   it('reads the wall clock back from an instant', () => {
-    const p = zonedParts(new Date('2026-07-04T02:15:00Z'), 'America/Los_Angeles');
-    expect(p).toMatchObject({ year: 2026, month: 7, day: 3, hour: 19, minute: 15 });
+    const p = zonedParts(
+      new Date('2026-07-04T02:15:00Z'),
+      'America/Los_Angeles',
+    );
+    expect(p).toMatchObject({
+      year: 2026,
+      month: 7,
+      day: 3,
+      hour: 19,
+      minute: 15,
+    });
     expect(p.weekday).toBe(5); // a Friday
   });
 

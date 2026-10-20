@@ -1,5 +1,10 @@
 import { AttorneyStatsDto } from '../dto/attorney-stats.dto';
-import { HttpException, HttpStatus, Injectable, Optional } from '@nestjs/common';
+import {
+  HttpException,
+  HttpStatus,
+  Injectable,
+  Optional,
+} from '@nestjs/common';
 import { ConsultationsService } from '../../consultations/consultations.service';
 import { Prisma } from '@prisma/client';
 import { CounterAggregator } from '../../counters/counter-aggregator.service';

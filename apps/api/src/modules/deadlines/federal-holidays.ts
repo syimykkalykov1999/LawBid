@@ -1,4 +1,8 @@
-import { addDaysIso, formatIsoDate, isoWeekday } from '../../common/utils/zoned-time';
+import {
+  addDaysIso,
+  formatIsoDate,
+  isoWeekday,
+} from '../../common/utils/zoned-time';
 
 export interface Holiday {
   date: string;
@@ -6,7 +10,12 @@ export interface Holiday {
 }
 
 /** The n-th [weekday] (1 = Mon … 7 = Sun) of a month; n = -1 is the last. */
-function nthWeekday(year: number, month: number, weekday: number, n: number): string {
+function nthWeekday(
+  year: number,
+  month: number,
+  weekday: number,
+  n: number,
+): string {
   if (n > 0) {
     const first = isoWeekday(year, month, 1);
     const day = 1 + ((weekday - first + 7) % 7) + (n - 1) * 7;
@@ -49,8 +58,16 @@ export function federalHolidays(year: number): Holiday[] {
     }
   }
   const floating: [string, string, string][] = [
-    [nthWeekday(year, 1, 1, 3), 'Martin Luther King Jr. Day', 'День Мартина Лютера Кинга'],
-    [nthWeekday(year, 2, 1, 3), "Washington's Birthday", 'День рождения Вашингтона'],
+    [
+      nthWeekday(year, 1, 1, 3),
+      'Martin Luther King Jr. Day',
+      'День Мартина Лютера Кинга',
+    ],
+    [
+      nthWeekday(year, 2, 1, 3),
+      "Washington's Birthday",
+      'День рождения Вашингтона',
+    ],
     [nthWeekday(year, 5, 1, -1), 'Memorial Day', 'День памяти'],
     [nthWeekday(year, 9, 1, 1), 'Labor Day', 'День труда'],
     [nthWeekday(year, 10, 1, 2), 'Columbus Day', 'День Колумба'],

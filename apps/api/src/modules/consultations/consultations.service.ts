@@ -199,7 +199,9 @@ export class ConsultationsService {
     }
   }
 
-  private async settingsOf(attorneyId: string): Promise<ConsultationSettingsDto> {
+  private async settingsOf(
+    attorneyId: string,
+  ): Promise<ConsultationSettingsDto> {
     const [row, windows, timeOff, user, profile, subscribed] =
       await Promise.all([
         this.prisma.consultationSettings.findUnique({
@@ -401,7 +403,9 @@ export class ConsultationsService {
     const startsAt = new Date(dto.startsAt);
     const now = new Date();
 
-    const max = await this.settings.number('consultations.max_active_per_client');
+    const max = await this.settings.number(
+      'consultations.max_active_per_client',
+    );
     const held = await this.prisma.consultation.count({
       where: {
         client_id: user.sub,
@@ -463,12 +467,9 @@ export class ConsultationsService {
         data: { conversation_id: conversationId },
       });
       changes.push(
-        ...(await this.chatSystem.post(
-          tx,
-          { id: conversationId },
-          'consult',
-          { param: created.id },
-        )),
+        ...(await this.chatSystem.post(tx, { id: conversationId }, 'consult', {
+          param: created.id,
+        })),
       );
       await this.syncMirrors(tx, withChat, {
         attorneyName: fullName(attorneyUser),
@@ -594,7 +595,10 @@ export class ConsultationsService {
     }
     const rows = await this.prisma.consultation.findMany({
       where: { AND: where },
-      orderBy: [{ starts_at: asc ? 'asc' : 'desc' }, { id: asc ? 'asc' : 'desc' }],
+      orderBy: [
+        { starts_at: asc ? 'asc' : 'desc' },
+        { id: asc ? 'asc' : 'desc' },
+      ],
       take: PAGE + 1,
     });
     const page = rows.slice(0, PAGE);
@@ -671,7 +675,10 @@ export class ConsultationsService {
     const row = await withTxRetry(this.prisma, async (tx) => {
       const c = await this.mineAny(tx, id, user.sub);
       if (c.attorney_id === user.sub) this.assertMayManage(user);
-      if (!ACTIVE.includes(c.status as (typeof ACTIVE)[number]) || c.ends_at <= now) {
+      if (
+        !ACTIVE.includes(c.status as (typeof ACTIVE)[number]) ||
+        c.ends_at <= now
+      ) {
         throw this.stateConflict();
       }
       const updated = await tx.consultation.update({
@@ -685,7 +692,8 @@ export class ConsultationsService {
       await this.syncMirrors(tx, updated);
       return updated;
     });
-    const other = row.attorney_id === user.sub ? row.client_id : row.attorney_id;
+    const other =
+      row.attorney_id === user.sub ? row.client_id : row.attorney_id;
     await this.notify(other, user.sub, row, 'cancelled');
     return this.one(id, user.sub);
   }
@@ -706,7 +714,10 @@ export class ConsultationsService {
       const c = await this.mineAny(tx, id, user.sub);
       const asAttorney = c.attorney_id === user.sub;
       if (asAttorney) this.assertMayManage(user);
-      if (!ACTIVE.includes(c.status as (typeof ACTIVE)[number]) || c.ends_at <= now) {
+      if (
+        !ACTIVE.includes(c.status as (typeof ACTIVE)[number]) ||
+        c.ends_at <= now
+      ) {
         throw this.stateConflict();
       }
       const durationMs = c.ends_at.getTime() - c.starts_at.getTime();
@@ -750,7 +761,8 @@ export class ConsultationsService {
       await this.syncMirrors(tx, updated);
       return updated;
     });
-    const other = row.attorney_id === user.sub ? row.client_id : row.attorney_id;
+    const other =
+      row.attorney_id === user.sub ? row.client_id : row.attorney_id;
     await this.notify(
       other,
       user.sub,
@@ -863,10 +875,7 @@ export class ConsultationsService {
     const otherOf = (c: Consultation) =>
       c.attorney_id === viewerId ? c.client_id : c.attorney_id;
     const ids = [
-      ...new Set([
-        ...rows.map(otherOf),
-        ...rows.map((c) => c.attorney_id),
-      ]),
+      ...new Set([...rows.map(otherOf), ...rows.map((c) => c.attorney_id)]),
     ];
     const users = await this.prisma.user.findMany({
       where: { id: { in: ids } },
@@ -968,7 +977,10 @@ export class ConsultationsService {
     side: 'attorney' | 'client',
   ): Promise<Consultation> {
     const c = await tx.consultation.findFirst({
-      where: side === 'attorney' ? { id, attorney_id: userId } : { id, client_id: userId },
+      where:
+        side === 'attorney'
+          ? { id, attorney_id: userId }
+          : { id, client_id: userId },
     });
     if (!c) throw this.notFound();
     return c;

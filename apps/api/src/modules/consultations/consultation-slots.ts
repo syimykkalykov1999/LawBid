@@ -78,7 +78,9 @@ export function generateSlots(input: SlotInput): Date[] {
     }
     const p = parseIsoDate(date);
     if (!p) continue;
-    const weekday = ((new Date(Date.UTC(p.year, p.month - 1, p.day)).getUTCDay() + 6) % 7) + 1;
+    const weekday =
+      ((new Date(Date.UTC(p.year, p.month - 1, p.day)).getUTCDay() + 6) % 7) +
+      1;
     for (const w of input.windows) {
       if (w.weekday !== weekday) continue;
       const step = rules.slotMinutes + rules.bufferMinutes;
@@ -94,8 +96,7 @@ export function generateSlots(input: SlotInput): Date[] {
         const holdEnd = s + slotMs + bufferMs;
         const clash = input.busy.some(
           (b) =>
-            b.startsAt.getTime() < holdEnd &&
-            b.endsAt.getTime() + bufferMs > s,
+            b.startsAt.getTime() < holdEnd && b.endsAt.getTime() + bufferMs > s,
         );
         if (!clash) out.add(s);
       }

@@ -115,7 +115,10 @@ export class LegalQaController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete my answer' })
   @ApiErrors({ 404: [E.NOT_FOUND] })
-  removeAnswer(@CurrentUser() user: RequestUser, @Param() p: QuestionIdParamDto) {
+  removeAnswer(
+    @CurrentUser() user: RequestUser,
+    @Param() p: QuestionIdParamDto,
+  ) {
     return this.qa.removeAnswer(user, p.id);
   }
 

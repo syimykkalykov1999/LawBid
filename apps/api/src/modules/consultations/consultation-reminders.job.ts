@@ -82,7 +82,10 @@ export class ConsultationRemindersJob {
       where: {
         status: 'confirmed',
         reminded_hour_at: null,
-        starts_at: { gt: new Date(now.getTime() - GRACE_MS), lte: new Date(now.getTime() + HOUR_MS) },
+        starts_at: {
+          gt: new Date(now.getTime() - GRACE_MS),
+          lte: new Date(now.getTime() + HOUR_MS),
+        },
         ends_at: { gt: now },
       },
       take: BATCH,
@@ -91,7 +94,10 @@ export class ConsultationRemindersJob {
     for (const c of due) {
       const { count } = await this.prisma.consultation.updateMany({
         where: { id: c.id, reminded_hour_at: null, status: 'confirmed' },
-        data: { reminded_hour_at: now, reminded_day_at: c.reminded_day_at ?? now },
+        data: {
+          reminded_hour_at: now,
+          reminded_day_at: c.reminded_day_at ?? now,
+        },
       });
       if (count === 0) continue;
       await this.consultations.notify(c.attorney_id, null, c, 'reminder_hour');

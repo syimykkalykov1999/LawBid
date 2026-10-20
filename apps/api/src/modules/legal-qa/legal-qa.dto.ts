@@ -18,7 +18,12 @@ import { MaxTextChars } from '../../common/app-settings/max-text-chars.decorator
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
 
-export const QUESTION_FILTERS = ['all', 'unanswered', 'solved', 'mine'] as const;
+export const QUESTION_FILTERS = [
+  'all',
+  'unanswered',
+  'solved',
+  'mine',
+] as const;
 export type QuestionFilter = (typeof QUESTION_FILTERS)[number];
 
 export class AskQuestionDto {
@@ -36,7 +41,10 @@ export class AskQuestionDto {
   @MaxTextChars('limits.question_body_chars')
   body!: string;
 
-  @ApiPropertyOptional({ format: 'uuid', description: 'A practice area or its category' })
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: 'A practice area or its category',
+  })
   @IsOptional()
   @IsUUID('all')
   practiceAreaId?: string;
@@ -46,7 +54,10 @@ export class AskQuestionDto {
   @Matches(/^[A-Z]{2}$/)
   stateCode?: string;
 
-  @ApiPropertyOptional({ default: false, description: 'Others see «Anonymous».' })
+  @ApiPropertyOptional({
+    default: false,
+    description: 'Others see «Anonymous».',
+  })
   @IsOptional()
   @IsBoolean()
   anonymous?: boolean;
@@ -70,7 +81,11 @@ export class QuestionsQueryDto {
   @Matches(/^[A-Z]{2}$/)
   stateCode?: string;
 
-  @ApiPropertyOptional({ enum: QUESTION_FILTERS, enumName: 'QuestionFilter', default: 'all' })
+  @ApiPropertyOptional({
+    enum: QUESTION_FILTERS,
+    enumName: 'QuestionFilter',
+    default: 'all',
+  })
   @IsOptional()
   @IsIn(QUESTION_FILTERS)
   filter?: QuestionFilter;
@@ -80,7 +95,12 @@ export class QuestionsQueryDto {
   @IsString()
   cursor?: string;
 
-  @ApiPropertyOptional({ type: 'integer', minimum: 1, maximum: 50, default: 20 })
+  @ApiPropertyOptional({
+    type: 'integer',
+    minimum: 1,
+    maximum: 50,
+    default: 20,
+  })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -131,8 +151,10 @@ export class QaStateDto {
 export class QaPersonDto {
   @ApiProperty({ format: 'uuid' }) id!: string;
   @ApiProperty() displayName!: string;
-  @ApiPropertyOptional({ type: String, nullable: true }) username!: string | null;
-  @ApiPropertyOptional({ type: String, nullable: true }) avatarUrl!: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) username!:
+    string | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) avatarUrl!:
+    string | null;
 }
 
 export class AnswerDto {
@@ -160,7 +182,8 @@ export class QuestionDto {
   @ApiPropertyOptional({
     type: QaPersonDto,
     nullable: true,
-    description: 'Null when the question is anonymous (the author sees themselves).',
+    description:
+      'Null when the question is anonymous (the author sees themselves).',
   })
   author!: QaPersonDto | null;
   @ApiProperty() isMine!: boolean;
@@ -169,7 +192,9 @@ export class QuestionDto {
   bestAnswerId!: string | null;
   @ApiPropertyOptional({ type: String, nullable: true, format: 'uuid' })
   myAnswerId!: string | null;
-  @ApiProperty({ description: 'The viewer is a verified attorney who may answer now.' })
+  @ApiProperty({
+    description: 'The viewer is a verified attorney who may answer now.',
+  })
   canAnswer!: boolean;
   @ApiProperty() createdAt!: string;
 }

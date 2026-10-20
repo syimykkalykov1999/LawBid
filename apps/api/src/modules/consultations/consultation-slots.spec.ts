@@ -1,8 +1,17 @@
-import { generateSlots, localDateOf, type SlotInput } from './consultation-slots';
+import {
+  generateSlots,
+  localDateOf,
+  type SlotInput,
+} from './consultation-slots';
 
 const base: SlotInput = {
   timeZone: 'America/New_York',
-  rules: { slotMinutes: 30, bufferMinutes: 0, minNoticeHours: 0, horizonDays: 60 },
+  rules: {
+    slotMinutes: 30,
+    bufferMinutes: 0,
+    minNoticeHours: 0,
+    horizonDays: 60,
+  },
   // Mondays 09:00-11:00 and 13:00-14:00 (a lunch break between).
   windows: [
     { weekday: 1, startMinute: 540, endMinute: 660 },
@@ -51,9 +60,14 @@ describe('consultation slots', () => {
     });
     // Needs 10:10 or later: 10:30 and the afternoon.
     expect(iso(slots)[0]).toBe('2026-10-19T14:30:00.000Z');
-    expect(generateSlots({ ...base, rules: { ...base.rules, horizonDays: 0 } })).toEqual([]);
     expect(
-      generateSlots({ ...base, timeOff: [{ startsOn: '2026-10-18', endsOn: '2026-10-19' }] }),
+      generateSlots({ ...base, rules: { ...base.rules, horizonDays: 0 } }),
+    ).toEqual([]);
+    expect(
+      generateSlots({
+        ...base,
+        timeOff: [{ startsOn: '2026-10-18', endsOn: '2026-10-19' }],
+      }),
     ).toEqual([]);
   });
 
@@ -64,7 +78,9 @@ describe('consultation slots', () => {
         endsAt: new Date('2026-10-19T14:00:00Z'),
       },
     ];
-    expect(iso(generateSlots({ ...base, busy }))).not.toContain('2026-10-19T13:30:00.000Z');
+    expect(iso(generateSlots({ ...base, busy }))).not.toContain(
+      '2026-10-19T13:30:00.000Z',
+    );
     const withBuffer = generateSlots({
       ...base,
       busy,
@@ -91,6 +107,8 @@ describe('consultation slots', () => {
   });
 
   it('names the attorney-local date of an instant', () => {
-    expect(localDateOf(new Date('2026-10-20T02:00:00Z'), 'America/New_York')).toBe('2026-10-19');
+    expect(
+      localDateOf(new Date('2026-10-20T02:00:00Z'), 'America/New_York'),
+    ).toBe('2026-10-19');
   });
 });

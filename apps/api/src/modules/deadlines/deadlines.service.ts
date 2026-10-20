@@ -146,10 +146,13 @@ export class DeadlinesService {
       [q.eventDate, result.rawDate, result.dueDate].map((d) => d.slice(0, 4)),
     );
     const loaded = new Set(
-      rows.filter((h) => h.jurisdiction === 'US').map((h) => iso(h.date).slice(0, 4)),
+      rows
+        .filter((h) => h.jurisdiction === 'US')
+        .map((h) => iso(h.date).slice(0, 4)),
     );
     const warnings: string[] = [];
-    if ([...years].some((y) => !loaded.has(y))) warnings.push('holidays_missing');
+    if ([...years].some((y) => !loaded.has(y)))
+      warnings.push('holidays_missing');
     if (!rule.verified) warnings.push('unverified');
     if (result.rolled) warnings.push('rolled');
     const used = new Set(result.holidaysUsed);
@@ -170,15 +173,24 @@ export class DeadlinesService {
     const rows = await this.prisma.deadlineRule.findMany({
       orderBy: [{ jurisdiction: 'asc' }, { kind: 'asc' }, { sort: 'asc' }],
     });
-    return rows.map((r) => ({ ...ruleDto(r), isActive: r.is_active, sort: r.sort }));
+    return rows.map((r) => ({
+      ...ruleDto(r),
+      isActive: r.is_active,
+      sort: r.sort,
+    }));
   }
 
   async createRule(dto: CreateDeadlineRuleDto): Promise<AdminDeadlineRuleDto> {
     this.assertLabels(dto.labels);
     if (dto.kind === 'statute_of_limitations' && !dto.practiceCode) {
-      throw this.invalid('practiceCode', 'A statute needs a practice category.');
+      throw this.invalid(
+        'practiceCode',
+        'A statute needs a practice category.',
+      );
     }
-    if (await this.prisma.deadlineRule.findUnique({ where: { code: dto.code } })) {
+    if (
+      await this.prisma.deadlineRule.findUnique({ where: { code: dto.code } })
+    ) {
       throw new ConflictException({
         code: ErrorCode.VALIDATION_ERROR,
         message: 'A rule with this code exists.',
@@ -224,10 +236,16 @@ export class DeadlinesService {
         ...(dto.unit ? { unit: dto.unit } : {}),
         ...(dto.dayType ? { day_type: dto.dayType } : {}),
         ...(dto.direction ? { direction: dto.direction } : {}),
-        ...(dto.practiceCode !== undefined ? { practice_code: dto.practiceCode || null } : {}),
-        ...(dto.citation !== undefined ? { citation: dto.citation || null } : {}),
+        ...(dto.practiceCode !== undefined
+          ? { practice_code: dto.practiceCode || null }
+          : {}),
+        ...(dto.citation !== undefined
+          ? { citation: dto.citation || null }
+          : {}),
         ...(dto.notes ? { notes: dto.notes } : {}),
-        ...(dto.sourceUrl !== undefined ? { source_url: dto.sourceUrl || null } : {}),
+        ...(dto.sourceUrl !== undefined
+          ? { source_url: dto.sourceUrl || null }
+          : {}),
         ...(dto.verified !== undefined ? { verified: dto.verified } : {}),
         ...(dto.isActive !== undefined ? { is_active: dto.isActive } : {}),
         ...(dto.sort !== undefined ? { sort: dto.sort } : {}),
@@ -237,7 +255,9 @@ export class DeadlinesService {
   }
 
   async deleteRule(id: string): Promise<void> {
-    const { count } = await this.prisma.deadlineRule.deleteMany({ where: { id } });
+    const { count } = await this.prisma.deadlineRule.deleteMany({
+      where: { id },
+    });
     if (count === 0) throw this.notFound();
   }
 
@@ -283,12 +303,16 @@ export class DeadlinesService {
   }
 
   async deleteHoliday(id: string): Promise<void> {
-    const { count } = await this.prisma.courtHoliday.deleteMany({ where: { id } });
+    const { count } = await this.prisma.courtHoliday.deleteMany({
+      where: { id },
+    });
     if (count === 0) throw this.notFound();
   }
 
   /** The federal holidays of [year] (open data) — what is missing is added. */
-  async generateFederal(year: number): Promise<GenerateFederalHolidaysResultDto> {
+  async generateFederal(
+    year: number,
+  ): Promise<GenerateFederalHolidaysResultDto> {
     let created = 0;
     let existing = 0;
     for (const h of federalHolidays(year)) {

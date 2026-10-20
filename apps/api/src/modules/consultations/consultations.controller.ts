@@ -137,7 +137,10 @@ export class ConsultationsController {
   @ApiHeader(IDEMPOTENCY_HEADER)
   @ApiEnvelopeResponse(ConsultationDto)
   @ApiErrors(ACTION_ERRORS)
-  confirm(@CurrentUser() user: RequestUser, @Param() p: ConsultationIdParamDto) {
+  confirm(
+    @CurrentUser() user: RequestUser,
+    @Param() p: ConsultationIdParamDto,
+  ) {
     return this.consultations.confirm(user, p.id);
   }
 

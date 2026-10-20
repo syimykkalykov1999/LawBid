@@ -936,7 +936,8 @@ export class TaskDto {
     type: String,
     nullable: true,
     format: 'uuid',
-    description: 'The booked consultation this entry mirrors (its time is fixed here).',
+    description:
+      'The booked consultation this entry mirrors (its time is fixed here).',
   })
   consultationId!: string | null;
   @ApiProperty({ description: 'The viewer may check it off.' })

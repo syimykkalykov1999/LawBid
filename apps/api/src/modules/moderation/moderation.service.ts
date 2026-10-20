@@ -518,7 +518,10 @@ export class ModerationService {
             data: { is_best: false },
           });
           await tx.legalQuestion.updateMany({
-            where: withDeleted({ id: row.question_id, best_answer_id: target.id }),
+            where: withDeleted({
+              id: row.question_id,
+              best_answer_id: target.id,
+            }),
             data: { best_answer_id: null },
           });
         }

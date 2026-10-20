@@ -64,7 +64,9 @@ export class DeadlinesController {
   }
 
   @Get('calculate')
-  @ApiOperation({ summary: 'The last day for a rule counted from an event date' })
+  @ApiOperation({
+    summary: 'The last day for a rule counted from an event date',
+  })
   @ApiEnvelopeResponse(DeadlineResultDto)
   @ApiErrors({
     400: [E.VALIDATION_ERROR],
@@ -102,7 +104,10 @@ export class AdminDeadlinesController {
   @ApiOperation({ summary: 'Edit a rule' })
   @ApiEnvelopeResponse(AdminDeadlineRuleDto)
   @ApiErrors({ 400: [E.VALIDATION_ERROR], 404: [E.NOT_FOUND] })
-  updateRule(@Param() p: DeadlineIdParamDto, @Body() dto: UpdateDeadlineRuleDto) {
+  updateRule(
+    @Param() p: DeadlineIdParamDto,
+    @Body() dto: UpdateDeadlineRuleDto,
+  ) {
     return this.deadlines.updateRule(p.id, dto);
   }
 

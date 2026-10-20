@@ -1,4 +1,9 @@
-import { addDaysIso, formatIsoDate, isoWeekday, parseIsoDate } from '../../common/utils/zoned-time';
+import {
+  addDaysIso,
+  formatIsoDate,
+  isoWeekday,
+  parseIsoDate,
+} from '../../common/utils/zoned-time';
 
 /** A period a court or a statute sets (a row of `deadline_rules`). */
 export interface DeadlinePeriod {

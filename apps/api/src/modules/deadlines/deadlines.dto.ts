@@ -20,14 +20,20 @@ const trim = ({ value }: { value: unknown }) =>
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const JURISDICTION = /^[A-Z]{2}$/;
 
-export const DEADLINE_KINDS = ['court_deadline', 'statute_of_limitations'] as const;
+export const DEADLINE_KINDS = [
+  'court_deadline',
+  'statute_of_limitations',
+] as const;
 export const DEADLINE_UNITS = ['day', 'month', 'year'] as const;
 export const DEADLINE_DAY_TYPES = ['calendar', 'business'] as const;
 export const DEADLINE_DIRECTIONS = ['after', 'before'] as const;
 
 export class DeadlineRuleDto {
   @ApiProperty({ format: 'uuid' }) id!: string;
-  @ApiProperty({ example: 'US', description: 'US = federal courts; otherwise a state code.' })
+  @ApiProperty({
+    example: 'US',
+    description: 'US = federal courts; otherwise a state code.',
+  })
   jurisdiction!: string;
   @ApiProperty({ enum: DEADLINE_KINDS, enumName: 'DeadlineKind' })
   kind!: (typeof DEADLINE_KINDS)[number];
@@ -45,7 +51,11 @@ export class DeadlineRuleDto {
   practiceCode!: string | null;
   @ApiPropertyOptional({ type: String, nullable: true })
   citation!: string | null;
-  @ApiPropertyOptional({ type: 'object', additionalProperties: { type: 'string' }, nullable: true })
+  @ApiPropertyOptional({
+    type: 'object',
+    additionalProperties: { type: 'string' },
+    nullable: true,
+  })
   notes!: Record<string, string> | null;
   @ApiPropertyOptional({ type: String, nullable: true })
   sourceUrl!: string | null;
@@ -59,7 +69,10 @@ export class AdminDeadlineRuleDto extends DeadlineRuleDto {
 }
 
 export class DeadlineRulesQueryDto {
-  @ApiPropertyOptional({ example: 'NY', description: 'Federal rules plus this state’s.' })
+  @ApiPropertyOptional({
+    example: 'NY',
+    description: 'Federal rules plus this state’s.',
+  })
   @IsOptional()
   @Matches(JURISDICTION)
   jurisdiction?: string;
@@ -69,7 +82,9 @@ export class DeadlineRulesQueryDto {
   @IsIn(DEADLINE_KINDS)
   kind?: (typeof DEADLINE_KINDS)[number];
 
-  @ApiPropertyOptional({ description: 'Statutes for this practice category code.' })
+  @ApiPropertyOptional({
+    description: 'Statutes for this practice category code.',
+  })
   @IsOptional()
   @IsString()
   @MaxLength(80)
@@ -82,7 +97,10 @@ export class DeadlineCalcQueryDto {
   @MaxLength(80)
   ruleCode!: string;
 
-  @ApiProperty({ example: '2026-10-05', description: 'The event date (service, ruling, accident…).' })
+  @ApiProperty({
+    example: '2026-10-05',
+    description: 'The event date (service, ruling, accident…).',
+  })
   @Matches(ISO_DATE)
   eventDate!: string;
 }
@@ -116,8 +134,12 @@ export const DEADLINE_WARNINGS = [
 export class DeadlineResultDto {
   @ApiProperty({ type: DeadlineRuleDto }) rule!: DeadlineRuleDto;
   @ApiProperty({ example: '2026-10-05' }) eventDate!: string;
-  @ApiProperty({ example: '2026-10-26', description: 'The last day.' }) dueDate!: string;
-  @ApiProperty({ example: '2026-10-25', description: 'The date before moving past a weekend or holiday.' })
+  @ApiProperty({ example: '2026-10-26', description: 'The last day.' })
+  dueDate!: string;
+  @ApiProperty({
+    example: '2026-10-25',
+    description: 'The date before moving past a weekend or holiday.',
+  })
   rawDate!: string;
   @ApiProperty() rolled!: boolean;
   @ApiProperty({ type: [DeadlineHolidayDto] }) holidays!: DeadlineHolidayDto[];
@@ -185,7 +207,9 @@ export class CreateDeadlineRuleDto {
   @MaxLength(160)
   citation?: string;
 
-  @ApiPropertyOptional({ example: { en: 'Counted from the day after service.' } })
+  @ApiPropertyOptional({
+    example: { en: 'Counted from the day after service.' },
+  })
   @IsOptional()
   @IsObject()
   notes?: Record<string, string>;

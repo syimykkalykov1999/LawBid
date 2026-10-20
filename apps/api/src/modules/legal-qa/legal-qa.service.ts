@@ -84,7 +84,9 @@ export class LegalQaService {
     if (filter === 'mine') {
       where.push(
         user.role === 'attorney'
-          ? { answers: { some: { attorney_id: user.sub, status: 'published' } } }
+          ? {
+              answers: { some: { attorney_id: user.sub, status: 'published' } },
+            }
           : { author_id: user.sub },
       );
       // Own questions are shown whatever their status, except removed ones.
@@ -149,7 +151,11 @@ export class LegalQaService {
     const hidden = await this.blocks.hiddenIds(user.sub);
     const answers = await this.prisma.legalAnswer.findMany({
       where: { question_id: id, status: 'published' },
-      orderBy: [{ is_best: 'desc' }, { like_count: 'desc' }, { created_at: 'asc' }],
+      orderBy: [
+        { is_best: 'desc' },
+        { like_count: 'desc' },
+        { created_at: 'asc' },
+      ],
     });
     const visible = answers.filter(
       (a) => a.attorney_id === user.sub || !hidden.has(a.attorney_id),
@@ -279,14 +285,22 @@ export class LegalQaService {
     });
   }
 
-  async like(user: RequestUser, id: string, answerId: string): Promise<AnswerDto> {
+  async like(
+    user: RequestUser,
+    id: string,
+    answerId: string,
+  ): Promise<AnswerDto> {
     const a = await this.publishedAnswer(user, id, answerId);
     if (a.attorney_id === user.sub) throw this.forbidden();
     await this.blocks.assertNotBlocked(user.sub, a.attorney_id);
     return this.setLike(user, a, true);
   }
 
-  async unlike(user: RequestUser, id: string, answerId: string): Promise<AnswerDto> {
+  async unlike(
+    user: RequestUser,
+    id: string,
+    answerId: string,
+  ): Promise<AnswerDto> {
     const a = await this.publishedAnswer(user, id, answerId);
     return this.setLike(user, a, false);
   }
@@ -376,7 +390,12 @@ export class LegalQaService {
    * state) who turned on «Новые кейсы»: their alert practices are the same
    * ones the case alerts use. Blocks either way are skipped.
    */
-  async alertAttorneys(q: Pick<QuestionRow, 'id' | 'author_id' | 'practice_area_id' | 'state_code'>): Promise<number> {
+  async alertAttorneys(
+    q: Pick<
+      QuestionRow,
+      'id' | 'author_id' | 'practice_area_id' | 'state_code'
+    >,
+  ): Promise<number> {
     if (!q.practice_area_id) return 0;
     const max = await this.settings.number('qa.alert_max_attorneys');
     const stateFilter = q.state_code
@@ -440,7 +459,9 @@ export class LegalQaService {
     if (rows.length === 0) return [];
     const verified = await this.isVerifiedAttorney(user);
     const people = await this.people(
-      rows.filter((r) => !r.is_anonymous || r.author_id === user.sub).map((r) => r.author_id),
+      rows
+        .filter((r) => !r.is_anonymous || r.author_id === user.sub)
+        .map((r) => r.author_id),
     );
     const mine = new Map<string, string>();
     if (verified) {
@@ -470,7 +491,8 @@ export class LegalQaService {
           : null,
         state: r.state ? { code: r.state.code, name: r.state.name } : null,
         isAnonymous: r.is_anonymous,
-        author: r.is_anonymous && !isMine ? null : (people.get(r.author_id) ?? null),
+        author:
+          r.is_anonymous && !isMine ? null : (people.get(r.author_id) ?? null),
         isMine,
         answerCount: r.answer_count,
         bestAnswerId: r.best_answer_id,
@@ -491,7 +513,10 @@ export class LegalQaService {
     const liked = new Set(
       (
         await this.prisma.legalAnswerLike.findMany({
-          where: { user_id: user.sub, answer_id: { in: rows.map((a) => a.id) } },
+          where: {
+            user_id: user.sub,
+            answer_id: { in: rows.map((a) => a.id) },
+          },
           select: { answer_id: true },
         })
       ).map((l) => l.answer_id),
@@ -579,7 +604,10 @@ export class LegalQaService {
   }
 
   /** A published question the viewer may see (own ones also when hidden). */
-  private async loadVisible(user: RequestUser, id: string): Promise<QuestionRow> {
+  private async loadVisible(
+    user: RequestUser,
+    id: string,
+  ): Promise<QuestionRow> {
     const row = await this.prisma.legalQuestion.findFirst({
       where: { id },
       include: QUESTION_INCLUDE,
