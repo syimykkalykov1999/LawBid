@@ -122,6 +122,12 @@ abstract interface class SystemCallUi {
   /// microphone foreground service that keeps the call alive in the
   /// background. Started while the app is in the foreground.
   Future<void> showOngoing(AppCall call);
+
+  /// This phone answered [call]: the ringing screen goes away and the
+  /// ongoing-call UI takes its place (Android notification + service; on
+  /// iPhone a call answered on the CallKit screen stays there, so its green
+  /// bar and audio session last until [dismiss] at the end).
+  Future<void> answered(AppCall call);
 }
 
 class NoSystemCallUi implements SystemCallUi {
@@ -135,6 +141,9 @@ class NoSystemCallUi implements SystemCallUi {
 
   @override
   Future<void> showOngoing(AppCall call) async {}
+
+  @override
+  Future<void> answered(AppCall call) async {}
 }
 
 /// The real one (CallKit) is set in `CallHost`'s scope by the app;
@@ -548,9 +557,7 @@ class CallController extends Notifier<CallSession> {
   /// The ringing screen goes away and the ongoing-call notification (with
   /// the microphone service) takes its place, one after the other.
   Future<void> _swapToOngoing(AppCall call) async {
-    final ui = ref.read(systemCallUiProvider);
-    await ui.dismiss(call.id);
-    await ui.showOngoing(call);
+    await ref.read(systemCallUiProvider).answered(call);
   }
 
   void _finish(CallStatus outcome, {AppCall? call}) {
