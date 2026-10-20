@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter/foundation.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -374,6 +375,7 @@ class _Harness {
         appSoundsProvider.overrideWithValue(sounds),
         callForegroundProvider.overrideWithValue(foreground),
         callMyIdProvider.overrideWithValue('me'),
+        callMicPermissionProvider.overrideWithValue(() async => true),
         callSignalSenderProvider.overrideWithValue((id, data, {to}) async {
           signals.add(data);
           signalTargets.add(to);
@@ -518,6 +520,66 @@ void main() {
     await _settle();
     expect(h.s.phase, CallPhase.ended);
     expect(h.s.outcome, CallStatus.ended);
+  });
+
+  group('the ringing never goes on forever (owner 2026-10-20)', () {
+    test('incoming: no "ended" ever arrives → the ringtone stops by itself',
+        () {
+      fakeAsync((async) {
+        final h = _Harness();
+        h.emit(
+          'call:incoming',
+          _event(_call('c2', CallStatus.ringing, outgoing: false)),
+        );
+        async.flushMicrotasks();
+        expect(h.s.phase, CallPhase.incoming);
+
+        async.elapse(kCallRingTimeout);
+        expect(h.s.phase, CallPhase.incoming);
+        async.elapse(kCallRingGrace + const Duration(seconds: 1));
+        expect(h.s.phase, CallPhase.ended);
+        expect(h.s.outcome, CallStatus.missed);
+        expect(h.sounds.rings.last, 'stop');
+        h
+          ..sub.close()
+          ..container.dispose();
+      });
+    });
+
+    test('incoming: the caller hung up while this phone had no socket', () {
+      fakeAsync((async) {
+        final h = _Harness();
+        h.emit(
+          'call:incoming',
+          _event(_call('c2', CallStatus.ringing, outgoing: false)),
+        );
+        async.flushMicrotasks();
+        h.repo.getStatus = CallStatus.canceled;
+        async.elapse(kCallSyncInterval + const Duration(seconds: 1));
+        expect(h.s.phase, CallPhase.ended);
+        expect(h.sounds.rings.last, 'stop');
+        h
+          ..sub.close()
+          ..container.dispose();
+      });
+    });
+
+    test('outgoing: nobody answers and the server is unreachable', () {
+      fakeAsync((async) {
+        final h = _Harness();
+        h.c.call('conv', peer: _peer);
+        async.flushMicrotasks();
+        expect(h.s.phase, CallPhase.outgoing);
+
+        async.elapse(kCallRingTimeout + const Duration(seconds: 1));
+        expect(h.s.phase, CallPhase.ended);
+        expect(h.s.outcome, CallStatus.missed);
+        expect(h.sounds.played.last, isNot('ringback'));
+        h
+          ..sub.close()
+          ..container.dispose();
+      });
+    });
   });
 
   test('ringing in: decline tells the server and closes', () async {

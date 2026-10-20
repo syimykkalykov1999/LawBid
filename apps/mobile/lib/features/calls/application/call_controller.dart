@@ -201,6 +201,9 @@ const kCallConnectTimeout = Duration(seconds: 25);
 /// missed `call:ended` must not leave the other phone ringing or talking).
 const kCallSyncInterval = Duration(seconds: 8);
 
+/// An incoming ring stops by itself this long after the caller's timeout.
+const kCallRingGrace = Duration(seconds: 10);
+
 /// A dropped link gets this long to come back (new Wi-Fi / 4G network)
 /// before the call ends; the caller restarts ICE every few seconds.
 const kCallReconnectGrace = Duration(seconds: 30);
@@ -416,14 +419,16 @@ class CallController extends Notifier<CallSession> {
       unawaited(ref.read(systemCallUiProvider).showOngoing(call));
       // OQ-044: the caller hears ringback tones while it rings there.
       unawaited(ref.read(appSoundsProvider).startRingback());
-      // Mic + connection ready while it rings: pick-up connects faster.
-      await _openMedia(call.id, video: call.video, peer: call.peer.id);
-      if (gen != _gen) return;
+      // Armed before the media opens: with no network that step can hang,
+      // and the ringback must still stop (owner 2026-10-20).
       _ringTimer = Timer(kCallRingTimeout, () {
         if (state.phase == CallPhase.outgoing) {
           unawaited(hangUp(reason: CallEndReason.noAnswer));
         }
       });
+      _startSync();
+      // Mic + connection ready while it rings: pick-up connects faster.
+      await _openMedia(call.id, video: call.video, peer: call.peer.id);
     } on ApiException catch (e) {
       if (gen != _gen) return;
       state = state.copyWith(errorCode: e.code);
@@ -825,6 +830,16 @@ class CallController extends Notifier<CallSession> {
       video: call.video,
       speaker: call.video,
     );
+    // The caller's "ended" push / socket event may never arrive (no network,
+    // Doze): ask the server now and then, and stop on our own a little after
+    // the caller's own timeout — the ringtone never rings on forever.
+    _ringTimer = Timer(kCallRingTimeout + kCallRingGrace, () {
+      if (state.phase != CallPhase.incoming) return;
+      final id = state.call?.id;
+      if (id != null) unawaited(ref.read(systemCallUiProvider).dismiss(id));
+      _finish(CallStatus.missed);
+    });
+    _startSync();
     // While it rings, get the relay list ready: answering connects faster.
     unawaited(_iceServers().then<void>((_) {}, onError: (Object _) {}));
     // Owner 2026-10-02: "Calls" off in Settings → the call still comes
@@ -879,6 +894,10 @@ class CallController extends Notifier<CallSession> {
     // The other side may hang up while this phone has no socket (app in the
     // background, Doze): ask the server now and then, so the call and its
     // ringing/ongoing UI never outlive it.
+    _startSync();
+  }
+
+  void _startSync() {
     _syncTimer?.cancel();
     _syncTimer = Timer.periodic(kCallSyncInterval, (_) {
       final id = state.call?.id;
