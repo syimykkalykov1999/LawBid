@@ -36,6 +36,32 @@ export class ContactSyncStatusDto {
   syncedAt!: string | null;
 }
 
+export class ContactPersonDto {
+  @ApiProperty({
+    description:
+      'The hash of this upload that matched, so the app can find the phone-book name locally.',
+  })
+  hash!: string;
+
+  @ApiProperty({ format: 'uuid' })
+  userId!: string;
+
+  @ApiPropertyOptional({ type: String, nullable: true })
+  username!: string | null;
+
+  @ApiProperty({ description: 'First and last name as the person shows them.' })
+  displayName!: string;
+
+  @ApiPropertyOptional({ type: String, nullable: true })
+  avatarUrl!: string | null;
+
+  @ApiPropertyOptional({
+    enum: ['client', 'attorney', 'assistant'],
+    nullable: true,
+  })
+  role!: string | null;
+}
+
 export class ContactUploadResultDto {
   @ApiProperty({
     type: 'integer',
@@ -43,4 +69,11 @@ export class ContactUploadResultDto {
     description: 'Hashes of this upload that belong to LawBid users.',
   })
   matched!: number;
+
+  @ApiProperty({
+    type: [ContactPersonDto],
+    description:
+      'Who matched, with the hash the app sent. Not stored: only the owner → user pair is.',
+  })
+  people!: ContactPersonDto[];
 }

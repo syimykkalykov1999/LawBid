@@ -3,6 +3,24 @@
 // tasks — compiled-in strings merged into StaticTranslatorRu/En.
 
 const file07Ru = <String, String>{
+  'phoneContacts.syncNote':
+      'Контакты сверяются по хэшам номеров. Сами номера не хранятся.',
+  'phoneContacts.add': 'Добавить ({count})',
+  'phoneContacts.title': 'Контакты',
+  'phoneContacts.onLawBid': 'В LawBid',
+  'phoneContacts.invite': 'Пригласить в LawBid',
+  'phoneContacts.inviteButton': 'Пригласить',
+  'phoneContacts.inviteText': 'Присоединяйтесь ко мне в LawBid: {link}',
+  'phoneContacts.empty':
+      'Пока никто из ваших контактов не в LawBid. Пригласите их ниже.',
+  'phoneContacts.denied':
+      'Разрешите доступ к контактам, чтобы видеть, кто уже в LawBid.',
+  'phoneContacts.allow': 'Разрешить доступ',
+  'phoneContacts.webOnly': 'Доступно в приложении',
+  'phoneContacts.search': 'Поиск по контактам',
+  'phoneContacts.noResults': 'Контакты не найдены',
+  'phoneContacts.pick': 'Выберите контакт',
+  'phoneContacts.message': 'Написать',
   'feed.topics.notSure': 'Тема не указана',
   'search.more': 'Показать ещё',
   'cases.feed.emptyFiltered': 'Нет открытых кейсов по этому фильтру',
@@ -591,6 +609,24 @@ const file07Ru = <String, String>{
 };
 
 const file07En = <String, String>{
+  'phoneContacts.syncNote':
+      'Contacts are matched by number hashes. The numbers themselves are not stored.',
+  'phoneContacts.add': 'Add ({count})',
+  'phoneContacts.title': 'Contacts',
+  'phoneContacts.onLawBid': 'On LawBid',
+  'phoneContacts.invite': 'Invite to LawBid',
+  'phoneContacts.inviteButton': 'Invite',
+  'phoneContacts.inviteText': 'Join me on LawBid: {link}',
+  'phoneContacts.empty':
+      'None of your contacts are on LawBid yet. Invite them below.',
+  'phoneContacts.denied':
+      'Allow access to your contacts to see who is on LawBid.',
+  'phoneContacts.allow': 'Allow access',
+  'phoneContacts.webOnly': 'Available in the app',
+  'phoneContacts.search': 'Search contacts',
+  'phoneContacts.noResults': 'No contacts found',
+  'phoneContacts.pick': 'Choose a contact',
+  'phoneContacts.message': 'Message',
   'feed.topics.notSure': 'Topic not specified',
   'search.more': 'Show more',
   'cases.feed.emptyFiltered': 'No open cases for this filter',

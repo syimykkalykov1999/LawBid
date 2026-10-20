@@ -11,7 +11,7 @@ const sha = (s: string) => createHash('sha256').update(s).digest('hex');
 
 function make(
   over: {
-    users?: { id: string }[];
+    users?: Record<string, unknown>[];
     matches?: { matched_id: string }[];
     enabled?: boolean | null;
   } = {},
@@ -44,9 +44,11 @@ function make(
   };
   const limits = { consume: jest.fn().mockResolvedValue(undefined) };
   const redis = { del: jest.fn().mockResolvedValue(1) };
+  const files = { avatarUrlsMany: jest.fn().mockResolvedValue(new Map()) };
   const svc = new ContactsSyncService(
     prisma as never,
     limits as never,
+    files as never,
     redis as never,
   );
   return { svc, prisma, limits, redis, tx };
@@ -81,11 +83,46 @@ describe('UploadContactHashesDto', () => {
 describe('ContactsSyncService.upload', () => {
   it('stores only the matches, never the hashes', async () => {
     const { svc, prisma, limits, redis } = make({
-      users: [{ id: 'u1' }, { id: 'u2' }],
+      users: [
+        {
+          id: 'u1',
+          phone_sha256: sha('+1'),
+          first_name: 'Ann',
+          last_name: 'B',
+          role: 'client',
+          attorney_profile: null,
+          client_profile: { username: 'ann' },
+        },
+        {
+          id: 'u2',
+          phone_sha256: sha('+2'),
+          first_name: 'Bob',
+          last_name: null,
+          role: 'attorney',
+          attorney_profile: { username: 'bob' },
+          client_profile: null,
+        },
+      ],
     });
     const h = [sha('+1'), sha('+2'), sha('+1')];
     const out = await svc.upload('me', h);
-    expect(out).toEqual({ matched: 2 });
+    expect(out.matched).toBe(2);
+    expect(out.people).toEqual([
+      expect.objectContaining({
+        hash: sha('+1'),
+        userId: 'u1',
+        username: 'ann',
+        displayName: 'Ann B',
+        role: 'client',
+      }),
+      expect.objectContaining({
+        hash: sha('+2'),
+        userId: 'u2',
+        username: 'bob',
+        displayName: 'Bob',
+        role: 'attorney',
+      }),
+    ]);
     expect(limits.consume).toHaveBeenCalledWith('contacts_sync', 'me');
     // the lookup is by hash, duplicates removed, own account and
     // unverified or deleted accounts excluded
@@ -111,7 +148,10 @@ describe('ContactsSyncService.upload', () => {
 
   it('nothing found is still a successful sync', async () => {
     const { svc } = make({ users: [] });
-    expect(await svc.upload('me', [sha('x')])).toEqual({ matched: 0 });
+    expect(await svc.upload('me', [sha('x')])).toEqual({
+      matched: 0,
+      people: [],
+    });
   });
 });
 

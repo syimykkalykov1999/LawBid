@@ -115682,10 +115682,18 @@
             "type": "integer",
             "minimum": 0,
             "description": "Hashes of this upload that belong to LawBid users."
+          },
+          "people": {
+            "description": "Who matched, with the hash the app sent. Not stored: only the owner → user pair is.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContactPersonDto"
+            }
           }
         },
         "required": [
-          "matched"
+          "matched",
+          "people"
         ]
       },
       "UploadContactHashesDto": {
@@ -131932,6 +131940,45 @@
         },
         "required": [
           "version"
+        ]
+      },
+      "ContactPersonDto": {
+        "type": "object",
+        "properties": {
+          "hash": {
+            "type": "string",
+            "description": "The hash of this upload that matched, so the app can find the phone-book name locally."
+          },
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "username": {
+            "type": "string",
+            "nullable": true
+          },
+          "displayName": {
+            "type": "string",
+            "description": "First and last name as the person shows them."
+          },
+          "avatarUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "role": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "client",
+              "attorney",
+              "assistant"
+            ]
+          }
+        },
+        "required": [
+          "hash",
+          "userId",
+          "displayName"
         ]
       }
     }

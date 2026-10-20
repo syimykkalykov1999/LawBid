@@ -1646,6 +1646,7 @@ export 'models/set_country_partner_status_dto.dart';
 export 'models/country_partner_portal_dto.dart';
 export 'models/country_partner_portal_envelope.dart';
 export 'models/accept_country_partner_contract_dto.dart';
+export 'models/contact_person_dto.dart';
 export 'models/skipped.dart';
 export 'models/role.dart';
 export 'models/status.dart';
@@ -2007,5 +2008,6 @@ export 'models/fraud_queue_item_dto_queue_reason.dart';
 export 'models/fraud_card_dto_queue_reason.dart';
 export 'models/country_partner_goal_view_dto_state.dart';
 export 'models/country_partner_team_member_dto_status.dart';
+export 'models/contact_person_dto_role.dart';
 // Root client
 export 'lawbid_api.dart';

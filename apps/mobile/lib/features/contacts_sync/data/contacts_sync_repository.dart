@@ -9,6 +9,38 @@ class ContactsSyncStatus {
   final int matches;
 }
 
+/// A phone-book number that belongs to a LawBid user ([hash] is the one the
+/// app itself sent, so the phone-book name can be found locally).
+class ContactPerson {
+  const ContactPerson({
+    required this.hash,
+    required this.userId,
+    required this.displayName,
+    this.username,
+    this.avatarUrl,
+    this.role,
+  });
+
+  final String hash;
+  final String userId;
+  final String displayName;
+  final String? username;
+  final String? avatarUrl;
+
+  /// `client`, `attorney` or `assistant`.
+  final String? role;
+
+  bool get isAttorney => role == 'attorney';
+}
+
+/// Answer of one upload: how many matched and who.
+class ContactsUploadResult {
+  const ContactsUploadResult({required this.matched, required this.people});
+
+  final int matched;
+  final List<ContactPerson> people;
+}
+
 /// Owner 2026-10-13: `/contacts/sync`. Only
 /// SHA-256 hashes of phone numbers are sent (see phone_numbers.dart).
 // TODO(contract): switch to the generated ContactsSyncClient once
@@ -16,8 +48,8 @@ class ContactsSyncStatus {
 abstract interface class ContactsSyncRepository {
   Future<ContactsSyncStatus> status();
 
-  /// Uploads [hashes] in chunks; returns how many belong to LawBid users.
-  Future<int> upload(Set<String> hashes);
+  /// Uploads [hashes] in chunks; returns who belongs to LawBid.
+  Future<ContactsUploadResult> upload(Set<String> hashes);
 
   /// Turns the sync off and deletes every match.
   Future<void> remove();
@@ -46,9 +78,10 @@ class ApiContactsSyncRepository implements ContactsSyncRepository {
   }
 
   @override
-  Future<int> upload(Set<String> hashes) async {
+  Future<ContactsUploadResult> upload(Set<String> hashes) async {
     final all = hashes.toList(growable: false);
     var matched = 0;
+    final people = <ContactPerson>[];
     for (var i = 0; i < all.length; i += chunkSize) {
       final chunk = all.sublist(
         i,
@@ -62,8 +95,24 @@ class ApiContactsSyncRepository implements ContactsSyncRepository {
       );
       final data = (res.data?['data'] as Map?)?.cast<String, Object?>();
       matched += (data?['matched'] as num?)?.toInt() ?? 0;
+      for (final raw in (data?['people'] as List?) ?? const []) {
+        final m = (raw as Map).cast<String, Object?>();
+        final id = m['userId'] as String?;
+        final hash = m['hash'] as String?;
+        if (id == null || hash == null) continue;
+        people.add(
+          ContactPerson(
+            hash: hash,
+            userId: id,
+            displayName: (m['displayName'] as String?) ?? '',
+            username: m['username'] as String?,
+            avatarUrl: m['avatarUrl'] as String?,
+            role: m['role'] as String?,
+          ),
+        );
+      }
     }
-    return matched;
+    return ContactsUploadResult(matched: matched, people: people);
   }
 
   @override
