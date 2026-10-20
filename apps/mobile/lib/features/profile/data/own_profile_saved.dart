@@ -1,6 +1,6 @@
+import 'package:lawbid/core/persistence/saved_json.dart';
 import 'package:lawbid/features/profile/data/profile_mappers.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
-import 'package:lawbid/features/social/data/saved_json.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// Owner 2026-10-20 (speed, Telegram): my own profile (attorney or client)

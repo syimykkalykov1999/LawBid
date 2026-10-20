@@ -265,7 +265,7 @@ class GroupInfoNavRow extends StatelessWidget {
                   const SizedBox(width: AppSpacing.sm),
                   if (neutral)
                     Text(
-                      '$badge',
+                      context.digits(badge),
                       style: type.bodySmall.copyWith(
                         color: colors.textSecondary,
                       ),

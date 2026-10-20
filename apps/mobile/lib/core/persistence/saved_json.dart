@@ -1,11 +1,18 @@
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
-import 'package:lawbid/features/social/data/social_local_database.dart';
+
+/// The page table a [SavedJson] reads and writes (the social local database
+/// implements it; core does not know the feature).
+abstract interface class SavedPageStore {
+  Future<String?> pageJson(String key);
+  Future<void> savePage(String key, String json);
+}
 
 /// Owner 2026-10-20 (speed, Telegram / Instagram): the one way the app keeps
 /// "the last answer" of a screen on the phone — the same table as the feed
-/// copy ([SocialLocalDatabase.cachedPages]), one row per account and name.
+/// copy (the social local database's cached pages), one row per account
+/// and name.
 /// The chat list and the own profile use it, so there is a single scheme.
 ///
 /// A saved copy is only ever shown first and then replaced by the live
@@ -15,7 +22,7 @@ import 'package:lawbid/features/social/data/social_local_database.dart';
 class SavedJson {
   const SavedJson(this._local, this._ownerId);
 
-  final SocialLocalDatabase _local;
+  final SavedPageStore _local;
   final String? _ownerId;
 
   String? _key(String name) => _ownerId == null ? null : '$name:$_ownerId';

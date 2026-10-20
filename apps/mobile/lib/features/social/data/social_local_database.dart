@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart';
 import 'package:lawbid/core/persistence/drift_web.dart';
+import 'package:lawbid/core/persistence/saved_json.dart';
 
 part 'social_local_database.g.dart';
 
@@ -54,7 +55,8 @@ class RecentSearches extends Table {
 }
 
 @DriftDatabase(tables: [CachedPages, ChatOutbox, RecentSearches])
-class SocialLocalDatabase extends _$SocialLocalDatabase {
+class SocialLocalDatabase extends _$SocialLocalDatabase
+    implements SavedPageStore {
   SocialLocalDatabase([QueryExecutor? executor])
       : super(
           executor ?? appDriftDatabase('lawbid_social'),
@@ -77,11 +79,13 @@ class SocialLocalDatabase extends _$SocialLocalDatabase {
 
   // --- cached pages ---------------------------------------------------
 
+  @override
   Future<String?> pageJson(String key) async =>
       (await (select(cachedPages)..where((p) => p.key.equals(key)))
               .getSingleOrNull())
           ?.json;
 
+  @override
   Future<void> savePage(String key, String json) =>
       into(cachedPages).insertOnConflictUpdate(
         CachedPagesCompanion.insert(

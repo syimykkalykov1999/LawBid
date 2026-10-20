@@ -873,7 +873,7 @@ class _ArchiveRow extends ConsumerWidget {
             ),
             const SizedBox(width: AppSpacing.sm),
             Text(
-              '$count',
+              context.digits(count),
               key: const ValueKey('chats-archive-count'),
               style: type.bodySmall.copyWith(color: colors.textSecondary),
             ),

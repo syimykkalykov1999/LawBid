@@ -1,6 +1,6 @@
+import 'package:lawbid/core/persistence/saved_json.dart';
 import 'package:lawbid/features/chat/data/chat_repository.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
-import 'package:lawbid/features/social/data/saved_json.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
