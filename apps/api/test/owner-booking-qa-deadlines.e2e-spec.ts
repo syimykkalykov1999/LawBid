@@ -225,7 +225,9 @@ describe('Booking, Q&A, deadlines (e2e)', () => {
         .query({ view: 'pending' })
         .set(att.auth)
         .expect(200);
-      expect(pending.body.data.map((c: { id: string }) => c.id)).toContain(id);
+      expect(
+        (pending.body.data as { id: string }[]).map((c) => c.id),
+      ).toContain(id);
 
       const ok = await api()
         .post(`/api/v1/consultations/${id}/confirm`)
@@ -484,13 +486,17 @@ describe('Booking, Q&A, deadlines (e2e)', () => {
         .query({ filter: 'solved', q: 'deposit' })
         .set(other.auth)
         .expect(200);
-      expect(solved.body.data.map((x: { id: string }) => x.id)).toContain(id);
+      expect((solved.body.data as { id: string }[]).map((x) => x.id)).toContain(
+        id,
+      );
       const mine = await api()
         .get('/api/v1/questions')
         .query({ filter: 'mine' })
         .set(att.auth)
         .expect(200);
-      expect(mine.body.data.map((x: { id: string }) => x.id)).toContain(id);
+      expect((mine.body.data as { id: string }[]).map((x) => x.id)).toContain(
+        id,
+      );
 
       // Reports use the usual endpoint and reach the moderation resolver.
       await api()
@@ -606,8 +612,8 @@ describe('Booking, Q&A, deadlines (e2e)', () => {
         .expect(200);
       expect(res.body.data.length).toBeGreaterThan(0);
       expect(
-        res.body.data.every(
-          (r: { practiceCode: string | null }) => r.practiceCode,
+        (res.body.data as { practiceCode: string | null }[]).every(
+          (r) => r.practiceCode,
         ),
       ).toBe(true);
     });
@@ -635,9 +641,9 @@ describe('Booking, Q&A, deadlines (e2e)', () => {
         .query({ year: 2029 })
         .set(cl.auth)
         .expect(200);
-      expect(list.body.data.map((h: { date: string }) => h.date)).toContain(
-        '2029-07-04',
-      );
+      expect(
+        (list.body.data as { date: string }[]).map((h) => h.date),
+      ).toContain('2029-07-04');
 
       const created = await api()
         .post('/api/v1/admin/deadlines/rules')
