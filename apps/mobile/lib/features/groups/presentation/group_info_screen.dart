@@ -822,6 +822,7 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
               children: [
                 GroupInfoNavRow(
                   key: const ValueKey('group-admins'),
+                  neutral: true,
                   icon: AppIcons.adminPanelSettingsOutlined,
                   label: t.t('channel.admins'),
                   badge: d.members

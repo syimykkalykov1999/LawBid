@@ -216,12 +216,16 @@ class GroupInfoNavRow extends StatelessWidget {
     required this.label,
     required this.onTap,
     this.badge = 0,
+    this.neutral = false,
     super.key,
   });
 
   final IconData icon;
   final String label;
   final num badge;
+
+  /// A plain grey count (a list size) instead of the alert badge.
+  final bool neutral;
   final VoidCallback onTap;
 
   @override
@@ -259,7 +263,14 @@ class GroupInfoNavRow extends StatelessWidget {
                 ),
                 if (badge > 0) ...[
                   const SizedBox(width: AppSpacing.sm),
-                  GroupInfoCountBadge(badge),
+                  neutral
+                      ? Text(
+                          '$badge',
+                          style: type.bodySmall.copyWith(
+                            color: colors.textSecondary,
+                          ),
+                        )
+                      : GroupInfoCountBadge(badge),
                 ],
                 const SizedBox(width: AppSpacing.xs),
                 AppIcon(
