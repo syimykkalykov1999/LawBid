@@ -63,6 +63,8 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('notif-view-important')));
     await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('notif-search-open')));
+    await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), 'zzz');
     await tester.pump(const Duration(milliseconds: 400));
     await tester.pumpAndSettle();

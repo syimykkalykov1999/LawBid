@@ -48,6 +48,10 @@ enum InboxTab { chats, notifications, requests, team }
 /// The screen behind the Chats icon (docs/05 §8.1, §9.1). Owner
 /// 2026-09-30: three compact tabs — Chats · Notifications · Requests — in
 /// one centered row on the level of the back arrow, each with its count.
+/// Both sides of the header's middle are as wide as the widest icon group, so
+/// the segments stay centred on the screen.
+const _headerSide = EdgeInsets.symmetric(horizontal: 116);
+
 class InboxScreen extends ConsumerStatefulWidget {
   const InboxScreen({this.initialTab = InboxTab.chats, super.key});
 
@@ -126,44 +130,51 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
           children: [
             SizedBox(
               height: AppSizes.touchTarget + AppSpacing.md,
-              // Owner 2026-10-20: a Row, not a Stack — the middle takes what the
-              // buttons leave and the segments shrink, never the icons.
-              child: Row(
+              // Owner 2026-10-20: the segments stay in the exact centre of the
+              // screen whatever the icons at the sides; they shrink, never
+              // the icons.
+              child: Stack(
                 children: [
-                  Padding(
-                    padding:
-                        const EdgeInsetsDirectional.only(start: AppSpacing.xs),
-                    child: selecting
-                        ? SizedBox.square(
-                            dimension: AppSizes.touchTarget,
-                            child: AppIconButton(
-                              key: const ValueKey('select-cancel'),
-                              icon: AppIcon(
-                                AppIcons.closeRounded,
-                                color: colors.text,
+                  Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: Padding(
+                      padding: const EdgeInsetsDirectional.only(
+                        start: AppSpacing.xs,
+                      ),
+                      child: selecting
+                          ? SizedBox.square(
+                              dimension: AppSizes.touchTarget,
+                              child: AppIconButton(
+                                key: const ValueKey('select-cancel'),
+                                icon: AppIcon(
+                                  AppIcons.closeRounded,
+                                  color: colors.text,
+                                ),
+                                semanticLabel: t.t('common.cancel'),
+                                onPressed: ref
+                                    .read(chatSelectionProvider.notifier)
+                                    .stop,
                               ),
-                              semanticLabel: t.t('common.cancel'),
-                              onPressed:
-                                  ref.read(chatSelectionProvider.notifier).stop,
+                            )
+                          : Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                AppBackButton(
+                                  semanticLabel: t.t('common.back'),
+                                  onPressed: () =>
+                                      Navigator.of(context).maybePop(),
+                                ),
+                              ],
                             ),
-                          )
-                        : Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              AppBackButton(
-                                semanticLabel: t.t('common.back'),
-                                onPressed: () =>
-                                    Navigator.of(context).maybePop(),
-                              ),
-                            ],
-                          ),
+                    ),
                   ),
                   // Owner 2026-10-01: Chats · Requests · Team as segments,
                   // notifications as a bell at the right edge.
                   // The middle keeps clear of the buttons at both edges: a long
                   // count ellipsizes, the segments shrink on narrow phones.
                   if (selecting)
-                    Expanded(
+                    Padding(
+                      padding: _headerSide,
                       child: Center(
                         child: Text(
                           t.t(
@@ -180,7 +191,8 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                       ),
                     )
                   else
-                    Expanded(
+                    Padding(
+                      padding: _headerSide,
                       child: FittedBox(
                         fit: BoxFit.scaleDown,
                         child: InboxTabsBar(
@@ -203,116 +215,138 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                         ),
                       ),
                     ),
-                  Padding(
-                    padding:
-                        const EdgeInsetsDirectional.only(end: AppSpacing.xs),
-                    child: selecting
-                        ? ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 108),
-                            child: TextButton(
-                              key: const ValueKey('select-all'),
-                              onPressed: () {
-                                final n =
-                                    ref.read(chatSelectionProvider.notifier);
-                                entries.every(
-                                  (e) => selection.contains(e.id),
-                                )
-                                    ? n.clear()
-                                    : n.setAll(entries.map((e) => e.id));
-                              },
-                              child: Text(
-                                entries.isNotEmpty &&
-                                        entries.every(
-                                          (e) => selection.contains(e.id),
-                                        )
-                                    ? t.t('chat.select.none')
-                                    : t.t('chat.select.all'),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
+                  Align(
+                    alignment: AlignmentDirectional.centerEnd,
+                    child: Padding(
+                      padding:
+                          const EdgeInsetsDirectional.only(end: AppSpacing.xs),
+                      child: selecting
+                          ? ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 108),
+                              child: TextButton(
+                                key: const ValueKey('select-all'),
+                                onPressed: () {
+                                  final n =
+                                      ref.read(chatSelectionProvider.notifier);
+                                  entries.every(
+                                    (e) => selection.contains(e.id),
+                                  )
+                                      ? n.clear()
+                                      : n.setAll(entries.map((e) => e.id));
+                                },
+                                child: Text(
+                                  entries.isNotEmpty &&
+                                          entries.every(
+                                            (e) => selection.contains(e.id),
+                                          )
+                                      ? t.t('chat.select.none')
+                                      : t.t('chat.select.all'),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               ),
-                            ),
-                          )
-                        : Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              // Owner 2026-10-02: ⋮ next to the bell —
-                              // "Select chats" like Instagram.
-                              // Organizing chats is the attorney's own
-                              // (the server refuses an assistant).
-                              if (tab == InboxTab.chats &&
-                                  (ref.watch(channelsEnabledProvider) ||
-                                      (!ref.watch(isAssistantProvider) &&
-                                          _folder != ChatListFolder.requests)))
-                                AppIconButton(
-                                  key: const ValueKey('chats-menu'),
-                                  icon: AppIcon(
-                                    AppIcons.moreVertRounded,
-                                    color: colors.text,
-                                  ),
-                                  semanticLabel: t.t('chat.select.menu'),
-                                  onPressed: () =>
-                                      _showChatsMenu(context, t, tab),
-                                ),
-                              // Owner 2026-10-20 (WhatsApp): «new chat» —
-                              // opens Contacts (who is on LawBid: chat,
-                              // call, video, invite).
-                              if (tab == InboxTab.chats)
-                                AppIconButton(
-                                  key: const ValueKey('chats-new-chat'),
-                                  icon: AppIcon(
-                                    AppIcons.addRounded,
-                                    color: colors.accent,
-                                  ),
-                                  semanticLabel: t.t('phoneContacts.title'),
-                                  onPressed: () =>
-                                      context.push(AppRoutes.contacts),
-                                ),
-                              // Owner 2026-10-02: the notification filter /
-                              // settings sit up here, left of the bell, in
-                              // the same place as the chats' ⋮.
-                              if (tab == InboxTab.notifications)
-                                AppIconButton(
-                                  key: const ValueKey('notif-filter'),
-                                  icon: AppIcon(
-                                    AppIcons.tuneRounded,
-                                    color: colors.text,
-                                  ),
-                                  semanticLabel: t.t('settings.notifications'),
-                                  onPressed: () => context
-                                      .push(ChatRoutes.notificationSettings),
-                                ),
-                              // Owner 2026-10-01: in Team the bell gives
-                              // way to the team settings.
-                              if (tab == InboxTab.team)
-                                SizedBox.square(
-                                  dimension: AppSizes.touchTarget,
-                                  child: AppIconButton(
-                                    key: const ValueKey('team-settings'),
+                            )
+                          : Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                // Owner 2026-10-02: ⋮ next to the bell —
+                                // "Select chats" like Instagram.
+                                // Organizing chats is the attorney's own
+                                // (the server refuses an assistant).
+                                if (tab == InboxTab.chats &&
+                                    !ref.watch(isAssistantProvider) &&
+                                    _folder != ChatListFolder.requests)
+                                  AppIconButton(
+                                    key: const ValueKey('chats-menu'),
+                                    compact: true,
                                     icon: AppIcon(
-                                      AppIcons.manageAccountsOutlined,
-                                      size: 28,
+                                      AppIcons.moreVertRounded,
                                       color: colors.text,
                                     ),
-                                    semanticLabel: t.t('team.title'),
+                                    semanticLabel: t.t('chat.select.menu'),
                                     onPressed: () =>
-                                        context.push(TeamRoutes.team),
+                                        _showChatsMenu(context, t, tab),
                                   ),
-                                )
-                              else
-                                _Bell(
-                                  count: badges.notifications,
-                                  selected: tab == InboxTab.notifications,
-                                  label: t.t('inbox.tab.notifications'),
-                                  onTap: () => setState(
-                                    () => _tab =
-                                        tab == InboxTab.notifications &&
-                                                chatsAllowed
-                                            ? InboxTab.chats
-                                            : InboxTab.notifications,
+                                // Owner 2026-10-20 (WhatsApp): «new chat» —
+                                // opens Contacts (who is on LawBid: chat,
+                                // call, video, invite).
+                                if (tab == InboxTab.chats)
+                                  AppIconButton(
+                                    key: const ValueKey('chats-new-chat'),
+                                    compact: true,
+                                    icon: AppIcon(
+                                      AppIcons.addRounded,
+                                      color: colors.accent,
+                                    ),
+                                    semanticLabel: t.t('phoneContacts.title'),
+                                    onPressed: () =>
+                                        context.push(AppRoutes.contacts),
                                   ),
-                                ),
-                            ],
-                          ),
+                                // Owner 2026-10-02: the notification filter /
+                                // settings sit up here, left of the bell, in
+                                // the same place as the chats' ⋮.
+                                // Owner 2026-10-20: «mark all read» up here, next to
+                                // the filter and the bell, close together.
+                                if (tab == InboxTab.notifications &&
+                                    badges.notifications > 0)
+                                  AppIconButton(
+                                    key: const ValueKey('notif-mark-all'),
+                                    compact: true,
+                                    icon: AppIcon(
+                                      AppIcons.doneAllRounded,
+                                      color: colors.text,
+                                    ),
+                                    semanticLabel: t.t('notif.markAllRead'),
+                                    onPressed: () => ref
+                                        .read(notificationsProvider.notifier)
+                                        .markRead(),
+                                  ),
+                                if (tab == InboxTab.notifications)
+                                  AppIconButton(
+                                    key: const ValueKey('notif-filter'),
+                                    compact: true,
+                                    icon: AppIcon(
+                                      AppIcons.tuneRounded,
+                                      color: colors.text,
+                                    ),
+                                    semanticLabel:
+                                        t.t('settings.notifications'),
+                                    onPressed: () => context
+                                        .push(ChatRoutes.notificationSettings),
+                                  ),
+                                // Owner 2026-10-01: in Team the bell gives
+                                // way to the team settings.
+                                if (tab == InboxTab.team)
+                                  SizedBox.square(
+                                    dimension: AppSizes.touchTarget,
+                                    child: AppIconButton(
+                                      key: const ValueKey('team-settings'),
+                                      icon: AppIcon(
+                                        AppIcons.manageAccountsOutlined,
+                                        size: 28,
+                                        color: colors.text,
+                                      ),
+                                      semanticLabel: t.t('team.title'),
+                                      onPressed: () =>
+                                          context.push(TeamRoutes.team),
+                                    ),
+                                  )
+                                else
+                                  _Bell(
+                                    count: badges.notifications,
+                                    selected: tab == InboxTab.notifications,
+                                    label: t.t('inbox.tab.notifications'),
+                                    onTap: () => setState(
+                                      () => _tab =
+                                          tab == InboxTab.notifications &&
+                                                  chatsAllowed
+                                              ? InboxTab.chats
+                                              : InboxTab.notifications,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                    ),
                   ),
                 ],
               ),
@@ -339,27 +373,6 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                             // Audit 2026-10-04: an Inbox tab target switches the
                             // tab here instead of pushing a second Inbox.
                             onInboxTab: (v) => setState(() => _tab = v),
-                            // Owner 2026-10-01: on the same line as All ·
-                            // Assistants.
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                // An icon, not a words button: in Russian the
-                                // text squeezed the last filter chip.
-                                if (badges.notifications > 0)
-                                  AppIconButton(
-                                    key: const ValueKey('notif-mark-all'),
-                                    icon: AppIcon(
-                                      AppIcons.doneAllRounded,
-                                      color: colors.text,
-                                    ),
-                                    semanticLabel: t.t('notif.markAllRead'),
-                                    onPressed: () => ref
-                                        .read(notificationsProvider.notifier)
-                                        .markRead(),
-                                  ),
-                              ],
-                            ),
                           ),
                         InboxTab.requests => const SizedBox.shrink(),
                         InboxTab.team => const TeamInboxTab(),
@@ -391,7 +404,6 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
   ) async {
     final organize =
         !ref.read(isAssistantProvider) && _folder != ChatListFolder.requests;
-    final channels = ref.read(channelsEnabledProvider);
     final pick = await showAppBottomSheet<String>(
       context: context,
       builder: (ctx) => SafeArea(
@@ -400,16 +412,6 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
           children: [
             const SizedBox(height: AppSpacing.sm),
             const AppSheetHandle(),
-            // Owner 2026-10-20: the megaphone moved here — the header keeps
-            // only «+» and «⋮».
-            if (channels)
-              AppListRow(
-                key: const ValueKey('chats-menu-channels'),
-                icon: AppIcons.campaignOutlined,
-                label: t.t('channel.title'),
-                showChevron: false,
-                onTap: () => Navigator.of(ctx).pop('channels'),
-              ),
             if (organize) ..._groupMenuRows(ctx, t),
             if (organize)
               AppListRow(
@@ -426,8 +428,6 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
     );
     if (!context.mounted) return;
     switch (pick) {
-      case 'channels':
-        unawaited(context.push(ChannelsRoutes.list));
       case 'select':
         ref.read(chatSelectionProvider.notifier).start();
       case 'new':
@@ -780,6 +780,19 @@ class ConversationsView extends ConsumerWidget {
             onFolder: onFolder!,
             query: query,
             onQuery: onQuery!,
+            // Owner 2026-10-20: the channels' door at the start of the row.
+            leading: ref.watch(channelsEnabledProvider)
+                ? AppIconButton(
+                    key: const ValueKey('inbox-channels'),
+                    compact: true,
+                    icon: AppIcon(
+                      AppIcons.campaignOutlined,
+                      color: colors.text,
+                    ),
+                    semanticLabel: t.t('channel.title'),
+                    onPressed: () => context.push(ChannelsRoutes.list),
+                  )
+                : null,
           )
         : onFolder != null
             ? Padding(
@@ -1511,8 +1524,9 @@ class _Bell extends StatelessWidget {
       child: AppPressable(
         key: const ValueKey('inbox-bell'),
         onTap: onTap,
-        child: SizedBox.square(
-          dimension: AppSizes.touchTarget,
+        child: SizedBox(
+          width: 40,
+          height: AppSizes.touchTarget,
           child: Stack(
             alignment: Alignment.center,
             children: [

@@ -99,15 +99,17 @@ void main() {
         // The filter bar is a whole number of pixels high.
         final bar = tester.getSize(find.byType(ChatsFilterRow));
         expect(bar.height, ChatsFilterRow.height);
-        // The megaphone lives in ⋮ now.
-        expect(find.byKey(const ValueKey('inbox-channels')), findsNothing);
+        // The segments sit in the exact centre of the screen.
+        expect((tabs.center.dx - 180).abs(), lessThan(2));
+        // The megaphone is the first thing in the filter row.
+        expect(find.byKey(const ValueKey('inbox-channels')), findsOneWidget);
         await tester.pumpWidget(const SizedBox());
         await tester.pump(const Duration(minutes: 5));
       });
     }
   }
 
-  testWidgets('the channels entry is inside ⋮, not in the header',
+  testWidgets('the channels entry is in the filter row, not inside ⋮',
       (tester) async {
     useNarrowPhone(tester);
     await tester.pumpWidget(
@@ -128,10 +130,10 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('chats-menu-channels')), findsNothing);
+    expect(find.byKey(const ValueKey('inbox-channels')), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('chats-menu')));
     await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('chats-menu-channels')), findsOneWidget);
+    expect(find.byKey(const ValueKey('chats-menu-channels')), findsNothing);
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(minutes: 5));
   });

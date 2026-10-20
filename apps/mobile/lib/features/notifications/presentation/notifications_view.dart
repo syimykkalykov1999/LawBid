@@ -29,7 +29,7 @@ import 'package:lawbid/features/team/team_routes.dart';
 import 'package:lawbid/features/trust/domain/trust_models.dart';
 import 'package:lawbid/features/trust/trust_routes.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
-import 'package:lawbid/shared/presentation/list_search_field.dart';
+import 'package:lawbid/shared/presentation/chips_search_row.dart';
 
 /// Where a notification (or its push) leads (docs/05 §9.2); null = no
 /// target screen (a sheet with the text is shown instead).
@@ -573,69 +573,66 @@ class _NotificationsViewState extends ConsumerState<NotificationsView> {
           ),
         );
 
+    final chips = SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsetsDirectional.only(start: AppSpacing.screenSide),
+      child: Row(
+        children: [
+          chip(
+            'notif-view-all',
+            t.t('notif.view.all'),
+            selected: !_assistants && group == null,
+            onTap: () => pick(null),
+          ),
+          chip(
+            'notif-view-important',
+            t.t('notif.view.important'),
+            selected: !_assistants && group == NotifGroup.important,
+            onTap: () => pick(NotifGroup.important),
+          ),
+          chip(
+            'notif-view-other',
+            t.t('notif.view.other'),
+            selected: !_assistants && group == NotifGroup.other,
+            onTap: () => pick(NotifGroup.other),
+          ),
+          if (team)
+            chip(
+              'notif-view-assistants',
+              t.t('notif.view.assistants'),
+              selected: _assistants,
+              onTap: () => pick(null, assistants: true),
+            ),
+        ],
+      ),
+    );
     return Column(
       children: [
-        // Owner 2026-10-18: one search box above the list (not for the
-        // assistants' activity, which has its own list).
-        if (!(team && _assistants))
-          ListSearchField(
-            fieldKey: const ValueKey('notif-search'),
+        // Owner 2026-10-20: the chips and a round magnifier in one row (the
+        // assistants' activity has its own list, no search).
+        if (team && _assistants)
+          Padding(
+            padding: const EdgeInsetsDirectional.only(
+              end: AppSpacing.xs,
+              bottom: AppSpacing.sm,
+            ),
+            child: Row(
+              children: [
+                Expanded(child: chips),
+                if (trailing != null) trailing,
+              ],
+            ),
+          )
+        else
+          ChipsSearchRow(
+            chips: chips,
             hintKey: 'notif.search.hint',
-            initial: ref.read(notificationQueryProvider),
-            onChanged: ref.read(notificationQueryProvider.notifier).set,
+            query: ref.read(notificationQueryProvider),
+            onQuery: ref.read(notificationQueryProvider.notifier).set,
+            openKey: const ValueKey('notif-search-open'),
+            fieldKey: const ValueKey('notif-search'),
+            closeKey: const ValueKey('notif-search-close'),
           ),
-        Padding(
-          padding: const EdgeInsetsDirectional.fromSTEB(
-            0,
-            0,
-            AppSpacing.xs,
-            AppSpacing.sm,
-          ),
-          child: Row(
-            children: [
-              // Scrolls sideways: long labels in some languages never
-              // squeeze "Mark all read".
-              Expanded(
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsetsDirectional.only(
-                    start: AppSpacing.screenSide,
-                  ),
-                  child: Row(
-                    children: [
-                      chip(
-                        'notif-view-all',
-                        t.t('notif.view.all'),
-                        selected: !_assistants && group == null,
-                        onTap: () => pick(null),
-                      ),
-                      chip(
-                        'notif-view-important',
-                        t.t('notif.view.important'),
-                        selected: !_assistants && group == NotifGroup.important,
-                        onTap: () => pick(NotifGroup.important),
-                      ),
-                      chip(
-                        'notif-view-other',
-                        t.t('notif.view.other'),
-                        selected: !_assistants && group == NotifGroup.other,
-                        onTap: () => pick(NotifGroup.other),
-                      ),
-                      if (team)
-                        chip(
-                          'notif-view-assistants',
-                          t.t('notif.view.assistants'),
-                          selected: _assistants,
-                          onTap: () => pick(null, assistants: true),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-              if (trailing != null) trailing,
-            ],
-          ),
-        ),
         Expanded(child: list),
       ],
     );

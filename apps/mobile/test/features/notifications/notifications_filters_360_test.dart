@@ -31,21 +31,14 @@ class _Repo implements NotificationsRepository {
 void main() {
   setUpAll(initializeDateFormatting);
 
-  testWidgets('the three filters end before the mark-all icon (ru, 360 dp)',
+  testWidgets('the three filters end before the magnifier (ru, 360 dp)',
       (tester) async {
     useNarrowPhone(tester);
     final t = L10nTranslator(language: AppLanguage.ru, cache: const {});
     await tester.pumpWidget(
       uxApp(
-        Scaffold(
-          body: NotificationsView(
-            trailing: AppIconButton(
-              key: const ValueKey('notif-mark-all'),
-              icon: const Icon(Icons.done_all),
-              semanticLabel: 'x',
-              onPressed: () {},
-            ),
-          ),
+        const Scaffold(
+          body: NotificationsView(),
         ),
         theme: AppTheme.dark(),
         size: narrowPhone,
@@ -60,7 +53,8 @@ void main() {
     await tester.pumpAndSettle();
     final other =
         tester.getRect(find.byKey(const ValueKey('notif-view-other')));
-    final icon = tester.getRect(find.byKey(const ValueKey('notif-mark-all')));
+    final icon =
+        tester.getRect(find.byKey(const ValueKey('notif-search-open')));
     expect(other.right, lessThanOrEqualTo(icon.left));
   });
 }

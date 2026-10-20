@@ -14,7 +14,7 @@ import 'package:lawbid/features/channels/domain/channel_models.dart';
 import 'package:lawbid/features/channels/presentation/channel_widgets.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
-import 'package:lawbid/shared/presentation/list_search_field.dart';
+import 'package:lawbid/shared/presentation/chips_search_row.dart';
 
 /// Owner 2026-10-20: the channels screen — the ones I run, the ones I
 /// follow, and discover / search (title or @username).
@@ -91,19 +91,28 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         ),
         body: Column(
           children: [
-            PillTabs<ChannelScope>(
-              value: _tab,
-              tabs: [
-                (ChannelScope.managed, t.t('channel.tab.mine')),
-                (ChannelScope.subscribed, t.t('channel.tab.subscribed')),
-                (ChannelScope.discover, t.t('channel.tab.discover')),
-              ],
-              onChanged: _pick,
-            ),
-            ListSearchField(
-              fieldKey: const ValueKey('channels-search'),
+            // Owner 2026-10-20: the tabs and a round magnifier in one row.
+            ChipsSearchRow(
+              chips: Padding(
+                padding: const EdgeInsetsDirectional.only(
+                  start: AppSpacing.screenSide,
+                ),
+                child: PillTabs<ChannelScope>(
+                  value: _tab,
+                  tabs: [
+                    (ChannelScope.managed, t.t('channel.tab.mine')),
+                    (ChannelScope.subscribed, t.t('channel.tab.subscribed')),
+                    (ChannelScope.discover, t.t('channel.tab.discover')),
+                  ],
+                  onChanged: _pick,
+                ),
+              ),
               hintKey: 'channel.search.hint',
-              onChanged: _typed,
+              query: _query,
+              onQuery: _typed,
+              openKey: const ValueKey('channels-search-open'),
+              fieldKey: const ValueKey('channels-search'),
+              closeKey: const ValueKey('channels-search-close'),
             ),
             Expanded(
               child: searching
