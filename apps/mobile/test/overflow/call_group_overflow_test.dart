@@ -10,8 +10,6 @@ import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:lawbid/features/calls/presentation/call_group.dart';
 import 'package:lawbid/features/calls/presentation/call_screen.dart';
-import 'package:lawbid/features/social/application/social_providers.dart'
-    show currentUserIdProvider;
 
 import '../helpers/long_locale.dart';
 import '../helpers/ux_harness.dart';
@@ -92,11 +90,14 @@ void main() {
     for (final MapEntry(key: name, value: (t, dir)) in locales.entries) {
       group('group call: no overflow at 360 dp ($name, text x$scale)', () {
         Future<void> pump(
-            WidgetTester tester, CallSession s, Widget home) async {
+          WidgetTester tester,
+          CallSession s,
+          Widget home,
+        ) async {
           useNarrowPhone(tester);
           final overrides = <Override>[
             ...uxOverrides(translator: t),
-            currentUserIdProvider.overrideWithValue('u0'),
+            callMyIdProvider.overrideWithValue('u0'),
             callControllerProvider.overrideWith(() => _Fixed(s)),
           ];
           await tester.pumpWidget(

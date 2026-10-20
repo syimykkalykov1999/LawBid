@@ -9,6 +9,7 @@ import 'package:lawbid/core/audio/app_sounds.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/features/calls/application/call_foreground.dart';
 import 'package:lawbid/features/calls/application/call_media.dart';
 import 'package:lawbid/features/calls/data/calls_repository.dart';
@@ -18,8 +19,6 @@ import 'package:lawbid/features/chat/data/realtime_client.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
 import 'package:lawbid/features/notifications/data/notifications_repository.dart'
     show NotifCategory;
-import 'package:lawbid/features/social/application/social_providers.dart'
-    show currentUserIdProvider;
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 
@@ -119,6 +118,11 @@ class CallSession {
         notice: clearNotice ? null : notice ?? this.notice,
       );
 }
+
+/// Our own user id (the JWT `sub`): the row of the member list that is us.
+final callMyIdProvider = Provider<String?>(
+  (ref) => ref.watch(sessionControllerProvider.select((s) => s?.sub)),
+);
 
 /// Sends a signaling payload to the other member of [callId].
 /// Group calls: [to] names the member the signal is for.
@@ -243,7 +247,7 @@ class CallController extends Notifier<CallSession> {
   bool _syncingLinks = false;
   bool _syncAgain = false;
 
-  String? get _me => ref.read(currentUserIdProvider);
+  String? get _me => ref.read(callMyIdProvider);
 
   /// Bumped by every [_reset]: an await that wakes up under another
   /// generation belongs to a call that is already over.
@@ -751,7 +755,7 @@ class CallController extends Notifier<CallSession> {
     try {
       if (state.call?.id != callId) {
         final call = await _getWithRetry(callId);
-        if (call.status != CallStatus.ringing || call.outgoing) {
+        if (!_ringsHere(call)) {
           // Push 2026-10-19: the call ended while the phone was asleep — a
           // system call screen answered (or still ringing) for it must go,
           // or CallKit keeps a call that never connects.
@@ -776,6 +780,18 @@ class CallController extends Notifier<CallSession> {
       // Still unreachable after the retries: take the system call down.
       unawaited(ref.read(systemCallUiProvider).dismiss(callId));
     }
+  }
+
+  /// The call rings on this phone: a plain call that is ringing, or a
+  /// running group call we were added to and have not answered.
+  bool _ringsHere(AppCall call) {
+    if (call.outgoing) return false;
+    if (call.status == CallStatus.ringing) return true;
+    final me = _me;
+    return call.status == CallStatus.active &&
+        call.group &&
+        me != null &&
+        call.participants.any((m) => m.userId == me && m.ringing);
   }
 
   /// The network may not be awake yet when "Accept" is tapped in the

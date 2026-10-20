@@ -12,8 +12,6 @@ import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/call_media.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:lawbid/features/calls/presentation/call_widgets.dart';
-import 'package:lawbid/features/social/application/social_providers.dart'
-    show currentUserIdProvider;
 
 /// Owner 2026-10-20 (WhatsApp + Telegram): a call with three or more people
 /// shows everyone as a tile — photo or camera, name, a mic-off mark, a gold
@@ -43,7 +41,7 @@ class CallGroupGrid extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final call = session.call;
     if (call == null) return const SizedBox.shrink();
-    final me = ref.watch(currentUserIdProvider);
+    final me = ref.watch(callMyIdProvider);
     final members = visibleMembers(call, me);
     final n = members.length;
     final cols = n <= 4 ? 2 : 3;
@@ -340,7 +338,7 @@ class _MembersSheet extends ConsumerWidget {
     final s = ref.watch(callControllerProvider);
     final c = ref.read(callControllerProvider.notifier);
     final call = s.call;
-    final me = ref.watch(currentUserIdProvider);
+    final me = ref.watch(callMyIdProvider);
     if (call == null) return const SizedBox.shrink();
     final members = CallGroupGrid.visibleMembers(call, me);
     final iAmHost = call.hostId != null && call.hostId == me;

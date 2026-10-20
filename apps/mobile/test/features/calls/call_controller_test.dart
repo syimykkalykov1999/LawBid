@@ -14,8 +14,6 @@ import 'package:lawbid/features/calls/data/calls_repository.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/chat/data/realtime_client.dart';
-import 'package:lawbid/features/social/application/social_providers.dart'
-    show currentUserIdProvider;
 
 /// OQ-041: the call state machine — ring out, pick-up, signaling,
 /// hang-up; ring in, accept, decline; busy; refusals; answered on another
@@ -92,6 +90,7 @@ class _FakeRepo implements CallsRepository {
   Completer<void>? startGate;
   Completer<void>? getGate;
   CallStatus getStatus = CallStatus.ringing;
+  List<CallMember> getMembers = const [];
 
   @override
   Future<AppCall> start(String conversationId, {bool video = false}) async {
@@ -129,7 +128,7 @@ class _FakeRepo implements CallsRepository {
   @override
   Future<AppCall> get(String callId) async {
     if (getGate != null) await getGate!.future;
-    return _call(callId, getStatus, outgoing: false);
+    return _call(callId, getStatus, outgoing: false, members: getMembers);
   }
 
   final invited = <String?>[];
@@ -374,7 +373,7 @@ class _Harness {
         realtimeEventsProvider.overrideWithValue(events.stream),
         appSoundsProvider.overrideWithValue(sounds),
         callForegroundProvider.overrideWithValue(foreground),
-        currentUserIdProvider.overrideWithValue('me'),
+        callMyIdProvider.overrideWithValue('me'),
         callSignalSenderProvider.overrideWithValue((id, data, {to}) async {
           signals.add(data);
           signalTargets.add(to);
@@ -748,6 +747,22 @@ void main() {
       await _settle();
       return h;
     }
+
+    test('a push for a running call we were added to rings (not dismissed)',
+        () async {
+      final h = _Harness();
+      addTearDown(h.dispose);
+      h.repo
+        ..getStatus = CallStatus.active
+        ..getMembers = [
+          m('p1', CallMemberStatus.joined),
+          m('p2', CallMemberStatus.joined, at: 1),
+          m('me', CallMemberStatus.invited),
+        ];
+      await h.c.ringFromPush('g9');
+      expect(h.s.phase, CallPhase.incoming);
+      expect(h.s.call?.group, isTrue);
+    });
 
     test('added to a call: the latest to join offers to everyone', () async {
       final h = await joined();

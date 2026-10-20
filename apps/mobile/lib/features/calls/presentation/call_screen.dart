@@ -20,8 +20,6 @@ import 'package:lawbid/features/chat/application/voice_recorder.dart'
     show voiceClock;
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/plans/presentation/plan_offer.dart';
-import 'package:lawbid/features/social/application/social_providers.dart'
-    show currentUserIdProvider;
 import 'package:lawbid/features/subscription/presentation/paywall_screen.dart';
 
 /// OQ-041: the full-screen call — navy with gold, the other member's
@@ -116,7 +114,7 @@ class _CallScreenState extends ConsumerState<CallScreen>
     // The other member stays on screen until it closes (never a "?").
     final peer = s.peer ?? s.call?.peer ?? _lastPeer;
     _lastPeer = peer;
-    final me = ref.watch(currentUserIdProvider);
+    final me = ref.watch(callMyIdProvider);
     // Owner 2026-10-20: three or more people — everyone as a tile.
     final group = (s.call?.group ?? false) &&
         (s.phase == CallPhase.connecting || s.phase == CallPhase.active);
