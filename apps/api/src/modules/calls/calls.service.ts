@@ -681,6 +681,15 @@ export class CallsService {
       });
     }
 
+    // Removed by the host: nobody can bring them back into this call.
+    if (rows.some((r) => r.user_id === targetId && r.status === 'removed')) {
+      throw new ForbiddenException({
+        code: ErrorCode.FORBIDDEN,
+        message: 'That person was removed from the call.',
+      });
+    }
+    await this.assertMayCall(user.sub, targetId);
+
     call = await this.ensureGroup(call);
     await this.prisma.callParticipant.upsert({
       where: { call_id_user_id: { call_id: call.id, user_id: targetId } },
@@ -706,6 +715,13 @@ export class CallsService {
     await this.push.enqueueCall({ recipientId: targetId, callId: call.id });
     await this.broadcastParticipants(call.id);
     return this.toDto(call, user.sub);
+  }
+
+  /** Extension point: the invitee's privacy setting "who can call me"
+   * (the check lands with the privacy settings PR). */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  private async assertMayCall(_inviterId: string, _inviteeId: string) {
+    await Promise.resolve();
   }
 
   private async resolveInvitee(dto: InviteCallDto): Promise<string | null> {

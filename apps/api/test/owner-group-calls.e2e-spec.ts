@@ -303,6 +303,12 @@ describe('Group calls (e2e)', () => {
       where: { call_id: callId, user_id: a2.id },
     });
     expect(row.status).toBe('removed');
+    // A removed person cannot be invited into this call again.
+    await api()
+      .post(`/api/v1/calls/${callId}/participants`)
+      .set(cAuth)
+      .send({ userId: a2.id })
+      .expect(403);
 
     // The client leaves: fewer than two remain, so the call ends for all.
     const ended = once<{ call: { status: string } }>(a1Sock, 'call:ended');
