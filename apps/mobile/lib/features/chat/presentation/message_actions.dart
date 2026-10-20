@@ -17,6 +17,9 @@ import 'package:lawbid/features/chat/presentation/chat_message_menu.dart';
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart'
     show kContactMask;
 import 'package:lawbid/features/social/application/social_providers.dart';
+import 'package:lawbid/features/stars/application/stars_providers.dart';
+import 'package:lawbid/features/stars/domain/stars_models.dart';
+import 'package:lawbid/features/stars/presentation/low_stars_sheet.dart';
 
 /// Owner 2026-10-20 (WhatsApp / Telegram): what you can do with a message —
 /// reply, copy, forward, pin, edit (inside the admin's window), select,
@@ -295,13 +298,26 @@ Future<void> showMessageMenu(
   final f = ref.read(l10nFormatsProvider);
   final saved = ref.read(savedChatIdsProvider).value?.contains(m.id) ?? false;
   final myEmoji = m.reactions.where((r) => r.mine).firstOrNull?.emoji;
+  // Premium emojis cost stars (admin «Звёзды»); the row is hidden when the
+  // flag is off or the list could not be read in time.
+  final premium = live && ref.read(starsEnabledProvider)
+      ? await _premiumReactions(ref)
+      : null;
+  if (!context.mounted) return;
   unawaited(HapticFeedback.mediumImpact());
 
-  Future<void> guarded(Future<void> Function() run) async {
+  Future<void> guarded(Future<void> Function() run, {int? price}) async {
     try {
       await run();
     } on Object catch (e) {
-      if (context.mounted) showAppSnackBar(context, _errorOf(t, e));
+      if (!context.mounted) return;
+      if (price != null &&
+          e is ApiException &&
+          e.code == ApiErrorCodes.insufficientStars) {
+        await showLowStarsSheet(context, t, price: price);
+        return;
+      }
+      showAppSnackBar(context, _errorOf(t, e));
     }
   }
 
@@ -352,6 +368,36 @@ Future<void> showMessageMenu(
                             unawaited(
                               guarded(
                                 () => thread.react(m, e == myEmoji ? null : e),
+                              ),
+                            );
+                          },
+                        ),
+                    ],
+                  ),
+                ),
+              if (live &&
+                  premium != null &&
+                  premium.premiumReactions.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.md,
+                  ),
+                  child: Wrap(
+                    key: const ValueKey('msg-premium-reactions'),
+                    alignment: WrapAlignment.spaceBetween,
+                    runSpacing: AppSpacing.xs,
+                    children: [
+                      for (final e in premium.premiumReactions)
+                        _ReactionButton(
+                          emoji: e,
+                          selected: e == myEmoji,
+                          price: premium.reactionStars,
+                          onTap: () {
+                            close();
+                            unawaited(
+                              guarded(
+                                () => thread.react(m, e == myEmoji ? null : e),
+                                price: premium.reactionStars,
                               ),
                             );
                           },
@@ -469,43 +515,75 @@ Future<void> showMessageMenu(
   );
 }
 
+/// The premium emojis and their price; `null` when stars are unreachable.
+Future<StarsOverview?> _premiumReactions(WidgetRef ref) async {
+  // An auto-dispose provider read without a listener can go away while its
+  // request is still in flight, so hold it for the wait.
+  final hold = ref.container.listen(starsOverviewProvider, (_, __) {});
+  try {
+    final d = await ref
+        .read(starsOverviewProvider.future)
+        .timeout(const Duration(milliseconds: 800));
+    return d.enabled ? d : null;
+  } on Object {
+    return null;
+  } finally {
+    hold.close();
+  }
+}
+
 class _ReactionButton extends StatelessWidget {
   const _ReactionButton({
     required this.emoji,
     required this.selected,
     required this.onTap,
+    this.price,
   });
 
   final String emoji;
   final bool selected;
   final VoidCallback onTap;
 
+  /// Stars a premium emoji costs, printed small under it.
+  final int? price;
+
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
     return Semantics(
       button: true,
       selected: selected,
-      label: emoji,
+      label: price == null ? emoji : '$emoji, $price ⭐',
+      excludeSemantics: price != null,
       child: InkResponse(
         onTap: onTap,
         radius: 26,
-        child: Container(
-          width: 46,
-          height: 46,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: selected ? colors.goldTint : null,
-            border: selected ? Border.all(color: colors.gold) : null,
-          ),
-          child: Text(
-            emoji,
-            style: Theme.of(context)
-                .extension<AppTypographyTokens>()!
-                .titleLarge
-                .copyWith(height: 1),
-          ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 46,
+              height: 46,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: selected ? colors.goldTint : null,
+                border: selected ? Border.all(color: colors.gold) : null,
+              ),
+              child: Text(
+                emoji,
+                style: type.titleLarge.copyWith(height: 1),
+              ),
+            ),
+            if (price != null)
+              Text(
+                '$price ⭐',
+                key: ValueKey('react-price-$emoji'),
+                maxLines: 1,
+                style: type.caption.copyWith(color: colors.textSecondary),
+              ),
+          ],
         ),
       ),
     );
