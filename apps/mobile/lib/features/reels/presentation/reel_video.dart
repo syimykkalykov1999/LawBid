@@ -8,6 +8,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/buttons/player_round_button.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/design_system/widgets/display/pinch_to_zoom.dart';
+import 'package:lawbid/core/media/audio_takeover.dart';
 import 'package:lawbid/core/media/playback_visibility.dart';
 import 'package:lawbid/features/reels/application/reels_providers.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
@@ -240,8 +241,24 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
     // the same audio mode, so the phone's audio session is set once and
     // never switched while another reel plays — only the volume changes.
     if (widget.video.playbackUrl != old.video.playbackUrl) _close();
+    // The player was opened mixing (it was muted) and the audio mode of a
+    // running player cannot change: a voice note playing underneath must be
+    // paused by hand, or the reel plays over it without taking the focus.
+    if (old.muted && !widget.muted && widget.active && _c != null) {
+      _pauseVoiceNote();
+    }
     if ((widget.active || widget.warm) && _c == null) _open();
     _apply();
+  }
+
+  void _pauseVoiceNote() {
+    try {
+      ProviderScope.containerOf(context, listen: false)
+          .read(audioTakeoverProvider.notifier)
+          .take();
+    } on Object {
+      // No provider scope (a bare widget test): nothing is playing.
+    }
   }
 
   /// There is a stream to play.
@@ -255,8 +272,10 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
     final url = widget.video.playerUrl(web: kIsWeb);
     if (url == null) return;
     // One audio mode for every reel (see didUpdateWidget): with sound a
-    // reel takes the audio focus, like Instagram.
-    final options = VideoPlayerOptions();
+    // reel takes the audio focus, like Instagram. A silent one (a feed
+    // card) mixes instead — grabbing the focus paused a voice note playing
+    // in the mini-player the moment the chat was left for the feed.
+    final options = VideoPlayerOptions(mixWithOthers: widget.muted);
     final c = debugReelPlayerFactory?.call(Uri.parse(url), options) ??
         VideoPlayerController.networkUrl(
           Uri.parse(url),
