@@ -124,10 +124,9 @@ class _FindGroupsScreenState extends ConsumerState<FindGroupsScreen> {
                 hintText: t.t('group.find.hint'),
                 semanticLabel: t.t('group.find.hint'),
                 textInputAction: TextInputAction.search,
-                leading: AppIcon(
-                  AppIcons.searchRounded,
-                  size: AppSizes.iconSm,
-                  color: colors.textSecondary,
+                leading: Text(
+                  '@',
+                  style: TextStyle(color: colors.textSecondary),
                 ),
                 onChanged: _onChanged,
                 onSubmitted: (v) {

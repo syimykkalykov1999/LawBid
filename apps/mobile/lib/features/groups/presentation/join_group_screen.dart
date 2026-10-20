@@ -16,10 +16,13 @@ import 'package:lawbid/features/groups/group_routes.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_avatar.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
-/// What the invite link (or @username) points at; one read per code.
+/// What the invite link (or @username) points at; one read per code. No
+/// automatic retry: a dead link answers 404 once and the screen says so
+/// (Riverpod would otherwise repeat the call behind a spinner forever).
 final _invitePreviewProvider =
     FutureProvider.autoDispose.family<api.GroupInvitePreviewDto, String>(
   (ref, code) => ref.watch(groupRepositoryProvider).preview(code),
+  retry: (retryCount, error) => null,
 );
 
 /// An invite link / @username opened: shows the group and lets me join it,
@@ -104,8 +107,8 @@ class _JoinGroupScreenState extends ConsumerState<JoinGroupScreen> {
   }
 
   Widget _failure(Translator t, Object error) {
-    final notFound =
-        error is ApiException && error.code == ApiErrorCodes.groupNotFound;
+    final notFound = error is ApiException &&
+        (error.code == ApiErrorCodes.groupNotFound || error.statusCode == 404);
     if (!notFound) {
       return CasesErrorView(
         error: error,
