@@ -400,19 +400,16 @@ class _AttachmentBody extends ConsumerWidget {
     var captionWidth = 240.0;
     final Widget content;
     if (a.isVideo) {
+      final box = chatMediaBox(context, a);
       content = ChatVideoTile(
         attachment: a,
         sending: false,
         playLabel: t.t('chat.attach.videoPlay'),
+        box: box,
       );
-      captionWidth = 220;
+      captionWidth = box.width;
     } else if (a.isImage) {
-      final limits = chatMediaLimits(context);
-      final box = chatPhotoBox(
-        chatAspectOf(a),
-        maxWidth: limits.maxWidth,
-        maxHeight: limits.maxHeight,
-      );
+      final box = chatMediaBox(context, a);
       captionWidth = box.width;
       content = Semantics(
         button: a.url != null,

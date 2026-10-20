@@ -7,6 +7,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/audio/app_sounds.dart';
 import 'package:lawbid/core/connectivity/connectivity_providers.dart';
+import 'package:lawbid/core/media/image_size.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/features/cases/application/paged_notifier.dart';
@@ -736,6 +737,8 @@ class ChatThread extends Notifier<ChatThreadState> {
     final owner = ref.read(currentUserIdProvider);
     if (owner == null) return;
     final cmid = newClientMessageId();
+    final isImage = mime.startsWith('image/');
+    final px = isImage ? await imageSizeOf(bytes) : null;
     final local = ChatMessage(
       id: 'local:$cmid',
       conversationId: id,
@@ -748,10 +751,12 @@ class ChatThread extends Notifier<ChatThreadState> {
       attachment: ChatAttachment(
         fileId: '',
         name: name,
-        isImage: mime.startsWith('image/'),
+        isImage: isImage,
         mime: mime,
         sizeBytes: bytes.length,
         localBytes: bytes,
+        width: px?.width.round(),
+        height: px?.height.round(),
       ),
     );
     state = state.copyWith(voiceOutbox: [...state.voiceOutbox, local]);

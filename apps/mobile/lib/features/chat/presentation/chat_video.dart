@@ -25,11 +25,16 @@ class ChatVideoTile extends StatefulWidget {
     required this.playLabel,
     super.key,
     this.fill = false,
+    this.box,
   });
 
   /// A square cell of the media grid: fills its box, small play badge,
   /// no rounded corners of its own.
   final bool fill;
+
+  /// The bubble's size (from the server's width / height, see
+  /// `chatMediaBox`); without it the tile is 220 wide.
+  final Size? box;
   final ChatAttachment attachment;
   final bool sending;
   final String playLabel;
@@ -138,9 +143,13 @@ class _ChatVideoTileState extends State<ChatVideoTile> {
           child: ClipRRect(
             borderRadius: BorderRadius.circular(widget.fill ? 0 : 12),
             child: SizedBox(
-              width: widget.fill ? null : 220,
+              width: widget.fill ? null : (widget.box?.width ?? 220),
               child: AspectRatio(
-                aspectRatio: widget.fill ? 1 : ratio,
+                aspectRatio: widget.fill
+                    ? 1
+                    : (widget.box == null
+                        ? ratio
+                        : widget.box!.width / widget.box!.height),
                 child: Stack(
                   fit: StackFit.expand,
                   children: [

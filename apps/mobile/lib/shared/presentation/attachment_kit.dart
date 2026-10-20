@@ -12,6 +12,7 @@ export 'package:lawbid/features/chat/presentation/chat_album.dart'
         ChatMediaAlbum,
         ChatPhoto,
         chatAspectOf,
+        chatMediaBox,
         chatMediaLimits,
         chatPhotoBox;
 export 'package:lawbid/features/chat/presentation/chat_video.dart'

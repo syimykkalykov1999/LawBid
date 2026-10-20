@@ -12,6 +12,7 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/features/chat/data/chat_extras_repository.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
+import 'package:lawbid/features/chat/presentation/attachment_widgets.dart';
 import 'package:lawbid/features/chat/presentation/chat_cards.dart';
 import 'package:lawbid/features/chat/presentation/chat_message_menu.dart';
 import 'package:lawbid/features/chat/presentation/saved_chats_view.dart';
@@ -203,6 +204,69 @@ void main() {
                 child: child,
               ),
             );
+
+        testWidgets('photo and video bubbles keep their server shape', (
+          tester,
+        ) async {
+          ChatMessage media(String id, ChatAttachment a, {bool mine = false}) =>
+              ChatMessage(
+                id: id,
+                conversationId: 'c1',
+                senderId: mine ? 'me' : 'u2',
+                kind: MessageKind.attachment,
+                body: 'A long caption under the media that wraps on a phone',
+                createdAt: DateTime(2026, 10, 20),
+                attachment: a,
+              );
+          const photo = ChatAttachment(
+            fileId: 'p',
+            name: 'a.jpg',
+            isImage: true,
+            width: 4000,
+            height: 3000,
+          );
+          const small = ChatAttachment(
+            fileId: 's',
+            name: 'b.jpg',
+            isImage: true,
+            width: 150,
+            height: 100,
+          );
+          const video = ChatAttachment(
+            fileId: 'v',
+            name: 'c.mp4',
+            isImage: false,
+            mime: 'video/mp4',
+            width: 1080,
+            height: 1920,
+          );
+          await pump(
+            tester,
+            Scaffold(
+              body: ListView(
+                children: [
+                  for (final a in [photo, small, video])
+                    bubble(
+                      mine: false,
+                      child: AttachmentMessageBody(
+                        message: media(a.fileId, a),
+                        mine: false,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          );
+          expect(tester.takeException(), isNull);
+          final sizes = [
+            for (final f in find.byType(AttachmentMessageBody).evaluate())
+              tester.getSize(find.byWidget(f.widget)),
+          ];
+          // The small picture is not stretched to the bubble width.
+          expect(sizes[1].width, lessThan(sizes[0].width));
+          await tester.pumpWidget(const SizedBox());
+          await tester.pump(const Duration(seconds: 5));
+        });
 
         testWidgets('contact and place cards in a bubble', (tester) async {
           await pump(

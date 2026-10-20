@@ -31,21 +31,47 @@ double? chatAspectOf(ChatAttachment a) =>
         ? a.width! / a.height!
         : null;
 
-/// The box of a single photo: its own shape inside the limits; a very tall
-/// or very wide one is cover-cropped (Telegram) instead of becoming a strip.
+/// The box of a single photo / video: its own shape inside the limits, never
+/// bigger than the media itself (WhatsApp / Telegram: a small picture is not
+/// stretched); a very tall or very wide one is cover-cropped instead of
+/// becoming a strip. Drawn from the server's width / height before the
+/// bytes arrive, so the bubble never jumps.
 Size chatPhotoBox(
   double? aspect, {
   required double maxWidth,
   required double maxHeight,
+  Size? original,
 }) {
   final r = aspect ?? 4 / 3;
-  var w = maxWidth;
-  var h = w / r;
-  if (h > maxHeight) {
-    h = maxHeight;
-    w = math.max(h * r, maxWidth * 0.5);
+  var mw = maxWidth;
+  var mh = maxHeight;
+  if (original != null && original.width > 0 && original.height > 0) {
+    mw = math.min(mw, math.max(original.width, kChatMediaMinSide));
+    mh = math.min(mh, math.max(original.height, kChatMediaMinSide));
   }
-  return Size(w, math.max(h, maxWidth * 0.4));
+  var w = mw;
+  var h = w / r;
+  if (h > mh) {
+    h = mh;
+    w = math.max(h * r, mw * 0.5);
+  }
+  return Size(w, math.max(h, mw * 0.4));
+}
+
+/// The smallest side a tiny picture is drawn at (dp).
+const kChatMediaMinSide = 96.0;
+
+/// The bubble box of the media [a] (photo or video) in this chat.
+Size chatMediaBox(BuildContext context, ChatAttachment a) {
+  final limits = chatMediaLimits(context);
+  return chatPhotoBox(
+    chatAspectOf(a) ?? (a.isVideo ? 3 / 4 : null),
+    maxWidth: limits.maxWidth,
+    maxHeight: limits.maxHeight,
+    original: a.width != null && a.height != null
+        ? Size(a.width!.toDouble(), a.height!.toDouble())
+        : null,
+  );
 }
 
 /// The cells of an album of [count] items, in units of the album's width
