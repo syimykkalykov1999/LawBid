@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lawbid/core/diagnostics/app_events.dart';
 import 'package:lawbid/core/config/app_environment.dart';
+import 'package:lawbid/core/diagnostics/app_events.dart';
 import 'package:lawbid/core/diagnostics/crash_reporter.dart';
 import 'package:lawbid/core/diagnostics/sentry_reporter.dart';
 import 'package:lawbid/core/feature_flags/default_feature_flags.dart';

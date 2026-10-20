@@ -30,10 +30,13 @@ void main() {
 
   setUp(() {
     adapter = _Adapter();
-    SentryReporter.debugReset(dio: Dio()..httpClientAdapter = adapter, release: true);
+    SentryReporter.debugReset(
+      dio: Dio()..httpClientAdapter = adapter,
+      release: true,
+    );
   });
 
-  test('sends one envelope to the project endpoint with no personal data', () async {
+  test('sends one envelope, no personal data', () async {
     SentryReporter.configure(dsn, AppFlavor.prod);
     SentryReporter.capture(
       StateError('bad for jane@firm.com +1 415 555 2680'),
@@ -70,7 +73,10 @@ void main() {
   test('dev flavor and debug builds never report', () async {
     SentryReporter.configure(dsn, AppFlavor.dev);
     SentryReporter.capture(StateError('x'), null);
-    SentryReporter.debugReset(dio: Dio()..httpClientAdapter = adapter, release: false);
+    SentryReporter.debugReset(
+      dio: Dio()..httpClientAdapter = adapter,
+      release: false,
+    );
     SentryReporter.configure(dsn, AppFlavor.prod);
     SentryReporter.capture(StateError('y'), null);
     await Future<void>.delayed(const Duration(milliseconds: 50));

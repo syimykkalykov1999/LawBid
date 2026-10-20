@@ -147,14 +147,15 @@ class SentryReporter {
   }
 
   static String _platform() {
-    switch (defaultTargetPlatform) {
-      case TargetPlatform.android:
-        return 'android';
-      case TargetPlatform.iOS:
-        return 'ios';
-      default:
-        return 'web';
-    }
+    return switch (defaultTargetPlatform) {
+      TargetPlatform.android => 'android',
+      TargetPlatform.iOS => 'ios',
+      TargetPlatform.fuchsia ||
+      TargetPlatform.linux ||
+      TargetPlatform.macOS ||
+      TargetPlatform.windows =>
+        'web',
+    };
   }
 
   static Future<void> _send(_Captured c) async {
@@ -187,7 +188,8 @@ class SentryReporter {
         },
         if (parsed.isEmpty)
           'extra': {
-            'stack': c.stack.length > 8000 ? c.stack.substring(0, 8000) : c.stack,
+            'stack':
+                c.stack.length > 8000 ? c.stack.substring(0, 8000) : c.stack,
           },
       };
       final body = [
