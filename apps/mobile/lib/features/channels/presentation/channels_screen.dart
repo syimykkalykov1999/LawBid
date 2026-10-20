@@ -39,7 +39,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
 
   void _typed(String raw) {
     _debounce?.cancel();
-    final v = raw.trim();
+    // The field shows its own leading «@»; one typed or pasted is dropped.
+    final v = raw.trim().replaceFirst(RegExp('^@+'), '');
     if (v.isEmpty) {
       setState(() => _query = '');
       return;
@@ -99,9 +100,22 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                 controller: _text,
                 hintText: t.t('channel.search.hint'),
                 semanticLabel: t.t('channel.search.hint'),
-                leading: AppIcon(
-                  AppIcons.searchRounded,
-                  color: colors.textSecondary,
+                leading: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    AppIcon(
+                      AppIcons.searchRounded,
+                      color: colors.textSecondary,
+                    ),
+                    const SizedBox(width: AppSpacing.xs),
+                    Text(
+                      '@',
+                      style: Theme.of(context)
+                          .extension<AppTypographyTokens>()!
+                          .body
+                          .copyWith(color: colors.textSecondary),
+                    ),
+                  ],
                 ),
                 textInputAction: TextInputAction.search,
                 onChanged: _typed,
