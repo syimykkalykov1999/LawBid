@@ -152,6 +152,14 @@ abstract class ChannelsClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
+  /// Count a share of a post (one per person per day)
+  @POST('/channels/{id}/posts/{postId}/share')
+  Future<void> channelSharePost({
+    @Path('id') required String id,
+    @Path('postId') required String postId,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
   /// One post of a channel
   @GET('/channels/{id}/posts/{postId}')
   Future<ChannelPostEnvelope> channelPost({

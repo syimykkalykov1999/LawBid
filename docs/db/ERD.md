@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-223 tables.
+224 tables.
 
 ```mermaid
 erDiagram
@@ -2473,6 +2473,7 @@ erDiagram
     String status
     Int view_count
     Int comment_count
+    Int share_count
     DateTime created_at
     DateTime edited_at "nullable"
     DateTime deleted_at "nullable"
@@ -2481,6 +2482,12 @@ erDiagram
     String post_id PK,FK
     String user_id PK
     DateTime viewed_at
+  }
+  channel_post_shares {
+    String id PK
+    String post_id FK
+    String user_id
+    DateTime created_at
   }
   channel_reactions {
     String post_id PK,FK
@@ -2965,6 +2972,7 @@ erDiagram
   channel_posts }o--|| users : "author_id"
   channel_posts |o--o| video_assets : "video_asset_id"
   channel_post_views }o--|| channel_posts : "post_id"
+  channel_post_shares }o--|| channel_posts : "post_id"
   channel_reactions }o--|| channel_posts : "post_id"
   channel_reactions }o--|| users : "user_id"
   channel_comments }o--|| channel_posts : "post_id"

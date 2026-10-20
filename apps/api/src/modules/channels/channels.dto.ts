@@ -230,6 +230,9 @@ export class ChannelPostDto {
   @ApiProperty({ type: 'integer' })
   commentCount!: number;
 
+  @ApiProperty({ type: 'integer' })
+  shareCount!: number;
+
   @ApiProperty({ type: [ChannelReactionCountDto] })
   reactions!: ChannelReactionCountDto[];
 

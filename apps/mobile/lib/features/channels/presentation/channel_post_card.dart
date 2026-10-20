@@ -174,6 +174,9 @@ class ChannelPostCard extends ConsumerWidget {
         ),
     ];
     final video = post.video;
+    final ago = SocialFormat.ago(t, f, post.createdAt);
+    final when =
+        post.editedAt == null ? ago : '$ago · ${t.t('channel.post.edited')}';
     return VisibilityDetector(
       key: ValueKey('channel-post-${post.id}'),
       onVisibilityChanged: (info) {
@@ -222,9 +225,8 @@ class ChannelPostCard extends ConsumerWidget {
                 ),
                 child: ChannelLinkedText(text: post.body, collapsedLines: 10),
               ),
-            // Owner 2026-10-20: the «react» button sits in the footer row, so
-            // there is no empty strip between the text and the icons; chips
-            // show only when someone reacted.
+            // Owner 2026-10-20 (Telegram): small reaction chips from the
+            // start edge right under the text; nothing is centered.
             if (post.reactions.any((r) => r.count > 0))
               Padding(
                 padding: const EdgeInsets.fromLTRB(
@@ -234,9 +236,8 @@ class ChannelPostCard extends ConsumerWidget {
                   0,
                 ),
                 child: Wrap(
-                  spacing: AppSpacing.sm,
+                  spacing: AppSpacing.xs,
                   runSpacing: AppSpacing.xs,
-                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     for (final r in post.reactions)
                       if (r.count > 0)
@@ -254,9 +255,11 @@ class ChannelPostCard extends ConsumerWidget {
                   ],
                 ),
               ),
+            // Icons with their numbers on the start side, views and the
+            // time at the end (Telegram), then the menu.
             Padding(
               padding: const EdgeInsetsDirectional.fromSTEB(
-                AppSpacing.lg,
+                AppSpacing.md,
                 0,
                 AppSpacing.xs,
                 AppSpacing.xs,
@@ -264,71 +267,75 @@ class ChannelPostCard extends ConsumerWidget {
               child: Row(
                 children: [
                   Expanded(
-                    child: Wrap(
-                      spacing: AppSpacing.md,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            AppIcon(
-                              AppIcons.visibilityOutlined,
-                              size: 16,
-                              color: colors.textSecondary,
-                            ),
-                            const SizedBox(width: AppSpacing.xs),
-                            Semantics(
-                              label: SocialFormat.plural(
-                                t,
-                                f,
-                                'channel.post.views',
-                                post.viewCount,
-                              ),
-                              excludeSemantics: true,
-                              child: Text(
-                                SocialFormat.count(f, post.viewCount),
-                                style: type.caption.copyWith(
-                                  color: colors.textSecondary,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        Text(
-                          post.editedAt == null
-                              ? SocialFormat.ago(t, f, post.createdAt)
-                              : '${SocialFormat.ago(t, f, post.createdAt)}'
-                                  ' · ${t.t('channel.post.edited')}',
-                          style: type.caption.copyWith(
-                            color: colors.textSecondary,
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: AlignmentDirectional.centerStart,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _ActionButton(
+                            key: const ValueKey('channel-react-add'),
+                            icon: AppIcons.thumbUpAltOutlined,
+                            label: t.t('channel.react.add'),
+                            text: post.reactionTotal > 0
+                                ? SocialFormat.count(f, post.reactionTotal)
+                                : null,
+                            onTap: () => _pickReaction(context, ref),
                           ),
-                        ),
-                      ],
+                          if (channel.commentsEnabled)
+                            _ActionButton(
+                              key: const ValueKey('channel-post-comments'),
+                              icon: AppIcons.modeCommentOutlined,
+                              label: t.t('channel.comments'),
+                              text: post.commentCount > 0
+                                  ? SocialFormat.count(f, post.commentCount)
+                                  : null,
+                              onTap: () => ChannelCommentsScreen.open(
+                                context,
+                                channel,
+                                post,
+                              ),
+                            ),
+                          _ActionButton(
+                            key: const ValueKey('channel-post-share'),
+                            icon: AppIcons.iosShareRounded,
+                            label: t.t('channel.share'),
+                            text: post.shareCount > 0
+                                ? SocialFormat.count(f, post.shareCount)
+                                : null,
+                            onTap: () => shareChannel(
+                              context,
+                              ref,
+                              channel,
+                              postId: post.id,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                  _ActionButton(
-                    key: const ValueKey('channel-react-add'),
-                    icon: AppIcons.thumbUpAltOutlined,
-                    label: t.t('channel.react.add'),
-                    onTap: () => _pickReaction(context, ref),
+                  const SizedBox(width: AppSpacing.sm),
+                  AppIcon(
+                    AppIcons.visibilityOutlined,
+                    size: 16,
+                    color: colors.textSecondary,
                   ),
-                  if (channel.commentsEnabled)
-                    _ActionButton(
-                      key: const ValueKey('channel-post-comments'),
-                      icon: AppIcons.modeCommentOutlined,
-                      label: t.t('channel.comments'),
-                      text: post.commentCount > 0
-                          ? SocialFormat.count(f, post.commentCount)
-                          : null,
-                      onTap: () =>
-                          ChannelCommentsScreen.open(context, channel, post),
+                  const SizedBox(width: AppSpacing.xs),
+                  Semantics(
+                    label: SocialFormat.plural(
+                      t,
+                      f,
+                      'channel.post.views',
+                      post.viewCount,
                     ),
-                  AppIconButton(
-                    key: const ValueKey('channel-post-share'),
-                    icon: AppIcon(AppIcons.iosShareRounded, color: colors.text),
-                    semanticLabel: t.t('channel.share'),
-                    onPressed: () =>
-                        shareChannel(context, ref, channel, postId: post.id),
+                    excludeSemantics: true,
+                    child: Text(
+                      '${SocialFormat.count(f, post.viewCount)} · $when',
+                      maxLines: 1,
+                      style: type.caption.copyWith(
+                        color: colors.textSecondary,
+                      ),
+                    ),
                   ),
                   AppIconButton(
                     key: const ValueKey('channel-post-menu'),
@@ -369,15 +376,12 @@ class _ReactionChip extends StatelessWidget {
         label: label,
         excludeSemantics: true,
         onTap: onTap,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: AppSizes.touchTarget),
-          child: Center(
-            child: AppChip(
-              label: '$emoji $count',
-              selected: selected,
-              onTap: onTap,
-            ),
-          ),
+        // Compact (28), as wide as its content, never stretched.
+        child: AppChip(
+          label: '$emoji $count',
+          selected: selected,
+          height: 28,
+          onTap: onTap,
         ),
       );
 }

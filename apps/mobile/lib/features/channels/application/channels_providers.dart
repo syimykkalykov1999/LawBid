@@ -254,6 +254,18 @@ class ChannelPostsNotifier extends AsyncNotifier<PaginatedList<ChannelPost>> {
     ref.invalidate(channelProvider);
   }
 
+  /// A completed share: the counter moves after the server confirmed.
+  Future<void> shared(String postId) async {
+    try {
+      await _repo.sharePost(channelId, postId);
+    } on Object {
+      return;
+    }
+    if (ref.mounted) {
+      patch(postId, (p) => p.copyWith(shareCount: p.shareCount + 1));
+    }
+  }
+
   /// A post that stayed on screen counts as viewed; the ids are sent in
   /// one batch a moment later (the server counts one view per reader).
   void viewed(String postId) {

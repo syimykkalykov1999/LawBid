@@ -240,6 +240,12 @@ class FakeChannelsRepository implements ChannelsRepository {
 
   final viewed = <List<String>>[];
 
+  final shares = <String>[];
+
+  @override
+  Future<void> sharePost(String id, String postId) =>
+      _run('sharePost', () => shares.add(postId));
+
   @override
   Future<void> markViewed(String id, List<String> postIds) =>
       _run('markViewed', () => viewed.add(postIds));

@@ -21,6 +21,7 @@ class ChannelPostDto {
     required this.media,
     required this.viewCount,
     required this.commentCount,
+    required this.shareCount,
     required this.reactions,
     required this.createdAt,
     this.video,
@@ -39,6 +40,7 @@ class ChannelPostDto {
   final PostVideoDto? video;
   final int viewCount;
   final int commentCount;
+  final int shareCount;
   final List<ChannelReactionCountDto> reactions;
   final String? myReaction;
   final DateTime createdAt;

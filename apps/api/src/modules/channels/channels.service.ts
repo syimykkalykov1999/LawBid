@@ -613,6 +613,35 @@ export class ChannelsService {
     }
   }
 
+  /** POST /channels/:id/posts/:postId/share — one share per person and
+   * post per 24 h counts. */
+  async sharePost(
+    user: RequestUser,
+    id: string,
+    postId: string,
+  ): Promise<void> {
+    await this.assertEnabled();
+    const ch = await this.findReadable(user.sub, id);
+    const post = await this.prisma.channelPost.findFirst({
+      where: { id: postId, channel_id: ch.id, status: 'active' },
+      select: { id: true },
+    });
+    if (!post) throw notFound('Post');
+    const since = new Date(Date.now() - 24 * 3600 * 1000);
+    const already = await this.prisma.channelPostShare.findFirst({
+      where: { post_id: post.id, user_id: user.sub, created_at: { gt: since } },
+      select: { id: true },
+    });
+    if (already) return;
+    await this.prisma.channelPostShare.create({
+      data: { post_id: post.id, user_id: user.sub },
+    });
+    await this.prisma.channelPost.update({
+      where: { id: post.id },
+      data: { share_count: { increment: 1 } },
+    });
+  }
+
   async react(
     user: RequestUser,
     id: string,
@@ -1009,6 +1038,7 @@ export class ChannelsService {
             : null,
           viewCount: r.view_count,
           commentCount: r.comment_count,
+          shareCount: r.share_count,
           reactions: counts
             .filter((c) => c.post_id === r.id)
             .map((c) => ({ emoji: c.emoji, count: c._count._all }))

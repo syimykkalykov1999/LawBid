@@ -23,14 +23,18 @@ Future<void> shareChannel(
   WidgetRef ref,
   Channel channel, {
   String? postId,
-}) {
+}) async {
   final t = ref.read(translatorProvider);
-  return showShareSheet(
+  final shared = await showShareSheet(
     context,
     t: t,
     link: channelLink(ref, channel, postId: postId),
     text: channel.title,
   );
+  // Owner 2026-10-20: a post's share counter (not for the channel itself).
+  if (shared && postId != null) {
+    await ref.read(channelPostsProvider(channel.id).notifier).shared(postId);
+  }
 }
 
 /// The reasons a channel or a post can be reported for.

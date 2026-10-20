@@ -190,6 +190,7 @@ export const WIPE_TABLES: Readonly<Record<string, string>> = {
   channel_subscriptions: 'channel subscribers',
   channel_posts: 'channel posts',
   channel_post_views: 'channel post views',
+  channel_post_shares: 'channel post shares',
   channel_reactions: 'channel reactions',
   channel_comments: 'channel comments',
   // stars (owner 2026-10-20): test balances, purchases and gifts given

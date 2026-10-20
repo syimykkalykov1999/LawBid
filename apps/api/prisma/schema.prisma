@@ -5961,10 +5961,12 @@ model ChannelPost {
   status         String            @default("active") @db.VarChar(10)
   view_count     Int               @default(0)
   comment_count  Int               @default(0)
+  share_count    Int               @default(0)
   created_at     DateTime          @default(now()) @db.Timestamptz
   edited_at      DateTime?         @db.Timestamptz
   deleted_at     DateTime?         @db.Timestamptz
   views          ChannelPostView[]
+  shares         ChannelPostShare[]
   reactions      ChannelReaction[]
   comments       ChannelComment[]
 
@@ -5981,6 +5983,18 @@ model ChannelPostView {
 
   @@id([post_id, user_id])
   @@map("channel_post_views")
+}
+
+/// A completed share of a channel post (one counts per person per 24 h).
+model ChannelPostShare {
+  id         String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  post_id    String      @db.Uuid
+  post       ChannelPost @relation(fields: [post_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "channel_post_shares_post_fkey")
+  user_id    String      @db.Uuid
+  created_at DateTime    @default(now()) @db.Timestamptz
+
+  @@index([post_id, user_id, created_at])
+  @@map("channel_post_shares")
 }
 
 /// A person's one reaction (an emoji) to a channel post.

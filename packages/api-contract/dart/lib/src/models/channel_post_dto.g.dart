@@ -17,6 +17,7 @@ ChannelPostDto _$ChannelPostDtoFromJson(Map<String, dynamic> json) =>
           .toList(),
       viewCount: (json['viewCount'] as num).toInt(),
       commentCount: (json['commentCount'] as num).toInt(),
+      shareCount: (json['shareCount'] as num).toInt(),
       reactions: (json['reactions'] as List<dynamic>)
           .map(
             (e) => ChannelReactionCountDto.fromJson(e as Map<String, dynamic>),
@@ -42,6 +43,7 @@ Map<String, dynamic> _$ChannelPostDtoToJson(ChannelPostDto instance) =>
       'video': ?instance.video?.toJson(),
       'viewCount': instance.viewCount,
       'commentCount': instance.commentCount,
+      'shareCount': instance.shareCount,
       'reactions': instance.reactions.map((e) => e.toJson()).toList(),
       'myReaction': ?instance.myReaction,
       'createdAt': instance.createdAt.toIso8601String(),

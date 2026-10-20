@@ -229,6 +229,21 @@ describe('Channels (e2e)', () => {
       .set(a.auth);
     expect(viewed.body.data.viewCount).toBe(2);
 
+    // Shares: one per person per 24 h counts.
+    for (const who of [a, a, b]) {
+      expect(
+        (
+          await api()
+            .post(`/api/v1/channels/${ch.id}/posts/${postId}/share`)
+            .set(who.auth)
+        ).status,
+      ).toBe(204);
+    }
+    const shared = await api()
+      .get(`/api/v1/channels/${ch.id}/posts/${postId}`)
+      .set(a.auth);
+    expect(shared.body.data.shareCount).toBe(2);
+
     // One reaction per person; changing replaces; removing clears.
     const r1 = await api()
       .put(`/api/v1/channels/${ch.id}/posts/${postId}/reaction`)

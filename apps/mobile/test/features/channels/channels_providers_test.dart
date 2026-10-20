@@ -174,6 +174,28 @@ void main() {
     });
   });
 
+  group('shares', () {
+    test('the counter moves after the server confirmed the share', () async {
+      final repo = FakeChannelsRepository(feed: [fakePost('p1')]);
+      final c = boot(repo);
+      final feed = c.listen(channelPostsProvider('ch-1'), (_, __) {});
+      addTearDown(feed.close);
+      await c.read(channelPostsProvider('ch-1').future);
+      await c.read(channelPostsProvider('ch-1').notifier).shared('p1');
+      expect(repo.shares, ['p1']);
+      expect(
+        c.read(channelPostsProvider('ch-1')).requireValue.items[0].shareCount,
+        1,
+      );
+      repo.failWith = offline;
+      await c.read(channelPostsProvider('ch-1').notifier).shared('p1');
+      expect(
+        c.read(channelPostsProvider('ch-1')).requireValue.items[0].shareCount,
+        1,
+      );
+    });
+  });
+
   group('comments', () {
     test('adding and deleting move the post comment count', () async {
       final repo = FakeChannelsRepository(

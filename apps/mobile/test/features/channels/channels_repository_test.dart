@@ -56,6 +56,7 @@ Map<String, Object?> postJson(String id) => {
       'video': {'status': 'ready', 'playbackUrl': 'https://x.test/v.m3u8'},
       'viewCount': 5,
       'commentCount': 2,
+      'shareCount': 3,
       'reactions': [
         {'emoji': '👍', 'count': 3},
       ],

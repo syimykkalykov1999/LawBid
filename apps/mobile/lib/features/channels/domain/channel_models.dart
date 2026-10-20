@@ -159,6 +159,7 @@ class ChannelPost {
     required this.commentCount,
     required this.reactions,
     required this.createdAt,
+    this.shareCount = 0,
     this.video,
     this.myReaction,
     this.editedAt,
@@ -172,6 +173,7 @@ class ChannelPost {
   final PostVideo? video;
   final int viewCount;
   final int commentCount;
+  final int shareCount;
   final List<ChannelReactionCount> reactions;
   final String? myReaction;
   final DateTime createdAt;
@@ -219,6 +221,7 @@ class ChannelPost {
   ChannelPost copyWith({
     String? body,
     int? commentCount,
+    int? shareCount,
     int? viewCount,
     List<ChannelReactionCount>? reactions,
     String? myReaction,
@@ -234,6 +237,7 @@ class ChannelPost {
         video: video,
         viewCount: viewCount ?? this.viewCount,
         commentCount: commentCount ?? this.commentCount,
+        shareCount: shareCount ?? this.shareCount,
         reactions: reactions ?? this.reactions,
         myReaction: clearReaction ? null : (myReaction ?? this.myReaction),
         createdAt: createdAt,

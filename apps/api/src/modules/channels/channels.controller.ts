@@ -267,6 +267,17 @@ export class ChannelsController {
     return this.channels.markViewed(user, p.id, dto.postIds);
   }
 
+  @Post(':id/posts/:postId/share')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Count a share of a post (one per person per day)' })
+  @ApiErrors({ 404: [E.NOT_FOUND] })
+  channelSharePost(
+    @CurrentUser() user: RequestUser,
+    @Param() p: ChannelPostParamDto,
+  ): Promise<void> {
+    return this.channels.sharePost(user, p.id, p.postId);
+  }
+
   @Get(':id/posts/:postId')
   @ApiOperation({ summary: 'One post of a channel' })
   @ApiEnvelopeResponse(ChannelPostDto)

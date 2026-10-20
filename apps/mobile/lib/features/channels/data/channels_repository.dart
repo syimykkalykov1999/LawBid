@@ -235,6 +235,11 @@ class ChannelsRepository {
         () => _channels.channelRemovePost(id: id, postId: postId),
       );
 
+  /// A completed share of a post (the server counts one per person a day).
+  Future<void> sharePost(String id, String postId) => guardApiCall(
+        () => _channels.channelSharePost(id: id, postId: postId),
+      );
+
   /// Counts the posts as seen (the server counts once per reader).
   Future<void> markViewed(String id, List<String> postIds) => guardApiCall(
         () => _channels.channelMarkViewed(
@@ -551,6 +556,7 @@ class ChannelsRepository {
         video: d.video == null ? null : videoOf(d.video!),
         viewCount: d.viewCount,
         commentCount: d.commentCount,
+        shareCount: d.shareCount,
         reactions: [
           for (final r in d.reactions)
             ChannelReactionCount(r.emoji.json ?? '', r.count),
