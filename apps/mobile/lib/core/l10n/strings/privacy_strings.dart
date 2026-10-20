@@ -1,0 +1,105 @@
+// ignore_for_file: lines_longer_than_80_chars
+// Owner 2026-10-20 (privacy and moderation): Settings → Privacy and safety,
+// my reports, moderation decisions and appeals, new report reasons. Merged
+// into StaticTranslatorRu/En; the other languages come from the workbook.
+
+const privacyRu = <String, String>{
+  'settings.privacy': 'Конфиденциальность и безопасность',
+  'privacy.title': 'Конфиденциальность и безопасность',
+  'privacy.section.who': 'Кто может',
+  'privacy.section.safety': 'Безопасность',
+  'privacy.lastSeen': 'Видеть, когда я в сети',
+  'privacy.messageFrom': 'Начинать со мной чат',
+  'privacy.callFrom': 'Звонить мне',
+  'privacy.audience.everyone': 'Все',
+  'privacy.audience.contacts': 'Мои контакты',
+  'privacy.audience.nobody': 'Никто',
+  'privacy.hint.lastSeen':
+      'Если вы скрываете свой статус, вы не видите и чужой.',
+  'privacy.hint.contacts':
+      'Мои контакты: люди из вашей телефонной книги, которые есть в LawBid, и те, на кого вы подписаны.',
+  'privacy.hint.case':
+      'Участники ваших дел всегда могут вам писать и звонить. Уже начатые чаты не закрываются.',
+  'privacy.myReports': 'Мои жалобы',
+  'privacy.notices': 'Решения по моему контенту',
+  'reports.mine.empty': 'Вы ещё ни на что не жаловались.',
+  'reports.mine.status.open': 'На рассмотрении',
+  'reports.mine.status.actioned': 'Меры приняты',
+  'reports.mine.status.dismissed': 'Нарушений не найдено',
+  'notices.empty': 'Модерация не трогала ваши посты, комментарии и сообщения.',
+  'notices.action.hide': 'Скрыто',
+  'notices.action.remove': 'Удалено',
+  'notices.action.warn': 'Предупреждение',
+  'notices.action.restore': 'Возвращено',
+  'notices.reason': 'Причина: {reason}',
+  'notices.appeal': 'Обжаловать',
+  'notices.appeal.title': 'Обжаловать решение',
+  'notices.appeal.hint':
+      'Объясните модераторам, почему решение неверное. Обжаловать можно один раз.',
+  'notices.appeal.field': 'Ваше сообщение',
+  'notices.appeal.send': 'Отправить',
+  'notices.appeal.sent': 'Обжалование отправлено.',
+  'notices.appeal.pending': 'Обжалование на рассмотрении',
+  'notices.appeal.accepted': 'Обжалование принято, контент возвращён',
+  'notices.appeal.rejected': 'Обжалование отклонено',
+  'notif.list.appeal_accepted': 'Ваше обжалование принято',
+  'notif.list.appeal_rejected': 'Ваше обжалование отклонено',
+  'error.api.PRIVACY_RESTRICTED':
+      'Этот человек ограничил, кто может ему писать или звонить.',
+  'error.api.APPEAL_NOT_ALLOWED': 'Это решение больше нельзя обжаловать.',
+  'report.reason.nudity': 'Обнажённое тело или сексуальный контент',
+  'report.reason.violence': 'Насилие',
+  'report.reason.selfHarm': 'Самоповреждение',
+  'report.reason.illegal': 'Незаконное (оружие, наркотики и т. п.)',
+};
+
+const privacyEn = <String, String>{
+  'settings.privacy': 'Privacy and safety',
+  'privacy.title': 'Privacy and safety',
+  'privacy.section.who': 'Who can',
+  'privacy.section.safety': 'Safety',
+  'privacy.lastSeen': 'See when I am online',
+  'privacy.messageFrom': 'Start a chat with me',
+  'privacy.callFrom': 'Call me',
+  'privacy.audience.everyone': 'Everyone',
+  'privacy.audience.contacts': 'My contacts',
+  'privacy.audience.nobody': 'Nobody',
+  'privacy.hint.lastSeen':
+      "If you hide your own status, you do not see other people's either.",
+  'privacy.hint.contacts':
+      'My contacts are people from your phone book who use LawBid and people you follow.',
+  'privacy.hint.case':
+      'People you work with on a case can always write and call you. Chats already started stay open.',
+  'privacy.myReports': 'My reports',
+  'privacy.notices': 'Decisions on my content',
+  'reports.mine.empty': 'You have not reported anything.',
+  'reports.mine.status.open': 'Under review',
+  'reports.mine.status.actioned': 'Action taken',
+  'reports.mine.status.dismissed': 'No violation found',
+  'notices.empty':
+      'Moderation has not touched your posts, comments or messages.',
+  'notices.action.hide': 'Hidden',
+  'notices.action.remove': 'Removed',
+  'notices.action.warn': 'Warning',
+  'notices.action.restore': 'Restored',
+  'notices.reason': 'Reason: {reason}',
+  'notices.appeal': 'Appeal',
+  'notices.appeal.title': 'Appeal the decision',
+  'notices.appeal.hint':
+      'Tell moderators why the decision is wrong. You can appeal once.',
+  'notices.appeal.field': 'Your message',
+  'notices.appeal.send': 'Send',
+  'notices.appeal.sent': 'Appeal sent.',
+  'notices.appeal.pending': 'Appeal under review',
+  'notices.appeal.accepted': 'Appeal accepted, content restored',
+  'notices.appeal.rejected': 'Appeal rejected',
+  'notif.list.appeal_accepted': 'Your appeal was accepted',
+  'notif.list.appeal_rejected': 'Your appeal was rejected',
+  'error.api.PRIVACY_RESTRICTED':
+      'This person has limited who can write to or call them.',
+  'error.api.APPEAL_NOT_ALLOWED': 'This decision can no longer be appealed.',
+  'report.reason.nudity': 'Nudity or sexual content',
+  'report.reason.violence': 'Violence',
+  'report.reason.selfHarm': 'Self-harm',
+  'report.reason.illegal': 'Illegal items (weapons, drugs, etc.)',
+};
