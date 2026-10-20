@@ -11,6 +11,7 @@ import '../models/end_call_dto.dart';
 import '../models/ice_servers_envelope.dart';
 import '../models/invite_call_dto.dart';
 import '../models/start_call_dto.dart';
+import '../models/start_group_call_dto.dart';
 import '../models/video_call_config_envelope.dart';
 
 part 'calls_client.g.dart';
@@ -24,6 +25,28 @@ abstract class CallsClient {
   Future<CallEnvelope> startCall({
     @Path('id') required String id,
     @Body() StartCallDto? body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Start a call from a group chat (audio or video)
+  @POST('/groups/{id}/calls')
+  Future<CallEnvelope> startGroupCall({
+    @Path('id') required String id,
+    @Body() StartGroupCallDto? body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// The call running in a group chat (or null)
+  @GET('/groups/{id}/call')
+  Future<CallEnvelope> groupCall({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Join the call running in your group chat
+  @POST('/calls/{id}/join')
+  Future<CallEnvelope> joinCall({
+    @Path('id') required String id,
     @Extras() Map<String, dynamic>? extras,
   });
 

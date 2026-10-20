@@ -15,6 +15,7 @@ class CallDto {
   const CallDto({
     required this.id,
     required this.conversationId,
+    required this.groupId,
     required this.callerId,
     required this.calleeId,
     required this.status,
@@ -34,7 +35,12 @@ class CallDto {
       _$CallDtoFromJson(json);
 
   final String id;
-  final String conversationId;
+
+  /// Null for a call started from a group chat.
+  final String? conversationId;
+
+  /// The group chat the call was started from (else null).
+  final String? groupId;
   final String callerId;
   final String calleeId;
   final CallStatus status;

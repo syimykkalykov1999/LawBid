@@ -8,7 +8,8 @@ part of 'call_dto.dart';
 
 CallDto _$CallDtoFromJson(Map<String, dynamic> json) => CallDto(
   id: json['id'] as String,
-  conversationId: json['conversationId'] as String,
+  conversationId: json['conversationId'] as String?,
+  groupId: json['groupId'] as String?,
   callerId: json['callerId'] as String,
   calleeId: json['calleeId'] as String,
   status: CallStatus.fromJson(json['status'] as String),
@@ -32,7 +33,8 @@ CallDto _$CallDtoFromJson(Map<String, dynamic> json) => CallDto(
 
 Map<String, dynamic> _$CallDtoToJson(CallDto instance) => <String, dynamic>{
   'id': instance.id,
-  'conversationId': instance.conversationId,
+  'conversationId': ?instance.conversationId,
+  'groupId': ?instance.groupId,
   'callerId': instance.callerId,
   'calleeId': instance.calleeId,
   'status': instance.status.toJson(),

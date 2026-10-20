@@ -195,7 +195,7 @@ export class PushDispatcher
     const rang =
       (await this.voip?.ringCall(data.recipientId, {
         callId: data.callId,
-        conversationId: call.conversation_id,
+        conversationId: call.conversation_id ?? '',
         callerName: name,
         video: call.video,
         silent,
@@ -218,7 +218,7 @@ export class PushDispatcher
         data: {
           type: 'incoming_call',
           callId: data.callId,
-          conversationId: call.conversation_id,
+          conversationId: call.conversation_id ?? '',
           callerName: name,
           ...(silent ? { silent: '1' } : {}),
           ...(call.video ? { video: '1' } : {}),

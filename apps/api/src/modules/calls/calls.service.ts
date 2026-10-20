@@ -29,6 +29,7 @@ import { PushQueueService } from '../notifications/push/push-queue.service';
 import { RealtimePublisher } from '../realtime/realtime-publisher.service';
 import { EntitlementsService } from '../plans/entitlements.service';
 import { SubscriptionAccessService } from '../subscriptions/subscription-access.service';
+import { GroupsService } from '../groups/groups.service';
 import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
 import type {
   CallDto,
@@ -37,6 +38,7 @@ import type {
   InviteCallDto,
   IceServersDto,
   StartCallDto,
+  StartGroupCallDto,
   VideoCallConfigDto,
 } from './calls.dto';
 import {
@@ -107,8 +109,14 @@ export class CallsService {
     @Optional() private readonly entitlements?: EntitlementsService,
     // Owner 2026-10-20: "who can call me" (Settings → Privacy).
     @Optional() private readonly privacy?: PrivacySettingsService,
+    // Owner 2026-10-20: calls from a group chat.
+    @Optional() private readonly groups?: GroupsService,
   ) {
     this.videoProvider = new WebRtcVideoProvider(secrets, config);
+    // Someone left / was removed from a group: out of its running call too.
+    this.groups?.membershipEnded$.subscribe((e) => {
+      void this.dropFromGroupCall(e).catch(() => undefined);
+    });
   }
 
   private readonly videoProvider: VideoCallProvider;
@@ -284,7 +292,7 @@ export class CallsService {
     if (invite?.status === 'invited') {
       return this.joinAsInvitee(user, call, invite);
     }
-    if (call.callee_id !== user.sub) throw notFound();
+    if (call.callee_id !== user.sub || !call.conversation_id) throw notFound();
     const conv = await this.prisma.conversation.findUniqueOrThrow({
       where: { id: call.conversation_id },
     });
@@ -527,7 +535,10 @@ export class CallsService {
           data: { status: 'left', left_at: now },
         });
       }
-      if (outcome === 'missed' || outcome === 'canceled') {
+      if (
+        call.conversation_id &&
+        (outcome === 'missed' || outcome === 'canceled')
+      ) {
         await this.notifications.emit({
           type: 'missed_call',
           recipientId: call.callee_id,
@@ -543,6 +554,250 @@ export class CallsService {
   }
 
   // --- Group calls (owner 2026-10-20) ---------------------------------------
+
+  // --- Calls from a group chat (owner 2026-10-20) ---------------------------
+
+  /** Audio / video of one call: audio 6, video 4 (mesh). */
+  private capacity(video: boolean): number {
+    return video ? GROUP_MAX_VIDEO : GROUP_MAX_AUDIO;
+  }
+
+  /** POST /groups/:id/calls — the phone / video buttons of a group chat. The
+   * caller becomes the host; the chosen members ring (like a person added to
+   * a call); every other member can join from the chat while it runs. */
+  async startGroupCall(
+    user: RequestUser,
+    groupId: string,
+    dto: StartGroupCallDto = {},
+  ): Promise<CallDto> {
+    const groups = this.groups;
+    if (!groups) throw notFound();
+    const video = dto.video === true;
+    const m = await groups.assertMember(user.sub, groupId);
+    if (!(m.group.who_can_call === 'all' || m.admin)) {
+      throw new ForbiddenException({
+        code: ErrorCode.GROUP_FORBIDDEN,
+        message: 'Only admins can start a call in this group.',
+      });
+    }
+    if (
+      this.entitlements &&
+      !(await this.entitlements.has(user.sub, video ? 'video_calls' : 'calls'))
+    ) {
+      throw new ForbiddenException({
+        code: ErrorCode.ENTITLEMENT_REQUIRED,
+        message: 'Your plan does not include calls.',
+      });
+    }
+    if (video && !(await this.videoConfig()).available) {
+      throw new ForbiddenException({
+        code: ErrorCode.FEATURE_DISABLED,
+        message: 'Video calls are not available yet.',
+      });
+    }
+    await this.sweep();
+    // A call of this group is already running: join it instead of a second.
+    const running = await this.runningGroupCall(groupId);
+    if (running) return this.joinCall(user, running.id);
+    const mine = await this.liveCallOf(user.sub);
+    if (mine) {
+      throw new ConflictException({
+        code: ErrorCode.CALL_IN_PROGRESS,
+        message: 'You are already in a call.',
+        details: { callId: mine.id },
+      });
+    }
+
+    const members = new Set(await groups.activeMemberIds(groupId));
+    const wanted = [...new Set(dto.userIds ?? [])].filter(
+      (id) => id !== user.sub && members.has(id),
+    );
+    const invitees: string[] = [];
+    for (const id of wanted) {
+      if (invitees.length >= this.capacity(video) - 1) break;
+      // Blocked, "who can call me" closed or already talking: skipped.
+      try {
+        await this.blocks.assertNotBlocked(user.sub, id);
+        await this.assertMayCall(user.sub, id);
+      } catch {
+        continue;
+      }
+      if (await this.liveCallOf(id)) continue;
+      invitees.push(id);
+    }
+
+    const now = new Date();
+    const call = await this.prisma.$transaction(async (tx) => {
+      const c = await tx.call.create({
+        data: {
+          group_id: groupId,
+          caller_id: user.sub,
+          callee_id: user.sub,
+          status: 'active',
+          answered_at: now,
+          video,
+          is_group: true,
+        },
+      });
+      await tx.callParticipant.create({
+        data: {
+          call_id: c.id,
+          user_id: user.sub,
+          status: 'joined',
+          joined_at: now,
+        },
+      });
+      for (const id of invitees) {
+        await tx.callParticipant.create({
+          data: {
+            call_id: c.id,
+            user_id: id,
+            invited_by_id: user.sub,
+            status: 'invited',
+          },
+        });
+      }
+      return c;
+    });
+    for (const id of invitees) {
+      this.realtime.toUsers([id], 'call:incoming', {
+        call: await this.toDto(call, id),
+      });
+      await this.push.enqueueCall({ recipientId: id, callId: call.id });
+    }
+    await this.broadcastParticipants(call.id);
+    return this.toDto(call, user.sub);
+  }
+
+  /** The running (not yet ended) call of a group, else null. */
+  private async runningGroupCall(groupId: string): Promise<Call | null> {
+    return this.prisma.call.findFirst({
+      where: { group_id: groupId, status: 'active' },
+      orderBy: { created_at: 'desc' },
+    });
+  }
+
+  /** GET /groups/:id/call — the call running in this group (the chat shows
+   * "Join"), null when there is none. */
+  async groupCall(user: RequestUser, groupId: string): Promise<CallDto | null> {
+    const groups = this.groups;
+    if (!groups) return null;
+    await groups.assertMember(user.sub, groupId);
+    await this.sweep();
+    const call = await this.runningGroupCall(groupId);
+    if (!call) return null;
+    // Silent for a while (everybody's app is gone): not a call to join.
+    if (call.updated_at.getTime() < Date.now() - CALL_SILENT_MS) {
+      await this.finish(call, 'ended', null);
+      return null;
+    }
+    return this.toDto(call, user.sub);
+  }
+
+  /** POST /calls/:id/join — a member of the group joins its running call. */
+  async joinCall(user: RequestUser, id: string): Promise<CallDto> {
+    const groups = this.groups;
+    const call = await this.prisma.call.findUnique({ where: { id } });
+    if (!groups || !call?.group_id) throw notFound();
+    await groups.assertMember(user.sub, call.group_id);
+    await this.sweep();
+    const fresh = await this.prisma.call.findUniqueOrThrow({ where: { id } });
+    if (fresh.status !== 'active') throw conflict();
+    if (
+      this.entitlements &&
+      !(await this.entitlements.has(
+        user.sub,
+        fresh.video ? 'video_calls' : 'calls',
+      ))
+    ) {
+      throw new ForbiddenException({
+        code: ErrorCode.ENTITLEMENT_REQUIRED,
+        message: 'Your plan does not include calls.',
+      });
+    }
+    const rows = await this.rowsOf(fresh.id);
+    const me = rows.find((r) => r.user_id === user.sub);
+    if (me?.status === 'joined') return this.toDto(fresh, user.sub);
+    if (me?.status === 'removed') {
+      throw new ForbiddenException({
+        code: ErrorCode.FORBIDDEN,
+        message: 'You were removed from this call.',
+      });
+    }
+    const inCall = rows.filter((r) => r.status === 'joined').length;
+    if (inCall >= this.capacity(fresh.video)) {
+      throw new ConflictException({
+        code: ErrorCode.CALL_STATE_CONFLICT,
+        message: 'The call is full.',
+      });
+    }
+    const other = await this.liveCallOf(user.sub);
+    if (other && other.id !== fresh.id) {
+      throw new ConflictException({
+        code: ErrorCode.CALL_IN_PROGRESS,
+        message: 'You are already in a call.',
+        details: { callId: other.id },
+      });
+    }
+    await this.prisma.callParticipant.upsert({
+      where: { call_id_user_id: { call_id: fresh.id, user_id: user.sub } },
+      create: {
+        call_id: fresh.id,
+        user_id: user.sub,
+        status: 'joined',
+        joined_at: new Date(),
+      },
+      update: {
+        status: 'joined',
+        joined_at: new Date(),
+        left_at: null,
+        muted: false,
+        muted_by_host: false,
+      },
+    });
+    // Other devices of theirs stop ringing (if they were invited).
+    await this.push.enqueueCallEnded({
+      recipientId: user.sub,
+      callId: fresh.id,
+    });
+    await this.broadcastParticipants(fresh.id);
+    return this.toDto(fresh, user.sub);
+  }
+
+  /** A person left / was removed from a group, or the group was deleted:
+   * they drop out of its running call (the group's call ends with it). */
+  private async dropFromGroupCall(e: {
+    groupId: string;
+    userId: string;
+    reason: 'left' | 'removed' | 'group_deleted';
+  }): Promise<void> {
+    const call = await this.runningGroupCall(e.groupId);
+    if (!call) return;
+    if (e.reason === 'group_deleted') {
+      await this.finish(call, 'ended', null);
+      return;
+    }
+    const row = await this.rowOf(call.id, e.userId);
+    if (!row || !IN_CALL.includes(row.status)) return;
+    await this.prisma.callParticipant.update({
+      where: { id: row.id },
+      data: { status: 'removed', left_at: new Date() },
+    });
+    this.realtime.toUsers([e.userId], 'call:removed', { callId: call.id });
+    await this.push.enqueueCallEnded({
+      recipientId: e.userId,
+      callId: call.id,
+      ended: true,
+    });
+    const joined = (await this.rowsOf(call.id)).filter(
+      (r) => r.status === 'joined',
+    );
+    if (joined.length < 2) {
+      await this.finish(call, 'ended', null);
+      return;
+    }
+    await this.broadcastParticipants(call.id, [e.userId]);
+  }
 
   private async participantDtos(
     rows: CallParticipant[],
@@ -933,6 +1188,19 @@ export class CallsService {
         call: await this.toDtoById(row.call_id, row.user_id),
       });
       await this.broadcastParticipants(row.call_id);
+      await this.endIfAlone(row.call_id);
+    }
+  }
+
+  /** A group-chat call whose host is left alone with nobody still ringing
+   * is over (like WhatsApp: "no answer"). */
+  private async endIfAlone(callId: string): Promise<void> {
+    const call = await this.prisma.call.findUnique({ where: { id: callId } });
+    if (!call?.group_id || call.status !== 'active') return;
+    const rows = await this.rowsOf(callId);
+    const joined = rows.filter((r) => r.status === 'joined').length;
+    if (joined < 2 && !rows.some((r) => r.status === 'invited')) {
+      await this.finish(call, 'ended', null);
     }
   }
 
@@ -945,10 +1213,13 @@ export class CallsService {
 
   /** The finished call as a chat message (sender = caller). */
   private async logCall(call: Call, outcome: Outcome): Promise<void> {
+    // A call from a group chat has no one-to-one chat to log into.
+    const conversationId = call.conversation_id;
+    if (!conversationId) return;
     const m = await this.prisma.$transaction(async (tx) => {
       const msg = await tx.message.create({
         data: {
-          conversation_id: call.conversation_id,
+          conversation_id: conversationId,
           sender_id: call.caller_id,
           type: 'call',
           body_original: outcome,
@@ -958,13 +1229,13 @@ export class CallsService {
         },
       });
       await tx.conversation.update({
-        where: { id: call.conversation_id },
+        where: { id: conversationId },
         data: { last_message_at: msg.created_at, last_message_id: msg.id },
       });
       // The caller has "read" their own call entry.
       await tx.conversationParticipant.updateMany({
         where: {
-          conversation_id: call.conversation_id,
+          conversation_id: conversationId,
           user_id: call.caller_id,
         },
         data: { last_read_message_id: msg.id },
@@ -1100,6 +1371,7 @@ export class CallsService {
     return {
       id: call.id,
       conversationId: call.conversation_id,
+      groupId: call.group_id,
       callerId: call.caller_id,
       calleeId: call.callee_id,
       status: call.status,

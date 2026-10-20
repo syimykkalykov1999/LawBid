@@ -685,7 +685,8 @@ erDiagram
   }
   calls {
     String id PK
-    String conversation_id FK
+    String conversation_id FK "nullable"
+    String group_id "nullable"
     String caller_id FK
     String callee_id FK
     enum_CallStatus status
@@ -2812,7 +2813,7 @@ erDiagram
   conversations }o--o| users : "requested_by"
   conversation_participants }o--|| conversations : "conversation_id"
   conversation_participants }o--|| users : "user_id"
-  calls }o--|| conversations : "conversation_id"
+  calls }o--o| conversations : "conversation_id"
   calls }o--|| users : "caller_id"
   calls }o--|| users : "callee_id"
   call_participants }o--|| calls : "call_id"

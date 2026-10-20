@@ -4,6 +4,7 @@ import { BlocksModule } from '../blocks/blocks.module';
 import { ChatModule } from '../chat/chat.module';
 import { FeatureFlagsModule } from '../feature-flags/feature-flags.module';
 import { FilesModule } from '../files/files.module';
+import { GroupsModule } from '../groups/groups.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { PrivacySettingsModule } from '../privacy-settings/privacy-settings.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
@@ -19,6 +20,7 @@ import { CallsService } from './calls.service';
     // Owner 2026-10-05: the `video_calls` flag.
     FeatureFlagsModule,
     FilesModule,
+    GroupsModule,
     NotificationsModule,
     SubscriptionsModule,
     PrivacySettingsModule,

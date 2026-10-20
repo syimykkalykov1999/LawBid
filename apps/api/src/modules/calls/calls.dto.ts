@@ -1,5 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  ArrayMaxSize,
+  IsArray,
   IsBoolean,
   IsIn,
   IsOptional,
@@ -52,6 +54,31 @@ export class EndCallDto {
   @IsOptional()
   @IsIn(['hangup', 'no_answer', 'failed'])
   reason?: 'hangup' | 'no_answer' | 'failed';
+}
+
+/** POST /groups/:id/calls — start a call from a group chat. */
+export class StartGroupCallDto {
+  @ApiPropertyOptional({ description: 'Video call (default: audio).' })
+  @IsOptional()
+  @IsBoolean()
+  video?: boolean;
+
+  @ApiPropertyOptional({
+    type: [String],
+    description:
+      'Group members to ring (up to the size of the call minus the host); the rest of the group can join from the chat.',
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(5)
+  @IsUUID('all', { each: true })
+  userIds?: string[];
+}
+
+export class GroupCallParamDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID('all')
+  id!: string;
 }
 
 /** POST /calls/:id/participants — add a person to the running call. */
@@ -140,8 +167,19 @@ export class CallDto {
   @ApiProperty({ format: 'uuid' })
   id!: string;
 
-  @ApiProperty({ format: 'uuid' })
-  conversationId!: string;
+  @ApiProperty({
+    format: 'uuid',
+    nullable: true,
+    description: 'Null for a call started from a group chat.',
+  })
+  conversationId!: string | null;
+
+  @ApiProperty({
+    format: 'uuid',
+    nullable: true,
+    description: 'The group chat the call was started from (else null).',
+  })
+  groupId!: string | null;
 
   @ApiProperty({ format: 'uuid' })
   callerId!: string;

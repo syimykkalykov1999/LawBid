@@ -102,6 +102,8 @@ import 'clients/chat_client.dart';
 import 'clients/chat_saved_client.dart';
 import 'clients/translations_client.dart';
 import 'clients/calls_client.dart';
+import 'clients/groups_client.dart';
+import 'clients/admin_group_chats_client.dart';
 import 'clients/notifications_client.dart';
 import 'clients/trust_client.dart';
 import 'clients/admin_trust_client.dart';
@@ -111,8 +113,6 @@ import 'clients/public_client.dart';
 import 'clients/reviews_client.dart';
 import 'clients/admin_fraud_client.dart';
 import 'clients/admin_country_partners_client.dart';
-import 'clients/groups_client.dart';
-import 'clients/admin_group_chats_client.dart';
 import 'clients/case_billing_client.dart';
 import 'clients/case_signing_client.dart';
 import 'clients/case_documents_client.dart';
@@ -232,6 +232,8 @@ class LawbidApi {
   ChatSavedClient? _chatSaved;
   TranslationsClient? _translations;
   CallsClient? _calls;
+  GroupsClient? _groups;
+  AdminGroupChatsClient? _adminGroupChats;
   NotificationsClient? _notifications;
   TrustClient? _trust;
   AdminTrustClient? _adminTrust;
@@ -241,8 +243,6 @@ class LawbidApi {
   ReviewsClient? _reviews;
   AdminFraudClient? _adminFraud;
   AdminCountryPartnersClient? _adminCountryPartners;
-  GroupsClient? _groups;
-  AdminGroupChatsClient? _adminGroupChats;
   CaseBillingClient? _caseBilling;
   CaseSigningClient? _caseSigning;
   CaseDocumentsClient? _caseDocuments;
@@ -530,6 +530,11 @@ class LawbidApi {
 
   CallsClient get calls => _calls ??= CallsClient(_dio, baseUrl: _baseUrl);
 
+  GroupsClient get groups => _groups ??= GroupsClient(_dio, baseUrl: _baseUrl);
+
+  AdminGroupChatsClient get adminGroupChats =>
+      _adminGroupChats ??= AdminGroupChatsClient(_dio, baseUrl: _baseUrl);
+
   NotificationsClient get notifications =>
       _notifications ??= NotificationsClient(_dio, baseUrl: _baseUrl);
 
@@ -557,11 +562,6 @@ class LawbidApi {
         _dio,
         baseUrl: _baseUrl,
       );
-
-  GroupsClient get groups => _groups ??= GroupsClient(_dio, baseUrl: _baseUrl);
-
-  AdminGroupChatsClient get adminGroupChats =>
-      _adminGroupChats ??= AdminGroupChatsClient(_dio, baseUrl: _baseUrl);
 
   CaseBillingClient get caseBilling =>
       _caseBilling ??= CaseBillingClient(_dio, baseUrl: _baseUrl);

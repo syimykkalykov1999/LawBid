@@ -27,7 +27,9 @@ import {
   EndCallDto,
   IceServersDto,
   InviteCallDto,
+  GroupCallParamDto,
   StartCallDto,
+  StartGroupCallDto,
   VideoCallConfigDto,
 } from './calls.dto';
 import { CallsService } from './calls.service';
@@ -70,6 +72,56 @@ export class CallsController {
     @Body() dto: StartCallDto,
   ): Promise<CallDto> {
     return this.calls.start(user, p.id, dto ?? {});
+  }
+
+  @Post('groups/:id/calls')
+  @ApiOperation({
+    summary: 'Start a call from a group chat (audio or video)',
+  })
+  @ApiBody({ type: StartGroupCallDto, required: false })
+  @ApiEnvelopeResponse(CallDto, { status: 201 })
+  @ApiErrors({
+    403: [
+      ErrorCode.GROUP_FORBIDDEN,
+      ErrorCode.ENTITLEMENT_REQUIRED,
+      ErrorCode.FEATURE_DISABLED,
+    ],
+    404: [ErrorCode.GROUP_NOT_FOUND],
+    409: [ErrorCode.CALL_IN_PROGRESS],
+  })
+  startGroupCall(
+    @CurrentUser() user: RequestUser,
+    @Param() p: GroupCallParamDto,
+    @Body() dto: StartGroupCallDto,
+  ): Promise<CallDto> {
+    return this.calls.startGroupCall(user, p.id, dto ?? {});
+  }
+
+  @Get('groups/:id/call')
+  @ApiOperation({ summary: 'The call running in a group chat (or null)' })
+  @ApiEnvelopeResponse(CallDto)
+  @ApiErrors({ 404: [ErrorCode.GROUP_NOT_FOUND] })
+  groupCall(
+    @CurrentUser() user: RequestUser,
+    @Param() p: GroupCallParamDto,
+  ): Promise<CallDto | null> {
+    return this.calls.groupCall(user, p.id);
+  }
+
+  @Post('calls/:id/join')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Join the call running in your group chat' })
+  @ApiEnvelopeResponse(CallDto)
+  @ApiErrors({
+    403: [ErrorCode.ENTITLEMENT_REQUIRED, ErrorCode.FORBIDDEN],
+    404: [ErrorCode.CALL_NOT_FOUND, ErrorCode.GROUP_NOT_FOUND],
+    409: [ErrorCode.CALL_IN_PROGRESS, ErrorCode.CALL_STATE_CONFLICT],
+  })
+  joinCall(
+    @CurrentUser() user: RequestUser,
+    @Param() p: CallIdParamDto,
+  ): Promise<CallDto> {
+    return this.calls.joinCall(user, p.id);
   }
 
   @Get('calls/video')

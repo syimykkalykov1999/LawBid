@@ -2404,8 +2404,13 @@ model ConversationParticipant {
 /// members (WebRTC; the server relays signaling, never the audio).
 model Call {
   id              String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  conversation_id String            @db.Uuid
-  conversation    Conversation      @relation(fields: [conversation_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  /// Null for a call started from a group chat (`group_id` is set then).
+  conversation_id String?           @db.Uuid
+  conversation    Conversation?     @relation(fields: [conversation_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  /// Owner 2026-10-20: a call started from a group chat (WhatsApp / Telegram
+  /// style). Bare pointer (no FK) like the other group links; the caller is
+  /// the host and `callee_id` repeats them.
+  group_id        String?           @db.Uuid
   caller_id       String            @db.Uuid
   caller          User              @relation("CallCaller", fields: [caller_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
   callee_id       String            @db.Uuid
@@ -2429,6 +2434,7 @@ model Call {
   @@index([caller_id, status])
   @@index([conversation_id, created_at])
   @@index([status, created_at])
+  @@index([group_id, status])
   @@map("calls")
 }
 
