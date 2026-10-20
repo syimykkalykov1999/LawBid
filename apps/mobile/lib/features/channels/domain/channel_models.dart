@@ -14,9 +14,10 @@ const int kChannelDefaultMaxPostMedia = 10;
 /// The reactions a reader can put on a post (one per reader).
 const List<String> kChannelReactions = ['👍', '❤️', '🔥', '👏', '😮', '🙏'];
 
-/// 4–32 letters, digits or `_`, starting with a letter, lowercase.
-// ignore: use_raw_strings
-final RegExp channelUsernameRe = RegExp('^[a-z][a-z0-9_]{3,31}\$');
+/// 5–32 letters, digits or `_`, starting with a letter, no `__`, no trailing
+/// `_`, lowercase (Telegram; the server has the final word).
+final RegExp channelUsernameRe =
+    RegExp(r'^(?=.{5,32}$)[a-z](?:[a-z0-9]|_(?!_|$))*$');
 
 /// What the reader typed → the form the server stores (no `@`, lowercase).
 String normalizeChannelUsername(String raw) =>

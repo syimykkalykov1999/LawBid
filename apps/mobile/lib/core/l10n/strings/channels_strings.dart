@@ -112,6 +112,8 @@ const channelsRu = <String, String>{
   'channel.form.usernameInvalid':
       'От 4 до 32 символов: латинские буквы, цифры и _, первая — буква.',
   'channel.form.usernameTaken': 'Этот адрес уже занят. Выберите другой.',
+  'handle.held': 'Недавно освободился. Пока недоступен.',
+  'handle.similar': 'Слишком похоже на другой адрес.',
   'channel.form.description': 'Описание',
   'channel.form.descriptionHint': 'О чём канал',
   'channel.form.comments': 'Комментарии',
@@ -241,6 +243,8 @@ const channelsEn = <String, String>{
   'channel.form.usernameInvalid':
       '4–32 characters: Latin letters, digits and _, starting with a letter.',
   'channel.form.usernameTaken': 'This address is taken. Choose another one.',
+  'handle.held': 'Just released. Not available yet.',
+  'handle.similar': 'Too similar to an existing name.',
   'channel.form.description': 'Description',
   'channel.form.descriptionHint': 'What the channel is about',
   'channel.form.comments': 'Comments',

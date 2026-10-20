@@ -14,6 +14,7 @@ import 'package:lawbid/features/channels/domain/channel_models.dart';
 import 'package:lawbid/features/channels/presentation/channel_actions.dart';
 import 'package:lawbid/features/channels/presentation/channel_pickers.dart';
 import 'package:lawbid/features/channels/presentation/channel_widgets.dart';
+import 'package:lawbid/shared/presentation/handle_hints.dart';
 
 /// Owner 2026-10-20: create a channel (verified attorneys) or, with
 /// [channelRef], edit one (admins; only the owner renames the @username).
@@ -82,6 +83,9 @@ class _FormState extends ConsumerState<_Form> {
   bool _usernameTaken = false;
   bool _touchedUsername = false;
 
+  /// The live check: true free, false refused, null unknown.
+  bool? _handleFree;
+
   Channel? get _editing => widget.editing;
   bool get _canRename => _editing == null || _editing!.isOwner;
 
@@ -98,6 +102,7 @@ class _FormState extends ConsumerState<_Form> {
   bool get _ready =>
       _title.text.trim().isNotEmpty &&
       _usernameValid &&
+      (_handleFree ?? true) &&
       !_saving &&
       !_avatarUploading;
 
@@ -370,6 +375,24 @@ class _FormState extends ConsumerState<_Form> {
                         _usernameTaken = false;
                       }),
                     ),
+                    if (_canRename)
+                      HandleHints(
+                        text: normalizeChannelUsername(_username.text),
+                        kind: 'channel',
+                        title: _title.text,
+                        id: widget.editing?.id,
+                        unchangedText: widget.editing?.username,
+                        enabled: _usernameValid,
+                        onVerdict: (v) {
+                          if (_handleFree != v) setState(() => _handleFree = v);
+                        },
+                        onPick: (u) => setState(() {
+                          _username.text = u;
+                          _username.selection =
+                              TextSelection.collapsed(offset: u.length);
+                          _touchedUsername = true;
+                        }),
+                      ),
                     const SizedBox(height: AppSpacing.md),
                     AppTextField(
                       key: const ValueKey('channel-description'),

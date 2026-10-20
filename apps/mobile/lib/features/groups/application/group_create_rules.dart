@@ -17,7 +17,10 @@ GroupUsernameIssue? groupUsernameIssue(String input) {
   if (v.isNotEmpty && !RegExp('^[A-Za-z]').hasMatch(v)) {
     return GroupUsernameIssue.startsWithLetter;
   }
-  if (!RegExp(r'^[A-Za-z0-9_]*$').hasMatch(v)) {
+  // No `__`, no trailing `_` (the server's rule, as Telegram).
+  if (!RegExp(r'^[A-Za-z0-9_]*$').hasMatch(v) ||
+      v.contains('__') ||
+      v.endsWith('_')) {
     return GroupUsernameIssue.badChars;
   }
   if (v.length > groupUsernameMax) return GroupUsernameIssue.tooLong;

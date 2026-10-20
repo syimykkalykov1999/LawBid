@@ -2352,6 +2352,8 @@
 "guide.s8.body":"Vous pouvez supprimer votre compte dans les Paramètres. Après la demande, vous êtes déconnecté de tous les appareils, et au bout de 14 jours le compte est anonymisé. Si vous vous connectez pendant ces 14 jours, la suppression est annulée.\n\nLors de l’anonymisation, votre nom est remplacé, le texte de vos messages est remplacé par « [deleted] », et votre photo de profil, vos documents de vérification, les fichiers et messages vocaux envoyés, vos publications et la liste des comptes que vous suivez sont supprimés. Les dossiers ouverts passent aux archives, les dossiers en cours sont clôturés et l’autre partie est informée. L’abonnement de l’avocat est annulé.\n\nL’historique des dossiers, les enregistrements de transmission des coordonnées, les consentements et les enregistrements de connexion sont conservés 5 ans, sans vos données personnelles.\n\nAvant la suppression, vous pouvez télécharger vos données dans les Paramètres.",
 "guide.s8.title":"Eliminazione dell’account",
 "guide.title":"Umhlahlandlela",
+"handle.held":"Erst kürzlich frei geworden. Noch nicht verfügbar.",
+"handle.similar":"Liian samanlainen kuin olemassa oleva nimi.",
 "history.actor.admin":"Palaikymo tarnyba",
 "history.actor.attorney":"Cyfreithiwr",
 "history.actor.client":"Skjólstæðingur",

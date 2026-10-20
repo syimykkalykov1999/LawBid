@@ -18,6 +18,7 @@ import 'package:lawbid/features/groups/presentation/widgets/group_avatar.dart';
 import 'package:lawbid/features/groups/presentation/widgets/people_picker.dart';
 import 'package:lawbid/features/profile/presentation/widgets/avatar_picker_field.dart'
     show AvatarSource, avatarImagePickerProvider;
+import 'package:lawbid/shared/presentation/handle_hints.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// «New group»: step 1 picks the people, step 2 sets the photo, name, type
@@ -43,6 +44,9 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
   /// The username the server said is taken (cleared once it is edited).
   String? _takenUsername;
 
+  /// The live check: true free, false refused, null unknown.
+  bool? _handleFree;
+
   @override
   void dispose() {
     _title.dispose();
@@ -67,7 +71,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
 
   bool get _usernameOk =>
       _type != api.GroupType.public ||
-      groupUsernameIssue(_usernameText) == null;
+      (groupUsernameIssue(_usernameText) == null && (_handleFree ?? true));
 
   bool get _needsPeople => _type == api.GroupType.private && _people.isEmpty;
 
@@ -321,7 +325,10 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                   activeThumbColor: colors.gold,
                   onChanged: (v) => setState(() => _approval = v),
                 ),
-              if (_type == api.GroupType.public) _usernameField(t),
+              if (_type == api.GroupType.public) ...[
+                _usernameField(t),
+                _usernameHints(),
+              ],
               if (_people.isNotEmpty) ...[
                 const SizedBox(height: AppSpacing.lg),
                 _MembersSummary(
@@ -386,6 +393,20 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
       ),
     );
   }
+
+  Widget _usernameHints() => HandleHints(
+        text: _usernameText.toLowerCase(),
+        kind: 'group',
+        title: _title.text,
+        enabled: groupUsernameIssue(_usernameText) == null,
+        onVerdict: (v) {
+          if (_handleFree != v) setState(() => _handleFree = v);
+        },
+        onPick: (u) => setState(() {
+          _username.text = u;
+          _username.selection = TextSelection.collapsed(offset: u.length);
+        }),
+      );
 }
 
 class _PhotoField extends StatelessWidget {

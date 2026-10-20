@@ -2352,6 +2352,8 @@
 "guide.s8.body":"Sie können Ihr Konto in den Einstellungen löschen. Nach der Anfrage werden Sie auf allen Geräten abgemeldet, und nach 14 Tagen wird das Konto anonymisiert. Wenn Sie sich innerhalb dieser 14 Tage anmelden, wird die Löschung abgebrochen.\n\nBei der Anonymisierung wird Ihr Name ersetzt, der Text Ihrer Nachrichten durch „[deleted]“ ersetzt, und Ihr Profilfoto, Ihre Verifizierungsdokumente, gesendete Dateien und Sprachnachrichten, Beiträge und die Liste der Profile, denen Sie folgen, werden gelöscht. Offene Fälle werden archiviert, laufende Fälle geschlossen, und die andere Seite wird benachrichtigt. Das Abonnement eines Anwalts wird gekündigt.\n\nDas Fallprotokoll, Aufzeichnungen über die Weitergabe von Kontaktdaten, Einwilligungen und Anmeldeprotokolle werden 5 Jahre lang aufbewahrt, ohne Ihre persönlichen Daten.\n\nVor dem Löschen können Sie Ihre Daten in den Einstellungen herunterladen.",
 "guide.s8.title":"Konto löschen",
 "guide.title":"Leitfaden",
+"handle.held":"Erst kürzlich frei geworden. Noch nicht verfügbar.",
+"handle.similar":"Zu ähnlich zu einem bestehenden Namen.",
 "history.actor.admin":"Support",
 "history.actor.attorney":"Anwalt",
 "history.actor.client":"Mandant",

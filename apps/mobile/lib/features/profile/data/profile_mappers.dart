@@ -120,7 +120,10 @@ abstract final class ProfileMappers {
         issue: switch (d.reason) {
           api.UsernameUnavailableReason.invalid => UsernameIssue.invalid,
           api.UsernameUnavailableReason.reserved => UsernameIssue.reserved,
-          api.UsernameUnavailableReason.taken => UsernameIssue.taken,
+          api.UsernameUnavailableReason.taken ||
+          api.UsernameUnavailableReason.held ||
+          api.UsernameUnavailableReason.similar =>
+            UsernameIssue.taken,
           _ => d.available ? null : UsernameIssue.invalid,
         },
       );
@@ -137,7 +140,7 @@ abstract final class ProfileMappers {
           ? null
           : switch (j['reason']) {
               'reserved' => UsernameIssue.reserved,
-              'taken' => UsernameIssue.taken,
+              'taken' || 'held' || 'similar' => UsernameIssue.taken,
               _ => UsernameIssue.invalid,
             },
       suggestions: suggestions is List
