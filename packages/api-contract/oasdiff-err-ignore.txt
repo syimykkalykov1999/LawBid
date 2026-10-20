@@ -102,3 +102,12 @@ PUT /admin/storage/uploads added the new `webm` enum value to the `data/places/i
 PUT /admin/promotions/settings removed the enum value `download` of the request property `ctaTypes/items/`
 POST /cases/{id}/promotions removed the enum value `download` of the request property `ctaType`
 POST /posts/{id}/promotions removed the enum value `download` of the request property `ctaType`
+GET /admin/moderation/queue added the new `channel` enum value to the `data/items/targetType` response property for the response status `200`
+GET /admin/moderation/queue added the new `channel_post` enum value to the `data/items/targetType` response property for the response status `200`
+GET /admin/moderation/queue added the new `story` enum value to the `data/items/targetType` response property for the response status `200`
+GET /admin/moderation/targets/{type}/{id} added the new `channel` enum value to the `data/targetType` response property for the response status `200`
+GET /admin/moderation/targets/{type}/{id} added the new `channel_post` enum value to the `data/targetType` response property for the response status `200`
+GET /admin/moderation/targets/{type}/{id} added the new `story` enum value to the `data/targetType` response property for the response status `200`
+POST /admin/moderation/targets/{type}/{id}/actions added the new `channel` enum value to the `data/targetType` response property for the response status `200`
+POST /admin/moderation/targets/{type}/{id}/actions added the new `channel_post` enum value to the `data/targetType` response property for the response status `200`
+POST /admin/moderation/targets/{type}/{id}/actions added the new `story` enum value to the `data/targetType` response property for the response status `200`
