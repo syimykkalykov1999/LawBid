@@ -264,7 +264,9 @@ describe('Stale cases (e2e, OQ-054)', () => {
     const att = await attorney();
     const quiet = await kase(cli.id, { silentDays: 40 }); // flexible: due
     const urgent = await kase(cli.id, { urgency: 'urgent', silentDays: 5 });
-    const young = await kase(cli.id, { urgency: 'urgent', silentDays: 3 }); // < 4 d
+    // < 4 d even on the "next day" run below at any time of the real day
+    // (noon() can be up to ~40 h after the case was created).
+    const young = await kase(cli.id, { urgency: 'urgent', silentDays: 2 });
     const withBid = await kase(cli.id, { silentDays: 40 });
     expect((await bid(att, withBid)).status).toBe(201); // a fresh bid
 
