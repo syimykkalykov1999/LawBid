@@ -61,11 +61,9 @@ void main() {
     final details =
         ((aasa['applinks'] as Map<String, dynamic>)['details'] as List).single
             as Map<String, dynamic>;
-    expect(details['appIDs'], {
-      '78T56RPM74.com.lawbid.lawbid',
-      '78T56RPM74.com.lawbid.lawbid.staging',
-      '78T56RPM74.com.lawbid.lawbid.dev',
-    });
+    // Production only: scripts/seo/well-known.mjs publishes the file to
+    // lawbid.dev (staging and dev builds are not served from it).
+    expect(details['appIDs'], {'78T56RPM74.com.lawbid.lawbid'});
     final paths = (details['components'] as List)
         .map((c) => (c as Map<String, dynamic>)['/'])
         .toSet();
@@ -76,6 +74,8 @@ void main() {
         '/case/*',
         '/lawyer/*',
         '/post/*',
+        '/u/*',
+        '/q/*',
         '/g/*',
         '/auth/email-code',
       },
@@ -89,11 +89,7 @@ void main() {
               as Map<String, dynamic>)['package_name'],
         )
         .toSet();
-    expect(packages, {
-      'com.lawbid.lawbid',
-      'com.lawbid.lawbid.staging',
-      'com.lawbid.lawbid.dev',
-    });
+    expect(packages, {'com.lawbid.lawbid'});
     for (final e in assetlinks.cast<Map<String, dynamic>>()) {
       expect(e['relation'], ['delegate_permission/common.handle_all_urls']);
     }
