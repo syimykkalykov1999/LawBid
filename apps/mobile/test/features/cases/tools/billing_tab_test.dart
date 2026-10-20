@@ -6,6 +6,7 @@ import 'package:lawbid/core/design_system/theme/app_theme.dart';
 import 'package:lawbid/core/l10n/app_language.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/l10n/l10n_translator.dart';
 import 'package:lawbid/core/l10n/static_translator.dart';
 import 'package:lawbid/features/cases/tools/billing_data.dart';
 import 'package:lawbid/features/cases/tools/billing_tab.dart';
@@ -319,5 +320,55 @@ Future<void> main() async {
       ),
       findsOneWidget,
     );
+  });
+
+  testWidgets('ar, two 1-minute entries: the summary never reads "٢ ٠"',
+      (tester) async {
+    tester.view
+      ..physicalSize = const Size(360, 1400)
+      ..devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final ar = AppLanguage.fromCode('ar');
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          translatorProvider.overrideWithValue(
+            L10nTranslator(
+              language: ar,
+              cache: {
+                'billing.mOnly': '{m} د',
+                'billing.hm': '{h} س {m} د',
+                'billing.time': 'الوقت',
+                'billing.unbilled': 'غير مفوتر',
+              },
+            ),
+          ),
+          l10nFormatsProvider.overrideWithValue(L10nFormats(ar)),
+          caseBillingProvider('c').overrideWith(
+            (ref) async => _dto(attorney: true, twoOneMinuteEntries: true),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light(),
+          home: const Directionality(
+            textDirection: TextDirection.rtl,
+            child: Scaffold(
+              body: SingleChildScrollView(
+                child: BillingTab(caseId: 'c', isAttorney: true),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    final texts = tester
+        .widgetList<Text>(find.byType(Text))
+        .map((w) => (w.data ?? '').replaceAll(RegExp('[\u2068\u2069]'), ''))
+        .toList();
+    expect(texts.where((x) => x.contains('٢ ٠')), isEmpty);
+    expect(texts.any((x) => x.startsWith('٢ د · ')), isTrue);
+    expect(find.text('الوقت'), findsWidgets);
   });
 }
