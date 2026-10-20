@@ -170,9 +170,10 @@ class _CaseStaleBannerState extends ConsumerState<CaseStaleBanner> {
                 style: typography.caption.copyWith(color: colors.textSecondary),
               ),
               const SizedBox(height: AppSpacing.md),
-              Wrap(
-                spacing: AppSpacing.sm,
-                runSpacing: AppSpacing.sm,
+              // Owner 2026-10-20: comfortable buttons across the whole width,
+              // two to a row like Telegram's inline keyboard; a last odd one
+              // takes the full row.
+              _ButtonGrid(
                 children: [
                   _StaleButton(
                     key: const ValueKey('stale-yes'),
@@ -226,6 +227,43 @@ class _CaseStaleBannerState extends ConsumerState<CaseStaleBanner> {
   }
 }
 
+/// Buttons two to a row, equal width; an odd last one spans the row.
+class _ButtonGrid extends StatelessWidget {
+  const _ButtonGrid({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = <Widget>[];
+    for (var i = 0; i < children.length; i += 2) {
+      final pair = children.sublist(i, i + 2 > children.length ? i + 1 : i + 2);
+      rows.add(
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (var j = 0; j < pair.length; j++) ...[
+                if (j > 0) const SizedBox(width: AppSpacing.sm),
+                Expanded(child: pair[j]),
+              ],
+            ],
+          ),
+        ),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (var i = 0; i < rows.length; i++) ...[
+          if (i > 0) const SizedBox(height: AppSpacing.sm),
+          rows[i],
+        ],
+      ],
+    );
+  }
+}
+
 /// A quiet pill button: the first answer sits on the chip tone, the rest on
 /// the surface with a hairline; never a gold fill.
 class _StaleButton extends StatelessWidget {
@@ -253,7 +291,10 @@ class _StaleButton extends StatelessWidget {
           onTap: onTap,
           child: Container(
             constraints: const BoxConstraints(minHeight: AppSizes.touchTarget),
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.md,
+              vertical: AppSpacing.xs,
+            ),
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: emphasized ? colors.chip : colors.surface,
@@ -264,6 +305,8 @@ class _StaleButton extends StatelessWidget {
               opacity: onTap == null ? 0.5 : 1,
               child: Text(
                 label,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
                 style: typography.bodySmall.copyWith(
                   color: colors.text,

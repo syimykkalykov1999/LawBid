@@ -8,6 +8,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_stale_banner.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/consultations/application/consultations_providers.dart';
 import 'package:lawbid/features/consultations/data/consultations_repository.dart';
@@ -310,10 +311,20 @@ void main() {
             );
           },
         ),
+    'stale case prompt buttons': () => const Column(
+          children: [
+            CaseStaleBanner(
+              caseId: 'c1',
+              paused: false,
+              pending: true,
+              canMakeNotUrgent: true,
+            ),
+            CaseStaleBanner(caseId: 'c1', paused: true, pending: false),
+          ],
+        ),
     'attorney qa cards': () => const Column(
           children: [
             QaNewQuestionsBanner(),
-            QaMineEntry(),
             QaProfileRow(answers: 128, best: 37, isSelf: true),
             QaProfileRow(answers: 128, best: 37, isSelf: false),
           ],
