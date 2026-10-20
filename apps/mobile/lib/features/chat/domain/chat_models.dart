@@ -61,6 +61,7 @@ class Conversation {
     this.lastMessageAt,
     this.mutedUntil,
     this.counterpartLastReadId,
+    this.counterpartLastDeliveredId,
     this.counterpartLastReadAt,
     this.isDirect = false,
     this.request = MessageRequest.none,
@@ -73,6 +74,40 @@ class Conversation {
     this.blocked = false,
     this.matchedMessage,
   });
+
+  /// The same chat with the other side's receipts moved (a socket event):
+  /// only the given ones change.
+  Conversation withReceipts({
+    String? readId,
+    DateTime? readAt,
+    String? deliveredId,
+  }) =>
+      Conversation(
+        id: id,
+        caseId: caseId,
+        caseTitle: caseTitle,
+        status: status,
+        contactsUnlocked: contactsUnlocked,
+        blocked: blocked,
+        counterpart: counterpart,
+        lastMessage: lastMessage,
+        lastMessageAt: lastMessageAt,
+        unreadCount: unreadCount,
+        mutedUntil: mutedUntil,
+        counterpartLastReadId: readId ?? counterpartLastReadId,
+        counterpartLastReadAt: readAt ?? counterpartLastReadAt,
+        counterpartLastDeliveredId: deliveredId ?? counterpartLastDeliveredId,
+        updatedAt: updatedAt,
+        isDirect: isDirect,
+        request: request,
+        requestedByMe: requestedByMe,
+        folder: folder,
+        folderAuto: folderAuto,
+        waitingSince: waitingSince,
+        note: note,
+        pinnedAt: pinnedAt,
+        matchedMessage: matchedMessage,
+      );
 
   /// Owner 2026-10-18: in a search by text, the message that matched —
   /// shown instead of the last-message preview.
@@ -133,6 +168,10 @@ class Conversation {
   final int unreadCount;
   final DateTime? mutedUntil;
   final String? counterpartLastReadId;
+
+  /// The newest of my messages that reached the other device (two grey
+  /// ticks); reading implies it.
+  final String? counterpartLastDeliveredId;
 
   /// When the other side last read: "seen at HH:MM" for every message up
   /// to [counterpartLastReadId].

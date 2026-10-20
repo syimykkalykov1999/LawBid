@@ -348,6 +348,65 @@ final outboxSenderProvider = Provider<OutboxSender>((ref) {
   return sender;
 });
 
+// --- Delivery receipts (WhatsApp's two grey ticks) ---------------------------
+
+/// Tells the server that this device has received the other side's messages:
+/// the newest one of each chat, shortly after it arrives. A device that was
+/// offline gets the same from the server when the chat list is pulled.
+class DeliveryAcker {
+  DeliveryAcker(this._ref) {
+    _ref.listen(
+      realtimeEventsProvider,
+      (_, stream) {
+        _sub?.cancel();
+        _sub = stream.listen(_onEvent);
+      },
+      fireImmediately: true,
+    );
+    _ref.onDispose(() {
+      _sub?.cancel();
+      for (final t in _timers.values) {
+        t.cancel();
+      }
+    });
+  }
+
+  final Ref _ref;
+  StreamSubscription<RealtimeEvent>? _sub;
+  final _timers = <String, Timer>{};
+  final _newest = <String, String>{};
+  final _acked = <String, String>{};
+
+  void _onEvent(RealtimeEvent e) {
+    if (e.name != 'message:new') return;
+    final m = ChatMappers.fromEvent(e.data);
+    final me = _ref.read(currentUserIdProvider);
+    if (m == null || me == null || m.senderId == me || m.senderId == null) {
+      return;
+    }
+    if (m.kind == MessageKind.call) return;
+    _newest[m.conversationId] = m.id;
+    _timers[m.conversationId]?.cancel();
+    _timers[m.conversationId] = Timer(
+      const Duration(milliseconds: 300),
+      () => unawaited(_send(m.conversationId)),
+    );
+  }
+
+  Future<void> _send(String conversationId) async {
+    final id = _newest[conversationId];
+    if (id == null || _acked[conversationId] == id) return;
+    try {
+      await _ref.read(chatRepositoryProvider).delivered(conversationId, id);
+      _acked[conversationId] = id;
+    } on Object {
+      // The server marks it when this device next pulls the chat list.
+    }
+  }
+}
+
+final deliveryAckerProvider = Provider<DeliveryAcker>(DeliveryAcker.new);
+
 // --- One conversation (docs/05 §8.2) -----------------------------------------
 
 @immutable
@@ -1208,33 +1267,23 @@ class ChatThread extends Notifier<ChatThreadState> {
           final last = data['lastReadMessageId'];
           if (c != null && last is String) {
             state = state.copyWith(
-              conversation: Conversation(
-                id: c.id,
-                caseId: c.caseId,
-                caseTitle: c.caseTitle,
-                status: c.status,
-                contactsUnlocked: c.contactsUnlocked,
-                blocked: c.blocked,
-                counterpart: c.counterpart,
-                lastMessage: c.lastMessage,
-                lastMessageAt: c.lastMessageAt,
-                unreadCount: c.unreadCount,
-                mutedUntil: c.mutedUntil,
-                counterpartLastReadId: last,
-                counterpartLastReadAt: DateTime.tryParse(
-                      '${data['readAt']}',
-                    ) ??
+              conversation: c.withReceipts(
+                readId: last,
+                readAt: DateTime.tryParse('${data['readAt']}') ??
                     DateTime.now(),
-                updatedAt: c.updatedAt,
-                isDirect: c.isDirect,
-                request: c.request,
-                requestedByMe: c.requestedByMe,
-                folder: c.folder,
-                folderAuto: c.folderAuto,
-                waitingSince: c.waitingSince,
-                note: c.note,
-                pinnedAt: c.pinnedAt,
+                // Reading it means it got there.
+                deliveredId: last,
               ),
+            );
+          }
+        }
+      case 'message:delivered':
+        if (data is Map && data['conversationId'] == id) {
+          final c = state.conversation;
+          final last = data['lastDeliveredMessageId'];
+          if (c != null && last is String) {
+            state = state.copyWith(
+              conversation: c.withReceipts(deliveredId: last),
             );
           }
         }

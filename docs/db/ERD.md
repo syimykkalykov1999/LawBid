@@ -672,6 +672,8 @@ erDiagram
     String user_id PK,FK
     String last_read_message_id "nullable"
     DateTime last_read_at "nullable"
+    String last_delivered_message_id "nullable"
+    DateTime last_delivered_at "nullable"
     DateTime muted_until "nullable"
     enum_ChatFolder folder "nullable"
     DateTime waiting_since "nullable"

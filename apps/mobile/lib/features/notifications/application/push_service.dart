@@ -300,5 +300,6 @@ final sessionServicesProvider = Provider<void>((ref) {
   Future.microtask(() {
     ref.read(pushServiceProvider).start();
     ref.read(outboxSenderProvider).drain();
+    ref.read(deliveryAckerProvider);
   });
 });

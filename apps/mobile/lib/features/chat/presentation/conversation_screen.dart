@@ -709,6 +709,15 @@ class _MessageList extends ConsumerWidget {
     final seenIds = seenIndex < 0
         ? const <String>{}
         : items.skip(seenIndex).map((m) => m.id).toSet();
+    // Two grey ticks: everything up to the newest message that reached the
+    // other device (reading counts as well).
+    final lastDelivered = state.conversation?.counterpartLastDeliveredId;
+    final deliveredIndex = lastDelivered == null
+        ? -1
+        : items.indexWhere((m) => m.id == lastDelivered);
+    final deliveredIds = deliveredIndex < 0
+        ? const <String>{}
+        : items.skip(deliveredIndex).map((m) => m.id).toSet();
 
     return CustomPaint(
       // Owner 2026-10-17: a faint pattern of legal signs behind the
@@ -794,6 +803,7 @@ class _MessageList extends ConsumerWidget {
                   group: entry.isGroup ? entry.messages : null,
                   mine: m.senderId == me,
                   seen: seen,
+                  delivered: deliveredIds.contains(m.id) && m.senderId == me,
                   showSeenLabel:
                       entry.messages.any((x) => x.id == newestOwnSeen),
                   threadId: state.conversation?.id ?? m.conversationId,
@@ -955,6 +965,7 @@ class _Bubble extends ConsumerWidget {
     required this.message,
     required this.mine,
     required this.seen,
+    required this.delivered,
     required this.showSeenLabel,
     required this.threadId,
     this.group,
@@ -967,6 +978,9 @@ class _Bubble extends ConsumerWidget {
   final ChatMessage message;
   final bool mine;
   final bool seen;
+
+  /// Reached the other device (two grey ticks).
+  final bool delivered;
   final bool showSeenLabel;
   final String threadId;
 
@@ -1049,7 +1063,9 @@ class _Bubble extends ConsumerWidget {
             DeliveryState.sending => AppIcons.scheduleRounded,
             DeliveryState.failed => AppIcons.errorOutlineRounded,
             DeliveryState.sent =>
-              seen ? AppIcons.doneAllRounded : AppIcons.doneRounded,
+              seen || delivered
+                  ? AppIcons.doneAllRounded
+                  : AppIcons.doneRounded,
           },
           size: 15,
           color: failed

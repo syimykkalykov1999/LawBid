@@ -35,6 +35,7 @@ class ConversationDto {
     this.mutedUntil,
     this.counterpartLastReadMessageId,
     this.counterpartLastReadAt,
+    this.counterpartLastDeliveredMessageId,
     this.matchedMessage,
     this.waitingSince,
     this.note,
@@ -62,6 +63,9 @@ class ConversationDto {
 
   /// When the other side last read; "read at" for every message up to it.
   final DateTime? counterpartLastReadAt;
+
+  /// Newest message that reached the other side's device (two grey ticks).
+  final String? counterpartLastDeliveredMessageId;
   final DateTime updatedAt;
   final ChatFolder folder;
 

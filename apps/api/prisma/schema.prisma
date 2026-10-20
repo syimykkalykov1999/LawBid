@@ -2357,6 +2357,10 @@ model ConversationParticipant {
   last_read_message_id String?      @db.Uuid
   /// When last_read_message_id last moved ("read at HH:MM", WhatsApp style).
   last_read_at         DateTime?    @db.Timestamptz
+  /// Owner 2026-10-20 (WhatsApp): the newest message that reached this
+  /// person's device (two grey ticks for the sender). Read implies delivered.
+  last_delivered_message_id String?  @db.Uuid
+  last_delivered_at    DateTime?    @db.Timestamptz
   muted_until          DateTime?    @db.Timestamptz
   /// Owner 2026-10-01: my folder for this chat; null = automatic (a case
   /// chat is Primary, a direct chat General).
