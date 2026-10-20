@@ -34,6 +34,8 @@ void main() {
     'longest, right-to-left': (LongestTranslator(), TextDirection.rtl),
     'ne': (ShippedTranslator('ne'), TextDirection.ltr),
     'ar': (ShippedTranslator('ar'), TextDirection.rtl),
+    'de': (ShippedTranslator('de'), TextDirection.ltr),
+    'mr': (ShippedTranslator('mr'), TextDirection.ltr),
     'ru': (
       L10nTranslator(language: AppLanguage.ru, cache: const {}),
       TextDirection.ltr,

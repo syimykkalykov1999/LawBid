@@ -12,6 +12,9 @@ import 'package:lawbid/features/channels/domain/channel_models.dart';
 import 'package:lawbid/features/channels/presentation/channel_composer_screen.dart';
 import 'package:lawbid/features/channels/presentation/channel_pickers.dart';
 import 'package:lawbid/features/channels/presentation/channel_screen.dart';
+import 'package:lawbid/features/channels/presentation/channel_widgets.dart'
+    show ChannelsEmpty;
+import 'package:lawbid/features/channels/presentation/channels_screen.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
 import 'channels_fakes.dart';
@@ -43,6 +46,31 @@ void main() {
     );
     await tester.pumpAndSettle();
   }
+
+  group('channels list', () {
+    testWidgets('no subscriptions is a plain empty state, not an error',
+        (tester) async {
+      final repo = FakeChannelsRepository();
+      await pump(tester, const ChannelsScreen(), repo);
+      expect(find.byType(AppErrorState), findsNothing);
+      expect(find.byType(ChannelsEmpty), findsOneWidget);
+    });
+
+    testWidgets('swiping moves between Mine, Subscriptions and Discover',
+        (tester) async {
+      final repo = FakeChannelsRepository()..listed = [fakeChannel()];
+      await pump(tester, const ChannelsScreen(), repo);
+      expect(repo.calls, contains('list:subscribed:'));
+      await tester.drag(find.byType(PageView), const Offset(-400, 0));
+      await tester.pumpAndSettle();
+      expect(repo.calls, contains('list:discover:'));
+      await tester.drag(find.byType(PageView), const Offset(400, 0));
+      await tester.pumpAndSettle();
+      await tester.drag(find.byType(PageView), const Offset(400, 0));
+      await tester.pumpAndSettle();
+      expect(repo.calls, contains('list:managed:'));
+    });
+  });
 
   group('channel page', () {
     testWidgets('a reader can subscribe and unsubscribe', (tester) async {

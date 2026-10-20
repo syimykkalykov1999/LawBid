@@ -14,6 +14,7 @@ import 'package:lawbid/features/channels/domain/channel_models.dart';
 import 'package:lawbid/features/channels/presentation/channel_widgets.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
+import 'package:lawbid/shared/presentation/list_search_field.dart';
 
 /// Owner 2026-10-20: the channels screen — the ones I run, the ones I
 /// follow, and discover / search (title or @username).
@@ -25,29 +26,40 @@ class ChannelsScreen extends ConsumerStatefulWidget {
 }
 
 class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
+  static const _order = [
+    ChannelScope.managed,
+    ChannelScope.subscribed,
+    ChannelScope.discover,
+  ];
+
   ChannelScope _tab = ChannelScope.subscribed;
   String _query = '';
-  final _text = TextEditingController();
-  Timer? _debounce;
+  late final _pages = PageController(initialPage: _order.indexOf(_tab));
 
   @override
   void dispose() {
-    _debounce?.cancel();
-    _text.dispose();
+    _pages.dispose();
     super.dispose();
   }
 
+  void _pick(ChannelScope v) {
+    setState(() => _tab = v);
+    if (!_pages.hasClients) return;
+    final motion = context.reduceMotion
+        ? Duration.zero
+        : const Duration(milliseconds: 260);
+    unawaited(
+      _pages.animateToPage(
+        _order.indexOf(v),
+        duration: motion,
+        curve: Curves.easeOutCubic,
+      ),
+    );
+  }
+
   void _typed(String raw) {
-    _debounce?.cancel();
-    // The field shows its own leading «@»; one typed or pasted is dropped.
-    final v = raw.trim().replaceFirst(RegExp('^@+'), '');
-    if (v.isEmpty) {
-      setState(() => _query = '');
-      return;
-    }
-    _debounce = Timer(const Duration(milliseconds: 300), () {
-      if (mounted) setState(() => _query = v);
-    });
+    // The hint shows «@username»; a typed or pasted «@» is dropped.
+    setState(() => _query = raw.trim().replaceFirst(RegExp('^@+'), ''));
   }
 
   @override
@@ -56,15 +68,6 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final canCreate = ref.watch(currentUserRoleProvider) == UserRole.attorney;
     final searching = _query.isNotEmpty;
-    final scope = searching ? ChannelScope.discover : _tab;
-    final key = (scope: scope, query: searching ? _query : '');
-    final list = ref.watch(channelListProvider(key));
-
-    Future<void> refresh() async {
-      ref.invalidate(channelListProvider(key));
-      await ref.read(channelListProvider(key).future);
-    }
-
     return ChannelsGate(
       child: Scaffold(
         backgroundColor: colors.bg,
@@ -88,82 +91,40 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         ),
         body: Column(
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.screenSide,
-                AppSpacing.sm,
-                AppSpacing.screenSide,
-                0,
-              ),
-              child: AppTextField(
-                key: const ValueKey('channels-search'),
-                controller: _text,
-                hintText: t.t('channel.search.hint'),
-                semanticLabel: t.t('channel.search.hint'),
-                leading: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    AppIcon(
-                      AppIcons.searchRounded,
-                      color: colors.textSecondary,
-                    ),
-                    const SizedBox(width: AppSpacing.xs),
-                    Text(
-                      '@',
-                      style: Theme.of(context)
-                          .extension<AppTypographyTokens>()!
-                          .body
-                          .copyWith(color: colors.textSecondary),
-                    ),
-                  ],
-                ),
-                textInputAction: TextInputAction.search,
-                onChanged: _typed,
-              ),
+            PillTabs<ChannelScope>(
+              value: _tab,
+              tabs: [
+                (ChannelScope.managed, t.t('channel.tab.mine')),
+                (ChannelScope.subscribed, t.t('channel.tab.subscribed')),
+                (ChannelScope.discover, t.t('channel.tab.discover')),
+              ],
+              onChanged: _pick,
             ),
-            if (!searching)
-              PillTabs<ChannelScope>(
-                value: _tab,
-                tabs: [
-                  (ChannelScope.managed, t.t('channel.tab.mine')),
-                  (ChannelScope.subscribed, t.t('channel.tab.subscribed')),
-                  (ChannelScope.discover, t.t('channel.tab.discover')),
-                ],
-                onChanged: (v) => setState(() => _tab = v),
-              ),
+            ListSearchField(
+              fieldKey: const ValueKey('channels-search'),
+              hintKey: 'channel.search.hint',
+              onChanged: _typed,
+            ),
             Expanded(
-              child: switch (list) {
-                AsyncData(:final value) when value.isEmpty =>
-                  _empty(t, searching, canCreate),
-                AsyncData(:final value) => RefreshIndicator(
-                    color: colors.gold,
-                    backgroundColor: colors.sheet,
-                    onRefresh: refresh,
-                    child: ListView.separated(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.only(
-                        top: AppSpacing.sm,
-                        bottom: AppSpacing.xxl,
-                      ),
-                      itemCount: value.length,
-                      separatorBuilder: (_, __) =>
-                          const SizedBox(height: AppSpacing.xs),
-                      itemBuilder: (context, i) => ChannelRow(
-                        key: ValueKey('channel-row-${value[i].id}'),
-                        channel: value[i],
-                        onTap: () => context.push(
-                          ChannelsRoutes.channel(value[i].id),
-                        ),
-                      ),
+              child: searching
+                  ? _ScopeList(
+                      scope: ChannelScope.discover,
+                      query: _query,
+                      empty: _empty(t, true, canCreate, _tab),
+                    )
+                  : PageView(
+                      controller: _pages,
+                      onPageChanged: (i) => setState(() => _tab = _order[i]),
+                      children: [
+                        for (final scope in _order)
+                          _ScopeList(
+                            key: ValueKey('channels-page-${scope.name}'),
+                            scope: scope,
+                            query: '',
+                            empty: _empty(t, false, canCreate, scope),
+                          ),
+                      ],
                     ),
-                  ),
-                AsyncError(:final error) => CasesErrorView(
-                    error: error,
-                    t: t,
-                    onRetry: () => ref.invalidate(channelListProvider(key)),
-                  ),
-                _ => const CasesListSkeleton(),
-              },
             ),
           ],
         ),
@@ -171,14 +132,19 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     );
   }
 
-  Widget _empty(Translator t, bool searching, bool canCreate) {
+  Widget _empty(
+    Translator t,
+    bool searching,
+    bool canCreate,
+    ChannelScope tab,
+  ) {
     if (searching) {
       return ChannelsEmpty(
         icon: AppIcons.searchOffRounded,
         message: t.t('channel.empty.search'),
       );
     }
-    return switch (_tab) {
+    return switch (tab) {
       ChannelScope.managed => ChannelsEmpty(
           title: t.t('channel.empty.mine.title'),
           message: t.t('channel.empty.mine'),
@@ -195,10 +161,66 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
           action: AppButton(
             label: t.t('channel.tab.discover'),
             variant: AppButtonVariant.secondary,
-            onPressed: () => setState(() => _tab = ChannelScope.discover),
+            onPressed: () => _pick(ChannelScope.discover),
           ),
         ),
       _ => ChannelsEmpty(message: t.t('channel.empty.discover')),
+    };
+  }
+}
+
+/// One page of the channels screen: the list of a scope (or of a search).
+class _ScopeList extends ConsumerWidget {
+  const _ScopeList({
+    required this.scope,
+    required this.query,
+    required this.empty,
+    super.key,
+  });
+
+  final ChannelScope scope;
+  final String query;
+  final Widget empty;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final key = (scope: scope, query: query);
+    final list = ref.watch(channelListProvider(key));
+
+    Future<void> refresh() async {
+      ref.invalidate(channelListProvider(key));
+      await ref.read(channelListProvider(key).future);
+    }
+
+    return switch (list) {
+      AsyncData(:final value) when value.isEmpty => empty,
+      AsyncData(:final value) => RefreshIndicator(
+          color: colors.gold,
+          backgroundColor: colors.sheet,
+          onRefresh: refresh,
+          child: ListView.separated(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.only(
+              top: AppSpacing.sm,
+              bottom: AppSpacing.xxl,
+            ),
+            itemCount: value.length,
+            separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.xs),
+            itemBuilder: (context, i) => ChannelRow(
+              key: ValueKey('channel-row-${value[i].id}'),
+              channel: value[i],
+              onTap: () => context.push(ChannelsRoutes.channel(value[i].id)),
+            ),
+          ),
+        ),
+      AsyncError(:final error) => CasesErrorView(
+          error: error,
+          t: t,
+          onRetry: () => ref.invalidate(channelListProvider(key)),
+        ),
+      _ => const CasesListSkeleton(),
     };
   }
 }

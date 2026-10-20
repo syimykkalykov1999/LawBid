@@ -57,17 +57,26 @@ class ChannelsRepository {
 
   Future<List<Channel>> list(ChannelScope scope, {String? q}) async {
     final term = q?.trim();
-    final env = await guardApiCall(
-      () => _channels.channelList(
-        scope: switch (scope) {
-          ChannelScope.discover => api.Scope2.discover,
-          ChannelScope.subscribed => api.Scope2.subscribed,
-          ChannelScope.managed => api.Scope2.managed,
-        },
-        q: term == null || term.isEmpty ? null : term,
-      ),
-    );
-    return env.data.map(channelOf).toList();
+    try {
+      final env = await guardApiCall(
+        () => _channels.channelList(
+          scope: switch (scope) {
+            ChannelScope.discover => api.Scope2.discover,
+            ChannelScope.subscribed => api.Scope2.subscribed,
+            ChannelScope.managed => api.Scope2.managed,
+          },
+          q: term == null || term.isEmpty ? null : term,
+        ),
+      );
+      return env.data.map(channelOf).toList();
+    } on ApiException catch (e) {
+      // A list has nothing to be "not found": a server without channels
+      // yet reads as an empty list, not as a red error.
+      if (e.code == ApiErrorCodes.notFound || e.statusCode == 404) {
+        return const [];
+      }
+      rethrow;
+    }
   }
 
   Future<Channel> get(String ref) async => channelOf(
