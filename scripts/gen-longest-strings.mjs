@@ -3,7 +3,7 @@
 // can draw, written to apps/mobile/test/l10n/longest_strings.json.
 // Usage: node scripts/gen-longest-strings.mjs
 // Also writes test/l10n/lang_<code>.json for the languages whose real text
-// the overflow tests pump as is (Nepali, Arabic: other scripts, the longest
+// the overflow tests pump as is (Nepali, Arabic, Marathi, German: the longest
 // texts by owner's measure).
 import ExcelJS from 'exceljs';
 import fs from 'node:fs';
@@ -23,7 +23,7 @@ const ws = wb.worksheets[0];
 const header = Array.from(ws.getRow(1).values, text);
 const col = Object.fromEntries(header.map((h, i) => [h, i]));
 const out = {};
-const ONE_LANG = ['ne', 'ar'];
+const ONE_LANG = ['ne', 'ar', 'de', 'mr'];
 const single = Object.fromEntries(ONE_LANG.map((l) => [l, {}]));
 ws.eachRow((row, n) => {
   if (n === 1) return;

@@ -10,6 +10,8 @@ import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
 import { S3StorageService } from '../src/modules/files/storage/s3-storage.service';
 import { CaseJournalService } from '../src/modules/journal/case-journal.service';
+import { CaseSigningService } from '../src/modules/cases/tools/case-signing.service';
+import type { RequestUser } from '../src/modules/auth/decorators/current-user.decorator';
 import { ConflictCheckService } from '../src/modules/bids/conflict/conflict-check.service';
 import { ensurePostPractices } from './support/post-practices';
 import { adminSession } from './support/admin-login';
@@ -523,6 +525,17 @@ describe('Case tools (e2e, 2026-10-20)', () => {
     expect(sig.doc_sha256).toBe(req.sourceSha256);
     expect(sig.ip).toBeTruthy();
 
+    // a signature is never changed or removed on its own
+    await expect(
+      prisma.caseSignature.update({
+        where: { id: sig.id },
+        data: { signed_name: 'Someone Else' },
+      }),
+    ).rejects.toThrow(/immutable/);
+    await expect(
+      prisma.caseSignature.delete({ where: { id: sig.id } }),
+    ).rejects.toThrow(/only with their request/);
+
     // journal: requested, 2 x signed, completed — chain intact
     const events = (
       await prisma.caseJournal.findMany({
@@ -634,6 +647,19 @@ describe('Case tools (e2e, 2026-10-20)', () => {
       .set(att.auth)
       .send({ fileId, title: 'Retainer' });
     const rid = made.body.data[0].id as string;
+    // an assistant cannot decline, as it cannot sign
+    await expect(
+      app.get(CaseSigningService).decline(
+        {
+          sub: att.id,
+          role: 'attorney',
+          assistant: true,
+        } as unknown as RequestUser,
+        caseId,
+        rid,
+        undefined,
+      ),
+    ).rejects.toThrow(/Only the attorney/);
     const dec = await api()
       .post(`${base}/${rid}/decline`)
       .set(cli.auth)
@@ -884,15 +910,18 @@ describe('Case tools (e2e, 2026-10-20)', () => {
     const two = await api()
       .get(`/api/v1/cases/${theirs}/conflict-check`)
       .set(att.auth);
-    expect(
-      (two.body.data.matches as { kind: string; by: string }[])
-        .map((m) => `${m.kind}:${m.by}`)
-        .sort(),
-    ).toEqual(['opposing_party:name', 'opposing_party:phone']);
+    // by name alone, and without saying how it matched
+    expect(two.body.data.matches).toEqual([
+      {
+        kind: 'opposing_party',
+        caseId: expect.any(String),
+        caseTitle: 'Wage claim',
+      },
+    ]);
     // the answer never carries the client's identity
     expect(JSON.stringify(two.body.data)).not.toMatch(/Klein|212|0188/);
 
-    // 3) an unrelated case is clean and leaves no record
+    // 3) an unrelated case is clean
     const clean = await makeCase(
       await user('client', { first: 'Zed', last: 'Quark' }),
       null,
@@ -901,9 +930,6 @@ describe('Case tools (e2e, 2026-10-20)', () => {
       .get(`/api/v1/cases/${clean}/conflict-check`)
       .set(att.auth);
     expect(none.body.data).toEqual({ conflict: false, matches: [] });
-    expect(
-      await prisma.caseConflictCheck.count({ where: { case_id: clean } }),
-    ).toBe(0);
 
     // each warning is kept as the attorney's own record; a bid keeps one too
     expect(
@@ -926,10 +952,41 @@ describe('Case tools (e2e, 2026-10-20)', () => {
           .set(newClient.auth)
       ).status,
     ).toBe(403);
+    // a client's private details are not read before hire
+    const hidden = await makeCase(
+      await user('client', { first: 'Pat', last: 'Hidden' }),
+      null,
+      { title: 'Private matter', details: 'The other side is maria gonzalez.' },
+    );
+    const priv = await api()
+      .get(`/api/v1/cases/${hidden}/conflict-check`)
+      .set(att.auth);
+    expect(priv.body.data).toEqual({ conflict: false, matches: [] });
+
+    // a day's checks are limited
+    await prisma.caseConflictCheck.deleteMany({
+      where: { attorney_id: att.id },
+    });
+    await prisma.caseConflictCheck.createMany({
+      data: Array.from({ length: 30 }, () => ({
+        case_id: clean,
+        attorney_id: att.id,
+        trigger: 'view',
+        matches: [],
+      })),
+    });
+    expect(
+      (await api().get(`/api/v1/cases/${clean}/conflict-check`).set(att.auth))
+        .status,
+    ).toBe(429);
+
     // the same client in both cases is not a conflict
     const again = await makeCase(old, null, {
       title: 'Second matter',
       description: 'maria gonzalez again',
+    });
+    await prisma.caseConflictCheck.deleteMany({
+      where: { attorney_id: att.id },
     });
     const same = await api()
       .get(`/api/v1/cases/${again}/conflict-check`)

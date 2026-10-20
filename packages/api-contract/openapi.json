@@ -93174,7 +93174,8 @@
               "name",
               "phone",
               "email"
-            ]
+            ],
+            "description": "How your former client appears in this case (former_client only). Never given for opposing_party: that match is by name alone."
           },
           "caseId": {
             "type": "string",
@@ -93186,7 +93187,6 @@
         },
         "required": [
           "kind",
-          "by",
           "caseId",
           "caseTitle"
         ]

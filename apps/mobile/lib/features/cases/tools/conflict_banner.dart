@@ -88,7 +88,7 @@ class ConflictBanner extends ConsumerWidget {
                         : 'conflict.former',
                     {
                       'case': m.caseTitle,
-                      'by': t.t('conflict.by.${m.by.json}'),
+                      'by': t.t('conflict.by.${m.by?.json ?? 'name'}'),
                     },
                   ),
                   style: typography.bodySmall.copyWith(color: colors.text),

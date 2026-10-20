@@ -13,9 +13,9 @@ part 'conflict_match_dto.g.dart';
 class ConflictMatchDto {
   const ConflictMatchDto({
     required this.kind,
-    required this.by,
     required this.caseId,
     required this.caseTitle,
+    this.by,
   });
 
   factory ConflictMatchDto.fromJson(Map<String, Object?> json) =>
@@ -23,7 +23,9 @@ class ConflictMatchDto {
 
   /// former_client: a client of yours is named in this case. opposing_party: this case’s client is named in a case you handled.
   final ConflictMatchDtoKind kind;
-  final ConflictMatchDtoBy by;
+
+  /// How your former client appears in this case (former_client only). Never given for opposing_party: that match is by name alone.
+  final ConflictMatchDtoBy? by;
 
   /// Your earlier case.
   final String caseId;

@@ -1,8 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
+import { ErrorCode } from '../../../common/errors/error-code.enum';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { matchesIn, type MatchBy, type Person } from './conflict.logic';
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class ConflictMatchDto {
   @ApiProperty({
@@ -11,7 +12,12 @@ export class ConflictMatchDto {
       'former_client: a client of yours is named in this case. opposing_party: this case’s client is named in a case you handled.',
   })
   kind!: 'former_client' | 'opposing_party';
-  @ApiProperty({ enum: ['name', 'phone', 'email'] }) by!: MatchBy;
+  @ApiPropertyOptional({
+    enum: ['name', 'phone', 'email'],
+    description:
+      'How your former client appears in this case (former_client only). Never given for opposing_party: that match is by name alone.',
+  })
+  by?: MatchBy;
   @ApiProperty({ description: 'Your earlier case.' }) caseId!: string;
   @ApiProperty() caseTitle!: string;
 }
@@ -24,11 +30,20 @@ export class ConflictCheckDto {
 /** The cases an attorney looks back through: the most recent accepted. */
 const LOOKBACK = 300;
 
+/** Checks an attorney may run from the case screen in 24 hours: more would
+ * let them probe who the clients are. */
+export const CHECKS_PER_DAY = 30;
+
 const textOf = (c: {
   title: string;
   description: string;
   private_details: string | null;
 }): string => `${c.title}\n${c.description}\n${c.private_details ?? ''}`;
+
+/** A case the attorney has not been hired on: only what every attorney can
+ * read; its private details stay out of the comparison. */
+const publicTextOf = (c: { title: string; description: string }): string =>
+  `${c.title}\n${c.description}`;
 
 /**
  * Owner 2026-10-20: before an attorney bids on a case, look for a conflict
@@ -39,7 +54,9 @@ const textOf = (c: {
  * for in the case card text. It is a warning, never a block, and each
  * check is kept as the attorney's own record. The client's identity is
  * never part of the answer — only that a match exists and which of the
- * attorney's own cases it is in.
+ * attorney's own cases it is in. The other side is matched by name alone
+ * (no phone or e-mail, and no `by`), and the case's private details are
+ * never compared before the attorney is hired.
  */
 @Injectable()
 export class ConflictCheckService {
@@ -100,7 +117,7 @@ export class ConflictCheckService {
       email: u.email,
     });
     const thisClient = person(kase.client);
-    const thisText = textOf(kase);
+    const thisText = publicTextOf(kase);
     const matches: ConflictMatchDto[] = [];
     for (const p of past) {
       for (const by of matchesIn(person(p.client), thisText)) {
@@ -111,16 +128,35 @@ export class ConflictCheckService {
           caseTitle: p.title,
         });
       }
-      for (const by of matchesIn(thisClient, textOf(p))) {
+      if (matchesIn(thisClient, textOf(p)).includes('name')) {
         matches.push({
           kind: 'opposing_party',
-          by,
           caseId: p.id,
           caseTitle: p.title,
         });
       }
     }
     return { conflict: matches.length > 0, matches };
+  }
+
+  /** The case screen's check is limited per attorney and day. */
+  async assertQuota(attorneyId: string): Promise<void> {
+    const used = await this.prisma.caseConflictCheck.count({
+      where: {
+        attorney_id: attorneyId,
+        trigger: 'view',
+        created_at: { gte: new Date(Date.now() - 24 * 3600 * 1000) },
+      },
+    });
+    if (used >= CHECKS_PER_DAY) {
+      throw new HttpException(
+        {
+          code: ErrorCode.RATE_LIMITED,
+          message: 'Too many conflict checks today. Try again tomorrow.',
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
   }
 
   /** The attorney's own record of what was found (best effort: a failed
@@ -132,7 +168,6 @@ export class ConflictCheckService {
     result: ConflictCheckDto,
     bidId: string | null = null,
   ): Promise<void> {
-    if (trigger === 'view' && !result.conflict) return;
     await this.prisma.caseConflictCheck.create({
       data: {
         case_id: caseId,

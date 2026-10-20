@@ -69,7 +69,11 @@ export class BidsController {
       'Attorney: does this case clash with a client or a case of yours? (a warning, never a block)',
   })
   @ApiEnvelopeResponse(ConflictCheckDto)
-  @ApiErrors({ 400: [E.VALIDATION_ERROR], 404: [E.CASE_NOT_FOUND] })
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    404: [E.CASE_NOT_FOUND],
+    429: [E.RATE_LIMITED],
+  })
   async conflictCheck(
     @CurrentUser() user: RequestUser,
     @Param() params: CaseIdParamDto,
@@ -80,6 +84,7 @@ export class BidsController {
         message: 'Only attorneys can check a case for a conflict.',
       });
     }
+    await this.conflicts.assertQuota(user.sub);
     const result = await this.conflicts.check(user.sub, params.caseId);
     await this.conflicts
       .record(user.sub, params.caseId, 'view', result)

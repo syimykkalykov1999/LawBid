@@ -41,6 +41,8 @@ const caseSigningRu = <String, String>{
   'sign.consent':
       'Согласен использовать электронные записи и подписи и подписать этот документ в приложении (ESIGN Act, UETA).',
   'sign.consentFirst': 'Подтвердите согласие',
+  'sign.note':
+      'Электронная подпись (ESIGN/UETA), без квалифицированного сертификата',
   'sign.submit': 'Подписать документ',
   'sign.declineTitle': 'Отклонить подпись',
   'sign.reason': 'Причина (необязательно)',
@@ -111,6 +113,7 @@ const caseSigningEn = <String, String>{
   'sign.consent':
       'I agree to use electronic records and signatures and to sign this document in the app (ESIGN Act, UETA).',
   'sign.consentFirst': 'Confirm your consent',
+  'sign.note': 'Electronic signature (ESIGN/UETA), no qualified certificate',
   'sign.submit': 'Sign document',
   'sign.declineTitle': 'Decline to sign',
   'sign.reason': 'Reason (optional)',

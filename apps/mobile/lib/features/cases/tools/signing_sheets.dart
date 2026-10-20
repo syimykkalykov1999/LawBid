@@ -361,6 +361,10 @@ class _SignSheetState extends ConsumerState<_SignSheet> {
             contentPadding: EdgeInsets.zero,
             title: Text(t.t('sign.consent'), style: type.bodySmall),
           ),
+          Text(
+            t.t('sign.note'),
+            style: type.caption.copyWith(color: colors.textSecondary),
+          ),
           const SizedBox(height: AppSpacing.sm),
           _ErrorLine(_error),
           ListenableBuilder(

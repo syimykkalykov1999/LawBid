@@ -3,6 +3,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { createHash } from 'node:crypto';
@@ -63,6 +64,8 @@ const invalid = (message: string, field?: string): BadRequestException =>
  */
 @Injectable()
 export class CaseSigningService {
+  private readonly log = new Logger(CaseSigningService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly ws: CaseWorkspaceService,
@@ -83,7 +86,11 @@ export class CaseSigningService {
     // make it now. Best effort — the list still answers.
     for (const r of rows) {
       if (r.status === 'signed' && !r.final_file_id) {
-        await this.finalize(r.id, user).catch(() => undefined);
+        await this.finalize(r.id, user).catch((e: unknown) =>
+          this.log.warn(
+            `final file of signing request ${r.id} not made: ${String(e)}`,
+          ),
+        );
       }
     }
     const fresh = rows.some((r) => r.status === 'signed' && !r.final_file_id)
@@ -272,6 +279,13 @@ export class CaseSigningService {
     requestId: string,
     reason: string | undefined,
   ): Promise<SignRequestDto[]> {
+    // Declining is the signer's own act, like signing.
+    if (user.assistant) {
+      throw new ForbiddenException({
+        code: ErrorCode.ASSISTANT_NOT_ALLOWED,
+        message: 'Only the attorney can decline.',
+      });
+    }
     const s = await this.ws.side(user, caseId);
     const r = await this.request(caseId, requestId);
     if (r.status !== 'pending') {

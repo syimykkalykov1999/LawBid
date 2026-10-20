@@ -4,6 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+/// How your former client appears in this case (former_client only). Never given for opposing_party: that match is by name alone.
 @JsonEnum()
 enum ConflictMatchDtoBy {
   @JsonValue('name')

@@ -26,9 +26,9 @@ export interface ProtocolInput {
 }
 
 export const CONSENT_EN =
-  'Each signer agreed to use electronic records and signatures for this document and to sign it by typing or drawing their name in the LawBid app (ESIGN Act, UETA).';
+  'Each signer agreed to use electronic records and signatures for this document and to sign it by typing or drawing their name in the LawBid app (ESIGN Act, UETA). This is an electronic signature, not a signature with a qualified certificate.';
 export const CONSENT_RU =
-  'Каждый подписант согласился использовать электронные записи и подписи для этого документа и подписать его, введя или нарисовав своё имя в приложении LawBid (ESIGN Act, UETA).';
+  'Каждый подписант согласился использовать электронные записи и подписи для этого документа и подписать его, введя или нарисовав своё имя в приложении LawBid (ESIGN Act, UETA). Это электронная подпись, а не подпись с квалифицированным сертификатом.';
 
 const ROLE = { client: 'Client / Клиент', attorney: 'Attorney / Адвокат' };
 
