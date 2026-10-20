@@ -172,15 +172,15 @@ void main() {
       const code = 'Xk3_aB-9Qz1LmN4pR7sT0w';
       expect(
         parse('https://lawbid.dev/g/$code'),
-        const ContentDeepLink(ContentKind.group, code),
+        const GroupInviteDeepLink(code),
       );
       expect(
         parse('https://www.lawbid.dev/g/$code'),
-        const ContentDeepLink(ContentKind.group, code),
+        const GroupInviteDeepLink(code),
       );
       expect(
         parse('lawbid://g/$code'),
-        const ContentDeepLink(ContentKind.group, code),
+        const GroupInviteDeepLink(code),
       );
       expect(
         parse('https://lawbid.dev/g/@law_chat'),
