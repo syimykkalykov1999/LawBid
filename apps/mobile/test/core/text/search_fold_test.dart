@@ -25,7 +25,8 @@ void main() {
       'Alёna': 'alena',
     };
     pairs.forEach(
-        (name, skel) => expect(nameSkeleton(name), skel, reason: name),);
+      (name, skel) => expect(nameSkeleton(name), skel, reason: name),
+    );
   });
 
   test('a query matches across alphabets, order, accents and one typo', () {

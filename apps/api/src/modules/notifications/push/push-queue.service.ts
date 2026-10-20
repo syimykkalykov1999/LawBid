@@ -129,7 +129,11 @@ export class PushQueueService
   }
 
   /** Push 2026-10-19: stop the ringing on [recipientId]'s devices. */
-  async enqueueCallEnded(data: { recipientId: string; callId: string }) {
+  async enqueueCallEnded(data: {
+    recipientId: string;
+    callId: string;
+    ended?: boolean;
+  }) {
     if (demoContext.isDemo()) return;
     if (!this.queue) return;
     try {
@@ -141,7 +145,7 @@ export class PushQueueService
           backoff: { type: 'fixed', delay: 1_000 },
           removeOnComplete: { count: 1000 },
           removeOnFail: { count: 1000 },
-          jobId: `ce-${data.callId}-${data.recipientId}`,
+          jobId: `ce-${data.callId}-${data.recipientId}${data.ended ? '-end' : ''}`,
         },
       );
     } catch (error) {

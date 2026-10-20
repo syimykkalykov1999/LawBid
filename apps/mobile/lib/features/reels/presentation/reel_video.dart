@@ -9,6 +9,7 @@ import 'package:lawbid/core/design_system/widgets/buttons/player_round_button.da
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/design_system/widgets/display/pinch_to_zoom.dart';
 import 'package:lawbid/core/media/playback_visibility.dart';
+import 'package:lawbid/features/chat/application/voice_player.dart';
 import 'package:lawbid/features/reels/application/reels_providers.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
@@ -240,8 +241,26 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
     // the same audio mode, so the phone's audio session is set once and
     // never switched while another reel plays — only the volume changes.
     if (widget.video.playbackUrl != old.video.playbackUrl) _close();
+    // The player was opened mixing (it was muted) and the audio mode of a
+    // running player cannot change: a voice note playing underneath must be
+    // paused by hand, or the reel plays over it without taking the focus.
+    if (old.muted && !widget.muted && widget.active && _c != null) {
+      _pauseVoiceNote();
+    }
     if ((widget.active || widget.warm) && _c == null) _open();
     _apply();
+  }
+
+  void _pauseVoiceNote() {
+    try {
+      unawaited(
+        ProviderScope.containerOf(context, listen: false)
+            .read(voicePlayerProvider.notifier)
+            .pauseForOtherAudio(),
+      );
+    } on Object {
+      // No provider scope (a bare widget test): nothing is playing.
+    }
   }
 
   /// There is a stream to play.

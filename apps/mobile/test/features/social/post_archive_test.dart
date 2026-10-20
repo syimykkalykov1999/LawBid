@@ -122,8 +122,7 @@ void main() {
     expect(c.read(deletedPostsProvider), isNot(contains('p1')));
   });
 
-  testWidgets('someone else’s post: no archive or comments switch',
-      (t) async {
+  testWidgets('someone else’s post: no archive or comments switch', (t) async {
     final repo = _ArchiveRepo();
     await pumpMenu(t, repo, own('p1', mine: false));
     expect(find.byKey(const ValueKey('post-menu-archive')), findsNothing);
