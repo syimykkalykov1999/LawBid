@@ -125,7 +125,8 @@ void main() {
     expect(find.text('Anna Petrova'), findsNothing);
     expect(find.text('Boris Ivanov'), findsOneWidget);
     // The matched message replaces the preview, the typed word in bold.
-    final match = tester.widget<Text>(
+    final match =
+        tester.widget<Text>(
       find.byKey(const ValueKey('chat-match-b')),
     );
     final spans = (match.textSpan! as TextSpan).children!.cast<TextSpan>();
