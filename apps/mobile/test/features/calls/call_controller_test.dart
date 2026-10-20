@@ -853,8 +853,7 @@ void main() {
       expect(h.repo.ends, isEmpty);
     });
 
-    test('a link that drops is retried while the call goes on',
-        () async {
+    test('a link that drops is retried while the call goes on', () async {
       final h = await joined();
       h.media.links['p1']!(CallMediaState.connected);
       h.media.links['p2']!(CallMediaState.connected);

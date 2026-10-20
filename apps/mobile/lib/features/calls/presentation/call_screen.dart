@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,17 +8,20 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
-import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/call_foreground.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
+import 'package:lawbid/features/calls/presentation/call_group.dart';
+import 'package:lawbid/features/calls/presentation/call_widgets.dart';
 import 'package:lawbid/features/chat/application/voice_recorder.dart'
     show voiceClock;
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/plans/presentation/plan_offer.dart';
+import 'package:lawbid/features/social/application/social_providers.dart'
+    show currentUserIdProvider;
 import 'package:lawbid/features/subscription/presentation/paywall_screen.dart';
 
 /// OQ-041: the full-screen call — navy with gold, the other member's
@@ -114,12 +116,16 @@ class _CallScreenState extends ConsumerState<CallScreen>
     // The other member stays on screen until it closes (never a "?").
     final peer = s.peer ?? s.call?.peer ?? _lastPeer;
     _lastPeer = peer;
-    final name = peer?.name ?? '';
+    final me = ref.watch(currentUserIdProvider);
+    // Owner 2026-10-20: three or more people — everyone as a tile.
+    final group = (s.call?.group ?? false) &&
+        (s.phase == CallPhase.connecting || s.phase == CallPhase.active);
+    final name = group ? callLabel(s, me) : peer?.name ?? '';
     final ringing =
         s.phase == CallPhase.outgoing || s.phase == CallPhase.incoming;
     final media = c.media;
-    final remote = s.video ? media?.remoteVideo : null;
-    final local = s.video ? media?.localVideo : null;
+    final remote = s.video && !group ? media?.remoteVideo : null;
+    final local = s.video && !group ? media?.localVideo : null;
 
     return SystemNavBandColor(
       color: colors.navy,
@@ -177,18 +183,26 @@ class _CallScreenState extends ConsumerState<CallScreen>
                               else
                                 const SizedBox(width: 44, height: 44),
                               const Spacer(),
-                              _TopButton(
-                                icon: AppIcons.personAddAlt1Rounded,
-                                label: t.t('call.addParticipant'),
-                                dimmed: true,
-                                onTap: () =>
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content:
-                                        Text(t.t('call.addParticipantSoon')),
+                              if (group) ...[
+                                _TopButton(
+                                  icon: AppIcons.peopleOutlineRounded,
+                                  label: t.t('call.members'),
+                                  onTap: () => unawaited(
+                                    showCallMembersSheet(context),
                                   ),
                                 ),
-                              ),
+                                const SizedBox(width: AppSpacing.sm),
+                              ],
+                              if (s.phase == CallPhase.active)
+                                _TopButton(
+                                  icon: AppIcons.personAddAlt1Rounded,
+                                  label: t.t('call.addParticipant'),
+                                  onTap: () => unawaited(
+                                    showAddToCallSheet(context),
+                                  ),
+                                )
+                              else
+                                const SizedBox(width: 44, height: 44),
                             ],
                           ),
                         ),
@@ -251,9 +265,23 @@ class _CallScreenState extends ConsumerState<CallScreen>
                             ),
                           ],
                         ),
-                        const Spacer(),
+                        if (s.notice == kNoticeMutedByHost) ...[
+                          const SizedBox(height: AppSpacing.sm),
+                          CallNoticeBanner(notice: s.notice!),
+                        ],
+                        if (group)
+                          Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                vertical: AppSpacing.md,
+                              ),
+                              child: CallGroupGrid(session: s, media: media),
+                            ),
+                          )
+                        else
+                          const Spacer(),
                         // A live video call: the picture is the background.
-                        if (!(s.video && s.phase == CallPhase.active))
+                        if (!group && !(s.video && s.phase == CallPhase.active))
                           SizedBox(
                             width: 220,
                             height: 220,
@@ -267,11 +295,12 @@ class _CallScreenState extends ConsumerState<CallScreen>
                                 ),
                                 child: child,
                               ),
-                              child:
-                                  Center(child: _Avatar(peer: peer, size: 132)),
+                              child: Center(
+                                child: CallAvatar(peer: peer, size: 132),
+                              ),
                             ),
                           ),
-                        const Spacer(),
+                        if (!group) const Spacer(),
                         Padding(
                           padding: const EdgeInsets.fromLTRB(
                             AppSpacing.xl,
@@ -402,13 +431,11 @@ class _TopButton extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.onTap,
-    this.dimmed = false,
   });
 
   final IconData icon;
   final String label;
   final VoidCallback onTap;
-  final bool dimmed;
 
   @override
   Widget build(BuildContext context) {
@@ -428,7 +455,7 @@ class _TopButton extends StatelessWidget {
               child: AppIcon(
                 icon,
                 size: 24,
-                color: Colors.white.withValues(alpha: dimmed ? 0.55 : 1),
+                color: Colors.white.withValues(alpha: 1),
               ),
             ),
           ),
@@ -436,66 +463,6 @@ class _TopButton extends StatelessWidget {
       ),
     );
   }
-}
-
-/// Owner 2026-10-05: one WebRTC picture (ours mirrored, like a mirror).
-class CallVideoView extends StatefulWidget {
-  const CallVideoView({required this.stream, this.mirror = false, super.key});
-
-  final MediaStream stream;
-  final bool mirror;
-
-  @override
-  State<CallVideoView> createState() => _CallVideoViewState();
-}
-
-class _CallVideoViewState extends State<CallVideoView> {
-  final _renderer = RTCVideoRenderer();
-  bool _ready = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _init();
-  }
-
-  Future<void> _init() async {
-    await _renderer.initialize();
-    if (!mounted) {
-      await _renderer.dispose();
-      return;
-    }
-    _renderer.srcObject = widget.stream;
-    // Web: the call's sound already plays through CallMedia.
-    if (kIsWeb) _renderer.muted = true;
-    setState(() => _ready = true);
-  }
-
-  @override
-  void didUpdateWidget(CallVideoView old) {
-    super.didUpdateWidget(old);
-    if (_ready && old.stream != widget.stream) {
-      _renderer.srcObject = widget.stream;
-      if (kIsWeb) _renderer.muted = true;
-    }
-  }
-
-  @override
-  void dispose() {
-    _renderer
-      ..srcObject = null
-      ..dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => !_ready
-      ? const ColoredBox(color: Colors.black)
-      : RTCVideoView(
-          _renderer,
-          mirror: widget.mirror,
-          objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
-        );
 }
 
 /// "Calling…", "0:42", "Busy", "Calls open once the client accepts…".
@@ -515,6 +482,8 @@ String callStatusText(Translator t, CallSession s) {
       switch (s.errorCode) {
         case kMicDenied:
           return t.t('call.micDenied');
+        case kRemovedFromCall:
+          return t.t('call.removed');
         case 'CALL_NOT_ALLOWED':
           return t.t('call.notAllowed');
         case 'SUBSCRIPTION_REQUIRED':
@@ -534,54 +503,6 @@ String callStatusText(Translator t, CallSession s) {
       return t.t('call.status.${(s.outcome ?? CallStatus.ended).name}');
     case CallPhase.idle:
       return '';
-  }
-}
-
-class _Avatar extends StatelessWidget {
-  const _Avatar({required this.peer, required this.size});
-
-  final CallPeer? peer;
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final url = peer?.avatarUrl;
-    final initials = (peer?.name ?? '?')
-        .replaceAll(RegExp('[@\u2066-\u2069]'), '')
-        .split(' ')
-        .where((w) => w.isNotEmpty)
-        .take(2)
-        .map((w) => w[0].toUpperCase())
-        .join();
-    return Container(
-      width: size,
-      height: size,
-      padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: LinearGradient(
-          colors: [colors.goldLight, colors.gold, colors.goldDark],
-        ),
-      ),
-      child: ClipOval(
-        child: url == null
-            ? ColoredBox(
-                color: colors.navy,
-                child: Center(
-                  child: Text(
-                    initials.isEmpty ? '?' : initials,
-                    style: TextStyle(
-                      color: colors.goldLight,
-                      fontSize: size * 0.34,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              )
-            : Image(image: appNetworkImage(url, 600), fit: BoxFit.cover),
-      ),
-    );
   }
 }
 

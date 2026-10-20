@@ -205,6 +205,24 @@ const kCallReconnectRetry = Duration(seconds: 6);
 /// How long the "Call ended" screen stays.
 const kCallEndedLinger = Duration(milliseconds: 1600);
 
+/// Who the call is with: the other person, or for a group the first two
+/// names and a count.
+String callLabel(CallSession s, String? me) {
+  final call = s.call;
+  if (call != null && call.group) {
+    final names = [
+      for (final m in call.participants)
+        if (m.userId != me && (m.joined || m.ringing)) m.name,
+    ];
+    if (names.length > 2) {
+      return '${names.take(2).join(', ')} +${names.length - 2}';
+    }
+    if (names.isNotEmpty) return names.join(', ');
+  }
+  final n = (s.peer ?? call?.peer)?.name ?? '';
+  return n.isEmpty ? 'LawBid' : n;
+}
+
 /// OQ-041: one call at a time on this device. Rings in (`call:incoming`),
 /// calls out, answers, relays WebRTC signaling over the realtime socket,
 /// and tears everything down on hang-up, decline, timeout or failure.
@@ -315,7 +333,7 @@ class CallController extends Notifier<CallSession> {
       }
       return;
     }
-    final name = _callLabel(next);
+    final name = callLabel(next, _me);
     final since = next.phase == CallPhase.active
         ? (next.connectedAt ?? DateTime.now()).millisecondsSinceEpoch
         : 0;
@@ -331,25 +349,6 @@ class CallController extends Notifier<CallSession> {
         hangup: t.t('call.end'),
       ),
     );
-  }
-
-  /// Who the call is with: the other person, or the first two names and a
-  /// count for a group.
-  String _callLabel(CallSession s) {
-    final call = s.call;
-    final me = _me;
-    if (call != null && call.group) {
-      final names = [
-        for (final m in call.participants)
-          if (m.userId != me && (m.joined || m.ringing)) m.name,
-      ];
-      if (names.length > 2) {
-        return '${names.take(2).join(', ')} +${names.length - 2}';
-      }
-      if (names.isNotEmpty) return names.join(', ');
-    }
-    final n = (s.peer ?? call?.peer)?.name ?? '';
-    return n.isEmpty ? 'LawBid' : n;
   }
 
   void _onNotificationAction(String action) {
