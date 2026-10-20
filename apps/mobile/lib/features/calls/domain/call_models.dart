@@ -41,6 +41,46 @@ class CallPeer {
   }
 }
 
+/// Where a person stands in a group call.
+enum CallMemberStatus { invited, joined, declined, left, removed }
+
+/// One person in a group call.
+@immutable
+class CallMember {
+  const CallMember({
+    required this.userId,
+    required this.status,
+    this.displayName,
+    this.username,
+    this.avatarUrl,
+    this.muted = false,
+    this.mutedByHost = false,
+    this.joinedAt,
+  });
+
+  final String userId;
+  final CallMemberStatus status;
+  final String? displayName;
+  final String? username;
+  final String? avatarUrl;
+
+  /// The microphone is off (their own choice or the host's).
+  final bool muted;
+  final bool mutedByHost;
+  final DateTime? joinedAt;
+
+  bool get joined => status == CallMemberStatus.joined;
+  bool get ringing => status == CallMemberStatus.invited;
+
+  /// Never empty (name, @username or the brand).
+  String get name {
+    final n = displayName?.trim();
+    if (n != null && n.isNotEmpty) return n;
+    final u = username;
+    return u == null || u.isEmpty ? 'LawBid' : atHandle(u);
+  }
+}
+
 @immutable
 class AppCall {
   const AppCall({
@@ -54,7 +94,17 @@ class AppCall {
     this.endedAt,
     this.durationSec,
     this.video = false,
+    this.group = false,
+    this.hostId,
+    this.participants = const [],
   });
+
+  /// Owner 2026-10-20: people were added; [participants] lists everyone.
+  final bool group;
+
+  /// Who can mute / remove others (group calls).
+  final String? hostId;
+  final List<CallMember> participants;
 
   /// Owner 2026-10-05: a video call (camera on both sides).
   final bool video;
@@ -68,6 +118,27 @@ class AppCall {
   final DateTime? answeredAt;
   final DateTime? endedAt;
   final int? durationSec;
+
+  AppCall copyWith({
+    bool? group,
+    String? hostId,
+    List<CallMember>? participants,
+  }) =>
+      AppCall(
+        id: id,
+        conversationId: conversationId,
+        status: status,
+        outgoing: outgoing,
+        peer: peer,
+        createdAt: createdAt,
+        answeredAt: answeredAt,
+        endedAt: endedAt,
+        durationSec: durationSec,
+        video: video,
+        group: group ?? this.group,
+        hostId: hostId ?? this.hostId,
+        participants: participants ?? this.participants,
+      );
 
   bool get live => status == CallStatus.ringing || status == CallStatus.active;
 }

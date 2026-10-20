@@ -18,6 +18,8 @@ import 'package:lawbid/features/chat/data/realtime_client.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
 import 'package:lawbid/features/notifications/data/notifications_repository.dart'
     show NotifCategory;
+import 'package:lawbid/features/social/application/social_providers.dart'
+    show currentUserIdProvider;
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 
@@ -56,7 +58,12 @@ class CallSession {
     this.video = false,
     this.cameraOn = true,
     this.reconnecting = false,
+    this.notice,
   });
+
+  /// Group calls: something the screen tells the person for a moment
+  /// ([kNoticeMutedByHost]).
+  final String? notice;
 
   /// Owner 2026-10-05: a video call; [cameraOn] = our camera is sending.
   final bool video;
@@ -94,6 +101,8 @@ class CallSession {
     String? errorCode,
     bool? cameraOn,
     bool? reconnecting,
+    String? notice,
+    bool clearNotice = false,
   }) =>
       CallSession(
         phase: phase ?? this.phase,
@@ -107,18 +116,24 @@ class CallSession {
         video: video,
         cameraOn: cameraOn ?? this.cameraOn,
         reconnecting: reconnecting ?? this.reconnecting,
+        notice: clearNotice ? null : notice ?? this.notice,
       );
 }
 
 /// Sends a signaling payload to the other member of [callId].
+/// Group calls: [to] names the member the signal is for.
 typedef CallSignalSender = Future<bool> Function(
   String callId,
-  Map<String, Object?> data,
-);
+  Map<String, Object?> data, {
+  String? to,
+});
 
 final callSignalSenderProvider = Provider<CallSignalSender>((ref) {
-  return (callId, data) async =>
-      await ref.read(realtimeClientProvider)?.callSignal(callId, data) ?? false;
+  return (callId, data, {to}) async =>
+      await ref
+          .read(realtimeClientProvider)
+          ?.callSignal(callId, data, to: to) ??
+      false;
 });
 
 /// The phone's own ringing UI (CallKit / ConnectionService); a no-op in
@@ -168,6 +183,13 @@ const kCallRingTimeout = Duration(seconds: 60);
 /// [CallSession.errorCode] when the microphone permission was refused.
 const kMicDenied = 'MIC_DENIED';
 
+/// [CallSession.errorCode] when the host removed us from a group call.
+const kRemovedFromCall = 'REMOVED_FROM_CALL';
+
+/// [CallSession.notice]: the host switched our microphone off (we may
+/// switch it on again).
+const kNoticeMutedByHost = 'MUTED_BY_HOST';
+
 /// The link must come up this fast after pick-up, else "failed".
 const kCallConnectTimeout = Duration(seconds: 25);
 
@@ -192,11 +214,18 @@ class CallController extends Notifier<CallSession> {
   Timer? _ringTimer;
   Timer? _connectTimer;
   Timer? _syncTimer;
-  Timer? _reconnectGrace;
-  Timer? _reconnectRetry;
   Timer? _linger;
-  final _earlySignals = <Map<String, Object?>>[];
+  final _earlySignals = <({String? from, Map<String, Object?> data})>[];
   bool _mediaOpen = false;
+
+  // Per-member links (a two-person call has one).
+  final _offered = <String>{};
+  final _connected = <String>{};
+  final _reconnect = <String, ({Timer grace, Timer retry})>{};
+  bool _syncingLinks = false;
+  bool _syncAgain = false;
+
+  String? get _me => ref.read(currentUserIdProvider);
 
   /// Bumped by every [_reset]: an await that wakes up under another
   /// generation belongs to a call that is already over.
@@ -286,8 +315,7 @@ class CallController extends Notifier<CallSession> {
       }
       return;
     }
-    final peerName = (next.peer ?? next.call?.peer)?.name ?? '';
-    final name = peerName.isEmpty ? 'LawBid' : peerName;
+    final name = _callLabel(next);
     final since = next.phase == CallPhase.active
         ? (next.connectedAt ?? DateTime.now()).millisecondsSinceEpoch
         : 0;
@@ -303,6 +331,25 @@ class CallController extends Notifier<CallSession> {
         hangup: t.t('call.end'),
       ),
     );
+  }
+
+  /// Who the call is with: the other person, or the first two names and a
+  /// count for a group.
+  String _callLabel(CallSession s) {
+    final call = s.call;
+    final me = _me;
+    if (call != null && call.group) {
+      final names = [
+        for (final m in call.participants)
+          if (m.userId != me && (m.joined || m.ringing)) m.name,
+      ];
+      if (names.length > 2) {
+        return '${names.take(2).join(', ')} +${names.length - 2}';
+      }
+      if (names.isNotEmpty) return names.join(', ');
+    }
+    final n = (s.peer ?? call?.peer)?.name ?? '';
+    return n.isEmpty ? 'LawBid' : n;
   }
 
   void _onNotificationAction(String action) {
@@ -367,7 +414,7 @@ class CallController extends Notifier<CallSession> {
       // OQ-044: the caller hears ringback tones while it rings there.
       unawaited(ref.read(appSoundsProvider).startRingback());
       // Mic + connection ready while it rings: pick-up connects faster.
-      await _openMedia(call.id, video: call.video);
+      await _openMedia(call.id, video: call.video, peer: call.peer.id);
       if (gen != _gen) return;
       _ringTimer = Timer(kCallRingTimeout, () {
         if (state.phase == CallPhase.outgoing) {
@@ -405,15 +452,23 @@ class CallController extends Notifier<CallSession> {
       );
       return;
     }
-    if (!ref.mounted || gen != _gen || state.phase != CallPhase.incoming) return;
+    if (!ref.mounted || gen != _gen || state.phase != CallPhase.incoming) {
+      return;
+    }
     state = state.copyWith(phase: CallPhase.connecting);
     unawaited(_swapToOngoing(call));
+    // Group calls: someone added us to a running call — we are the latest
+    // to join, so we offer to everyone; nobody offers to us.
+    final me = _me;
+    final invited = call.group &&
+        me != null &&
+        call.participants.any((m) => m.userId == me && m.ringing);
     try {
       // The answer to the server and the mic/connection run side by side:
       // the caller's offer waits in [_earlySignals] until the media is open.
       final acceptF = _repo.accept(call.id);
       unawaited(acceptF.then<void>((_) {}, onError: (Object _) {}));
-      await _openMedia(call.id, video: call.video);
+      await _openMedia(call.id, video: call.video, peer: call.peer.id);
       final accepted = await acceptF;
       // The call ended (or another began) while the answer was in flight.
       if (!ref.mounted || gen != _gen) return;
@@ -422,8 +477,12 @@ class CallController extends Notifier<CallSession> {
       // The caller's offer may already be here.
       final early = List.of(_earlySignals);
       _earlySignals.clear();
-      for (final s in early) {
-        await _onSignal(s);
+      for (final e in early) {
+        await _onSignal(e.data, from: e.from);
+      }
+      if (invited) {
+        await _offerTo(call.id, call.peer.id);
+        await _syncLinks();
       }
     } on ApiException catch (e) {
       if (gen != _gen) return;
@@ -467,7 +526,184 @@ class CallController extends Notifier<CallSession> {
   void toggleMute() {
     final muted = !state.muted;
     _media?.setMuted(muted);
-    state = state.copyWith(muted: muted);
+    state = state.copyWith(muted: muted, clearNotice: true);
+    _shareMuteState(muted: muted);
+  }
+
+  /// Group calls: the others' list shows our microphone (best effort).
+  void _shareMuteState({required bool muted}) {
+    final call = state.call;
+    if (call == null || !call.group) return;
+    unawaited(
+      _repo
+          .setMuteState(call.id, muted: muted)
+          .then<void>((_) {}, onError: (Object _) {}),
+    );
+  }
+
+  /// The screen showed the notice.
+  void dismissNotice() {
+    if (state.notice != null) state = state.copyWith(clearNotice: true);
+  }
+
+  // --- Group calls ---------------------------------------------------------
+
+  /// Adds a person (by id or @username) to the running call. Returns the
+  /// API error code, or null when it worked.
+  Future<String?> invite({String? userId, String? username}) => _groupAction(
+        (id) => _repo.invite(id, userId: userId, username: username),
+      );
+
+  /// Host: switches [userId]'s microphone off (they may switch it on).
+  Future<String?> muteMember(String userId) => _groupAction(
+        (id) => _repo.muteMember(id, userId, muted: true),
+      );
+
+  /// Host: removes [userId] from the call.
+  Future<String?> removeMember(String userId) =>
+      _groupAction((id) => _repo.removeMember(id, userId));
+
+  Future<String?> _groupAction(Future<AppCall> Function(String id) run) async {
+    final call = state.call;
+    if (call == null || state.phase != CallPhase.active) {
+      return 'CALL_STATE_CONFLICT';
+    }
+    try {
+      final fresh = await run(call.id);
+      if (ref.mounted && state.call?.id == call.id) _applyCall(fresh);
+      return null;
+    } on ApiException catch (e) {
+      return e.code;
+    } on Object {
+      return 'ERROR';
+    }
+  }
+
+  /// A fresh server view of the call's members.
+  void _applyCall(AppCall fresh) {
+    final call = state.call;
+    if (call == null || call.id != fresh.id) return;
+    _applyMembers(fresh.hostId, fresh.participants, group: fresh.group);
+  }
+
+  void _applyMembers(
+    String? hostId,
+    List<CallMember> members, {
+    bool group = true,
+  }) {
+    final call = state.call;
+    if (call == null) return;
+    state = state.copyWith(
+      call: call.copyWith(group: group, hostId: hostId, participants: members),
+    );
+    // The host switched our microphone off and we missed the event.
+    final mine = members.where((m) => m.userId == _me).firstOrNull;
+    if (mine != null && mine.joined && mine.mutedByHost && !state.muted) {
+      _media?.setMuted(true);
+      state = state.copyWith(muted: true, notice: kNoticeMutedByHost);
+    }
+    unawaited(_syncLinks());
+  }
+
+  /// One link per joined member: new ones are added (the later joiner
+  /// offers), those who left are closed.
+  Future<void> _syncLinks() async {
+    if (_syncingLinks) {
+      _syncAgain = true;
+      return;
+    }
+    _syncingLinks = true;
+    final gen = _gen;
+    try {
+      do {
+        _syncAgain = false;
+        final media = _media;
+        final call = state.call;
+        final me = _me;
+        if (media == null ||
+            !_mediaOpen ||
+            call == null ||
+            me == null ||
+            !call.group ||
+            (state.phase != CallPhase.connecting &&
+                state.phase != CallPhase.active)) {
+          return;
+        }
+        final mine = call.participants.where((m) => m.userId == me).firstOrNull;
+        if (mine == null || !mine.joined) return;
+        final others = [
+          for (final m in call.participants)
+            if (m.joined && m.userId != me) m,
+        ];
+        final ids = {for (final m in others) m.userId};
+        for (final p in media.peers.toList()) {
+          if (ids.contains(p)) continue;
+          _forgetLink(p);
+          await media.removePeer(p);
+          if (gen != _gen) return;
+        }
+        for (final m in others) {
+          if (media.peers.contains(m.userId)) continue;
+          await _addLink(call.id, m.userId);
+          if (gen != _gen) return;
+          if (_shouldOffer(mine, m)) await _offerTo(call.id, m.userId);
+          if (gen != _gen) return;
+        }
+      } while (_syncAgain);
+    } on Object {
+      // The next snapshot tries again.
+    } finally {
+      _syncingLinks = false;
+    }
+  }
+
+  /// Of two members the later joiner offers (same time: the larger id).
+  static bool _shouldOffer(CallMember mine, CallMember other) {
+    final a = mine.joinedAt;
+    final b = other.joinedAt;
+    if (a != null && b != null) {
+      final c = a.compareTo(b);
+      if (c != 0) return c > 0;
+    }
+    return mine.userId.compareTo(other.userId) > 0;
+  }
+
+  Future<void> _addLink(String callId, String peer) => _media!.addPeer(
+        peer,
+        onSignal: (s) =>
+            ref.read(callSignalSenderProvider)(callId, s, to: peer),
+        onState: (s) => _onLinkState(peer, s),
+      );
+
+  Future<void> _offerTo(String callId, String peer) async {
+    final media = _media;
+    if (media == null) return;
+    _offered.add(peer);
+    try {
+      final offer = await media.createOfferFor(peer);
+      final ok = await ref.read(callSignalSenderProvider)(
+        callId,
+        offer,
+        to: peer,
+      );
+      if (!ok) throw StateError('signal refused');
+    } on Object {
+      _linkLost(peer);
+    }
+  }
+
+  void _forgetLink(String peer) {
+    _offered.remove(peer);
+    _connected.remove(peer);
+    _stopReconnect(peer);
+  }
+
+  /// The host removed us.
+  void _removedFromCall() {
+    final call = state.call;
+    if (call == null || !state.busy) return;
+    state = state.copyWith(errorCode: kRemovedFromCall);
+    _finish(CallStatus.ended, call: call);
   }
 
   /// Video calls: camera on / off (the other side sees our avatar).
@@ -597,7 +833,11 @@ class CallController extends Notifier<CallSession> {
     }
   }
 
-  Future<void> _openMedia(String callId, {bool video = false}) async {
+  Future<void> _openMedia(
+    String callId, {
+    bool video = false,
+    String peer = '',
+  }) async {
     if (_mediaOpen) return;
     final gen = _gen;
     final servers = await _iceServers();
@@ -607,8 +847,13 @@ class CallController extends Notifier<CallSession> {
     await media.open(
       servers,
       video: video,
-      onSignal: (s) => ref.read(callSignalSenderProvider)(callId, s),
-      onState: _onMediaState,
+      peer: peer,
+      onSignal: (s) => ref.read(callSignalSenderProvider)(
+        callId,
+        s,
+        to: peer.isEmpty ? null : peer,
+      ),
+      onState: (s) => _onLinkState(peer, s),
     );
     if (gen != _gen) {
       // The call ended while the mic was being asked for.
@@ -626,11 +871,12 @@ class CallController extends Notifier<CallSession> {
     });
   }
 
-  void _onMediaState(CallMediaState s) {
+  void _onLinkState(String peer, CallMediaState s) {
     if (!ref.mounted) return;
     switch (s) {
       case CallMediaState.connected:
-        _stopReconnect();
+        _connected.add(peer);
+        _stopReconnect(peer);
         if (state.phase != CallPhase.active && state.phase != CallPhase.ended) {
           _connectTimer?.cancel();
           state = state.copyWith(
@@ -640,51 +886,89 @@ class CallController extends Notifier<CallSession> {
         }
       case CallMediaState.disconnected:
         // A short blip often heals by itself; a longer one is retried.
-        if (state.phase == CallPhase.active) _startReconnect();
+        _connected.remove(peer);
+        if (state.phase == CallPhase.active) _startReconnect(peer);
       case CallMediaState.failed:
+        _connected.remove(peer);
         if (state.phase == CallPhase.active) {
-          _startReconnect();
+          _startReconnect(peer);
         } else if (state.busy) {
-          unawaited(hangUp(reason: CallEndReason.failed));
+          _linkLost(peer);
         }
       case CallMediaState.connecting:
         break;
     }
   }
 
-  /// The audio link dropped mid-call: show "Reconnecting…", let the caller
-  /// restart ICE every few seconds, end the call only when the grace runs out.
-  void _startReconnect() {
-    if (_reconnectGrace != null) return;
-    state = state.copyWith(reconnecting: true);
-    _reconnectGrace = Timer(kCallReconnectGrace, () {
-      _reconnectGrace = null;
-      if (state.reconnecting && state.busy) {
-        unawaited(hangUp(reason: CallEndReason.failed));
+  /// A link is gone for good. In a group the others go on (the next member
+  /// list sets the link up again); alone with them, the call ends.
+  void _linkLost(String peer) {
+    if (!state.busy) return;
+    final media = _media;
+    final others = media == null
+        ? const <String>[]
+        : [
+            for (final p in media.peers)
+              if (p != peer && _connected.contains(p)) p,
+          ];
+    if (state.call?.group ?? false) {
+      if (others.isNotEmpty) {
+        _forgetLink(peer);
+        unawaited(media?.removePeer(peer));
+        return;
       }
-    });
-    _reconnectRetry = Timer.periodic(kCallReconnectRetry, (_) {
-      unawaited(_restartIce());
-    });
-    unawaited(_restartIce());
+    }
+    unawaited(hangUp(reason: CallEndReason.failed));
   }
 
-  void _stopReconnect() {
-    _reconnectGrace?.cancel();
-    _reconnectGrace = null;
-    _reconnectRetry?.cancel();
-    _reconnectRetry = null;
-    if (state.reconnecting) state = state.copyWith(reconnecting: false);
+  /// The audio link to [peer] dropped mid-call: show "Reconnecting…", let
+  /// the offering side restart ICE every few seconds, give the link up only
+  /// when the grace runs out.
+  void _startReconnect(String peer) {
+    if (_reconnect.containsKey(peer)) return;
+    _reconnect[peer] = (
+      grace: Timer(kCallReconnectGrace, () {
+        _reconnect.remove(peer)?.retry.cancel();
+        _syncReconnecting();
+        if (state.busy) _linkLost(peer);
+      }),
+      retry: Timer.periodic(kCallReconnectRetry, (_) {
+        unawaited(_restartIce(peer));
+      }),
+    );
+    _syncReconnecting();
+    unawaited(_restartIce(peer));
   }
 
-  /// Only the caller offers; the callee answers it like the first offer.
-  Future<void> _restartIce() async {
+  void _stopReconnect(String peer) {
+    final r = _reconnect.remove(peer);
+    if (r == null) return;
+    r.grace.cancel();
+    r.retry.cancel();
+    _syncReconnecting();
+  }
+
+  /// "Reconnecting…" shows while no link carries the call.
+  void _syncReconnecting() {
+    if (!ref.mounted) return;
+    final on = _reconnect.isNotEmpty && _connected.isEmpty;
+    if (state.reconnecting != on) state = state.copyWith(reconnecting: on);
+  }
+
+  /// Only the side that offered the link restarts it; the other answers.
+  Future<void> _restartIce(String peer) async {
     final call = state.call;
     final media = _media;
-    if (call == null || media == null || !call.outgoing || !state.busy) return;
+    if (call == null ||
+        media == null ||
+        !_offered.contains(peer) ||
+        !media.peers.contains(peer) ||
+        !state.busy) {
+      return;
+    }
     try {
-      final offer = await media.restartIce();
-      await ref.read(callSignalSenderProvider)(call.id, offer);
+      final offer = await media.restartIceFor(peer);
+      await ref.read(callSignalSenderProvider)(call.id, offer, to: peer);
     } on Object {
       // The grace timer decides.
     }
@@ -705,7 +989,7 @@ class CallController extends Notifier<CallSession> {
     });
   }
 
-  Future<void> _onSignal(Map<String, Object?> data) async {
+  Future<void> _onSignal(Map<String, Object?> data, {String? from}) async {
     final media = _media;
     final call = state.call;
     // Before pick-up (or before the mic is open) keep it for later.
@@ -713,23 +997,27 @@ class CallController extends Notifier<CallSession> {
         !_mediaOpen ||
         call == null ||
         state.phase == CallPhase.incoming) {
-      _earlySignals.add(data);
+      _earlySignals.add((from: from, data: data));
       return;
     }
+    final peer = from ?? call.peer.id;
     try {
       switch (data['type']) {
         case 'offer':
-          if (call.outgoing) return;
-          final answer = await media.answer(data);
-          await ref.read(callSignalSenderProvider)(call.id, answer);
+          // A member we have no link with yet: they joined after us.
+          if (!media.peers.contains(peer)) await _addLink(call.id, peer);
+          final answer = await media.answerFor(peer, data);
+          await ref.read(callSignalSenderProvider)(call.id, answer, to: peer);
         case 'answer':
-          if (!call.outgoing) return;
-          await media.setAnswer(data);
+          if (!_offered.contains(peer)) return;
+          await media.setAnswerFor(peer, data);
         case 'candidate':
-          await media.addCandidate(data);
+          if (media.peers.contains(peer)) {
+            await media.addCandidateFor(peer, data);
+          }
       }
     } on Object {
-      if (state.busy) unawaited(hangUp(reason: CallEndReason.failed));
+      _linkLost(peer);
     }
   }
 
@@ -751,7 +1039,7 @@ class CallController extends Notifier<CallSession> {
           unawaited(ref.read(appSoundsProvider).stopRingback());
           state = state.copyWith(phase: CallPhase.connecting, call: call);
           _armConnectTimeout();
-          unawaited(_sendOffer(call.id));
+          unawaited(_sendOffer(call));
         } else if (!call.outgoing && state.phase == CallPhase.incoming) {
           // Picked up on another of our devices.
           unawaited(ref.read(systemCallUiProvider).dismiss(call.id));
@@ -767,23 +1055,34 @@ class CallController extends Notifier<CallSession> {
         if (data is! Map || data['callId'] != state.call?.id) return;
         final payload = data['data'];
         if (payload is Map) {
-          unawaited(_onSignal(Map<String, Object?>.from(payload)));
+          final from = data['from'];
+          unawaited(
+            _onSignal(
+              Map<String, Object?>.from(payload),
+              from: from is String ? from : null,
+            ),
+          );
         }
+      case 'call:participants':
+        final m = CallMappers.participantsFromEvent(data);
+        if (m == null || m.callId != state.call?.id || !state.busy) return;
+        _applyMembers(m.hostId, m.members);
+      case 'call:muted':
+        if (data is! Map || data['callId'] != state.call?.id) return;
+        if (data['muted'] == true && state.busy) {
+          _media?.setMuted(true);
+          state = state.copyWith(muted: true, notice: kNoticeMutedByHost);
+        }
+      case 'call:removed':
+        if (data is! Map || data['callId'] != state.call?.id) return;
+        _removedFromCall();
       case RealtimeEvent.reconnected:
         final id = state.call?.id;
         if (id != null && state.busy) unawaited(_resync(id));
     }
   }
 
-  Future<void> _sendOffer(String callId) async {
-    try {
-      final offer = await _media!.createOffer();
-      final ok = await ref.read(callSignalSenderProvider)(callId, offer);
-      if (!ok) throw StateError('signal refused');
-    } on Object {
-      if (state.busy) unawaited(hangUp(reason: CallEndReason.failed));
-    }
-  }
+  Future<void> _sendOffer(AppCall call) => _offerTo(call.id, call.peer.id);
 
   /// A "call over" push (the socket may be asleep): the server decides.
   /// Also closes the system call (CallKit) that outlived it.
@@ -870,16 +1169,20 @@ class CallController extends Notifier<CallSession> {
     _media = null;
     _mediaOpen = false;
     _earlySignals.clear();
+    _offered.clear();
+    _connected.clear();
+    _syncAgain = false;
   }
 
   void _clearTimers() {
     _ringTimer?.cancel();
     _connectTimer?.cancel();
     _syncTimer?.cancel();
-    _reconnectGrace?.cancel();
-    _reconnectGrace = null;
-    _reconnectRetry?.cancel();
-    _reconnectRetry = null;
+    for (final r in _reconnect.values) {
+      r.grace.cancel();
+      r.retry.cancel();
+    }
+    _reconnect.clear();
     _linger?.cancel();
   }
 }

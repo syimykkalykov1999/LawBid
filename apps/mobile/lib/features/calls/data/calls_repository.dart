@@ -18,6 +18,23 @@ abstract interface class CallsRepository {
   Future<AppCall> end(String callId, CallEndReason reason);
   Future<AppCall> get(String callId);
   Future<List<IceServer>> iceServers();
+
+  /// Group calls: adds a person (by id or @username) to the running call.
+  Future<AppCall> invite(String callId, {String? userId, String? username});
+
+  /// Group calls, host only: switches [userId]'s microphone off / lets them
+  /// switch it on.
+  Future<AppCall> muteMember(
+    String callId,
+    String userId, {
+    required bool muted,
+  });
+
+  /// Group calls, host only.
+  Future<AppCall> removeMember(String callId, String userId);
+
+  /// Our own microphone state, for the others' list.
+  Future<void> setMuteState(String callId, {required bool muted});
 }
 
 class ApiCallsRepository implements CallsRepository {
@@ -71,6 +88,58 @@ class ApiCallsRepository implements CallsRepository {
       );
 
   @override
+  Future<AppCall> invite(
+    String callId, {
+    String? userId,
+    String? username,
+  }) async =>
+      CallMappers.call(
+        (await guardApiCall(
+          () => _api.inviteToCall(
+            id: callId,
+            body: api.InviteCallDto(userId: userId, username: username),
+          ),
+        ))
+            .data,
+      );
+
+  @override
+  Future<AppCall> muteMember(
+    String callId,
+    String userId, {
+    required bool muted,
+  }) async =>
+      CallMappers.call(
+        (await guardApiCall(
+          () => _api.muteParticipant(
+            id: callId,
+            userId: userId,
+            body: api.CallMuteDto(muted: muted),
+          ),
+        ))
+            .data,
+      );
+
+  @override
+  Future<AppCall> removeMember(String callId, String userId) async =>
+      CallMappers.call(
+        (await guardApiCall(
+          () => _api.removeFromCall(id: callId, userId: userId),
+        ))
+            .data,
+      );
+
+  @override
+  Future<void> setMuteState(String callId, {required bool muted}) async {
+    await guardApiCall(
+      () => _api.muteState(
+        id: callId,
+        body: api.CallMuteDto(muted: muted),
+      ),
+    );
+  }
+
+  @override
   Future<List<IceServer>> iceServers() async =>
       (await guardApiCall(_api.callIceServers))
           .data
@@ -106,7 +175,48 @@ abstract final class CallMappers {
         endedAt: d.endedAt,
         durationSec: d.durationSec,
         video: d.video,
+        group: d.group,
+        hostId: d.hostId,
+        participants: d.participants.map(member).toList(),
       );
+
+  static CallMember member(api.CallParticipantDto p) => CallMember(
+        userId: p.userId,
+        status: CallMemberStatus.values.firstWhere(
+          (s) => s.name == p.status.json,
+          orElse: () => CallMemberStatus.left,
+        ),
+        displayName: p.displayName,
+        username: p.username,
+        avatarUrl: p.avatarUrl,
+        muted: p.muted,
+        mutedByHost: p.mutedByHost,
+        joinedAt: p.joinedAt,
+      );
+
+  /// A realtime `call:participants` payload.
+  static ({String callId, String? hostId, List<CallMember> members})?
+      participantsFromEvent(Object? data) {
+    if (data is! Map || data['callId'] is! String) return null;
+    final list = data['participants'];
+    if (list is! List) return null;
+    try {
+      return (
+        callId: data['callId'] as String,
+        hostId: data['hostId'] as String?,
+        members: [
+          for (final p in list)
+            member(
+              api.CallParticipantDto.fromJson(
+                Map<String, dynamic>.from(p as Map),
+              ),
+            ),
+        ],
+      );
+    } on Object {
+      return null;
+    }
+  }
 
   /// A realtime `call:*` payload `{call: CallDto}`.
   static AppCall? fromEvent(Object? data) {
