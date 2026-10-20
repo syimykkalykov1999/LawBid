@@ -91,6 +91,7 @@ import { DocumentTemplatesModule } from './modules/document-templates/document-t
 import { AdminBillingModule } from './modules/admin-billing/admin-billing.module';
 import { AdminPayrollModule } from './modules/admin-payroll/admin-payroll.module';
 import { CountryPartnersModule } from './modules/country-partners/country-partners.module';
+import { CaseToolsModule } from './modules/cases/tools/case-tools.module';
 import { SupportModule } from './modules/support/support.module';
 import { StorageModule } from './modules/storage/storage.module';
 import { TreasuryModule } from './modules/treasury/treasury.module';
@@ -321,6 +322,8 @@ const isDev =
     ClientFraudModule,
     // Owner 2026-10-06: Деньги → Партнёры стран.
     CountryPartnersModule,
+    // Owner 2026-10-20: time, expenses, invoice, e-signature, document forms.
+    CaseToolsModule,
     // BullMQ `cron` queue (session/OTP cleanup, disposable-domain refresh).
     // Runs in this process while JOBS_ENABLED (default true); src/worker.ts
     // runs the same module as the dedicated worker service.

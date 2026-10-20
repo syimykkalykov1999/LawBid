@@ -14,6 +14,7 @@ import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:lawbid/features/cases/presentation/widgets/invites_list.dart';
 import 'package:lawbid/features/cases/presentation/widgets/my_case_row.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
+import 'package:lawbid/features/cases/tools/running_timer_chip.dart';
 import 'package:lawbid/features/feed/presentation/widgets/feed_chrome.dart';
 import 'package:lawbid/features/mine/presentation/widgets/mine_grid.dart';
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart';
@@ -349,6 +350,7 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
       controller: _chrome,
       child: Column(
         children: [
+          const RunningTimerChip(),
           PillTabs<_AttorneyTab>(
             value: _tab,
             tabs: [

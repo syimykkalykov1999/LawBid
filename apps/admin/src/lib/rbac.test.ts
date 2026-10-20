@@ -25,8 +25,11 @@ describe('menu sections with tabs', () => {
     const mod = { role: 'moderator' as const, permissions: { moderation: 'manage' as const, content: 'view' as const } };
     expect(groupsFor(mod).map((g) => g.key)).toEqual(['home', 'moderation', 'system']);
     expect(tabsFor(mod, '/moderation').map((t) => t.href)).toEqual([
-      '/moderation', '/review-appeals', '/content', '/document-templates', '/search',
+      '/moderation', '/review-appeals', '/content', '/document-templates', '/form-templates', '/search',
     ]);
+    // Document forms follow the API: super admin and moderators only.
+    expect(canOpen(mod, '/form-templates')).toBe(true);
+    expect(canOpen({ role: 'support' as const, permissions: { content: 'manage' as const } }, '/form-templates')).toBe(false);
     // Same section, tab without the right: not shown, URL answers 404.
     expect(canOpen(mod, '/sanctions')).toBe(false);
     expect(canOpen(mod, '/media')).toBe(false);

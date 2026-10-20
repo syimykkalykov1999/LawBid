@@ -119,6 +119,22 @@ const WORKSPACE_KIND_FALLBACK: Record<string, { en: string; ru: string }> = {
     en: 'A note or files were added to a task.',
     ru: 'К задаче добавили заметку или файлы.',
   },
+  invoice: {
+    en: 'The attorney sent an invoice for the case.',
+    ru: 'Адвокат прислал счёт по кейсу.',
+  },
+  sign_request: {
+    en: 'A document in the case is waiting for your signature.',
+    ru: 'Документ в кейсе ждёт вашей подписи.',
+  },
+  sign_done: {
+    en: 'A document in the case is signed by both sides.',
+    ru: 'Документ в кейсе подписан обеими сторонами.',
+  },
+  sign_declined: {
+    en: 'A document in the case was declined.',
+    ru: 'От подписи документа в кейсе отказались.',
+  },
   details: {
     en: 'The client changed the case details.',
     ru: 'Клиент изменил подробности кейса.',

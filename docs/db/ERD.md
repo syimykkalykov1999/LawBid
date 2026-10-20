@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-173 tables.
+181 tables.
 
 ```mermaid
 erDiagram
@@ -2155,6 +2155,109 @@ erDiagram
     DateTime first_seen
     DateTime last_seen
   }
+  case_billing {
+    String case_id PK
+    String attorney_id
+    Int hourly_rate_cents
+    String currency
+    DateTime updated_at
+  }
+  case_time_entries {
+    String id PK
+    String case_id FK
+    String attorney_id
+    DateTime worked_on
+    Int minutes
+    DateTime running_since "nullable"
+    String note
+    Int rate_cents
+    String invoice_id "nullable"
+    DateTime created_at
+    DateTime updated_at
+    DateTime deleted_at "nullable"
+  }
+  case_expenses {
+    String id PK
+    String case_id FK
+    String attorney_id
+    DateTime spent_on
+    String description
+    Int amount_cents
+    String receipt_file_id FK "nullable"
+    String invoice_id "nullable"
+    DateTime created_at
+    DateTime deleted_at "nullable"
+  }
+  case_invoices {
+    String id PK
+    String case_id FK
+    String attorney_id
+    String client_id
+    Int seq
+    String number
+    String currency
+    Int minutes
+    Int time_cents
+    Int expenses_cents
+    Int total_cents
+    String note "nullable"
+    Json lines
+    String file_id
+    DateTime created_at
+  }
+  case_sign_requests {
+    String id PK
+    String case_id FK
+    String created_by
+    String title
+    String source_file_id
+    String source_sha256
+    enum_CaseSignStatus status
+    String final_file_id "nullable"
+    String final_sha256 "nullable"
+    String declined_by "nullable"
+    String decline_reason "nullable"
+    DateTime completed_at "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  case_signatures {
+    String id PK
+    String request_id FK
+    String signer_id
+    String signer_role
+    String signed_name
+    String method
+    Bytes image_png "nullable"
+    String doc_sha256
+    String ip "nullable"
+    String user_agent "nullable"
+    DateTime signed_at
+  }
+  form_templates {
+    String id PK
+    String slug UK
+    Json title
+    Json description
+    Json body
+    Json fields
+    String practice_area_id FK "nullable"
+    Int position
+    Boolean is_published
+    String created_by "nullable"
+    DateTime created_at
+    DateTime updated_at
+    DateTime deleted_at "nullable"
+  }
+  case_conflict_checks {
+    String id PK
+    String case_id
+    String attorney_id
+    String trigger
+    String bid_id "nullable"
+    Json matches
+    DateTime created_at
+  }
   users }o--o| files : "avatar_file_id"
   users }o--|| countries : "country_code"
   files }o--|| users : "owner_user_id"
@@ -2360,4 +2463,11 @@ erDiagram
   firm_members }o--|| firms : "firm_id"
   search_synonym_groups }o--o| practice_areas : "practice_area_id"
   search_synonym_terms }o--|| search_synonym_groups : "group_id"
+  case_time_entries }o--|| cases : "case_id"
+  case_expenses }o--|| cases : "case_id"
+  case_expenses }o--o| files : "receipt_file_id"
+  case_invoices }o--|| cases : "case_id"
+  case_sign_requests }o--|| cases : "case_id"
+  case_signatures }o--|| case_sign_requests : "request_id"
+  form_templates }o--o| practice_areas : "practice_area_id"
 ```

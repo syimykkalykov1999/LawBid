@@ -24,7 +24,7 @@
 // Cost-guard addition (owner decision 2026-09-27, docs/OPEN_QUESTIONS.md):
 // seedAppConfig() also seeds budget.<provider>.* caps and
 // sms.allowed_country_codes.
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
@@ -35,6 +35,7 @@ import {
   flattenPracticeAreaSeed,
   PracticeAreaSeedCategory,
 } from '../src/common/reference-data/practice-areas.util';
+import { STARTER_TEMPLATES } from './seed-form-templates';
 import { US_STATES } from '../src/common/reference-data/us-states';
 import { FLAG_CATALOG } from '../src/modules/feature-flags/flag-catalog';
 import {
@@ -437,6 +438,32 @@ async function seedAdmin(): Promise<void> {
   );
 }
 
+// Owner 2026-10-20: the starter document forms. Created once — after that
+// the admin owns them, so a re-run never overwrites an edit.
+async function seedFormTemplates(): Promise<void> {
+  let created = 0;
+  for (const t of STARTER_TEMPLATES) {
+    const exists = await prisma.formTemplate.findUnique({
+      where: { slug: t.slug },
+      select: { id: true },
+    });
+    if (exists) continue;
+    await prisma.formTemplate.create({
+      data: {
+        slug: t.slug,
+        title: t.title,
+        description: t.description,
+        body: t.body,
+        fields: t.fields as unknown as Prisma.InputJsonArray,
+        position: t.position,
+        is_published: true,
+      },
+    });
+    created += 1;
+  }
+  console.log(`  form_templates: ${created} created`);
+}
+
 async function main(): Promise<void> {
   // Owner 2026-10-18: `npm run seed:i18n` loads only the translations —
   // the full seed resets the feature flags the admin switched.
@@ -454,6 +481,7 @@ async function main(): Promise<void> {
   await seedFeatureFlags();
   await seedAppConfig();
   await seedLegalDocuments();
+  await seedFormTemplates();
   await seedAdmin();
   console.log('Seed complete.');
 }

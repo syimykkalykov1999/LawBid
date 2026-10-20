@@ -17,7 +17,13 @@ export type ChatSystemKey =
   | 'payment_fee_countered'
   | 'payment_fee_agreed'
   // Owner 2026-10-04: one side disputed the completion.
-  | 'case_disputed';
+  | 'case_disputed'
+  // Owner 2026-10-20 (case tools): an invoice for the client (body `key:cents`),
+  // a document to sign, signed by both, declined.
+  | 'invoice_issued'
+  | 'sign_requested'
+  | 'sign_completed'
+  | 'sign_declined';
 
 /** A conversation changed inside a transaction; published after commit. */
 export interface ChatChange {

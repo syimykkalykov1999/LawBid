@@ -72,6 +72,7 @@
     "libphonenumber-js": "^1.13.13",
     "nestjs-pino": "^5.2.0",
     "nodemailer": "^10.0.10",
+    "pdf-lib": "^1.17.1",
     "pdfkit": "^0.20.2",
     "pino-http": "^11.0.0",
     "prisma": "6.19.3",

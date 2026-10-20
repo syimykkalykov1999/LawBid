@@ -1,6 +1,8 @@
 import {
   Body,
   Controller,
+  ForbiddenException,
+  Get,
   HttpStatus,
   Param,
   Post,
@@ -29,6 +31,10 @@ import {
 import { FirmsService } from '../firms/firms.service';
 import { BidsService } from './bids.service';
 import {
+  ConflictCheckDto,
+  ConflictCheckService,
+} from './conflict/conflict-check.service';
+import {
   BidIdParamDto,
   CaseIdParamDto,
   CounterOfferDto,
@@ -52,7 +58,34 @@ export class BidsController {
   constructor(
     private readonly bids: BidsService,
     private readonly firms: FirmsService,
+    private readonly conflicts: ConflictCheckService,
   ) {}
+
+  // Owner 2026-10-20: a conflict-of-interest warning before the bid.
+  @AttorneyOnly('bids')
+  @Get('cases/:caseId/conflict-check')
+  @ApiOperation({
+    summary:
+      'Attorney: does this case clash with a client or a case of yours? (a warning, never a block)',
+  })
+  @ApiEnvelopeResponse(ConflictCheckDto)
+  @ApiErrors({ 400: [E.VALIDATION_ERROR], 404: [E.CASE_NOT_FOUND] })
+  async conflictCheck(
+    @CurrentUser() user: RequestUser,
+    @Param() params: CaseIdParamDto,
+  ): Promise<ConflictCheckDto> {
+    if (user.role !== 'attorney') {
+      throw new ForbiddenException({
+        code: E.FORBIDDEN,
+        message: 'Only attorneys can check a case for a conflict.',
+      });
+    }
+    const result = await this.conflicts.check(user.sub, params.caseId);
+    await this.conflicts
+      .record(user.sub, params.caseId, 'view', result)
+      .catch(() => undefined);
+    return result;
+  }
 
   // OQ-049: or an assistant the attorney trusted (their responsibility).
   @AttorneyOnly('bids')
