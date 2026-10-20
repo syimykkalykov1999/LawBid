@@ -5,11 +5,16 @@
 import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
+import '../models/appeal_decision_dto.dart';
+import '../models/appeal_decision_result_envelope.dart';
+import '../models/appeal_item_list_envelope.dart';
+import '../models/journal_item_list_envelope.dart';
 import '../models/moderation_action_dto.dart';
 import '../models/moderation_action_result_envelope.dart';
 import '../models/moderation_card_envelope.dart';
 import '../models/moderation_queue_item_list_envelope.dart';
 import '../models/status10.dart';
+import '../models/status11.dart';
 import '../models/target_type.dart';
 import '../models/type2.dart';
 
@@ -46,6 +51,35 @@ abstract class AdminModerationClient {
     @Path('type') required Type2 type,
     @Path('id') required String id,
     @Body() required ModerationActionDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Appeals against moderation decisions.
+  ///
+  /// [cursor] - meta.nextCursor of the previous page.
+  @GET('/admin/moderation/appeals')
+  Future<AppealItemListEnvelope> moderationAppealsQueue({
+    @Query('cursor') String? cursor,
+    @Query('status') Status11? status = Status11.pending,
+    @Query('limit') int? limit = 20,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Accept (restores the content) or reject an appeal; note required
+  @POST('/admin/moderation/appeals/{id}/decision')
+  Future<AppealDecisionResultEnvelope> decideModerationAppeal({
+    @Path('id') required String id,
+    @Body() required AppealDecisionDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Journal of moderation decisions, newest first.
+  ///
+  /// [cursor] - meta.nextCursor of the previous page.
+  @GET('/admin/moderation/journal')
+  Future<JournalItemListEnvelope> moderationJournal({
+    @Query('limit') int? limit = 30,
+    @Query('cursor') String? cursor,
     @Extras() Map<String, dynamic>? extras,
   });
 }

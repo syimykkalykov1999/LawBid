@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
+import { PrivacySettingsModule } from '../privacy-settings/privacy-settings.module';
 import { FeatureFlagsModule } from '../feature-flags/feature-flags.module';
 import { FilesController } from './files.controller';
 import { FilesService } from './files.service';
@@ -17,7 +18,7 @@ import { FilesBootstrapService } from './storage/files-bootstrap.service';
  */
 @Module({
   // FeatureFlagsModule: `video_posts` gate on post_video uploads (docs/05 §3.6).
-  imports: [AuthModule, FeatureFlagsModule],
+  imports: [AuthModule, FeatureFlagsModule, PrivacySettingsModule],
   controllers: [FilesController],
   providers: [
     ...filesCoreProviders({ mode: 'api' }),
