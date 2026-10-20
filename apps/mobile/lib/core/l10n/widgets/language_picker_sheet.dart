@@ -81,82 +81,93 @@ class _LanguagePickerSheetState extends ConsumerState<LanguagePickerSheet> {
     final results = _filtered(catalog);
 
     // Owner 2026-09-29: the sheet can be dragged all the way to the top.
-    return DraggableScrollableSheet(
-      expand: false,
-      initialChildSize: 0.75,
-      minChildSize: 0.4,
-      builder: (context, scrollController) => SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.screenSide,
-            AppSpacing.sm,
-            AppSpacing.screenSide,
-            AppSpacing.md,
-          ),
-          child: Column(
-            children: [
-              const AppSheetHandle(),
-              Semantics(
-                header: true,
-                child: Text(
-                  t.t('lang.picker.title'),
-                  style: typography.titleMedium.copyWith(color: colors.text),
+    // The sheet rises above the keyboard so the list is never under it.
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+      child: DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.75,
+        minChildSize: 0.4,
+        builder: (context, scrollController) => SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.screenSide,
+              AppSpacing.sm,
+              AppSpacing.screenSide,
+              AppSpacing.md,
+            ),
+            child: Column(
+              children: [
+                const AppSheetHandle(),
+                Semantics(
+                  header: true,
+                  child: Text(
+                    t.t('lang.picker.title'),
+                    style: typography.titleMedium.copyWith(color: colors.text),
+                  ),
                 ),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              AppTextField(
-                controller: _searchController,
-                leading: AppIcon(
-                  AppIcons.search,
-                  size: 20,
-                  color: colors.textSecondary,
+                const SizedBox(height: AppSpacing.md),
+                AppTextField(
+                  controller: _searchController,
+                  leading: AppIcon(
+                    AppIcons.search,
+                    size: 20,
+                    color: colors.textSecondary,
+                  ),
+                  hintText: t.t('lang.picker.search.hint'),
+                  autofocus: true,
+                  onChanged: (value) => setState(() => _query = value),
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) => FocusScope.of(context).unfocus(),
+                  semanticLabel: t.t('lang.picker.search.hint'),
                 ),
-                hintText: t.t('lang.picker.search.hint'),
-                autofocus: true,
-                onChanged: (value) => setState(() => _query = value),
-                semanticLabel: t.t('lang.picker.search.hint'),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              Expanded(
-                child: results.isEmpty
-                    ? AppEmptyState(
-                        icon: AppIcons.searchOffRounded,
-                        message: t.t('lang.picker.empty'),
-                      )
-                    : ListView.separated(
-                        controller: scrollController,
-                        itemCount: results.length,
-                        separatorBuilder: (_, __) =>
-                            const SizedBox(height: AppSpacing.sm),
-                        itemBuilder: (context, index) {
-                          final entry = results[index];
-                          final isCurrent = entry.isEnabled &&
-                              entry.appLanguage == currentLanguage;
-                          final row = _LanguageRow(
-                            entry: entry,
-                            isCurrent: isCurrent,
-                            comingSoonLabel: t.t('lang.picker.comingSoon'),
-                            onTap: entry.isEnabled
-                                ? () {
-                                    ref
-                                        .read(
-                                          languageControllerProvider.notifier,
-                                        )
-                                        .setLanguage(entry.appLanguage!);
-                                    Navigator.of(context).pop();
-                                  }
-                                : null,
-                          );
-                          // Stagger only the first screenful; rows scrolled
-                          // into view later appear without delay.
-                          return index < 8
-                              ? AppEntrance(index: index, child: row)
-                              : row;
-                        },
-                      ),
-              ),
-            ],
+                const SizedBox(height: AppSpacing.sm),
+                Expanded(
+                  child: results.isEmpty
+                      ? AppEmptyState(
+                          icon: AppIcons.searchOffRounded,
+                          message: t.t('lang.picker.empty'),
+                        )
+                      : ListView.separated(
+                          controller: scrollController,
+                          // Owner 2026-10-20 (Samsung): the keyboard stayed
+                          // over the list and a tap on a row went nowhere.
+                          keyboardDismissBehavior:
+                              ScrollViewKeyboardDismissBehavior.onDrag,
+                          itemCount: results.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: AppSpacing.sm),
+                          itemBuilder: (context, index) {
+                            final entry = results[index];
+                            final isCurrent = entry.isEnabled &&
+                                entry.appLanguage == currentLanguage;
+                            final row = _LanguageRow(
+                              entry: entry,
+                              isCurrent: isCurrent,
+                              comingSoonLabel: t.t('lang.picker.comingSoon'),
+                              onTap: entry.isEnabled
+                                  ? () {
+                                      FocusScope.of(context).unfocus();
+                                      ref
+                                          .read(
+                                            languageControllerProvider.notifier,
+                                          )
+                                          .setLanguage(entry.appLanguage!);
+                                      Navigator.of(context).pop();
+                                    }
+                                  : null,
+                            );
+                            // Stagger only the first screenful; rows scrolled
+                            // into view later appear without delay.
+                            return index < 8
+                                ? AppEntrance(index: index, child: row)
+                                : row;
+                          },
+                        ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

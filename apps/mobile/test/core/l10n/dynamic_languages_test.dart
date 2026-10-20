@@ -226,6 +226,11 @@ void main() {
       reason: 'selectable rows show the code, not the "coming soon" badge',
     );
 
+    // Owner 2026-10-20: with the keyboard up (a search typed) one tap on
+    // the row applies the language and drops the focus.
+    await tester.enterText(find.byType(TextField), 'Esp');
+    await tester.pumpAndSettle();
+    expect(FocusManager.instance.primaryFocus?.hasPrimaryFocus, isTrue);
     await tester.tap(esRow);
     await tester.runAsync(settle);
     await tester.pumpAndSettle();
@@ -235,6 +240,7 @@ void main() {
       findsNothing,
       reason: 'sheet closes on pick',
     );
+    expect(find.byType(EditableText), findsNothing);
     final container =
         ProviderScope.containerOf(tester.element(find.text('open')));
     expect(
