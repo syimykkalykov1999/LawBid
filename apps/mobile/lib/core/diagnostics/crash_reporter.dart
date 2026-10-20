@@ -7,6 +7,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:lawbid/core/app_update/app_version.dart';
 import 'package:lawbid/core/config/app_environment.dart';
+import 'package:lawbid/core/diagnostics/sentry_reporter.dart';
 import 'package:lawbid/core/network/device_key.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -82,6 +83,8 @@ class CrashReporter {
   void report(Object error, StackTrace? stack, {bool fatal = false}) {
     try {
       if (!enabled) return;
+      // Owner 2026-10-20: the same error also goes to Sentry (own filter).
+      SentryReporter.capture(error, stack, fatal: fatal, route: _route);
       final message = '${error.runtimeType}: $error';
       final trace = (stack ?? StackTrace.current).toString();
       final head = message.length > 160 ? message.substring(0, 160) : message;
