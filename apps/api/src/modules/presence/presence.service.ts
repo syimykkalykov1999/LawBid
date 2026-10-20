@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
+import { PrivacySettingsService } from '../privacy-settings/privacy-settings.service';
 
 /** A socket counts as online this long after its last heartbeat. */
 export const PRESENCE_TTL_MS = 120_000;
@@ -26,6 +27,7 @@ export class PresenceService {
   constructor(
     private readonly prisma: PrismaService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    private readonly privacy: PrivacySettingsService,
   ) {}
 
   /** Connect / heartbeat. True when the user just came online. */
@@ -72,16 +74,15 @@ export class PresenceService {
   }
 
   async setVisible(userId: string, show: boolean): Promise<boolean> {
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: { show_activity_status: show },
-    });
+    // Also writes the "last seen" audience (everyone / nobody).
+    await this.privacy.setActivityVisible(userId, show);
     return show;
   }
 
   /**
    * What [viewerId] may see about [ids]: nothing when the viewer hides
-   * their own status or the other person hides theirs.
+   * their own status, or the other person hides theirs from the viewer
+   * (nobody, or contacts only and the viewer is not one).
    */
   async snapshot(
     viewerId: string,
@@ -96,7 +97,11 @@ export class PresenceService {
     });
     const byId = new Map(users.map((u) => [u.id, u]));
     if (!byId.get(viewerId)?.show_activity_status) return out;
-    const shown = unique.filter((id) => byId.get(id)?.show_activity_status);
+    const shownByFlag = unique.filter(
+      (id) => byId.get(id)?.show_activity_status,
+    );
+    const allowed = await this.privacy.lastSeenVisibleTo(viewerId, shownByFlag);
+    const shown = shownByFlag.filter((id) => allowed.has(id));
     if (shown.length === 0) return out;
     const now = Date.now();
     const pipe = this.redis.pipeline();

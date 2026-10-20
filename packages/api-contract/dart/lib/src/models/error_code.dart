@@ -102,6 +102,8 @@ enum ErrorCode {
   reviewNotEditable('REVIEW_NOT_EDITABLE'),
   @JsonValue('REVIEW_APPEAL_EXISTS')
   reviewAppealExists('REVIEW_APPEAL_EXISTS'),
+  @JsonValue('APPEAL_NOT_ALLOWED')
+  appealNotAllowed('APPEAL_NOT_ALLOWED'),
   @JsonValue('CHAT_ATTACHMENTS_LOCKED')
   chatAttachmentsLocked('CHAT_ATTACHMENTS_LOCKED'),
   @JsonValue('SUBSCRIPTION_PLAN_INCLUDES_SEATS')
@@ -286,6 +288,8 @@ enum ErrorCode {
   searchQueryTooShort('SEARCH_QUERY_TOO_SHORT'),
   @JsonValue('USER_BLOCKED')
   userBlocked('USER_BLOCKED'),
+  @JsonValue('PRIVACY_RESTRICTED')
+  privacyRestricted('PRIVACY_RESTRICTED'),
   @JsonValue('CALL_NOT_FOUND')
   callNotFound('CALL_NOT_FOUND'),
   @JsonValue('CALL_NOT_ALLOWED')

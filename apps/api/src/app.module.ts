@@ -29,6 +29,7 @@ import { ReportsModule } from './modules/reports/reports.module';
 import { FollowsModule } from './modules/follows/follows.module';
 import { BlocksModule } from './modules/blocks/blocks.module';
 import { PresenceModule } from './modules/presence/presence.module';
+import { PrivacySettingsModule } from './modules/privacy-settings/privacy-settings.module';
 import { SecretsModule } from './common/secrets/secrets.module';
 import { AdminIntegrationsModule } from './modules/admin-integrations/admin-integrations.module';
 import { AdminOpsModule } from './modules/admin-ops/admin-ops.module';
@@ -266,6 +267,7 @@ const isDev =
     // Owner 2026-09-29 (OQ-028): user blocks.
     BlocksModule,
     PresenceModule,
+    PrivacySettingsModule,
     SecretsModule,
     AdminIntegrationsModule,
     // Owner 2026-10-05: Система → Здоровье системы.

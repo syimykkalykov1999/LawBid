@@ -15,6 +15,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { BlocksService } from '../blocks/blocks.service';
 import { caseWorkOngoing } from '../blocks/block-guard';
+import { PrivacySettingsService } from '../privacy-settings/privacy-settings.service';
 import { ChatService } from '../chat/chat.service';
 import { FilesService } from '../files/files.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -88,6 +89,8 @@ export class CallsService {
     private readonly flags: FeatureFlagsService,
     @Optional() private readonly secrets?: SecretsService,
     @Optional() private readonly entitlements?: EntitlementsService,
+    // Owner 2026-10-20: "who can call me" (Settings → Privacy).
+    @Optional() private readonly privacy?: PrivacySettingsService,
   ) {
     this.videoProvider = new WebRtcVideoProvider(secrets, config);
   }
@@ -155,6 +158,7 @@ export class CallsService {
     // OQ-028: except the chat of a case in progress.
     if (!(await caseWorkOngoing(this.prisma, conv))) {
       await this.blocks.assertNotBlocked(user.sub, callee);
+      await this.privacy?.assertAllowed(user.sub, callee, 'call');
     }
     // Plan term (owner 2026-10-05): the admin can switch calls off per plan.
     if (

@@ -1,6 +1,7 @@
 import { StickersModule } from '../stickers/stickers.module';
 import { Module } from '@nestjs/common';
 import { FeatureFlagsModule } from '../feature-flags/feature-flags.module';
+import { PrivacySettingsModule } from '../privacy-settings/privacy-settings.module';
 import { PresenceModule } from '../presence/presence.module';
 import { UsageLimitsModule } from '../../common/usage-limits/usage-limits.module';
 import { BlocksModule } from '../blocks/blocks.module';
@@ -21,6 +22,7 @@ import { TranslationCoreModule } from '../translation/translation.module';
     SubscriptionsModule,
     NotificationsModule,
     PresenceModule,
+    PrivacySettingsModule,
     StickersModule,
     FeatureFlagsModule,
     TranslationCoreModule,
