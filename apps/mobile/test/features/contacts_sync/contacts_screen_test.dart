@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/features/contacts_sync/application/phone_contacts.dart';
 import 'package:lawbid/features/contacts_sync/data/contacts_sync_repository.dart';
 import 'package:lawbid/features/contacts_sync/presentation/contact_picker.dart';
 import 'package:lawbid/features/contacts_sync/presentation/contacts_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../helpers/long_locale.dart';
 import '../../helpers/ux_harness.dart';
@@ -40,6 +42,11 @@ PhoneContacts _data() => const PhoneContacts(
     );
 
 void main() {
+  late SharedPreferences prefs;
+  setUpAll(() async {
+    SharedPreferences.setMockInitialValues({});
+    prefs = await SharedPreferences.getInstance();
+  });
   final locales = <String, (Translator, TextDirection)>{
     'longest': (LongestTranslator(), TextDirection.ltr),
     'longest rtl': (LongestTranslator(), TextDirection.rtl),
@@ -69,6 +76,7 @@ void main() {
                 overrides: uxOverrides(
                   translator: t,
                   extra: [
+                    sharedPreferencesProvider.overrideWithValue(prefs),
                     phoneContactsProvider.overrideWith((_) async => _data()),
                   ],
                 ),
@@ -93,6 +101,7 @@ void main() {
         size: narrowPhone,
         overrides: uxOverrides(
           extra: [
+            sharedPreferencesProvider.overrideWithValue(prefs),
             phoneContactsProvider
                 .overrideWith((_) async => const PhoneContacts(denied: true)),
           ],
@@ -101,6 +110,28 @@ void main() {
     );
     await tester.pump();
     await tester.pump();
-    expect(find.text('Allow access'), findsOneWidget);
+    expect(find.text('Open settings'), findsOneWidget);
+  });
+
+  testWidgets('sync off: asks before anything is read', (tester) async {
+    useNarrowPhone(tester);
+    await tester.pumpWidget(
+      uxApp(
+        const ContactsScreen(),
+        theme: AppTheme.light(),
+        size: narrowPhone,
+        overrides: uxOverrides(
+          extra: [
+            sharedPreferencesProvider.overrideWithValue(prefs),
+            phoneContactsProvider.overrideWith(
+              (_) async => const PhoneContacts(needsConsent: true),
+            ),
+          ],
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('Find people from your contacts?'), findsOneWidget);
   });
 }

@@ -27,7 +27,7 @@ class ContactPersonDto {
   final String userId;
   final String? username;
 
-  /// First and last name as the person shows them.
+  /// Attorneys: full public name. Clients: first name only, no username.
   final String displayName;
   final String? avatarUrl;
   final ContactPersonDtoRole? role;

@@ -3,10 +3,22 @@ import 'package:lawbid/core/network/api_error.dart';
 
 /// Server state of the user's contacts sync.
 class ContactsSyncStatus {
-  const ContactsSyncStatus({required this.enabled, required this.matches});
+  const ContactsSyncStatus({
+    required this.enabled,
+    required this.matches,
+    this.findByPhone = true,
+    this.phoneRegion,
+  });
 
   final bool enabled;
   final int matches;
+
+  /// "Let people find me by my number" (clients).
+  final bool findByPhone;
+
+  /// ISO country of the account number — the default region for numbers in
+  /// national format.
+  final String? phoneRegion;
 }
 
 /// A phone-book number that belongs to a LawBid user ([hash] is the one the
@@ -53,6 +65,8 @@ abstract interface class ContactsSyncRepository {
 
   /// Turns the sync off and deletes every match.
   Future<void> remove();
+
+  Future<void> setFindByPhone({required bool enabled});
 }
 
 class ApiContactsSyncRepository implements ContactsSyncRepository {
@@ -74,6 +88,8 @@ class ApiContactsSyncRepository implements ContactsSyncRepository {
     return ContactsSyncStatus(
       enabled: data?['enabled'] == true,
       matches: (data?['matches'] as num?)?.toInt() ?? 0,
+      findByPhone: data?['findByPhone'] != false,
+      phoneRegion: data?['phoneRegion'] as String?,
     );
   }
 
@@ -118,4 +134,12 @@ class ApiContactsSyncRepository implements ContactsSyncRepository {
   @override
   Future<void> remove() =>
       guardApiCall(() => _dio.delete<void>('/contacts/sync'));
+
+  @override
+  Future<void> setFindByPhone({required bool enabled}) => guardApiCall(
+        () => _dio.put<void>(
+          '/contacts/sync/find-by-phone',
+          data: {'enabled': enabled},
+        ),
+      );
 }

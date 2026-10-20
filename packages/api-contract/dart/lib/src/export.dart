@@ -1647,6 +1647,7 @@ export 'models/country_partner_portal_dto.dart';
 export 'models/country_partner_portal_envelope.dart';
 export 'models/accept_country_partner_contract_dto.dart';
 export 'models/contact_person_dto.dart';
+export 'models/set_find_by_phone_dto.dart';
 export 'models/skipped.dart';
 export 'models/role.dart';
 export 'models/status.dart';

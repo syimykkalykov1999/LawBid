@@ -3,6 +3,17 @@
 // tasks — compiled-in strings merged into StaticTranslatorRu/En.
 
 const file07Ru = <String, String>{
+  'phoneContacts.inviteTo': '{name}, присоединяйтесь ко мне в LawBid: {link}',
+  'phoneContacts.consentTitle': 'Найти людей из контактов?',
+  'phoneContacts.consentBody':
+      'LawBid сверяет номера из вашей телефонной книги с пользователями, чтобы показать, кто уже здесь. Отправляются только зашифрованные хэши номеров, но не сами номера и не имена. Это можно отключить в любой момент.',
+  'phoneContacts.consentYes': 'Найти людей',
+  'phoneContacts.openSettings': 'Открыть настройки',
+  'phoneContacts.limited':
+      'Сегодня слишком много контактов. Остальные синхронизируются завтра.',
+  'phoneContacts.findByPhone': 'Находить меня по номеру',
+  'phoneContacts.findByPhoneHint':
+      'Люди, у которых сохранён ваш номер, увидят вас в LawBid. Профили адвокатов открыты.',
   'phoneContacts.syncNote':
       'Контакты сверяются по хэшам номеров. Сами номера не хранятся.',
   'phoneContacts.add': 'Добавить ({count})',
@@ -609,6 +620,17 @@ const file07Ru = <String, String>{
 };
 
 const file07En = <String, String>{
+  'phoneContacts.inviteTo': '{name}, join me on LawBid: {link}',
+  'phoneContacts.consentTitle': 'Find people from your contacts?',
+  'phoneContacts.consentBody':
+      'LawBid compares the numbers in your phone book with its users to show who is already here. Only scrambled hashes of the numbers are sent, never the numbers or names. You can turn it off at any time.',
+  'phoneContacts.consentYes': 'Find people',
+  'phoneContacts.openSettings': 'Open settings',
+  'phoneContacts.limited':
+      'Too many contacts today. The rest will sync tomorrow.',
+  'phoneContacts.findByPhone': 'Let people find me by my number',
+  'phoneContacts.findByPhoneHint':
+      'People who have your number saved can see you on LawBid. Attorney profiles are public.',
   'phoneContacts.syncNote':
       'Contacts are matched by number hashes. The numbers themselves are not stored.',
   'phoneContacts.add': 'Add ({count})',

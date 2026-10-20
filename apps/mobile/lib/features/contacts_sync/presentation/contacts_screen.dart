@@ -7,11 +7,16 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
+import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/presentation/contact_info_screen.dart';
 import 'package:lawbid/features/chat/presentation/open_direct_chat.dart';
+import 'package:lawbid/features/contacts_sync/application/contacts_sync_providers.dart';
 import 'package:lawbid/features/contacts_sync/application/phone_contacts.dart';
 import 'package:lawbid/features/contacts_sync/presentation/contact_rows.dart';
+import 'package:lawbid/features/contacts_sync/presentation/contacts_states.dart';
 import 'package:lawbid/features/contacts_sync/presentation/invite_contact.dart';
+import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
+import 'package:lawbid/shared/domain/user_role.dart';
 
 /// Owner 2026-10-20: "Contacts" like WhatsApp — the phone-book people who
 /// are on LawBid (with message / call / video) and the rest to invite.
@@ -69,16 +74,8 @@ class _BodyState extends ConsumerState<_Body> {
         ),
       ),
       data: (data) {
-        if (data.denied) {
-          return AppEmptyState(
-            icon: AppIcons.contactPhoneOutlined,
-            message: t.t('phoneContacts.denied'),
-            action: AppButton(
-              label: t.t('phoneContacts.allow'),
-              onPressed: () => ref.invalidate(phoneContactsProvider),
-            ),
-          );
-        }
+        if (data.needsConsent) return const ContactsConsentView();
+        if (data.denied) return const ContactsDeniedView();
         bool hit(String name, [String? handle]) =>
             _query.isEmpty ||
             name.toLowerCase().contains(_query) ||
@@ -116,6 +113,18 @@ class _BodyState extends ConsumerState<_Body> {
                   ),
                 ),
               ),
+              if (data.limited)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.screenSide,
+                      AppSpacing.sm,
+                      AppSpacing.screenSide,
+                      0,
+                    ),
+                    child: Text(t.t('phoneContacts.limited')),
+                  ),
+                ),
               SliverToBoxAdapter(
                 child: ContactsSectionTitle(
                   t.t('phoneContacts.onLawBid'),
@@ -159,10 +168,12 @@ class _BodyState extends ConsumerState<_Body> {
                   itemCount: invite.length,
                   itemBuilder: (context, i) => InviteContactRow(
                     contact: invite[i],
-                    onInvite: () => inviteContact(context, ref),
+                    onInvite: () => inviteContact(context, ref, invite[i].name),
                   ),
                 ),
               ],
+              if (ref.watch(currentUserRoleProvider) == UserRole.client)
+                const SliverToBoxAdapter(child: _FindByPhoneSwitch()),
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(
@@ -208,11 +219,19 @@ class _Actions extends ConsumerWidget {
   }) async {
     final t = ref.read(translatorProvider);
     try {
-      final conv =
-          await ref.read(chatRepositoryProvider).startDirect(contact.userId);
-      if (!context.mounted) return;
-      if (!chatAudioCallAllowed(ref, conv)) {
-        showAppSnackBar(context, t.t('call.notAllowedRequest'));
+      // An existing direct chat decides; none is created just to find out.
+      final all = await ref.read(conversationsProvider.future);
+      Conversation? conv;
+      for (final c in all.items) {
+        if (c.isDirect && c.counterpart.id == contact.userId) conv = c;
+      }
+      if (conv == null || !chatAudioCallAllowed(ref, conv)) {
+        if (context.mounted) {
+          showAppSnackBar(context, t.t('call.notAllowedRequest'));
+          if (conv == null) {
+            await openDirectChat(context, ref, contact.userId);
+          }
+        }
         return;
       }
       await ref.read(callControllerProvider.notifier).call(
@@ -257,6 +276,50 @@ class _Actions extends ConsumerWidget {
             onPressed: () => _call(context, ref, video: true),
           ),
       ],
+    );
+  }
+}
+
+/// Clients: "Let people find me by my number" (on by default). Attorneys'
+/// profiles are public, so they have no switch.
+class _FindByPhoneSwitch extends ConsumerWidget {
+  const _FindByPhoneSwitch();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    final on = ref.watch(contactsSyncStatusProvider).value?.findByPhone ?? true;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenSide),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SwitchListTile.adaptive(
+            contentPadding: EdgeInsets.zero,
+            title: Text(t.t('phoneContacts.findByPhone')),
+            subtitle: Text(
+              t.t('phoneContacts.findByPhoneHint'),
+              style: type.caption.copyWith(color: colors.textSecondary),
+            ),
+            value: on,
+            activeTrackColor: colors.gold,
+            onChanged: (v) async {
+              try {
+                await ref
+                    .read(contactsSyncRepositoryProvider)
+                    .setFindByPhone(enabled: v);
+              } on Object {
+                if (context.mounted) {
+                  showAppSnackBar(context, t.t('error.default.message'));
+                }
+              }
+              ref.invalidate(contactsSyncStatusProvider);
+            },
+          ),
+        ],
+      ),
     );
   }
 }

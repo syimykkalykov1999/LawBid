@@ -85162,6 +85162,86 @@
           "admin-country-partners"
         ]
       }
+    },
+    "/contacts/sync/find-by-phone": {
+      "put": {
+        "operationId": "setFindByPhone",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetFindByPhoneDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Clients: allow or forbid being found by people who have my number",
+        "tags": [
+          "contacts-sync"
+        ]
+      }
     }
   },
   "info": {
@@ -115654,11 +115734,21 @@
             "type": "string",
             "nullable": true,
             "format": "date-time"
+          },
+          "findByPhone": {
+            "type": "boolean",
+            "description": "\"Find me by my number\" (clients; attorneys are public)."
+          },
+          "phoneRegion": {
+            "type": "string",
+            "nullable": true,
+            "description": "ISO country of the account number (\"US\", \"KG\"): the default region for national-format numbers in the address book."
           }
         },
         "required": [
           "enabled",
-          "matches"
+          "matches",
+          "findByPhone"
         ]
       },
       "ContactSyncStatusEnvelope": {
@@ -131956,7 +132046,7 @@
           },
           "displayName": {
             "type": "string",
-            "description": "First and last name as the person shows them."
+            "description": "Attorneys: full public name. Clients: first name only, no username."
           },
           "avatarUrl": {
             "type": "string",
@@ -131976,6 +132066,18 @@
           "hash",
           "userId",
           "displayName"
+        ]
+      },
+      "SetFindByPhoneDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "Clients only: people who have my number in their address book may find me."
+          }
+        },
+        "required": [
+          "enabled"
         ]
       }
     }

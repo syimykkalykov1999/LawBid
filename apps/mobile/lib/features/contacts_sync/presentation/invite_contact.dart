@@ -8,12 +8,19 @@ const lawbidInviteLink = 'https://lawbid.dev';
 
 /// Opens the system share sheet with the invitation (the person picks
 /// WhatsApp, SMS, …). The text is in the inviter's app language.
-Future<void> inviteContact(BuildContext context, WidgetRef ref) async {
+Future<void> inviteContact(
+  BuildContext context,
+  WidgetRef ref,
+  String name,
+) async {
   final t = ref.read(translatorProvider);
   final box = context.findRenderObject() as RenderBox?;
   await SharePlus.instance.share(
     ShareParams(
-      text: t.t('phoneContacts.inviteText', {'link': lawbidInviteLink}),
+      text: t.t(
+        'phoneContacts.inviteTo',
+        {'name': name, 'link': lawbidInviteLink},
+      ),
       sharePositionOrigin:
           box == null ? null : box.localToGlobal(Offset.zero) & box.size,
     ),

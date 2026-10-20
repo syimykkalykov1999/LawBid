@@ -4,6 +4,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/contacts_sync/application/phone_contacts.dart';
 import 'package:lawbid/features/contacts_sync/presentation/contact_rows.dart';
+import 'package:lawbid/features/contacts_sync/presentation/contacts_states.dart';
 
 /// Reusable "choose a contact" sheet — the LawBid people of the phone book
 /// with a search field. Used by "Add to call" and the new-call picker.
@@ -126,17 +127,10 @@ class _ContactPickerSheetState extends ConsumerState<ContactPickerSheet> {
                     ),
                   ),
                   data: (data) {
-                    if (data.denied) {
-                      return AppEmptyState(
-                        icon: AppIcons.contactPhoneOutlined,
-                        message: t.t('phoneContacts.denied'),
-                        action: AppButton(
-                          label: t.t('phoneContacts.allow'),
-                          onPressed: () =>
-                              ref.invalidate(phoneContactsProvider),
-                        ),
-                      );
+                    if (data.needsConsent) {
+                      return const ContactsConsentView();
                     }
+                    if (data.denied) return const ContactsDeniedView();
                     final list = [
                       for (final c in data.onLawBid)
                         if (!widget.excludeUserIds.contains(c.userId) &&

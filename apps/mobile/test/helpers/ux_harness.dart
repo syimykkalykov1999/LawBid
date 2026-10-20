@@ -65,6 +65,9 @@ class _NoContactsSync implements ContactsSyncRepository {
 
   @override
   Future<void> remove() async {}
+
+  @override
+  Future<void> setFindByPhone({required bool enabled}) async {}
 }
 
 /// "Asked already": the soft row shows, no system dialog in tests.
