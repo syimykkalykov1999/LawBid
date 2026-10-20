@@ -33,6 +33,56 @@ class CallkitSystemUi implements SystemCallUi {
       // No plugin / already gone.
     }
   }
+
+  @override
+  Future<void> answered(AppCall call) async {
+    if (defaultTargetPlatform == TargetPlatform.iOS) {
+      // Answered on the CallKit screen: keep that call (green bar in the
+      // status bar, audio session kept by the system, e.g. when screen
+      // recording starts) and end it only when the call ends.
+      try {
+        final calls = await FlutterCallkitIncoming.activeCalls();
+        if (calls.any((c) => c.id == call.id && c.isAccepted)) return;
+      } on Object {
+        // No plugin: fall through.
+      }
+    }
+    await dismiss(call.id);
+    await showOngoing(call);
+  }
+
+  @override
+  Future<void> showOngoing(AppCall call) async {
+    // Android only: iOS keeps the call alive through its own audio session
+    // and CallKit, and the plugin's startCall would add a second CallKit call.
+    if (defaultTargetPlatform != TargetPlatform.android) return;
+    try {
+      await FlutterCallkitIncoming.startCall(
+        CallKitParams(
+          id: call.id,
+          nameCaller: call.peer.name,
+          appName: 'LawBid',
+          avatar: call.peer.avatarUrl,
+          handle: 'LawBid',
+          type: 0,
+          extra: {'callId': call.id},
+          callingNotification: const NotificationParams(
+            showNotification: true,
+            subtitle: 'Ongoing call',
+          ),
+          android: const AndroidParams(
+            isCustomNotification: true,
+            isShowLogo: false,
+            backgroundColor: '#0A1A3F',
+            actionColor: '#C9A24A',
+            textColor: '#ffffff',
+          ),
+        ),
+      );
+    } on Object catch (e) {
+      debugPrint('callkit ongoing unavailable: $e');
+    }
+  }
 }
 
 /// Shows the system ringing UI for [callId] (also from the push
