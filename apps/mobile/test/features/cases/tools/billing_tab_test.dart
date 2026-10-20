@@ -11,14 +11,15 @@ import 'package:lawbid/features/cases/tools/billing_data.dart';
 import 'package:lawbid/features/cases/tools/billing_tab.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
-api.CaseBillingDto _dto({required bool attorney}) => api.CaseBillingDto(
+api.CaseBillingDto _dto({required bool attorney, bool noRate = false}) =>
+    api.CaseBillingDto(
       role: attorney
           ? api.CaseBillingDtoRole.attorney
           : api.CaseBillingDtoRole.client,
       canEdit: attorney,
       currency: 'USD',
-      hourlyRateCents: attorney ? 15000 : null,
-      timer: attorney
+      hourlyRateCents: attorney && !noRate ? 15000 : null,
+      timer: attorney && !noRate
           ? api.RunningTimerDto(
               entryId: 'r',
               caseId: 'c',
@@ -140,4 +141,37 @@ Future<void> main() async {
       });
     }
   }
+
+  testWidgets('Start with no rate asks for the rate first', (tester) async {
+    tester.view
+      ..physicalSize = const Size(360, 1400)
+      ..devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          translatorProvider.overrideWithValue(const StaticTranslatorEn()),
+          l10nFormatsProvider.overrideWithValue(L10nFormats(AppLanguage.en)),
+          caseBillingProvider('c').overrideWith(
+            (ref) async => _dto(attorney: true, noRate: true),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light(),
+          home: const Scaffold(
+            body: SingleChildScrollView(
+              child: BillingTab(caseId: 'c', isAttorney: true),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    await tester.tap(find.text('Start'));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.text('Hourly rate'), findsWidgets);
+    expect(tester.takeException(), isNull);
+  });
 }

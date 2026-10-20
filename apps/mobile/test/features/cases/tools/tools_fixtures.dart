@@ -1,13 +1,14 @@
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// Sample data for the case-tools widget tests.
-api.CaseBillingDto billingDto({required bool attorney}) => api.CaseBillingDto(
+api.CaseBillingDto billingDto({required bool attorney, bool noRate = false}) =>
+    api.CaseBillingDto(
       role: attorney
           ? api.CaseBillingDtoRole.attorney
           : api.CaseBillingDtoRole.client,
       canEdit: attorney,
       currency: 'USD',
-      hourlyRateCents: attorney ? 15000 : null,
+      hourlyRateCents: attorney && !noRate ? 15000 : null,
       timer: attorney
           ? api.RunningTimerDto(
               entryId: 'r',

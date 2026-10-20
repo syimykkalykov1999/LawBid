@@ -83,6 +83,27 @@ class _BillingTabState extends ConsumerState<BillingTab>
     );
   }
 
+  /// The server starts a timer at the case's rate, so with no rate yet
+  /// "Start" asks for it first and then starts.
+  Future<void> _start() async {
+    final d = _data;
+    if (d == null) return;
+    int? cents;
+    if (d.hourlyRateCents == null) {
+      cents = await showRateSheet(
+        context,
+        currentCents: null,
+        currency: d.currency,
+      );
+      if (cents == null || !mounted) return;
+    }
+    await _do(() async {
+      final actions = ref.read(caseBillingActionsProvider);
+      if (cents != null) await actions.setRate(widget.caseId, cents);
+      await actions.startTimer(widget.caseId);
+    });
+  }
+
   Future<void> _addTime() async {
     final r = await showTimeSheet(context);
     if (r == null || !mounted) return;
@@ -235,11 +256,7 @@ class _BillingTabState extends ConsumerState<BillingTab>
                   canEdit: canEdit,
                   busy: _busy,
                   onRate: _rate,
-                  onStart: () => _do(
-                    () => ref
-                        .read(caseBillingActionsProvider)
-                        .startTimer(widget.caseId),
-                  ),
+                  onStart: _start,
                   onStop: () => _do(
                     () => ref
                         .read(caseBillingActionsProvider)
