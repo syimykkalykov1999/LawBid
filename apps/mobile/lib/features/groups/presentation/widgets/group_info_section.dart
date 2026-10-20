@@ -263,14 +263,15 @@ class GroupInfoNavRow extends StatelessWidget {
                 ),
                 if (badge > 0) ...[
                   const SizedBox(width: AppSpacing.sm),
-                  neutral
-                      ? Text(
-                          '$badge',
-                          style: type.bodySmall.copyWith(
-                            color: colors.textSecondary,
-                          ),
-                        )
-                      : GroupInfoCountBadge(badge),
+                  if (neutral)
+                    Text(
+                      '$badge',
+                      style: type.bodySmall.copyWith(
+                        color: colors.textSecondary,
+                      ),
+                    )
+                  else
+                    GroupInfoCountBadge(badge),
                 ],
                 const SizedBox(width: AppSpacing.xs),
                 AppIcon(
