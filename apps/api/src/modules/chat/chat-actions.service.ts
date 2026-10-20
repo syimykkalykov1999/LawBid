@@ -10,10 +10,12 @@ import { AppSettingsService } from '../../common/app-settings/app-settings.servi
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { MessageBodyCipher } from '../../common/secrets/message-body-cipher';
 import { PrismaService } from '../../prisma/prisma.service';
+import { withTxRetry } from '../../prisma/tx-retry.util';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { maskContactInfo } from '../cases/domain/contact-detector';
 import { NotificationsService } from '../notifications/notifications.service';
 import { RealtimePublisher } from '../realtime/realtime-publisher.service';
+import { StarsService } from '../stars/stars.service';
 import { isSingleEmoji } from './chat-message-extras';
 import { ChatService } from './chat.service';
 import type { MessageDto, PinsDto } from './chat.dto';
@@ -40,6 +42,7 @@ export class ChatActionsService {
     private readonly chat: ChatService,
     private readonly settings: AppSettingsService,
     private readonly realtime: RealtimePublisher,
+    private readonly stars: StarsService,
     @Optional() private readonly cipher?: MessageBodyCipher,
     @Optional() private readonly notifications?: NotificationsService,
   ) {}
@@ -260,10 +263,19 @@ export class ChatActionsService {
           details: { field: 'emoji' },
         });
       }
-      await this.prisma.messageReaction.upsert({
-        where: { message_id_user_id: { message_id: m.id, user_id: user.sub } },
-        create: { message_id: m.id, user_id: user.sub, emoji: emoji.trim() },
-        update: { emoji: emoji.trim(), created_at: new Date() },
+      const clean = emoji.trim();
+      // A premium emoji costs stars once per user, message and emoji; the
+      // charge and the save share one transaction, so a failed save never
+      // keeps the stars (402 INSUFFICIENT_STARS leaves the old reaction).
+      await withTxRetry(this.prisma, async (tx) => {
+        await this.stars.chargeReaction(tx, user.sub, m.id, clean);
+        await tx.messageReaction.upsert({
+          where: {
+            message_id_user_id: { message_id: m.id, user_id: user.sub },
+          },
+          create: { message_id: m.id, user_id: user.sub, emoji: clean },
+          update: { emoji: clean, created_at: new Date() },
+        });
       });
       // Only the author of the message hears about a reaction.
       if (m.sender_id && m.sender_id !== user.sub) {
