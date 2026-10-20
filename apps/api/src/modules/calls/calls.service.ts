@@ -191,10 +191,14 @@ export class CallsService {
     await this.limits.consume('message', user.sub);
     await this.sweep();
 
-    if (await this.liveCallOf(user.sub)) {
+    const mine = await this.liveCallOf(user.sub);
+    if (mine) {
+      // The id lets the app offer "end it there" (Telegram) when this
+      // device has no call of its own.
       throw new ConflictException({
         code: ErrorCode.CALL_IN_PROGRESS,
         message: 'You are already in a call.',
+        details: { callId: mine.id },
       });
     }
     if (await this.liveCallOf(callee)) {

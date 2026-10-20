@@ -54,6 +54,7 @@ class CallSession {
     this.connectedAt,
     this.outcome,
     this.errorCode,
+    this.staleCallId,
     this.video = false,
     this.cameraOn = true,
     this.reconnecting = false,
@@ -87,6 +88,11 @@ class CallSession {
   /// An API refusal (CALL_NOT_ALLOWED, SUBSCRIPTION_REQUIRED, …).
   final String? errorCode;
 
+  /// Telegram-style 409: the server says we are in a call this device does
+  /// not have (another phone, or a hang-up that never arrived) — the screen
+  /// offers to end it.
+  final String? staleCallId;
+
   bool get busy => phase != CallPhase.idle && phase != CallPhase.ended;
 
   CallSession copyWith({
@@ -98,6 +104,7 @@ class CallSession {
     DateTime? connectedAt,
     CallStatus? outcome,
     String? errorCode,
+    String? staleCallId,
     bool? cameraOn,
     bool? reconnecting,
     String? notice,
@@ -112,6 +119,7 @@ class CallSession {
         connectedAt: connectedAt ?? this.connectedAt,
         outcome: outcome ?? this.outcome,
         errorCode: errorCode ?? this.errorCode,
+        staleCallId: staleCallId ?? this.staleCallId,
         video: video,
         cameraOn: cameraOn ?? this.cameraOn,
         reconnecting: reconnecting ?? this.reconnecting,
@@ -431,8 +439,11 @@ class CallController extends Notifier<CallSession> {
       await _openMedia(call.id, video: call.video, peer: call.peer.id);
     } on ApiException catch (e) {
       if (gen != _gen) return;
-      state = state.copyWith(errorCode: e.code);
-      _finish(CallStatus.failed);
+      final raw = (e.details ?? const <String, dynamic>{})['callId'];
+      final stale =
+          e.code == ApiErrorCodes.callInProgress && raw is String ? raw : null;
+      state = state.copyWith(errorCode: e.code, staleCallId: stale);
+      _finish(CallStatus.failed, keepOpen: stale != null);
     } on Object catch (e) {
       if (gen != _gen) return;
       final id = state.call?.id;
@@ -440,6 +451,20 @@ class CallController extends Notifier<CallSession> {
       _finish(CallStatus.failed);
       if (id != null) unawaited(_endQuietly(id, CallEndReason.failed));
     }
+  }
+
+  /// "End it there" on the 409 sheet: closes the call the server still
+  /// holds for us, then clears the screen so the person can call again.
+  Future<void> endOtherDeviceCall() async {
+    final id = state.staleCallId;
+    if (id == null || state.busy) return;
+    state = const CallSession();
+    await _endQuietly(id, CallEndReason.hangup);
+  }
+
+  /// "Cancel" on the 409 sheet.
+  void dismissStale() {
+    if (state.staleCallId != null && !state.busy) state = const CallSession();
   }
 
   // --- Incoming ------------------------------------------------------------
@@ -1183,7 +1208,7 @@ class CallController extends Notifier<CallSession> {
     await ref.read(systemCallUiProvider).answered(call);
   }
 
-  void _finish(CallStatus outcome, {AppCall? call}) {
+  void _finish(CallStatus outcome, {AppCall? call, bool keepOpen = false}) {
     final wasCalling = state.busy;
     final endedId = call?.id ?? state.call?.id;
     if (endedId != null) {
@@ -1206,6 +1231,8 @@ class CallController extends Notifier<CallSession> {
       call: call,
       reconnecting: false,
     );
+    // The 409 sheet decides when this screen goes.
+    if (keepOpen) return;
     _linger = Timer(kCallEndedLinger, () {
       if (ref.mounted && state.phase == CallPhase.ended) {
         state = const CallSession();

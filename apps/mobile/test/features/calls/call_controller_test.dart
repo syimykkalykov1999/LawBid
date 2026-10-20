@@ -83,6 +83,7 @@ class _FakeRepo implements CallsRepository {
   CallStatus startStatus = CallStatus.ringing;
   ApiException? refuse;
   final ends = <CallEndReason>[];
+  final endedIds = <String>[];
   final accepted = <String>[];
   final declined = <String>[];
 
@@ -133,6 +134,7 @@ class _FakeRepo implements CallsRepository {
       throw Exception('offline');
     }
     ends.add(reason);
+    endedIds.add(callId);
     return _call(callId, CallStatus.ended, outgoing: true);
   }
 
@@ -534,6 +536,44 @@ void main() {
         ..sub.close()
         ..container.dispose();
     });
+  });
+
+  test('409 with no local call: stays open, "end it there" ends that call',
+      () async {
+    final h = _Harness();
+    h.repo.refuse = const ApiException(
+      code: 'CALL_IN_PROGRESS',
+      message: 'x',
+      statusCode: 409,
+      details: <String, dynamic>{'callId': 'old1'},
+    );
+    await h.c.call('conv', peer: _peer);
+    await _settle();
+    expect(h.s.phase, CallPhase.ended);
+    expect(h.s.staleCallId, 'old1');
+    // No auto-clear while the sheet is up.
+    await Future<void>.delayed(kCallEndedLinger + const Duration(seconds: 1));
+    expect(h.s.staleCallId, 'old1');
+    await h.c.endOtherDeviceCall();
+    expect(h.repo.endedIds, ['old1']);
+    expect(h.s.phase, CallPhase.idle);
+    expect(h.s.staleCallId, isNull);
+    await h.dispose();
+  });
+
+  test('409 sheet: cancel clears it without ending anything', () async {
+    final h = _Harness();
+    h.repo.refuse = const ApiException(
+      code: 'CALL_IN_PROGRESS',
+      message: 'x',
+      statusCode: 409,
+      details: <String, dynamic>{'callId': 'old1'},
+    );
+    await h.c.call('conv', peer: _peer);
+    h.c.dismissStale();
+    expect(h.s.phase, CallPhase.idle);
+    expect(h.repo.endedIds, isEmpty);
+    await h.dispose();
   });
 
   test('the link drops because the other side hung up: closes at once',

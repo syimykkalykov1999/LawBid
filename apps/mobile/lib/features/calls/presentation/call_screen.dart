@@ -68,6 +68,45 @@ class _CallScreenState extends ConsumerState<CallScreen>
     });
   }
 
+  Future<void> _askEndOther(CallController c) async {
+    final t = ref.read(translatorProvider);
+    final end = await showAppBottomSheet<bool>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                t.t('call.inProgress'),
+                textAlign: TextAlign.center,
+                style: Theme.of(ctx).textTheme.titleMedium,
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              FilledButton(
+                key: const Key('call-end-other'),
+                onPressed: () => Navigator.of(ctx).pop(true),
+                child: Text(t.t('call.end')),
+              ),
+              TextButton(
+                key: const Key('call-end-other-cancel'),
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: Text(t.t('common.cancel')),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (end ?? false) {
+      unawaited(c.endOtherDeviceCall());
+    } else {
+      c.dismissStale();
+    }
+  }
+
   @override
   void dispose() {
     _closeTimer?.cancel();
@@ -90,9 +129,16 @@ class _CallScreenState extends ConsumerState<CallScreen>
       if (phase == CallPhase.idle) {
         _close();
       } else if (phase == CallPhase.ended) {
+        // The 409 sheet (below) decides when this screen goes.
+        if (ref.read(callControllerProvider).staleCallId != null) return;
         // "Call ended" stays readable for a moment, then the screen goes.
         _closeTimer = Timer(const Duration(milliseconds: 1500), _close);
       }
+    });
+    // Telegram: the server holds a call this device does not have — offer
+    // to end it there instead of a dead end.
+    ref.listen(callControllerProvider.select((x) => x.staleCallId), (_, id) {
+      if (id != null && mounted) unawaited(_askEndOther(c));
     });
     // Owner 2026-10-05 (plan builder): the plan has no video calls — the
     // call screen gives way to the plans.
