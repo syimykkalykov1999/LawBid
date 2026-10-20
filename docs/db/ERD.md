@@ -733,6 +733,7 @@ erDiagram
     DateTime revoked_at "nullable"
     String reply_to_id FK "nullable"
     Boolean forwarded
+    String forwarded_from_name "nullable"
     DateTime created_at
     DateTime updated_at
   }
