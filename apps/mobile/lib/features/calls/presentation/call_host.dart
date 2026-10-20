@@ -69,7 +69,9 @@ class CallHost extends ConsumerWidget {
       builder: (context, _) {
         final onScreen = _onCallScreen(ref);
         final Widget? top;
-        if (s.phase == CallPhase.incoming && !onScreen) {
+        if (s.phase == CallPhase.incoming &&
+            !onScreen &&
+            ref.watch(systemRingingCallProvider) != s.call?.id) {
           top = _IncomingBanner(
             session: s,
             onOpen: () => unawaited(router.push<void>(ChatRoutes.call)),

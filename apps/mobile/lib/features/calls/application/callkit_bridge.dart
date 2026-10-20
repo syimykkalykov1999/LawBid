@@ -30,6 +30,10 @@ class CallkitSystemUi implements SystemCallUi {
 
   @override
   Future<void> dismiss(String callId) async {
+    // The plugin reports our own endCall back as an "ended" / "declined"
+    // event: that is not the user hanging up (Android: answering from the
+    // heads-up ended the call it had just answered).
+    _ignoreEnded(callId);
     try {
       await FlutterCallkitIncoming.endCall(callId);
     } on Object {
@@ -109,6 +113,18 @@ bool _endedByUs(String id) {
   return until != null && DateTime.now().isBefore(until);
 }
 
+@visibleForTesting
+bool callEndedByUs(String id) => _endedByUs(id);
+
+/// "End" on the system call UI hangs up only a call that is really running
+/// here — never the ringing one, nor one we ended ourselves a moment ago.
+@visibleForTesting
+bool systemEndHangsUp(CallSession s, String id) =>
+    !_endedByUs(id) &&
+    s.busy &&
+    s.call?.id == id &&
+    s.phase != CallPhase.incoming;
+
 /// Shows the system ringing UI for [callId] (also from the push
 /// background isolate).
 Future<void> showLawbidIncoming({
@@ -120,6 +136,14 @@ Future<void> showLawbidIncoming({
   // Owner 2026-10-05: the system screen says "video call".
   bool video = false,
 }) async {
+  try {
+    // Already on screen (iOS: PushKit reported it before the socket did):
+    // a second report would replace the call and end the one being answered.
+    final shown = await FlutterCallkitIncoming.activeCalls();
+    if (shown.any((c) => c.id == callId)) return;
+  } on Object {
+    // No plugin / cannot tell: go on.
+  }
   try {
     await FlutterCallkitIncoming.showCallkitIncoming(
       CallKitParams(
@@ -233,13 +257,13 @@ final callkitEventsProvider = Provider<void>((ref) {
             // screen) hangs up. Our own endCall() also reports it — the
             // call is already over then.
             final s = ref.read(callControllerProvider);
-            if (!_endedByUs(callKitParams.id) &&
-                s.busy &&
-                s.call?.id == callKitParams.id &&
-                s.phase != CallPhase.incoming) {
+            if (systemEndHangsUp(s, callKitParams.id)) {
               await controller.hangUp();
             }
           case CallEventActionCallDecline(:final callKitParams):
+            // Our own dismiss (answered elsewhere, replaced by the ongoing
+            // call) is reported as a decline too: not the user's choice.
+            if (_endedByUs(callKitParams.id)) break;
             final s = ref.read(callControllerProvider);
             if (s.call?.id == callKitParams.id) {
               await controller.decline();

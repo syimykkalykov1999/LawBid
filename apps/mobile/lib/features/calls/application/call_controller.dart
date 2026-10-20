@@ -188,6 +188,19 @@ class NoSystemCallUi implements SystemCallUi {
 final systemCallUiProvider =
     Provider<SystemCallUi>((ref) => const NoSystemCallUi());
 
+/// The call whose ringing the phone's own call sheet shows (iOS CallKit);
+/// the in-app incoming strip stays away for it.
+class SystemRingingCall extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  // ignore: use_setters_to_change_properties
+  void set(String? id) => state = id;
+}
+
+final systemRingingCallProvider =
+    NotifierProvider<SystemRingingCall, String?>(SystemRingingCall.new);
+
 /// The caller gives up after this — about a minute, like WhatsApp (owner
 /// 2026-10-20; it was 30 s); the server marks a forgotten call missed a
 /// little later.
@@ -493,11 +506,15 @@ class CallController extends Notifier<CallSession> {
   Future<void> accept() async {
     final call = state.call;
     if (call == null || state.phase != CallPhase.incoming) return;
+    // The system sheet's answer and the start-up scan can both ask: once.
+    if (_accepting == call.id) return;
+    _accepting = call.id;
     final gen = _gen;
     unawaited(ref.read(appSoundsProvider).stopRingtone());
     if (!await ref.read(callMicPermissionProvider)()) {
       // Cannot talk: decline, so the caller is not left waiting.
       if (!ref.mounted || state.call?.id != call.id) return;
+      _accepting = null;
       state = state.copyWith(errorCode: kMicDenied);
       unawaited(ref.read(systemCallUiProvider).dismiss(call.id));
       _finish(CallStatus.declined);
@@ -959,6 +976,9 @@ class CallController extends Notifier<CallSession> {
 
   // --- Internals -----------------------------------------------------------
 
+  /// The call being answered right now (see [accept]).
+  String? _accepting;
+
   void _ring(AppCall call, {bool showSystemUi = true}) {
     _reset();
     state = CallSession(
@@ -998,6 +1018,11 @@ class CallController extends Notifier<CallSession> {
       unawaited(ref.read(appSoundsProvider).startRingtone());
     } else if (showSystemUi) {
       unawaited(ref.read(systemCallUiProvider).showIncoming(call));
+    }
+    // iOS: the system call sheet is the ringing screen — the in-app strip
+    // would be a second one (owner 2026-10-20).
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
+      ref.read(systemRingingCallProvider.notifier).set(call.id);
     }
   }
 
@@ -1386,6 +1411,7 @@ class CallController extends Notifier<CallSession> {
 
   void _reset() {
     _gen++;
+    _accepting = null;
     _clearTimers();
     // Audit 2026-10-02: the incoming melody stops with any change.
     unawaited(ref.read(appSoundsProvider).stopRingtone());
