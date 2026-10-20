@@ -470,6 +470,33 @@ describe('Group chats and polls (e2e)', () => {
     expect(again.body.data.memberCount).toBe(4);
   });
 
+  it('service lines can be switched off by an admin: hidden for everyone, on by default', async () => {
+    const { owner, ann, id, res } = await makeGroup();
+    expect(res.body.data.showServiceMessages).toBe(true);
+    const lines = async (uid: string): Promise<number> => {
+      const r = await api()
+        .get(`/api/v1/groups/${id}/messages`)
+        .set(bearer(uid))
+        .expect(200);
+      const items = r.body.data as { systemKind: string | null }[];
+      return items.filter((m) => m.systemKind).length;
+    };
+    expect(await lines(ann.id)).toBeGreaterThan(0);
+    await api()
+      .patch(`/api/v1/groups/${id}`)
+      .set(bearer(ann.id))
+      .send({ showServiceMessages: false })
+      .expect(403);
+    const off = await api()
+      .patch(`/api/v1/groups/${id}`)
+      .set(bearer(owner.id))
+      .send({ showServiceMessages: false })
+      .expect(200);
+    expect(off.body.data.showServiceMessages).toBe(false);
+    expect(await lines(ann.id)).toBe(0);
+    expect(await lines(owner.id)).toBe(0);
+  });
+
   it('anonymous multi-answer polls hide the voters', async () => {
     const { ann, bob, id } = await makeGroup();
     const made = await api()

@@ -186,6 +186,14 @@ export class UpdateGroupDto {
   @IsIn(GROUP_WHO)
   whoCanCall?: GroupWhoName;
 
+  @ApiPropertyOptional({
+    description:
+      'Admins only: show service lines (created, joined, left, renamed…) to everyone.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  showServiceMessages?: boolean;
+
   @ApiPropertyOptional({ description: 'Admins only: the join link on/off.' })
   @IsOptional()
   @IsBoolean()
@@ -682,6 +690,12 @@ export class GroupDto {
 
   @ApiProperty({ enum: GROUP_WHO, enumName: 'GroupWho' })
   whoCanCall!: GroupWhoName;
+
+  @ApiProperty({
+    description:
+      'Service lines (joined, left, renamed…) are shown to everyone.',
+  })
+  showServiceMessages!: boolean;
 
   @ApiProperty({ description: 'What I may do here (derived from the above).' })
   canPost!: boolean;

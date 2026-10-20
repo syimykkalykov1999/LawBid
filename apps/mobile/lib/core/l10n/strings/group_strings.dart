@@ -155,6 +155,7 @@ const groupRu = <String, String>{
   'group.info.settings.inviteLink': 'Ссылка-приглашение',
   'group.info.settings.inviteLinkNote': 'Вступать можно по ссылке',
   'group.info.settings.permissions': 'Кто может',
+  'group.info.settings.service': 'Служебные сообщения',
   'group.info.settings.topics': 'Темы',
   'group.info.settings.topicsNote':
       'Темы делят чат на отдельные ветки, как форум. При включении создаётся тема «Общее» для прежних сообщений.',
@@ -445,6 +446,7 @@ const groupEn = <String, String>{
   'group.info.settings.inviteLink': 'Invite link',
   'group.info.settings.inviteLinkNote': 'People can join with the link',
   'group.info.settings.permissions': 'Who can',
+  'group.info.settings.service': 'Service messages',
   'group.info.settings.topics': 'Topics',
   'group.info.settings.topicsNote':
       'Topics split the chat into separate threads, like a forum. Turning them on creates «General» for the existing messages.',

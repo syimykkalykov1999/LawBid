@@ -196,6 +196,14 @@ class GroupInfoSettings extends ConsumerWidget {
         GroupInfoSection(
           children: [
             GroupInfoSwitchRow(
+              key: const ValueKey('group-set-service'),
+              icon: AppIcons.infoOutlineRounded,
+              label: t.t('group.info.settings.service'),
+              value: detail.showServiceMessages,
+              onChanged: (v) =>
+                  _run(api.UpdateGroupDto(showServiceMessages: v)),
+            ),
+            GroupInfoSwitchRow(
               key: const ValueKey('group-set-topics'),
               icon: AppIcons.forumOutlined,
               label: t.t('group.info.settings.topics'),

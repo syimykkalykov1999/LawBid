@@ -155144,6 +155144,10 @@
               }
             ]
           },
+          "showServiceMessages": {
+            "type": "boolean",
+            "description": "Service lines (joined, left, renamed…) are shown to everyone."
+          },
           "canPost": {
             "type": "boolean",
             "description": "What I may do here (derived from the above)."
@@ -155229,6 +155233,7 @@
           "whoCanAdd",
           "whoCanEditInfo",
           "whoCanCall",
+          "showServiceMessages",
           "canPost",
           "canAdd",
           "canEditInfo",
@@ -155399,6 +155404,10 @@
               }
             ]
           },
+          "showServiceMessages": {
+            "type": "boolean",
+            "description": "Service lines (joined, left, renamed…) are shown to everyone."
+          },
           "canPost": {
             "type": "boolean",
             "description": "What I may do here (derived from the above)."
@@ -155497,6 +155506,7 @@
           "whoCanAdd",
           "whoCanEditInfo",
           "whoCanCall",
+          "showServiceMessages",
           "canPost",
           "canAdd",
           "canEditInfo",
@@ -155759,6 +155769,10 @@
             ],
             "type": "string",
             "description": "Admins only."
+          },
+          "showServiceMessages": {
+            "type": "boolean",
+            "description": "Admins only: show service lines (created, joined, left, renamed…) to everyone."
           },
           "inviteEnabled": {
             "type": "boolean",

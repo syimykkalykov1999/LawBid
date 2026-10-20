@@ -236,10 +236,13 @@ export class GroupsService {
     await this.requireMember(user.sub, id);
     const c = cursor ? decodeCursor(cursor) : undefined;
     const topic = topicId ? await this.topicOf(id, topicId) : null;
+    const hideService = !(await this.requireMember(user.sub, id)).group
+      .show_service_messages;
     const rows = await this.prisma.chatGroupMessage.findMany({
       where: {
         group_id: id,
         deleted_at: {},
+        ...(hideService ? { type: { not: 'system' as const } } : {}),
         // «General» also holds the chat from before topics (topic_id null).
         ...(topic
           ? topic.is_general
@@ -378,6 +381,7 @@ export class GroupsService {
       dto.whoCanAdd !== undefined ||
       dto.whoCanEditInfo !== undefined ||
       dto.whoCanCall !== undefined ||
+      dto.showServiceMessages !== undefined ||
       dto.inviteEnabled !== undefined ||
       dto.type !== undefined ||
       dto.username !== undefined ||
@@ -417,6 +421,9 @@ export class GroupsService {
     if (dto.whoCanAdd) data.who_can_add = dto.whoCanAdd;
     if (dto.whoCanEditInfo) data.who_can_edit_info = dto.whoCanEditInfo;
     if (dto.whoCanCall) data.who_can_call = dto.whoCanCall;
+    if (dto.showServiceMessages !== undefined) {
+      data.show_service_messages = dto.showServiceMessages;
+    }
     if (dto.inviteEnabled !== undefined)
       data.invite_enabled = dto.inviteEnabled;
 
@@ -1614,6 +1621,13 @@ export class GroupsService {
 
   /** Realtime `group:message` to every live member (personalised flags). */
   async broadcast(groupId: string, row: ChatGroupMessage): Promise<void> {
+    if (row.type === 'system') {
+      const g = await this.prisma.chatGroup.findUnique({
+        where: { id: groupId },
+        select: { show_service_messages: true },
+      });
+      if (g && !g.show_service_messages) return;
+    }
     const [ids, [dto]] = await Promise.all([
       this.activeMemberIds(groupId),
       this.presenter.messages([row], NOBODY),

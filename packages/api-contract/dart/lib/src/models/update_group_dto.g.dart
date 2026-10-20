@@ -25,6 +25,7 @@ UpdateGroupDto _$UpdateGroupDtoFromJson(Map<String, dynamic> json) =>
       whoCanCall: json['whoCanCall'] == null
           ? null
           : UpdateGroupDtoWhoCanCall.fromJson(json['whoCanCall'] as String),
+      showServiceMessages: json['showServiceMessages'] as bool?,
       inviteEnabled: json['inviteEnabled'] as bool?,
       type: json['type'] == null
           ? null
@@ -43,6 +44,7 @@ Map<String, dynamic> _$UpdateGroupDtoToJson(UpdateGroupDto instance) =>
       'whoCanAdd': ?instance.whoCanAdd?.toJson(),
       'whoCanEditInfo': ?instance.whoCanEditInfo?.toJson(),
       'whoCanCall': ?instance.whoCanCall?.toJson(),
+      'showServiceMessages': ?instance.showServiceMessages,
       'inviteEnabled': ?instance.inviteEnabled,
       'type': ?instance.type?.toJson(),
       'username': ?instance.username,

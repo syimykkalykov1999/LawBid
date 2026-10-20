@@ -22,6 +22,7 @@ class UpdateGroupDto {
     this.whoCanAdd,
     this.whoCanEditInfo,
     this.whoCanCall,
+    this.showServiceMessages,
     this.inviteEnabled,
     this.type,
     this.username,
@@ -51,6 +52,9 @@ class UpdateGroupDto {
 
   /// Admins only.
   final UpdateGroupDtoWhoCanCall? whoCanCall;
+
+  /// Admins only: show service lines (created, joined, left, renamed…) to everyone.
+  final bool? showServiceMessages;
 
   /// Admins only: the join link on/off.
   final bool? inviteEnabled;

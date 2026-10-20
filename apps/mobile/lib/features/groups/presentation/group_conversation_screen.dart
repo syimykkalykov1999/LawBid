@@ -866,7 +866,14 @@ class _MessageList extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translatorProvider);
     final f = ref.watch(l10nFormatsProvider);
-    final messages = state.messages;
+    // Admin switched the service lines off: nobody sees them (rows that
+    // were already loaded included).
+    final messages = detail.showServiceMessages
+        ? state.messages
+        : [
+            for (final m in state.messages)
+              if (!m.isSystem) m,
+          ];
     final pending = state.pending;
     final extra = state.hasMore ? 1 : 0;
     return ListView.builder(

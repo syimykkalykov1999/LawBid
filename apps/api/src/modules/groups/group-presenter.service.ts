@@ -404,6 +404,7 @@ export class GroupPresenter {
         whoCanAdd: g.who_can_add,
         whoCanEditInfo: g.who_can_edit_info,
         whoCanCall: g.who_can_call,
+        showServiceMessages: g.show_service_messages,
         canPost: member && (g.who_can_post === 'all' || admin),
         canAdd: member && (g.who_can_add === 'all' || admin),
         canEditInfo: member && (g.who_can_edit_info === 'all' || admin),
@@ -425,7 +426,7 @@ export class GroupPresenter {
           ? (msgOf.get(g.pinned_message_id) ?? null)
           : null,
         lastMessage: g.last_message_id
-          ? (msgOf.get(g.last_message_id) ?? null)
+          ? hiddenService(g, msgOf.get(g.last_message_id))
           : null,
         lastMessageAt: g.last_message_at,
         unreadCount: stats?.n ?? 0,
@@ -549,4 +550,13 @@ export class GroupPresenter {
           (b.lastMessageAt?.getTime() ?? 0) - (a.lastMessageAt?.getTime() ?? 0),
       );
   }
+}
+
+/** The preview line, minus a service line the group has switched off. */
+function hiddenService<T extends { systemKind?: string | null }>(
+  g: { show_service_messages: boolean },
+  m: T | undefined,
+): T | null {
+  if (!m) return null;
+  return !g.show_service_messages && m.systemKind ? null : m;
 }

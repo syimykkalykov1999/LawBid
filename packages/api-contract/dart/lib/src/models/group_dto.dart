@@ -14,39 +14,40 @@ part 'group_dto.g.dart';
 @JsonSerializable()
 class GroupDto {
   const GroupDto({
-    required this.id,
+    required this.pendingRequests,
     required this.title,
+    required this.createdAt,
+    required this.pinned,
+    required this.unreadMentions,
     required this.memberCount,
     required this.type,
+    required this.unreadCount,
     required this.joinApproval,
     required this.topicsEnabled,
-    required this.pendingRequests,
+    required this.inviteEnabled,
+    required this.id,
+    required this.isAdmin,
     required this.whoCanPost,
     required this.whoCanAdd,
     required this.whoCanEditInfo,
     required this.whoCanCall,
+    required this.showServiceMessages,
     required this.canPost,
     required this.canAdd,
     required this.canEditInfo,
-    required this.canCall,
-    required this.isAdmin,
-    required this.inviteEnabled,
-    required this.unreadCount,
-    required this.unreadMentions,
-    required this.pinned,
-    required this.createdAt,
     required this.updatedAt,
-    this.description,
-    this.avatarUrl,
-    this.avatarFullUrl,
-    this.username,
+    required this.canCall,
     this.generalTopicId,
-    this.myRole,
     this.inviteLink,
     this.pinnedMessage,
     this.lastMessage,
     this.lastMessageAt,
+    this.username,
+    this.avatarFullUrl,
     this.mutedUntil,
+    this.avatarUrl,
+    this.description,
+    this.myRole,
   });
 
   factory GroupDto.fromJson(Map<String, Object?> json) =>
@@ -79,6 +80,9 @@ class GroupDto {
   final GroupWho whoCanAdd;
   final GroupWho whoCanEditInfo;
   final GroupWho whoCanCall;
+
+  /// Service lines (joined, left, renamed…) are shown to everyone.
+  final bool showServiceMessages;
 
   /// What I may do here (derived from the above).
   final bool canPost;
