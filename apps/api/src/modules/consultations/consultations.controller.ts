@@ -118,7 +118,10 @@ export class ConsultationsController {
     ...ACTION_ERRORS,
     429: [E.RATE_LIMITED],
   })
-  bookConsultation(@CurrentUser() user: RequestUser, @Body() dto: CreateConsultationDto) {
+  bookConsultation(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: CreateConsultationDto,
+  ) {
     return this.consultations.create(user, dto);
   }
 
@@ -126,7 +129,10 @@ export class ConsultationsController {
   @ApiOperation({ summary: 'One consultation' })
   @ApiEnvelopeResponse(ConsultationDto)
   @ApiErrors({ 400: [E.VALIDATION_ERROR], 404: [E.NOT_FOUND] })
-  getConsultation(@CurrentUser() user: RequestUser, @Param() p: ConsultationIdParamDto) {
+  getConsultation(
+    @CurrentUser() user: RequestUser,
+    @Param() p: ConsultationIdParamDto,
+  ) {
     return this.consultations.get(user, p.id);
   }
 

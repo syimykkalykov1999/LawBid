@@ -82,7 +82,10 @@ export class LegalQaController {
   @ApiOperation({ summary: 'A question with its answers' })
   @ApiEnvelopeResponse(QuestionDetailDto)
   @ApiErrors({ 400: [E.VALIDATION_ERROR], 404: [E.NOT_FOUND] })
-  getQuestion(@CurrentUser() user: RequestUser, @Param() p: QuestionIdParamDto) {
+  getQuestion(
+    @CurrentUser() user: RequestUser,
+    @Param() p: QuestionIdParamDto,
+  ) {
     return this.qa.get(user, p.id);
   }
 
@@ -90,7 +93,10 @@ export class LegalQaController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete my question' })
   @ApiErrors({ 404: [E.NOT_FOUND] })
-  deleteQuestion(@CurrentUser() user: RequestUser, @Param() p: QuestionIdParamDto) {
+  deleteQuestion(
+    @CurrentUser() user: RequestUser,
+    @Param() p: QuestionIdParamDto,
+  ) {
     return this.qa.remove(user, p.id);
   }
 
@@ -126,7 +132,10 @@ export class LegalQaController {
   @ApiOperation({ summary: 'Like an answer' })
   @ApiEnvelopeResponse(AnswerDto)
   @ApiErrors({ 403: [E.FORBIDDEN, E.USER_BLOCKED], 404: [E.NOT_FOUND] })
-  likeQuestionAnswer(@CurrentUser() user: RequestUser, @Param() p: AnswerParamDto) {
+  likeQuestionAnswer(
+    @CurrentUser() user: RequestUser,
+    @Param() p: AnswerParamDto,
+  ) {
     return this.qa.like(user, p.id, p.answerId);
   }
 
@@ -134,7 +143,10 @@ export class LegalQaController {
   @ApiOperation({ summary: 'Remove my like' })
   @ApiEnvelopeResponse(AnswerDto)
   @ApiErrors({ 404: [E.NOT_FOUND] })
-  unlikeQuestionAnswer(@CurrentUser() user: RequestUser, @Param() p: AnswerParamDto) {
+  unlikeQuestionAnswer(
+    @CurrentUser() user: RequestUser,
+    @Param() p: AnswerParamDto,
+  ) {
     return this.qa.unlike(user, p.id, p.answerId);
   }
 
@@ -154,7 +166,10 @@ export class LegalQaController {
   @ApiOperation({ summary: 'Clear the best-answer mark' })
   @ApiEnvelopeResponse(QuestionDetailDto)
   @ApiErrors({ 403: [E.FORBIDDEN], 404: [E.NOT_FOUND] })
-  clearBestAnswer(@CurrentUser() user: RequestUser, @Param() p: QuestionIdParamDto) {
+  clearBestAnswer(
+    @CurrentUser() user: RequestUser,
+    @Param() p: QuestionIdParamDto,
+  ) {
     return this.qa.clearBest(user, p.id);
   }
 }
