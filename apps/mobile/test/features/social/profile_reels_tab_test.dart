@@ -89,8 +89,7 @@ void main() {
     await t.pump(const Duration(seconds: 30));
   }
 
-  testWidgets('Posts grid: photo posts only — no reels, no briefs',
-      (t) async {
+  testWidgets('Posts grid: photo posts only — no reels, no briefs', (t) async {
     final repo = FakeSocialRepository(posts: all);
     await pump(t, repo);
     final shown = [
