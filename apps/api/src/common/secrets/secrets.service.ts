@@ -12,6 +12,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import type { IntegrationCredential } from '@prisma/client';
 import type Redis from 'ioredis';
+import { demoContext } from '../demo/demo-context';
 import { ErrorCode } from '../errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
@@ -218,9 +219,13 @@ export class SecretsService implements OnModuleInit, OnModuleDestroy {
     }
     const defs = new Map<string, ProviderDefinition>();
     try {
-      const rows = await this.prisma.integrationCustomProvider.findMany({
-        orderBy: { created_at: 'asc' },
-      });
+      // Read-only, always from the real database: the demo world has no
+      // key tables of its own (see activeRows).
+      const rows = await demoContext.run(false, () =>
+        this.prisma.integrationCustomProvider.findMany({
+          orderBy: { created_at: 'asc' },
+        }),
+      );
       for (const r of rows) defs.set(r.id, customDefinition(r));
     } catch (e) {
       this.logger.error(`custom services unavailable: ${String(e)}`);
@@ -285,15 +290,23 @@ export class SecretsService implements OnModuleInit, OnModuleDestroy {
       // The database cancels the query itself after 2 s (statement_timeout),
       // so a damaged table frees its connection instead of piling up hung
       // queries until the pool is exhausted.
-      return await this.prisma.$transaction(
-        async (tx) => {
-          await tx.$executeRawUnsafe(`SET LOCAL statement_timeout = '2000ms'`);
-          return tx.integrationCredential.findMany({
-            where: { provider, status: 'active' },
-            orderBy: [{ priority: 'asc' }, { slot: 'asc' }],
-          });
-        },
-        { timeout: 5000, maxWait: 3000 },
+      // Owner 2026-10-20: the keys always come from the REAL database,
+      // read-only, even for a demo request (TURN/STUN, Bunny, … — the demo
+      // database has no key tables, so demo calls got STUN only). The cache
+      // is shared by both worlds, so it must never hold a demo-side answer.
+      return await demoContext.run(false, () =>
+        this.prisma.$transaction(
+          async (tx) => {
+            await tx.$executeRawUnsafe(
+              `SET LOCAL statement_timeout = '2000ms'`,
+            );
+            return tx.integrationCredential.findMany({
+              where: { provider, status: 'active' },
+              orderBy: [{ priority: 'asc' }, { slot: 'asc' }],
+            });
+          },
+          { timeout: 5000, maxWait: 3000 },
+        ),
       );
     } catch (e) {
       this.storeDownUntil = Date.now() + 60_000;
