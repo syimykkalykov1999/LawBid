@@ -28,6 +28,7 @@ import { BidStateMachine, bidNotFound } from './domain/bid-state-machine';
 import type { BidDto } from './dto/bid-responses.dto';
 import type { CounterOfferDto, CreateBidDto } from './dto/bid-requests.dto';
 import { touchClientActive } from '../cases/cases.public';
+import { ConflictCheckService } from './conflict/conflict-check.service';
 
 export type BidWithOffers = Bid & { offers: BidOffer[] };
 type BidWithCase = Bid & { case: { client_id: string; status: string } };
@@ -99,6 +100,8 @@ export class BidsService {
     @Optional() private readonly packs?: BidPacksService,
     // Owner 2026-10-17: the percent cap and where a percent is not allowed.
     @Optional() private readonly settings?: AppSettingsService,
+    // Owner 2026-10-20: the conflict-of-interest record kept on each bid.
+    @Optional() private readonly conflicts?: ConflictCheckService,
   ) {}
 
   /** Codes of the case's topics (the first and the extras). */
@@ -387,6 +390,9 @@ export class BidsService {
       await this.prisma.bidDraft
         .deleteMany({ where: { attorney_id: user.sub, case_id: caseId } })
         .catch(() => undefined);
+      // Owner 2026-10-20: the conflict check of this bid, kept as the
+      // attorney's own record (a warning, never a block).
+      await this.conflicts?.onBid(user.sub, caseId, bid.id);
       return toBidDto(bid);
     } catch (error) {
       // The offer did not go through: the bought one comes back.

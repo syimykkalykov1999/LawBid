@@ -19,6 +19,7 @@ import 'package:lawbid/features/cases/domain/contingency.dart';
 import 'package:lawbid/features/cases/presentation/screens/attorney_case_screen.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_wizard_steps.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
+import 'package:lawbid/features/cases/tools/conflict_banner.dart';
 import 'package:lawbid/features/plans/presentation/plan_offer.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
@@ -259,6 +260,7 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
               assistant ? 'assistant.mode.noBids' : 'cases.bidForm.subtitle',
             ),
           ),
+          if (!assistant) ConflictBanner(caseId: widget.caseId),
           if (_draftBy != null) ...[
             Container(
               key: const ValueKey('bid-draft-banner'),

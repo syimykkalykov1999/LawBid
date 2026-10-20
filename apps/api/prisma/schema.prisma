@@ -320,6 +320,11 @@ enum CaseJournalEvent {
   restored
   deleted
   closed
+  signature_requested
+  signature_signed
+  signature_completed
+  signature_declined
+  invoice_issued
 
   @@map("case_journal_event")
 }
@@ -933,6 +938,7 @@ model File {
   sticker               Sticker?
   gift                  Gift?
   document_template     DocumentTemplate?
+  expense_receipts      CaseExpense[]        @relation("ExpenseReceipt")
   support_message_files SupportMessageFile[]
 
   @@index([owner_user_id])
@@ -1316,6 +1322,7 @@ model PracticeArea {
   cases                 Case[]
   posts                 Post[]
   document_templates    DocumentTemplate[]
+  form_templates        FormTemplate[]
   case_extra_practices  CaseExtraPractice[]
   search_synonym_groups SearchSynonymGroup[]
 
@@ -1627,6 +1634,10 @@ model Case {
   photos              CasePhoto[]
   attorney_tasks      AttorneyTask[]
   case_tasks          CaseTask[]
+  time_entries        CaseTimeEntry[]
+  expenses            CaseExpense[]
+  invoices            CaseInvoice[]
+  sign_requests       CaseSignRequest[]
   case_updates        CaseUpdate[]
   bid_drafts          BidDraft[]
   invites             CaseInvite[]
@@ -5636,4 +5647,186 @@ model BarFormatMiss {
   @@unique([state_code, shape])
   @@index([last_seen])
   @@map("bar_format_misses")
+}
+
+/// Owner 2026-10-20 (case tools): the attorney's hourly rate on one case —
+/// the number time entries are priced with (each entry keeps the rate it was
+/// logged at, so a later change never rewrites an issued invoice).
+model CaseBilling {
+  case_id           String   @id @db.Uuid
+  attorney_id       String   @db.Uuid
+  hourly_rate_cents Int
+  currency          String   @default("USD") @db.Char(3)
+  updated_at        DateTime @default(now()) @updatedAt @db.Timestamptz
+
+  @@map("case_billing")
+}
+
+/// A block of the attorney's time on a case: typed in by hand or run by the
+/// timer (`running_since` set while it runs, `minutes` = what was already
+/// counted). Only the attorney sees entries until an invoice carries them.
+model CaseTimeEntry {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  case_id       String    @db.Uuid
+  case          Case      @relation(fields: [case_id], references: [id], onDelete: Cascade)
+  attorney_id   String    @db.Uuid
+  worked_on     DateTime  @db.Date
+  minutes       Int       @default(0)
+  running_since DateTime? @db.Timestamptz
+  note          String    @default("") @db.VarChar(300)
+  /// The hourly rate (cents) this entry is priced at.
+  rate_cents    Int
+  invoice_id    String?   @db.Uuid
+  created_at    DateTime  @default(now()) @db.Timestamptz
+  updated_at    DateTime  @default(now()) @updatedAt @db.Timestamptz
+  deleted_at    DateTime? @db.Timestamptz
+
+  @@index([case_id, worked_on])
+  @@index([attorney_id, running_since])
+  @@map("case_time_entries")
+}
+
+/// A case expense (filing fee, translation, courier …) with an optional
+/// receipt photo; billed on the next invoice.
+model CaseExpense {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  case_id         String    @db.Uuid
+  case            Case      @relation(fields: [case_id], references: [id], onDelete: Cascade)
+  attorney_id     String    @db.Uuid
+  spent_on        DateTime  @db.Date
+  description     String    @db.VarChar(200)
+  amount_cents    Int
+  receipt_file_id String?   @db.Uuid
+  receipt_file    File?     @relation("ExpenseReceipt", fields: [receipt_file_id], references: [id], onDelete: Restrict)
+  invoice_id      String?   @db.Uuid
+  created_at      DateTime  @default(now()) @db.Timestamptz
+  deleted_at      DateTime? @db.Timestamptz
+
+  @@index([case_id, spent_on])
+  @@map("case_expenses")
+}
+
+/// An invoice document for the client (no payment — owner 2026-10-20:
+/// client → attorney payments are off): the time and expenses it carries
+/// are frozen in `lines`, the PDF is a case file.
+model CaseInvoice {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  case_id        String   @db.Uuid
+  case           Case     @relation(fields: [case_id], references: [id], onDelete: Restrict)
+  attorney_id    String   @db.Uuid
+  client_id      String   @db.Uuid
+  seq            Int
+  number         String   @db.VarChar(40)
+  currency       String   @default("USD") @db.Char(3)
+  minutes        Int
+  time_cents     Int
+  expenses_cents Int
+  total_cents    Int
+  note           String?  @db.VarChar(500)
+  /// [{kind: time|expense, date, text, minutes?, rateCents?, cents}]
+  lines          Json
+  file_id        String   @db.Uuid
+  created_at     DateTime @default(now()) @db.Timestamptz
+
+  @@unique([case_id, seq])
+  @@index([attorney_id, created_at])
+  @@map("case_invoices")
+}
+
+enum CaseSignStatus {
+  pending
+  signed
+  declined
+  canceled
+
+  @@map("case_sign_status")
+}
+
+/// Owner 2026-10-20: a PDF both sides of a case sign in the app. The
+/// SHA-256 of the file is fixed when the request is made; the finished PDF
+/// (original + signature page + protocol page) is a new case file.
+model CaseSignRequest {
+  id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  case_id        String          @db.Uuid
+  case           Case            @relation(fields: [case_id], references: [id], onDelete: Restrict)
+  created_by     String          @db.Uuid
+  title          String          @db.VarChar(160)
+  source_file_id String          @db.Uuid
+  source_sha256  String          @db.VarChar(64)
+  status         CaseSignStatus  @default(pending)
+  final_file_id  String?         @db.Uuid
+  final_sha256   String?         @db.VarChar(64)
+  declined_by    String?         @db.Uuid
+  decline_reason String?         @db.VarChar(300)
+  completed_at   DateTime?       @db.Timestamptz
+  created_at     DateTime        @default(now()) @db.Timestamptz
+  updated_at     DateTime        @default(now()) @updatedAt @db.Timestamptz
+  signatures     CaseSignature[]
+
+  @@index([case_id, created_at])
+  @@map("case_sign_requests")
+}
+
+/// One side's signature: drawn (PNG) or typed name, with the consent, the
+/// time, the IP and the hash of the document it was given on.
+model CaseSignature {
+  id          String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  request_id  String          @db.Uuid
+  request     CaseSignRequest @relation(fields: [request_id], references: [id], onDelete: Cascade)
+  signer_id   String          @db.Uuid
+  /// client | attorney
+  signer_role String          @db.VarChar(16)
+  signed_name String          @db.VarChar(120)
+  /// drawn | typed
+  method      String          @db.VarChar(8)
+  image_png   Bytes?
+  doc_sha256  String          @db.VarChar(64)
+  ip          String?         @db.VarChar(64)
+  user_agent  String?         @db.VarChar(300)
+  signed_at   DateTime        @default(now()) @db.Timestamptz
+
+  @@unique([request_id, signer_id])
+  @@map("case_signatures")
+}
+
+/// Owner 2026-10-20: a document the attorney builds from fields. The admin
+/// writes `body` per language with {{key}} places; `fields` describe the
+/// form: [{key, type: text|textarea|date|number, required, label: {en, ru…}}].
+model FormTemplate {
+  id               String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug             String        @unique @db.VarChar(64)
+  /// {"en": "...", "ru": "..."}
+  title            Json          @default("{}")
+  description      Json          @default("{}")
+  body             Json          @default("{}")
+  fields           Json          @default("[]")
+  practice_area_id String?       @db.Uuid
+  practice_area    PracticeArea? @relation(fields: [practice_area_id], references: [id], onDelete: SetNull)
+  position         Int           @default(0)
+  is_published     Boolean       @default(false)
+  created_by       String?       @db.Uuid
+  created_at       DateTime      @default(now()) @db.Timestamptz
+  updated_at       DateTime      @default(now()) @updatedAt @db.Timestamptz
+  deleted_at       DateTime?     @db.Timestamptz
+
+  @@index([is_published, deleted_at, position])
+  @@map("form_templates")
+}
+
+/// Owner 2026-10-20 (conflict of interests): what the server found when an
+/// attorney looked at / bid on a case — kept as the attorney's own record.
+model CaseConflictCheck {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  case_id     String   @db.Uuid
+  attorney_id String   @db.Uuid
+  /// bid | view
+  trigger     String   @db.VarChar(8)
+  bid_id      String?  @db.Uuid
+  /// [{kind: former_client|opposing_party, by: name|phone|email, caseId}]
+  matches     Json
+  created_at  DateTime @default(now()) @db.Timestamptz
+
+  @@index([attorney_id, created_at])
+  @@index([case_id, attorney_id])
+  @@map("case_conflict_checks")
 }

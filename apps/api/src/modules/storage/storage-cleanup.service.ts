@@ -29,6 +29,7 @@ export const FILE_REFERENCES = [
   'post_media.file_id',
   'post_attachments.file_id',
   'case_photos.file_id',
+  'case_expenses.receipt_file_id',
   'messages.file_id',
   'chat_groups.avatar_file_id',
   'chat_group_messages.file_id',
@@ -239,6 +240,7 @@ export class StorageCleanupService {
           WHERE pa.file_id = f.id
             AND (p.deleted_at IS NULL OR p.deleted_at >= ${postCutoff}))
         AND NOT EXISTS (SELECT 1 FROM case_photos cp WHERE cp.file_id = f.id)
+        AND NOT EXISTS (SELECT 1 FROM case_expenses ce WHERE ce.receipt_file_id = f.id)
         AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.file_id = f.id)
         AND NOT EXISTS (SELECT 1 FROM chat_groups cg WHERE cg.avatar_file_id = f.id)
         AND NOT EXISTS (SELECT 1 FROM chat_group_messages cgm WHERE cgm.file_id = f.id)

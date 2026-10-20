@@ -254,6 +254,10 @@ const caseWorkspaceActivityKinds = {
   'task_done',
   'task_files',
   'details',
+  'invoice',
+  'sign_request',
+  'sign_done',
+  'sign_declined',
 };
 
 String notificationText(Translator t, AppNotification n) {

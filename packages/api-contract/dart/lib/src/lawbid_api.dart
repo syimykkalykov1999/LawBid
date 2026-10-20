@@ -110,6 +110,10 @@ import 'clients/admin_fraud_client.dart';
 import 'clients/admin_country_partners_client.dart';
 import 'clients/groups_client.dart';
 import 'clients/admin_group_chats_client.dart';
+import 'clients/case_billing_client.dart';
+import 'clients/case_signing_client.dart';
+import 'clients/case_documents_client.dart';
+import 'clients/admin_form_templates_client.dart';
 
 /// LawBid API `v0.1.0`.
 ///
@@ -228,6 +232,10 @@ class LawbidApi {
   AdminCountryPartnersClient? _adminCountryPartners;
   GroupsClient? _groups;
   AdminGroupChatsClient? _adminGroupChats;
+  CaseBillingClient? _caseBilling;
+  CaseSigningClient? _caseSigning;
+  CaseDocumentsClient? _caseDocuments;
+  AdminFormTemplatesClient? _adminFormTemplates;
 
   ConfigClient get config => _config ??= ConfigClient(_dio, baseUrl: _baseUrl);
 
@@ -529,4 +537,16 @@ class LawbidApi {
 
   AdminGroupChatsClient get adminGroupChats =>
       _adminGroupChats ??= AdminGroupChatsClient(_dio, baseUrl: _baseUrl);
+
+  CaseBillingClient get caseBilling =>
+      _caseBilling ??= CaseBillingClient(_dio, baseUrl: _baseUrl);
+
+  CaseSigningClient get caseSigning =>
+      _caseSigning ??= CaseSigningClient(_dio, baseUrl: _baseUrl);
+
+  CaseDocumentsClient get caseDocuments =>
+      _caseDocuments ??= CaseDocumentsClient(_dio, baseUrl: _baseUrl);
+
+  AdminFormTemplatesClient get adminFormTemplates =>
+      _adminFormTemplates ??= AdminFormTemplatesClient(_dio, baseUrl: _baseUrl);
 }

@@ -198,6 +198,7 @@ export const GROUPS: readonly SectionGroup[] = [
       { href: '/content', label: 'Посты и отзывы', icon: 'article', area: 'content', hint: 'посты, комментарии, отзывы' },
       { href: '/media', label: 'Рилсы и стикеры', icon: 'film-strip', area: 'media', hint: 'видео, наборы стикеров' },
       { href: '/document-templates', label: 'Шаблоны документов', icon: 'file-text', area: 'content', hint: 'PDF и Word для приложения' },
+      { href: '/form-templates', label: 'Формы документов', icon: 'file-text', area: 'formTemplates', hint: 'тексты с полями для документов в кейсе' },
       { href: '/search', label: 'Поиск', icon: 'magnifying-glass', area: 'content', hint: 'синонимы, что не нашлось, чему научился' },
     ],
   },
@@ -288,6 +289,8 @@ function opens(me: AccessSubject, s: Section): boolean {
   // Owner 2026-10-06: the partner team's own page.
   if (s.area === 'partner') return !!me.countryPartnerId;
   if (s.area === 'super') return me.role === 'super_admin';
+  // Document forms: the API lets only the super admin and moderators in.
+  if (s.area === 'formTemplates') return me.role === 'super_admin' || me.role === 'moderator';
   // Owner-only money pages (prices, plans, analytics, payments to attorneys,
   // country partners, admin sessions); the deputy reads them.
   if (s.area === 'moneyOwner') return me.role === 'super_admin' || me.canManageAdmins === true;

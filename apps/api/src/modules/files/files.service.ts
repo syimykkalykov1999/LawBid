@@ -853,6 +853,55 @@ export class FilesService {
   }
 
   /**
+   * Owner 2026-10-20 (case tools): a file the server itself made (an
+   * invoice, a signed PDF, a document built from a template) saved as a
+   * clean file of [userId] — there is nothing to scan: the bytes never
+   * came from outside. The global storage budget still applies; the user's
+   * own storage cap does not (a document the app produced for them).
+   */
+  async storeGenerated(
+    userId: string,
+    purpose: FilePurpose,
+    data: Buffer,
+    mime: FileMime,
+  ): Promise<File> {
+    const rule = PURPOSE_RULES[purpose];
+    const fileId = randomUUID();
+    const bucket = this.storage.bucket(rule.bucket);
+    await this.costGuard.consume('storage');
+    const key = `${demoKeyPrefix()}${purpose}/${userId}/${fileId}`;
+    await this.storage.put(bucket, key, data, mime);
+    const sha256 = createHash('sha256').update(data).digest('hex');
+    return this.prisma.file.create({
+      data: {
+        id: fileId,
+        owner_user_id: userId,
+        purpose,
+        s3_bucket: bucket,
+        s3_key: key,
+        mime,
+        size_bytes: BigInt(data.length),
+        sha256,
+        source_sha256: sha256,
+        scan_status: 'clean',
+      },
+    });
+  }
+
+  /** The bytes of a live, clean file (server-side reads: hashing a PDF
+   * before it is signed, merging it into the signed copy). */
+  async readClean(fileId: string): Promise<{ file: File; data: Buffer }> {
+    const file = await this.prisma.file.findUnique({ where: { id: fileId } });
+    if (!file || file.deleted_at !== null || file.scan_status !== 'clean') {
+      throw new NotFoundException({
+        code: ErrorCode.NOT_FOUND,
+        message: 'File not found.',
+      });
+    }
+    return { file, data: await this.storage.read(file.s3_bucket, file.s3_key) };
+  }
+
+  /**
    * OQ-040: short signed links to clean voice notes (documents bucket,
    * never the CDN). The caller has already checked chat membership.
    */
