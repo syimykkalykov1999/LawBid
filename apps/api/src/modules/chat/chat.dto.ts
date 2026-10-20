@@ -231,6 +231,18 @@ export class SendMessageDto {
   @MaxLength(255)
   fileName?: string;
 
+  /** Owner 2026-10-20: a reply quotes this message of the same chat. */
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID('all')
+  replyToId?: string;
+
+  /** Owner 2026-10-20: a forwarded message ("Forwarded" label). */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  forwarded?: boolean;
+
   @ApiPropertyOptional({
     maxLength: MESSAGE_MAX_CHARS,
     description: 'Text of a text message; ignored for voice.',
@@ -362,6 +374,74 @@ export class CallLogDto {
   durationSec!: number;
 }
 
+/** Owner 2026-10-20: the quoted message of a reply. */
+export class ReplyPreviewDto {
+  @ApiProperty({ format: 'uuid' })
+  id!: string;
+
+  @ApiPropertyOptional({ type: String, nullable: true, format: 'uuid' })
+  senderId!: string | null;
+
+  @ApiProperty({
+    enum: ['text', 'system', 'voice', 'call', 'attachment', 'sticker'],
+  })
+  type!: 'text' | 'system' | 'voice' | 'call' | 'attachment' | 'sticker';
+
+  @ApiProperty({ description: 'First 120 characters; empty for media.' })
+  snippet!: string;
+
+  @ApiProperty({ description: 'The quoted message was deleted for everyone.' })
+  revoked!: boolean;
+}
+
+/** Owner 2026-10-20: one emoji with how many people chose it. */
+export class ReactionDto {
+  @ApiProperty()
+  emoji!: string;
+
+  @ApiProperty({ type: 'integer' })
+  count!: number;
+
+  @ApiProperty({ description: 'The viewer chose this one.' })
+  mine!: boolean;
+}
+
+export class EditMessageDto {
+  @ApiProperty({ maxLength: MESSAGE_MAX_CHARS })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(MESSAGE_MAX_CHARS * 4)
+  body!: string;
+}
+
+export class DeleteMessageQueryDto {
+  @ApiProperty({
+    enum: ['me', 'all'],
+    enumName: 'DeleteScope',
+    description: 'me: only for the viewer; all: for everyone (time window).',
+  })
+  @IsIn(['me', 'all'])
+  scope!: 'me' | 'all';
+}
+
+export class ReactMessageDto {
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    maxLength: 16,
+    description: 'One emoji; null removes the reaction.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(16)
+  emoji?: string | null;
+}
+
+export class PinsDto {
+  @ApiProperty({ type: () => [MessageDto] })
+  items!: MessageDto[];
+}
+
 export class MessageDto {
   @ApiProperty({ format: 'uuid' })
   id!: string;
@@ -416,6 +496,27 @@ export class MessageDto {
 
   @ApiProperty()
   createdAt!: Date;
+
+  @ApiPropertyOptional({ type: Date, nullable: true })
+  editedAt!: Date | null;
+
+  @ApiProperty({
+    description:
+      'Deleted for everyone: the app shows "Message deleted"; body and media are empty.',
+  })
+  revoked!: boolean;
+
+  @ApiProperty()
+  forwarded!: boolean;
+
+  @ApiPropertyOptional({ type: () => ReplyPreviewDto, nullable: true })
+  replyTo!: ReplyPreviewDto | null;
+
+  @ApiProperty({ type: () => [ReactionDto] })
+  reactions!: ReactionDto[];
+
+  @ApiProperty()
+  pinned!: boolean;
 }
 
 export class ConversationCounterpartDto {
