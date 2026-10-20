@@ -387,4 +387,30 @@ describe('Group chat calls (e2e)', () => {
     }
     expect(await status()).toBe('ended');
   });
+
+  it('no list = the whole group rings (up to the size of the call)', async () => {
+    const owner = await person('Own');
+    const crowd = await Promise.all(
+      ['a', 'b', 'c', 'd', 'e', 'f', 'g'].map((n) => person(`R${n}`)),
+    );
+    const g = await api()
+      .post('/api/v1/groups')
+      .set(auth(owner.id))
+      .send({
+        title: 'Ring',
+        type: 'closed',
+        memberIds: crowd.map((c) => c.id),
+      })
+      .expect(201);
+    const started = await api()
+      .post(`/api/v1/groups/${g.body.data.id as string}/calls`)
+      .set(auth(owner.id))
+      .send({})
+      .expect(201);
+    const invited = (
+      started.body as { data: { participants: { status: string }[] } }
+    ).data.participants.filter((p) => p.status === 'invited');
+    // Audio holds six: the host + five ring.
+    expect(invited).toHaveLength(5);
+  });
 });

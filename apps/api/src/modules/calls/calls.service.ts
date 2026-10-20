@@ -622,7 +622,9 @@ export class CallsService {
     }
 
     const members = new Set(await groups.activeMemberIds(groupId));
-    const wanted = [...new Set(dto.userIds ?? [])].filter(
+    // Like WhatsApp: no explicit list = the whole group rings (up to the size
+    // of the call); the app sends a list only when the person picked members.
+    const wanted = [...new Set(dto.userIds ?? [...members])].filter(
       (id) => id !== user.sub && members.has(id),
     );
     const invitees: string[] = [];
