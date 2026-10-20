@@ -75,20 +75,29 @@ void main() {
 
   group('planReminders', () {
     test('only active tasks with a time and a reminder still ahead', () {
-      final slots = planReminders([
-        _task('a', due: now.add(const Duration(hours: 2))),
-        _task('no-reminder',
-            due: now.add(const Duration(hours: 2)), before: null),
-        _task('no-time'),
-        _task('past', due: now.add(const Duration(minutes: 10))),
-        _task('done',
-            due: now.add(const Duration(hours: 3)), status: TaskStatus.done),
-        _task(
-          'archived',
-          due: now.add(const Duration(hours: 3)),
-          archivedAt: now,
-        ),
-      ], now);
+      final slots = planReminders(
+        [
+          _task('a', due: now.add(const Duration(hours: 2))),
+          _task(
+            'no-reminder',
+            due: now.add(const Duration(hours: 2)),
+            before: null,
+          ),
+          _task('no-time'),
+          _task('past', due: now.add(const Duration(minutes: 10))),
+          _task(
+            'done',
+            due: now.add(const Duration(hours: 3)),
+            status: TaskStatus.done,
+          ),
+          _task(
+            'archived',
+            due: now.add(const Duration(hours: 3)),
+            archivedAt: now,
+          ),
+        ],
+        now,
+      );
       expect(slots.map((s) => s.taskId), ['a']);
       expect(slots.single.at, now.add(const Duration(hours: 1, minutes: 45)));
     });
@@ -104,8 +113,11 @@ void main() {
 
     test('an assistant is reminded of their own tasks only', () {
       final tasks = [
-        _task('mine',
-            due: now.add(const Duration(hours: 2)), assignedToMe: true),
+        _task(
+          'mine',
+          due: now.add(const Duration(hours: 2)),
+          assignedToMe: true,
+        ),
         _task('other', due: now.add(const Duration(hours: 2))),
       ];
       expect(
@@ -135,7 +147,9 @@ void main() {
 
     test('arms, leaves unchanged ones alone, re-arms a moved one', () async {
       final a = planReminders(
-          [_task('a', due: now.add(const Duration(hours: 2)))], now);
+        [_task('a', due: now.add(const Duration(hours: 2)))],
+        now,
+      );
       await s.sync(a, title, body);
       expect(gw.armed.length, 1);
       gw.log.clear();
@@ -144,25 +158,36 @@ void main() {
       expect(gw.log, isEmpty);
 
       final moved = planReminders(
-          [_task('a', due: now.add(const Duration(hours: 4)))], now);
+        [_task('a', due: now.add(const Duration(hours: 4)))],
+        now,
+      );
       await s.sync(moved, title, body);
       expect(gw.log, ['schedule ${reminderNotificationId('a')}']);
       expect(gw.armed.length, 1);
     });
 
     test('done, deleted or moved-away tasks lose their alarm', () async {
-      final both = planReminders([
-        _task('a', due: now.add(const Duration(hours: 2))),
-        _task('b', due: now.add(const Duration(hours: 3))),
-      ], now);
+      final both = planReminders(
+        [
+          _task('a', due: now.add(const Duration(hours: 2))),
+          _task('b', due: now.add(const Duration(hours: 3))),
+        ],
+        now,
+      );
       await s.sync(both, title, body);
       expect(gw.armed.length, 2);
 
       await s.sync(
-        planReminders([
-          _task('a',
-              due: now.add(const Duration(hours: 2)), status: TaskStatus.done),
-        ], now),
+        planReminders(
+          [
+            _task(
+              'a',
+              due: now.add(const Duration(hours: 2)),
+              status: TaskStatus.done,
+            ),
+          ],
+          now,
+        ),
         title,
         body,
       );
@@ -189,7 +214,9 @@ void main() {
 
     test('cancelTask removes the alarm', () async {
       final a = planReminders(
-          [_task('a', due: now.add(const Duration(hours: 2)))], now);
+        [_task('a', due: now.add(const Duration(hours: 2)))],
+        now,
+      );
       await s.sync(a, title, body);
       await s.cancelTask('a');
       expect(gw.armed, isEmpty);

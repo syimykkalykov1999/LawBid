@@ -1,13 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_router.dart';
+import 'package:lawbid/core/navigation/root_messenger.dart';
 import 'package:lawbid/features/notifications/application/system_notifications.dart';
 import 'package:lawbid/features/notifications/application/task_reminder_scheduler.dart';
 import 'package:lawbid/features/notifications/presentation/notifications_view.dart';
@@ -50,6 +49,8 @@ final taskReminderSyncProvider = Provider<void>((ref) {
   if (ref.watch(currentUserIdProvider) == null) return;
   final scheduler = ref.read(taskReminderSchedulerProvider);
   var ready = false;
+  // Reminders already seen; one that appears later is a new one → permission.
+  Set<String>? known;
   Future<void> ensureReady() async {
     if (ready) return;
     await scheduler.init(onTap: (p) => _openFromPayload(ref, p));
@@ -66,15 +67,20 @@ final taskReminderSyncProvider = Provider<void>((ref) {
       await ensureReady();
       final t = ref.read(translatorProvider);
       final f = ref.read(l10nFormatsProvider);
+      final slots = planReminders(
+        tasks,
+        DateTime.now(),
+        onlyAssignedToMe: ref.read(isAssistantProvider),
+      );
       await scheduler.sync(
-        planReminders(
-          tasks,
-          DateTime.now(),
-          onlyAssignedToMe: ref.read(isAssistantProvider),
-        ),
+        slots,
         (_) => t.t('notif.cases.task_reminder.title'),
         (s) => reminderBody(t, f, s),
       );
+      final now = {for (final s in slots) '${s.taskId}@${s.at}'};
+      final added = known != null && now.difference(known!).isNotEmpty;
+      known = now;
+      if (added) unawaited(_ensureReminderPermission(ref));
     } on Object catch (e) {
       debugPrint('task reminders not armed: $e');
     }
@@ -113,25 +119,26 @@ class _ResumeObserver with WidgetsBindingObserver {
   }
 }
 
-/// Owner 2026-10-20: asked at the moment it matters — right after a task
-/// with a reminder is saved: if the phone has notifications switched off the
-/// system prompt comes up (Android 13+), and if they stay off the person is
-/// told once that the reminder cannot reach them, with a way to the phone's
-/// settings.
-Future<void> ensureReminderPermission(
-  BuildContext context,
-  WidgetRef ref,
-) async {
-  if (kIsWeb) return;
+/// Owner 2026-10-20: asked at the moment it matters — when a reminder is
+/// added to the planner (the list sync sees a new one): if the phone has
+/// notifications switched off the system prompt comes up (Android 13+), and
+/// if they stay off the person is told that the reminder cannot reach them,
+/// with a way to the phone's settings. Shown on the app-wide messenger, so
+/// it needs no screen of its own (the team feature does not import this).
+Future<void> _ensureReminderPermission(Ref ref) async {
   final system = ref.read(systemNotificationsProvider);
   if (await system.enabled()) return;
   if (await system.request()) return;
-  if (!context.mounted) return;
   final t = ref.read(translatorProvider);
-  showAppSnackBar(
-    context,
-    t.t('notif.system.off'),
-    actionLabel: t.t('notif.system.open'),
-    onAction: () => unawaited(system.openSettings()),
-  );
+  rootMessengerKey.currentState
+    ?..hideCurrentSnackBar()
+    ..showSnackBar(
+      SnackBar(
+        content: Text(t.t('notif.system.off')),
+        action: SnackBarAction(
+          label: t.t('notif.system.open'),
+          onPressed: () => unawaited(system.openSettings()),
+        ),
+      ),
+    );
 }
