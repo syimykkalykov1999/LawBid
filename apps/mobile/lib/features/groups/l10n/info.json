@@ -4,6 +4,7 @@
   "group.info.members.few": {"en": "{count} members", "ru": "{count} участника"},
   "group.info.members.many": {"en": "{count} members", "ru": "{count} участников"},
   "group.info.members.other": {"en": "{count} members", "ru": "{count} участников"},
+  "group.info.notAdded": {"en": "Not added: {count}", "ru": "Не добавлено: {count}"},
   "group.info.added.one": {"en": "{count} person added", "ru": "Добавлен {count} человек"},
   "group.info.added.few": {"en": "{count} people added", "ru": "Добавлено {count} человека"},
   "group.info.added.many": {"en": "{count} people added", "ru": "Добавлено {count} человек"},

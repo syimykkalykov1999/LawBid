@@ -225,7 +225,7 @@ export class AddGroupMembersDto {
   @ApiProperty({ type: [String] })
   @IsArray()
   @ArrayMinSize(1)
-  @ArrayMaxSize(100)
+  @ArrayMaxSize(50)
   @ArrayUnique()
   @IsUUID('all', { each: true })
   userIds!: string[];
@@ -740,6 +740,13 @@ export class GroupDto {
 export class GroupDetailDto extends GroupDto {
   @ApiProperty({ type: [GroupMemberDto] })
   members!: GroupMemberDto[];
+
+  @ApiPropertyOptional({
+    type: [String],
+    description:
+      'Only after adding members: people who could not be added (blocked, inactive or their privacy settings).',
+  })
+  notAdded?: string[];
 }
 
 export class GroupInvitePreviewDto {

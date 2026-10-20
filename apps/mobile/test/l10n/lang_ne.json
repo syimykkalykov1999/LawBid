@@ -1832,6 +1832,7 @@
 "group.info.mute.unmute":"अनम्युट गर्नुहोस्",
 "group.info.mute.unmuted":"सूचना खुला",
 "group.info.mute.week":"1 हप्ताका लागि",
+"group.info.notAdded":"थपिएनन्: {count}",
 "group.info.photoChange":"समूहको फोटो बदल्नुहोस्",
 "group.info.photoRemove":"फोटो हटाउनुहोस्",
 "group.info.requests.approve":"स्वीकृत गर्नुहोस्",

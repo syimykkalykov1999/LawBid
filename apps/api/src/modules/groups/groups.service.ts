@@ -1,3 +1,4 @@
+import { GroupAddPolicy } from './group-add-policy';
 import {
   BadRequestException,
   ConflictException,
@@ -53,7 +54,7 @@ import {
 
 const GROUPS_PAGE = 30;
 const MESSAGES_PAGE = 30;
-const GROUPS_PER_DAY = 20;
+const GROUPS_PER_DAY = 10;
 const FANOUT_CHUNK = 50;
 const TOPICS_MAX = 100;
 const TOPIC_COLORS = 7;
@@ -108,6 +109,7 @@ export class GroupsService {
     private readonly badges: BadgesService,
     private readonly blocks: BlocksService,
     private readonly presenter: GroupPresenter,
+    private readonly addPolicy: GroupAddPolicy,
   ) {}
 
   // ------------------------------------------------------------ membership
@@ -430,6 +432,13 @@ export class GroupsService {
         details: { field: 'username' },
       });
     }
+    if (
+      newType === 'public' &&
+      g0.group_type !== 'public' &&
+      m.role !== 'owner'
+    ) {
+      throw forbidden('Only the owner can make a group public.');
+    }
     if (dto.type !== undefined) {
       data.group_type = newType;
       if (newType !== g0.group_type) {
@@ -516,7 +525,14 @@ export class GroupsService {
   ): Promise<GroupDetailDto> {
     const m = await this.requireMember(user.sub, id);
     if (!(m.admin || m.group.who_can_add === 'all')) throw forbidden();
-    const wanted = await this.addableIds(user.sub, dto.userIds);
+    const candidates = await this.addableIds(user.sub, dto.userIds);
+    const wanted: string[] = [];
+    for (const uid of candidates) {
+      if (await this.addPolicy.allows(user.sub, uid)) wanted.push(uid);
+    }
+    const notAdded = dto.userIds.filter(
+      (u) => u !== user.sub && !wanted.includes(u),
+    );
     const { added, row } = await withTxRetry(this.prisma, async (tx) => {
       await tx.$queryRaw`SELECT id FROM chat_groups WHERE id = ${id}::UUID FOR UPDATE`;
       const existing = await tx.chatGroupMember.findMany({
@@ -579,7 +595,7 @@ export class GroupsService {
       await this.notifyAdded(id, row, added);
       await this.groupChanged(id, 'members');
     }
-    return this.detail(user.sub, id);
+    return { ...(await this.detail(user.sub, id)), notAdded };
   }
 
   async removeMember(

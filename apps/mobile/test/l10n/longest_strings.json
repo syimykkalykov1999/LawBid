@@ -1832,6 +1832,7 @@
 "group.info.mute.unmute":"Deixar de silenciar",
 "group.info.mute.unmuted":"Οι ειδοποιήσεις είναι ενεργές",
 "group.info.mute.week":"Ar feadh 1 seachtain",
+"group.info.notAdded":"Nem lett hozzáadva: {count}",
 "group.info.photoChange":"Athraigh grianghraf an ghrúpa",
 "group.info.photoRemove":"Αφαίρεση φωτογραφίας",
 "group.info.requests.approve":"Тасдиқ кардан",

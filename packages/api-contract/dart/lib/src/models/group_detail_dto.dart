@@ -15,36 +15,37 @@ part 'group_detail_dto.g.dart';
 @JsonSerializable()
 class GroupDetailDto {
   const GroupDetailDto({
-    required this.pendingRequests,
+    required this.canPost,
     required this.title,
-    required this.updatedAt,
-    required this.createdAt,
-    required this.pinned,
     required this.memberCount,
     required this.type,
-    required this.unreadMentions,
     required this.joinApproval,
     required this.topicsEnabled,
-    required this.unreadCount,
+    required this.pendingRequests,
     required this.id,
-    required this.inviteEnabled,
     required this.whoCanPost,
     required this.whoCanAdd,
     required this.whoCanEditInfo,
     required this.whoCanCall,
-    required this.canPost,
+    required this.inviteEnabled,
     required this.canAdd,
     required this.canEditInfo,
     required this.canCall,
-    required this.members,
     required this.isAdmin,
+    required this.pinned,
+    required this.createdAt,
+    required this.members,
+    required this.unreadMentions,
+    required this.updatedAt,
+    required this.unreadCount,
     this.inviteLink,
     this.pinnedMessage,
     this.lastMessage,
     this.lastMessageAt,
+    this.notAdded,
     this.generalTopicId,
-    this.username,
     this.mutedUntil,
+    this.username,
     this.avatarFullUrl,
     this.avatarUrl,
     this.description,
@@ -108,6 +109,9 @@ class GroupDetailDto {
   final DateTime createdAt;
   final DateTime updatedAt;
   final List<GroupMemberDto> members;
+
+  /// Only after adding members: people who could not be added (blocked, inactive or their privacy settings).
+  final List<String>? notAdded;
 
   Map<String, Object?> toJson() => _$GroupDetailDtoToJson(this);
 }

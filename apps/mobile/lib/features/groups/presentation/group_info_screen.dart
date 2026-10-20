@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
+import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
@@ -119,13 +120,16 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
 
   /// Runs [call] (a members / role change returning the new detail) and
   /// shows the error, if any.
-  Future<void> _change(Future<api.GroupDetailDto> Function() call) async {
+  Future<api.GroupDetailDto?> _change(
+    Future<api.GroupDetailDto> Function() call,
+  ) async {
     final t = ref.read(translatorProvider);
     try {
       final d = await call();
-      if (!mounted) return;
+      if (!mounted) return null;
       setState(() => _fresh = d);
       _refresh();
+      return d;
     } on Object catch (e) {
       if (mounted &&
           e is ApiException &&
@@ -135,6 +139,7 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
         _toast(errorText(t, e));
       }
     }
+    return null;
   }
 
   // --- photo ----------------------------------------------------------------
@@ -281,13 +286,21 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
       titleKey: 'group.info.addMembers',
     );
     if (picked == null || picked.isEmpty || !mounted) return;
-    await _change(
+    final d2 = await _change(
       () => ref
           .read(groupRepositoryProvider)
           .addMembers(_id, [for (final p in picked) p.userId]),
     );
-    if (mounted) {
-      _toast(t.plural('group.info.added', picked.length));
+    if (mounted && d2 != null) {
+      final skipped = d2.notAdded?.length ?? 0;
+      final added = picked.length - skipped;
+      _toast(
+        [
+          if (added > 0) t.plural('group.info.added', added),
+          if (skipped > 0)
+            t.t('group.info.notAdded', {'count': context.digits(skipped)}),
+        ].join('. '),
+      );
     }
   }
 

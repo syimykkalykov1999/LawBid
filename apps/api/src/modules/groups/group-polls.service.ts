@@ -255,7 +255,13 @@ export class GroupPollsService {
     this.realtime.toUsers(
       await this.groups.activeMemberIds(groupId),
       'poll:update',
-      { groupId, messageId, actorId: viewerId, poll: neutral.get(pollId) },
+      {
+        groupId,
+        messageId,
+        // An anonymous poll never says who voted.
+        ...(poll.anonymous ? {} : { actorId: viewerId }),
+        poll: neutral.get(pollId),
+      },
     );
     return mine.get(pollId)!;
   }

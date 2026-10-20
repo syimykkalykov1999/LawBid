@@ -1,3 +1,4 @@
+import { GroupAddPolicy } from './group-add-policy';
 import { Module } from '@nestjs/common';
 import { AdminAccessModule } from '../admin-access/admin-access.module';
 import { BlocksModule } from '../blocks/blocks.module';
@@ -15,6 +16,7 @@ import { GroupsService } from './groups.service';
   imports: [AdminAccessModule, BlocksModule, FilesModule, NotificationsModule],
   controllers: [GroupsController, AdminGroupsController],
   providers: [
+    GroupAddPolicy,
     GroupsService,
     GroupPollsService,
     GroupPresenter,

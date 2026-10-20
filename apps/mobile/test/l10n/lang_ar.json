@@ -1832,6 +1832,7 @@
 "group.info.mute.unmute":"إلغاء الكتم",
 "group.info.mute.unmuted":"الإشعارات مفعّلة",
 "group.info.mute.week":"لمدة أسبوع",
+"group.info.notAdded":"لم تتم الإضافة: {count}",
 "group.info.photoChange":"تغيير صورة المجموعة",
 "group.info.photoRemove":"إزالة الصورة",
 "group.info.requests.approve":"قبول",

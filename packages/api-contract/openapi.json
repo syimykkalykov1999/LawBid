@@ -136188,6 +136188,13 @@
             "items": {
               "$ref": "#/components/schemas/GroupMemberDto"
             }
+          },
+          "notAdded": {
+            "description": "Only after adding members: people who could not be added (blocked, inactive or their privacy settings).",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         },
         "required": [
@@ -136498,7 +136505,7 @@
           "userIds": {
             "uniqueItems": true,
             "minItems": 1,
-            "maxItems": 100,
+            "maxItems": 50,
             "type": "array",
             "items": {
               "type": "string",
