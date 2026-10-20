@@ -185,6 +185,7 @@
   "modules/search/search.service.ts -> cases/services/cases-feed.service",
   "modules/search/search.service.ts -> posts/dto/posts.dto",
   "modules/search/search.service.ts -> profiles/services/client-profiles.service",
+  "modules/stars/starter-catalog.service.ts -> files/storage/s3-storage.service",
   "modules/storage/storage-cleanup.service.ts -> files/storage/file-release.service",
   "modules/storage/storage-cleanup.service.ts -> files/storage/pending-uploads",
   "modules/storage/storage-cleanup.service.ts -> files/storage/s3-storage.service",

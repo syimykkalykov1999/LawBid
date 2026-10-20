@@ -4,6 +4,7 @@ import { FilesModule } from '../files/files.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { AdminStarsController, StarsController } from './stars.controller';
 import { StarsService } from './stars.service';
+import { StarterCatalogService } from './starter-catalog.service';
 
 /** The service alone — imported by stickers (paid packs), chat (gifts) and
  * billing (the payment webhook). Uses the global PAYMENT_PROVIDER. */
@@ -15,7 +16,8 @@ import { StarsService } from './stars.service';
 export class StarsCoreModule {}
 
 @Module({
-  imports: [StarsCoreModule],
+  imports: [StarsCoreModule, FilesModule],
+  providers: [StarterCatalogService],
   controllers: [StarsController, AdminStarsController],
 })
 export class StarsModule {}

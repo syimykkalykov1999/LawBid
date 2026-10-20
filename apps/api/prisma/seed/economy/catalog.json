@@ -1,0 +1,208 @@
+{
+ "gifts": [
+  {
+   "file": "gifts/rose.png",
+   "title": "Rose",
+   "priceStars": 25
+  },
+  {
+   "file": "gifts/heart.png",
+   "title": "Heart",
+   "priceStars": 15
+  },
+  {
+   "file": "gifts/star.png",
+   "title": "Star",
+   "priceStars": 30
+  },
+  {
+   "file": "gifts/balloon.png",
+   "title": "Balloon",
+   "priceStars": 20
+  },
+  {
+   "file": "gifts/coffee.png",
+   "title": "Coffee",
+   "priceStars": 35
+  },
+  {
+   "file": "gifts/clover.png",
+   "title": "Lucky clover",
+   "priceStars": 40
+  },
+  {
+   "file": "gifts/giftbox.png",
+   "title": "Gift box",
+   "priceStars": 50
+  },
+  {
+   "file": "gifts/cake.png",
+   "title": "Cake",
+   "priceStars": 60
+  },
+  {
+   "file": "gifts/gavel.png",
+   "title": "Gavel",
+   "priceStars": 75
+  },
+  {
+   "file": "gifts/scales.png",
+   "title": "Scales of justice",
+   "priceStars": 100
+  },
+  {
+   "file": "gifts/shield.png",
+   "title": "Shield",
+   "priceStars": 120
+  },
+  {
+   "file": "gifts/key.png",
+   "title": "Golden key",
+   "priceStars": 150
+  },
+  {
+   "file": "gifts/medal.png",
+   "title": "Medal",
+   "priceStars": 200
+  },
+  {
+   "file": "gifts/rocket.png",
+   "title": "Rocket",
+   "priceStars": 300
+  },
+  {
+   "file": "gifts/trophy.png",
+   "title": "Trophy",
+   "priceStars": 500
+  },
+  {
+   "file": "gifts/diamond.png",
+   "title": "Diamond",
+   "priceStars": 800
+  },
+  {
+   "file": "gifts/crown.png",
+   "title": "Crown",
+   "priceStars": 1000
+  }
+ ],
+ "packs": [
+  {
+   "title": "Mood",
+   "shortName": "lawbid_mood",
+   "priceStars": 0,
+   "stickers": [
+    {
+     "file": "stickers/mood/01.png",
+     "emoji": "😀"
+    },
+    {
+     "file": "stickers/mood/02.png",
+     "emoji": "😂"
+    },
+    {
+     "file": "stickers/mood/03.png",
+     "emoji": "😉"
+    },
+    {
+     "file": "stickers/mood/04.png",
+     "emoji": "😎"
+    },
+    {
+     "file": "stickers/mood/05.png",
+     "emoji": "😍"
+    },
+    {
+     "file": "stickers/mood/06.png",
+     "emoji": "😢"
+    },
+    {
+     "file": "stickers/mood/07.png",
+     "emoji": "😡"
+    },
+    {
+     "file": "stickers/mood/08.png",
+     "emoji": "😮"
+    }
+   ]
+  },
+  {
+   "title": "Party",
+   "shortName": "lawbid_party",
+   "priceStars": 49,
+   "stickers": [
+    {
+     "file": "stickers/party/01.png",
+     "emoji": "🥳"
+    },
+    {
+     "file": "stickers/party/02.png",
+     "emoji": "🎉"
+    },
+    {
+     "file": "stickers/party/03.png",
+     "emoji": "🤩"
+    },
+    {
+     "file": "stickers/party/04.png",
+     "emoji": "😇"
+    },
+    {
+     "file": "stickers/party/05.png",
+     "emoji": "😈"
+    },
+    {
+     "file": "stickers/party/06.png",
+     "emoji": "🥰"
+    },
+    {
+     "file": "stickers/party/07.png",
+     "emoji": "😅"
+    },
+    {
+     "file": "stickers/party/08.png",
+     "emoji": "😴"
+    }
+   ]
+  },
+  {
+   "title": "Royal",
+   "shortName": "lawbid_royal",
+   "priceStars": 99,
+   "stickers": [
+    {
+     "file": "stickers/royal/01.png",
+     "emoji": "👑"
+    },
+    {
+     "file": "stickers/royal/02.png",
+     "emoji": "🤴"
+    },
+    {
+     "file": "stickers/royal/03.png",
+     "emoji": "💎"
+    },
+    {
+     "file": "stickers/royal/04.png",
+     "emoji": "🔥"
+    },
+    {
+     "file": "stickers/royal/05.png",
+     "emoji": "🏆"
+    },
+    {
+     "file": "stickers/royal/06.png",
+     "emoji": "😌"
+    },
+    {
+     "file": "stickers/royal/07.png",
+     "emoji": "🤝"
+    },
+    {
+     "file": "stickers/royal/08.png",
+     "emoji": "⚖️"
+    }
+   ]
+  }
+ ]
+}
