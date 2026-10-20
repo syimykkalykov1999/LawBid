@@ -150,7 +150,7 @@ final searchConversationsProvider = AsyncNotifierProvider.autoDispose.family<
 
 /// Waiting / Requests badges; re-read on chat events.
 final chatFolderCountsProvider =
-    FutureProvider.autoDispose<({int waiting, int requests})>(
+    FutureProvider.autoDispose<({int waiting, int requests, int archived})>(
   (ref) {
     final sub = ref.watch(realtimeEventsProvider).listen((e) {
       if (e.name == 'message:new' || e.name == 'conversation:update') {
@@ -422,6 +422,7 @@ class ChatThreadState {
     this.error,
     this.loadMoreFailed = false,
     this.typing = false,
+    this.typingVoice = false,
     this.voiceOutbox = const [],
     this.pins = const [],
     this.editWindowMin = 15,
@@ -460,6 +461,9 @@ class ChatThreadState {
   final bool loadMoreFailed;
   final bool typing;
 
+  /// Owner 2026-10-20: the other side is recording a voice message.
+  final bool typingVoice;
+
   /// OQ-040: voice notes being uploaded/sent (or failed), oldest first.
   final List<ChatMessage> voiceOutbox;
 
@@ -482,6 +486,7 @@ class ChatThreadState {
     bool clearError = false,
     bool? loadMoreFailed,
     bool? typing,
+    bool? typingVoice,
     List<ChatMessage>? voiceOutbox,
     List<ChatMessage>? pins,
     int? editWindowMin,
@@ -506,6 +511,7 @@ class ChatThreadState {
         error: clearError ? null : (error ?? this.error),
         loadMoreFailed: loadMoreFailed ?? this.loadMoreFailed,
         typing: typing ?? this.typing,
+        typingVoice: typingVoice ?? this.typingVoice,
         voiceOutbox: voiceOutbox ?? this.voiceOutbox,
       );
 }
@@ -1139,7 +1145,7 @@ class ChatThread extends Notifier<ChatThreadState> {
 
   /// "печатает…" for the other side, at most every 2 s.
   // ignore: avoid_positional_boolean_parameters
-  void typing(bool active) {
+  void typing(bool active, {bool voice = false}) {
     final rt = ref.read(realtimeClientProvider);
     if (rt == null) return;
     final now = DateTime.now();
@@ -1148,7 +1154,7 @@ class ChatThread extends Notifier<ChatThreadState> {
       return;
     }
     _lastTypingSent = active ? now : DateTime.fromMillisecondsSinceEpoch(0);
-    rt.typing(id, active: active);
+    rt.typing(id, active: active, voice: voice);
   }
 
   /// OQ-043: accept or delete a message request sent to me.
@@ -1296,7 +1302,10 @@ class ChatThread extends Notifier<ChatThreadState> {
       case 'typing':
         if (data is Map && data['conversationId'] == id) {
           final on = data['typing'] == true;
-          state = state.copyWith(typing: on);
+          state = state.copyWith(
+            typing: on,
+            typingVoice: on && data['kind'] == 'voice',
+          );
           _typingOff?.cancel();
           // §8.5: typing lives 5 s without a new event.
           if (on) {

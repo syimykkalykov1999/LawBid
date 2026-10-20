@@ -196,11 +196,17 @@ class RealtimeClient {
     }
   }
 
-  void typing(String conversationId, {required bool active}) {
+  /// [voice]: «recording a voice message…» instead of «typing…» (owner
+  /// 2026-10-20); the server relays it as `kind: text | voice`.
+  void typing(
+    String conversationId, {
+    required bool active,
+    bool voice = false,
+  }) {
     if (!connected) return;
     _socket!.emit(
       active ? 'typing:start' : 'typing:stop',
-      {'conversationId': conversationId},
+      {'conversationId': conversationId, if (voice) 'kind': 'voice'},
     );
   }
 

@@ -499,10 +499,12 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                           ? Duration.zero
                           : AppMotion.stateChange,
                       child: s.typing
-                          ? const Align(
-                              key: ValueKey('typing'),
+                          ? Align(
+                              key: ValueKey(
+                                s.typingVoice ? 'typing-voice' : 'typing',
+                              ),
                               alignment: Alignment.centerLeft,
-                              child: _TypingDots(),
+                              child: _TypingDots(voice: s.typingVoice),
                             )
                           : const SizedBox.shrink(),
                     ),
@@ -1529,7 +1531,10 @@ class _MessageText extends ConsumerWidget {
 }
 
 class _TypingDots extends StatefulWidget {
-  const _TypingDots();
+  const _TypingDots({this.voice = false});
+
+  /// «Recording a voice message…» instead of the bare dots.
+  final bool voice;
 
   @override
   State<_TypingDots> createState() => _TypingDotsState();
@@ -1556,7 +1561,7 @@ class _TypingDotsState extends State<_TypingDots>
         final t = ref.watch(translatorProvider);
         return Semantics(
           liveRegion: true,
-          label: t.t('chat.typing'),
+          label: t.t(widget.voice ? 'chat.recordingVoice' : 'chat.typing'),
           child: Container(
             margin: const EdgeInsets.only(
               left: AppSpacing.screenSide,
@@ -1576,6 +1581,21 @@ class _TypingDotsState extends State<_TypingDots>
               builder: (context, _) => Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  if (widget.voice) ...[
+                    Flexible(
+                      child: Text(
+                        t.t('chat.recordingVoice'),
+                        key: const ValueKey('typing-voice-text'),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context)
+                            .extension<AppTypographyTokens>()!
+                            .bodySmall
+                            .copyWith(color: colors.textSecondary),
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                  ],
                   for (var i = 0; i < 3; i++)
                     Transform.translate(
                       // Each dot rises in turn: a half sine, phase-shifted.
@@ -1884,7 +1904,7 @@ class _Composer extends ConsumerStatefulWidget {
   final FocusNode focusNode;
   final VoidCallback onSend;
   // ignore: avoid_positional_boolean_parameters
-  final void Function(bool active) onTyping;
+  final void Function(bool active, {bool voice}) onTyping;
   final Future<void> Function(VoiceRecording r) onVoice;
 
   /// The chat id: a recording left unsent waits under it.
@@ -2034,13 +2054,19 @@ class _ComposerState extends ConsumerState<_Composer> {
         if (_levels.length > 40) _levels.removeAt(0);
       });
     });
+    var ticks = 0;
     _tick = Timer.periodic(const Duration(milliseconds: 200), (_) {
-      if (mounted) setState(() => _elapsed = _rec.elapsed);
+      if (!mounted) return;
+      setState(() => _elapsed = _rec.elapsed);
+      // Owner 2026-10-20: the other side sees «recording a voice
+      // message…» (re-sent every ~2 s; it fades 5 s after the last one).
+      if (ticks++ % 10 == 0) widget.onTyping(true, voice: true);
     });
   }
 
   /// Back to an empty composer.
   void _reset() {
+    if (_recording) widget.onTyping(false);
     _drafts.clear(widget.draftKey);
     _held = null;
     _recording = false;
