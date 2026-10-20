@@ -192,6 +192,7 @@ a.link{color:var(--gold-ink);text-decoration:underline;cursor:pointer}
   var token = params.get('t') || '';
   var api = (params.get('api') || '').replace(/\/+$/, '');
   var ret = params.get('ret') || '';
+  var native = params.get('native') === '1';
   var theme = (params.get('theme') || '').toLowerCase();
   if (!/^(day|night|navy|glass)$/.test(theme)) {
     theme = window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'night' : 'day';
@@ -245,7 +246,15 @@ a.link{color:var(--gold-ink);text-decoration:underline;cursor:pointer}
   }
   function leave(kind) {
     if (!ret) { history.length > 1 ? history.back() : window.close(); return; }
-    location.href = ret + (kind === 'ok' ? '/subscription/success' : '/subscription/cancel');
+    var path = kind === 'ok' ? '/subscription/success' : '/subscription/cancel';
+    if (native) {
+      // Opened from the phone app: bring the app itself back (custom scheme,
+      // registered on iOS and Android); the web copy only if it did not open.
+      location.href = 'lawbid:/' + path;
+      setTimeout(function () { if (!document.hidden) location.href = ret + path; }, 1800);
+      return;
+    }
+    location.href = ret + path;
   }
   $('cancel').addEventListener('click', function (e) { e.preventDefault(); leave('no'); });
   $('back-bad').addEventListener('click', function (e) { e.preventDefault(); leave('no'); });

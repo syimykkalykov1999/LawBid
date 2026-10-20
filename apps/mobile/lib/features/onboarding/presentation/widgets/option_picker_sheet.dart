@@ -175,6 +175,10 @@ class OptionPickerSheet extends ConsumerStatefulWidget {
 class _OptionPickerSheetState extends ConsumerState<OptionPickerSheet> {
   late final Set<String> _selected = {...widget.initial};
   final _search = TextEditingController();
+  // The sheet swaps its wrapper when the keyboard opens (draggable ↔ full
+  // height); the key moves the field — and its focus — instead of
+  // rebuilding it, which used to drop the focus and close the keyboard.
+  final _searchKey = GlobalKey();
   String _query = '';
   final Set<String> _expanded = {};
   final _keyboardScroll = ScrollController();
@@ -392,6 +396,7 @@ class _OptionPickerSheetState extends ConsumerState<OptionPickerSheet> {
                 ),
                 const SizedBox(height: AppSpacing.md),
                 AppTextField(
+                  key: _searchKey,
                   controller: _search,
                   hintText: widget.searchHint ?? t.t('common.search'),
                   semanticLabel: widget.searchHint ?? t.t('common.search'),
