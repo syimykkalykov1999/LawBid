@@ -132,8 +132,12 @@ Future<void> _reportArmed(Ref ref, List<ReminderSlot> slots) async {
   try {
     final token = await FirebaseMessaging.instance.getToken();
     if (token == null) return;
+    // Notifications switched off: no alarm will show, so nothing counts as
+    // armed and the push goes out (it may be allowed separately).
+    final on = await ref.read(systemNotificationsProvider).enabled();
     await ref.read(notificationsRepositoryProvider).setArmedReminders(token, [
-      for (final s in slots) '${s.taskId}@${s.at.millisecondsSinceEpoch}',
+      if (on)
+        for (final s in slots) '${s.taskId}@${s.at.millisecondsSinceEpoch}',
     ]);
   } on Object catch (e) {
     debugPrint('armed reminders not reported: $e');
