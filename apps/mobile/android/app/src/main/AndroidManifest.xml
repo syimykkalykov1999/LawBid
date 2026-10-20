@@ -6,8 +6,10 @@
     <!-- Android 13+: without it the system never asks and no push is shown. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Planner reminders: the local safety net is re-armed after a reboot
-         or an app update. Inexact alarms only (no SCHEDULE_EXACT_ALARM). -->
+         or an app update. Exact alarms (a reminder rings at its minute) when the
+         person allows them in the system screen; inexact until then. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <!-- Biometric reauth (Phase 4 of the auth networking work,
          docs/CHANGELOG.md): required by local_auth for
          BiometricPrompt/fingerprint on Android. -->

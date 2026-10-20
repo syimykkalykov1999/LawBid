@@ -22,6 +22,15 @@ class _Gateway implements LocalNotificationsGateway {
   @override
   Future<Set<int>> active() async => shown.keys.toSet();
 
+  bool exactOk = false;
+  final exactLog = <bool>[];
+
+  @override
+  Future<bool> exactAllowed() async => exactOk;
+
+  @override
+  Future<void> askExact() async {}
+
   @override
   Future<void> schedule({
     required int id,
@@ -29,7 +38,9 @@ class _Gateway implements LocalNotificationsGateway {
     required String title,
     required String body,
     required String payload,
+    bool exact = false,
   }) async {
+    exactLog.add(exact);
     log.add('schedule $id');
     armed[id] = payload;
   }
@@ -167,6 +178,24 @@ void main() {
       await s.sync(moved, title, body);
       expect(gw.log, ['schedule ${reminderNotificationId('a')}']);
       expect(gw.armed.length, 1);
+    });
+
+    test('exact when the person allowed it; re-armed exact once allowed',
+        () async {
+      final a = planReminders(
+        [_task('a', due: now.add(const Duration(hours: 2)))],
+        now,
+      );
+      await s.sync(a, title, body);
+      expect(gw.exactLog, [false]);
+
+      gw.exactOk = true;
+      await s.sync(a, title, body);
+      expect(gw.exactLog, [false, true]);
+
+      gw.log.clear();
+      await s.sync(a, title, body);
+      expect(gw.log, isEmpty);
     });
 
     test('done, deleted or moved-away tasks lose their alarm', () async {
