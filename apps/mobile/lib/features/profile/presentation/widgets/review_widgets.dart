@@ -265,7 +265,7 @@ class ReviewSummaryPanel extends ConsumerWidget {
                         size: AppSizes.iconSm,
                         color: sort == ReviewsSort.newest
                             ? colors.textSecondary
-                            : colors.goldDark,
+                            : colors.iconTint,
                       ),
                     ),
                   ),
@@ -532,7 +532,7 @@ class ReviewReplyBlock extends ConsumerWidget {
         children: [
           Row(
             children: [
-              AppIcon(AppIcons.replyRounded, size: 16, color: colors.goldDark),
+              AppIcon(AppIcons.replyRounded, size: 16, color: colors.iconTint),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
@@ -693,7 +693,7 @@ class ReviewBadge extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (icon != null) ...[
-            AppIcon(icon, size: 12, color: colors.goldDark),
+            AppIcon(icon, size: 12, color: colors.iconTint),
             const SizedBox(width: 3),
           ],
           Flexible(

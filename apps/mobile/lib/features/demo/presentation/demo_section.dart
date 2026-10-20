@@ -173,7 +173,7 @@ class _AccountRow extends ConsumerWidget {
           padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
           child: Row(
             children: [
-              AppIcon(demoRoleIcon(account.role), color: colors.goldDark),
+              AppIcon(demoRoleIcon(account.role), color: colors.iconTint),
               const SizedBox(width: AppSpacing.md),
               // The texts take whatever is left; the two controls on the
               // right never move, whatever the language.

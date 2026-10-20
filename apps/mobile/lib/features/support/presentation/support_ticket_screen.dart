@@ -314,8 +314,9 @@ class _SupportTicketScreenState extends ConsumerState<SupportTicketScreen> {
                           AppIconButton(
                             icon: AppIcon(
                               AppIcons.arrowUpwardRounded,
-                              color:
-                                  _canSend ? colors.gold : colors.textSecondary,
+                              color: _canSend
+                                  ? colors.iconTint
+                                  : colors.textSecondary,
                             ),
                             semanticLabel: t.t('support.send'),
                             onPressed: _canSend ? _send : null,

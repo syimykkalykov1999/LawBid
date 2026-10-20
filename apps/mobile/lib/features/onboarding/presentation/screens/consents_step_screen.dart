@@ -180,7 +180,7 @@ class _DocLink extends StatelessWidget {
                 AppIcon(
                   AppIcons.descriptionOutlined,
                   size: AppSizes.iconSm,
-                  color: colors.gold,
+                  color: colors.iconTint,
                 ),
                 const SizedBox(width: AppSpacing.sm),
                 Flexible(

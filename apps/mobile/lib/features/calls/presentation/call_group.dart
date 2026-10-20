@@ -301,7 +301,7 @@ class _CallNoticeBannerState extends ConsumerState<CallNoticeBanner> {
               AppIcon(
                 AppIcons.micOffRounded,
                 size: 16,
-                color: colors.goldLight,
+                color: colors.iconTint,
               ),
               const SizedBox(width: AppSpacing.xs),
               Flexible(

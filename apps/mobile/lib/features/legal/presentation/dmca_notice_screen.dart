@@ -346,7 +346,7 @@ class _AgentCard extends StatelessWidget {
         children: [
           AppIcon(
             AppIcons.policyOutlined,
-            color: colors.goldDark,
+            color: colors.iconTint,
             size: AppSizes.iconSm,
           ),
           const SizedBox(width: AppSpacing.md),

@@ -253,7 +253,7 @@ class _ReplyTime extends ConsumerWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(AppIcons.scheduleRounded, size: 16, color: colors.goldDark),
+          Icon(AppIcons.scheduleRounded, size: 16, color: colors.iconTint),
           const SizedBox(width: AppSpacing.xs),
           Expanded(
             child: Text(

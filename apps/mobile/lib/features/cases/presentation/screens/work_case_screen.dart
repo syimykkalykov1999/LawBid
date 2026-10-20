@@ -628,7 +628,7 @@ class _ContactAction extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                AppIcon(icon, color: colors.goldDark, size: AppSizes.iconSm),
+                AppIcon(icon, color: colors.iconTint, size: AppSizes.iconSm),
                 const SizedBox(height: AppSpacing.xs),
                 // Four actions share the row: a long label shrinks to fit.
                 Padding(

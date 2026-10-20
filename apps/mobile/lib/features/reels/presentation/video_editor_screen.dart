@@ -380,7 +380,7 @@ class _VideoEditorScreenState extends ConsumerState<VideoEditorScreen>
                             children: [
                               AppIcon(
                                 AppIcons.photoLibraryOutlined,
-                                color: colors.goldDark,
+                                color: colors.iconTint,
                                 size: 20,
                               ),
                               const SizedBox(width: AppSpacing.sm),

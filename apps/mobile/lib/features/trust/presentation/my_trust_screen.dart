@@ -527,7 +527,7 @@ class _GateRow extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        AppIcon(icon, size: AppSizes.iconSm, color: colors.goldDark),
+        AppIcon(icon, size: AppSizes.iconSm, color: colors.iconTint),
         const SizedBox(width: AppSpacing.sm),
         Expanded(
           child: Column(
@@ -675,7 +675,7 @@ class _FirmLinkCard extends StatelessWidget {
               AppIcon(
                 AppIcons.apartmentRounded,
                 size: AppSizes.iconSm,
-                color: colors.goldDark,
+                color: colors.iconTint,
               ),
               const SizedBox(width: AppSpacing.sm),
               Expanded(

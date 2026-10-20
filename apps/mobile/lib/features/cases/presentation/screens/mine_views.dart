@@ -249,7 +249,7 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
       compact: true,
       icon: AppIcon(
         _saved ? AppIcons.bookmarkRounded : AppIcons.bookmarkBorderRounded,
-        color: _saved ? colors.goldDark : colors.text,
+        color: _saved ? colors.iconTint : colors.text,
       ),
       semanticLabel: t.t('mine.tab.saved'),
       onPressed: () => setState(() => _saved = !_saved),

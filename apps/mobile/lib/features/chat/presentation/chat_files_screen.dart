@@ -577,7 +577,7 @@ class _LinksTab extends ConsumerWidget {
                 ),
                 child: AppIcon(
                   AppIcons.linkRounded,
-                  color: colors.goldDark,
+                  color: colors.iconTint,
                   size: 20,
                 ),
               ),

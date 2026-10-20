@@ -67,4 +67,16 @@ void main() {
       }
     });
   }
+
+  for (final e in themes.entries) {
+    test('${e.key}: tinted icons are the theme ink, not gold, and read 3:1',
+        () {
+      final c = e.value;
+      expect(c.iconTint, isNot(c.gold));
+      expect(c.iconTint, isNot(c.goldDark));
+      final back = c.isGlass ? c.sheet : c.bg;
+      final opaque = Color.alphaBlend(back, const Color(0xFF000000));
+      expect(_ratio(c.iconTint, opaque), greaterThanOrEqualTo(3));
+    });
+  }
 }

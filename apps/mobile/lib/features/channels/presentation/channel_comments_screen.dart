@@ -161,7 +161,7 @@ class _ChannelCommentsScreenState extends ConsumerState<ChannelCommentsScreen> {
                           AppIcons.sendRounded,
                           color: v.text.trim().isEmpty
                               ? colors.textSecondary
-                              : colors.goldDark,
+                              : colors.iconTint,
                         ),
                         semanticLabel: t.t('channel.comment.send'),
                         isLoading: _sending,

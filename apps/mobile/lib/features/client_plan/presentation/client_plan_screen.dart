@@ -470,7 +470,7 @@ class ClientPlanPicker extends StatelessWidget {
               AppIcon(
                 AppIcons.giftOutlined,
                 size: AppSizes.iconSm,
-                color: colors.goldDark,
+                color: colors.iconTint,
               ),
               const SizedBox(width: AppSpacing.sm),
               Expanded(

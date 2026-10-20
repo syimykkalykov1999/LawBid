@@ -148,7 +148,7 @@ class CaseCover extends StatelessWidget {
                 child: AppIcon(
                   practiceGlyph(categoryCode),
                   size: glyph,
-                  color: variant == 3 ? colors.goldLight : colors.gold,
+                  color: variant == 3 ? colors.iconTint : colors.iconTint,
                 ),
               ),
             ],
@@ -209,7 +209,7 @@ class _IconAvatarCover extends StatelessWidget {
                   child: AppIcon(
                     icon,
                     size: disc * 0.46,
-                    color: colors.goldLight,
+                    color: colors.iconTint,
                   ),
                 ),
               ),

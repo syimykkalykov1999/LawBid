@@ -92,7 +92,7 @@ class _GroupSwipeToReplyState extends State<GroupSwipeToReply> {
                     child: AppIcon(
                       AppIcons.replyRounded,
                       size: 18,
-                      color: colors.goldDark,
+                      color: colors.iconTint,
                     ),
                   ),
                 ),

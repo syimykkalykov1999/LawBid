@@ -943,7 +943,7 @@ class _SystemMessage extends StatelessWidget {
                   AppIcon(
                     AppIcons.gavelRounded,
                     size: 14,
-                    color: colors.goldDark,
+                    color: colors.iconTint,
                   ),
                   const SizedBox(width: AppSpacing.xs),
                   Flexible(
@@ -961,7 +961,7 @@ class _SystemMessage extends StatelessWidget {
                     AppIcon(
                       AppIcons.chevronRightRounded,
                       size: 14,
-                      color: colors.goldDark,
+                      color: colors.iconTint,
                     ),
                   ],
                 ],
@@ -1399,7 +1399,7 @@ class _Bubble extends ConsumerWidget {
                   AppIcon(
                     AppIcons.supportAgentRounded,
                     size: 12,
-                    color: colors.gold,
+                    color: colors.iconTint,
                   ),
                   const SizedBox(width: 3),
                   Flexible(
@@ -1487,7 +1487,7 @@ class _Bubble extends ConsumerWidget {
                       ? AppIcons.checkCircleRounded
                       : AppIcons.radioButtonCheckedRounded,
                   size: 22,
-                  color: selected ? colors.gold : colors.textSecondary,
+                  color: selected ? colors.iconTint : colors.textSecondary,
                 ),
               ),
             Expanded(child: IgnorePointer(child: column)),
@@ -1650,7 +1650,7 @@ class _Banner extends StatelessWidget {
       color: colors.goldTint,
       child: Row(
         children: [
-          AppIcon(icon, size: AppSizes.iconSm, color: colors.goldDark),
+          AppIcon(icon, size: AppSizes.iconSm, color: colors.iconTint),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
             child:
@@ -2231,7 +2231,7 @@ class _ComposerState extends ConsumerState<_Composer> {
                             ? AppIcons.keyboardRounded
                             : AppIcons.smileyStickerOutlined,
                         color: widget.stickersOpen
-                            ? colors.goldDark
+                            ? colors.iconTint
                             : colors.textSecondary,
                       ),
                     ),
@@ -2288,7 +2288,7 @@ class _ComposerState extends ConsumerState<_Composer> {
                 previewPlaying
                     ? AppIcons.pauseRounded
                     : AppIcons.playArrowRounded,
-                color: colors.goldDark,
+                color: colors.iconTint,
               ),
               semanticLabel: t.t(
                 previewPlaying ? 'chat.voice.pause' : 'chat.voice.play',
@@ -2401,7 +2401,7 @@ class _ComposerState extends ConsumerState<_Composer> {
                     child: AppIconButton(
                       icon: AppIcon(
                         AppIcons.attachFileRounded,
-                        color: colors.goldDark,
+                        color: colors.iconTint,
                       ),
                       semanticLabel: t.t('chat.attach.button'),
                       onPressed: widget.onAttach,
@@ -2460,7 +2460,7 @@ class _ComposerState extends ConsumerState<_Composer> {
                                 child: AppIcon(
                                   AppIcons.lockOutlineRounded,
                                   size: 18,
-                                  color: colors.goldDark,
+                                  color: colors.iconTint,
                                 ),
                               ),
                             ),

@@ -105,7 +105,7 @@ class PostTextCover extends ConsumerWidget {
             AppIcon(
               AppIcons.newspaperRounded,
               size: 14,
-              color: colors.goldLight,
+              color: colors.iconTint,
             ),
           ],
         ],
@@ -122,7 +122,7 @@ class PostTextCover extends ConsumerWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              AppIcon(practiceGlyph(p.$2), size: 12, color: colors.goldLight),
+              AppIcon(practiceGlyph(p.$2), size: 12, color: colors.iconTint),
               const SizedBox(width: 4),
               Flexible(
                 child: Text(
@@ -294,14 +294,14 @@ class PostTextCover extends ConsumerWidget {
                             AppIcon(
                               practiceGlyph(practice.$2),
                               size: 14,
-                              color: colors.goldLight,
+                              color: colors.iconTint,
                             ),
                           const Spacer(),
                           if (post.isNews && ref.watch(newsEnabledProvider))
                             AppIcon(
                               AppIcons.newspaperRounded,
                               size: 14,
-                              color: colors.goldLight,
+                              color: colors.iconTint,
                             ),
                         ],
                       ),

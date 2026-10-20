@@ -258,7 +258,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           final button = AppIconButton(
             icon: AppIcon(
               cancel ? AppIcons.closeRounded : AppIcons.searchRounded,
-              color: cancel ? colors.textSecondary : colors.goldDark,
+              color: cancel ? colors.textSecondary : colors.iconTint,
             ),
             compact: true,
             semanticLabel: cancel ? t.t('common.cancel') : t.t('search.open'),

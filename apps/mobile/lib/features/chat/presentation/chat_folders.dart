@@ -360,7 +360,7 @@ class _OrganizeSheetState extends ConsumerState<_OrganizeSheet> {
                       keyboardType: TextInputType.multiline,
                       leading: AppIcon(
                         AppIcons.stickyNote2Outlined,
-                        color: colors.goldDark,
+                        color: colors.iconTint,
                       ),
                     ),
                     const SizedBox(height: AppSpacing.sm),

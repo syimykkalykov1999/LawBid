@@ -299,7 +299,7 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen> {
                         i.refereeIsAttorney
                             ? AppIcons.gavelRounded
                             : AppIcons.personOutlineRounded,
-                        color: colors.goldDark,
+                        color: colors.iconTint,
                       ),
                       title: Text(
                         t.t('referral.status.${i.status}'),

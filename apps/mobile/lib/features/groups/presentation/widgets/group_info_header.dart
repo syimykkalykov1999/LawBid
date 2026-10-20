@@ -123,7 +123,7 @@ class GroupInfoHeader extends ConsumerWidget {
                               child: AppIcon(
                                 AppIcons.photoCameraOutlined,
                                 size: 18,
-                                color: colors.gold,
+                                color: colors.iconTint,
                               ),
                             ),
                           ),
@@ -180,7 +180,7 @@ class GroupInfoHeader extends ConsumerWidget {
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  AppIcon(kindIcon, size: 16, color: colors.goldDark),
+                  AppIcon(kindIcon, size: 16, color: colors.iconTint),
                   const SizedBox(width: AppSpacing.xs),
                   Text(
                     kind,

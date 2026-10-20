@@ -56,7 +56,7 @@ class ClientCasesGrid extends ConsumerWidget {
                             AppIcon(
                               AppIcons.lockOutlineRounded,
                               size: AppSpacing.md + 2,
-                              color: colors.goldDark,
+                              color: colors.iconTint,
                             ),
                             const SizedBox(width: AppSpacing.xs),
                             Expanded(

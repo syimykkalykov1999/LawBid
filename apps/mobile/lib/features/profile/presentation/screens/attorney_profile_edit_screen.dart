@@ -567,7 +567,7 @@ class _Licenses extends StatelessWidget {
                 AppIcon(
                   AppIcons.accountBalanceOutlined,
                   size: AppSizes.iconSm,
-                  color: colors.goldStroke,
+                  color: colors.iconTint,
                 ),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(

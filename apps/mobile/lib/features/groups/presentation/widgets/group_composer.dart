@@ -199,7 +199,7 @@ class _GroupComposerState extends ConsumerState<GroupComposer> {
           ),
           child: Row(
             children: [
-              AppIcon(icon, size: 20, color: colors.goldDark),
+              AppIcon(icon, size: 20, color: colors.iconTint),
               const SizedBox(width: AppSpacing.sm),
               Container(width: 2, height: 30, color: colors.goldDark),
               const SizedBox(width: AppSpacing.sm),
@@ -335,7 +335,7 @@ class _GroupComposerState extends ConsumerState<GroupComposer> {
                       AppIconButton(
                         icon: AppIcon(
                           AppIcons.addRounded,
-                          color: colors.goldDark,
+                          color: colors.iconTint,
                         ),
                         semanticLabel: t.t('chat.attach.button'),
                         onPressed: widget.onAttach,

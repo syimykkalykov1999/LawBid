@@ -486,7 +486,7 @@ class _ReviewsListState extends ConsumerState<_ReviewsList> {
               AppIcon(
                 AppIcons.infoOutlineRounded,
                 size: AppSizes.iconSm,
-                color: colors.goldDark,
+                color: colors.iconTint,
               ),
               const SizedBox(width: AppSpacing.sm),
               Expanded(

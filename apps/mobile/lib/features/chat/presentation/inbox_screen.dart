@@ -1077,7 +1077,7 @@ class ConversationRow extends ConsumerWidget {
                         ? AppIcons.checkCircleRounded
                         : AppIcons.radioButtonUncheckedRounded,
                     key: ValueKey('chat-pick-${c.id}'),
-                    color: picked ? colors.goldAccent : colors.textSecondary,
+                    color: picked ? colors.iconTint : colors.textSecondary,
                   ),
                 ),
                 const SizedBox(width: AppSpacing.md),
@@ -1412,7 +1412,7 @@ class _ChatNoteSheet extends ConsumerWidget {
                             AppIcon(
                               AppIcons.stickyNote2Outlined,
                               size: 16,
-                              color: colors.goldDark,
+                              color: colors.iconTint,
                             ),
                             const SizedBox(width: 6),
                             Text(
@@ -1519,7 +1519,7 @@ class _ReadNoteChip extends StatelessWidget {
               AppIcon(
                 AppIcons.stickyNote2Outlined,
                 size: 13,
-                color: colors.goldDark,
+                color: colors.iconTint,
               ),
               const SizedBox(width: 4),
               Text(
@@ -1608,7 +1608,7 @@ class CounterpartAvatar extends StatelessWidget {
         ),
         child: AppIcon(
           AppIcons.personOutlineRounded,
-          color: colors.goldDark,
+          color: colors.iconTint,
           size: size * 0.5,
         ),
       );
@@ -1681,7 +1681,7 @@ class _Bell extends StatelessWidget {
                 selected
                     ? AppIcons.notificationsRounded
                     : AppIcons.notificationsNoneRounded,
-                color: selected ? colors.gold : colors.text,
+                color: selected ? colors.iconTint : colors.text,
                 size: 28,
               ),
               if (count > 0)

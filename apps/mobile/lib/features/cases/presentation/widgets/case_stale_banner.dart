@@ -126,7 +126,7 @@ class _CaseStaleBannerState extends ConsumerState<CaseStaleBanner> {
                       ? AppIcons.pauseCircleOutlineRounded
                       : AppIcons.hourglassTopRounded,
                   size: AppSizes.iconSm,
-                  color: colors.goldDark,
+                  color: colors.iconTint,
                 ),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(

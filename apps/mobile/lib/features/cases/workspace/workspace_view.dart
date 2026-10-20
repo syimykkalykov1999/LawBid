@@ -394,7 +394,7 @@ class _FileRow extends StatelessWidget {
                       color: colors.chip,
                       child: AppIcon(
                         AppIcons.descriptionOutlined,
-                        color: colors.goldDark,
+                        color: colors.iconTint,
                       ),
                     ),
             ),

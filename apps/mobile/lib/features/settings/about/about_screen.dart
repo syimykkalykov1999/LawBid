@@ -66,7 +66,7 @@ class AboutScreen extends ConsumerWidget {
                   shape: BoxShape.circle,
                   border: Border.all(color: colors.goldStroke),
                 ),
-                child: AppIcon(icon, color: colors.goldDark, size: 18),
+                child: AppIcon(icon, color: colors.iconTint, size: 18),
               ),
               const SizedBox(width: AppSpacing.md),
               Expanded(
@@ -179,7 +179,7 @@ class AboutScreen extends ConsumerWidget {
                           ),
                           child: AppIcon(
                             AppIcons.languageRounded,
-                            color: colors.goldDark,
+                            color: colors.iconTint,
                           ),
                         ),
                         const SizedBox(width: AppSpacing.lg),
@@ -206,7 +206,7 @@ class AboutScreen extends ConsumerWidget {
                         ),
                         AppIcon(
                           AppIcons.arrowForwardRounded,
-                          color: colors.goldDark,
+                          color: colors.iconTint,
                         ),
                       ],
                     ),

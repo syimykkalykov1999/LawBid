@@ -20,7 +20,7 @@ class QaSearchButton extends ConsumerWidget {
     return AppIconButton(
       key: const ValueKey('search-qa'),
       compact: true,
-      icon: AppIcon(AppIcons.helpOutlineRounded, color: colors.goldDark),
+      icon: AppIcon(AppIcons.helpOutlineRounded, color: colors.iconTint),
       semanticLabel: t.t('qa.title'),
       onPressed: () => context.push(LegalQaRoutes.feed),
     );

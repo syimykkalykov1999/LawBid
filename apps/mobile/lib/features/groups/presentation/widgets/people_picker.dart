@@ -267,7 +267,7 @@ class _PersonRow extends StatelessWidget {
                   checked
                       ? AppIcons.checkCircleRounded
                       : AppIcons.radioButtonUncheckedRounded,
-                  color: checked ? colors.gold : colors.textSecondary,
+                  color: checked ? colors.iconTint : colors.textSecondary,
                 ),
               ],
             ),

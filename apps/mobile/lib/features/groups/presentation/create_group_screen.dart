@@ -448,7 +448,7 @@ class _PhotoField extends StatelessWidget {
                             ? AppIcon(
                                 AppIcons.addAPhotoOutlined,
                                 size: 32,
-                                color: colors.goldStroke,
+                                color: colors.iconTint,
                               )
                             : GroupAvatar(name: title, size: size),
                       ),
@@ -591,7 +591,7 @@ class _TypeCard extends StatelessWidget {
             children: [
               AppIcon(
                 icon,
-                color: selected ? colors.gold : colors.textSecondary,
+                color: selected ? colors.iconTint : colors.textSecondary,
               ),
               const SizedBox(width: AppSpacing.md),
               Expanded(
@@ -620,7 +620,7 @@ class _TypeCard extends StatelessWidget {
                 selected
                     ? AppIcons.radioButtonCheckedRounded
                     : AppIcons.radioButtonUncheckedRounded,
-                color: selected ? colors.gold : colors.textSecondary,
+                color: selected ? colors.iconTint : colors.textSecondary,
               ),
             ],
           ),

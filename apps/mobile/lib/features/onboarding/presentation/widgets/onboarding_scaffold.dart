@@ -265,7 +265,7 @@ class ActionErrorBanner extends ConsumerWidget {
                     ? AppIcons.wifiOffRounded
                     : AppIcons.errorOutlineRounded,
                 size: AppSizes.iconSm,
-                color: offline ? colors.goldDark : colors.danger,
+                color: offline ? colors.iconTint : colors.danger,
               ),
               const SizedBox(width: AppSpacing.sm),
               Expanded(

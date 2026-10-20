@@ -702,7 +702,7 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
                       icon: AppIcon(
                         AppIcons.addRounded,
                         size: 18,
-                        color: colors.goldDark,
+                        color: colors.iconTint,
                       ),
                       label: Text(
                         t.t('tasks.steps.add'),
@@ -798,7 +798,7 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
                   AppIcon(
                     AppIcons.chatBubbleOutlineRounded,
                     size: AppSizes.iconSm,
-                    color: colors.gold,
+                    color: colors.iconTint,
                   ),
                   const SizedBox(width: AppSpacing.sm),
                   Expanded(
@@ -993,7 +993,7 @@ class _PlaceTile extends StatelessWidget {
         constraints: const BoxConstraints(minHeight: AppSizes.touchTarget),
         child: Row(
           children: [
-            AppIcon(AppIcons.placeOutlined, color: colors.goldDark),
+            AppIcon(AppIcons.placeOutlined, color: colors.iconTint),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Padding(
@@ -1025,7 +1025,7 @@ class _PlaceTile extends StatelessWidget {
               key: ValueKey('place-route-${place.address}'),
               icon: AppIcon(
                 AppIcons.directionsCarOutlined,
-                color: colors.goldDark,
+                color: colors.iconTint,
               ),
               semanticLabel: t.t('tasks.place.route'),
               onPressed: () =>
@@ -1097,7 +1097,7 @@ class _PersonTile extends ConsumerWidget {
           for (final a in actions)
             AppIconButton(
               key: ValueKey('person-${a.key}-${p.name}'),
-              icon: AppIcon(a.icon, color: colors.goldDark),
+              icon: AppIcon(a.icon, color: colors.iconTint),
               semanticLabel: '${a.label} · ${p.name}',
               onPressed: a.run,
             ),
@@ -1151,7 +1151,7 @@ class _ArchiveCard extends StatelessWidget {
                 task.keepForever
                     ? AppIcons.bookmarkRounded
                     : AppIcons.inventory2Outlined,
-                color: colors.goldDark,
+                color: colors.iconTint,
               ),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
@@ -1280,7 +1280,10 @@ class _FileTile extends StatelessWidget {
               : Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    AppIcon(AppIcons.descriptionOutlined, color: colors.gold),
+                    AppIcon(
+                      AppIcons.descriptionOutlined,
+                      color: colors.iconTint,
+                    ),
                     const SizedBox(height: 4),
                     Text(
                       '#$index',

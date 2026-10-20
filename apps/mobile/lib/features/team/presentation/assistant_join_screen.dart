@@ -114,7 +114,7 @@ class _AssistantJoinScreenState extends ConsumerState<AssistantJoinScreen> {
               child: AppIcon(
                 AppIcons.supportAgentRounded,
                 size: 40,
-                color: colors.gold,
+                color: colors.iconTint,
               ),
             ),
           ),

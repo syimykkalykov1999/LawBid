@@ -67,7 +67,7 @@ class ConsentCard extends StatelessWidget {
                         AppIcon(
                           icon,
                           size: AppSizes.iconSm,
-                          color: colors.gold,
+                          color: colors.iconTint,
                         ),
                         const SizedBox(width: AppSpacing.sm),
                         Expanded(

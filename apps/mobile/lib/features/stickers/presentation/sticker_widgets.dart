@@ -376,7 +376,7 @@ class _StickerPanelState extends ConsumerState<StickerPanel> {
                 strip(
                   AppIcon(
                     AppIcons.addRounded,
-                    color: colors.goldDark,
+                    color: colors.iconTint,
                     size: 24,
                   ),
                   false,
@@ -835,7 +835,7 @@ class _PackSheetState extends ConsumerState<_PackSheet> {
                                 )
                               : AppIcon(
                                   AppIcons.addRounded,
-                                  color: colors.goldDark,
+                                  color: colors.iconTint,
                                   size: 30,
                                 ),
                         ),

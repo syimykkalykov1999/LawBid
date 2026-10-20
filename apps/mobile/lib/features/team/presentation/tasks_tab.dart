@@ -1557,7 +1557,7 @@ class _ArchiveNote extends StatelessWidget {
             AppIcon(
               AppIcons.infoOutlineRounded,
               size: 18,
-              color: colors.goldDark,
+              color: colors.iconTint,
             ),
             const SizedBox(width: AppSpacing.sm),
             Expanded(

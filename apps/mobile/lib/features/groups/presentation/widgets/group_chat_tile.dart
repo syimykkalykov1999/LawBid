@@ -85,7 +85,7 @@ class GroupChatTile extends ConsumerWidget {
                         ? AppIcons.checkCircleRounded
                         : AppIcons.radioButtonUncheckedRounded,
                     key: ValueKey('group-pick-${g.id}'),
-                    color: picked ? colors.goldAccent : colors.textSecondary,
+                    color: picked ? colors.iconTint : colors.textSecondary,
                   ),
                 ),
                 const SizedBox(width: AppSpacing.md),

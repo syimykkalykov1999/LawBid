@@ -462,7 +462,7 @@ class _LeafTile extends StatelessWidget {
           child: Row(
             children: [
               if (icon != null) ...[
-                AppIcon(icon, color: colors.goldDark, size: AppSizes.iconSm),
+                AppIcon(icon, color: colors.iconTint, size: AppSizes.iconSm),
                 const SizedBox(width: AppSpacing.md),
               ],
               Expanded(
@@ -711,7 +711,7 @@ class _StepBlock extends StatelessWidget {
                   child: AppIcon(
                     icon,
                     size: AppSizes.iconSm,
-                    color: colors.goldAccent,
+                    color: colors.iconTint,
                   ),
                 ),
                 const SizedBox(width: AppSpacing.sm),
@@ -1048,7 +1048,7 @@ class _PlaceStepState extends ConsumerState<PlaceStep> {
                 leading: AppIcon(
                   AppIcons.addRounded,
                   size: AppSpacing.lg,
-                  color: colors.goldDark,
+                  color: colors.iconTint,
                 ),
                 onTap: () async {
                   final code = await pickState(context, t, exclude: taken());
@@ -1244,7 +1244,7 @@ class _BudgetStepState extends ConsumerState<BudgetStep> {
                 children: [
                   AppIcon(
                     AppIcons.forumOutlined,
-                    color: colors.goldAccent,
+                    color: colors.iconTint,
                   ),
                   const SizedBox(width: AppSpacing.md),
                   Expanded(

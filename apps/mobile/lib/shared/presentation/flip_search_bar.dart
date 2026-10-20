@@ -176,7 +176,7 @@ class _FlipSearchBarState extends State<FlipSearchBar> {
                   duration: d,
                   child: AppIcon(
                     AppIcons.searchRounded,
-                    color: focused ? colors.goldDark : colors.textSecondary,
+                    color: focused ? colors.iconTint : colors.textSecondary,
                   ),
                 ),
               ],

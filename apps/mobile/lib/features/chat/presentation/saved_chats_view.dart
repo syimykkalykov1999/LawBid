@@ -242,7 +242,7 @@ class _SavedTile extends ConsumerWidget {
                       child: AppIcon(
                         AppIcons.bookmarkRounded,
                         size: 22,
-                        color: colors.gold,
+                        color: colors.iconTint,
                       ),
                     ),
                   ),

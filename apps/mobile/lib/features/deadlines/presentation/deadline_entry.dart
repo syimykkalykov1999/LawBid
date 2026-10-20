@@ -35,7 +35,7 @@ class DeadlineMineEntry extends ConsumerWidget {
             leading: AppIcon(
               AppIcons.timerOutlined,
               size: 18,
-              color: colors.goldDark,
+              color: colors.iconTint,
             ),
             onTap: () => context.push(DeadlinesRoutes.open()),
           ),

@@ -293,7 +293,7 @@ class _CallScreenState extends ConsumerState<CallScreen>
                             AppIcon(
                               AppIcons.lockOutlineRounded,
                               size: 14,
-                              color: colors.goldLight,
+                              color: colors.iconTint,
                             ),
                             const SizedBox(width: AppSpacing.xs),
                             Flexible(

@@ -48,7 +48,7 @@ class DemoSettingsCard extends ConsumerWidget {
         children: [
           Row(
             children: [
-              AppIcon(AppIcons.warningAmberRounded, color: colors.goldDark),
+              AppIcon(AppIcons.warningAmberRounded, color: colors.iconTint),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: Text(

@@ -130,7 +130,7 @@ class SubscriptionOfferBenefits extends ConsumerWidget {
               AppIcon(
                 AppIcons.checkCircleRounded,
                 size: AppSizes.iconSm,
-                color: colors.goldDark,
+                color: colors.iconTint,
               ),
               const SizedBox(width: AppSpacing.sm),
               Expanded(

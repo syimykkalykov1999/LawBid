@@ -300,7 +300,7 @@ class CaseDossierPanel extends StatelessWidget {
                         ? AppIcons.lockOpenRounded
                         : AppIcons.lockOutlineRounded,
                     size: 16,
-                    color: unlocked ? colors.success : colors.goldDark,
+                    color: unlocked ? colors.success : colors.iconTint,
                   ),
                   const SizedBox(width: AppSpacing.xs),
                   Expanded(

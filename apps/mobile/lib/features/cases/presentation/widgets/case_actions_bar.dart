@@ -50,7 +50,7 @@ class _CaseSaveButtonState extends ConsumerState<CaseSaveButton> {
       active: saved,
       icon: AppIcons.bookmarkBorderRounded,
       activeIcon: AppIcons.bookmarkRounded,
-      activeColor: colors.gold,
+      activeColor: colors.iconTint,
       label: t.t(saved ? 'post.unsave' : 'post.save'),
       onTap: _toggle,
     );

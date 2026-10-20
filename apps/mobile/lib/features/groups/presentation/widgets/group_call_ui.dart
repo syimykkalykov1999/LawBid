@@ -145,7 +145,8 @@ class _CallPickerSheetState extends ConsumerState<_CallPickerSheet> {
                                 on
                                     ? AppIcons.checkCircleRounded
                                     : AppIcons.radioButtonUncheckedRounded,
-                                color: on ? colors.gold : colors.textSecondary,
+                                color:
+                                    on ? colors.iconTint : colors.textSecondary,
                               ),
                             ],
                           ),
@@ -207,7 +208,7 @@ class GroupCallJoinBar extends ConsumerWidget {
                 running.video
                     ? AppIcons.videoCameraOutlined
                     : AppIcons.callOutlined,
-                color: colors.gold,
+                color: colors.iconTint,
                 size: 22,
               ),
               const SizedBox(width: AppSpacing.sm),

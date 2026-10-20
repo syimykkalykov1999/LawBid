@@ -183,7 +183,7 @@ class RequestCard extends StatelessWidget {
                 AppIcon(
                   icon,
                   size: 13,
-                  color: gold ? colors.goldDark : colors.gold,
+                  color: gold ? colors.iconTint : colors.iconTint,
                 ),
                 const SizedBox(width: 4),
               ],
@@ -242,7 +242,7 @@ class RequestCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(AppRadii.field),
                   border: Border.all(color: colors.goldStroke),
                 ),
-                child: AppIcon(kindIcon, color: colors.gold, size: 22),
+                child: AppIcon(kindIcon, color: colors.iconTint, size: 22),
               ),
               const SizedBox(width: AppSpacing.md),
               Expanded(
@@ -364,7 +364,7 @@ class RequestCard extends StatelessWidget {
                             color: colors.goldTint,
                             child: AppIcon(
                               AppIcons.imageOutlined,
-                              color: colors.gold,
+                              color: colors.iconTint,
                             ),
                           ),
                         ),
@@ -494,7 +494,7 @@ class ActivityRow extends StatelessWidget {
             ),
             child: AppIcon(
               activityIcon(entry.action),
-              color: colors.gold,
+              color: colors.iconTint,
               size: 20,
             ),
           ),
@@ -588,7 +588,7 @@ class AssistantBanner extends StatelessWidget {
           AppIcon(
             AppIcons.supportAgentRounded,
             size: AppSizes.iconSm,
-            color: colors.gold,
+            color: colors.iconTint,
           ),
           const SizedBox(width: AppSpacing.sm),
           Flexible(
@@ -663,7 +663,7 @@ class _LiabilityDialogState extends State<_LiabilityDialog> {
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     return AppAlertDialog(
       backgroundColor: colors.sheet,
-      icon: AppIcon(AppIcons.gavelRounded, color: colors.gold),
+      icon: AppIcon(AppIcons.gavelRounded, color: colors.iconTint),
       title: Text(t.t('liability.title')),
       content: SingleChildScrollView(
         child: Column(

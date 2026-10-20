@@ -247,7 +247,7 @@ class PracticePhoto extends StatelessWidget {
                   child: AppIcon(
                     practiceGlyph(categoryCode),
                     size: disc * 0.48,
-                    color: colors.goldLight,
+                    color: colors.iconTint,
                   ),
                 ),
               ),

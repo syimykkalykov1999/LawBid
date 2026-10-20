@@ -208,7 +208,8 @@ class _MemberTile extends StatelessWidget {
           CircleAvatar(
             radius: 22,
             backgroundColor: colors.goldTint,
-            child: AppIcon(AppIcons.supportAgentRounded, color: colors.gold),
+            child:
+                AppIcon(AppIcons.supportAgentRounded, color: colors.iconTint),
           ),
           const SizedBox(width: AppSpacing.md),
           Expanded(
@@ -515,7 +516,7 @@ class _MemberSheetState extends ConsumerState<_MemberSheet> {
             SwitchListTile.adaptive(
               key: ValueKey('duty-${d.wire}'),
               contentPadding: EdgeInsets.zero,
-              secondary: AppIcon(dutyIcon(d), color: colors.gold),
+              secondary: AppIcon(dutyIcon(d), color: colors.iconTint),
               title: Text(
                 dutyLabel(t, d),
                 style: typography.body.copyWith(color: colors.text),

@@ -297,7 +297,7 @@ class _ShareSheet extends StatelessWidget {
                   AppIcon(
                     AppIcons.linkRounded,
                     size: 18,
-                    color: colors.goldDark,
+                    color: colors.iconTint,
                   ),
                   const SizedBox(width: AppSpacing.sm),
                   Expanded(

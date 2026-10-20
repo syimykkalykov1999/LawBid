@@ -564,7 +564,7 @@ class _MineSearchBarState extends ConsumerState<MineSearchBar> {
                   : AppIconButton(
                       icon: AppIcon(
                         AppIcons.searchRounded,
-                        color: colors.goldDark,
+                        color: colors.iconTint,
                       ),
                       semanticLabel: t.t(widget.hintKey),
                       onPressed: _focus.requestFocus,
@@ -648,7 +648,7 @@ class _MineChipsSearchRowState extends ConsumerState<MineChipsSearchRow> {
             AppIconButton(
               key: const ValueKey('mine-search-open'),
               compact: true,
-              icon: AppIcon(AppIcons.searchRounded, color: colors.goldDark),
+              icon: AppIcon(AppIcons.searchRounded, color: colors.iconTint),
               semanticLabel: t.t(widget.hintKey),
               onPressed: () => setState(() => _open = true),
             ),

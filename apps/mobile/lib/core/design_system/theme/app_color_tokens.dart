@@ -249,6 +249,11 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
     return bg.computeLuminance() > 0.5 ? goldDark : gold;
   }
 
+  /// Owner 2026-10-20: the colour of tinted icons (tile icons, selected tab,
+  /// picked rows): the theme's own ink, the deep navy on the light theme.
+  /// Never gold: gold stays for the client check and rating stars only.
+  Color get iconTint => bg.computeLuminance() > 0.5 ? accent : text;
+
   final Color navy;
   final Color panFill;
   final Color panText;

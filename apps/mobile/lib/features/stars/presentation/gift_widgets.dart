@@ -35,7 +35,7 @@ class GiftImage extends StatelessWidget {
               child: AppIcon(
                 AppIcons.giftOutlined,
                 size: size * 0.5,
-                color: colors.gold,
+                color: colors.iconTint,
               ),
             )
           : CachedNetworkImage(
@@ -47,7 +47,7 @@ class GiftImage extends StatelessWidget {
                 child: AppIcon(
                   AppIcons.giftOutlined,
                   size: size * 0.5,
-                  color: colors.gold,
+                  color: colors.iconTint,
                 ),
               ),
             ),
@@ -432,7 +432,7 @@ class GiftShowcase extends ConsumerWidget {
                 TextButton.icon(
                   key: const ValueKey('profile-give-gift'),
                   onPressed: () => showGiftCatalogSheet(context, ref, userId),
-                  icon: AppIcon(AppIcons.giftOutlined, color: colors.goldDark),
+                  icon: AppIcon(AppIcons.giftOutlined, color: colors.iconTint),
                   label: Text(
                     t.t('stars.profile.give'),
                     style: TextStyle(color: colors.goldDark),

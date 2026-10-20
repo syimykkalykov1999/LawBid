@@ -52,7 +52,7 @@ class CaseTasksSection extends ConsumerWidget {
                   );
                   if (created ?? false) invalidateAllTasks(ref);
                 },
-                icon: AppIcon(AppIcons.addRounded, color: colors.goldDark),
+                icon: AppIcon(AppIcons.addRounded, color: colors.iconTint),
                 label: Text(
                   t.t('tasks.case.add'),
                   maxLines: 1,

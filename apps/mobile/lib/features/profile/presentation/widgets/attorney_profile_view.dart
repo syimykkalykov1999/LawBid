@@ -980,7 +980,7 @@ class _ChipRows extends ConsumerWidget {
                 child: AppIcon(
                   icon,
                   size: AppSizes.iconSm,
-                  color: colors.goldDark,
+                  color: colors.iconTint,
                 ),
               ),
               const SizedBox(width: AppSpacing.sm),

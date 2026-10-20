@@ -273,7 +273,7 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
               ),
               child: Row(
                 children: [
-                  AppIcon(AppIcons.editNoteRounded, color: colors.gold),
+                  AppIcon(AppIcons.editNoteRounded, color: colors.iconTint),
                   const SizedBox(width: AppSpacing.sm),
                   Expanded(
                     child: Text(

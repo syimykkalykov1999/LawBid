@@ -313,7 +313,7 @@ class _Compose extends StatelessWidget {
             AppIcon(
               AppIcons.infoOutlineRounded,
               size: AppSizes.iconSm,
-              color: colors.goldStroke,
+              color: colors.iconTint,
             ),
             const SizedBox(width: AppSpacing.sm),
             Expanded(

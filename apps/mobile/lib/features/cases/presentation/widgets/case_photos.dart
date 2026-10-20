@@ -171,7 +171,7 @@ class CasePhotosPicker extends ConsumerWidget {
                                           color: colors.surface,
                                           child: AppIcon(
                                             AppIcons.imageOutlined,
-                                            color: colors.goldDark,
+                                            color: colors.iconTint,
                                           ),
                                         )
                                       : Image.memory(
@@ -336,7 +336,7 @@ class CasePhotosStrip extends ConsumerWidget {
           AppIcon(
             AppIcons.lockOutlineRounded,
             size: AppSizes.iconSm,
-            color: colors.goldDark,
+            color: colors.iconTint,
           ),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
@@ -451,7 +451,7 @@ class _VideoTile extends StatelessWidget {
         child: AppIcon(
           AppIcons.playCircleOutlined,
           size: 40,
-          color: colors.goldDark,
+          color: colors.iconTint,
         ),
       ),
     );
@@ -478,7 +478,7 @@ class _DocTile extends StatelessWidget {
           AppIcon(
             pdf ? AppIcons.pictureAsPdfRounded : AppIcons.descriptionRounded,
             size: 36,
-            color: colors.goldDark,
+            color: colors.iconTint,
           ),
           const SizedBox(height: AppSpacing.xs),
           Text(

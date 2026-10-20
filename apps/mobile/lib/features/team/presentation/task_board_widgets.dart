@@ -387,7 +387,7 @@ class TaskRingCard extends StatelessWidget {
                     size: 40,
                     stroke: 3,
                     child: picked
-                        ? AppIcon(AppIcons.checkRounded, color: colors.gold)
+                        ? AppIcon(AppIcons.checkRounded, color: colors.iconTint)
                         : AppIcon(
                             taskKindIcon(task.kind),
                             size: 18,

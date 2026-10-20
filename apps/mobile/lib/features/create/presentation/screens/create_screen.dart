@@ -108,7 +108,7 @@ class _Chooser extends ConsumerWidget {
                     ),
                     child: AppIcon(
                       icon,
-                      color: colors.goldDark,
+                      color: colors.iconTint,
                       size: AppSizes.iconMd,
                     ),
                   ),

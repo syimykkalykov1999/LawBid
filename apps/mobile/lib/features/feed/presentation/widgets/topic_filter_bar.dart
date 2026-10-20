@@ -388,7 +388,7 @@ class TopicFilterBar extends ConsumerWidget {
                       size: 20,
                       // Gold while a state narrows the feed.
                       color: _hasState
-                          ? colors.gold
+                          ? colors.iconTint
                           : (onDark ? Colors.white : colors.text),
                     ),
                   ),

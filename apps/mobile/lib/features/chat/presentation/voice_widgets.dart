@@ -484,7 +484,7 @@ class VoiceMiniPlayer extends ConsumerWidget {
                         p.playing
                             ? AppIcons.pauseRounded
                             : AppIcons.playArrowRounded,
-                        color: colors.goldDark,
+                        color: colors.iconTint,
                       ),
                       semanticLabel: t.t(
                         p.playing ? 'chat.voice.pause' : 'chat.voice.play',

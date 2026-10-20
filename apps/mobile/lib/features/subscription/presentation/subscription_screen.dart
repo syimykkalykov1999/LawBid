@@ -432,7 +432,7 @@ class ContractCard extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          AppIcon(AppIcons.giftOutlined, color: colors.goldDark, size: 28),
+          AppIcon(AppIcons.giftOutlined, color: colors.iconTint, size: 28),
           const SizedBox(width: AppSpacing.md),
           Expanded(
             child: Column(

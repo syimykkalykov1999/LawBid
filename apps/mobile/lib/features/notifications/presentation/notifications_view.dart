@@ -869,7 +869,7 @@ class _Medallion extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppRadii.field),
         border: Border.all(color: colors.goldStroke),
       ),
-      child: AppIcon(_icon(n), size: 20, color: colors.gold),
+      child: AppIcon(_icon(n), size: 20, color: colors.iconTint),
     );
     final actor = n.actor;
     if (actor?.avatarUrl == null) return glyph;
@@ -897,7 +897,7 @@ class _Medallion extends StatelessWidget {
                 shape: BoxShape.circle,
                 border: Border.all(color: colors.surface, width: 2),
               ),
-              child: AppIcon(_icon(n), size: 11, color: colors.gold),
+              child: AppIcon(_icon(n), size: 11, color: colors.iconTint),
             ),
           ),
         ],

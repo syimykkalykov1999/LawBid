@@ -29,7 +29,7 @@ Future<bool> showOtherDeviceDialog(
       backgroundColor: colors.sheet,
       icon: AppIcon(
         web ? AppIcons.computerRounded : AppIcons.phoneIphoneRounded,
-        color: colors.gold,
+        color: colors.iconTint,
       ),
       title: Text(t.t('otherDevice.title')),
       content: Text(t.t('otherDevice.body', {'device': device, 'when': when})),

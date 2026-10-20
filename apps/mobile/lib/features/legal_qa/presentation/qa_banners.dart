@@ -66,7 +66,7 @@ class _QaLine extends StatelessWidget {
                     padding: const EdgeInsets.all(AppSpacing.xs),
                     child: AppIcon(
                       AppIcons.helpOutlineRounded,
-                      color: prominent ? colors.onDanger : colors.goldDark,
+                      color: prominent ? colors.onDanger : colors.iconTint,
                     ),
                   ),
                 ),

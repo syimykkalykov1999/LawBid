@@ -192,7 +192,7 @@ class _DropZone extends StatelessWidget {
                     leading: AppIcon(
                       a.icon,
                       size: AppSizes.iconSm,
-                      color: colors.goldDark,
+                      color: colors.iconTint,
                     ),
                     onTap: a.onTap,
                   ),
@@ -340,7 +340,7 @@ class _TaskRow extends StatelessWidget {
                               : AppIcons.imageOutlined,
                   size: AppSizes.iconSm,
                   color:
-                      infected || failed ? colors.dangerText : colors.goldDark,
+                      infected || failed ? colors.dangerText : colors.iconTint,
                 ),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
@@ -373,7 +373,7 @@ class _TaskRow extends StatelessWidget {
                     onPressed: onRetry,
                     icon: AppIcon(
                       AppIcons.refreshRounded,
-                      color: colors.goldDark,
+                      color: colors.iconTint,
                     ),
                   ),
                 AppIconButton(

@@ -80,7 +80,7 @@ class CompactCaseRow extends StatelessWidget {
         child: AppIcon(
           practiceGlyph(categoryCode),
           size: AppSizes.iconLg,
-          color: colors.goldDark,
+          color: colors.iconTint,
         ),
       ),
     );
@@ -107,7 +107,7 @@ class CompactCaseRow extends StatelessWidget {
             AppIcon(
               icon,
               size: 15,
-              color: strong ? colors.goldDark : colors.textSecondary,
+              color: strong ? colors.iconTint : colors.textSecondary,
             ),
             const SizedBox(width: 3),
             Text(

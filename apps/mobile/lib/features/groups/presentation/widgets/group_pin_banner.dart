@@ -56,7 +56,7 @@ class GroupPinBanner extends StatelessWidget {
                           AppIcon(
                             AppIcons.pushPin,
                             size: 18,
-                            color: colors.goldDark,
+                            color: colors.iconTint,
                           ),
                           const SizedBox(width: AppSpacing.sm),
                           Container(

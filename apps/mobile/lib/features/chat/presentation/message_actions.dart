@@ -427,7 +427,7 @@ Future<void> showMessageMenu(
                   child: Row(
                     key: const ValueKey('msg-read-at'),
                     children: [
-                      AppIcon(AppIcons.doneAllRounded, color: colors.gold),
+                      AppIcon(AppIcons.doneAllRounded, color: colors.iconTint),
                       const SizedBox(width: AppSpacing.sm),
                       Text(
                         [
@@ -721,7 +721,7 @@ class _ForwardSheetState extends ConsumerState<_ForwardSheet> {
                             on
                                 ? AppIcons.checkCircleRounded
                                 : AppIcons.radioButtonCheckedRounded,
-                            color: on ? colors.gold : colors.textSecondary,
+                            color: on ? colors.iconTint : colors.textSecondary,
                           ),
                           onTap: () => setState(() {
                             on ? _picked.remove(c.id) : _picked.add(c.id);
@@ -891,7 +891,7 @@ class EditBar extends ConsumerWidget {
       ),
       child: Row(
         children: [
-          AppIcon(AppIcons.editOutlined, color: colors.gold, size: 18),
+          AppIcon(AppIcons.editOutlined, color: colors.iconTint, size: 18),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Column(
@@ -1028,7 +1028,7 @@ class PinnedBanner extends ConsumerWidget {
             children: [
               Container(width: 3, height: 30, color: colors.gold),
               const SizedBox(width: AppSpacing.sm),
-              AppIcon(AppIcons.pushPin, size: 16, color: colors.gold),
+              AppIcon(AppIcons.pushPin, size: 16, color: colors.iconTint),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: Column(
@@ -1138,7 +1138,7 @@ class PinnedBanner extends ConsumerWidget {
                                 AppIconButton(
                                   icon: AppIcon(
                                     AppIcons.pushPin,
-                                    color: colors.gold,
+                                    color: colors.iconTint,
                                   ),
                                   semanticLabel: t.t('chat.act.unpin'),
                                   onPressed: () async {
@@ -1327,7 +1327,7 @@ class _SwipeToReplyState extends State<SwipeToReply>
                   child: AppIcon(
                     AppIcons.replyRounded,
                     size: 18,
-                    color: colors.gold,
+                    color: colors.iconTint,
                   ),
                 ),
               ),
