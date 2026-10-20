@@ -30,6 +30,7 @@ erDiagram
     String suspended_reason "nullable"
     DateTime last_active_at "nullable"
     Boolean show_activity_status
+    Boolean find_by_phone
     String feed_content_mode "nullable"
     DateTime deletion_requested_at "nullable"
     DateTime deleted_at "nullable"
