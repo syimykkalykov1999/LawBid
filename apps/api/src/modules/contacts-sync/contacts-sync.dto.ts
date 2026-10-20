@@ -1,5 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { ArrayMaxSize, ArrayMinSize, IsArray, Matches } from 'class-validator';
+import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  IsArray,
+  IsBoolean,
+  Matches,
+} from 'class-validator';
 
 /** Most hashes in one upload; the app sends bigger books in chunks. */
 export const CONTACT_HASHES_MAX = 2000;
@@ -21,6 +27,15 @@ export class UploadContactHashesDto {
   hashes!: string[];
 }
 
+export class SetFindByPhoneDto {
+  @ApiProperty({
+    description:
+      'Clients only: people who have my number in their address book may find me.',
+  })
+  @IsBoolean()
+  enabled!: boolean;
+}
+
 export class ContactSyncStatusDto {
   @ApiProperty({ description: 'The user has contacts sync turned on.' })
   enabled!: boolean;
@@ -34,6 +49,19 @@ export class ContactSyncStatusDto {
 
   @ApiPropertyOptional({ type: String, format: 'date-time', nullable: true })
   syncedAt!: string | null;
+
+  @ApiProperty({
+    description: '"Find me by my number" (clients; attorneys are public).',
+  })
+  findByPhone!: boolean;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description:
+      'ISO country of the account number ("US", "KG"): the default region for national-format numbers in the address book.',
+  })
+  phoneRegion!: string | null;
 }
 
 export class ContactPersonDto {
@@ -49,7 +77,10 @@ export class ContactPersonDto {
   @ApiPropertyOptional({ type: String, nullable: true })
   username!: string | null;
 
-  @ApiProperty({ description: 'First and last name as the person shows them.' })
+  @ApiProperty({
+    description:
+      'Attorneys: full public name. Clients: first name only, no username.',
+  })
   displayName!: string;
 
   @ApiPropertyOptional({ type: String, nullable: true })

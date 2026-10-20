@@ -5,7 +5,10 @@ import {
   CONTACT_HASHES_MAX,
   UploadContactHashesDto,
 } from './contacts-sync.dto';
-import { ContactsSyncService } from './contacts-sync.service';
+import {
+  ContactsSyncService,
+  HASHES_PER_ACCOUNT_PER_DAY,
+} from './contacts-sync.service';
 
 const sha = (s: string) => createHash('sha256').update(s).digest('hex');
 
@@ -18,7 +21,19 @@ function make(
 ) {
   const tx: unknown[] = [];
   const prisma = {
-    user: { findMany: jest.fn().mockResolvedValue(over.users ?? []) },
+    user: {
+      findMany: jest.fn().mockResolvedValue(over.users ?? []),
+      findUnique: jest.fn().mockResolvedValue({
+        find_by_phone: true,
+        phone_e164: '+996555123456',
+      }),
+      update: jest.fn().mockResolvedValue({}),
+    },
+    userBlock: {
+      findMany: jest
+        .fn()
+        .mockResolvedValue([{ blocker_id: 'me', blocked_id: 'bad' }]),
+    },
     contactMatch: {
       createMany: jest.fn((a: unknown) => ({ op: 'createMany', a })),
       deleteMany: jest.fn((a: unknown) => ({ op: 'deleteMany', a })),
@@ -43,7 +58,13 @@ function make(
     }),
   };
   const limits = { consume: jest.fn().mockResolvedValue(undefined) };
-  const redis = { del: jest.fn().mockResolvedValue(1) };
+  const redis = {
+    del: jest.fn().mockResolvedValue(1),
+    get: jest.fn().mockResolvedValue(null),
+    set: jest.fn().mockResolvedValue('OK'),
+    incrby: jest.fn().mockResolvedValue(1),
+    expire: jest.fn().mockResolvedValue(1),
+  };
   const files = { avatarUrlsMany: jest.fn().mockResolvedValue(new Map()) };
   const svc = new ContactsSyncService(
     prisma as never,
@@ -111,8 +132,8 @@ describe('ContactsSyncService.upload', () => {
       expect.objectContaining({
         hash: sha('+1'),
         userId: 'u1',
-        username: 'ann',
-        displayName: 'Ann B',
+        username: null,
+        displayName: 'Ann',
         role: 'client',
       }),
       expect.objectContaining({
@@ -128,7 +149,13 @@ describe('ContactsSyncService.upload', () => {
     // unverified or deleted accounts excluded
     const where = prisma.user.findMany.mock.calls[0][0].where;
     expect(where.phone_sha256.in).toEqual([sha('+1'), sha('+2')]);
-    expect(where.id).toEqual({ not: 'me' });
+    // own account and blocked people (both ways) are never returned
+    expect(where.id).toEqual({ notIn: ['me', 'bad'] });
+    // attorneys are public; a client only when they allow it
+    expect(where.OR).toEqual([
+      { role: 'attorney' },
+      { role: 'client', find_by_phone: true },
+    ]);
     expect(where.phone_verified_at).toEqual({ not: null });
     expect(where.deleted_at).toBeNull();
     // what is written: ids only
@@ -155,6 +182,36 @@ describe('ContactsSyncService.upload', () => {
   });
 });
 
+describe('ContactsSyncService limits and privacy', () => {
+  it('refuses an account past its daily hash cap', async () => {
+    const { svc, redis, prisma } = make();
+    redis.incrby.mockResolvedValue(HASHES_PER_ACCOUNT_PER_DAY + 1);
+    await expect(svc.upload('me', [sha('a')])).rejects.toMatchObject({
+      status: 429,
+    });
+    expect(prisma.user.findMany).not.toHaveBeenCalled();
+  });
+
+  it('counts the address too', async () => {
+    const { svc, redis } = make();
+    await svc.upload('me', [sha('a')], '1.2.3.4');
+    const keys = redis.incrby.mock.calls.map((c: unknown[]) => String(c[0]));
+    expect(keys.some((k) => k.includes(':ip:1.2.3.4:'))).toBe(true);
+  });
+
+  it('turning "find me" off drops me from other people lists', async () => {
+    const { svc, prisma } = make();
+    await svc.setFindByPhone('me', false);
+    expect(prisma.user.update).toHaveBeenCalledWith({
+      where: { id: 'me' },
+      data: { find_by_phone: false },
+    });
+    expect(prisma.contactMatch.deleteMany).toHaveBeenCalledWith({
+      where: { matched_id: 'me' },
+    });
+  });
+});
+
 describe('ContactsSyncService.remove / status', () => {
   it('DELETE removes every match and turns the sync off', async () => {
     const { svc, prisma, redis } = make();
@@ -176,6 +233,8 @@ describe('ContactsSyncService.remove / status', () => {
       enabled: false,
       matches: 0,
       syncedAt: null,
+      findByPhone: true,
+      phoneRegion: 'KG',
     });
   });
 });
