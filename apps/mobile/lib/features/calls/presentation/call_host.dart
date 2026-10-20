@@ -12,7 +12,6 @@ import 'package:lawbid/features/calls/application/callkit_bridge.dart';
 import 'package:lawbid/features/chat/application/voice_recorder.dart'
     show voiceClock;
 import 'package:lawbid/features/chat/chat_routes.dart';
-import 'package:lawbid/features/social/application/social_providers.dart';
 
 /// OQ-041: opens the call screen over whatever is on screen when a call
 /// starts here or rings in (the screen closes itself when it is over).
@@ -199,7 +198,7 @@ class _IncomingBanner extends ConsumerWidget {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    final me = ref.watch(currentUserIdProvider);
+    final me = ref.watch(callMyIdProvider);
     final name = callLabel(session, me);
     final call = ref.read(callControllerProvider.notifier);
     Widget round(IconData icon, Color fill, String label, VoidCallback tap) =>
