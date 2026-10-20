@@ -92,6 +92,8 @@ class _FakeRepo implements CallsRepository {
   Completer<void>? startGate;
   Completer<void>? getGate;
   CallStatus getStatus = CallStatus.ringing;
+  bool getThrows = false;
+  int gets = 0;
   List<CallMember> getMembers = const [];
 
   @override
@@ -154,6 +156,8 @@ class _FakeRepo implements CallsRepository {
 
   @override
   Future<AppCall> get(String callId) async {
+    gets++;
+    if (getThrows) throw StateError('no network');
     if (getGate != null) await getGate!.future;
     return _call(callId, getStatus, outgoing: false, members: getMembers);
   }
@@ -641,6 +645,46 @@ void main() {
     await _settle();
     expect(h.s.phase, CallPhase.ended);
     expect(h.s.outcome, CallStatus.ended);
+  });
+
+  test(
+      'a call lasts an hour: the network blinks, the heartbeat fails for a '
+      'while, the link drops and comes back — still the same call', () {
+    fakeAsync((async) {
+      final h = _Harness();
+      h.c.call('conv', peer: _peer);
+      async.flushMicrotasks();
+      h.emit(
+        'call:accepted',
+        _event(_call('c1', CallStatus.active, outgoing: true)),
+      );
+      async.flushMicrotasks();
+      h.media.onState!(CallMediaState.connected);
+      async.flushMicrotasks();
+      expect(h.s.phase, CallPhase.active);
+      h.repo.getStatus = CallStatus.active;
+
+      for (var minute = 0; minute < 60; minute++) {
+        if (minute % 10 == 5) {
+          // Wi-Fi → LTE: the link drops, the requests fail for 40 s.
+          h.repo.getThrows = true;
+          h.media.onState!(CallMediaState.disconnected);
+          async.elapse(const Duration(seconds: 40));
+          expect(h.s.phase, CallPhase.active);
+          h.repo.getThrows = false;
+          h.media.onState!(CallMediaState.connected);
+          async.elapse(const Duration(seconds: 20));
+        } else {
+          async.elapse(const Duration(minutes: 1));
+        }
+        expect(h.s.phase, CallPhase.active, reason: 'minute $minute');
+      }
+      // The heartbeat kept running the whole hour.
+      expect(h.repo.gets, greaterThan(300));
+      h
+        ..sub.close()
+        ..container.dispose();
+    });
   });
 
   group('the ringing never goes on forever (owner 2026-10-20)', () {

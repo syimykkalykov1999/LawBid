@@ -279,7 +279,7 @@ describe('Group chat calls (e2e)', () => {
     // Bob's app is killed: no heartbeat for a minute. The others keep theirs.
     await prisma.callParticipant.updateMany({
       where: { call_id: callId, user_id: bob.id },
-      data: { updated_at: new Date(Date.now() - 60_000) },
+      data: { updated_at: new Date(Date.now() - 120_000) },
     });
     await api().get(`/api/v1/calls/${callId}`).set(auth(owner.id)).expect(200);
     const bobRow = await prisma.callParticipant.findUniqueOrThrow({
@@ -298,11 +298,93 @@ describe('Group chat calls (e2e)', () => {
     // The last other person silent too: the call is over.
     await prisma.callParticipant.updateMany({
       where: { call_id: callId, user_id: { in: [ann.id, owner.id] } },
-      data: { updated_at: new Date(Date.now() - 60_000) },
+      data: { updated_at: new Date(Date.now() - 120_000) },
     });
     await api().get(`/api/v1/groups/${gid}/call`).set(auth(ann.id)).expect(404);
     expect(
       (await prisma.call.findUniqueOrThrow({ where: { id: callId } })).status,
     ).toBe('ended');
+  });
+
+  it('red button of one person: the others go on; a decline, a late join and a re-join change nobody else', async () => {
+    const [owner, ann, bob, cy] = await Promise.all([
+      person('Own'),
+      person('Ann'),
+      person('Bob'),
+      person('Cy'),
+    ]);
+    const g = await api()
+      .post('/api/v1/groups')
+      .set(auth(owner.id))
+      .send({
+        title: 'Exits',
+        type: 'closed',
+        memberIds: [ann.id, bob.id, cy.id],
+      })
+      .expect(201);
+    const gid = g.body.data.id as string;
+    const started = await api()
+      .post(`/api/v1/groups/${gid}/calls`)
+      .set(auth(owner.id))
+      .send({ userIds: [ann.id, bob.id] })
+      .expect(201);
+    const callId = started.body.data.id as string;
+    const status = async () =>
+      (await prisma.call.findUniqueOrThrow({ where: { id: callId } })).status;
+    const row = async (id: string) =>
+      (
+        await prisma.callParticipant.findUniqueOrThrow({
+          where: { call_id_user_id: { call_id: callId, user_id: id } },
+        })
+      ).status;
+
+    // Ann declines the ring: the call and Bob's ring are untouched.
+    await api()
+      .post(`/api/v1/calls/${callId}/decline`)
+      .set(auth(ann.id))
+      .expect(200);
+    expect(await status()).toBe('active');
+    expect(await row(bob.id)).toBe('invited');
+    await api()
+      .post(`/api/v1/calls/${callId}/accept`)
+      .set(auth(bob.id))
+      .expect(200);
+
+    // Cy joins late, three are in; Bob presses red: owner and Cy go on.
+    await api()
+      .post(`/api/v1/calls/${callId}/join`)
+      .set(auth(cy.id))
+      .expect(200);
+    await api()
+      .post(`/api/v1/calls/${callId}/end`)
+      .set(auth(bob.id))
+      .send({})
+      .expect(200);
+    expect(await status()).toBe('active');
+    expect(await row(bob.id)).toBe('left');
+    expect(await row(owner.id)).toBe('joined');
+    expect(await row(cy.id)).toBe('joined');
+
+    // Bob (and Ann, who declined) come back to the running call.
+    await api()
+      .post(`/api/v1/calls/${callId}/join`)
+      .set(auth(bob.id))
+      .expect(200);
+    await api()
+      .post(`/api/v1/calls/${callId}/join`)
+      .set(auth(ann.id))
+      .expect(200);
+    expect(await row(bob.id)).toBe('joined');
+    expect(await row(ann.id)).toBe('joined');
+
+    // The host leaves, then everyone else: the last press ends the call.
+    for (const u of [owner, ann, bob]) {
+      await api()
+        .post(`/api/v1/calls/${callId}/end`)
+        .set(auth(u.id))
+        .send({})
+        .expect(200);
+    }
+    expect(await status()).toBe('ended');
   });
 });

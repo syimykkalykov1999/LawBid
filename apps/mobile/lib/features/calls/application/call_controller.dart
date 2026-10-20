@@ -215,7 +215,7 @@ const kCallRingGrace = Duration(seconds: 10);
 
 /// A dropped link gets this long to come back (new Wi-Fi / 4G network)
 /// before the call ends; the caller restarts ICE every few seconds.
-const kCallReconnectGrace = Duration(seconds: 30);
+const kCallReconnectGrace = Duration(seconds: 60);
 const kCallReconnectRetry = Duration(seconds: 6);
 
 /// How long the "Call ended" screen stays.
@@ -1261,7 +1261,14 @@ class CallController extends Notifier<CallSession> {
         _removedFromCall();
       case RealtimeEvent.reconnected:
         final id = state.call?.id;
-        if (id != null && state.busy) unawaited(_resync(id));
+        if (id != null && state.busy) {
+          unawaited(_resync(id));
+          // The socket came back: the network changed (Wi-Fi ↔ LTE) — the
+          // old media routes may be dead without any link state change yet.
+          for (final p in _offered.toList()) {
+            unawaited(_restartIce(p));
+          }
+        }
     }
   }
 
@@ -1284,7 +1291,24 @@ class CallController extends Notifier<CallSession> {
       final call = await _repo.get(callId);
       // A late answer about call A must not end the new call B.
       if (state.call?.id != callId) return;
-      if (!call.live && state.busy) _finish(call.status, call: call);
+      if (!call.live && state.busy) {
+        _finish(call.status, call: call);
+        return;
+      }
+      // The server let us go while the call lives (our heartbeat was missed
+      // for a long while): back in, so the call does not go on as a ghost.
+      final me = _me;
+      final mine = me == null
+          ? null
+          : call.participants.where((m) => m.userId == me).firstOrNull;
+      if (call.group &&
+          call.groupId != null &&
+          state.phase == CallPhase.active &&
+          (mine == null || !mine.joined) &&
+          mine?.status != CallMemberStatus.invited) {
+        final back = await _repo.join(callId);
+        if (state.call?.id == callId) _applyCall(back);
+      }
     } on Object {
       // Keep going; the next event decides.
     }

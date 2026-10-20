@@ -51,17 +51,19 @@ import {
 /** Unanswered after this → missed (the app gives up at 60 s, like WhatsApp). */
 export const CALL_RING_TIMEOUT_MS = 65_000;
 /** A call nobody ended (both apps died) is closed after this. */
-export const CALL_MAX_ACTIVE_MS = 4 * 60 * 60 * 1000;
+export const CALL_MAX_ACTIVE_MS = 12 * 60 * 60 * 1000;
 
 /** A running call nobody has asked about for this long is over: the apps
  * read it every ~8 s (heartbeat), so silence means both are gone. */
-export const CALL_SILENT_MS = 45 * 1000;
+export const CALL_SILENT_MS = 90 * 1000;
 const LIVE: CallStatus[] = ['ringing', 'active'];
 /** Mesh calls: every member sends audio to every other — a safe size. */
 export const GROUP_MAX_AUDIO = 6;
 export const GROUP_MAX_VIDEO = 4;
 const IN_CALL = ['joined', 'invited'];
-const TURN_TTL_SEC = 3600;
+// coturn checks the login on every refresh of a relay too: it must outlive
+// the longest call, or a relayed call drops when it expires.
+const TURN_TTL_SEC = 13 * 60 * 60;
 
 type Outcome = 'ended' | 'missed' | 'declined' | 'busy' | 'canceled' | 'failed';
 
