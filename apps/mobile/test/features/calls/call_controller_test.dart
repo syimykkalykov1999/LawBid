@@ -120,8 +120,13 @@ class _FakeRepo implements CallsRepository {
     return _call(callId, CallStatus.declined, outgoing: false);
   }
 
+  /// Whether the media was already closed when the hang-up reached us.
+  bool Function()? mediaClosed;
+  bool? closedAtEnd;
+
   @override
   Future<AppCall> end(String callId, CallEndReason reason) async {
+    closedAtEnd = mediaClosed?.call();
     ends.add(reason);
     return _call(callId, CallStatus.ended, outgoing: true);
   }
@@ -488,6 +493,43 @@ void main() {
     expect(h.s.reconnecting, isFalse);
     expect(h.s.phase, CallPhase.active);
     await h.c.hangUp();
+  });
+
+  test('hanging up reaches the server before the media closes', () async {
+    final h = _Harness();
+    addTearDown(h.dispose);
+    h.repo.mediaClosed = () => h.media.closed;
+    await h.c.call('conv', peer: _peer, video: true);
+    h.emit(
+      'call:accepted',
+      _event(_call('c1', CallStatus.active, outgoing: true)),
+    );
+    await _settle();
+    h.media.onState!(CallMediaState.connected);
+    await h.c.hangUp();
+    expect(h.repo.closedAtEnd, isFalse);
+    expect(h.media.closed, isTrue);
+  });
+
+  test('the link drops because the other side hung up: closes at once',
+      () async {
+    final h = _Harness();
+    addTearDown(h.dispose);
+    await h.c.call('conv', peer: _peer, video: true);
+    h.emit(
+      'call:accepted',
+      _event(_call('c1', CallStatus.active, outgoing: true)),
+    );
+    await _settle();
+    h.media.onState!(CallMediaState.connected);
+    expect(h.s.phase, CallPhase.active);
+
+    // The "ended" event never arrives; only the link goes.
+    h.repo.getStatus = CallStatus.ended;
+    h.media.onState!(CallMediaState.disconnected);
+    await _settle();
+    expect(h.s.phase, CallPhase.ended);
+    expect(h.s.reconnecting, isFalse);
   });
 
   test('ringing in: accept answers the offer', () async {

@@ -520,6 +520,10 @@ class CallController extends Notifier<CallSession> {
   Future<void> hangUp({CallEndReason reason = CallEndReason.hangup}) async {
     final call = state.call;
     final wasActive = state.phase == CallPhase.active;
+    // The server hears it first: the media closing sends the other phone a
+    // "link lost" before anything else, and it must not beat the hang-up
+    // (it showed "Reconnecting…" for seconds on a video call).
+    final ending = call == null ? null : _endQuietly(call.id, reason);
     _finish(
       switch (reason) {
         CallEndReason.noAnswer => CallStatus.missed,
@@ -528,7 +532,7 @@ class CallController extends Notifier<CallSession> {
           wasActive ? CallStatus.ended : CallStatus.canceled,
       },
     );
-    if (call != null) await _endQuietly(call.id, reason);
+    await ending;
   }
 
   void toggleMute() {
@@ -922,8 +926,10 @@ class CallController extends Notifier<CallSession> {
         // A short blip often heals by itself; a longer one is retried.
         _connected.remove(peer);
         if (state.phase == CallPhase.active) _startReconnect(peer);
+        _askServer();
       case CallMediaState.failed:
         _connected.remove(peer);
+        _askServer();
         if (state.phase == CallPhase.active) {
           _startReconnect(peer);
         } else if (state.busy) {
@@ -932,6 +938,14 @@ class CallController extends Notifier<CallSession> {
       case CallMediaState.connecting:
         break;
     }
+  }
+
+  /// A link dropped: the other side may simply have hung up, so ask the
+  /// server at once — if the call is over it closes now, not after the
+  /// reconnect timeout.
+  void _askServer() {
+    final id = state.call?.id;
+    if (id != null && state.busy) unawaited(_resync(id));
   }
 
   /// A link is gone for good. In a group the others go on (the next member
@@ -967,6 +981,7 @@ class CallController extends Notifier<CallSession> {
         if (state.busy) _linkLost(peer);
       }),
       retry: Timer.periodic(kCallReconnectRetry, (_) {
+        _askServer();
         unawaited(_restartIce(peer));
       }),
     );
