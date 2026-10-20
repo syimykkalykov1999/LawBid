@@ -72,6 +72,7 @@ class ConversationScreen extends ConsumerStatefulWidget {
 class _ConversationScreenState extends ConsumerState<ConversationScreen>
     with WidgetsBindingObserver {
   final _text = TextEditingController();
+  final _focus = FocusNode();
   bool _resumed = true;
 
   /// Owner 2026-10-01: the Emoji · Stickers panel in place of the keyboard.
@@ -108,6 +109,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _text.dispose();
+    _focus.dispose();
     super.dispose();
   }
 
@@ -335,6 +337,13 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
         ref.watch(chatMsgSelectionProvider(widget.conversationId)).isNotEmpty;
     // An edit loads the message into the field; closing it clears the field.
     ref.listen(chatComposeProvider(widget.conversationId), (prev, next) {
+      // A reply or an edit starts: the keyboard opens on the field.
+      if ((next.replyTo != null && next.replyTo?.id != prev?.replyTo?.id) ||
+          (next.editing != null && next.editing?.id != prev?.editing?.id)) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _focus.requestFocus();
+        });
+      }
       final e = next.editing;
       if (e != null && e.id != prev?.editing?.id) {
         _text.value = TextEditingValue(
@@ -478,6 +487,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                                     ChatPaymentBar(caseId: c.caseId!),
                                   if (compose.replyTo != null)
                                     ReplyQuote(
+                                      key: const ValueKey('reply-bar'),
                                       bar: true,
                                       mine: false,
                                       preview: ReplyPreview.of(
@@ -506,6 +516,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                                   _Composer(
                                     draftKey: widget.conversationId,
                                     controller: _text,
+                                    focusNode: _focus,
                                     onSend: _send,
                                     stickersOpen: _stickers,
                                     onStickers: _toggleStickers,
@@ -1200,7 +1211,6 @@ class _Bubble extends ConsumerWidget {
                               t.t('chat.edited'),
                               style: type.caption.copyWith(
                                 color: meta,
-                                fontSize: 11,
                                 fontStyle: FontStyle.italic,
                               ),
                             ),
@@ -1208,10 +1218,7 @@ class _Bubble extends ConsumerWidget {
                           ],
                           Text(
                             f.time(m.createdAt),
-                            style: type.caption.copyWith(
-                              color: meta,
-                              fontSize: 11,
-                            ),
+                            style: type.caption.copyWith(color: meta),
                           ),
                           if (mine && !m.revoked) ...[
                             const SizedBox(width: 4),
@@ -1824,6 +1831,7 @@ class _SubscriptionGate extends StatelessWidget {
 class _Composer extends ConsumerStatefulWidget {
   const _Composer({
     required this.controller,
+    required this.focusNode,
     required this.onSend,
     required this.onTyping,
     required this.onVoice,
@@ -1843,6 +1851,7 @@ class _Composer extends ConsumerStatefulWidget {
   final VoidCallback? onAttach;
 
   final TextEditingController controller;
+  final FocusNode focusNode;
   final VoidCallback onSend;
   // ignore: avoid_positional_boolean_parameters
   final void Function(bool active) onTyping;
@@ -2145,6 +2154,7 @@ class _ComposerState extends ConsumerState<_Composer> {
           child: TextField(
             onTapOutside: hideKeyboardOnTapOutside,
             controller: widget.controller,
+            focusNode: widget.focusNode,
             minLines: 1,
             maxLines: 5,
             maxLength: maxChars,

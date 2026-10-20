@@ -304,6 +304,7 @@ Future<void> showMessageMenu(
 
   await showAppBottomSheet<void>(
     context: context,
+    isScrollControlled: true,
     builder: (sheet) {
       void close() => Navigator.of(sheet).pop();
       Widget row(
@@ -325,118 +326,120 @@ Future<void> showMessageMenu(
             },
           );
       return SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const AppSheetHandle(),
-            if (live)
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.md,
-                  vertical: AppSpacing.sm,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const AppSheetHandle(),
+              if (live)
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.md,
+                    vertical: AppSpacing.sm,
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      for (final e in kQuickReactions)
+                        _ReactionButton(
+                          emoji: e,
+                          selected: e == myEmoji,
+                          onTap: () {
+                            close();
+                            unawaited(
+                              guarded(
+                                () => thread.react(m, e == myEmoji ? null : e),
+                              ),
+                            );
+                          },
+                        ),
+                    ],
+                  ),
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    for (final e in kQuickReactions)
-                      _ReactionButton(
-                        emoji: e,
-                        selected: e == myEmoji,
-                        onTap: () {
-                          close();
-                          unawaited(
-                            guarded(
-                              () => thread.react(m, e == myEmoji ? null : e),
-                            ),
-                          );
-                        },
+              if (readAt != null)
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.md,
+                    vertical: AppSpacing.sm,
+                  ),
+                  child: Row(
+                    key: const ValueKey('msg-read-at'),
+                    children: [
+                      AppIcon(AppIcons.doneAllRounded, color: colors.gold),
+                      const SizedBox(width: AppSpacing.sm),
+                      Text(
+                        [
+                          t.t('chat.seen'),
+                          if (!_sameDay(readAt, DateTime.now()))
+                            f.dayMonth(readAt),
+                          f.time(readAt),
+                        ].join(' · '),
+                        style: Theme.of(context)
+                            .extension<AppTypographyTokens>()!
+                            .body
+                            .copyWith(color: colors.textSecondary),
                       ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            if (readAt != null)
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.md,
-                  vertical: AppSpacing.sm,
+              if (live)
+                row(
+                  'reply',
+                  AppIcons.replyRounded,
+                  t.t('chat.act.reply'),
+                  () => compose.reply(m),
                 ),
-                child: Row(
-                  key: const ValueKey('msg-read-at'),
-                  children: [
-                    AppIcon(AppIcons.doneAllRounded, color: colors.gold),
-                    const SizedBox(width: AppSpacing.sm),
-                    Text(
-                      [
-                        t.t('chat.seen'),
-                        if (!_sameDay(readAt, DateTime.now()))
-                          f.dayMonth(readAt),
-                        f.time(readAt),
-                      ].join(' · '),
-                      style: Theme.of(context)
-                          .extension<AppTypographyTokens>()!
-                          .body
-                          .copyWith(color: colors.textSecondary),
-                    ),
-                  ],
+              if (text)
+                row(
+                  'copy',
+                  AppIcons.copyOutlined,
+                  t.t('chat.act.copy'),
+                  () => unawaited(copyMessages(context, ref, [m])),
                 ),
-              ),
-            if (live)
+              if (canForward(m))
+                row(
+                  'forward',
+                  AppIcons.forwardRounded,
+                  t.t('chat.act.forward'),
+                  () => unawaited(pickForwardTargets(context, ref, [m])),
+                ),
+              if (live && m.kind != MessageKind.system)
+                row(
+                  'pin',
+                  AppIcons.pushPinOutlined,
+                  t.t(m.pinned ? 'chat.act.unpin' : 'chat.act.pin'),
+                  () => unawaited(
+                    guarded(() => thread.setPinned(m, pinned: !m.pinned)),
+                  ),
+                ),
+              if (mine && thread.canEdit(m))
+                row(
+                  'edit',
+                  AppIcons.editOutlined,
+                  t.t('chat.act.edit'),
+                  () => compose.edit(m),
+                ),
               row(
-                'reply',
-                AppIcons.replyRounded,
-                t.t('chat.act.reply'),
-                () => compose.reply(m),
+                'select',
+                AppIcons.selectChecksRounded,
+                t.t('chat.act.select'),
+                () => selection.start(m.id),
               ),
-            if (text)
               row(
-                'copy',
-                AppIcons.copyOutlined,
-                t.t('chat.act.copy'),
-                () => unawaited(copyMessages(context, ref, [m])),
-              ),
-            if (canForward(m))
-              row(
-                'forward',
-                AppIcons.forwardRounded,
-                t.t('chat.act.forward'),
-                () => unawaited(pickForwardTargets(context, ref, [m])),
-              ),
-            if (live && m.kind != MessageKind.system)
-              row(
-                'pin',
-                AppIcons.pushPinOutlined,
-                t.t(m.pinned ? 'chat.act.unpin' : 'chat.act.pin'),
+                'delete',
+                AppIcons.deleteOutlineRounded,
+                t.t('chat.act.delete'),
                 () => unawaited(
-                  guarded(() => thread.setPinned(m, pinned: !m.pinned)),
+                  confirmDelete(context, ref, conversationId, [m]),
                 ),
+                destructive: true,
               ),
-            if (mine && thread.canEdit(m))
-              row(
-                'edit',
-                AppIcons.editOutlined,
-                t.t('chat.act.edit'),
-                () => compose.edit(m),
+              SizedBox(
+                height: AppSpacing.md,
+                child: ColoredBox(color: colors.bg),
               ),
-            row(
-              'select',
-              AppIcons.selectChecksRounded,
-              t.t('chat.act.select'),
-              () => selection.start(m.id),
-            ),
-            row(
-              'delete',
-              AppIcons.deleteOutlineRounded,
-              t.t('chat.act.delete'),
-              () => unawaited(
-                confirmDelete(context, ref, conversationId, [m]),
-              ),
-              destructive: true,
-            ),
-            SizedBox(
-              height: AppSpacing.md,
-              child: ColoredBox(color: colors.bg),
-            ),
-          ],
+            ],
+          ),
         ),
       );
     },
@@ -473,7 +476,13 @@ class _ReactionButton extends StatelessWidget {
             color: selected ? colors.goldTint : null,
             border: selected ? Border.all(color: colors.gold) : null,
           ),
-          child: Text(emoji, style: const TextStyle(fontSize: 26)),
+          child: Text(
+            emoji,
+            style: Theme.of(context)
+                .extension<AppTypographyTokens>()!
+                .titleLarge
+                .copyWith(height: 1),
+          ),
         ),
       ),
     );
@@ -650,47 +659,66 @@ class ReplyQuote extends ConsumerWidget {
                 ? Colors.black.withValues(alpha: 0.18)
                 : Colors.black.withValues(alpha: 0.06)),
         borderRadius: BorderRadius.circular(bar ? 0 : 10),
-        border: BorderDirectional(
-          start: BorderSide(color: colors.gold, width: 3),
-        ),
       ),
-      padding: const EdgeInsetsDirectional.fromSTEB(10, 6, 8, 6),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  bar ? t.t('chat.reply.to', {'name': who}) : who,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: type.caption.copyWith(
-                    color: colors.gold,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                Text(
-                  body,
-                  maxLines: bar ? 1 : 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: type.caption.copyWith(
-                    color: preview.revoked ? meta : fg,
-                    fontStyle:
-                        preview.revoked ? FontStyle.italic : FontStyle.normal,
-                  ),
-                ),
-              ],
+      // The gold edge is its own block: a one-sided border cannot be
+      // rounded (it asserted and the whole quote vanished).
+      clipBehavior: Clip.antiAlias,
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            ColoredBox(
+              color: colors.gold,
+              child: const SizedBox(width: 3),
             ),
-          ),
-          if (onClose != null)
-            AppIconButton(
-              icon: AppIcon(AppIcons.closeRounded, color: colors.textSecondary),
-              semanticLabel: t.t('common.cancel'),
-              onPressed: onClose,
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsetsDirectional.fromSTEB(10, 6, 8, 6),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            bar ? t.t('chat.reply.to', {'name': who}) : who,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: type.caption.copyWith(
+                              color: colors.gold,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          Text(
+                            body,
+                            maxLines: bar ? 1 : 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: type.caption.copyWith(
+                              color: preview.revoked ? meta : fg,
+                              fontStyle: preview.revoked
+                                  ? FontStyle.italic
+                                  : FontStyle.normal,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (onClose != null)
+                      AppIconButton(
+                        icon: AppIcon(
+                          AppIcons.closeRounded,
+                          color: colors.textSecondary,
+                        ),
+                        semanticLabel: t.t('common.cancel'),
+                        onPressed: onClose,
+                      ),
+                  ],
+                ),
+              ),
             ),
-        ],
+          ],
+        ),
       ),
     );
     return onTap == null
@@ -941,39 +969,61 @@ class PinnedBanner extends ConsumerWidget {
                       shrinkWrap: true,
                       children: [
                         for (final m in pins)
-                          ListTile(
-                            title: Text(
-                              previewText(t, m),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: type.body.copyWith(color: colors.text),
+                          Padding(
+                            padding: const EdgeInsetsDirectional.only(
+                              start: AppSpacing.screenSide,
+                              end: AppSpacing.xs,
                             ),
-                            subtitle: Text(
-                              f.time(m.createdAt),
-                              style: type.caption
-                                  .copyWith(color: colors.textSecondary),
-                            ),
-                            trailing: AppIconButton(
-                              icon: AppIcon(
-                                AppIcons.pushPin,
-                                color: colors.gold,
-                              ),
-                              semanticLabel: t.t('chat.act.unpin'),
-                              onPressed: () async {
-                                final n = ref.read(
-                                  chatThreadProvider(conversationId).notifier,
-                                );
-                                try {
-                                  await n.setPinned(m, pinned: false);
-                                } on Object catch (e) {
-                                  if (context.mounted) {
-                                    showAppSnackBar(context, _errorOf(t, e));
-                                  }
-                                }
-                                if (pins.length <= 1 && sheet.mounted) {
-                                  Navigator.of(sheet).pop();
-                                }
-                              },
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        previewText(t, m),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: type.body
+                                            .copyWith(color: colors.text),
+                                      ),
+                                      Text(
+                                        f.time(m.createdAt),
+                                        style: type.caption.copyWith(
+                                          color: colors.textSecondary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                AppIconButton(
+                                  icon: AppIcon(
+                                    AppIcons.pushPin,
+                                    color: colors.gold,
+                                  ),
+                                  semanticLabel: t.t('chat.act.unpin'),
+                                  onPressed: () async {
+                                    final n = ref.read(
+                                      chatThreadProvider(conversationId)
+                                          .notifier,
+                                    );
+                                    try {
+                                      await n.setPinned(m, pinned: false);
+                                    } on Object catch (e) {
+                                      if (context.mounted) {
+                                        showAppSnackBar(
+                                          context,
+                                          _errorOf(t, e),
+                                        );
+                                      }
+                                    }
+                                    if (pins.length <= 1 && sheet.mounted) {
+                                      Navigator.of(sheet).pop();
+                                    }
+                                  },
+                                ),
+                              ],
                             ),
                           ),
                       ],
