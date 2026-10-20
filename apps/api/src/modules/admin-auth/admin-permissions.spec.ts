@@ -350,6 +350,9 @@ describe('«без персональных данных» (owner 2026-10-16)', 
     for (const p of [
       `${base}/export/users`,
       `${base}/data-requests`,
+      `${base}/data-requests/legal/lookup`,
+      `${base}/data-requests/legal/users/x`,
+      `${base}/data-requests/legal/requests/x/exports`,
       `${base}/partners/commissions/export.csv`,
     ]) {
       expect(canAccess('finance', perms, p, 'GET', false, null, true)).toBe(
