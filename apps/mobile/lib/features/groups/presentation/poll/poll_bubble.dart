@@ -7,12 +7,17 @@ class PollBubble extends StatelessWidget {
     required this.groupId,
     required this.message,
     required this.canClose,
+    this.onPollChanged,
     super.key,
   });
 
   final String groupId;
   final api.GroupMessageDto message;
   final bool canClose;
+
+  /// Called with the fresh poll after my own vote / close, so the chat
+  /// list can keep it.
+  final void Function(api.PollDto poll)? onPollChanged;
 
   @override
   Widget build(BuildContext context) => const SizedBox.shrink();
