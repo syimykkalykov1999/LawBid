@@ -734,25 +734,6 @@ class ConversationsView extends ConsumerWidget {
                   onChanged: onQuery!,
                 ),
               ),
-              // «New group» / «Find groups» — visible, not only in ⋮.
-              if (!ref.watch(isAssistantProvider))
-                Padding(
-                  padding: const EdgeInsetsDirectional.only(
-                    end: AppSpacing.xs,
-                  ),
-                  child: SizedBox.square(
-                    dimension: AppSizes.touchTarget,
-                    child: AppIconButton(
-                      key: const ValueKey('chats-compose'),
-                      icon: AppIcon(
-                        AppIcons.groupAddOutlined,
-                        color: colors.text,
-                      ),
-                      semanticLabel: t.t('group.new'),
-                      onPressed: () => _showGroupActions(context, ref, t),
-                    ),
-                  ),
-                ),
             ],
           ),
         if (onFolder != null) ...[
@@ -771,31 +752,6 @@ Widget _entryRow(ChatListEntry e, {String highlight = ''}) => switch (e) {
       GroupChatEntry(:final group) =>
         GroupChatTile(group: group, highlight: highlight),
     };
-
-/// The compose button: «New group» · «Find groups».
-Future<void> _showGroupActions(
-  BuildContext context,
-  WidgetRef ref,
-  Translator t,
-) async {
-  final pick = await showAppBottomSheet<String>(
-    context: context,
-    builder: (ctx) => SafeArea(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const SizedBox(height: AppSpacing.sm),
-          const AppSheetHandle(),
-          ..._groupMenuRows(ctx, t),
-          const SizedBox(height: AppSpacing.md),
-        ],
-      ),
-    ),
-  );
-  if (!context.mounted) return;
-  if (pick == 'new') unawaited(context.push(GroupRoutes.create));
-  if (pick == 'find') unawaited(context.push(GroupRoutes.find));
-}
 
 /// OQ-043: message requests sent to me — open one to accept or delete.
 class MessageRequestsView extends ConsumerWidget {
