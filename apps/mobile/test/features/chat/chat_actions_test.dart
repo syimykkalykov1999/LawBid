@@ -178,7 +178,7 @@ const _overview = StarsOverview(
   balance: 0,
   packs: [],
   giftConvertPercent: 70,
-  premiumReactions: ['🔥', '🏆'],
+  premiumReactions: ['🔥', '🏆', '💯', '👏', '🤝', '⚖️', '🎉', '💎'],
 );
 
 void main() {
@@ -239,7 +239,12 @@ void main() {
         findsOneWidget,
       );
       expect(find.byKey(const ValueKey('react-price-🔥')), findsOneWidget);
-      expect(find.text('3 ⭐'), findsNWidgets(2));
+      expect(find.text('3 ⭐'), findsNWidgets(8));
+      // Eight emojis make two even rows of four, never 7 + 1.
+      double top(String e) => tester.getTopLeft(find.text(e)).dy;
+      expect(top('🔥'), top('👏'));
+      expect(top('🤝'), top('💎'));
+      expect(top('🤝'), greaterThan(top('🔥')));
 
       await tester.tap(find.text('🔥'));
       await settle();

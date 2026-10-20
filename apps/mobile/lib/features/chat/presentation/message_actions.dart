@@ -383,25 +383,37 @@ Future<void> showMessageMenu(
                   padding: const EdgeInsets.symmetric(
                     horizontal: AppSpacing.md,
                   ),
-                  child: Wrap(
+                  // Even rows (7 at most), the same column width in each, so
+                  // a last emoji never hangs alone on its own line.
+                  child: Column(
                     key: const ValueKey('msg-premium-reactions'),
-                    alignment: WrapAlignment.spaceBetween,
-                    runSpacing: AppSpacing.xs,
                     children: [
-                      for (final e in premium.premiumReactions)
-                        _ReactionButton(
-                          emoji: e,
-                          selected: e == myEmoji,
-                          price: premium.reactionStars,
-                          onTap: () {
-                            close();
-                            unawaited(
-                              guarded(
-                                () => thread.react(m, e == myEmoji ? null : e),
-                                price: premium.reactionStars,
+                      for (final row in _evenRows(premium.premiumReactions, 7))
+                        Row(
+                          children: [
+                            for (final e in row)
+                              Expanded(
+                                child: Center(
+                                  child: _ReactionButton(
+                                    emoji: e,
+                                    selected: e == myEmoji,
+                                    price: premium.reactionStars,
+                                    onTap: () {
+                                      close();
+                                      unawaited(
+                                        guarded(
+                                          () => thread.react(
+                                            m,
+                                            e == myEmoji ? null : e,
+                                          ),
+                                          price: premium.reactionStars,
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ),
                               ),
-                            );
-                          },
+                          ],
                         ),
                     ],
                   ),
@@ -527,6 +539,17 @@ Future<void> showMessageMenu(
       );
     },
   );
+}
+
+/// [items] in the fewest rows of at most [max], filled evenly (8 → 4 + 4).
+List<List<T>> _evenRows<T>(List<T> items, int max) {
+  if (items.isEmpty) return const [];
+  final rows = (items.length + max - 1) ~/ max;
+  final per = (items.length + rows - 1) ~/ rows;
+  return [
+    for (var i = 0; i < items.length; i += per)
+      items.sublist(i, i + per > items.length ? items.length : i + per),
+  ];
 }
 
 /// The premium emojis and their price; `null` when stars are unreachable.
