@@ -478,6 +478,9 @@ class CallController extends Notifier<CallSession> {
       _startSync();
       // Mic + connection ready while it rings: pick-up connects faster.
       await _openMedia(call.id, video: call.video, peer: call.peer.id);
+      if (gen == _gen && state.phase == CallPhase.outgoing) {
+        unawaited(ref.read(appSoundsProvider).keepRingback());
+      }
     } on ApiException catch (e) {
       if (gen != _gen) return;
       final raw = (e.details ?? const <String, dynamic>{})['callId'];

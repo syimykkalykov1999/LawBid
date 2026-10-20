@@ -356,6 +356,9 @@ class _Sounds implements AppSounds {
   Future<void> startRingback() async => played.add('ringback');
   @override
   Future<void> stopRingback() async => played.add('stop');
+  int kept = 0;
+  @override
+  Future<void> keepRingback() async => kept++;
   final rings = <String>[];
   @override
   Future<void> startRingtone() async => rings.add('ring');
@@ -474,6 +477,8 @@ void main() {
     expect(h.media.opened, isTrue);
     // OQ-044: ringback while it rings there.
     expect(h.sounds.played, ['ringback']);
+    // The call's audio session opened under it: the tone is kept going.
+    expect(h.sounds.kept, 1);
 
     h.emit(
       'call:accepted',
