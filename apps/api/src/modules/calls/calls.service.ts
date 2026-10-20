@@ -396,10 +396,20 @@ export class CallsService {
     const call = await this.load(user, id);
     if (LIVE.includes(call.status)) {
       // The app asks every few seconds while it is in the call: a heartbeat.
+      const now = new Date();
       await this.prisma.call.updateMany({
         where: { id: call.id, status: { in: LIVE } },
-        data: { updated_at: new Date() },
+        data: { updated_at: now },
       });
+      // A group call has one heartbeat per person: whoever's app died (swiped
+      // away, no network) is dropped on their own silence, not kept by the
+      // others' heartbeats.
+      if (call.is_group) {
+        await this.prisma.callParticipant.updateMany({
+          where: { call_id: call.id, user_id: user.sub, status: 'joined' },
+          data: { updated_at: now },
+        });
+      }
     }
     return this.toDto(call, user.sub);
   }
@@ -480,6 +490,7 @@ export class CallsService {
       await this.finish(c, c.status === 'ringing' ? 'missed' : 'ended', null);
     }
     await this.sweepInvites(now);
+    await this.sweepSilentMembers(now);
     return stale.length;
   }
 
@@ -1189,6 +1200,45 @@ export class CallsService {
       });
       await this.broadcastParticipants(row.call_id);
       await this.endIfAlone(row.call_id);
+    }
+  }
+
+  /** A joined member of a group call whose app has been silent for
+   * `CALL_SILENT_MS` (swiped away, dead network) leaves it; the call goes on
+   * for the rest, or ends when fewer than two remain. Without this a person
+   * stayed "in a call" for ever: every next call said 409. */
+  private async sweepSilentMembers(now: Date): Promise<void> {
+    const silent = await this.prisma.callParticipant.findMany({
+      where: {
+        status: 'joined',
+        updated_at: { lt: new Date(now.getTime() - CALL_SILENT_MS) },
+        call: { status: 'active', is_group: true },
+      },
+      take: 200,
+    });
+    for (const row of silent) {
+      const { count } = await this.prisma.callParticipant.updateMany({
+        where: { id: row.id, status: 'joined' },
+        data: { status: 'left', left_at: now },
+      });
+      if (count === 0) continue;
+      await this.push.enqueueCallEnded({
+        recipientId: row.user_id,
+        callId: row.call_id,
+        ended: true,
+      });
+      const call = await this.prisma.call.findUnique({
+        where: { id: row.call_id },
+      });
+      if (!call || call.status !== 'active') continue;
+      const joined = (await this.rowsOf(call.id)).filter(
+        (r) => r.status === 'joined',
+      );
+      if (joined.length < 2) {
+        await this.finish(call, 'ended', null);
+      } else {
+        await this.broadcastParticipants(call.id, [row.user_id]);
+      }
     }
   }
 

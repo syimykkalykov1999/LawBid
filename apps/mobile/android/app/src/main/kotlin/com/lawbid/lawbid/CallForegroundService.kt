@@ -24,12 +24,16 @@ class CallForegroundService : Service() {
 
     private var wakeLock: android.os.PowerManager.WakeLock? = null
 
-    /** Swiped from the recent apps: like WhatsApp the call goes on — this
-     * service keeps the process (and the Dart side) alive, and a tap on the
-     * notification brings the call screen back. If the system kills the
-     * process anyway the service dies with it (START_NOT_STICKY), so no
-     * "ongoing call" notification or microphone indicator can outlive it. */
+    /** Swiped from the recent apps: the Flutter engine lives in the activity
+     * and dies with it (the call's WebRTC and signaling are Dart), so a
+     * service that stayed would only show a call that is no longer there
+     * (device test 2026-10-20: audio mode normal, no way back, the server
+     * still held the person "in a call"). The notification and microphone
+     * indicator go with it; the server drops a silent member on its own
+     * (45 s without a heartbeat, calls.service.ts sweepSilentMembers). */
     override fun onTaskRemoved(rootIntent: Intent?) {
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        stopSelf()
         super.onTaskRemoved(rootIntent)
     }
 
