@@ -77,7 +77,7 @@ export class ChannelsController {
     @CurrentUser() user: RequestUser,
     @Query() q: ChannelListQueryDto,
   ): Promise<ChannelDto[]> {
-    return this.channels.list(user, q.scope, q.q);
+    return this.channels.list(user, q.scope, q.q, q.cursor);
   }
 
   @Post()

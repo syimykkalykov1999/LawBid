@@ -120,7 +120,6 @@ class _FindGroupsScreenState extends ConsumerState<FindGroupsScreen> {
               child: AppTextField(
                 key: const ValueKey('find-search'),
                 controller: _text,
-                autofocus: true,
                 hintText: t.t('group.find.hint'),
                 semanticLabel: t.t('group.find.hint'),
                 textInputAction: TextInputAction.search,
@@ -143,8 +142,51 @@ class _FindGroupsScreenState extends ConsumerState<FindGroupsScreen> {
     );
   }
 
+  Widget _rowOf(Translator t, api.GroupInvitePreviewDto g, String tag) =>
+      _GroupRow(
+        key: ValueKey('$tag-${g.id}'),
+        group: g,
+        t: t,
+        joining: _joining.contains(g.id),
+        requested: _requested.contains(g.id) || g.requestPending,
+        onOpen: () => context.push(
+          g.alreadyMember ? GroupRoutes.group(g.id) : GroupRoutes.join(g.code),
+        ),
+        onJoin: () => _join(t, g),
+      );
+
+  /// Nothing typed: the «Recommended» section (ranked for me, paged).
+  Widget _recommended(Translator t) {
+    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final notifier = ref.read(recommendedGroupsProvider.notifier);
+    return PagedListBody<api.GroupInvitePreviewDto>(
+      value: ref.watch(recommendedGroupsProvider),
+      t: t,
+      itemKey: (g) => g.id,
+      itemBuilder: (context, g, _) => _rowOf(t, g, 'reco'),
+      skeleton: const CasesListSkeleton(),
+      header: Text(
+        t.t('reco.title'),
+        key: const ValueKey('reco-title'),
+        style: typography.caption.copyWith(
+          color: colors.textSecondary,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      empty: AppEmptyState(
+        icon: AppIcons.searchRounded,
+        message: t.t('group.find.initial'),
+      ),
+      onRefresh: notifier.refresh,
+      onLoadMore: () => unawaited(notifier.loadMore()),
+      onRetryMore: () => unawaited(notifier.retryLoadMore()),
+    );
+  }
+
   Widget _body(Translator t) {
     final results = _results;
+    if (results == null && _query.isEmpty) return _recommended(t);
     if (results == null) {
       return AppEmptyState(
         icon: AppIcons.searchRounded,
@@ -162,20 +204,7 @@ class _FindGroupsScreenState extends ConsumerState<FindGroupsScreen> {
           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           itemCount: value.length,
           itemBuilder: (context, i) {
-            final g = value[i];
-            return _GroupRow(
-              key: ValueKey('found-${g.id}'),
-              group: g,
-              t: t,
-              joining: _joining.contains(g.id),
-              requested: _requested.contains(g.id) || g.requestPending,
-              onOpen: () => context.push(
-                g.alreadyMember
-                    ? GroupRoutes.group(g.id)
-                    : GroupRoutes.join(g.code),
-              ),
-              onJoin: () => _join(t, g),
-            );
+            return _rowOf(t, value[i], 'found');
           },
         ),
       AsyncError(:final error) => CasesErrorView(
@@ -251,6 +280,15 @@ class _GroupRow extends StatelessWidget {
                     Text(
                       [
                         if (username != null) '@$username',
+                        if ((group.mutualCount ?? 0) > 0)
+                          t.t(
+                            'reco.mutual',
+                            {
+                              'count': context.digits(
+                                group.mutualCount!.toInt(),
+                              ),
+                            },
+                          ),
                         t.t(
                           'group.find.members',
                           {'count': context.digits(group.memberCount.toInt())},

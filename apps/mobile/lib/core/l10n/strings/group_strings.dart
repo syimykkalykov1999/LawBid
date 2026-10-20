@@ -74,6 +74,8 @@ const groupRu = <String, String>{
   'group.find': 'Найти группы',
   'group.find.empty': 'Публичных групп по запросу «{query}» нет',
   'group.find.hint': 'Название или @username',
+  'reco.title': 'Рекомендуем',
+  'reco.mutual': '{count} общих',
   'group.find.initial':
       'Ищите публичные группы по названию или @username и вступайте.',
   'group.find.join': 'Вступить',
@@ -376,6 +378,8 @@ const groupEn = <String, String>{
   'group.find': 'Find groups',
   'group.find.empty': 'No public groups found for «{query}»',
   'group.find.hint': 'Group name or @username',
+  'reco.title': 'Recommended',
+  'reco.mutual': '{count} mutual',
   'group.find.initial':
       'Search public groups by name or @username and join them.',
   'group.find.join': 'Join',

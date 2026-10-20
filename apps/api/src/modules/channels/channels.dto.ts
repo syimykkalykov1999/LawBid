@@ -110,6 +110,14 @@ export class ChannelListQueryDto {
   @IsString()
   @MaxLength(64)
   q?: string;
+
+  @ApiPropertyOptional({
+    description: 'Discover without q: opaque cursor of the ranked list.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  cursor?: string;
 }
 
 export class CreateChannelDto {

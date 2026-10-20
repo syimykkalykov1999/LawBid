@@ -20,6 +20,7 @@ GroupInvitePreviewDto _$GroupInvitePreviewDtoFromJson(
   username: json['username'] as String?,
   description: json['description'] as String?,
   avatarUrl: json['avatarUrl'] as String?,
+  mutualCount: json['mutualCount'] as num?,
 );
 
 Map<String, dynamic> _$GroupInvitePreviewDtoToJson(
@@ -36,4 +37,5 @@ Map<String, dynamic> _$GroupInvitePreviewDtoToJson(
   'avatarUrl': ?instance.avatarUrl,
   'memberCount': instance.memberCount,
   'alreadyMember': instance.alreadyMember,
+  'mutualCount': ?instance.mutualCount,
 };

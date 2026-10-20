@@ -116,5 +116,7 @@
   "group.info.delete.confirm": {"en": "Continue", "ru": "Продолжить"},
   "group.info.delete.title2": {"en": "Delete for everyone?", "ru": "Удалить у всех?"},
   "group.info.delete.body2": {"en": "This cannot be undone.", "ru": "Это нельзя отменить."},
-  "group.info.delete.confirm2": {"en": "Delete group", "ru": "Удалить группу"}
+  "group.info.delete.confirm2": {"en": "Delete group", "ru": "Удалить группу"},
+  "reco.title": {"en": "Recommended", "ru": "Рекомендуем"},
+  "reco.mutual": {"en": "{count} mutual", "ru": "{count} общих"}
 }

@@ -59,6 +59,16 @@ abstract class GroupsClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
+  /// Recommended public groups for me (cached ranking, paged).
+  ///
+  /// [cursor] - Opaque cursor from nextCursor.
+  @GET('/groups/discover')
+  Future<GroupInvitePreviewListEnvelope> discoverGroups({
+    @Query('limit') num? limit = 15,
+    @Query('cursor') String? cursor,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
   /// Find public groups by title or @username
   @GET('/groups/search')
   Future<GroupInvitePreviewListEnvelope> searchPublicGroups({

@@ -66,6 +66,12 @@ class FakeGroupRepository implements GroupRepository {
   Future<List<api.GroupInvitePreviewDto>> searchPublic(String q) async => found;
 
   @override
+  Future<CursorPage<api.GroupInvitePreviewDto>> discover({
+    String? cursor,
+  }) async =>
+      CursorPage(items: found);
+
+  @override
   Future<api.GroupInvitePreviewDto> preview(String code) async => previewed!;
 
   @override
@@ -431,6 +437,7 @@ api.GroupInvitePreviewDto invitePreview({
       description: _longDescription,
       memberCount: 12345,
       alreadyMember: alreadyMember,
+      mutualCount: 12345,
     );
 
 List<api.PollVoterOptionDto> pollVoters() => [

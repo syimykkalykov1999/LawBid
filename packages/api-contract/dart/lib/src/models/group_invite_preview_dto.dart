@@ -22,6 +22,7 @@ class GroupInvitePreviewDto {
     this.username,
     this.description,
     this.avatarUrl,
+    this.mutualCount,
   });
 
   factory GroupInvitePreviewDto.fromJson(Map<String, Object?> json) =>
@@ -46,6 +47,9 @@ class GroupInvitePreviewDto {
 
   /// I am already in this group.
   final bool alreadyMember;
+
+  /// Recommendations only: people I share with this group.
+  final num? mutualCount;
 
   Map<String, Object?> toJson() => _$GroupInvitePreviewDtoToJson(this);
 }

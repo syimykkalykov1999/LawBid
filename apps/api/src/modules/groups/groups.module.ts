@@ -5,6 +5,7 @@ import { AdminAccessModule } from '../admin-access/admin-access.module';
 import { BlocksModule } from '../blocks/blocks.module';
 import { FilesModule } from '../files/files.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { RecommendationsModule } from '../recommendations/recommendations.module';
 import { PrivacySettingsModule } from '../privacy-settings/privacy-settings.module';
 import { AdminGroupsController } from './admin-groups.controller';
 import { AdminGroupsService } from './admin-groups.service';
@@ -22,6 +23,7 @@ import { GroupsService } from './groups.service';
     NotificationsModule,
     PrivacySettingsModule,
     UsernamesModule,
+    RecommendationsModule,
   ],
   controllers: [GroupsController, AdminGroupsController],
   providers: [

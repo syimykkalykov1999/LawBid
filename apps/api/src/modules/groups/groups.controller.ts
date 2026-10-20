@@ -39,6 +39,8 @@ import {
   SearchGroupsQueryDto,
   GroupIdParamDto,
   GroupInviteCodeParamDto,
+  GroupDiscoverPageDto,
+  GroupDiscoverQueryDto,
   GroupInvitePreviewDto,
   GroupMemberParamDto,
   GroupMessageDto,
@@ -100,6 +102,18 @@ export class GroupsController {
     @Body() dto: CreateGroupDto,
   ): Promise<GroupDetailDto> {
     return this.groups.create(user, dto);
+  }
+
+  @Get('discover')
+  @ApiOperation({
+    summary: 'Recommended public groups for me (cached ranking, paged)',
+  })
+  @ApiEnvelopeResponse(GroupInvitePreviewDto, { isArray: true })
+  discoverGroups(
+    @CurrentUser() user: RequestUser,
+    @Query() q: GroupDiscoverQueryDto,
+  ): Promise<GroupDiscoverPageDto> {
+    return this.groups.discover(user, q.cursor, q.limit);
   }
 
   @Get('search')

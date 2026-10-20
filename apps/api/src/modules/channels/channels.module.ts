@@ -5,6 +5,7 @@ import { FeatureFlagsModule } from '../feature-flags/feature-flags.module';
 import { FilesModule } from '../files/files.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { BlocksModule } from '../blocks/blocks.module';
+import { RecommendationsModule } from '../recommendations/recommendations.module';
 import { UserBriefModule } from '../user-brief/user-brief.module';
 import { VideosModule } from '../videos/videos.module';
 import { ChannelsController } from './channels.controller';
@@ -21,6 +22,7 @@ import { ChannelsService } from './channels.service';
     UserBriefModule,
     BlocksModule,
     UsernamesModule,
+    RecommendationsModule,
   ],
   controllers: [ChannelsController],
   providers: [ChannelsService],

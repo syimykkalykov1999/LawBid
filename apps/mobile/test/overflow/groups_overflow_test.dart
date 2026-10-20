@@ -361,6 +361,28 @@ void main() {
           await settle(tester);
         });
 
+        // 4b. Find groups, nothing typed: the «Recommended» section.
+        testWidgets('find groups recommended', (tester) async {
+          final repo = FakeGroupRepository(
+            const [],
+            null,
+            const [],
+            const [],
+            const [],
+            [
+              invitePreview(type: api.GroupType.public),
+              invitePreview(approval: false, type: api.GroupType.public),
+            ],
+          );
+          await pump(tester, const FindGroupsScreen(), repo);
+          await tester.pump(const Duration(seconds: 1));
+          expect(tester.takeException(), isNull);
+          expect(find.byKey(const ValueKey('reco-title')), findsOneWidget);
+          expect(find.byKey(const ValueKey('reco-g1')), findsWidgets);
+          await scrollThrough(tester);
+          await settle(tester);
+        });
+
         // 5. Join by link: needing approval, open, already a member.
         final joins = <String, api.GroupInvitePreviewDto>{
           'needs approval': invitePreview(),

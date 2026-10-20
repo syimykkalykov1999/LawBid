@@ -23,6 +23,7 @@ class _ChannelsClient implements ChannelsClient {
   @override
   Future<ChannelListEnvelope> channelList({
     String? q,
+    String? cursor,
     Scope2? scope = Scope2.discover,
     Map<String, dynamic>? extras,
   }) async {
@@ -30,6 +31,7 @@ class _ChannelsClient implements ChannelsClient {
     _extra.addAll(extras ?? <String, dynamic>{});
     final queryParameters = <String, dynamic>{
       r'q': q,
+      r'cursor': cursor,
       r'scope': scope?.toJson(),
     };
     queryParameters.removeWhere((k, v) => v == null);

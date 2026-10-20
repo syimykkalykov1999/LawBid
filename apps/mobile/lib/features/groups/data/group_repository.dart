@@ -34,6 +34,14 @@ class GroupRepository {
   Future<List<api.GroupInvitePreviewDto>> searchPublic(String q) async =>
       (await guardApiCall(() => _c.searchPublicGroups(q: q))).data;
 
+  /// «Recommended» public groups for me, ranked on the server (cached).
+  Future<CursorPage<api.GroupInvitePreviewDto>> discover({
+    String? cursor,
+  }) async {
+    final env = await guardApiCall(() => _c.discoverGroups(cursor: cursor));
+    return CursorPage(items: env.data, nextCursor: env.meta?.nextCursor);
+  }
+
   /// The group behind an invite link code (or a public @username).
   Future<api.GroupInvitePreviewDto> preview(String code) async =>
       (await guardApiCall(() => _c.previewGroupInvite(code: code))).data;

@@ -35,9 +35,12 @@ abstract class ChannelsClient {
   /// Channels: discover / search, the ones I follow, the ones I run.
   ///
   /// [q] - Title or @username.
+  ///
+  /// [cursor] - Discover without q: opaque cursor of the ranked list.
   @GET('/channels')
   Future<ChannelListEnvelope> channelList({
     @Query('q') String? q,
+    @Query('cursor') String? cursor,
     @Query('scope') Scope2? scope = Scope2.discover,
     @Extras() Map<String, dynamic>? extras,
   });

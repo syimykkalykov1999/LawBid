@@ -28,6 +28,8 @@ import { withTxRetry } from '../../prisma/tx-retry.util';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { BlocksService } from '../blocks/blocks.service';
 import { FilesService } from '../files/files.service';
+import { decodeOffset, encodeOffset } from '../recommendations/offset-cursor';
+import { RecommendationsService } from '../recommendations/recommendations.service';
 import { BadgesService } from '../notifications/badges.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { RealtimePublisher } from '../realtime/realtime-publisher.service';
@@ -48,6 +50,7 @@ import {
   type UpdateTopicDto,
   type GroupDetailDto,
   type GroupDto,
+  type GroupDiscoverPageDto,
   type GroupInvitePreviewDto,
   type GroupMessageDto,
   type GroupMessagePage,
@@ -123,6 +126,7 @@ export class GroupsService {
     private readonly presenter: GroupPresenter,
     private readonly addPolicy: GroupAddPolicy,
     private readonly usernames: UsernamePolicyService,
+    private readonly reco: RecommendationsService,
   ) {}
 
   // ------------------------------------------------------------ membership
@@ -882,6 +886,44 @@ export class GroupsService {
       take: 20,
     });
     return this.previews(rows, user.sub);
+  }
+
+  /**
+   * «Recommended» groups: the per-viewer snapshot of RecommendationsService,
+   * paged by an offset cursor. Rows that became mine after the snapshot are
+   * dropped here, so the list never offers a group I already joined.
+   */
+  async discover(
+    user: RequestUser,
+    cursor?: string,
+    limit = 15,
+  ): Promise<GroupDiscoverPageDto> {
+    const ranked = await this.reco.communities(user.sub, 'group');
+    const start = decodeOffset(cursor);
+    const slice = ranked.slice(start, start + limit);
+    const next =
+      start + limit < ranked.length ? encodeOffset(start + limit) : null;
+    if (slice.length === 0) return { items: [], nextCursor: next };
+    const rows = await this.prisma.chatGroup.findMany({
+      where: {
+        id: { in: slice.map((r) => r.id) },
+        group_type: 'public',
+        deleted_at: null,
+      },
+    });
+    const byId = new Map(rows.map((g) => [g.id, g]));
+    const ordered = slice.flatMap((r) => {
+      const g = byId.get(r.id);
+      return g ? [{ g, mutual: r.mutual }] : [];
+    });
+    const dtos = await this.previews(
+      ordered.map((o) => o.g),
+      user.sub,
+    );
+    const items = dtos
+      .map((d, i) => ({ ...d, mutualCount: ordered[i].mutual }))
+      .filter((d) => !d.alreadyMember && !d.requestPending);
+    return { items, nextCursor: next };
   }
 
   private async previews(

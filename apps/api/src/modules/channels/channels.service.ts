@@ -19,6 +19,8 @@ import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { BlocksService } from '../blocks/blocks.service';
 import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
 import { FilesService } from '../files/files.service';
+import { decodeOffset } from '../recommendations/offset-cursor';
+import { RecommendationsService } from '../recommendations/recommendations.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { UserBriefService } from '../user-brief/user-brief.service';
 import type {
@@ -87,6 +89,7 @@ export class ChannelsService {
     private readonly briefs: UserBriefService,
     private readonly notifications: NotificationsService,
     private readonly usernames: UsernamePolicyService,
+    private readonly reco: RecommendationsService,
   ) {}
 
   async assertEnabled(): Promise<void> {
@@ -105,6 +108,7 @@ export class ChannelsService {
     user: RequestUser,
     scope: 'discover' | 'subscribed' | 'managed' = 'discover',
     q?: string,
+    cursor?: string,
   ): Promise<ChannelDto[]> {
     await this.assertEnabled();
     const me = user.sub;
@@ -131,6 +135,7 @@ export class ChannelsService {
       rows.sort((a, b) => b.created_at.getTime() - a.created_at.getTime());
     } else {
       const term = (q ?? '').trim().replace(/^@/, '');
+      if (!term) return this.recommended(me, cursor);
       const hidden = await this.blocks.hiddenIds(me);
       rows = await this.prisma.channel.findMany({
         where: {
@@ -149,6 +154,37 @@ export class ChannelsService {
         take: 30,
       });
     }
+    return this.presentChannels(rows, me);
+  }
+
+  /**
+   * «Discover» without a search: channels ranked for me (shared people,
+   * practice, region, activity), from the cached snapshot, paged by cursor.
+   */
+  private async recommended(
+    me: string,
+    cursor?: string,
+  ): Promise<ChannelDto[]> {
+    const ranked = await this.reco.communities(me, 'channel');
+    const start = decodeOffset(cursor);
+    const ids = ranked.slice(start, start + 30).map((r) => r.id);
+    if (ids.length === 0) return [];
+    const found = await this.prisma.channel.findMany({
+      where: { id: { in: ids }, status: 'active' },
+    });
+    const byId = new Map(found.map((c) => [c.id, c]));
+    const subscribed = new Set(
+      (
+        await this.prisma.channelSubscription.findMany({
+          where: { user_id: me, channel_id: { in: ids } },
+          select: { channel_id: true },
+        })
+      ).map((s) => s.channel_id),
+    );
+    const rows = ids.flatMap((id) => {
+      const c = byId.get(id);
+      return c && !subscribed.has(id) ? [c] : [];
+    });
     return this.presentChannels(rows, me);
   }
 

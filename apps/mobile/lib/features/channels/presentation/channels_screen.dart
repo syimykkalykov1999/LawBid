@@ -236,6 +236,9 @@ class _ScopeList extends ConsumerWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final key = (scope: scope, query: query);
     final list = ref.watch(channelListProvider(key));
+    // Owner 2026-10-20: «Discover» opens with a «Recommended» section — the
+    // server ranks it for me when nothing is typed.
+    final recommended = scope == ChannelScope.discover && query.isEmpty;
 
     Future<void> refresh() async {
       ref.invalidate(channelListProvider(key));
@@ -254,13 +257,34 @@ class _ScopeList extends ConsumerWidget {
               top: AppSpacing.sm,
               bottom: AppSpacing.xxl,
             ),
-            itemCount: value.length,
+            itemCount: value.length + (recommended ? 1 : 0),
             separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.xs),
-            itemBuilder: (context, i) => ChannelRow(
-              key: ValueKey('channel-row-${value[i].id}'),
-              channel: value[i],
-              onTap: () => context.push(ChannelsRoutes.channel(value[i].id)),
-            ),
+            itemBuilder: (context, raw) {
+              if (recommended && raw == 0) {
+                return Padding(
+                  padding: const EdgeInsetsDirectional.symmetric(
+                    horizontal: AppSpacing.screenSide,
+                  ),
+                  child: Text(
+                    t.t('reco.title'),
+                    key: const ValueKey('channels-reco-title'),
+                    style: Theme.of(context)
+                        .extension<AppTypographyTokens>()!
+                        .caption
+                        .copyWith(
+                          color: colors.textSecondary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                );
+              }
+              final c = value[recommended ? raw - 1 : raw];
+              return ChannelRow(
+                key: ValueKey('channel-row-${c.id}'),
+                channel: c,
+                onTap: () => context.push(ChannelsRoutes.channel(c.id)),
+              );
+            },
           ),
         ),
       AsyncError(:final error) => CasesErrorView(

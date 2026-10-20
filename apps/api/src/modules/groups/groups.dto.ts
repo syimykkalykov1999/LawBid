@@ -896,6 +896,35 @@ export class GroupInvitePreviewDto {
 
   @ApiProperty({ description: 'I am already in this group.' })
   alreadyMember!: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Recommendations only: people I share with this group.',
+  })
+  mutualCount?: number;
+}
+
+export class GroupDiscoverQueryDto {
+  @ApiPropertyOptional({ description: 'Opaque cursor from nextCursor.' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  cursor?: string;
+
+  @ApiPropertyOptional({ minimum: 1, maximum: 30, default: 15 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(30)
+  limit?: number;
+}
+
+export class GroupDiscoverPageDto {
+  @ApiProperty({ type: () => [GroupInvitePreviewDto] })
+  items!: GroupInvitePreviewDto[];
+
+  @ApiPropertyOptional({ type: String, nullable: true })
+  nextCursor!: string | null;
 }
 
 export class GroupJoinResultDto {

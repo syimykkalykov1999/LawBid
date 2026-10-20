@@ -79,6 +79,24 @@ final archivedGroupsProvider = AsyncNotifierProvider.autoDispose<
   retry: _noRetry,
 );
 
+/// «Recommended» groups for the «Find groups» screen: ranked on the server
+/// from my people, practice, region and activity, paged by a cursor.
+class RecommendedGroupsNotifier
+    extends PagedNotifier<api.GroupInvitePreviewDto> {
+  @override
+  Future<CursorPage<api.GroupInvitePreviewDto>> fetch(String? cursor) =>
+      ref.read(groupRepositoryProvider).discover(cursor: cursor);
+
+  @override
+  Object idOf(api.GroupInvitePreviewDto item) => item.id;
+}
+
+final recommendedGroupsProvider = AsyncNotifierProvider.autoDispose<
+    RecommendedGroupsNotifier, PaginatedList<api.GroupInvitePreviewDto>>(
+  RecommendedGroupsNotifier.new,
+  retry: _noRetry,
+);
+
 // --- One group ---
 
 /// The group with its members; re-read on every `group:update` for it.
