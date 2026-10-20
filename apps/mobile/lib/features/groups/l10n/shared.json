@@ -1,0 +1,21 @@
+{
+  "group.someone": {"en": "Someone", "ru": "Кто-то"},
+  "group.you": {"en": "You", "ru": "Вы"},
+  "group.message.deleted": {"en": "Message deleted", "ru": "Сообщение удалено"},
+  "group.preview.poll": {"en": "Poll: {question}", "ru": "Опрос: {question}"},
+  "group.preview.photo": {"en": "Photo", "ru": "Фото"},
+  "group.preview.file": {"en": "File: {name}", "ru": "Файл: {name}"},
+  "group.system.created": {"en": "{name} created the group", "ru": "{name} создал(а) группу"},
+  "group.system.added": {"en": "{name} added {people}", "ru": "{name} добавил(а) {people}"},
+  "group.system.joined": {"en": "{name} joined the group", "ru": "{name} вступил(а) в группу"},
+  "group.system.left": {"en": "{name} left the group", "ru": "{name} вышел(а) из группы"},
+  "group.system.removed": {"en": "{name} removed {people}", "ru": "{name} удалил(а) {people}"},
+  "group.system.removedByAdmin": {"en": "{people} was removed by moderators", "ru": "{people} удалён(а) модераторами"},
+  "group.system.renamed": {"en": "{name} renamed the group to «{title}»", "ru": "{name} переименовал(а) группу в «{title}»"},
+  "group.system.photo": {"en": "{name} changed the group photo", "ru": "{name} изменил(а) фото группы"},
+  "group.system.description": {"en": "{name} changed the description", "ru": "{name} изменил(а) описание"},
+  "group.system.promoted": {"en": "{name} made {people} an admin", "ru": "{name} назначил(а) админом {people}"},
+  "group.system.demoted": {"en": "{name} removed admin rights from {people}", "ru": "{name} снял(а) права админа у {people}"},
+  "group.system.pinned": {"en": "{name} pinned a message", "ru": "{name} закрепил(а) сообщение"},
+  "group.system.topicCreated": {"en": "{name} created the topic «{title}»", "ru": "{name} создал(а) тему «{title}»"}
+}
