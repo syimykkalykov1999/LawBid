@@ -82,10 +82,10 @@ void main() {
       await t.pump();
       expect(t.takeException(), isNull);
       // Owner 2026-10-20: no views counter on feed cards; the like and
-      // comment counters sit right of their icons, none next to send.
+      // comment and send counters sit right of their icons.
       expect(find.byIcon(AppIcons.visibilityOutlined), findsNothing);
       expect(find.text('215K'), findsOneWidget);
-      expect(find.text('15K'), findsNothing);
+      expect(find.text('15K'), findsOneWidget);
       expect(find.text('1.2M'), findsOneWidget);
       expect(find.byType(BoostButton), findsNothing);
       expect(

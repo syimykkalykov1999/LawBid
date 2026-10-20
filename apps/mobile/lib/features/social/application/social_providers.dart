@@ -712,16 +712,17 @@ class SocialActions {
   Future<Object?> like(Post post) async =>
       _latest(post).likedByMe ? null : toggleLike(post);
 
-  /// OQ-037: a completed share — the counter moves at once.
+  /// OQ-037: a completed share. Owner 2026-10-20: the counter moves after
+  /// the server confirmed; the server counts one share per user per 24 h.
   Future<void> recordShare(Post post) async {
-    final before = _latest(post);
-    _ref
-        .read(postOverridesProvider.notifier)
-        .put(before.copyWith(shareCount: before.shareCount + 1));
     try {
       await _repo.recordPostShare(post.id);
+      final now = _latest(post);
+      _ref
+          .read(postOverridesProvider.notifier)
+          .put(now.copyWith(shareCount: now.shareCount + 1));
     } on Object {
-      _ref.read(postOverridesProvider.notifier).put(before);
+      // not counted
     }
   }
 

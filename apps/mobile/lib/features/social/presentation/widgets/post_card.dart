@@ -1126,8 +1126,10 @@ class _ThreadsPost extends ConsumerWidget {
                   padding: const EdgeInsetsDirectional.only(end: AppSpacing.sm),
                   child: Text(
                     SocialFormat.count(f, count),
+                    // The same number look as the post bar's (_Count).
                     style: type.bodySmall.copyWith(
-                      color: colors.textSecondary,
+                      color: colors.text,
+                      fontWeight: FontWeight.w500,
                       fontSize: 13,
                     ),
                   ),
@@ -1315,7 +1317,10 @@ class _ThreadsPost extends ConsumerWidget {
                       label: t.t(p.likedByMe ? 'post.unlike' : 'post.like'),
                       onTap: () => run(() => actions.toggleLike(p)),
                     ),
-                    0,
+                    // Owner 2026-10-20: the same «icon + number» as posts;
+                    // a tap on the number opens who liked.
+                    showLikeCount(ref, p) ? p.likeCount : 0,
+                    onCountTap: () => showLikersList(context, p.id),
                   ),
                   action(
                     BounceIcon(
@@ -1361,7 +1366,7 @@ class _ThreadsPost extends ConsumerWidget {
                       label: t.t('post.share'),
                       onTap: () => sharePost(context, ref, p),
                     ),
-                    0,
+                    p.shareCount,
                   ),
                 ],
               ),
@@ -2777,6 +2782,13 @@ class PostActionsBar extends ConsumerWidget {
                           commentsEnabled: post.commentsEnabled,
                         ),
                       ),
+                    if (post.shareCount > 0)
+                      _Stat(
+                        icon: AppIcons.sendOutlined,
+                        value: post.shareCount,
+                        color: colors.textSecondary,
+                        onTap: () => sharePost(context, ref, post),
+                      ),
                   ],
                   if (reactions) ...[
                     BounceIcon(
@@ -2818,6 +2830,7 @@ class PostActionsBar extends ConsumerWidget {
                       label: t.t('post.share'),
                       onTap: () => sharePost(context, ref, post),
                     ),
+                    if (post.shareCount > 0) _Count(post.shareCount),
                   ],
                 ],
               ),
