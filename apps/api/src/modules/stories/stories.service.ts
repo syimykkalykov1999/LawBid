@@ -110,9 +110,20 @@ export class StoriesService {
       select: { followee_id: true },
       take: TRAY_AUTHORS,
     });
-    const authorIds = follows
-      .map((f) => f.followee_id)
-      .filter((id) => !hidden.has(id));
+    // Owner 2026-10-20 (WhatsApp / Telegram): people I follow, people in my
+    // phone book and people who have me in theirs. What each of them lets me
+    // see is decided by `visibleToViewer` below.
+    const contacts = await this.prisma.contactMatch.findMany({
+      where: { OR: [{ owner_id: me }, { matched_id: me }] },
+      select: { owner_id: true, matched_id: true },
+      take: TRAY_AUTHORS,
+    });
+    const authorIds = [
+      ...new Set([
+        ...follows.map((f) => f.followee_id),
+        ...contacts.map((c) => (c.owner_id === me ? c.matched_id : c.owner_id)),
+      ]),
+    ].filter((id) => id !== me && !hidden.has(id));
     const rows = await this.prisma.story.findMany({
       where: {
         OR: [

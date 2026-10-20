@@ -38,6 +38,7 @@ import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart'
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/social/social_routes.dart';
 import 'package:lawbid/features/stars/presentation/gift_widgets.dart';
+import 'package:lawbid/features/stories/presentation/story_avatar_ring.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/features/translation/data/content_translation_repository.dart';
@@ -688,17 +689,21 @@ class _HeaderCard extends ConsumerWidget {
           shape: BoxShape.circle,
           border: Border.all(color: colors.bg, width: 2),
         ),
-        child: ProfileAvatar(
+        child: StoryAvatarRing(
+          userId: profile.id,
           size: _avatar,
-          url: profile.avatarUrl,
-          initials: initialsOf(
-            profile.firstName,
-            profile.lastName,
-            fallback: profile.username,
+          child: ProfileAvatar(
+            size: _avatar,
+            url: profile.avatarUrl,
+            initials: initialsOf(
+              profile.firstName,
+              profile.lastName,
+              fallback: profile.username,
+            ),
+            heroTag: attorneyAvatarHeroTag(profile.username),
+            semanticLabel: t.t('profile.avatar.label'),
+            viewerCloseLabel: t.t('common.close'),
           ),
-          heroTag: attorneyAvatarHeroTag(profile.username),
-          semanticLabel: t.t('profile.avatar.label'),
-          viewerCloseLabel: t.t('common.close'),
         ),
       ),
     );

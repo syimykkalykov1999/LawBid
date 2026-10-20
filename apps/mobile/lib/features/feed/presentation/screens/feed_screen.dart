@@ -290,8 +290,9 @@ class _TopicFeedState extends ConsumerState<_TopicFeed> {
           stateCodes: _states,
           onStates: (v) => setState(() => _states = v),
         ),
-        // Owner 2026-10-20: stories above the stream (own circle first).
-        const StoriesTray(),
+        // Owner 2026-10-20: stories live on the Chats screen; the feed only
+        // keeps the «posted» note of a finished publish.
+        const StoryPublishWatcher(),
         Expanded(
           // Owner 2026-09-30: News, or one qualification (with its
           // subcategories), optionally in states.

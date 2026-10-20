@@ -110,6 +110,11 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    // Owner 2026-10-20: the search is a magnifier in the folders row; a tap
+    // opens the field over the row.
+    expect(find.byKey(const ValueKey('chat-search')), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('chat-search-open')));
+    await tester.pumpAndSettle();
     expect(find.text('Search chats'), findsOneWidget);
     expect(find.text('Anna Petrova'), findsOneWidget);
     expect(find.text('Boris Ivanov'), findsOneWidget);
@@ -150,5 +155,11 @@ void main() {
     expect(find.text('Nothing found'), findsNothing);
     expect(find.text('Anna Petrova'), findsOneWidget);
     expect(find.text('Boris Ivanov'), findsOneWidget);
+
+    // The cross closes the field and the folder chips are back.
+    await tester.tap(find.byKey(const ValueKey('chat-search-close')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('chat-search')), findsNothing);
+    expect(find.byKey(const ValueKey('chat-folder-all')), findsOneWidget);
   });
 }

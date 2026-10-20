@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
 import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
@@ -14,6 +13,7 @@ import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/features/profile/presentation/widgets/client_social_profile.dart';
 import 'package:lawbid/features/profile/presentation/widgets/profile_avatar.dart';
+import 'package:lawbid/features/stories/presentation/story_avatar_ring.dart';
 
 /// The client's private profile (docs/03 §5): photo, name, state — no
 /// follower counters — and the "My cases" tab: a lock + "Visible only to
@@ -131,16 +131,20 @@ class _ClientBody extends ConsumerWidget {
       // avatar left, name and state beside it, no card frame.
       Row(
         children: [
-          ProfileAvatar(
+          StoryAvatarRing(
+            userId: profile.id,
             size: AppSizes.profileAvatar,
-            url: avatarUrl,
-            initials: initialsOf(
-              profile.firstName,
-              profile.lastName,
-              fallback: profile.username,
+            child: ProfileAvatar(
+              size: AppSizes.profileAvatar,
+              url: avatarUrl,
+              initials: initialsOf(
+                profile.firstName,
+                profile.lastName,
+                fallback: profile.username,
+              ),
+              semanticLabel: t.t('profile.avatar.label'),
+              viewerCloseLabel: t.t('common.close'),
             ),
-            semanticLabel: t.t('profile.avatar.label'),
-            viewerCloseLabel: t.t('common.close'),
           ),
           const SizedBox(width: AppSpacing.lg),
           Expanded(

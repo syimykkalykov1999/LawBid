@@ -121,6 +121,28 @@ describe('Stories (e2e)', () => {
     (await api().get(`/api/v1/stories/users/${author.id}`).set(viewer.auth))
       .body.data as { id: string; viewedByMe: boolean; canReply: boolean }[];
 
+  it('the tray also has people in my phone book and people who saved me', async () => {
+    const a = await attorney('Tray');
+    const saved = await client('Saved'); // a saved me
+    const savedBy = await client('SavedBy'); // I (a) saved this one
+    const stranger = await client('Stranger');
+    await prisma.contactMatch.create({
+      data: { owner_id: saved.id, matched_id: a.id },
+    });
+    await prisma.contactMatch.create({
+      data: { owner_id: a.id, matched_id: savedBy.id },
+    });
+    // «Contacts» stories reach people the AUTHOR saved.
+    const post = await text(a, { audience: 'contacts' });
+    expect(post.status).toBe(201);
+    expect((await tray(savedBy)).map((t) => t.user.id)).toContain(a.id);
+    expect((await tray(saved)).map((t) => t.user.id)).not.toContain(a.id);
+    expect((await tray(stranger)).map((t) => t.user.id)).not.toContain(a.id);
+    // A story shown to everyone reaches the person who saved the author too.
+    await text(a, { audience: 'all' });
+    expect((await tray(saved)).map((t) => t.user.id)).toContain(a.id);
+  });
+
   it('posts a text story; followers see it in the tray and mark it seen', async () => {
     const a = await attorney('Ann');
     const c = await client('Cleo');

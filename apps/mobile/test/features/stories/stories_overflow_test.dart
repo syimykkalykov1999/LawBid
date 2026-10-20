@@ -58,6 +58,8 @@ void main() {
         });
 
         testWidgets('creator: text story with stickers row', (tester) async {
+          final semantics = tester.ensureSemantics();
+          addTearDown(semantics.dispose);
           await pump(tester, const StoryCreatorScreen());
           await tester.tap(find.byKey(const ValueKey('story-pick-text')));
           await tester.pump(const Duration(milliseconds: 300));

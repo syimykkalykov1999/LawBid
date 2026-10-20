@@ -24,6 +24,7 @@ import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/presentation/chat_folders.dart';
 import 'package:lawbid/features/chat/presentation/chat_selection_bar.dart';
+import 'package:lawbid/features/chat/presentation/chats_filter_row.dart';
 import 'package:lawbid/features/groups/application/chat_list_merge.dart';
 import 'package:lawbid/features/groups/group_routes.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_chat_tile.dart';
@@ -33,12 +34,13 @@ import 'package:lawbid/features/onboarding/application/current_user_controller.d
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
+import 'package:lawbid/features/stories/presentation/stories_tray.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/features/team/presentation/team_inbox_tab.dart';
 import 'package:lawbid/features/team/team_routes.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
-import 'package:lawbid/shared/presentation/list_search_field.dart';
+import 'package:lawbid/shared/presentation/collapsing_header.dart';
 
 // OQ-048: [team] — assistants' approval requests and activity (attorney).
 enum InboxTab { chats, notifications, requests, team }
@@ -770,27 +772,25 @@ class ConversationsView extends ConsumerWidget {
         onRetryMore: n.retryLoadMore,
       );
     }
-    return Column(
-      children: [
-        if (onQuery != null)
-          Row(
-            children: [
-              Expanded(
-                child: ListSearchField(
-                  fieldKey: const ValueKey('chat-search'),
-                  hintKey: 'chat.search.hint',
-                  initial: query,
-                  onChanged: onQuery!,
-                ),
-              ),
-            ],
-          ),
-        if (onFolder != null) ...[
-          ChatFolderPills(value: folder, onChanged: onFolder!),
-          const SizedBox(height: AppSpacing.sm),
-        ],
-        Expanded(child: body),
-      ],
+    final filters = onQuery != null && onFolder != null
+        ? ChatsFilterRow(
+            folder: folder,
+            onFolder: onFolder!,
+            query: query,
+            onQuery: onQuery!,
+          )
+        : onFolder != null
+            ? Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                child: ChatFolderPills(value: folder, onChanged: onFolder!),
+              )
+            : null;
+    // Owner 2026-10-20 (Telegram): the stories strip above the folders,
+    // folded away while the list is scrolled down.
+    return CollapsingHeader(
+      collapsible: const StoriesTray(),
+      pinned: filters,
+      body: body,
     );
   }
 }
@@ -914,7 +914,8 @@ class ConversationRow extends ConsumerWidget {
             ? AppIcons.scheduleSendOutlined
             : AppIcons.personOutlineRounded);
     final hasNote = c.note != null && c.note!.trim().isNotEmpty;
-    // Owner 2026-10-19: the time sits in the row's bottom right corner.
+    // Owner 2026-10-20 (Telegram / WhatsApp): the time sits top right on the
+    // title's line, at the same height in every row whatever the preview.
     final time = c.lastMessageAt == null
         ? null
         : ConstrainedBox(
@@ -1059,6 +1060,10 @@ class ConversationRow extends ConsumerWidget {
                                 onTap: () => showChatNoteSheet(context, ref, c),
                               ),
                             ],
+                            if (time != null) ...[
+                              const SizedBox(width: AppSpacing.sm),
+                              time,
+                            ],
                           ],
                         ),
                         const SizedBox(height: 2),
@@ -1140,24 +1145,9 @@ class ConversationRow extends ConsumerWidget {
                               const SizedBox(width: AppSpacing.sm),
                               CountPill(count: c.unreadCount),
                             ],
-                            if (metas.isEmpty && time != null) ...[
-                              const SizedBox(width: AppSpacing.sm),
-                              time,
-                            ],
                           ],
                         ),
-                        for (var m = 0; m < metas.length; m++)
-                          if (m == metas.length - 1 && time != null)
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                Expanded(child: metas[m]),
-                                const SizedBox(width: AppSpacing.sm),
-                                time,
-                              ],
-                            )
-                          else
-                            metas[m],
+                        ...metas,
                       ],
                     ),
                   ),

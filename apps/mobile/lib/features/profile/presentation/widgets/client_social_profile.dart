@@ -34,6 +34,7 @@ import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart'
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/social/social_routes.dart';
 import 'package:lawbid/features/stars/presentation/gift_widgets.dart';
+import 'package:lawbid/features/stories/presentation/story_avatar_ring.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/shared/presentation/share_sheet.dart';
@@ -204,16 +205,20 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
                 size: AppSizes.profileAvatar,
                 trustLevel: 0,
                 goldLabel: p.verified ? t.t('profile.verified.label') : null,
-                child: ProfileAvatar(
+                child: StoryAvatarRing(
+                  userId: p.id,
                   size: AppSizes.profileAvatar,
-                  url: p.avatarUrl,
-                  initials: initialsOf(
-                    p.firstName,
-                    p.lastName,
-                    fallback: p.username,
+                  child: ProfileAvatar(
+                    size: AppSizes.profileAvatar,
+                    url: p.avatarUrl,
+                    initials: initialsOf(
+                      p.firstName,
+                      p.lastName,
+                      fallback: p.username,
+                    ),
+                    semanticLabel: t.t('profile.avatar.label'),
+                    viewerCloseLabel: t.t('common.close'),
                   ),
-                  semanticLabel: t.t('profile.avatar.label'),
-                  viewerCloseLabel: t.t('common.close'),
                 ),
               ),
               const SizedBox(width: AppSpacing.md),

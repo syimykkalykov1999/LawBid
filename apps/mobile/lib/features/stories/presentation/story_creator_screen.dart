@@ -19,6 +19,7 @@ import 'package:lawbid/features/stories/application/stories_providers.dart';
 import 'package:lawbid/features/stories/application/story_publish_job.dart';
 import 'package:lawbid/features/stories/domain/story_models.dart';
 import 'package:lawbid/features/stories/presentation/story_backgrounds.dart';
+import 'package:lawbid/features/stories/presentation/story_camera_view.dart';
 import 'package:lawbid/features/stories/presentation/story_emoji_picker.dart';
 import 'package:lawbid/features/stories/presentation/story_frame.dart';
 import 'package:lawbid/features/stories/presentation/story_navigation.dart';
@@ -112,6 +113,17 @@ class _StoryCreatorScreenState extends ConsumerState<StoryCreatorScreen> {
         imageQuality: 90,
       );
       if (x == null || !mounted) return;
+      await _acceptPhoto(x);
+    } on Object {
+      if (mounted) showAppSnackBar(context, t.t('story.create.pickFailed'));
+    } finally {
+      if (mounted) setState(() => _picking = false);
+    }
+  }
+
+  Future<void> _acceptPhoto(XFile x) async {
+    final t = ref.read(translatorProvider);
+    try {
       final bytes = await x.readAsBytes();
       if (!mounted) return;
       await _dropVideo();
@@ -120,6 +132,33 @@ class _StoryCreatorScreenState extends ConsumerState<StoryCreatorScreen> {
         _photoName = x.name;
         _mode = _Mode.photo;
       });
+    } on Object {
+      if (mounted) showAppSnackBar(context, t.t('story.create.pickFailed'));
+    }
+  }
+
+  static const _videoExt = {'mp4', 'mov', 'm4v', 'webm', '3gp', 'mkv', 'avi'};
+
+  /// The gallery button: one picker for photos and videos.
+  Future<void> _pickGallery() async {
+    if (_picking) return;
+    final t = ref.read(translatorProvider);
+    setState(() => _picking = true);
+    try {
+      final x = await ImagePicker().pickMedia(
+        maxWidth: 2160,
+        maxHeight: 2160,
+        imageQuality: 90,
+      );
+      if (x == null || !mounted) return;
+      final ext = x.name.split('.').last.toLowerCase();
+      final video = (x.mimeType?.startsWith('video/') ?? false) ||
+          _videoExt.contains(ext);
+      if (video) {
+        await _acceptVideo(x);
+      } else {
+        await _acceptPhoto(x);
+      }
     } on Object {
       if (mounted) showAppSnackBar(context, t.t('story.create.pickFailed'));
     } finally {
@@ -138,6 +177,17 @@ class _StoryCreatorScreenState extends ConsumerState<StoryCreatorScreen> {
             source == ImageSource.camera ? Duration(seconds: _maxSec) : null,
       );
       if (x == null || !mounted) return;
+      await _acceptVideo(x);
+    } on Object {
+      if (mounted) showAppSnackBar(context, t.t('story.create.pickFailed'));
+    } finally {
+      if (mounted) setState(() => _picking = false);
+    }
+  }
+
+  Future<void> _acceptVideo(XFile x) async {
+    final t = ref.read(translatorProvider);
+    try {
       final info = await probeVideo(x);
       if (!mounted) return;
       if (info == null) {
@@ -167,8 +217,6 @@ class _StoryCreatorScreenState extends ConsumerState<StoryCreatorScreen> {
       unawaited(_loadStill(x));
     } on Object {
       if (mounted) showAppSnackBar(context, t.t('story.create.pickFailed'));
-    } finally {
-      if (mounted) setState(() => _picking = false);
     }
   }
 
@@ -476,39 +524,20 @@ class _StoryCreatorScreenState extends ConsumerState<StoryCreatorScreen> {
     );
   }
 
-  Widget _pickView(Translator t) {
-    return ListView(
-      padding: const EdgeInsets.all(AppSpacing.screenSide),
-      children: [
-        _PickTile(
-          icon: AppIcons.photoLibraryOutlined,
-          label: t.t('story.create.photo'),
-          onTap: () => _pickPhoto(ImageSource.gallery),
-        ),
-        _PickTile(
-          icon: AppIcons.photoCameraOutlined,
-          label: t.t('story.create.camera'),
-          onTap: () => _pickPhoto(ImageSource.camera),
-        ),
-        _PickTile(
-          icon: AppIcons.filmReelOutlined,
-          label: t.t('story.create.video', {'sec': '$_maxSec'}),
-          onTap: () => _pickVideo(ImageSource.gallery),
-        ),
-        _PickTile(
-          icon: AppIcons.videoCameraOutlined,
-          label: t.t('story.create.record', {'sec': '$_maxSec'}),
-          onTap: () => _pickVideo(ImageSource.camera),
-        ),
-        _PickTile(
-          key: const ValueKey('story-pick-text'),
-          icon: AppIcons.titleRounded,
-          label: t.t('story.create.text'),
-          onTap: () => setState(() => _mode = _Mode.text),
-        ),
-      ],
-    );
-  }
+  Widget _pickView(Translator t) => StoryCameraView(
+        maxVideoSec: _maxSec,
+        enabled: !_picking,
+        galleryLabel: t.t('story.create.photo'),
+        shutterLabel: t.t('story.create.camera'),
+        textLabel: t.t('story.create.text'),
+        flipLabel: t.t('story.create.camera'),
+        onPhoto: (x) => unawaited(_acceptPhoto(x)),
+        onVideo: (x) => unawaited(_acceptVideo(x)),
+        onGallery: () => unawaited(_pickGallery()),
+        onText: () => setState(() => _mode = _Mode.text),
+        onSystemPhoto: () => unawaited(_pickPhoto(ImageSource.camera)),
+        onSystemVideo: () => unawaited(_pickVideo(ImageSource.camera)),
+      );
 
   Widget _editView(Translator t) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
@@ -777,57 +806,6 @@ String storyAudienceLabel(Translator t, StoryAudience a) => switch (a) {
       StoryAudience.followers => t.t('story.audience.followers'),
       StoryAudience.contacts => t.t('story.audience.contacts'),
     };
-
-class _PickTile extends StatelessWidget {
-  const _PickTile({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-    super.key,
-  });
-
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpacing.md),
-      child: Semantics(
-        button: true,
-        label: label,
-        excludeSemantics: true,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(AppRadii.card),
-          onTap: onTap,
-          child: Ink(
-            decoration: BoxDecoration(
-              color: colors.surface,
-              borderRadius: BorderRadius.circular(AppRadii.card),
-              border: Border.all(color: colors.border),
-            ),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(minHeight: 64),
-              child: Padding(
-                padding: const EdgeInsets.all(AppSpacing.md),
-                child: Row(
-                  children: [
-                    Icon(icon, color: colors.gold, size: AppSizes.iconLg),
-                    const SizedBox(width: AppSpacing.md),
-                    Expanded(child: Text(label, style: type.body)),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 class _AudienceChip extends StatelessWidget {
   const _AudienceChip({

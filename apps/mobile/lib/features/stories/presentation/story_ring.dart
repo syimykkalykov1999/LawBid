@@ -36,8 +36,8 @@ class StoryRingAvatar extends StatelessWidget {
   final double? progress;
 
   /// Width of the ring plus the gap to the avatar.
-  static const double ring = 2.5;
-  static const double gap = 3;
+  static const double ring = 2;
+  static const double gap = 2;
 
   static double outerFor(double size) => size + 2 * (ring + gap);
 
@@ -69,6 +69,43 @@ class StoryRingAvatar extends StatelessWidget {
                 url == null ? null : appNetworkImage(url, decodeWidthFor(size)),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// The story ring around any [child] (a profile photo) of diameter [size].
+class StoryRing extends StatelessWidget {
+  const StoryRing({
+    required this.state,
+    required this.size,
+    required this.child,
+    super.key,
+  });
+
+  final StoryRingState state;
+  final double size;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final outer = StoryRingAvatar.outerFor(size);
+    return SizedBox(
+      width: outer,
+      height: outer,
+      child: CustomPaint(
+        painter: _RingPainter(
+          state: state,
+          progress: null,
+          gold: colors.gold,
+          goldLight: colors.goldLight,
+          goldDark: colors.goldDark,
+          grey: colors.textSecondary.withValues(alpha: 0.55),
+          danger: colors.danger,
+          track: colors.border,
+        ),
+        child: Center(child: child),
       ),
     );
   }

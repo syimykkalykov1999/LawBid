@@ -162,6 +162,21 @@ void main() {
     // The note is visible without opening the chat; time bottom-right.
     expect(find.text('Send him the retainer documents'), findsOneWidget);
     expect(find.text('10h'), findsNWidgets(2));
+    // Owner 2026-10-20: the time is top right on the title's line in every
+    // row, whatever the number of preview lines under it.
+    final times = tester.widgetList(find.text('10h')).length;
+    expect(times, 2);
+    for (final id in ['p', 'w']) {
+      final title = tester.getCenter(find.text('Person $id'));
+      final row = find.ancestor(
+        of: find.text('Person $id'),
+        matching: find.byKey(ValueKey('chat-organize-$id')),
+      );
+      final time = tester.getCenter(
+        find.descendant(of: row, matching: find.text('10h')),
+      );
+      expect((time.dy - title.dy).abs(), lessThan(6));
+    }
     // Owner 2026-10-01: gold ✓✓ = read, ✓ = sent.
     expect(find.byKey(const ValueKey('chat-read-p')), findsOneWidget);
     expect(find.byKey(const ValueKey('chat-sent-w')), findsOneWidget);
@@ -254,14 +269,21 @@ void main() {
     await tester.pumpAndSettle();
     // The groups button next to the search box is gone.
     expect(find.byKey(const ValueKey('chats-compose')), findsNothing);
-    // The search box has ONE magnifier (at the start).
+    // ONE magnifier, on the right of the folder chips in the SAME row.
     expect(
       find.descendant(
-        of: find.byKey(const ValueKey('chat-search')),
+        of: find.byKey(const ValueKey('chat-search-open')),
         matching: find.byIcon(AppIcons.searchRounded),
       ),
       findsOneWidget,
     );
+    expect(find.byIcon(AppIcons.searchRounded), findsOneWidget);
+    final chip =
+        tester.getCenter(find.byKey(const ValueKey('chat-folder-all')));
+    final lupa =
+        tester.getCenter(find.byKey(const ValueKey('chat-search-open')));
+    expect((chip.dy - lupa.dy).abs(), lessThan(8));
+    expect(lupa.dx, greaterThan(chip.dx));
     // «New chat» (+) sits next to ⋮ and is not repeated inside it.
     expect(find.byKey(const ValueKey('chats-new-chat')), findsOneWidget);
     // ⋮ is the one place for all three actions.

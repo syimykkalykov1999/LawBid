@@ -10,7 +10,7 @@ import 'package:lawbid/features/stories/presentation/story_navigation.dart';
 import 'package:lawbid/features/stories/presentation/story_publish_sheet.dart';
 import 'package:lawbid/features/stories/presentation/story_ring.dart';
 
-/// Owner 2026-10-20: the row of story circles above the feed — my own
+/// Owner 2026-10-20: the row of story circles above the chats list — my own
 /// first (a "+" to add; a ring when I have live stories), then the people I
 /// follow with live stories: a gold ring while something is unseen, a thin
 /// grey one when all is seen. Nothing at all while the `stories` flag is
@@ -21,15 +21,6 @@ class StoriesTray extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translatorProvider);
-    // A finished publish ends here (the creator screen only closes itself),
-    // so the "posted" note shows once, whichever screen the viewer is on.
-    ref.listen(storyPublishJobProvider, (prev, next) {
-      if (next.phase == StoryPublishPhase.done &&
-          prev?.phase != StoryPublishPhase.done) {
-        ref.read(storyPublishJobProvider.notifier).dismiss();
-        showAppSnackBar(context, t.t('story.publish.done'));
-      }
-    });
     if (!ref.watch(storiesEnabledProvider)) return const SizedBox.shrink();
     final items = ref.watch(storyTrayProvider).value;
     if (items == null || items.isEmpty) return const SizedBox.shrink();
@@ -60,8 +51,8 @@ class StoriesTray extends ConsumerWidget {
   }
 }
 
-const double _avatar = 60;
-const double _bubbleWidth = 72;
+const double _avatar = 48;
+const double _bubbleWidth = 64;
 
 class _Bubble extends ConsumerWidget {
   const _Bubble({
@@ -201,4 +192,24 @@ class _PlusBadge extends StatelessWidget {
           ),
         ),
       );
+}
+
+/// A finished publish ends here (the creator screen only closes itself), so
+/// the "posted" note shows once, whichever screen the viewer is on. Mounted
+/// once for the whole feed (an always-live tab), not by the tray.
+class StoryPublishWatcher extends ConsumerWidget {
+  const StoryPublishWatcher({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    ref.listen(storyPublishJobProvider, (prev, next) {
+      if (next.phase == StoryPublishPhase.done &&
+          prev?.phase != StoryPublishPhase.done) {
+        ref.read(storyPublishJobProvider.notifier).dismiss();
+        showAppSnackBar(context, t.t('story.publish.done'));
+      }
+    });
+    return const SizedBox.shrink();
+  }
 }
