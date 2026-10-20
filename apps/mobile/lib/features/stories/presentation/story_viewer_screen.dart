@@ -552,7 +552,10 @@ class _StoryPlaybackViewState extends ConsumerState<StoryPlaybackView>
                   const SizedBox(width: AppSpacing.sm),
                   Flexible(
                     child: Text(
-                      ref.watch(l10nFormatsProvider).number(story.viewCount),
+                      SocialFormat.count(
+                        ref.watch(l10nFormatsProvider),
+                        story.viewCount,
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: type.body.copyWith(color: Colors.white),

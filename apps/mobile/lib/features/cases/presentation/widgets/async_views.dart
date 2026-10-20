@@ -179,9 +179,8 @@ class PagedListBody<T> extends ConsumerWidget {
           // Owner 2026-10-20 (speed, Instagram): the next page is asked for
           // well before the end — about three screen-tall cards on a feed,
           // five or six rows elsewhere — so the end of the list never waits.
-          loadMoreExtent: edgeToEdge
-              ? MediaQuery.sizeOf(context).height * 2
-              : 640,
+          loadMoreExtent:
+              edgeToEdge ? MediaQuery.sizeOf(context).height * 2 : 640,
           onRetry: onRetryMore,
           onRefresh: pull,
           // Edge-to-edge feeds: cards touch (hairline borders only).
