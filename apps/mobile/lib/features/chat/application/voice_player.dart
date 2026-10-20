@@ -392,6 +392,11 @@ class VoicePlayer extends Notifier<VoicePlayback> {
     }
   }
 
+  /// The preview of an unsent recording ends with its composer.
+  Future<void> stopDraft() async {
+    if (state.messageId == kVoiceDraftId) await stop();
+  }
+
   Future<void> seekTo(Duration at) async => _player?.seek(at);
 
   /// Play/pause the current note (the mini-player).

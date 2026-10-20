@@ -322,9 +322,11 @@ class _ChatVideoScreenState extends State<ChatVideoScreen>
   /// Starts from silence and rises; one voice note at a time, so a playing
   /// voice message stops first.
   Future<void> _startSound() async {
-    unawaited(ProviderScope.containerOf(context, listen: false)
-        .read(voicePlayerProvider.notifier)
-        .stop());
+    unawaited(
+      ProviderScope.containerOf(context, listen: false)
+          .read(voicePlayerProvider.notifier)
+          .stop(),
+    );
     _vol = 0;
     await _c.setVolume(0);
     await _c.play();

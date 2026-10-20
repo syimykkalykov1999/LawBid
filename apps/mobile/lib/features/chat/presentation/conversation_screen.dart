@@ -1682,8 +1682,7 @@ class _ComposerState extends ConsumerState<_Composer> {
   void dispose() {
     _levelSub?.cancel();
     _tick?.cancel();
-    final wasPreview = ref.read(voicePlayerProvider).messageId == kVoiceDraftId;
-    if (wasPreview) unawaited(_player.stop());
+    unawaited(_player.stopDraft());
     unawaited(_saveDraft());
     super.dispose();
   }
