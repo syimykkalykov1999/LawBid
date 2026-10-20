@@ -46,6 +46,7 @@ import { ClientBadgeModule } from './modules/client-badge/client-badge.module';
 import { SearchModule } from './modules/search/search.module';
 import { ContactsSyncModule } from './modules/contacts-sync/contacts-sync.module';
 import { ChatModule } from './modules/chat/chat.module';
+import { GroupsModule } from './modules/groups/groups.module';
 import { TranslationModule } from './modules/translation/translation.module';
 import { CallsModule } from './modules/calls/calls.module';
 import { MentionsModule } from './modules/mentions/mentions.module';
@@ -321,6 +322,8 @@ const isDev =
     ClientFraudModule,
     // Owner 2026-10-06: Деньги → Партнёры стран.
     CountryPartnersModule,
+    // Owner 2026-10-20: group chats and polls.
+    GroupsModule,
     // BullMQ `cron` queue (session/OTP cleanup, disposable-domain refresh).
     // Runs in this process while JOBS_ENABLED (default true); src/worker.ts
     // runs the same module as the dedicated worker service.

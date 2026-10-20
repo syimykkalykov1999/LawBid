@@ -682,67 +682,74 @@ enum DataRequestStatus {
 // -----------------------------------------------------------------------
 
 model User {
-  id                      String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id                       String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   // Nullable: docs/01_FOUNDATION_AUTH.md §11 "Guard-логика навигации" treats "no role yet"
   // as a real intermediate state ("нет роли → /onboarding/role") -- a user exists
   // from the moment OTP/social login succeeds (stage 1.4), but role is
   // chosen afterward during onboarding step 2, not at creation. Added in
   // stage 1.4 (docs/CHANGELOG.md) -- the stage 1.3 migration is not
   // modified, only extended, per .cursorrules.
-  role                    UserRole?
-  status                  UserStatus              @default(active)
-  first_name              String?
-  last_name               String?
-  avatar_file_id          String?                 @db.Uuid
-  avatar_file             File?                   @relation("UserAvatar", fields: [avatar_file_id], references: [id], onDelete: Restrict)
+  role                     UserRole?
+  status                   UserStatus              @default(active)
+  first_name               String?
+  last_name                String?
+  avatar_file_id           String?                 @db.Uuid
+  avatar_file              File?                   @relation("UserAvatar", fields: [avatar_file_id], references: [id], onDelete: Restrict)
+  chat_groups_created      ChatGroup[]             @relation("ChatGroupCreator")
+  chat_group_memberships   ChatGroupMember[]       @relation("ChatGroupMemberUser")
+  chat_group_messages      ChatGroupMessage[]      @relation("ChatGroupMessageSender")
+  chat_group_polls         ChatGroupPoll[]         @relation("ChatGroupPollCreator")
+  chat_group_votes         ChatGroupPollVote[]     @relation("ChatGroupPollVoter")
+  chat_group_topic_reads   ChatGroupTopicRead[]    @relation("ChatGroupTopicReader")
+  chat_group_join_requests ChatGroupJoinRequest[]  @relation("ChatGroupJoinRequester")
   /// Owner 2026-10-05: a personal storage cap in MB set by an admin
   /// (null = storage.user_quota_mb, 0 = no cap).
-  storage_quota_mb        Int?
+  storage_quota_mb         Int?
   // UQ (docs/02 §4.A, §5.1). A plain unique index already admits any
   // number of NULLs in PostgreSQL, which is exactly the §8 stage-2.2
   // acceptance ("несколько NULL допускаются"); a partial index can't be
   // expressed in Prisma 6 and would be dropped as drift by the next
   // `migrate dev`, so @unique is used instead.
-  email                   String?                 @unique
-  email_verified_at       DateTime?               @db.Timestamptz
-  phone_e164              String?                 @unique
-  phone_verified_at       DateTime?               @db.Timestamptz
+  email                    String?                 @unique
+  email_verified_at        DateTime?               @db.Timestamptz
+  phone_e164               String?                 @unique
+  phone_verified_at        DateTime?               @db.Timestamptz
   /// Owner 2026-10-13: sign-in password (scrypt hash, never returned by
   /// any endpoint). Null = the account signs in with an SMS code until it
   /// sets one.
-  password_hash           String?
-  password_set_at         DateTime?               @db.Timestamptz
-  ui_language             String                  @default("en")
+  password_hash            String?
+  password_set_at          DateTime?               @db.Timestamptz
+  ui_language              String                  @default("en")
   /// Owner 2026-10-15: do not show like counters under other people's posts.
-  hide_like_counts        Boolean                 @default(false)
-  theme                   ThemePref               @default(system)
-  suspended_reason        String?
-  last_active_at          DateTime?               @db.Timestamptz
-  integration_credentials IntegrationCredential[] @relation("IntegrationCredentialCreator")
-  video_assets            VideoAsset[]            @relation("VideoAssetOwner")
-  sticker_packs           StickerPack[]           @relation("StickerPackOwner")
-  installed_sticker_packs UserStickerPack[]
-  client_verification     ClientVerification?
-  client_subscription     ClientSubscription?
-  recent_stickers         UserRecentSticker[]
+  hide_like_counts         Boolean                 @default(false)
+  theme                    ThemePref               @default(system)
+  suspended_reason         String?
+  last_active_at           DateTime?               @db.Timestamptz
+  integration_credentials  IntegrationCredential[] @relation("IntegrationCredentialCreator")
+  video_assets             VideoAsset[]            @relation("VideoAssetOwner")
+  sticker_packs            StickerPack[]           @relation("StickerPackOwner")
+  installed_sticker_packs  UserStickerPack[]
+  client_verification      ClientVerification?
+  client_subscription      ClientSubscription?
+  recent_stickers          UserRecentSticker[]
   /// Owner 2026-10-01: others see "online / last seen" (reciprocal).
-  show_activity_status    Boolean                 @default(true)
+  show_activity_status     Boolean                 @default(true)
   /// Owner 2026-10-05: feed content — 'all' or 'legal_only' (general
   /// posts hidden from feed, search and recommendations); null = the admin
   /// default `feed.default_content_mode`.
-  feed_content_mode       String?                 @db.VarChar(16)
-  deletion_requested_at   DateTime?               @db.Timestamptz
-  deleted_at              DateTime?               @db.Timestamptz
-  anonymized_at           DateTime?               @db.Timestamptz
+  feed_content_mode        String?                 @db.VarChar(16)
+  deletion_requested_at    DateTime?               @db.Timestamptz
+  deleted_at               DateTime?               @db.Timestamptz
+  anonymized_at            DateTime?               @db.Timestamptz
   // STORED computed column (§5.3): lower(first_name || ' ' || last_name),
   // trigram GIN-indexed. Read-only — never write it.
-  full_name_lower         String?                 @default(dbgenerated("lower(((COALESCE(first_name, ''::text) || ' '::text) || COALESCE(last_name, ''::text)))"))
+  full_name_lower          String?                 @default(dbgenerated("lower(((COALESCE(first_name, ''::text) || ' '::text) || COALESCE(last_name, ''::text)))"))
   // Owner 2026-10-13 (contacts sync): STORED computed column, lowercase hex
   // SHA-256 of phone_e164. Lets the app match its address book without
   // sending a single raw number. Read-only — never write it.
-  phone_sha256            String?                 @default(dbgenerated("encode(sha256((phone_e164)::bytea), 'hex'::text)"))
-  created_at              DateTime                @default(now()) @db.Timestamptz
-  updated_at              DateTime                @updatedAt @db.Timestamptz
+  phone_sha256             String?                 @default(dbgenerated("encode(sha256((phone_e164)::bytea), 'hex'::text)"))
+  created_at               DateTime                @default(now()) @db.Timestamptz
+  updated_at               DateTime                @updatedAt @db.Timestamptz
 
   identifiers          UserIdentifier[]
   sessions             Session[]
@@ -861,46 +868,48 @@ model User {
 // docs/02_DATABASE.md §4.A (stage 2.2). Binary content lives only in S3
 // (§1.6); this row is the reference. Soft delete via deleted_at.
 model File {
-  id             String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  owner_user_id  String      @db.Uuid
-  owner          User        @relation("FileOwner", fields: [owner_user_id], references: [id], onDelete: Restrict)
-  purpose        FilePurpose
-  s3_bucket      String
+  id                 String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  owner_user_id      String             @db.Uuid
+  owner              User               @relation("FileOwner", fields: [owner_user_id], references: [id], onDelete: Restrict)
+  chat_group_avatars ChatGroup[]        @relation("ChatGroupAvatar")
+  chat_group_files   ChatGroupMessage[] @relation("ChatGroupMessageFile")
+  purpose            FilePurpose
+  s3_bucket          String
   /// Owner 2026-10-05 (storage like Telegram): one object can back many
   /// rows — identical uploads share it (no longer unique). The object is
   /// removed only when no live row points at it (FileReleaseService).
-  s3_key         String
-  mime           String
-  size_bytes     BigInt
-  sha256         String
+  s3_key             String
+  mime               String
+  size_bytes         BigInt
+  sha256             String
   /// SHA-256 of the bytes as uploaded (sha256 above describes the stored,
   /// processed object). The deduplication key together with the bucket.
-  source_sha256  String?
-  width          Int?
-  height         Int?
-  scan_status    ScanStatus  @default(pending)
-  is_public      Boolean     @default(false)
-  deleted_at     DateTime?   @db.Timestamptz
+  source_sha256      String?
+  width              Int?
+  height             Int?
+  scan_status        ScanStatus         @default(pending)
+  is_public          Boolean            @default(false)
+  deleted_at         DateTime?          @db.Timestamptz
   /// Why the row was deleted: orphan (never attached / detached), released
   /// (its owner entity went away), infected, failed.
-  deleted_reason String?     @db.VarChar(16)
+  deleted_reason     String?            @db.VarChar(16)
   /// The S3 object (and its variants) is gone; the row stays only while
   /// something still references it.
-  purged_at      DateTime?   @db.Timestamptz
-  created_at     DateTime    @default(now()) @db.Timestamptz
-  updated_at     DateTime    @updatedAt @db.Timestamptz
+  purged_at          DateTime?          @db.Timestamptz
+  created_at         DateTime           @default(now()) @db.Timestamptz
+  updated_at         DateTime           @updatedAt @db.Timestamptz
 
   avatar_of User[] @relation("UserAvatar")
 
   verification_documents VerificationDocument[]
   data_export_jobs       DataExportJob[]
 
-  post_media        PostMedia[]
-  post_attachments  PostAttachment[]
-  case_photos       CasePhoto[]
-  voice_messages    Message[]         @relation("MessageVoice")
-  sticker           Sticker?
-  document_template DocumentTemplate?
+  post_media            PostMedia[]
+  post_attachments      PostAttachment[]
+  case_photos           CasePhoto[]
+  voice_messages        Message[]            @relation("MessageVoice")
+  sticker               Sticker?
+  document_template     DocumentTemplate?
   support_message_files SupportMessageFile[]
 
   @@index([owner_user_id])
@@ -2339,6 +2348,255 @@ model Message {
   // docs/06 §5.1: anonymization scrubs a user's messages by sender.
   @@index([sender_id])
   @@map("messages")
+}
+
+/// Owner 2026-10-20: group chats (Telegram + WhatsApp). Separate from the
+/// 1:1 `conversations` (those are attorney<->client pairs); the app merges
+/// both into one chat list.
+enum ChatGroupRole {
+  owner
+  admin
+  member
+
+  @@map("chat_group_role")
+}
+
+/// Who may do a thing in a group: admins only, or every member.
+enum GroupWho {
+  admins
+  all
+
+  @@map("group_who")
+}
+
+/// public: @username + search, anyone joins. closed: join by the invite link
+/// (optionally approved by an admin). private: added by people only.
+enum GroupType {
+  public
+  closed
+  private
+
+  @@map("group_type")
+}
+
+enum GroupMessageType {
+  text
+  system
+  poll
+  attachment
+
+  @@map("group_message_type")
+}
+
+model ChatGroup {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title             String    @db.VarChar(80)
+  description       String?   @db.VarChar(500)
+  avatar_file_id    String?   @db.Uuid
+  avatar_file       File?     @relation("ChatGroupAvatar", fields: [avatar_file_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  created_by        String    @db.Uuid
+  creator           User      @relation("ChatGroupCreator", fields: [created_by], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  group_type        GroupType @default(private)
+  /// Public groups only: the @username (case kept) and its lowercase key.
+  username          String?   @db.VarChar(32)
+  username_lower    String?   @unique @db.VarChar(32)
+  /// closed groups: the invite link makes a request an admin approves.
+  join_approval     Boolean   @default(false)
+  /// Forum mode: topics inside the group (Telegram «Темы»).
+  topics_enabled    Boolean   @default(false)
+  /// The «General» topic (created when topics are switched on).
+  general_topic_id  String?   @db.Uuid
+  /// Join link (lawbid.dev/g/<code>); reset by an admin.
+  invite_code       String    @unique @db.VarChar(24)
+  invite_enabled    Boolean   @default(false)
+  /// Telegram's «only admins can write» (a channel-like group).
+  who_can_post      GroupWho  @default(all)
+  who_can_add       GroupWho  @default(admins)
+  who_can_edit_info GroupWho  @default(admins)
+  /// Group calls: who may start one (the calls thread reads this).
+  who_can_call      GroupWho  @default(admins)
+  /// Bare uuid pointers (a FK would make groups <-> messages a cycle).
+  pinned_message_id String?   @db.Uuid
+  last_message_id   String?   @db.Uuid
+  last_message_at   DateTime? @db.Timestamptz
+  member_count      Int       @default(0)
+  deleted_at        DateTime? @db.Timestamptz
+  created_at        DateTime  @default(now()) @db.Timestamptz
+  updated_at        DateTime  @updatedAt @db.Timestamptz
+
+  members  ChatGroupMember[]
+  messages ChatGroupMessage[]
+  polls    ChatGroupPoll[]
+  topics   ChatGroupTopic[]
+  requests ChatGroupJoinRequest[]
+
+  @@index([created_by])
+  @@index([avatar_file_id])
+  @@map("chat_groups")
+}
+
+model ChatGroupMember {
+  group_id             String        @db.Uuid
+  group                ChatGroup     @relation(fields: [group_id], references: [id], onDelete: Cascade)
+  user_id              String        @db.Uuid
+  user                 User          @relation("ChatGroupMemberUser", fields: [user_id], references: [id], onDelete: Cascade)
+  role                 ChatGroupRole @default(member)
+  added_by             String?       @db.Uuid
+  joined_at            DateTime      @default(now()) @db.Timestamptz
+  /// Set when the person left or was removed; the row stays so history
+  /// keeps its authors and a re-join keeps the read position.
+  left_at              DateTime?     @db.Timestamptz
+  /// left | removed | null
+  left_reason          String?       @db.VarChar(12)
+  last_read_message_id String?       @db.Uuid
+  muted_until          DateTime?     @db.Timestamptz
+  pinned_at            DateTime?     @db.Timestamptz
+  hidden_at            DateTime?     @db.Timestamptz
+  updated_at           DateTime      @updatedAt @db.Timestamptz
+
+  @@id([group_id, user_id])
+  @@index([user_id, left_at])
+  @@map("chat_group_members")
+}
+
+model ChatGroupMessage {
+  id                String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  group_id          String             @db.Uuid
+  group             ChatGroup          @relation(fields: [group_id], references: [id], onDelete: Cascade)
+  /// NULL for system messages.
+  sender_id         String?            @db.Uuid
+  sender            User?              @relation("ChatGroupMessageSender", fields: [sender_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  type              GroupMessageType
+  body              String             @default("")
+  client_message_id String
+  /// system messages: added | removed | left | joined | renamed | created |
+  /// photo | pinned | promoted | demoted | poll_closed | call_started | call_ended
+  system_kind       String?            @db.VarChar(24)
+  system_payload    Json?
+  /// null = «General» (or no topics at all).
+  topic_id          String?            @db.Uuid
+  topic             ChatGroupTopic?    @relation(fields: [topic_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  reply_to_id       String?            @db.Uuid
+  reply_to          ChatGroupMessage?  @relation("GroupMessageReply", fields: [reply_to_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  replies           ChatGroupMessage[] @relation("GroupMessageReply")
+  /// @mentioned user ids.
+  mention_ids       String[]           @default([]) @db.Uuid
+  file_id           String?            @db.Uuid
+  file              File?              @relation("ChatGroupMessageFile", fields: [file_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  file_name         String?
+  edited_at         DateTime?          @db.Timestamptz
+  deleted_at        DateTime?          @db.Timestamptz
+  created_at        DateTime           @default(now()) @db.Timestamptz
+  poll              ChatGroupPoll?
+
+  @@unique([group_id, sender_id, client_message_id])
+  @@index([group_id, created_at(sort: Desc)])
+  @@index([topic_id, created_at(sort: Desc)])
+  @@index([sender_id])
+  @@index([file_id])
+  @@index([reply_to_id])
+  @@map("chat_group_messages")
+}
+
+model ChatGroupTopic {
+  id              String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  group_id        String               @db.Uuid
+  group           ChatGroup            @relation(fields: [group_id], references: [id], onDelete: Cascade)
+  title           String               @db.VarChar(64)
+  /// One emoji as the topic's icon (null = the colored dot).
+  icon_emoji      String?              @db.VarChar(16)
+  /// Index into the app's topic palette (0–6).
+  color           Int                  @default(0)
+  is_general      Boolean              @default(false)
+  created_by      String?              @db.Uuid
+  closed_at       DateTime?            @db.Timestamptz
+  pinned_at       DateTime?            @db.Timestamptz
+  last_message_id String?              @db.Uuid
+  last_message_at DateTime?            @db.Timestamptz
+  created_at      DateTime             @default(now()) @db.Timestamptz
+  updated_at      DateTime             @updatedAt @db.Timestamptz
+  messages        ChatGroupMessage[]
+  reads           ChatGroupTopicRead[]
+
+  @@index([group_id, last_message_at(sort: Desc)])
+  @@map("chat_group_topics")
+}
+
+/// A member's read position inside one topic (forum groups only).
+model ChatGroupTopicRead {
+  topic_id             String         @db.Uuid
+  topic                ChatGroupTopic @relation(fields: [topic_id], references: [id], onDelete: Cascade)
+  user_id              String         @db.Uuid
+  user                 User           @relation("ChatGroupTopicReader", fields: [user_id], references: [id], onDelete: Cascade)
+  last_read_message_id String?        @db.Uuid
+  updated_at           DateTime       @updatedAt @db.Timestamptz
+
+  @@id([topic_id, user_id])
+  @@index([user_id])
+  @@map("chat_group_topic_reads")
+}
+
+/// A closed group with «approve new members»: the request of a person who
+/// opened the invite link.
+model ChatGroupJoinRequest {
+  group_id   String    @db.Uuid
+  group      ChatGroup @relation(fields: [group_id], references: [id], onDelete: Cascade)
+  user_id    String    @db.Uuid
+  user       User      @relation("ChatGroupJoinRequester", fields: [user_id], references: [id], onDelete: Cascade)
+  created_at DateTime  @default(now()) @db.Timestamptz
+
+  @@id([group_id, user_id])
+  @@index([user_id])
+  @@map("chat_group_join_requests")
+}
+
+model ChatGroupPoll {
+  id         String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  group_id   String                @db.Uuid
+  group      ChatGroup             @relation(fields: [group_id], references: [id], onDelete: Cascade)
+  message_id String                @unique @db.Uuid
+  message    ChatGroupMessage      @relation(fields: [message_id], references: [id], onDelete: Cascade)
+  creator_id String                @db.Uuid
+  creator    User                  @relation("ChatGroupPollCreator", fields: [creator_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  question   String                @db.VarChar(300)
+  /// false = one answer, true = several.
+  multiple   Boolean               @default(false)
+  /// true = nobody sees who voted (only the counts).
+  anonymous  Boolean               @default(true)
+  closed_at  DateTime?             @db.Timestamptz
+  closed_by  String?               @db.Uuid
+  created_at DateTime              @default(now()) @db.Timestamptz
+  options    ChatGroupPollOption[]
+  votes      ChatGroupPollVote[]
+
+  @@index([group_id])
+  @@map("chat_group_polls")
+}
+
+model ChatGroupPollOption {
+  id       String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  poll_id  String              @db.Uuid
+  poll     ChatGroupPoll       @relation(fields: [poll_id], references: [id], onDelete: Cascade)
+  position Int
+  text     String              @db.VarChar(100)
+  votes    ChatGroupPollVote[]
+
+  @@unique([poll_id, position])
+  @@map("chat_group_poll_options")
+}
+
+model ChatGroupPollVote {
+  poll_id    String              @db.Uuid
+  poll       ChatGroupPoll       @relation(fields: [poll_id], references: [id], onDelete: Cascade)
+  option_id  String              @db.Uuid
+  option     ChatGroupPollOption @relation(fields: [option_id], references: [id], onDelete: Cascade)
+  user_id    String              @db.Uuid
+  user       User                @relation("ChatGroupPollVoter", fields: [user_id], references: [id], onDelete: Cascade)
+  created_at DateTime            @default(now()) @db.Timestamptz
+
+  @@id([option_id, user_id])
+  @@index([poll_id, user_id])
+  @@map("chat_group_poll_votes")
 }
 
 model Notification {
@@ -4070,18 +4328,18 @@ model SupportTicket {
 }
 
 model SupportMessage {
-  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  ticket_id       String   @db.Uuid
+  id              String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ticket_id       String               @db.Uuid
   // Exactly one of author_user_id (the app user) / author_admin_id.
-  author_user_id  String?  @db.Uuid
-  author_admin_id String?  @db.Uuid
+  author_user_id  String?              @db.Uuid
+  author_admin_id String?              @db.Uuid
   // Admin-only note, never shown to the user.
-  internal        Boolean  @default(false)
+  internal        Boolean              @default(false)
   // Owner 2026-10-05: an automatic answer (after hours, "we got it"):
   // neither author id is set; shown as "LawBid Support".
-  auto            Boolean  @default(false)
-  body            String   @db.VarChar(20000)
-  created_at      DateTime @default(now()) @db.Timestamptz
+  auto            Boolean              @default(false)
+  body            String               @db.VarChar(20000)
+  created_at      DateTime             @default(now()) @db.Timestamptz
   files           SupportMessageFile[]
 
   @@index([ticket_id, created_at])

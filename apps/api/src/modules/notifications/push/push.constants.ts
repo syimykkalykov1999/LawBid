@@ -49,6 +49,8 @@ export interface MessageJobData {
   recipientId: string;
   conversationId: string;
   messageId: string;
+  /** Owner 2026-10-20: a group chat message (conversationId = the group). */
+  groupId?: string;
   deferred?: boolean;
 }
 

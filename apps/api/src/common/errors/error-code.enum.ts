@@ -312,6 +312,16 @@ export enum ErrorCode {
   COMMENT_NOT_FOUND = 'COMMENT_NOT_FOUND',
   // 422: follow a client or yourself (§6.1).
   FOLLOW_NOT_ALLOWED = 'FOLLOW_NOT_ALLOWED',
+  // Owner 2026-10-20 (group chats). 404: no such group, or not a member.
+  GROUP_NOT_FOUND = 'GROUP_NOT_FOUND',
+  // 403: the group's rules do not let this member do that (admins only).
+  GROUP_FORBIDDEN = 'GROUP_FORBIDDEN',
+  // 409: the group is at its member limit.
+  GROUP_FULL = 'GROUP_FULL',
+  // 409: the public group's @username is already used.
+  GROUP_USERNAME_TAKEN = 'GROUP_USERNAME_TAKEN',
+  // 409: the poll was closed by its author or an admin.
+  POLL_CLOSED = 'POLL_CLOSED',
   // 404: not a participant, or no such conversation.
   CONVERSATION_NOT_FOUND = 'CONVERSATION_NOT_FOUND',
   // 409: the conversation is closed (read only, §8.2).

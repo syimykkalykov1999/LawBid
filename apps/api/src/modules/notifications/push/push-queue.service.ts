@@ -74,6 +74,7 @@ export class PushQueueService
     recipientId: string;
     conversationId: string;
     messageId: string;
+    groupId?: string;
   }): Promise<void> {
     if (demoContext.isDemo()) return;
     if (!this.queue) return;

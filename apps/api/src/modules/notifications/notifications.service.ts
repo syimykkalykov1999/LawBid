@@ -262,6 +262,7 @@ export class NotificationsService {
           recipientId: input.recipientId,
           conversationId: p.conversationId,
           messageId: p.messageId,
+          ...(typeof p.groupId === 'string' ? { groupId: p.groupId } : {}),
         });
       }
       return null;

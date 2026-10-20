@@ -104,6 +104,8 @@ import 'clients/public_client.dart';
 import 'clients/reviews_client.dart';
 import 'clients/admin_fraud_client.dart';
 import 'clients/admin_country_partners_client.dart';
+import 'clients/groups_client.dart';
+import 'clients/admin_group_chats_client.dart';
 
 /// LawBid API `v0.1.0`.
 ///
@@ -216,6 +218,8 @@ class LawbidApi {
   ReviewsClient? _reviews;
   AdminFraudClient? _adminFraud;
   AdminCountryPartnersClient? _adminCountryPartners;
+  GroupsClient? _groups;
+  AdminGroupChatsClient? _adminGroupChats;
 
   ConfigClient get config => _config ??= ConfigClient(_dio, baseUrl: _baseUrl);
 
@@ -501,4 +505,9 @@ class LawbidApi {
         _dio,
         baseUrl: _baseUrl,
       );
+
+  GroupsClient get groups => _groups ??= GroupsClient(_dio, baseUrl: _baseUrl);
+
+  AdminGroupChatsClient get adminGroupChats =>
+      _adminGroupChats ??= AdminGroupChatsClient(_dio, baseUrl: _baseUrl);
 }

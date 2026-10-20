@@ -1,3 +1,4 @@
+import { unreadMessagesSql } from '../groups/group-unread.sql';
 import { Inject, Injectable } from '@nestjs/common';
 import type { NotificationCategory } from '@prisma/client';
 import { DEFAULT_PUSH, LOCKED_CATEGORIES } from './notification-rules';
@@ -188,7 +189,19 @@ export class BadgesService {
         -- the same rule as the "All" folder (OQ-043).
         AND (c.request_status::TEXT IN ('none', 'accepted')
              OR c.requested_by = ${userId}::UUID)`;
-    return Number(row?.n ?? 0);
+    // Owner 2026-10-20: group chats count the same way.
+    const [groups] = await this.prisma.$queryRaw<{ n: bigint }[]>`
+      SELECT coalesce(sum((
+        SELECT count(*) FROM (
+          SELECT 1 FROM ${unreadMessagesSql(userId)}
+          ORDER BY m.created_at DESC
+          LIMIT ${UNREAD_CAP}) x)), 0)::INT8 AS n
+      FROM chat_group_members gm
+      JOIN chat_groups g ON g.id = gm.group_id AND g.deleted_at IS NULL
+      WHERE gm.user_id = ${userId}::UUID
+        AND gm.left_at IS NULL
+        AND gm.hidden_at IS NULL`;
+    return Number(row?.n ?? 0) + Number(groups?.n ?? 0);
   }
 }
 
