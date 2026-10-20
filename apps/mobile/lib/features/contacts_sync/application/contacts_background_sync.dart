@@ -9,9 +9,13 @@ import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/features/contacts_sync/application/contacts_sync_providers.dart';
 import 'package:lawbid/features/contacts_sync/application/phone_contacts.dart';
 import 'package:lawbid/features/notifications/application/system_notifications.dart';
+import 'package:lawbid/features/social/application/social_providers.dart';
 
+// Per account ('<key>.<userId>'): two people on one phone, or a new login,
+// never inherit each other's "known" list, 24 h gate or switch.
 const _lastKey = 'contacts_auto_sync_at_v1';
 const _knownKey = 'contacts_known_ids_v1';
+const _initKey = 'contacts_known_init_v1';
 const _notifyKey = 'contacts_notify_new_v1';
 
 /// How often the phone book is read again without the user asking.
@@ -29,6 +33,12 @@ class ContactsBackgroundSync with WidgetsBindingObserver {
   bool _started = false;
   bool _running = false;
 
+  /// The notices shown, for tests (the platform call itself is not).
+  @visibleForTesting
+  final announced = <String>[];
+
+  String _key(String base, String userId) => '$base.$userId';
+
   /// Runs now and again whenever the app comes back to the foreground
   /// (the 24 h gate decides whether it does anything).
   void start() {
@@ -44,14 +54,23 @@ class ContactsBackgroundSync with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) unawaited(run());
   }
 
-  bool get notifyNew =>
-      _ref.read(localKvStoreProvider).getString(_notifyKey) != '0';
+  bool get notifyNew {
+    final me = _ref.read(currentUserIdProvider);
+    if (me == null) return true;
+    return _ref.read(localKvStoreProvider).getString(_key(_notifyKey, me)) !=
+        '0';
+  }
 
-  Future<void> setNotifyNew({required bool on}) =>
-      _ref.read(localKvStoreProvider).setString(_notifyKey, on ? '1' : '0');
+  Future<void> setNotifyNew({required bool on}) async {
+    final me = _ref.read(currentUserIdProvider);
+    if (me == null) return;
+    await _ref
+        .read(localKvStoreProvider)
+        .setString(_key(_notifyKey, me), on ? '1' : '0');
+  }
 
-  bool _due() {
-    final raw = _ref.read(localKvStoreProvider).getString(_lastKey);
+  bool _due(String me) {
+    final raw = _ref.read(localKvStoreProvider).getString(_key(_lastKey, me));
     final last = raw == null ? null : DateTime.tryParse(raw);
     return last == null ||
         DateTime.now().difference(last) >= contactsAutoSyncEvery;
@@ -62,22 +81,32 @@ class ContactsBackgroundSync with WidgetsBindingObserver {
     if (_running) return;
     _running = true;
     try {
+      final me = _ref.read(currentUserIdProvider);
       final actions = _ref.read(contactsSyncActionsProvider);
-      if (!actions.asked || !_due()) return;
+      if (me == null || !actions.asked || !_due(me)) return;
       final status = await _ref.read(contactsSyncStatusProvider.future);
       if (!status.enabled) return;
       final kv = _ref.read(localKvStoreProvider);
-      await kv.setString(_lastKey, DateTime.now().toIso8601String());
       final data = await _ref.refresh(phoneContactsProvider.future);
       if (data.denied) return;
       final known = {
-        for (final id in (jsonDecode(kv.getString(_knownKey) ?? '[]') as List))
+        for (final id in (jsonDecode(
+          kv.getString(_key(_knownKey, me)) ?? '[]',
+        ) as List))
           '$id',
       };
+      // "First pass done" is its own flag: a first pass that finds nobody
+      // still counts, so the first person who joins later is announced.
+      final firstPass = kv.getString(_key(_initKey, me)) == null;
       final now = {for (final c in data.onLawBid) c.userId: c};
-      await kv.setString(_knownKey, jsonEncode(now.keys.toList()));
-      // The first pass on this install only learns who is there.
-      if (known.isEmpty || !notifyNew) return;
+      await kv.setString(_key(_knownKey, me), jsonEncode(now.keys.toList()));
+      await kv.setString(_key(_initKey, me), '1');
+      // Only after a pass that worked: a failed one is tried again soon.
+      await kv.setString(
+        _key(_lastKey, me),
+        DateTime.now().toIso8601String(),
+      );
+      if (firstPass || !notifyNew) return;
       final fresh = [
         for (final e in now.entries)
           if (!known.contains(e.key)) e.value,
@@ -95,6 +124,7 @@ class ContactsBackgroundSync with WidgetsBindingObserver {
     final body = fresh.length == 1
         ? t.t('phoneContacts.joined', {'name': fresh.first.title})
         : t.t('phoneContacts.joinedMany', {'count': '${fresh.length}'});
+    announced.add(body);
     final shown =
         await _ref.read(systemNotificationsProvider).showTest('LawBid', body);
     // iOS has no local channel here: the open app says it instead.
