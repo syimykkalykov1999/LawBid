@@ -51,7 +51,7 @@ export class DeadlinesController {
   @ApiOperation({ summary: 'Deadline rules: federal plus a state’s' })
   @ApiEnvelopeResponse(DeadlineRuleDto, { isArray: true })
   @ApiErrors({ 400: [E.VALIDATION_ERROR], 403: [E.FEATURE_DISABLED] })
-  rules(@Query() q: DeadlineRulesQueryDto) {
+  listDeadlineRules(@Query() q: DeadlineRulesQueryDto) {
     return this.deadlines.rules(q);
   }
 
@@ -59,7 +59,7 @@ export class DeadlinesController {
   @ApiOperation({ summary: 'Court holidays of a year' })
   @ApiEnvelopeResponse(DeadlineHolidayDto, { isArray: true })
   @ApiErrors({ 400: [E.VALIDATION_ERROR], 403: [E.FEATURE_DISABLED] })
-  holidays(@Query() q: DeadlineHolidaysQueryDto) {
+  listDeadlineHolidays(@Query() q: DeadlineHolidaysQueryDto) {
     return this.deadlines.holidays(q);
   }
 
@@ -73,7 +73,7 @@ export class DeadlinesController {
     403: [E.FEATURE_DISABLED],
     404: [E.NOT_FOUND],
   })
-  calculate(@Query() q: DeadlineCalcQueryDto) {
+  calculateDeadline(@Query() q: DeadlineCalcQueryDto) {
     return this.deadlines.calculate(q);
   }
 }
@@ -88,7 +88,7 @@ export class AdminDeadlinesController {
   @Get('rules')
   @ApiOperation({ summary: 'All rules, active or not' })
   @ApiEnvelopeResponse(AdminDeadlineRuleDto, { isArray: true })
-  rules() {
+  listAdminDeadlineRules() {
     return this.deadlines.adminRules();
   }
 
@@ -96,7 +96,7 @@ export class AdminDeadlinesController {
   @ApiOperation({ summary: 'Add a rule' })
   @ApiEnvelopeResponse(AdminDeadlineRuleDto, { status: HttpStatus.CREATED })
   @ApiErrors({ 400: [E.VALIDATION_ERROR], 409: [E.VALIDATION_ERROR] })
-  createRule(@Body() dto: CreateDeadlineRuleDto) {
+  createAdminDeadlineRule(@Body() dto: CreateDeadlineRuleDto) {
     return this.deadlines.createRule(dto);
   }
 
@@ -104,7 +104,7 @@ export class AdminDeadlinesController {
   @ApiOperation({ summary: 'Edit a rule' })
   @ApiEnvelopeResponse(AdminDeadlineRuleDto)
   @ApiErrors({ 400: [E.VALIDATION_ERROR], 404: [E.NOT_FOUND] })
-  updateRule(
+  updateAdminDeadlineRule(
     @Param() p: DeadlineIdParamDto,
     @Body() dto: UpdateDeadlineRuleDto,
   ) {
@@ -115,14 +115,14 @@ export class AdminDeadlinesController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete a rule' })
   @ApiErrors({ 404: [E.NOT_FOUND] })
-  deleteRule(@Param() p: DeadlineIdParamDto) {
+  deleteAdminDeadlineRule(@Param() p: DeadlineIdParamDto) {
     return this.deadlines.deleteRule(p.id);
   }
 
   @Get('holidays')
   @ApiOperation({ summary: 'Court holidays (filter by jurisdiction, year)' })
   @ApiEnvelopeResponse(AdminHolidayDto, { isArray: true })
-  holidays(@Query() q: AdminHolidaysQueryDto) {
+  listAdminDeadlineHolidays(@Query() q: AdminHolidaysQueryDto) {
     return this.deadlines.adminHolidays(q);
   }
 
@@ -130,7 +130,7 @@ export class AdminDeadlinesController {
   @ApiOperation({ summary: 'Add or rename a court holiday' })
   @ApiEnvelopeResponse(AdminHolidayDto, { status: HttpStatus.CREATED })
   @ApiErrors({ 400: [E.VALIDATION_ERROR] })
-  createHoliday(@Body() dto: CreateHolidayDto) {
+  createAdminDeadlineHoliday(@Body() dto: CreateHolidayDto) {
     return this.deadlines.createHoliday(dto);
   }
 
@@ -139,7 +139,7 @@ export class AdminDeadlinesController {
   @ApiOperation({ summary: 'Add the federal holidays of a year (open data)' })
   @ApiEnvelopeResponse(GenerateFederalHolidaysResultDto)
   @ApiErrors({ 400: [E.VALIDATION_ERROR] })
-  generateFederal(@Body() dto: GenerateFederalHolidaysDto) {
+  generateAdminFederalHolidays(@Body() dto: GenerateFederalHolidaysDto) {
     return this.deadlines.generateFederal(dto.year);
   }
 
@@ -147,7 +147,7 @@ export class AdminDeadlinesController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete a court holiday' })
   @ApiErrors({ 404: [E.NOT_FOUND] })
-  deleteHoliday(@Param() p: DeadlineIdParamDto) {
+  deleteAdminDeadlineHoliday(@Param() p: DeadlineIdParamDto) {
     return this.deadlines.deleteHoliday(p.id);
   }
 }

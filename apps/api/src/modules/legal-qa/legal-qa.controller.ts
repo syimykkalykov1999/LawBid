@@ -57,7 +57,7 @@ export class LegalQaController {
   @ApiOperation({ summary: 'Public questions to lawyers (search, filters)' })
   @ApiEnvelopeResponse(QuestionDto, { isArray: true })
   @ApiErrors({ 400: [E.VALIDATION_ERROR], 403: [E.FEATURE_DISABLED] })
-  list(
+  listQuestions(
     @CurrentUser() user: RequestUser,
     @Query() query: QuestionsQueryDto,
   ): Promise<QuestionPage> {
@@ -74,7 +74,7 @@ export class LegalQaController {
     403: [E.FORBIDDEN, E.FEATURE_DISABLED],
     429: [E.RATE_LIMITED],
   })
-  ask(@CurrentUser() user: RequestUser, @Body() dto: AskQuestionDto) {
+  askQuestion(@CurrentUser() user: RequestUser, @Body() dto: AskQuestionDto) {
     return this.qa.ask(user, dto);
   }
 
@@ -82,7 +82,7 @@ export class LegalQaController {
   @ApiOperation({ summary: 'A question with its answers' })
   @ApiEnvelopeResponse(QuestionDetailDto)
   @ApiErrors({ 400: [E.VALIDATION_ERROR], 404: [E.NOT_FOUND] })
-  get(@CurrentUser() user: RequestUser, @Param() p: QuestionIdParamDto) {
+  getQuestion(@CurrentUser() user: RequestUser, @Param() p: QuestionIdParamDto) {
     return this.qa.get(user, p.id);
   }
 
@@ -90,7 +90,7 @@ export class LegalQaController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete my question' })
   @ApiErrors({ 404: [E.NOT_FOUND] })
-  remove(@CurrentUser() user: RequestUser, @Param() p: QuestionIdParamDto) {
+  deleteQuestion(@CurrentUser() user: RequestUser, @Param() p: QuestionIdParamDto) {
     return this.qa.remove(user, p.id);
   }
 
@@ -103,7 +103,7 @@ export class LegalQaController {
     404: [E.NOT_FOUND],
     429: [E.RATE_LIMITED],
   })
-  answer(
+  answerQuestion(
     @CurrentUser() user: RequestUser,
     @Param() p: QuestionIdParamDto,
     @Body() dto: AnswerBodyDto,
@@ -115,7 +115,7 @@ export class LegalQaController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete my answer' })
   @ApiErrors({ 404: [E.NOT_FOUND] })
-  removeAnswer(
+  deleteQuestionAnswer(
     @CurrentUser() user: RequestUser,
     @Param() p: QuestionIdParamDto,
   ) {
@@ -126,7 +126,7 @@ export class LegalQaController {
   @ApiOperation({ summary: 'Like an answer' })
   @ApiEnvelopeResponse(AnswerDto)
   @ApiErrors({ 403: [E.FORBIDDEN, E.USER_BLOCKED], 404: [E.NOT_FOUND] })
-  like(@CurrentUser() user: RequestUser, @Param() p: AnswerParamDto) {
+  likeQuestionAnswer(@CurrentUser() user: RequestUser, @Param() p: AnswerParamDto) {
     return this.qa.like(user, p.id, p.answerId);
   }
 
@@ -134,7 +134,7 @@ export class LegalQaController {
   @ApiOperation({ summary: 'Remove my like' })
   @ApiEnvelopeResponse(AnswerDto)
   @ApiErrors({ 404: [E.NOT_FOUND] })
-  unlike(@CurrentUser() user: RequestUser, @Param() p: AnswerParamDto) {
+  unlikeQuestionAnswer(@CurrentUser() user: RequestUser, @Param() p: AnswerParamDto) {
     return this.qa.unlike(user, p.id, p.answerId);
   }
 
@@ -142,7 +142,7 @@ export class LegalQaController {
   @ApiOperation({ summary: 'Mark the best answer (the question author)' })
   @ApiEnvelopeResponse(QuestionDetailDto)
   @ApiErrors({ 403: [E.FORBIDDEN], 404: [E.NOT_FOUND] })
-  markBest(
+  markBestAnswer(
     @CurrentUser() user: RequestUser,
     @Param() p: QuestionIdParamDto,
     @Body() dto: BestAnswerDto,
@@ -154,7 +154,7 @@ export class LegalQaController {
   @ApiOperation({ summary: 'Clear the best-answer mark' })
   @ApiEnvelopeResponse(QuestionDetailDto)
   @ApiErrors({ 403: [E.FORBIDDEN], 404: [E.NOT_FOUND] })
-  clearBest(@CurrentUser() user: RequestUser, @Param() p: QuestionIdParamDto) {
+  clearBestAnswer(@CurrentUser() user: RequestUser, @Param() p: QuestionIdParamDto) {
     return this.qa.clearBest(user, p.id);
   }
 }

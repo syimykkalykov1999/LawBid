@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { UsageLimitsModule } from '../../common/usage-limits/usage-limits.module';
+import { BlocksModule } from '../blocks/blocks.module';
 import { FeatureFlagsModule } from '../feature-flags/feature-flags.module';
 import { ChatSystemModule } from '../chat/chat-system.module';
 import { FilesModule } from '../files/files.module';
@@ -11,6 +12,7 @@ import { ConsultationsService } from './consultations.service';
 /** The service and the sweep, without the controller (the worker uses it). */
 @Module({
   imports: [
+    BlocksModule,
     FeatureFlagsModule,
     ChatSystemModule,
     FilesModule,

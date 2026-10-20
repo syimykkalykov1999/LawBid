@@ -64,7 +64,7 @@ export class ConsultationsController {
   @ApiOperation({ summary: "The attorney's booking hours (attorney)" })
   @ApiEnvelopeResponse(ConsultationSettingsDto)
   @ApiErrors({ 403: [E.FORBIDDEN] })
-  getSettings(@CurrentUser() user: RequestUser) {
+  getConsultationSettings(@CurrentUser() user: RequestUser) {
     return this.consultations.getSettings(user);
   }
 
@@ -76,7 +76,7 @@ export class ConsultationsController {
     400: [E.VALIDATION_ERROR],
     403: [E.FORBIDDEN, E.ATTORNEY_NOT_VERIFIED],
   })
-  updateSettings(
+  updateConsultationSettings(
     @CurrentUser() user: RequestUser,
     @Body() dto: UpdateConsultationSettingsDto,
   ) {
@@ -91,7 +91,7 @@ export class ConsultationsController {
     404: [E.NOT_FOUND],
     409: [E.CONSULTATION_NOT_AVAILABLE],
   })
-  slots(
+  listConsultationSlots(
     @CurrentUser() user: RequestUser,
     @Query() query: ConsultationSlotsQueryDto,
   ) {
@@ -102,7 +102,7 @@ export class ConsultationsController {
   @ApiOperation({ summary: 'My consultations (both roles)' })
   @ApiEnvelopeResponse(ConsultationDto, { isArray: true })
   @ApiErrors({ 400: [E.VALIDATION_ERROR] })
-  list(
+  listConsultations(
     @CurrentUser() user: RequestUser,
     @Query() query: ConsultationsQueryDto,
   ): Promise<ConsultationPage> {
@@ -118,7 +118,7 @@ export class ConsultationsController {
     ...ACTION_ERRORS,
     429: [E.RATE_LIMITED],
   })
-  create(@CurrentUser() user: RequestUser, @Body() dto: CreateConsultationDto) {
+  bookConsultation(@CurrentUser() user: RequestUser, @Body() dto: CreateConsultationDto) {
     return this.consultations.create(user, dto);
   }
 
@@ -126,7 +126,7 @@ export class ConsultationsController {
   @ApiOperation({ summary: 'One consultation' })
   @ApiEnvelopeResponse(ConsultationDto)
   @ApiErrors({ 400: [E.VALIDATION_ERROR], 404: [E.NOT_FOUND] })
-  get(@CurrentUser() user: RequestUser, @Param() p: ConsultationIdParamDto) {
+  getConsultation(@CurrentUser() user: RequestUser, @Param() p: ConsultationIdParamDto) {
     return this.consultations.get(user, p.id);
   }
 
@@ -137,7 +137,7 @@ export class ConsultationsController {
   @ApiHeader(IDEMPOTENCY_HEADER)
   @ApiEnvelopeResponse(ConsultationDto)
   @ApiErrors(ACTION_ERRORS)
-  confirm(
+  confirmConsultation(
     @CurrentUser() user: RequestUser,
     @Param() p: ConsultationIdParamDto,
   ) {
@@ -151,7 +151,7 @@ export class ConsultationsController {
   @ApiHeader(IDEMPOTENCY_HEADER)
   @ApiEnvelopeResponse(ConsultationDto)
   @ApiErrors(ACTION_ERRORS)
-  decline(
+  declineConsultation(
     @CurrentUser() user: RequestUser,
     @Param() p: ConsultationIdParamDto,
     @Body() dto: ConsultationReasonDto,
@@ -165,7 +165,7 @@ export class ConsultationsController {
   @ApiHeader(IDEMPOTENCY_HEADER)
   @ApiEnvelopeResponse(ConsultationDto)
   @ApiErrors(ACTION_ERRORS)
-  cancel(
+  cancelConsultation(
     @CurrentUser() user: RequestUser,
     @Param() p: ConsultationIdParamDto,
     @Body() dto: ConsultationReasonDto,
@@ -179,7 +179,7 @@ export class ConsultationsController {
   @ApiHeader(IDEMPOTENCY_HEADER)
   @ApiEnvelopeResponse(ConsultationDto)
   @ApiErrors(ACTION_ERRORS)
-  reschedule(
+  rescheduleConsultation(
     @CurrentUser() user: RequestUser,
     @Param() p: ConsultationIdParamDto,
     @Body() dto: RescheduleConsultationDto,

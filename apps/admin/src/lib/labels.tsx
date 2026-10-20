@@ -34,6 +34,8 @@ export const TARGET_TYPE: Record<string, string> = {
   client_review: 'Отзыв о клиенте / помощнике',
   case_comment: 'Комментарий к кейсу',
   sticker_pack: 'Набор стикеров',
+  legal_question: 'Вопрос юристу',
+  legal_answer: 'Ответ юристу',
 };
 
 export const REPORT_REASON: Record<string, string> = {

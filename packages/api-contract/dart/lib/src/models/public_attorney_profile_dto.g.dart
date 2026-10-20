@@ -38,6 +38,7 @@ PublicAttorneyProfileDto _$PublicAttorneyProfileDtoFromJson(
   ),
   isSelf: json['isSelf'] as bool,
   isFollowing: json['isFollowing'] as bool,
+  consultationEnabled: json['consultationEnabled'] as bool,
   isBlocked: json['isBlocked'] as bool,
   hasBlockedMe: json['hasBlockedMe'] as bool,
 );
@@ -64,6 +65,7 @@ Map<String, dynamic> _$PublicAttorneyProfileDtoToJson(
   'counters': instance.counters.toJson(),
   'isSelf': instance.isSelf,
   'isFollowing': instance.isFollowing,
+  'consultationEnabled': instance.consultationEnabled,
   'isBlocked': instance.isBlocked,
   'hasBlockedMe': instance.hasBlockedMe,
 };

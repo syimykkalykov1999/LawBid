@@ -416,6 +416,12 @@ enum ErrorCode {
   demoCodeInvalid('DEMO_CODE_INVALID'),
   @JsonValue('LEGAL_REACCEPT_REQUIRED')
   legalReacceptRequired('LEGAL_REACCEPT_REQUIRED'),
+  @JsonValue('CONSULTATION_SLOT_TAKEN')
+  consultationSlotTaken('CONSULTATION_SLOT_TAKEN'),
+  @JsonValue('CONSULTATION_NOT_AVAILABLE')
+  consultationNotAvailable('CONSULTATION_NOT_AVAILABLE'),
+  @JsonValue('CONSULTATION_STATE_CONFLICT')
+  consultationStateConflict('CONSULTATION_STATE_CONFLICT'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

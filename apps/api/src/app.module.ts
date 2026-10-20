@@ -293,9 +293,6 @@ const isDev =
     RealtimeModule,
     RealtimeGatewayModule,
     ChatModule,
-    ConsultationsModule,
-    LegalQaModule,
-    DeadlinesModule,
     TranslationModule,
     CallsModule,
     MentionsModule,
@@ -332,6 +329,10 @@ const isDev =
     // runs the same module as the dedicated worker service.
     JobsModule.register({ mode: 'api' }),
     ...(isDev ? [DevModule] : []),
+    // Owner 2026-10-20: booking, «Вопрос юристу», deadline calculator.
+    ConsultationsModule,
+    LegalQaModule,
+    DeadlinesModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
