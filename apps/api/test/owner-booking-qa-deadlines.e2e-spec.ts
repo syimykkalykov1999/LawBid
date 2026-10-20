@@ -53,7 +53,7 @@ describe('Booking, Q&A, deadlines (e2e)', () => {
     const seed = readFileSync(
       join(
         __dirname,
-        '../prisma/migrations/20261020090200_deadline_seed/migration.sql',
+        '../prisma/migrations/20261020190200_deadline_seed/migration.sql',
       ),
       'utf8',
     );

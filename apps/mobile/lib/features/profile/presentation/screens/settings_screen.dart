@@ -336,6 +336,12 @@ class SettingsScreen extends ConsumerWidget {
             subtitle: t.t('about.hint'),
             onTap: () => context.push(AppRoutes.about),
           ),
+          // Owner 2026-10-20: contacts like WhatsApp — who is on LawBid.
+          AppListRow(
+            icon: AppIcons.contactPhoneOutlined,
+            label: t.t('phoneContacts.title'),
+            onTap: () => context.push(AppRoutes.contacts),
+          ),
           // OQ-028: who I blocked, with Unblock.
           AppListRow(
             icon: AppIcons.blockFlipped,
