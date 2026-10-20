@@ -28,6 +28,7 @@ import 'package:lawbid/features/cases/presentation/screens/work_case_screen.dart
 import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/client_badge/presentation/client_badge_screen.dart';
 import 'package:lawbid/features/client_plan/client_plan_routes.dart';
+import 'package:lawbid/features/contacts_sync/presentation/contacts_screen.dart';
 import 'package:lawbid/features/create/presentation/screens/create_screen.dart';
 import 'package:lawbid/features/feed/presentation/screens/feed_screen.dart';
 import 'package:lawbid/features/guide/presentation/guide_screen.dart';
@@ -466,6 +467,12 @@ GoRouter appRouter(Ref ref) {
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) =>
             AppPageTransitions.push(state, const DataExportScreen()),
+      ),
+      GoRoute(
+        path: AppRoutes.contacts,
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            AppPageTransitions.push(state, const ContactsScreen()),
       ),
       GoRoute(
         path: AppRoutes.blockedUsers,

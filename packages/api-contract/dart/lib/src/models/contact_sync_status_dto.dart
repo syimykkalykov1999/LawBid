@@ -11,7 +11,9 @@ class ContactSyncStatusDto {
   const ContactSyncStatusDto({
     required this.enabled,
     required this.matches,
+    required this.findByPhone,
     this.syncedAt,
+    this.phoneRegion,
   });
 
   factory ContactSyncStatusDto.fromJson(Map<String, Object?> json) =>
@@ -23,6 +25,12 @@ class ContactSyncStatusDto {
   /// People from the address book found on LawBid.
   final int matches;
   final DateTime? syncedAt;
+
+  /// "Find me by my number" (clients; attorneys are public).
+  final bool findByPhone;
+
+  /// ISO country of the account number ("US", "KG"): the default region for national-format numbers in the address book.
+  final String? phoneRegion;
 
   Map<String, Object?> toJson() => _$ContactSyncStatusDtoToJson(this);
 }
