@@ -88,6 +88,7 @@ describe('Starter catalog (e2e)', () => {
       where: { id: f.owner_user_id },
     });
     expect(owner.email).toBe('catalog@system.lawbid.invalid');
+    expect(owner.placeholder_kind).toBe('system');
     expect(removed).toEqual([]);
     expect(f).toMatchObject({
       purpose: 'sticker',

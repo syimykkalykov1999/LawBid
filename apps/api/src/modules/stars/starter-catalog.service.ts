@@ -101,11 +101,12 @@ export class StarterCatalogService implements OnApplicationBootstrap {
     const owner = await this.prisma.user.upsert({
       where: { email: SYSTEM_EMAIL },
       create: {
+        placeholder_kind: 'system',
         email: SYSTEM_EMAIL,
         first_name: 'LawBid',
         last_name: 'Catalog',
       },
-      update: {},
+      update: { placeholder_kind: 'system' },
       select: { id: true },
     });
 

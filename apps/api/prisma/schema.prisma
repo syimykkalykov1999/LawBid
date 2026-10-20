@@ -836,7 +836,8 @@ model User {
   // Owner 2026-10-05: a row that stands for a person outside the app (an
   // external partner — a blogger whose referral code the admin hands out
   // before they register). No identifiers, cannot sign in, hidden from
-  // the people lists. Values: external_partner.
+  // the people lists. Values: external_partner | system (owner of the starter
+  // catalog images).
   placeholder_kind            String?                        @db.VarChar(24)
   country_code                String                         @default("US") @db.Char(2)
   country                     Country                        @relation(fields: [country_code], references: [code], onDelete: Restrict)
