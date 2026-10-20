@@ -169,6 +169,60 @@ describe('Stars, gifts and paid stickers (e2e)', () => {
     expect(ledger[0]).toMatchObject({ kind: 'topup', delta: row.stars });
   });
 
+  it('a webhook that beats the session id still credits; a refund takes stars back, the rest becomes a debt', async () => {
+    await flag(true);
+    const stars = app.get(StarsService);
+    const u = await user('client', 'Refunded');
+    const { purchaseId } = await buy(u.auth);
+    const row = await prisma.starPurchase.findUniqueOrThrow({
+      where: { id: purchaseId },
+    });
+    const session = row.stripe_checkout_id!;
+    // the webhook came before the id was written
+    await prisma.starPurchase.update({
+      where: { id: purchaseId },
+      data: { stripe_checkout_id: null },
+    });
+    await fake.payCheckout(session);
+    const paid = (await fake.retrieveCheckoutSession(session))!;
+    expect(await stars.applyCheckout(paid)).toBe(true);
+    const bought = await prisma.starPurchase.findUniqueOrThrow({
+      where: { id: purchaseId },
+    });
+    expect(bought).toMatchObject({
+      status: 'paid',
+      stripe_checkout_id: session,
+    });
+
+    // 20 stars are left, the rest was spent; Stripe refunds the payment
+    await prisma.starWallet.update({
+      where: { user_id: u.id },
+      data: { balance: 20 },
+    });
+    expect(await stars.refundPayments([bought.payment_id!])).toBe(1);
+    expect(await stars.refundPayments([bought.payment_id!])).toBe(0);
+    const w = await prisma.starWallet.findUniqueOrThrow({
+      where: { user_id: u.id },
+    });
+    expect(w).toMatchObject({ balance: 0, debt: row.stars - 20 });
+    const refund = await prisma.starLedger.findMany({
+      where: { user_id: u.id, kind: 'refund' },
+    });
+    expect(refund).toHaveLength(1);
+    expect(refund[0]).toMatchObject({ delta: -20, balance_after: 0 });
+    expect((await stars.debts()).find((d) => d.userId === u.id)?.debt).toBe(
+      row.stars - 20,
+    );
+
+    // a later credit pays the debt first
+    await prisma.$transaction((tx) =>
+      stars.credit(tx, u.id, row.stars, 'admin_grant', `t:${randomUUID()}`),
+    );
+    expect(
+      await prisma.starWallet.findUniqueOrThrow({ where: { user_id: u.id } }),
+    ).toMatchObject({ balance: 20, debt: 0 });
+  });
+
   it('a gift in a chat charges the giver, shows in the bubble, never overdraws', async () => {
     await flag(true);
     const client = await user('client', 'Giver');

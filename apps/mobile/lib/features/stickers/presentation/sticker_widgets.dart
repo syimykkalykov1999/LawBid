@@ -1,4 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -628,8 +629,9 @@ class _PackSheetState extends ConsumerState<_PackSheet> {
         showAppSnackBar(
           context,
           errorText(t, e),
-          actionLabel: low ? t.t('stars.topup') : null,
-          onAction: low ? () => context.push(AppRoutes.stars) : null,
+          // Store rules: the top-up action exists on the web build only.
+          actionLabel: low && kIsWeb ? t.t('stars.topup') : null,
+          onAction: low && kIsWeb ? () => context.push(AppRoutes.stars) : null,
         );
       }
     } finally {

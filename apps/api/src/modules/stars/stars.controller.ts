@@ -38,6 +38,7 @@ import {
   GiftDto,
   GiftSendDto,
   GiftShowcaseQueryDto,
+  StarsDebtDto,
   GrantStarsDto,
   SaveStarsSettingsDto,
   SendProfileGiftDto,
@@ -263,6 +264,13 @@ export class AdminStarsController {
   @ApiEnvelopeResponse(StarsReportDto)
   adminStarsReport(@Query() q: StarsReportQueryDto): Promise<StarsReportDto> {
     return this.stars.report(q.days ?? 30);
+  }
+
+  @Get('debts')
+  @ApiOperation({ summary: 'Accounts that owe stars after a refund' })
+  @ApiEnvelopeResponse(StarsDebtDto, { isArray: true })
+  adminStarsDebts(): Promise<StarsDebtDto[]> {
+    return this.stars.debts();
   }
 
   @Get('ledger')

@@ -1,6 +1,7 @@
 import { PostsModule } from '../modules/posts/posts.module';
 import { CasePaymentsCoreModule } from '../modules/case-payments/case-payments.module';
 import { PromotionsCoreModule } from '../modules/promotions/promotions.module';
+import { StarsCoreModule } from '../modules/stars/stars.module';
 import { PartnersCoreModule } from '../modules/partners/partners.module';
 import { OutreachRetentionModule } from '../modules/outreach/outreach.module';
 import { CountryPartnersCoreModule } from '../modules/country-partners/country-partners.module';
@@ -78,6 +79,8 @@ export class JobsModule {
         PostsModule,
         // Owner 2026-10-02: `promotions.expire`.
         PromotionsCoreModule,
+        // Owner 2026-10-20: `stars.sweep`.
+        StarsCoreModule,
         // Owner 2026-10-05: `case-payments.expire`.
         CasePaymentsCoreModule,
         // Owner 2026-10-05: `partners.sweep`.

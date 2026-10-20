@@ -4267,6 +4267,9 @@ model StarWallet {
   balance         Int      @default(0)
   lifetime_bought Int      @default(0)
   lifetime_spent  Int      @default(0)
+  /// Stars owed after a refunded top-up that was already spent: the balance
+  /// stays at 0 and later credits pay the debt first.
+  debt            Int      @default(0)
   updated_at      DateTime @default(now()) @db.Timestamptz
 
   @@map("star_wallets")
@@ -4303,6 +4306,7 @@ model StarPurchase {
   payment_id         String?   @db.Uuid
   created_at         DateTime  @default(now()) @db.Timestamptz
   paid_at            DateTime? @db.Timestamptz
+  refunded_at        DateTime? @db.Timestamptz
 
   @@index([user_id, created_at(sort: Desc)])
   @@index([status, paid_at(sort: Desc)])

@@ -45,6 +45,20 @@ export class StarsOverviewDto {
     description: 'Percent of a gift price a receiver gets turning it to stars.',
   })
   giftConvertPercent!: number;
+  @ApiProperty({
+    type: 'integer',
+    description: 'Cents one star is worth (Boost price conversion).',
+  })
+  starCents!: number;
+  @ApiProperty({
+    type: 'integer',
+    description: 'Stars a premium reaction costs.',
+  })
+  reactionStars!: number;
+  @ApiProperty({ type: [String], description: 'Reactions charged in stars.' })
+  premiumReactions!: string[];
+  @ApiProperty({ type: [String], description: 'Reactions free for everyone.' })
+  freeReactions!: string[];
 }
 
 export class StarsBuyDto {
@@ -147,6 +161,17 @@ export class StarsAdminSettingsDto {
   @ApiProperty() enabled!: boolean;
   @ApiProperty({ type: 'integer' }) giftConvertPercent!: number;
   @ApiProperty({ type: 'integer' }) giftsPerDayMax!: number;
+  @ApiProperty({
+    type: 'integer',
+    description: 'US cents one star is worth when a Boost is paid in stars.',
+  })
+  starCents!: number;
+  @ApiProperty({
+    type: 'integer',
+    description: 'Stars one premium reaction costs.',
+  })
+  reactionStars!: number;
+  @ApiProperty({ type: [String] }) premiumReactions!: string[];
 }
 
 export class SaveStarsSettingsDto {
@@ -168,6 +193,25 @@ export class SaveStarsSettingsDto {
   @Min(1)
   @Max(1000)
   giftsPerDayMax!: number;
+
+  @ApiProperty({ type: 'integer', minimum: 1, maximum: 1000 })
+  @IsInt()
+  @Min(1)
+  @Max(1000)
+  starCents!: number;
+
+  @ApiProperty({ type: 'integer', minimum: 1, maximum: 1000 })
+  @IsInt()
+  @Min(1)
+  @Max(1000)
+  reactionStars!: number;
+
+  @ApiProperty({ type: [String], maxItems: 24 })
+  @IsArray()
+  @ArrayMaxSize(24)
+  @IsString({ each: true })
+  @MaxLength(16, { each: true })
+  premiumReactions!: string[];
 }
 
 export class AdminGiftDto {
@@ -267,6 +311,13 @@ export class StarsTopGiftDto {
   @ApiProperty({ type: 'integer' }) stars!: number;
 }
 
+export class StarsDebtDto {
+  @ApiProperty({ format: 'uuid' }) userId!: string;
+  @ApiProperty({ type: 'integer', description: 'Stars still owed.' })
+  debt!: number;
+  @ApiProperty({ type: 'integer' }) balance!: number;
+}
+
 export class StarsReportDto {
   @ApiProperty({ type: 'integer' }) days!: number;
   @ApiProperty({ type: 'integer', description: 'Stars bought in the period.' })
@@ -284,6 +335,12 @@ export class StarsReportDto {
     description: 'Stars users hold now — what we still owe in goods.',
   })
   outstandingStars!: number;
+  @ApiProperty({
+    type: 'integer',
+    description: 'Stars owed after refunded top-ups that were already spent.',
+  })
+  debtStars!: number;
+  @ApiProperty({ type: 'integer' }) debtUsers!: number;
   @ApiProperty({ type: 'integer' }) giftsSent!: number;
   @ApiProperty({
     type: 'integer',

@@ -38,6 +38,7 @@ import type {
   SaveStarsSettingsDto,
   SendProfileGiftDto,
   StarLedgerItemDto,
+  StarsDebtDto,
   StarsKindTotalDto,
   StarsAdminSettingsDto,
   StarsOverviewDto,
@@ -48,6 +49,8 @@ import type {
 import {
   assertUniquePackIds,
   convertedStars,
+  FREE_REACTIONS,
+  parsePremiumReactions,
   parseStarsConfig,
   STARS_CHECKOUT_KIND,
   STARS_FLAG,
@@ -133,6 +136,11 @@ export class StarsService {
     return parseStarsConfig(row?.value);
   }
 
+  /** US cents one star is worth for a Boost paid in stars. */
+  async starCents(): Promise<number> {
+    return (await this.cfg()).starCents;
+  }
+
   async packs(): Promise<StarPack[]> {
     return (await this.cfg()).packs;
   }
@@ -144,6 +152,9 @@ export class StarsService {
       enabled: await this.enabled(),
       giftConvertPercent: c.giftConvertPercent,
       giftsPerDayMax: c.giftsPerDayMax,
+      starCents: c.starCents,
+      reactionStars: c.reactionStars,
+      premiumReactions: c.premiumReactions,
     };
   }
 
@@ -155,6 +166,9 @@ export class StarsService {
       packs: dto.packs,
       giftConvertPercent: dto.giftConvertPercent,
       giftsPerDayMax: dto.giftsPerDayMax,
+      starCents: dto.starCents,
+      reactionStars: dto.reactionStars,
+      premiumReactions: parsePremiumReactions(dto.premiumReactions),
     } as object;
     await this.prisma.appConfig.upsert({
       where: { key: STARS_SETTINGS_KEY },
@@ -179,6 +193,10 @@ export class StarsService {
       balance: await this.balance(userId),
       packs: enabled ? await this.packs() : [],
       giftConvertPercent: (await this.cfg()).giftConvertPercent,
+      starCents: (await this.cfg()).starCents,
+      reactionStars: (await this.cfg()).reactionStars,
+      premiumReactions: (await this.cfg()).premiumReactions,
+      freeReactions: [...FREE_REACTIONS],
     };
   }
 
@@ -206,7 +224,9 @@ export class StarsService {
       INSERT INTO star_wallets (user_id, balance, lifetime_bought)
       VALUES (${userId}::uuid, ${amount}, ${bought})
       ON CONFLICT (user_id) DO UPDATE
-        SET balance = star_wallets.balance + ${amount},
+        SET balance = star_wallets.balance + ${amount}::int
+                      - LEAST(star_wallets.debt, ${amount}::int),
+            debt = star_wallets.debt - LEAST(star_wallets.debt, ${amount}::int),
             lifetime_bought = star_wallets.lifetime_bought + ${bought},
             updated_at = now()
       RETURNING balance`;
@@ -382,6 +402,27 @@ export class StarsService {
     };
   }
 
+  /** Cron `stars.sweep`: top-ups paid more than 2 minutes ago whose webhook
+   * never arrived (or lost the race with the session id) are credited. */
+  async sweepPending(): Promise<void> {
+    const rows = await this.prisma.starPurchase.findMany({
+      where: {
+        status: 'pending_payment',
+        stripe_checkout_id: { not: null },
+        created_at: {
+          lt: new Date(Date.now() - 2 * 60 * 1000),
+          gt: new Date(Date.now() - 24 * 3600 * 1000),
+        },
+      },
+      select: { stripe_checkout_id: true },
+      take: 100,
+    });
+    for (const r of rows) {
+      if (r.stripe_checkout_id)
+        await this.applyCheckoutById(r.stripe_checkout_id);
+    }
+  }
+
   async applyCheckoutById(sessionId: string): Promise<boolean> {
     try {
       const s = this.provider
@@ -392,6 +433,72 @@ export class StarsService {
       this.logger.warn({ sessionId, err: String(e) }, 'stars check failed');
       return false;
     }
+  }
+
+  /**
+   * Stripe `charge.refunded`: the refunded top-ups take their stars back.
+   * The balance never goes below 0 — what was already spent becomes a debt
+   * the next credits pay off first (shown in the admin). Idempotent per
+   * purchase.
+   */
+  async refundPayments(paymentIds: string[]): Promise<number> {
+    if (paymentIds.length === 0) return 0;
+    const rows = await this.prisma.starPurchase.findMany({
+      where: {
+        payment_id: { in: paymentIds },
+        status: 'paid',
+        refunded_at: null,
+      },
+    });
+    let n = 0;
+    for (const p of rows) {
+      const done = await withTxRetry(this.prisma, async (tx) => {
+        const mark = await tx.starPurchase.updateMany({
+          where: { id: p.id, refunded_at: null },
+          data: { refunded_at: new Date() },
+        });
+        if (mark.count === 0) return false;
+        const [w] = await tx.$queryRaw<{ balance: number }[]>`
+          SELECT balance FROM star_wallets
+          WHERE user_id = ${p.user_id}::uuid FOR UPDATE`;
+        const take = Math.min(w?.balance ?? 0, p.stars);
+        const owed = p.stars - take;
+        const ins = await tx.$queryRaw<{ id: string }[]>`
+          INSERT INTO star_ledger (user_id, delta, balance_after, kind, ref_id, note, idem_key)
+          VALUES (${p.user_id}::uuid, ${-take}, 0, 'refund', ${p.id}::uuid,
+                  ${owed > 0 ? `debt ${owed}` : null}, ${`refund:${p.id}`})
+          ON CONFLICT (idem_key) DO NOTHING
+          RETURNING id`;
+        if (ins.length === 0) return false;
+        const [upd] = await tx.$queryRaw<{ balance: number }[]>`
+          UPDATE star_wallets
+          SET balance = balance - ${take}::int,
+              debt = debt + ${owed}::int,
+              updated_at = now()
+          WHERE user_id = ${p.user_id}::uuid
+          RETURNING balance`;
+        await tx.$executeRaw`
+          UPDATE star_ledger SET balance_after = ${upd?.balance ?? 0}
+          WHERE id = ${ins[0].id}::uuid`;
+        return true;
+      });
+      if (done) n += 1;
+    }
+    return n;
+  }
+
+  /** GET /admin/stars/debts — accounts that owe stars after a refund. */
+  async debts(): Promise<StarsDebtDto[]> {
+    const rows = await this.prisma.starWallet.findMany({
+      where: { debt: { gt: 0 } },
+      orderBy: { debt: 'desc' },
+      take: 100,
+    });
+    return rows.map((w) => ({
+      userId: w.user_id,
+      debt: w.debt,
+      balance: w.balance,
+    }));
   }
 
   /** A paid stars checkout (webhook / fake page / the app's return) →
@@ -405,7 +512,11 @@ export class StarsService {
     if (!id) return false;
     return withTxRetry(this.prisma, async (tx) => {
       const p = await tx.starPurchase.findUnique({ where: { id } });
-      if (!p || p.stripe_checkout_id !== session.id) return false;
+      // The webhook can beat the write of stripe_checkout_id (the session is
+      // created first): a purchase with no id yet takes this session's.
+      if (!p) return false;
+      if (p.stripe_checkout_id && p.stripe_checkout_id !== session.id)
+        return false;
       if (p.status !== 'pending_payment') return false;
       const now = new Date();
       const payment = await tx.payment.create({
@@ -420,7 +531,12 @@ export class StarsService {
       });
       await tx.starPurchase.update({
         where: { id },
-        data: { status: 'paid', paid_at: now, payment_id: payment.id },
+        data: {
+          status: 'paid',
+          paid_at: now,
+          payment_id: payment.id,
+          stripe_checkout_id: p.stripe_checkout_id ?? session.id,
+        },
       });
       await this.credit(tx, p.user_id, p.stars, 'topup', `topup:${id}`, {
         refId: id,
@@ -879,7 +995,7 @@ export class StarsService {
 
   async report(days: number): Promise<StarsReportDto> {
     const since = new Date(Date.now() - days * 24 * 3600 * 1000);
-    const [sold, spent, wallets, gifts, converted, kinds, top] =
+    const [sold, spent, wallets, gifts, converted, kinds, top, debtUsers] =
       await Promise.all([
         this.prisma.starPurchase.aggregate({
           where: { status: 'paid', paid_at: { gte: since } },
@@ -894,7 +1010,9 @@ export class StarsService {
           },
           _sum: { delta: true },
         }),
-        this.prisma.starWallet.aggregate({ _sum: { balance: true } }),
+        this.prisma.starWallet.aggregate({
+          _sum: { balance: true, debt: true },
+        }),
         this.prisma.giftSend.count({ where: { created_at: { gte: since } } }),
         this.prisma.giftSend.aggregate({
           where: { converted_at: { gte: since } },
@@ -914,6 +1032,7 @@ export class StarsService {
           orderBy: { _sum: { price_stars: 'desc' } },
           take: 5,
         }),
+        this.prisma.starWallet.count({ where: { debt: { gt: 0 } } }),
       ]);
     const titles = new Map(
       (
@@ -930,6 +1049,8 @@ export class StarsService {
       purchases: sold._count,
       starsSpent: -(spent._sum.delta ?? 0),
       outstandingStars: wallets._sum.balance ?? 0,
+      debtStars: wallets._sum.debt ?? 0,
+      debtUsers,
       giftsSent: gifts,
       starsConverted: converted._sum.converted_stars ?? 0,
       byKind: kinds.map((k): StarsKindTotalDto => ({

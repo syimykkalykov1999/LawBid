@@ -76,11 +76,11 @@ void main() {
     await tester.pumpWidget(_app(const StarsScreen()));
     await tester.pumpAndSettle();
     expect(find.text('120 ⭐'), findsOneWidget);
-    expect(find.text('50 ⭐'), findsWidgets);
-    expect(find.text('150 ⭐'), findsOneWidget);
     // The native apps never print a price (the payment page is on the web).
     expect(find.textContaining(r'$'), findsNothing);
-    expect(find.text('Top up'), findsNWidgets(2));
+    // Store rules: no top-up button and no link in the apps, only a note.
+    expect(find.text('Top up balance'), findsNothing);
+    expect(find.byKey(const ValueKey('stars-topup-note')), findsOneWidget);
     expect(find.text('Top-up'), findsOneWidget);
     expect(find.text('Gift sent'), findsOneWidget);
     expect(find.text('+50 ⭐'), findsOneWidget);
@@ -147,7 +147,8 @@ void main() {
     await tester.tap(find.text('open'));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('gift-send')), findsNothing);
-    expect(find.byKey(const ValueKey('gift-topup')), findsOneWidget);
+    expect(find.byKey(const ValueKey('gift-topup')), findsNothing);
+    expect(find.byKey(const ValueKey('gift-topup-note')), findsOneWidget);
     expect(find.text('Not enough stars: 200 ⭐ needed'), findsOneWidget);
   });
 }

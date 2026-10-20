@@ -155,23 +155,33 @@ class _StarsScreenState extends ConsumerState<StarsScreen>
               style: type.bodySmall.copyWith(color: colors.textSecondary),
             ),
             const SizedBox(height: AppSpacing.lg),
-            Text(
-              t.t('stars.topup'),
-              style: type.titleMedium.copyWith(color: colors.text),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            for (final p in d.packs) ...[
-              _PackRow(
-                pack: p,
-                busy: _buying == p.id,
-                onBuy: () => _buy(p.id),
-                t: t,
+            // Store rules (owner 2026-10-20): the apps have no top-up
+            // button and no link to a payment page, only this note; the web
+            // build keeps the packs and the prices.
+            if (kIsWeb) ...[
+              Text(
+                t.t('stars.topup'),
+                style: type.titleMedium.copyWith(color: colors.text),
               ),
               const SizedBox(height: AppSpacing.sm),
-            ],
-            if (d.packs.isEmpty)
+              for (final p in d.packs) ...[
+                _PackRow(
+                  pack: p,
+                  busy: _buying == p.id,
+                  onBuy: () => _buy(p.id),
+                  t: t,
+                ),
+                const SizedBox(height: AppSpacing.sm),
+              ],
+              if (d.packs.isEmpty)
+                Text(
+                  t.t('stars.none'),
+                  style: type.body.copyWith(color: colors.textSecondary),
+                ),
+            ] else
               Text(
-                t.t('stars.none'),
+                t.t('stars.topup.web'),
+                key: const ValueKey('stars-topup-note'),
                 style: type.body.copyWith(color: colors.textSecondary),
               ),
             const SizedBox(height: AppSpacing.md),
@@ -248,13 +258,10 @@ class _PackRow extends StatelessWidget {
               style: type.titleMedium.copyWith(color: colors.text),
             ),
           ),
-          // The apps show no money prices (owner 2026-10-20): only the web
-          // build prints the amount, the payment page is on the web anyway.
           SizedBox(
             width: 132,
             child: AppButton(
-              label:
-                  kIsWeb ? _price(pack.priceCents) : t.t('stars.topup.short'),
+              label: _price(pack.priceCents),
               isLoading: busy,
               onPressed: onBuy,
             ),

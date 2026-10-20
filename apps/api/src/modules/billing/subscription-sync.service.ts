@@ -334,12 +334,19 @@ export class SubscriptionSyncService {
     if (!charge?.paymentIntentId || !charge.refunded) return;
     const refunded = await this.prisma.payment.findMany({
       where: { stripe_payment_intent_id: charge.paymentIntentId },
-      select: { user_id: true },
+      select: { id: true, user_id: true },
     });
     await this.prisma.payment.updateMany({
       where: { stripe_payment_intent_id: charge.paymentIntentId },
       data: { status: 'refunded' },
     });
+    // Owner 2026-10-20: a refunded stars top-up takes its stars back (debt
+    // when they are spent; never a negative balance).
+    try {
+      await this.stars?.refundPayments(refunded.map((p) => p.id));
+    } catch (e) {
+      this.logger.error(`stars refund failed: ${String(e)}`);
+    }
     // Owner 2026-10-05: a refunded subscription payment takes back the
     // partner's commission for that attorney (never breaks billing).
     for (const userId of new Set(refunded.map((p) => p.user_id))) {

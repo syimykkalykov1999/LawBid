@@ -1,4 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -247,8 +248,9 @@ class _GiftSheetState extends ConsumerState<_GiftSheet> {
       showAppSnackBar(
         context,
         errorText(t, e),
-        actionLabel: low ? t.t('stars.topup') : null,
-        onAction: low ? _topUp : null,
+        // Store rules: the top-up action exists on the web build only.
+        actionLabel: low && kIsWeb ? t.t('stars.topup') : null,
+        onAction: low && kIsWeb ? _topUp : null,
       );
       if (low) ref.invalidate(starsOverviewProvider);
     } finally {
@@ -328,11 +330,18 @@ class _GiftSheetState extends ConsumerState<_GiftSheet> {
                 isLoading: _busy,
                 onPressed: _send,
               )
-            else
+            else if (kIsWeb)
               AppButton(
                 key: const ValueKey('gift-topup'),
                 label: t.t('stars.topup'),
                 onPressed: _topUp,
+              )
+            else
+              Text(
+                t.t('stars.topup.web'),
+                key: const ValueKey('gift-topup-note'),
+                textAlign: TextAlign.center,
+                style: type.bodySmall.copyWith(color: colors.textSecondary),
               ),
           ],
         ),
