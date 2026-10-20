@@ -67,25 +67,15 @@ void main() {
     expect(find.textContaining('Новые вопросы'), findsNothing);
   });
 
-  testWidgets('no banner and no «Мои» line without fresh questions', (
+  testWidgets('no banner without fresh questions', (
     tester,
   ) async {
     await pump(
       tester,
-      const Column(children: [QaNewQuestionsBanner(), QaMineEntry()]),
+      const QaNewQuestionsBanner(),
       summary: const QaSummary(),
     );
     expect(find.textContaining('Новые вопросы'), findsNothing);
-    expect(find.byKey(const ValueKey('mine-qa')), findsNothing);
-  });
-
-  testWidgets('«Мои» line: title and count', (tester) async {
-    await pump(
-      tester,
-      const QaMineEntry(),
-      summary: const QaSummary(newCount: 5),
-    );
-    expect(find.text('Вопрос юристу · 5 новых'), findsOneWidget);
   });
 
   testWidgets('profile: own row has the call and the numbers', (tester) async {

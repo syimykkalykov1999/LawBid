@@ -142,32 +142,6 @@ class QaNewQuestionsBanner extends ConsumerWidget {
   }
 }
 
-/// Owner 2026-10-20: «Мои» (attorney) — «Вопрос юристу · N новых»; hidden
-/// without fresh questions and while the flag is off.
-class QaMineEntry extends ConsumerWidget {
-  const QaMineEntry({super.key});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    if (!ref.watch(legalQaEnabledProvider)) return const SizedBox.shrink();
-    final count = ref.watch(qaSummaryProvider).value?.newCount ?? 0;
-    if (count <= 0) return const SizedBox.shrink();
-    final t = ref.watch(translatorProvider);
-    return Padding(
-      padding: const EdgeInsetsDirectional.only(
-        start: AppSpacing.screenSide,
-        end: AppSpacing.screenSide,
-        bottom: AppSpacing.sm,
-      ),
-      child: _QaLine(
-        key: const ValueKey('mine-qa'),
-        text: '${t.t('qa.title')} · ${t.t('qa.newShort', {'count': '$count'})}',
-        onTap: () => context.push(LegalQaRoutes.unanswered),
-      ),
-    );
-  }
-}
-
 /// Owner 2026-10-20: in the «Rating» tab of an attorney's own profile, under
 /// the rating block — a call to answer questions with «Answers N · best M»
 /// (taps into «Вопрос юристу»). Nobody else sees it.
