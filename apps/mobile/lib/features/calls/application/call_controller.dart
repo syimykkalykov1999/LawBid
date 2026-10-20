@@ -21,6 +21,7 @@ import 'package:lawbid/features/notifications/data/notifications_repository.dart
     show NotifCategory;
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
+import 'package:proximity_sensor/proximity_sensor.dart';
 
 /// What the call screen shows (OQ-041).
 enum CallPhase {
@@ -317,6 +318,7 @@ class CallController extends Notifier<CallSession> {
     );
     // The ongoing-call notification follows the call; its buttons come back.
     listenSelf(_syncForeground);
+    listenSelf(_syncProximity);
     final fg = ref.read(callForegroundProvider);
     final actions = fg.actions.listen(_onNotificationAction);
     unawaited(
@@ -331,6 +333,25 @@ class CallController extends Notifier<CallSession> {
       unawaited(_media?.close());
     });
     return const CallSession();
+  }
+
+  // Like WhatsApp: an audio call held to the ear (no speaker) turns the
+  // screen off while the phone is near the face.
+  bool _proximityOn = false;
+
+  void _syncProximity(CallSession? prev, CallSession next) {
+    if (kIsWeb) return;
+    final on = !next.video &&
+        !next.speaker &&
+        (next.phase == CallPhase.connecting || next.phase == CallPhase.active);
+    if (on == _proximityOn) return;
+    _proximityOn = on;
+    unawaited(
+      ProximitySensor.setProximityScreenOff(on).then<void>(
+        (_) {},
+        onError: (Object _) {},
+      ),
+    );
   }
 
   // Android ongoing-call notification (owner 2026-10-20).

@@ -78,11 +78,11 @@ class CallkitSystemUi implements SystemCallUi {
           appName: 'LawBid',
           avatar: call.peer.avatarUrl,
           handle: call.peer.name.isEmpty ? 'LawBid' : call.peer.name,
-          type: 0,
+          type: call.video ? 1 : 0,
           extra: {'callId': call.id},
-          ios: const IOSParams(
+          ios: IOSParams(
             handleType: 'generic',
-            supportsVideo: false,
+            supportsVideo: call.video,
             maximumCallGroups: 1,
             maximumCallsPerCallGroup: 1,
             supportsDTMF: false,
@@ -150,9 +150,9 @@ Future<void> showLawbidIncoming({
           textAccept: 'Accept',
           textDecline: 'Decline',
         ),
-        ios: const IOSParams(
+        ios: IOSParams(
           handleType: 'generic',
-          supportsVideo: false,
+          supportsVideo: video,
           maximumCallGroups: 1,
           maximumCallsPerCallGroup: 1,
           supportsDTMF: false,

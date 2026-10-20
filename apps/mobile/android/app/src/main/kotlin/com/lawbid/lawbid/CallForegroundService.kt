@@ -22,12 +22,25 @@ import android.os.IBinder
 class CallForegroundService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
-    /** The app was swiped from the recent apps: the call is gone with it —
-     * no "ongoing call" notification or microphone indicator may stay. */
+    private var wakeLock: android.os.PowerManager.WakeLock? = null
+
+    /** Swiped from the recent apps: like WhatsApp the call goes on — this
+     * service keeps the process (and the Dart side) alive, and a tap on the
+     * notification brings the call screen back. If the system kills the
+     * process anyway the service dies with it (START_NOT_STICKY), so no
+     * "ongoing call" notification or microphone indicator can outlive it. */
     override fun onTaskRemoved(rootIntent: Intent?) {
-        stopForeground(STOP_FOREGROUND_REMOVE)
-        stopSelf()
         super.onTaskRemoved(rootIntent)
+    }
+
+    override fun onDestroy() {
+        try {
+            wakeLock?.takeIf { it.isHeld }?.release()
+        } catch (e: Exception) {
+            // already released
+        }
+        wakeLock = null
+        super.onDestroy()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -35,6 +48,15 @@ class CallForegroundService : Service() {
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
             return START_NOT_STICKY
+        }
+        if (wakeLock == null) {
+            // The CPU stays on for the whole call (screen off, Doze).
+            val pm = getSystemService(android.content.Context.POWER_SERVICE) as? android.os.PowerManager
+            wakeLock = pm?.newWakeLock(android.os.PowerManager.PARTIAL_WAKE_LOCK, "lawbid:call")
+                ?.apply {
+                    setReferenceCounted(false)
+                    acquire(4 * 60 * 60 * 1000L)
+                }
         }
         val name = intent?.getStringExtra(EXTRA_NAME) ?: ""
         val since = intent?.getLongExtra(EXTRA_SINCE, 0L) ?: 0L

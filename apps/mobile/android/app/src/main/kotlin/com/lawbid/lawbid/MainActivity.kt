@@ -38,10 +38,24 @@ class MainActivity : FlutterFragmentActivity() {
     private var pendingPermission: MethodChannel.Result? = null
     private var callChannel: MethodChannel? = null
     private var pendingCallAction: String? = null
+    private var pipActive = false
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         createChannels()
+        // Owner 2026-10-20: a video call goes to a floating window when the
+        // person leaves the app (Home / another app), like WhatsApp.
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "lawbid/call_pip",
+        ).setMethodCallHandler { call, result ->
+            if (call.method == "setActive") {
+                pipActive = call.argument<Boolean>("active") == true
+                result.success(null)
+            } else {
+                result.notImplemented()
+            }
+        }
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
             "lawbid/notification_sounds",
@@ -217,6 +231,22 @@ class MainActivity : FlutterFragmentActivity() {
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
         CallBridge.channel = null
         super.cleanUpFlutterEngine(flutterEngine)
+    }
+
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        if (pipActive && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            try {
+                enterPictureInPictureMode(
+                    android.app.PictureInPictureParams.Builder()
+                        .setAspectRatio(android.util.Rational(9, 16))
+                        .build(),
+                )
+            } catch (e: Exception) {
+                // PiP not allowed on this device: the call goes on in the
+                // background with its notification.
+            }
+        }
     }
 
     override fun onNewIntent(intent: Intent) {

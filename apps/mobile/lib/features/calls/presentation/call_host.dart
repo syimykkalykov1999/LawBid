@@ -12,6 +12,7 @@ import 'package:lawbid/features/calls/application/callkit_bridge.dart';
 import 'package:lawbid/features/chat/application/voice_recorder.dart'
     show voiceClock;
 import 'package:lawbid/features/chat/chat_routes.dart';
+import 'package:lawbid/features/social/application/social_providers.dart';
 
 /// OQ-041: opens the call screen over whatever is on screen when a call
 /// starts here or rings in (the screen closes itself when it is over).
@@ -42,8 +43,11 @@ class CallHost extends ConsumerWidget {
           prev == CallPhase.incoming ||
           prev == CallPhase.connecting ||
           prev == CallPhase.active;
-      final opened = !wasLive &&
-          (next == CallPhase.outgoing || next == CallPhase.incoming);
+      // Outgoing opens the call screen; an incoming call in the open app is
+      // a compact banner (Accept / Decline) until it is answered — then the
+      // screen opens, like WhatsApp.
+      final opened = (!wasLive && next == CallPhase.outgoing) ||
+          (prev == CallPhase.incoming && next == CallPhase.connecting);
       if (!opened) return;
       if (!_onCallScreen(ref)) unawaited(router.push<void>(ChatRoutes.call));
     });
@@ -53,13 +57,34 @@ class CallHost extends ConsumerWidget {
       }
     });
     final s = ref.watch(callControllerProvider);
-    ref.watch(callScreenVisibleProvider);
+    final screenOpen = ref.watch(callScreenVisibleProvider);
     final talking = s.phase == CallPhase.outgoing ||
         s.phase == CallPhase.connecting ||
         s.phase == CallPhase.active;
+    // A video call on screen shrinks to a floating window when the person
+    // leaves the app (Android).
+    final pip = s.video && talking && screenOpen;
+    unawaited(ref.read(callPipProvider).setActive(active: pip));
     return ListenableBuilder(
       listenable: router.routerDelegate,
       builder: (context, _) {
+        if (s.phase == CallPhase.incoming && !_onCallScreen(ref)) {
+          return Column(
+            children: [
+              _IncomingBanner(
+                session: s,
+                onOpen: () => unawaited(router.push<void>(ChatRoutes.call)),
+              ),
+              Expanded(
+                child: MediaQuery.removePadding(
+                  context: context,
+                  removeTop: true,
+                  child: child,
+                ),
+              ),
+            ],
+          );
+        }
         final bar = talking && !_onCallScreen(ref);
         if (!bar) return child;
         // The bar takes the status-bar strip; what is below it must not
@@ -132,7 +157,7 @@ class _ReturnToCallBarState extends ConsumerState<_ReturnToCallBar> {
           child: SafeArea(
             bottom: false,
             child: SizedBox(
-              height: 36,
+              height: 30,
               child: Center(
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -154,6 +179,102 @@ class _ReturnToCallBarState extends ConsumerState<_ReturnToCallBar> {
                 ),
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// An incoming call while the app is open: one compact row at the top
+/// (name, Decline, Accept); a tap on the name opens the full call screen.
+class _IncomingBanner extends ConsumerWidget {
+  const _IncomingBanner({required this.session, required this.onOpen});
+
+  final CallSession session;
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    final me = ref.watch(currentUserIdProvider);
+    final name = callLabel(session, me);
+    final call = ref.read(callControllerProvider.notifier);
+    Widget round(IconData icon, Color fill, String label, VoidCallback tap) =>
+        Semantics(
+          button: true,
+          label: label,
+          excludeSemantics: true,
+          child: GestureDetector(
+            onTap: tap,
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(color: fill, shape: BoxShape.circle),
+              child: Center(
+                child: AppIcon(icon, size: 20, color: Colors.white),
+              ),
+            ),
+          ),
+        );
+    return Material(
+      color: colors.surface,
+      elevation: 2,
+      child: SafeArea(
+        bottom: false,
+        child: Container(
+          height: 56,
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+          decoration: BoxDecoration(
+            border: Border(bottom: BorderSide(color: colors.border)),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: InkWell(
+                  onTap: onOpen,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: type.body.copyWith(
+                          color: colors.text,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Text(
+                        t.t('call.status.incoming'),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: type.caption.copyWith(
+                          color: colors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              round(
+                AppIcons.callEndRounded,
+                colors.danger,
+                t.t('call.decline'),
+                () => unawaited(call.decline()),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              round(
+                AppIcons.callRounded,
+                colors.success,
+                t.t('call.accept'),
+                () => unawaited(call.accept()),
+              ),
+            ],
           ),
         ),
       ),

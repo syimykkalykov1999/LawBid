@@ -102,7 +102,7 @@ import flutter_callkit_incoming
       "conversationId": (p["conversationId"] as? String) ?? "",
     ]
     data.handleType = "generic"
-    data.supportsVideo = false
+    data.supportsVideo = video
     data.maximumCallGroups = 1
     data.maximumCallsPerCallGroup = 1
     data.supportsDTMF = false
