@@ -539,6 +539,10 @@ class CountPill extends StatelessWidget {
 /// contacts (§8.2, §8.3).
 String messagePreview(Translator t, ChatMessage m, {String? me}) {
   if (m.kind == MessageKind.system) return systemLineText(t, m.body);
+  // Owner 2026-10-20: deleted for everyone.
+  if (m.revoked) {
+    return '🚫 ${t.t(m.senderId != null && m.senderId == me ? 'chat.deletedMine' : 'chat.deleted')}';
+  }
   // OQ-041: "📞 Missed call".
   if (m.kind == MessageKind.call && m.callLog != null) {
     return '📞 ${t.t(callLogKey(m.callLog!.outcome, outgoing: m.senderId != null && m.senderId == me))}';

@@ -332,7 +332,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
     );
     final compose = ref.watch(chatComposeProvider(widget.conversationId));
     final selecting =
-        ref.watch(chatSelectionProvider(widget.conversationId)).isNotEmpty;
+        ref.watch(chatMsgSelectionProvider(widget.conversationId)).isNotEmpty;
     // An edit loads the message into the field; closing it clears the field.
     ref.listen(chatComposeProvider(widget.conversationId), (prev, next) {
       final e = next.editing;
@@ -961,7 +961,7 @@ class _Bubble extends ConsumerWidget {
     final fg = mine ? chat.onMine : chat.onTheirs;
     final meta = mine ? chat.mineMeta : chat.theirsMeta;
     final failed = m.delivery == DeliveryState.failed;
-    final selection = ref.watch(chatSelectionProvider(threadId));
+    final selection = ref.watch(chatMsgSelectionProvider(threadId));
     final selecting = selection.isNotEmpty;
     final selected = selection.contains(m.id);
     final conversation = ref.watch(
@@ -1252,12 +1252,12 @@ class _Bubble extends ConsumerWidget {
         ? GestureDetector(
             onLongPress: selecting
                 ? () => ref
-                    .read(chatSelectionProvider(threadId).notifier)
+                    .read(chatMsgSelectionProvider(threadId).notifier)
                     .toggle(m.id)
                 : menu,
             onTap: selecting
                 ? () => ref
-                    .read(chatSelectionProvider(threadId).notifier)
+                    .read(chatMsgSelectionProvider(threadId).notifier)
                     .toggle(m.id)
                 : null,
             behavior: HitTestBehavior.deferToChild,
@@ -1362,7 +1362,7 @@ class _Bubble extends ConsumerWidget {
       behavior: HitTestBehavior.opaque,
       onTap: interactive
           ? () =>
-              ref.read(chatSelectionProvider(threadId).notifier).toggle(m.id)
+              ref.read(chatMsgSelectionProvider(threadId).notifier).toggle(m.id)
           : null,
       child: Container(
         color: selected ? colors.gold.withValues(alpha: 0.16) : null,

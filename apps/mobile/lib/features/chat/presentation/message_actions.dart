@@ -68,7 +68,7 @@ class ChatSelectionNotifier extends Notifier<Set<String>> {
   void clear() => state = const {};
 }
 
-final chatSelectionProvider = NotifierProvider.autoDispose
+final chatMsgSelectionProvider = NotifierProvider.autoDispose
     .family<ChatSelectionNotifier, Set<String>, String>(
   ChatSelectionNotifier.new,
 );
@@ -262,7 +262,7 @@ Future<void> showMessageMenu(
   final thread = ref.read(chatThreadProvider(conversationId).notifier);
   final colors = Theme.of(context).extension<AppColorTokens>()!;
   final compose = ref.read(chatComposeProvider(conversationId).notifier);
-  final selection = ref.read(chatSelectionProvider(conversationId).notifier);
+  final selection = ref.read(chatMsgSelectionProvider(conversationId).notifier);
   final mine = m.senderId == ref.read(currentUserIdProvider);
   final live = !m.isLocal && !m.revoked;
   final text = m.kind == MessageKind.text && !m.revoked;
@@ -953,13 +953,14 @@ class SelectionBar extends ConsumerWidget implements PreferredSizeWidget {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    final ids = ref.watch(chatSelectionProvider(conversationId));
+    final ids = ref.watch(chatMsgSelectionProvider(conversationId));
     final state = ref.watch(chatThreadProvider(conversationId));
     final picked = [
       for (final m in state.all)
         if (ids.contains(m.id)) m,
     ];
-    final selection = ref.read(chatSelectionProvider(conversationId).notifier);
+    final selection =
+        ref.read(chatMsgSelectionProvider(conversationId).notifier);
     final canCopy = picked.any(
       (m) => m.kind == MessageKind.text && !m.revoked,
     );
@@ -971,7 +972,7 @@ class SelectionBar extends ConsumerWidget implements PreferredSizeWidget {
         onPressed: selection.clear,
       ),
       title: Text(
-        t.t('chat.select.count', {'n': '${ids.length}'}),
+        t.t('chat.select.count', {'count': '${ids.length}'}),
         style: type.titleMedium.copyWith(color: colors.text),
       ),
       actions: [
