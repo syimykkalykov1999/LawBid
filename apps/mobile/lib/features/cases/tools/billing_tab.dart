@@ -330,13 +330,12 @@ class _BillingTabState extends ConsumerState<BillingTab>
       _SectionTitle(t.t('billing.time')),
       for (final e in rows)
         _EntryRow(
-          title: '${durationText(t, e.minutes.toInt())} · ${f.currencyFromCents(
-            e.cents.toInt(),
-            currencyCode: d.currency,
+          title: '${isolate(durationText(t, e.minutes.toInt()))} · ${isolate(
+            f.currencyFromCents(e.cents.toInt(), currencyCode: d.currency),
           )}',
           subtitle: [
-            f.date(dayOnScreen(e.workedOn)),
-            if (e.note.isNotEmpty) e.note,
+            isolate(f.date(dayOnScreen(e.workedOn))),
+            if (e.note.isNotEmpty) isolate(e.note),
           ].join(' · '),
           t: t,
           onTap: canEdit ? () => _editTime(e) : null,
@@ -360,11 +359,13 @@ class _BillingTabState extends ConsumerState<BillingTab>
       _SectionTitle(t.t('billing.expenses')),
       for (final e in rows)
         _EntryRow(
-          title: '${f.currencyFromCents(
-            e.amountCents.toInt(),
-            currencyCode: d.currency,
-          )} · ${e.description}',
-          subtitle: f.date(dayOnScreen(e.spentOn)),
+          title: '${isolate(
+            f.currencyFromCents(
+              e.amountCents.toInt(),
+              currencyCode: d.currency,
+            ),
+          )} · ${isolate(e.description)}',
+          subtitle: isolate(f.date(dayOnScreen(e.spentOn))),
           t: t,
           onReceipt: e.receiptUrl == null && e.receiptPreviewUrl == null
               ? null
@@ -379,8 +380,11 @@ class _BillingTabState extends ConsumerState<BillingTab>
 String durationText(Translator t, int minutes) {
   final s = splitMinutes(minutes);
   return s.hours == 0
-      ? t.t('billing.mOnly', {'m': '${s.minutes}'})
-      : t.t('billing.hm', {'h': '${s.hours}', 'm': '${s.minutes}'});
+      ? t.t('billing.mOnly', {'m': isolate('${s.minutes}')})
+      : t.t('billing.hm', {
+          'h': isolate('${s.hours}'),
+          'm': isolate('${s.minutes}'),
+        });
 }
 
 BoxDecoration _cardBox(AppColorTokens colors) => BoxDecoration(
@@ -639,7 +643,8 @@ class _ElapsedTextState extends State<_ElapsedText> {
       liveRegion: false,
       excludeSemantics: true,
       child: Text(
-        text,
+        isolate(text),
+        textDirection: TextDirection.ltr,
         style: widget.style.copyWith(
           fontFeatures: const [FontFeature.tabularFigures()],
         ),
@@ -706,7 +711,8 @@ class _UnbilledCard extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.xs),
           line(
-            '${t.t('billing.time')} · ${durationText(t, u.minutes.toInt())}',
+            '${t.t('billing.time')} · '
+            '${isolate(durationText(t, u.minutes.toInt()))}',
             money(u.timeCents),
           ),
           line(t.t('billing.expenses'), money(u.expensesCents)),
@@ -830,10 +836,12 @@ class _InvoiceRow extends StatelessWidget {
                   style: type.body.copyWith(fontWeight: FontWeight.w700),
                 ),
                 Text(
-                  '${formats.currencyFromCents(
-                    invoice.totalCents.toInt(),
-                    currencyCode: invoice.currency,
-                  )} · ${formats.date(invoice.createdAt)}',
+                  '${isolate(
+                    formats.currencyFromCents(
+                      invoice.totalCents.toInt(),
+                      currencyCode: invoice.currency,
+                    ),
+                  )} · ${isolate(formats.date(invoice.createdAt))}',
                   style: type.bodySmall.copyWith(color: colors.textSecondary),
                 ),
               ],

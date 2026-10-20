@@ -11,7 +11,11 @@ import 'package:lawbid/features/cases/tools/billing_data.dart';
 import 'package:lawbid/features/cases/tools/billing_tab.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
-api.CaseBillingDto _dto({required bool attorney, bool noRate = false}) =>
+api.CaseBillingDto _dto({
+  required bool attorney,
+  bool noRate = false,
+  bool oneMinute = false,
+}) =>
     api.CaseBillingDto(
       role: attorney
           ? api.CaseBillingDtoRole.attorney
@@ -42,7 +46,7 @@ api.CaseBillingDto _dto({required bool attorney, bool noRate = false}) =>
               api.TimeEntryDto(
                 id: 'e1',
                 workedOn: DateTime(2026, 10, 19),
-                minutes: 95,
+                minutes: oneMinute ? 1 : 95,
                 runningSince: null,
                 note: 'Call with the court clerk about the hearing date',
                 rateCents: 15000,
@@ -173,5 +177,63 @@ Future<void> main() async {
     await tester.pump(const Duration(seconds: 1));
     expect(find.text('Hourly rate'), findsWidgets);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('RTL: numbers stay isolated so 1 min is not read as 10',
+      (tester) async {
+    tester.view
+      ..physicalSize = const Size(360, 1400)
+      ..devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          translatorProvider.overrideWithValue(const StaticTranslatorEn()),
+          l10nFormatsProvider.overrideWithValue(L10nFormats(AppLanguage.en)),
+          caseBillingProvider('c').overrideWith(
+            (ref) async => _dto(attorney: true, oneMinute: true),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light(),
+          home: const Directionality(
+            textDirection: TextDirection.rtl,
+            child: Scaffold(
+              body: SingleChildScrollView(
+                child: BillingTab(caseId: 'c', isAttorney: true),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    final one = find.byWidgetPredicate(
+      (w) =>
+          w is Text &&
+          (w.data ?? '').startsWith('\u2068\u20681\u2069 min\u2069 · '),
+    );
+    expect(one, findsOneWidget);
+    // the duration never sits bare next to the amount
+    final bare = find.byWidgetPredicate(
+      (w) => w is Text && (w.data ?? '').contains('1 min · '),
+    );
+    expect(bare, findsNothing);
+    // the stopwatch is its own left-to-right run
+    final clock = tester.widgetList<Text>(
+      find.byWidgetPredicate(
+        (w) =>
+            w is Text &&
+            (w.data ?? '').startsWith('\u2068') &&
+            (w.data ?? '').contains(':'),
+      ),
+    );
+    expect(clock, isNotEmpty);
+    for (final c in clock) {
+      expect(c.textDirection, TextDirection.ltr);
+    }
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
   });
 }

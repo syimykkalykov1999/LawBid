@@ -103,6 +103,7 @@ class _RunningTimerChipState extends ConsumerState<RunningTimerChip> {
                 const SizedBox(width: AppSpacing.sm),
                 Text(
                   clock(elapsed),
+                  textDirection: TextDirection.ltr,
                   style: typography.bodySmall.copyWith(
                     color: colors.text,
                     fontWeight: FontWeight.w600,

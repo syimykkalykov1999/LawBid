@@ -73,3 +73,8 @@ DateTime dayForServer(DateTime d) => DateTime.utc(d.year, d.month, d.day);
 
 /// A server date (`2026-10-20`, or midnight UTC) as the same day on screen.
 DateTime dayOnScreen(DateTime d) => DateTime(d.year, d.month, d.day);
+
+/// [s] as a directionally isolated run (FSI … PDI): in a right-to-left
+/// line the digits of "1 min", an amount or a date keep their own order and
+/// do not merge with the neighbour across a " · ".
+String isolate(String s) => '\u2068$s\u2069';
