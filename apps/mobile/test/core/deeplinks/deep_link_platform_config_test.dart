@@ -54,24 +54,31 @@ void main() {
     expect(AppEnvironment.defaultDeepLinkHost, 'lawbid.dev');
   });
 
-  test('hosting templates (docs/deeplinks) cover every flavor and path', () {
+  test(
+      'hosting files (docs/deeplinks, published by seo-deploy) cover the prod app and every path',
+      () {
     final aasa =
         jsonDecode(read('../../docs/deeplinks/apple-app-site-association'))
             as Map<String, dynamic>;
     final details =
         ((aasa['applinks'] as Map<String, dynamic>)['details'] as List).single
             as Map<String, dynamic>;
-    expect(details['appIDs'], {
-      '78T56RPM74.com.lawbid.lawbid',
-      '78T56RPM74.com.lawbid.lawbid.staging',
-      '78T56RPM74.com.lawbid.lawbid.dev',
-    });
+    expect(details['appIDs'], {'78T56RPM74.com.lawbid.lawbid'});
     final paths = (details['components'] as List)
         .map((c) => (c as Map<String, dynamic>)['/'])
         .toSet();
     expect(
       paths,
-      {'/r/*', '/case/*', '/lawyer/*', '/post/*', '/auth/email-code'},
+      {
+        '/r/*',
+        '/case/*',
+        '/lawyer/*',
+        '/post/*',
+        '/u/*',
+        '/q/*',
+        '/g/*',
+        '/auth/email-code',
+      },
     );
 
     final assetlinks =
@@ -82,11 +89,7 @@ void main() {
               as Map<String, dynamic>)['package_name'],
         )
         .toSet();
-    expect(packages, {
-      'com.lawbid.lawbid',
-      'com.lawbid.lawbid.staging',
-      'com.lawbid.lawbid.dev',
-    });
+    expect(packages, {'com.lawbid.lawbid'});
     for (final e in assetlinks.cast<Map<String, dynamic>>()) {
       expect(e['relation'], ['delegate_permission/common.handle_all_urls']);
     }
