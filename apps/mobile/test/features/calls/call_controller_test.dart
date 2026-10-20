@@ -8,6 +8,7 @@ import 'package:flutter_webrtc/flutter_webrtc.dart' show MediaStream;
 import 'package:lawbid/core/audio/app_sounds.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
+import 'package:lawbid/features/calls/application/call_foreground.dart';
 import 'package:lawbid/features/calls/application/call_media.dart';
 import 'package:lawbid/features/calls/data/calls_repository.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
@@ -66,12 +67,17 @@ class _FakeRepo implements CallsRepository {
   final declined = <String>[];
 
   final startedVideo = <bool>[];
+  String nextId = 'c1';
+  Completer<void>? startGate;
+  Completer<void>? getGate;
+  CallStatus getStatus = CallStatus.ringing;
 
   @override
   Future<AppCall> start(String conversationId, {bool video = false}) async {
     startedVideo.add(video);
+    if (startGate != null) await startGate!.future;
     if (refuse != null) throw refuse!;
-    return _call('c1', startStatus, outgoing: true, video: video);
+    return _call(nextId, startStatus, outgoing: true, video: video);
   }
 
   @override
@@ -93,8 +99,10 @@ class _FakeRepo implements CallsRepository {
   }
 
   @override
-  Future<AppCall> get(String callId) async =>
-      _call(callId, CallStatus.ringing, outgoing: false);
+  Future<AppCall> get(String callId) async {
+    if (getGate != null) await getGate!.future;
+    return _call(callId, getStatus, outgoing: false);
+  }
 
   @override
   Future<List<IceServer>> iceServers() async => const [
@@ -114,6 +122,7 @@ class _FakeMedia implements CallMedia {
   bool? openedVideo;
   bool? cameraOn;
   int flips = 0;
+  int iceRestarts = 0;
 
   @override
   Future<void> open(
@@ -138,6 +147,12 @@ class _FakeMedia implements CallMedia {
 
   @override
   Future<void> switchCamera() async => flips++;
+
+  @override
+  Future<Map<String, Object?>> restartIce() async {
+    iceRestarts++;
+    return {'type': 'offer', 'sdp': 'x'};
+  }
 
   @override
   Future<Map<String, Object?>> createOffer() async =>
@@ -186,6 +201,30 @@ class _Sounds implements AppSounds {
   Future<void> messageOut() async => played.add('out');
 }
 
+class _FakeForeground implements CallForeground {
+  final started = <String>[];
+  int stops = 0;
+  final _actions = StreamController<String>.broadcast();
+
+  @override
+  Stream<String> get actions => _actions.stream;
+
+  @override
+  Future<String?> pendingAction() async => null;
+
+  @override
+  Future<void> start({
+    required String name,
+    int since = 0,
+    String status = '',
+    String hangup = '',
+  }) async =>
+      started.add('$name|${since > 0}');
+
+  @override
+  Future<void> stop() async => stops++;
+}
+
 class _Harness {
   _Harness() {
     container = ProviderContainer(
@@ -194,6 +233,7 @@ class _Harness {
         callMediaFactoryProvider.overrideWithValue(() => media),
         realtimeEventsProvider.overrideWithValue(events.stream),
         appSoundsProvider.overrideWithValue(sounds),
+        callForegroundProvider.overrideWithValue(foreground),
         callSignalSenderProvider.overrideWithValue((id, data) async {
           signals.add(data);
           return true;
@@ -205,6 +245,7 @@ class _Harness {
 
   final repo = _FakeRepo();
   final sounds = _Sounds();
+  final foreground = _FakeForeground();
   final media = _FakeMedia();
   final events = StreamController<RealtimeEvent>.broadcast();
   final signals = <Map<String, Object?>>[];
@@ -279,6 +320,30 @@ void main() {
     expect(h.repo.ends, [CallEndReason.hangup]);
     expect(h.media.closed, isTrue);
     expect(h.sounds.played, ['ringback', 'stop', 'end']);
+  });
+
+  test('a network drop mid-call shows reconnecting and restarts ICE', () async {
+    final h = _Harness();
+    addTearDown(h.dispose);
+
+    await h.c.call('conv', peer: _peer);
+    h.emit(
+      'call:accepted',
+      _event(_call('c1', CallStatus.active, outgoing: true)),
+    );
+    await _settle();
+    h.media.onState!(CallMediaState.connected);
+    expect(h.s.phase, CallPhase.active);
+
+    h.media.onState!(CallMediaState.disconnected);
+    await _settle();
+    expect(h.s.reconnecting, isTrue);
+    expect(h.media.iceRestarts, 1);
+
+    h.media.onState!(CallMediaState.connected);
+    expect(h.s.reconnecting, isFalse);
+    expect(h.s.phase, CallPhase.active);
+    await h.c.hangUp();
   });
 
   test('ringing in: accept answers the offer', () async {
@@ -423,5 +488,77 @@ void main() {
     await h.c.accept();
     expect(h.media.openedVideo, isTrue);
     await h.c.hangUp();
+  });
+
+  test('the ongoing-call notification follows the call (owner 2026-10-20)',
+      () async {
+    final h = _Harness();
+    addTearDown(h.dispose);
+
+    await h.c.call('conv', peer: _peer);
+    expect(h.foreground.started, ['Paul Phone|false']);
+
+    await h.c.hangUp();
+    expect(h.foreground.stops, 1);
+  });
+
+  test(
+      'a second tap on the call button asks for the call screen, '
+      'not a new call', () async {
+    final h = _Harness();
+    addTearDown(h.dispose);
+
+    await h.c.call('conv', peer: _peer);
+    final before = h.container.read(callOpenRequestProvider);
+    await h.c.call('conv', peer: _peer);
+    expect(h.container.read(callOpenRequestProvider), before + 1);
+    expect(h.repo.startedVideo, hasLength(1));
+  });
+
+  // --- Reviewer tests: known holes (expected to FAIL until fixed) ---------
+
+  test('BUG: cancelling before the server answered must not leave a ghost call',
+      () async {
+    final h = _Harness();
+    addTearDown(h.dispose);
+    h.repo.startGate = Completer<void>();
+
+    final f = h.c.call('conv', peer: _peer);
+    await _settle();
+    expect(h.s.phase, CallPhase.outgoing);
+    await h.c.hangUp(); // user cancels while the request is in flight
+    expect(h.s.phase, CallPhase.ended);
+
+    h.repo.startGate!.complete();
+    await f;
+    await _settle();
+    // The server created call c1: it must be ended, no ringback, no media.
+    expect(h.repo.ends, isNotEmpty, reason: 'server call c1 left ringing');
+    expect(h.sounds.played.last, isNot('ringback'));
+    expect(h.media.opened, isFalse);
+  });
+
+  test('BUG: a stale re-read of call A must not end the new call B', () async {
+    final h = _Harness();
+    addTearDown(h.dispose);
+
+    await h.c.call('conv', peer: _peer); // call c1, ringing
+    // The socket came back: the controller re-reads c1 (slow answer, "over").
+    h.repo.getStatus = CallStatus.ended;
+    h.repo.getGate = Completer<void>();
+    h.emit(RealtimeEvent.reconnected, null);
+    await _settle();
+    await h.c.hangUp();
+    h.repo.nextId = 'c2';
+    await h.c.call('conv', peer: _peer); // user calls again at once
+    expect(h.s.call?.id, 'c2');
+    expect(h.s.phase, CallPhase.outgoing);
+    h.repo.getGate!.complete();
+    await _settle();
+    expect(
+      h.s.phase,
+      CallPhase.outgoing,
+      reason: 'call c2 was ended by the answer about call c1',
+    );
   });
 }
