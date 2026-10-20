@@ -23,10 +23,18 @@ List<String> monthlyFeatures(Translator t, String seatPrice) => [
     ];
 
 /// What yearly Prime includes.
-List<String> yearlyFeatures(Translator t, String save) => [
+///
+/// The «save» line only when yearly really is cheaper ([savingsCents] > 0):
+/// admin prices can make it equal or dearer, and «Save -$1,202» is wrong.
+List<String> yearlyFeatures(
+  Translator t,
+  String save, {
+  required int savingsCents,
+}) =>
+    [
       t.t('plans.f.everything'),
       t.t('plans.seats.included'),
-      t.t('plans.f.save', {'save': save}),
+      if (savingsCents > 0) t.t('plans.f.save', {'save': save}),
     ];
 
 /// What the attorney picked: the plan, monthly seats and the phones of
@@ -343,7 +351,11 @@ class _PlanPickerState extends State<PlanPicker> {
             formatCents: _price,
             translator: t,
             yearly: true,
-            features: yearlyFeatures(t, _price(_p.yearlySavingsCents)),
+            features: yearlyFeatures(
+              t,
+              _price(_p.yearlySavingsCents),
+              savingsCents: _p.yearlySavingsCents,
+            ),
             status: yearly
                 ? t.t('plans.status.selected')
                 : t.t('plans.yearly.badge'),
@@ -738,7 +750,11 @@ class _ActivePlansState extends State<ActivePlans> {
           formatCents: _price,
           translator: t,
           yearly: true,
-          features: yearlyFeatures(t, _price(_p.yearlySavingsCents)),
+          features: yearlyFeatures(
+              t,
+              _price(_p.yearlySavingsCents),
+              savingsCents: _p.yearlySavingsCents,
+            ),
           status: !monthly && active ? activeLabel : t.t('plans.yearly.badge'),
           statusFilled: !monthly && active,
           highlighted: !monthly && active,
