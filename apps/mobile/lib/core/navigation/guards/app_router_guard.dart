@@ -86,6 +86,7 @@ abstract final class AppRouterGuard {
     AuthRoutes.assistant,
     AuthRoutes.login,
     AuthRoutes.forgotPassword,
+    AuthRoutes.webQr,
   };
 
   static String? redirect(String location, GuardSnapshot s) {
@@ -98,7 +99,13 @@ abstract final class AppRouterGuard {
 
     // Row 1: no token → /welcome.
     if (!s.hasSession) {
-      if (isLegal || publicAuthRoutes.contains(location)) return null;
+      if (isLegal ||
+          publicAuthRoutes.contains(location) ||
+          // Owner 2026-10-20: the website's sign-in QR opened by an
+          // ordinary camera shows the "open the app" page without a login.
+          location.startsWith(AppRoutes.webLoginPrefix)) {
+        return null;
+      }
       return AuthRoutes.welcome;
     }
 

@@ -22,6 +22,12 @@ import '../models/password_reset_sent_envelope.dart';
 import '../models/password_saved_envelope.dart';
 import '../models/phone_status_dto.dart';
 import '../models/phone_status_result_envelope.dart';
+import '../models/qr_login_answered_envelope.dart';
+import '../models/qr_login_create_dto.dart';
+import '../models/qr_login_created_envelope.dart';
+import '../models/qr_login_poll_dto.dart';
+import '../models/qr_login_poll_result_envelope.dart';
+import '../models/qr_login_preview_envelope.dart';
 import '../models/reauth_dto.dart';
 import '../models/reauth_token_envelope.dart';
 import '../models/refresh_token_dto.dart';
@@ -152,6 +158,38 @@ abstract class AuthClient {
   @POST('/auth/password/reset/confirm')
   Future<AuthTokensEnvelope> passwordResetConfirm({
     @Body() required PasswordResetConfirmDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  @POST('/auth/qr')
+  Future<QrLoginCreatedEnvelope> qrCreate({
+    @Body() required QrLoginCreateDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// The website waits: pending → scanned → tokens (once).
+  @POST('/auth/qr/poll')
+  Future<QrLoginPollResultEnvelope> qrPoll({
+    @Body() required QrLoginPollDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// The phone scanned the code: which browser is asking?
+  @GET('/auth/qr/{qrId}')
+  Future<QrLoginPreviewEnvelope> qrPreview({
+    @Path('qrId') required String qrId,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  @POST('/auth/qr/{qrId}/approve')
+  Future<QrLoginAnsweredEnvelope> qrApprove({
+    @Path('qrId') required String qrId,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  @POST('/auth/qr/{qrId}/reject')
+  Future<QrLoginAnsweredEnvelope> qrReject({
+    @Path('qrId') required String qrId,
     @Extras() Map<String, dynamic>? extras,
   });
 }

@@ -565,4 +565,9 @@ abstract final class AppIcons {
       IconData(0xeae0, fontFamily: lightFamily);
   static const IconData bookOpenTextOutlined =
       IconData(0xe8f2, fontFamily: lightFamily);
+
+  // Owner 2026-10-20: QR codes (My QR code, scanner, flashlight).
+  static const IconData qrCode = IconData(0xe3e6, fontFamily: lightFamily);
+  static const IconData scan = IconData(0xebb6, fontFamily: lightFamily);
+  static const IconData flashlight = IconData(0xe246, fontFamily: lightFamily);
 }

@@ -53,6 +53,8 @@ import 'package:lawbid/features/profile/presentation/screens/settings_screen.dar
 import 'package:lawbid/features/profile/presentation/screens/verification_required_screen.dart';
 import 'package:lawbid/features/promotions/presentation/my_promotions_screen.dart';
 import 'package:lawbid/features/promotions/presentation/promotion_stats_screen.dart';
+import 'package:lawbid/features/qr/presentation/my_qr_screen.dart';
+import 'package:lawbid/features/qr/presentation/qr_scanner_screen.dart';
 import 'package:lawbid/features/referrals/presentation/referral_screen.dart';
 import 'package:lawbid/features/search/presentation/screens/search_screen.dart';
 import 'package:lawbid/features/settings/about/about_screen.dart';
@@ -444,6 +446,18 @@ GoRouter appRouter(Ref ref) {
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) =>
             AppPageTransitions.push(state, const GuideScreen()),
+      ),
+      GoRoute(
+        path: AppRoutes.myQr,
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            AppPageTransitions.push(state, const MyQrScreen()),
+      ),
+      GoRoute(
+        path: AppRoutes.qrScan,
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            AppPageTransitions.push(state, const QrScannerScreen()),
       ),
       GoRoute(
         path: AppRoutes.dataExport,
