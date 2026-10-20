@@ -298,23 +298,26 @@ class VoicePlayer extends Notifier<VoicePlayback> {
     final p = _player;
     final wasPlaying = p?.playing ?? false;
     if (on && !wasPlaying) return;
-    _earpiece = on;
     final gen = ++_gen;
     try {
       if (wasPlaying && p != null) {
+        // Interrupted (paused / another note meanwhile): nothing switched,
+        // the flag stays, the next proximity event tries again.
         if (!await _ramp(p, p.volume, 0, gen)) return;
         await p.pause();
       }
       final session = await AudioSession.instance;
       await session.configure(on ? _earpieceConfig : _music);
       await ProximitySensor.setProximityScreenOff(on);
+      // The route is switched: only now does the flag change.
+      _earpiece = on;
       if (wasPlaying && p != null && ref.mounted && gen == _gen) {
         await p.setVolume(0);
         unawaited(p.play());
         await _ramp(p, 0, 1, gen);
       }
     } on Object {
-      // The session stays as it was.
+      // The session stays as it was (and so does the flag).
     }
   }
 
