@@ -80,8 +80,12 @@ Future<void> main() async {
           ),
         ],
       ),
-      _req('r2', 'NDA', api.SignRequestDtoStatus.declined,
-          reason: 'Wrong date'),
+      _req(
+        'r2',
+        'NDA',
+        api.SignRequestDtoStatus.declined,
+        reason: 'Wrong date',
+      ),
       _req('r3', 'Old', api.SignRequestDtoStatus.canceled),
     ]);
     await tester.pumpAndSettle();
@@ -89,7 +93,8 @@ Future<void> main() async {
     expect(find.text('Waiting for signatures'), findsOneWidget);
     expect(find.textContaining('Ann Lee'), findsOneWidget);
     expect(find.text('Waiting for Client'), findsOneWidget);
-    expect(find.text('Sign'), findsWidgets);
+    expect(find.text('Sign'), findsOneWidget);
+    expect(find.text('Get signed'), findsOneWidget);
     expect(find.text('Decline'), findsOneWidget);
     expect(find.text('Withdraw'), findsOneWidget);
     expect(find.text('Declined'), findsOneWidget);
@@ -118,7 +123,7 @@ Future<void> main() async {
       _req('r1', 'Retainer', api.SignRequestDtoStatus.pending, canSign: true),
     ]);
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(InkWell, 'Sign').first);
+    await tester.tap(find.text('Sign'));
     await tester.pumpAndSettle();
     expect(find.text('Sign document'), findsOneWidget);
     expect(find.text('Draw'), findsOneWidget);

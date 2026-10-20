@@ -73,7 +73,7 @@ const caseSigningRu = <String, String>{
 };
 
 const caseSigningEn = <String, String>{
-  'sign.request': 'Sign',
+  'sign.request': 'Get signed',
   'sign.empty': 'No documents to sign yet',
   'sign.emptyHint': 'Upload a PDF: both sides can sign it',
   'sign.docTitle': 'Document title',

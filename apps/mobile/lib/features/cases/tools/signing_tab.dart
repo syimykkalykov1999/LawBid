@@ -120,10 +120,9 @@ class _SigningTabState extends ConsumerState<SigningTab> {
           data: (list) => list.isEmpty
               ? Padding(
                   padding: const EdgeInsets.all(AppSpacing.lg),
-                  child: AppEmptyState(
-                    icon: AppIcons.editNoteRounded,
-                    message: t.t('sign.empty'),
-                    title: t.t('sign.emptyHint'),
+                  child: _Empty(
+                    title: t.t('sign.empty'),
+                    hint: t.t('sign.emptyHint'),
                   ),
                 )
               : Column(
@@ -150,6 +149,40 @@ class _SigningTabState extends ConsumerState<SigningTab> {
                       ),
                   ],
                 ),
+        ),
+      ],
+    );
+  }
+}
+
+class _Empty extends StatelessWidget {
+  const _Empty({required this.title, required this.hint});
+
+  final String title;
+  final String hint;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    return Column(
+      children: [
+        AppIcon(
+          AppIcons.editNoteRounded,
+          size: 36,
+          color: colors.textSecondary,
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Text(
+          title,
+          textAlign: TextAlign.center,
+          style: type.body.copyWith(fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        Text(
+          hint,
+          textAlign: TextAlign.center,
+          style: type.bodySmall.copyWith(color: colors.textSecondary),
         ),
       ],
     );

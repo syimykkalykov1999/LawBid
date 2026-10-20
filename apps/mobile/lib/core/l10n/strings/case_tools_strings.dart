@@ -8,7 +8,8 @@ const caseToolsRu = <String, String>{
   'conflict.hint':
       'Проверьте перед ставкой. Ставку можно отправить, проверка записана.',
   'conflict.former': 'Ваш бывший клиент назван в кейсе «{case}» ({by})',
-  'conflict.opposing': 'Клиент этого кейса назван в вашем кейсе «{case}» ({by})',
+  'conflict.opposing':
+      'Клиент этого кейса назван в вашем кейсе «{case}» ({by})',
   'conflict.by.name': 'имя',
   'conflict.by.phone': 'телефон',
   'conflict.by.email': 'почта',
@@ -24,8 +25,7 @@ const caseToolsRu = <String, String>{
       '{name} выставил(а) счёт по кейсу',
   'notif.list.case_workspace_activity.sign_request':
       '{name} прислал(а) документ на подпись',
-  'notif.list.case_workspace_activity.sign_done':
-      '{name} подписал(а) документ',
+  'notif.list.case_workspace_activity.sign_done': '{name} подписал(а) документ',
   'notif.list.case_workspace_activity.sign_declined':
       '{name} отклонил(а) подпись документа',
   'timer.running': 'Идёт таймер',
@@ -34,9 +34,11 @@ const caseToolsRu = <String, String>{
 
 const caseToolsEn = <String, String>{
   'conflict.title': 'Possible conflict of interest',
-  'conflict.hint': 'Check before you bid. You can still bid; the check is logged.',
+  'conflict.hint':
+      'Check before you bid. You can still bid; the check is logged.',
   'conflict.former': 'Your former client is named in case “{case}” ({by})',
-  'conflict.opposing': 'This case’s client is named in your case “{case}” ({by})',
+  'conflict.opposing':
+      'This case’s client is named in your case “{case}” ({by})',
   'conflict.by.name': 'name',
   'conflict.by.phone': 'phone',
   'conflict.by.email': 'email',
