@@ -421,8 +421,10 @@ export class ChatService {
       update: data,
     });
     // A hidden chat leaves the unread badge (and comes back when unhidden).
+    // The write is done: a failing badge refresh (Redis / socket blip) must
+    // not turn into a 500 «something went wrong» on a chat that did move.
     if (dto.hidden !== undefined || dto.archived !== undefined)
-      await this.badges.chatsChanged(user.sub);
+      await this.badges.chatsChanged(user.sub).catch(() => undefined);
     return this.get(user, id);
   }
 

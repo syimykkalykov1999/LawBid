@@ -1388,8 +1388,9 @@ export class GroupsService {
       where: { group_id_user_id: { group_id: id, user_id: user.sub } },
       data,
     });
+    // The write is done: a failing badge refresh must not fail the request.
     if (dto.hidden !== undefined || dto.archived !== undefined)
-      await this.badges.chatsChanged(user.sub);
+      await this.badges.chatsChanged(user.sub).catch(() => undefined);
     const { group, me } = await this.requireMember(user.sub, id);
     return (await this.presenter.groups([{ group, me }], user.sub))[0];
   }

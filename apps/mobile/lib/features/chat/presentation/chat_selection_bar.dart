@@ -59,6 +59,7 @@ class _ChatSelectionBarState extends ConsumerState<ChatSelectionBar> {
     final groups = groupCall == null ? const <api.GroupDto>[] : _pickedGroups;
     if ((picked.isEmpty && groups.isEmpty) || _busy) return;
     setState(() => _busy = true);
+    Object? failure;
     try {
       for (final c in picked) {
         await call(c);
@@ -66,14 +67,24 @@ class _ChatSelectionBarState extends ConsumerState<ChatSelectionBar> {
       for (final g in groups) {
         await groupCall!(g);
       }
-      refreshChatFolders(ref);
-      ref.read(chatSelectionProvider.notifier).stop();
-      if (mounted) showAppSnackBar(context, t.t(done));
     } on Object catch (e) {
+      failure = e;
+    }
+    // The writes are over: re-reading the lists is not part of them, so a
+    // failure (or a bar already gone with the selection) is never shown as
+    // «something went wrong» for a chat that did move.
+    try {
       refreshChatFolders(ref);
-      if (mounted) showAppSnackBar(context, errorText(t, e));
-    } finally {
-      if (mounted) setState(() => _busy = false);
+      if (failure == null) ref.read(chatSelectionProvider.notifier).stop();
+    } on Object {
+      // Disposed with the selection: nothing left to refresh.
+    }
+    if (mounted) {
+      setState(() => _busy = false);
+      showAppSnackBar(
+        context,
+        failure == null ? t.t(done) : errorText(t, failure),
+      );
     }
   }
 
@@ -86,45 +97,6 @@ class _ChatSelectionBarState extends ConsumerState<ChatSelectionBar> {
       (c) => ref.read(chatRepositoryProvider).organize(c.id, pinned: pin),
       groupCall: (g) => updateMyGroup(ref, g.id, pinned: pin),
       done: pin ? 'chat.organize.pinned' : 'chat.organize.unpinned',
-    );
-  }
-
-  Future<void> _move() async {
-    final t = ref.read(translatorProvider);
-    final target = await showAppBottomSheet<ChatListFolder>(
-      context: context,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: AppSpacing.sm),
-            const AppSheetHandle(),
-            AppListRow(
-              icon: AppIcons.starOutlineRounded,
-              label: t.t('chat.folder.primary'),
-              onTap: () => Navigator.of(ctx).pop(ChatListFolder.primary),
-            ),
-            AppListRow(
-              icon: AppIcons.hourglassEmptyRounded,
-              label: t.t('chat.folder.waiting'),
-              onTap: () => Navigator.of(ctx).pop(ChatListFolder.waiting),
-            ),
-            const SizedBox(height: AppSpacing.md),
-          ],
-        ),
-      ),
-    );
-    if (target == null || !mounted) return;
-    // Waiting is a mark ("waiting for my answer"); Primary / General move the
-    // chat there and take the mark off.
-    await _each(
-      (c) => ref.read(chatRepositoryProvider).organize(
-            c.id,
-            folder:
-                target == ChatListFolder.waiting ? null : ChatFolder.primary,
-            waiting: target == ChatListFolder.waiting,
-          ),
-      done: 'chat.organize.moved',
     );
   }
 
@@ -191,103 +163,161 @@ class _ChatSelectionBarState extends ConsumerState<ChatSelectionBar> {
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final ids = ref.watch(chatSelectionProvider) ?? const <String>{};
     final active = ids.isNotEmpty && !_busy;
-    // Folders do not exist for groups.
-    final moveEnabled = !widget.groups.any((g) => ids.contains(g.id));
+    final muteAll =
+        _picked.every((c) => c.muted) && _pickedGroups.every(isGroupMuted);
+    final pinAll = ids.isNotEmpty &&
+        _picked.every((c) => c.pinned) &&
+        _pickedGroups.every((g) => g.pinned);
 
-    Widget action(
-      String keyName,
-      IconData icon,
-      String label,
-      VoidCallback onTap, {
-      bool danger = false,
-      bool available = true,
-    }) {
-      final enabled = active && available;
-      final color = !enabled
-          ? colors.textSecondary.withValues(alpha: 0.5)
-          : danger
-              ? colors.dangerText
-              : colors.text;
-      return Expanded(
-        child: Semantics(
-          button: true,
-          enabled: enabled,
-          label: label,
-          excludeSemantics: true,
-          child: AppPressable(
-            key: ValueKey(keyName),
-            onTap: enabled ? onTap : null,
-            child: SizedBox(
-              height: 56,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  AppIcon(icon, color: color),
-                  const SizedBox(height: 2),
-                  Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: type.caption.copyWith(color: color),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      );
-    }
+    final specs = <_BarAction>[
+      _BarAction(
+        'select-archive',
+        widget.inArchive
+            ? AppIcons.unarchiveOutlined
+            : AppIcons.inventory2Outlined,
+        t.t(widget.inArchive ? 'chat.unarchive' : 'tasks.bulk.archive'),
+        _archive,
+      ),
+      _BarAction(
+        'select-pin',
+        AppIcons.pushPinOutlined,
+        t.t(pinAll ? 'group.menu.unpin' : 'chat.select.pin'),
+        _pin,
+      ),
+      _BarAction(
+        'select-mute',
+        AppIcons.notificationsOffOutlined,
+        t.t(muteAll && ids.isNotEmpty ? 'chat.unmute' : 'chat.mute'),
+        _mute,
+      ),
+      _BarAction(
+        'select-read',
+        AppIcons.doneAllRounded,
+        t.t('chat.seen'),
+        _readAll,
+      ),
+      _BarAction(
+        'select-delete',
+        AppIcons.deleteOutlineRounded,
+        t.t('chat.select.delete'),
+        _delete,
+        danger: true,
+      ),
+    ];
 
     return Material(
       color: colors.surface,
       elevation: 8,
       child: SafeArea(
         top: false,
-        child: Row(
-          children: [
-            action(
-              'select-pin',
-              AppIcons.pushPinOutlined,
-              t.t('chat.select.pin'),
-              _pin,
-            ),
-            action(
-              'select-move',
-              AppIcons.folderOpenRounded,
-              t.t('chat.select.move'),
-              _move,
-              available: moveEnabled,
-            ),
-            action(
-              'select-mute',
-              AppIcons.notificationsOffOutlined,
-              t.t('chat.select.mute'),
-              _mute,
-            ),
-            action(
-              'select-read',
-              AppIcons.doneAllRounded,
-              t.t('notif.markAllRead'),
-              _readAll,
-            ),
-            action(
-              'select-archive',
-              widget.inArchive
-                  ? AppIcons.unarchiveOutlined
-                  : AppIcons.inventory2Outlined,
-              t.t(widget.inArchive ? 'chat.unarchive' : 'tasks.bulk.archive'),
-              _archive,
-            ),
-            action(
-              'select-delete',
-              AppIcons.deleteOutlineRounded,
-              t.t('chat.select.delete'),
-              _delete,
-              danger: true,
-            ),
-          ],
+        child: LayoutBuilder(
+          builder: (context, box) {
+            // Telegram: icon + short caption; when a caption does not fit its
+            // cell in one line (long language, large text), every cell shows
+            // the icon alone and the caption moves to the tooltip.
+            final cell = box.maxWidth / specs.length;
+            final style = type.caption;
+            final scaler = MediaQuery.textScalerOf(context);
+            final dir = Directionality.of(context);
+            final captions = specs.every((a) {
+              final p = TextPainter(
+                text: TextSpan(text: a.label, style: style),
+                textDirection: dir,
+                textScaler: scaler,
+                maxLines: 1,
+              )..layout();
+              final fits = p.width <= cell - AppSpacing.xs;
+              p.dispose();
+              return fits;
+            });
+            return Row(
+              children: [
+                for (final a in specs)
+                  Expanded(
+                    child: _BarCell(
+                      spec: a,
+                      enabled: active,
+                      captions: captions,
+                      color: !active
+                          ? colors.textSecondary.withValues(alpha: 0.5)
+                          : a.danger
+                              ? colors.dangerText
+                              : colors.text,
+                      style: style,
+                    ),
+                  ),
+              ],
+            );
+          },
         ),
       ),
     );
+  }
+}
+
+class _BarAction {
+  const _BarAction(
+    this.keyName,
+    this.icon,
+    this.label,
+    this.onTap, {
+    this.danger = false,
+  });
+
+  final String keyName;
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool danger;
+}
+
+class _BarCell extends StatelessWidget {
+  const _BarCell({
+    required this.spec,
+    required this.enabled,
+    required this.captions,
+    required this.color,
+    required this.style,
+  });
+
+  final _BarAction spec;
+  final bool enabled;
+  final bool captions;
+  final Color color;
+  final TextStyle style;
+
+  @override
+  Widget build(BuildContext context) {
+    final cell = Semantics(
+      button: true,
+      enabled: enabled,
+      label: spec.label,
+      excludeSemantics: true,
+      child: AppPressable(
+        key: ValueKey(spec.keyName),
+        onTap: enabled ? spec.onTap : null,
+        child: SizedBox(
+          height: 56,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              AppIcon(spec.icon, color: color),
+              if (captions) ...[
+                const SizedBox(height: 2),
+                Text(
+                  spec.label,
+                  maxLines: 1,
+                  softWrap: false,
+                  style: style.copyWith(color: color),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+    return captions
+        ? cell
+        : Tooltip(message: spec.label, excludeFromSemantics: true, child: cell);
   }
 }

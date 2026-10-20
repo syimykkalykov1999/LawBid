@@ -195,13 +195,18 @@ Future<void> updateMyGroup(
                   : now.subtract(const Duration(seconds: 1)),
         ),
       );
-  if (!ref.context.mounted) return;
-  final notifier = ref.read(groupsProvider.notifier);
-  if ((hidden ?? false) || archived != null) {
-    notifier.removeWhere((g) => g.id == id);
+  // The write is done: updating the lists is best-effort, never an error.
+  try {
+    if (!ref.context.mounted) return;
+    final notifier = ref.read(groupsProvider.notifier);
+    if ((hidden ?? false) || archived != null) {
+      notifier.removeWhere((g) => g.id == id);
+    }
+    ref
+      ..invalidate(archivedGroupsProvider)
+      ..invalidate(chatFolderCountsProvider);
+    await notifier.refresh().catchError((Object _) {});
+  } on Object {
+    // The screen is gone; the next open re-reads the lists.
   }
-  ref
-    ..invalidate(archivedGroupsProvider)
-    ..invalidate(chatFolderCountsProvider);
-  await notifier.refresh().catchError((Object _) {});
 }

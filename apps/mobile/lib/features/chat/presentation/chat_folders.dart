@@ -162,6 +162,15 @@ class _OrganizeSheetState extends ConsumerState<_OrganizeSheet> {
     setState(() => _busy = true);
     try {
       await call();
+    } on Object catch (e) {
+      if (mounted) {
+        setState(() => _busy = false);
+        showAppSnackBar(context, errorText(t, e));
+      }
+      return;
+    }
+    // The write is done: a failing re-read must not look like a failed one.
+    try {
       refreshChatFolders(ref);
       if (!mounted) return;
       final messenger = ScaffoldMessenger.maybeOf(context);
@@ -169,11 +178,8 @@ class _OrganizeSheetState extends ConsumerState<_OrganizeSheet> {
       if (done != null && messenger != null && messenger.mounted) {
         showAppSnackBar(messenger.context, t.t(done));
       }
-    } on Object catch (e) {
-      if (mounted) {
-        setState(() => _busy = false);
-        showAppSnackBar(context, errorText(t, e));
-      }
+    } on Object {
+      if (mounted) setState(() => _busy = false);
     }
   }
 
