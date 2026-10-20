@@ -115,6 +115,7 @@ class _FakeMedia implements CallMedia {
   bool? openedVideo;
   bool? cameraOn;
   int flips = 0;
+  int iceRestarts = 0;
 
   @override
   Future<void> open(
@@ -139,6 +140,12 @@ class _FakeMedia implements CallMedia {
 
   @override
   Future<void> switchCamera() async => flips++;
+
+  @override
+  Future<Map<String, Object?>> restartIce() async {
+    iceRestarts++;
+    return {'type': 'offer', 'sdp': 'x'};
+  }
 
   @override
   Future<Map<String, Object?>> createOffer() async =>
@@ -301,6 +308,30 @@ void main() {
     expect(h.repo.ends, [CallEndReason.hangup]);
     expect(h.media.closed, isTrue);
     expect(h.sounds.played, ['ringback', 'stop', 'end']);
+  });
+
+  test('a network drop mid-call shows reconnecting and restarts ICE', () async {
+    final h = _Harness();
+    addTearDown(h.dispose);
+
+    await h.c.call('conv', peer: _peer);
+    h.emit(
+      'call:accepted',
+      _event(_call('c1', CallStatus.active, outgoing: true)),
+    );
+    await _settle();
+    h.media.onState!(CallMediaState.connected);
+    expect(h.s.phase, CallPhase.active);
+
+    h.media.onState!(CallMediaState.disconnected);
+    await _settle();
+    expect(h.s.reconnecting, isTrue);
+    expect(h.media.iceRestarts, 1);
+
+    h.media.onState!(CallMediaState.connected);
+    expect(h.s.reconnecting, isFalse);
+    expect(h.s.phase, CallPhase.active);
+    await h.c.hangUp();
   });
 
   test('ringing in: accept answers the offer', () async {

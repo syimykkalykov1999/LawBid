@@ -16,7 +16,7 @@ const SCOPE = 'https://www.googleapis.com/auth/firebase.messaging';
 const SENT_TTL_SEC = 24 * 3600;
 const FCM_TIMEOUT_MS = 10_000;
 /** A ring is useless once the call stopped ringing (server: 40 s). */
-const CALL_TTL_SEC = 45;
+const CALL_TTL_SEC = 60;
 
 /** A temporary FCM failure: BullMQ retries the job (§9.5: 3 attempts,
  * exponential backoff). */

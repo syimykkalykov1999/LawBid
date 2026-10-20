@@ -297,11 +297,24 @@ export class PushDispatcher
     ]) {
       if (typeof payload[k] === 'string') deepLink[k] = payload[k];
     }
+    // Owner 2026-10-20 (like WhatsApp): a missed call shows who called —
+    // the caller's name on top, "Missed call" below.
+    let shown = text;
+    if (n.type === 'missed_call' && typeof payload.actorId === 'string') {
+      const who = await this.prisma.user.findUnique({
+        where: { id: payload.actorId },
+        select: { first_name: true, last_name: true },
+      });
+      const caller = [who?.first_name, who?.last_name]
+        .filter(Boolean)
+        .join(' ');
+      if (caller) shown = { title: caller, body: text.title };
+    }
     const badge = (await this.badges.get(n.user_id)).total;
     await this.sender.send(
       {
         userId: n.user_id,
-        ...text,
+        ...shown,
         data: deepLink,
         badge,
         sound: 'notification',

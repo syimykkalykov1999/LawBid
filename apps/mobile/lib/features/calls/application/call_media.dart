@@ -8,7 +8,15 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
 
 /// Where the audio link is (OQ-041).
-enum CallMediaState { connecting, connected, failed }
+enum CallMediaState {
+  connecting,
+  connected,
+
+  /// Owner 2026-10-20: the network dropped — it may come back by itself or
+  /// through an ICE restart (Wi-Fi ↔ 4G).
+  disconnected,
+  failed,
+}
 
 /// The media side of a call: microphone (and camera in a video call),
 /// peer connection, speaker. Kept behind an interface so the call logic is
@@ -47,6 +55,10 @@ abstract interface class CallMedia {
   Future<void> setAnswer(Map<String, Object?> answer);
 
   Future<void> addCandidate(Map<String, Object?> candidate);
+
+  /// Caller, after the network changed: a new offer that gathers fresh
+  /// candidates; the callee answers it like the first one.
+  Future<Map<String, Object?>> restartIce();
 
   // ignore: avoid_positional_boolean_parameters
   void setMuted(bool muted);
@@ -137,6 +149,8 @@ class WebRtcCallMedia implements CallMedia {
         switch (s) {
           case RTCPeerConnectionState.RTCPeerConnectionStateConnected:
             onState(CallMediaState.connected);
+          case RTCPeerConnectionState.RTCPeerConnectionStateDisconnected:
+            onState(CallMediaState.disconnected);
           case RTCPeerConnectionState.RTCPeerConnectionStateFailed:
             onState(CallMediaState.failed);
           // ignore: no_default_cases
@@ -158,6 +172,18 @@ class WebRtcCallMedia implements CallMedia {
   Future<Map<String, Object?>> createOffer() async {
     final pc = _pc!;
     final offer = await pc.createOffer({
+      'offerToReceiveAudio': true,
+      'offerToReceiveVideo': _video,
+    });
+    await pc.setLocalDescription(offer);
+    return {'type': 'offer', 'sdp': offer.sdp};
+  }
+
+  @override
+  Future<Map<String, Object?>> restartIce() async {
+    final pc = _pc!;
+    final offer = await pc.createOffer({
+      'iceRestart': true,
       'offerToReceiveAudio': true,
       'offerToReceiveVideo': _video,
     });

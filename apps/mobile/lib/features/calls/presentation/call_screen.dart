@@ -483,10 +483,13 @@ String callStatusText(Translator t, CallSession s) {
     case CallPhase.connecting:
       return t.t('call.status.connecting');
     case CallPhase.active:
+      if (s.reconnecting) return t.t('call.status.reconnecting');
       final at = s.connectedAt;
       return at == null ? '' : voiceClock(DateTime.now().difference(at));
     case CallPhase.ended:
       switch (s.errorCode) {
+        case kMicDenied:
+          return t.t('call.micDenied');
         case 'CALL_NOT_ALLOWED':
           return t.t('call.notAllowed');
         case 'SUBSCRIPTION_REQUIRED':

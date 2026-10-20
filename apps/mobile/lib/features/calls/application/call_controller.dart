@@ -54,11 +54,16 @@ class CallSession {
     this.errorCode,
     this.video = false,
     this.cameraOn = true,
+    this.reconnecting = false,
   });
 
   /// Owner 2026-10-05: a video call; [cameraOn] = our camera is sending.
   final bool video;
   final bool cameraOn;
+
+  /// Owner 2026-10-20: the link dropped; the call tries to come back
+  /// ("Reconnecting…") before it gives up.
+  final bool reconnecting;
 
   final CallPhase phase;
   final AppCall? call;
@@ -87,6 +92,7 @@ class CallSession {
     CallStatus? outcome,
     String? errorCode,
     bool? cameraOn,
+    bool? reconnecting,
   }) =>
       CallSession(
         phase: phase ?? this.phase,
@@ -99,6 +105,7 @@ class CallSession {
         errorCode: errorCode ?? this.errorCode,
         video: video,
         cameraOn: cameraOn ?? this.cameraOn,
+        reconnecting: reconnecting ?? this.reconnecting,
       );
 }
 
@@ -152,9 +159,13 @@ class NoSystemCallUi implements SystemCallUi {
 final systemCallUiProvider =
     Provider<SystemCallUi>((ref) => const NoSystemCallUi());
 
-/// The caller gives up after this — about six rings (owner 2026-09-30);
-/// the server marks a forgotten call missed a little later.
-const kCallRingTimeout = Duration(seconds: 30);
+/// The caller gives up after this — about a minute, like WhatsApp (owner
+/// 2026-10-20; it was 30 s); the server marks a forgotten call missed a
+/// little later.
+const kCallRingTimeout = Duration(seconds: 60);
+
+/// [CallSession.errorCode] when the microphone permission was refused.
+const kMicDenied = 'MIC_DENIED';
 
 /// The link must come up this fast after pick-up, else "failed".
 const kCallConnectTimeout = Duration(seconds: 25);
@@ -162,6 +173,11 @@ const kCallConnectTimeout = Duration(seconds: 25);
 /// While a call lives, its state is re-read from the server this often (a
 /// missed `call:ended` must not leave the other phone ringing or talking).
 const kCallSyncInterval = Duration(seconds: 8);
+
+/// A dropped link gets this long to come back (new Wi-Fi / 4G network)
+/// before the call ends; the caller restarts ICE every few seconds.
+const kCallReconnectGrace = Duration(seconds: 30);
+const kCallReconnectRetry = Duration(seconds: 6);
 
 /// How long the "Call ended" screen stays.
 const kCallEndedLinger = Duration(milliseconds: 1600);
@@ -175,6 +191,8 @@ class CallController extends Notifier<CallSession> {
   Timer? _ringTimer;
   Timer? _connectTimer;
   Timer? _syncTimer;
+  Timer? _reconnectGrace;
+  Timer? _reconnectRetry;
   Timer? _linger;
   final _earlySignals = <Map<String, Object?>>[];
   bool _mediaOpen = false;
@@ -324,8 +342,9 @@ class CallController extends Notifier<CallSession> {
     } on ApiException catch (e) {
       state = state.copyWith(errorCode: e.code);
       _finish(CallStatus.failed);
-    } on Object {
+    } on Object catch (e) {
       final id = state.call?.id;
+      if (_isMicDenied(e)) state = state.copyWith(errorCode: kMicDenied);
       _finish(CallStatus.failed);
       if (id != null) unawaited(_endQuietly(id, CallEndReason.failed));
     }
@@ -358,7 +377,8 @@ class CallController extends Notifier<CallSession> {
     } on ApiException catch (e) {
       state = state.copyWith(errorCode: e.code);
       _finish(CallStatus.failed);
-    } on Object {
+    } on Object catch (e) {
+      if (_isMicDenied(e)) state = state.copyWith(errorCode: kMicDenied);
       _finish(CallStatus.failed);
       unawaited(_endQuietly(call.id, CallEndReason.failed));
     }
@@ -493,20 +513,7 @@ class CallController extends Notifier<CallSession> {
       servers,
       video: video,
       onSignal: (s) => ref.read(callSignalSenderProvider)(callId, s),
-      onState: (s) {
-        if (!ref.mounted) return;
-        if (s == CallMediaState.connected &&
-            state.phase != CallPhase.active &&
-            state.phase != CallPhase.ended) {
-          _connectTimer?.cancel();
-          state = state.copyWith(
-            phase: CallPhase.active,
-            connectedAt: DateTime.now(),
-          );
-        } else if (s == CallMediaState.failed && state.busy) {
-          unawaited(hangUp(reason: CallEndReason.failed));
-        }
-      },
+      onState: _onMediaState,
     );
     _mediaOpen = true;
     // The other side may hang up while this phone has no socket (app in the
@@ -517,6 +524,76 @@ class CallController extends Notifier<CallSession> {
       final id = state.call?.id;
       if (id != null && state.busy) unawaited(_resync(id));
     });
+  }
+
+  void _onMediaState(CallMediaState s) {
+    if (!ref.mounted) return;
+    switch (s) {
+      case CallMediaState.connected:
+        _stopReconnect();
+        if (state.phase != CallPhase.active && state.phase != CallPhase.ended) {
+          _connectTimer?.cancel();
+          state = state.copyWith(
+            phase: CallPhase.active,
+            connectedAt: DateTime.now(),
+          );
+        }
+      case CallMediaState.disconnected:
+        // A short blip often heals by itself; a longer one is retried.
+        if (state.phase == CallPhase.active) _startReconnect();
+      case CallMediaState.failed:
+        if (state.phase == CallPhase.active) {
+          _startReconnect();
+        } else if (state.busy) {
+          unawaited(hangUp(reason: CallEndReason.failed));
+        }
+      case CallMediaState.connecting:
+        break;
+    }
+  }
+
+  /// The audio link dropped mid-call: show "Reconnecting…", let the caller
+  /// restart ICE every few seconds, end the call only when the grace runs out.
+  void _startReconnect() {
+    if (_reconnectGrace != null) return;
+    state = state.copyWith(reconnecting: true);
+    _reconnectGrace = Timer(kCallReconnectGrace, () {
+      _reconnectGrace = null;
+      if (state.reconnecting && state.busy) {
+        unawaited(hangUp(reason: CallEndReason.failed));
+      }
+    });
+    _reconnectRetry = Timer.periodic(kCallReconnectRetry, (_) {
+      unawaited(_restartIce());
+    });
+    unawaited(_restartIce());
+  }
+
+  void _stopReconnect() {
+    _reconnectGrace?.cancel();
+    _reconnectGrace = null;
+    _reconnectRetry?.cancel();
+    _reconnectRetry = null;
+    if (state.reconnecting) state = state.copyWith(reconnecting: false);
+  }
+
+  /// Only the caller offers; the callee answers it like the first offer.
+  Future<void> _restartIce() async {
+    final call = state.call;
+    final media = _media;
+    if (call == null || media == null || !call.outgoing || !state.busy) return;
+    try {
+      final offer = await media.restartIce();
+      await ref.read(callSignalSenderProvider)(call.id, offer);
+    } on Object {
+      // The grace timer decides.
+    }
+  }
+
+  /// getUserMedia refused: the user (or the OS) denied the microphone.
+  static bool _isMicDenied(Object e) {
+    final m = e.toString().toLowerCase();
+    return m.contains('permission') || m.contains('notallowed');
   }
 
   void _armConnectTimeout() {
@@ -664,6 +741,7 @@ class CallController extends Notifier<CallSession> {
       phase: CallPhase.ended,
       outcome: outcome,
       call: call,
+      reconnecting: false,
     );
     _linger = Timer(kCallEndedLinger, () {
       if (ref.mounted && state.phase == CallPhase.ended) {
@@ -686,6 +764,10 @@ class CallController extends Notifier<CallSession> {
     _ringTimer?.cancel();
     _connectTimer?.cancel();
     _syncTimer?.cancel();
+    _reconnectGrace?.cancel();
+    _reconnectGrace = null;
+    _reconnectRetry?.cancel();
+    _reconnectRetry = null;
     _linger?.cancel();
   }
 }
