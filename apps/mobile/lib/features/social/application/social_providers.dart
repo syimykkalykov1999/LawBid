@@ -725,19 +725,19 @@ class SocialActions {
     }
   }
 
-  /// Owner 2026-10-12: a reel / video was watched; the counter moves at
-  /// once and the server counts it once per viewer.
+  /// Owner 2026-10-20: a reel / video was watched (3 s of real playback).
+  /// The counter moves only after the server confirmed (204); the server
+  /// counts one view per viewer per 24 h, the true number returns on refresh.
   Future<void> recordView(Post post) async {
     if (!_viewed.add(post.id)) return;
-    final before = _latest(post);
-    _ref
-        .read(postOverridesProvider.notifier)
-        .put(before.copyWith(viewCount: before.viewCount + 1));
     try {
       await _repo.recordPostView(post.id);
+      final now = _latest(post);
+      _ref
+          .read(postOverridesProvider.notifier)
+          .put(now.copyWith(viewCount: now.viewCount + 1));
     } on Object {
       _viewed.remove(post.id);
-      _ref.read(postOverridesProvider.notifier).put(before);
     }
   }
 

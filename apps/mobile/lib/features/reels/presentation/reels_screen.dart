@@ -415,25 +415,11 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
   /// Owner 2026-10-19 (Instagram): paused while the finger is held down.
   bool _held = false;
   final _progress = ValueNotifier<double>(0);
-  Timer? _viewTimer;
 
-  @override
-  void initState() {
-    super.initState();
-    _trackView();
-  }
-
-  /// Owner 2026-10-12: a reel counts as viewed after a few seconds as the
-  /// current one (once per viewer; the server dedups).
-  /// Owner 2026-10-18: after ~2 s; the server counts one view per viewer
-  /// per 24 h.
-  void _trackView() {
-    _viewTimer?.cancel();
-    if (!widget.active) return;
-    _viewTimer = Timer(const Duration(seconds: 2), () {
-      if (!mounted || !widget.active) return;
-      ref.read(socialActionsProvider).recordView(widget.post);
-    });
+  /// Owner 2026-10-20 (Instagram): a view is 3 s of real playback
+  /// (ReelVideo's onViewed); the server counts one per viewer per 24 h.
+  void _viewed() {
+    if (mounted) ref.read(socialActionsProvider).recordView(widget.post);
   }
 
   @override
@@ -441,12 +427,10 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
     super.didUpdateWidget(old);
     // Coming back to a reel resumes it.
     if (widget.active && !old.active) _paused = false;
-    if (widget.active != old.active) _trackView();
   }
 
   @override
   void dispose() {
-    _viewTimer?.cancel();
     _progress.dispose();
     super.dispose();
   }
@@ -572,6 +556,7 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                     paused: _paused || _held || covered,
                     zoomable: true,
                     onProgress: (v) => _progress.value = v,
+                    onViewed: _viewed,
                   ),
                 if (video != null && !video.ready)
                   Center(
