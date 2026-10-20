@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -114,3 +115,13 @@ class CallAvatar extends StatelessWidget {
     );
   }
 }
+
+/// Picks people from the phone book for "Add participant": the user ids
+/// ticked, or null when closed. Wired in the app root (the calls feature
+/// does not import the contacts feature); without it the button is hidden.
+typedef CallContactPicker = Future<List<String>?> Function(
+  BuildContext context,
+  Set<String> excludeUserIds,
+);
+
+final callContactPickerProvider = Provider<CallContactPicker?>((ref) => null);

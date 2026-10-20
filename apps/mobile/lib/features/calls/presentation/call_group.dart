@@ -12,7 +12,6 @@ import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/call_media.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:lawbid/features/calls/presentation/call_widgets.dart';
-import 'package:lawbid/features/contacts_sync/presentation/contact_picker.dart';
 
 /// Owner 2026-10-20 (WhatsApp + Telegram): a call with three or more people
 /// shows everyone as a tile — photo or camera, name, a mic-off mark, a gold
@@ -621,7 +620,9 @@ class _AddSheetState extends ConsumerState<_AddSheet> {
             m.status != CallMemberStatus.declined)
           m.userId,
     };
-    final picked = await showContactPicker(context, excludeUserIds: skip);
+    final pick = ref.read(callContactPickerProvider);
+    if (pick == null) return;
+    final picked = await pick(context, skip);
     if (!mounted || picked == null || picked.isEmpty) return;
     setState(() {
       _busy = true;
@@ -629,9 +630,8 @@ class _AddSheetState extends ConsumerState<_AddSheet> {
     });
     String? failure;
     for (final c in picked) {
-      final code = await ref
-          .read(callControllerProvider.notifier)
-          .invite(userId: c.userId);
+      final code =
+          await ref.read(callControllerProvider.notifier).invite(userId: c);
       if (code != null) failure ??= code;
       if (!mounted) return;
     }
@@ -688,13 +688,15 @@ class _AddSheetState extends ConsumerState<_AddSheet> {
                 isLoading: _busy,
                 onPressed: () => unawaited(_add()),
               ),
-              const SizedBox(height: AppSpacing.sm),
-              AppButton(
-                label: t.t('phoneContacts.title'),
-                icon: AppIcons.contactPhoneOutlined,
-                variant: AppButtonVariant.secondary,
-                onPressed: _busy ? null : () => unawaited(_fromContacts()),
-              ),
+              if (ref.watch(callContactPickerProvider) != null)
+                const SizedBox(height: AppSpacing.sm),
+              if (ref.watch(callContactPickerProvider) != null)
+                AppButton(
+                  label: t.t('phoneContacts.title'),
+                  icon: AppIcons.contactPhoneOutlined,
+                  variant: AppButtonVariant.secondary,
+                  onPressed: _busy ? null : () => unawaited(_fromContacts()),
+                ),
             ],
           ),
         ),
