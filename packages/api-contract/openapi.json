@@ -56939,6 +56939,86 @@
         ]
       }
     },
+    "/contacts/sync/find-by-phone": {
+      "put": {
+        "operationId": "setFindByPhone",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetFindByPhoneDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Clients: allow or forbid being found by people who have my number",
+        "tags": [
+          "contacts-sync"
+        ]
+      }
+    },
     "/admin/integrations": {
       "get": {
         "operationId": "listIntegrations",
@@ -119170,11 +119250,21 @@
             "type": "string",
             "nullable": true,
             "format": "date-time"
+          },
+          "findByPhone": {
+            "type": "boolean",
+            "description": "\"Find me by my number\" (clients; attorneys are public)."
+          },
+          "phoneRegion": {
+            "type": "string",
+            "nullable": true,
+            "description": "ISO country of the account number (\"US\", \"KG\"): the default region for national-format numbers in the address book."
           }
         },
         "required": [
           "enabled",
-          "matches"
+          "matches",
+          "findByPhone"
         ]
       },
       "ContactSyncStatusEnvelope": {
@@ -119191,6 +119281,45 @@
           "data"
         ]
       },
+      "ContactPersonDto": {
+        "type": "object",
+        "properties": {
+          "hash": {
+            "type": "string",
+            "description": "The hash of this upload that matched, so the app can find the phone-book name locally."
+          },
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "username": {
+            "type": "string",
+            "nullable": true
+          },
+          "displayName": {
+            "type": "string",
+            "description": "Attorneys: full public name. Clients: first name only, no username."
+          },
+          "avatarUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "role": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "client",
+              "attorney",
+              "assistant"
+            ]
+          }
+        },
+        "required": [
+          "hash",
+          "userId",
+          "displayName"
+        ]
+      },
       "ContactUploadResultDto": {
         "type": "object",
         "properties": {
@@ -119198,10 +119327,18 @@
             "type": "integer",
             "minimum": 0,
             "description": "Hashes of this upload that belong to LawBid users."
+          },
+          "people": {
+            "description": "Who matched, with the hash the app sent. Not stored: only the owner → user pair is.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContactPersonDto"
+            }
           }
         },
         "required": [
-          "matched"
+          "matched",
+          "people"
         ]
       },
       "UploadContactHashesDto": {
@@ -119237,6 +119374,18 @@
         },
         "required": [
           "data"
+        ]
+      },
+      "SetFindByPhoneDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "Clients only: people who have my number in their address book may find me."
+          }
+        },
+        "required": [
+          "enabled"
         ]
       },
       "IntegrationFieldDto": {

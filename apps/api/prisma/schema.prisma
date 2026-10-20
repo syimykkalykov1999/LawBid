@@ -734,6 +734,9 @@ model User {
   recent_stickers          UserRecentSticker[]
   /// Owner 2026-10-01: others see "online / last seen" (reciprocal).
   show_activity_status     Boolean                 @default(true)
+  /// Owner 2026-10-20: clients can be found by people who have their number
+  /// in the address book (contacts sync); attorneys' profiles are public.
+  find_by_phone            Boolean                 @default(true)
   /// Owner 2026-10-05: feed content — 'all' or 'legal_only' (general
   /// posts hidden from feed, search and recommendations); null = the admin
   /// default `feed.default_content_mode`.
