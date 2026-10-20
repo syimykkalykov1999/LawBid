@@ -327,6 +327,17 @@ export class ReadConversationDto {
   lastReadMessageId!: string;
 }
 
+export class DeliveredConversationDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID('all')
+  lastDeliveredMessageId!: string;
+}
+
+export class DeliveredResultDto {
+  @ApiProperty({ type: String, nullable: true, format: 'uuid' })
+  lastDeliveredMessageId!: string | null;
+}
+
 export class MuteConversationDto {
   @ApiPropertyOptional({
     type: String,
@@ -718,6 +729,15 @@ export class ConversationDto {
       'When the other side last read; "read at" for every message up to it.',
   })
   counterpartLastReadAt!: Date | null;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    format: 'uuid',
+    description:
+      "Newest message that reached the other side's device (two grey ticks).",
+  })
+  counterpartLastDeliveredMessageId!: string | null;
 
   @ApiProperty()
   updatedAt!: Date;

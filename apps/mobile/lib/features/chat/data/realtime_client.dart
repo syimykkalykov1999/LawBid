@@ -42,6 +42,8 @@ class RealtimeClient {
     // Owner 2026-10-20: edited, deleted for all, reaction, pin.
     'message:updated',
     'message:read',
+    // Owner 2026-10-20: the message reached the other device (grey ticks).
+    'message:delivered',
     // OQ-040: the other side played a voice note.
     'message:listened',
     // OQ-041: in-app calls.

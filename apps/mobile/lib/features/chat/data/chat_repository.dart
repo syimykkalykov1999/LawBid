@@ -142,6 +142,10 @@ abstract interface class ChatRepository {
   Future<String> translate(String id, String messageId, String target);
   Future<void> read(String id, String lastReadMessageId);
 
+  /// Owner 2026-10-20: this device has the messages up to [messageId]
+  /// (the sender's two grey ticks).
+  Future<void> delivered(String id, String messageId);
+
   /// Owner 2026-10-20: edit a text message inside the window.
   Future<ChatMessage> editMessage(String id, String messageId, String body);
 
@@ -667,6 +671,14 @@ class ApiChatRepository implements ChatRepository {
       );
 
   @override
+  Future<void> delivered(String id, String messageId) => guardApiCall(
+        () => _chat.deliveredConversation(
+          id: id,
+          body: api.DeliveredConversationDto(lastDeliveredMessageId: messageId),
+        ),
+      );
+
+  @override
   Future<Conversation> mute(String id, DateTime? until) async =>
       ChatMappers.conversation(
         (await guardApiCall(
@@ -844,6 +856,7 @@ abstract final class ChatMappers {
         unreadCount: d.unreadCount.toInt(),
         mutedUntil: d.mutedUntil,
         counterpartLastReadId: d.counterpartLastReadMessageId,
+        counterpartLastDeliveredId: d.counterpartLastDeliveredMessageId,
         counterpartLastReadAt: d.counterpartLastReadAt,
         updatedAt: d.updatedAt,
         isDirect: d.kind == api.ConversationKind.direct,

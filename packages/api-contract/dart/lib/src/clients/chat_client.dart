@@ -11,6 +11,8 @@ import '../models/conversation_envelope.dart';
 import '../models/conversation_folder.dart';
 import '../models/conversation_list_envelope.dart';
 import '../models/delete_scope.dart';
+import '../models/delivered_conversation_dto.dart';
+import '../models/delivered_result_envelope.dart';
 import '../models/edit_message_dto.dart';
 import '../models/message_envelope.dart';
 import '../models/message_list_envelope.dart';
@@ -144,6 +146,14 @@ abstract class ChatClient {
   Future<ReadResultEnvelope> readConversation({
     @Path('id') required String id,
     @Body() required ReadConversationDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// The device received messages up to this one (two grey ticks)
+  @POST('/conversations/{id}/delivered')
+  Future<DeliveredResultEnvelope> deliveredConversation({
+    @Path('id') required String id,
+    @Body() required DeliveredConversationDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

@@ -17,6 +17,8 @@ export type RealtimeEvent =
   // Owner 2026-10-20: edited, deleted for everyone, reaction, pin.
   | 'message:updated'
   | 'message:read'
+  // Owner 2026-10-20: the message reached the other person's device.
+  | 'message:delivered'
   // OQ-040: the recipient played a voice note.
   | 'message:listened'
   // OQ-041 calls: ringing, answered (stop ringing elsewhere), ended.

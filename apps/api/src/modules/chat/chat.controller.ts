@@ -28,6 +28,8 @@ import {
   MessagesQueryDto,
   MuteConversationDto,
   ReadConversationDto,
+  DeliveredConversationDto,
+  DeliveredResultDto,
   ReadResultDto,
   RequestsCountDto,
   SendMessageDto,
@@ -239,6 +241,23 @@ export class ChatController {
     @Body() dto: ReadConversationDto,
   ): Promise<{ lastReadMessageId: string | null }> {
     return this.chat.read(user, p.id, dto.lastReadMessageId);
+  }
+
+  @Post(':id/delivered')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'The device received messages up to this one (two grey ticks)',
+  })
+  @ApiEnvelopeResponse(DeliveredResultDto)
+  @ApiErrors({
+    404: [ErrorCode.CONVERSATION_NOT_FOUND, ErrorCode.NOT_FOUND],
+  })
+  deliveredConversation(
+    @CurrentUser() user: RequestUser,
+    @Param() p: ConversationIdParamDto,
+    @Body() dto: DeliveredConversationDto,
+  ): Promise<{ lastDeliveredMessageId: string | null }> {
+    return this.chat.delivered(user, p.id, dto.lastDeliveredMessageId);
   }
 
   // Audit 2026-10-02: these are the attorney's own chat settings.

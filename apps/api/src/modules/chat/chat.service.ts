@@ -1183,7 +1183,7 @@ export class ChatService {
         where: {
           conversation_id_user_id: { conversation_id: id, user_id: user.sub },
         },
-        select: { last_read_message_id: true },
+        select: { last_read_message_id: true, last_delivered_message_id: true },
       });
       const current = me.last_read_message_id
         ? await tx.message.findUnique({
@@ -1198,7 +1198,16 @@ export class ChatService {
         where: {
           conversation_id_user_id: { conversation_id: id, user_id: user.sub },
         },
-        data: { last_read_message_id: target.id, last_read_at: new Date() },
+        data: {
+          last_read_message_id: target.id,
+          last_read_at: new Date(),
+          // Reading it means it got there (the grey ticks never lag the blue).
+          ...(await this.deliveredPatch(
+            tx,
+            me.last_delivered_message_id,
+            target,
+          )),
+        },
       });
       return { lastReadMessageId: target.id, moved: true };
     });
@@ -1214,6 +1223,107 @@ export class ChatService {
       await this.badges.chatsChanged(user.sub);
     }
     return { lastReadMessageId: result.lastReadMessageId };
+  }
+
+  /** Best effort, never blocks or fails the list. */
+  private async deliverListed(
+    viewerId: string,
+    convs: { id: string; last_message_id: string | null }[],
+    messageOf: Map<string, { id: string; sender_id: string | null }>,
+    partOf: Map<string, { last_delivered_message_id: string | null }>,
+  ): Promise<void> {
+    let n = 0;
+    for (const c of convs) {
+      const m = c.last_message_id ? messageOf.get(c.last_message_id) : null;
+      if (!m || m.sender_id === null || m.sender_id === viewerId) continue;
+      if (
+        partOf.get(`${c.id}:${viewerId}`)?.last_delivered_message_id === m.id
+      ) {
+        continue;
+      }
+      if (++n > 20) return;
+      try {
+        await this.delivered({ sub: viewerId } as RequestUser, c.id, m.id);
+      } catch {
+        // The list is what matters.
+      }
+    }
+  }
+
+  /** The delivered pointer moves forward only: the patch to set it to
+   * [target], or nothing when it is already at or past it. */
+  private async deliveredPatch(
+    tx: Pick<PrismaService, 'message'>,
+    currentId: string | null,
+    target: { id: string; created_at: Date },
+  ): Promise<{ last_delivered_message_id?: string; last_delivered_at?: Date }> {
+    const current = currentId
+      ? await tx.message.findUnique({
+          where: { id: currentId },
+          select: { id: true, created_at: true },
+        })
+      : null;
+    if (current && !isAfter(target, current)) return {};
+    return {
+      last_delivered_message_id: target.id,
+      last_delivered_at: new Date(),
+    };
+  }
+
+  /**
+   * POST /conversations/:id/delivered — this person's device has the messages
+   * up to [lastDeliveredMessageId] (WhatsApp's two grey ticks). Forward only,
+   * idempotent; the sender hears `message:delivered`.
+   */
+  async delivered(
+    user: RequestUser,
+    id: string,
+    lastDeliveredMessageId: string,
+  ): Promise<{ lastDeliveredMessageId: string | null }> {
+    const conv = await this.load(user, id);
+    const target = await this.prisma.message.findFirst({
+      where: { id: lastDeliveredMessageId, conversation_id: id },
+      select: { id: true, created_at: true },
+    });
+    if (!target) {
+      throw new NotFoundException({
+        code: ErrorCode.NOT_FOUND,
+        message: 'Message not found.',
+      });
+    }
+    const result = await withTxRetry(this.prisma, async (tx) => {
+      const me = await tx.conversationParticipant.findUniqueOrThrow({
+        where: {
+          conversation_id_user_id: { conversation_id: id, user_id: user.sub },
+        },
+        select: { last_delivered_message_id: true },
+      });
+      const patch = await this.deliveredPatch(
+        tx,
+        me.last_delivered_message_id,
+        target,
+      );
+      if (patch.last_delivered_message_id === undefined) {
+        return { id: me.last_delivered_message_id, moved: false };
+      }
+      await tx.conversationParticipant.update({
+        where: {
+          conversation_id_user_id: { conversation_id: id, user_id: user.sub },
+        },
+        data: patch,
+      });
+      return { id: target.id, moved: true };
+    });
+    if (result.moved) {
+      const other =
+        user.sub === conv.client_id ? conv.attorney_id : conv.client_id;
+      this.realtime.toUsers([other], 'message:delivered', {
+        conversationId: id,
+        lastDeliveredMessageId: result.id,
+        deliveredAt: new Date().toISOString(),
+      });
+    }
+    return { lastDeliveredMessageId: result.id };
   }
 
   /** PATCH /conversations/:id/mute (§8.4): push off until `until`. */
@@ -1645,6 +1755,7 @@ export class ChatService {
             user_id: true,
             last_read_message_id: true,
             last_read_at: true,
+            last_delivered_message_id: true,
             muted_until: true,
             folder: true,
             waiting_since: true,
@@ -1675,6 +1786,9 @@ export class ChatService {
       participants.map((p) => [`${p.conversation_id}:${p.user_id}`, p]),
     );
     const unreadOf = new Map(unread.map((r) => [r.id, Number(r.n)]));
+    // Opening the app (the list loads) is a pull of the inbox: whatever sits
+    // there has reached this device, the sender's ticks turn grey-double.
+    void this.deliverListed(viewerId, convs, messageOf, partOf);
     const avatars = await this.files.avatarUrlsMany(
       users.map((u) => u.avatar_file_id),
     );
@@ -1744,6 +1858,9 @@ export class ChatService {
         counterpartLastReadMessageId: seenHidden
           ? null
           : (partOf.get(`${c.id}:${otherId}`)?.last_read_message_id ?? null),
+        // Delivery is not "seen": the setting that hides reading leaves it.
+        counterpartLastDeliveredMessageId:
+          partOf.get(`${c.id}:${otherId}`)?.last_delivered_message_id ?? null,
         counterpartLastReadAt: seenHidden
           ? null
           : (partOf.get(`${c.id}:${otherId}`)?.last_read_at ?? null),

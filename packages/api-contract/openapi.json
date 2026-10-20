@@ -82547,6 +82547,103 @@
         ]
       }
     },
+    "/conversations/{id}/delivered": {
+      "post": {
+        "operationId": "deliveredConversation",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeliveredConversationDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeliveredResultEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: CONVERSATION_NOT_FOUND, NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "The device received messages up to this one (two grey ticks)",
+        "tags": [
+          "chat"
+        ]
+      }
+    },
     "/conversations/{id}/organize": {
       "patch": {
         "operationId": "organizeConversation",
@@ -148133,6 +148230,12 @@
             "nullable": true,
             "description": "When the other side last read; \"read at\" for every message up to it."
           },
+          "counterpartLastDeliveredMessageId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid",
+            "description": "Newest message that reached the other side's device (two grey ticks)."
+          },
           "updatedAt": {
             "format": "date-time",
             "type": "string"
@@ -148563,6 +148666,45 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/ReadResultDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "DeliveredResultDto": {
+        "type": "object",
+        "properties": {
+          "lastDeliveredMessageId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "lastDeliveredMessageId"
+        ]
+      },
+      "DeliveredConversationDto": {
+        "type": "object",
+        "properties": {
+          "lastDeliveredMessageId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "lastDeliveredMessageId"
+        ]
+      },
+      "DeliveredResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DeliveredResultDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"

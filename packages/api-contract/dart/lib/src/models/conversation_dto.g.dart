@@ -38,6 +38,8 @@ ConversationDto _$ConversationDtoFromJson(
   counterpartLastReadAt: json['counterpartLastReadAt'] == null
       ? null
       : DateTime.parse(json['counterpartLastReadAt'] as String),
+  counterpartLastDeliveredMessageId:
+      json['counterpartLastDeliveredMessageId'] as String?,
   matchedMessage: json['matchedMessage'] as String?,
   waitingSince: json['waitingSince'] == null
       ? null
@@ -63,6 +65,8 @@ Map<String, dynamic> _$ConversationDtoToJson(
   'mutedUntil': ?instance.mutedUntil?.toIso8601String(),
   'counterpartLastReadMessageId': ?instance.counterpartLastReadMessageId,
   'counterpartLastReadAt': ?instance.counterpartLastReadAt?.toIso8601String(),
+  'counterpartLastDeliveredMessageId':
+      ?instance.counterpartLastDeliveredMessageId,
   'updatedAt': instance.updatedAt.toIso8601String(),
   'folder': instance.folder.toJson(),
   'folderAuto': instance.folderAuto,
