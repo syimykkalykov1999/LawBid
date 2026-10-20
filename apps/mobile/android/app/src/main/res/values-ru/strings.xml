@@ -2,4 +2,8 @@
 <resources>
     <string name="channel_chats">Чаты</string>
     <string name="channel_notifications">Уведомления</string>
+    <string name="channel_call">Текущий звонок</string>
+    <string name="call_ongoing">Текущий звонок</string>
+    <string name="call_connecting">Вызов…</string>
+    <string name="call_hangup">Завершить</string>
 </resources>

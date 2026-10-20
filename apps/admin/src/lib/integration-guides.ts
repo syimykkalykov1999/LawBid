@@ -244,12 +244,24 @@ export const GUIDES: Record<string, ProviderGuide> = {
   },
 
   sentry: {
-    steps: ['sentry.io → Settings → Projects → ваш проект → Client Keys (DSN) → скопируйте DSN.'],
+    steps: [
+      'sentry.io → Settings → Projects → проект сервера → Client Keys (DSN) → скопируйте DSN в первое поле.',
+      'Для приложения и админки создайте отдельные проекты lawbid-mobile (платформа Flutter) и lawbid-admin (платформа Next.js / JavaScript) и вставьте их DSN в свои поля. Пустое поле = отчёты выключены.',
+      'Приложение и админка подхватывают DSN сами, при следующем запуске, без перезапуска сервера и без новой сборки.',
+    ],
     links: [{ label: 'Sentry', url: 'https://sentry.io/settings/' }],
     fields: {
       dsn: {
         how: 'Client Keys (DSN). Начинается с https:// и заканчивается числом.',
         example: 'https://abc@o123.ingest.sentry.io/456',
+      },
+      mobileDsn: {
+        how: 'DSN проекта lawbid-mobile: Client Keys (DSN). Необязательно.',
+        example: 'https://abc@o123.ingest.sentry.io/457',
+      },
+      adminDsn: {
+        how: 'DSN проекта lawbid-admin: Client Keys (DSN). Необязательно.',
+        example: 'https://abc@o123.ingest.sentry.io/458',
       },
     },
   },

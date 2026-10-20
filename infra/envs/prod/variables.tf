@@ -173,3 +173,9 @@ variable "database_backup_retention_days" {
   type    = number
   default = 14
 }
+
+variable "turn_enabled" {
+  type        = bool
+  default     = false
+  description = "coturn relay for calls (modules/turn); docs/runbooks/TURN.md."
+}

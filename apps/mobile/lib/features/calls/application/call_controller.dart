@@ -7,7 +7,9 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/audio/app_sounds.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
+import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/features/calls/application/call_foreground.dart';
 import 'package:lawbid/features/calls/application/call_media.dart';
 import 'package:lawbid/features/calls/data/calls_repository.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
@@ -53,11 +55,16 @@ class CallSession {
     this.errorCode,
     this.video = false,
     this.cameraOn = true,
+    this.reconnecting = false,
   });
 
   /// Owner 2026-10-05: a video call; [cameraOn] = our camera is sending.
   final bool video;
   final bool cameraOn;
+
+  /// Owner 2026-10-20: the link dropped; the call tries to come back
+  /// ("Reconnecting…") before it gives up.
+  final bool reconnecting;
 
   final CallPhase phase;
   final AppCall? call;
@@ -86,6 +93,7 @@ class CallSession {
     CallStatus? outcome,
     String? errorCode,
     bool? cameraOn,
+    bool? reconnecting,
   }) =>
       CallSession(
         phase: phase ?? this.phase,
@@ -98,6 +106,7 @@ class CallSession {
         errorCode: errorCode ?? this.errorCode,
         video: video,
         cameraOn: cameraOn ?? this.cameraOn,
+        reconnecting: reconnecting ?? this.reconnecting,
       );
 }
 
@@ -117,6 +126,17 @@ final callSignalSenderProvider = Provider<CallSignalSender>((ref) {
 abstract interface class SystemCallUi {
   Future<void> showIncoming(AppCall call);
   Future<void> dismiss(String callId);
+
+  /// Android: the ongoing-call notification with the timer, and the
+  /// microphone foreground service that keeps the call alive in the
+  /// background. Started while the app is in the foreground.
+  Future<void> showOngoing(AppCall call);
+
+  /// This phone answered [call]: the ringing screen goes away and the
+  /// ongoing-call UI takes its place (Android notification + service; on
+  /// iPhone a call answered on the CallKit screen stays there, so its green
+  /// bar and audio session last until [dismiss] at the end).
+  Future<void> answered(AppCall call);
 }
 
 class NoSystemCallUi implements SystemCallUi {
@@ -127,6 +147,12 @@ class NoSystemCallUi implements SystemCallUi {
 
   @override
   Future<void> dismiss(String callId) async {}
+
+  @override
+  Future<void> showOngoing(AppCall call) async {}
+
+  @override
+  Future<void> answered(AppCall call) async {}
 }
 
 /// The real one (CallKit) is set in `CallHost`'s scope by the app;
@@ -134,12 +160,25 @@ class NoSystemCallUi implements SystemCallUi {
 final systemCallUiProvider =
     Provider<SystemCallUi>((ref) => const NoSystemCallUi());
 
-/// The caller gives up after this — about six rings (owner 2026-09-30);
-/// the server marks a forgotten call missed a little later.
-const kCallRingTimeout = Duration(seconds: 30);
+/// The caller gives up after this — about a minute, like WhatsApp (owner
+/// 2026-10-20; it was 30 s); the server marks a forgotten call missed a
+/// little later.
+const kCallRingTimeout = Duration(seconds: 60);
+
+/// [CallSession.errorCode] when the microphone permission was refused.
+const kMicDenied = 'MIC_DENIED';
 
 /// The link must come up this fast after pick-up, else "failed".
 const kCallConnectTimeout = Duration(seconds: 25);
+
+/// While a call lives, its state is re-read from the server this often (a
+/// missed `call:ended` must not leave the other phone ringing or talking).
+const kCallSyncInterval = Duration(seconds: 8);
+
+/// A dropped link gets this long to come back (new Wi-Fi / 4G network)
+/// before the call ends; the caller restarts ICE every few seconds.
+const kCallReconnectGrace = Duration(seconds: 30);
+const kCallReconnectRetry = Duration(seconds: 6);
 
 /// How long the "Call ended" screen stays.
 const kCallEndedLinger = Duration(milliseconds: 1600);
@@ -152,9 +191,16 @@ class CallController extends Notifier<CallSession> {
   StreamSubscription<RealtimeEvent>? _events;
   Timer? _ringTimer;
   Timer? _connectTimer;
+  Timer? _syncTimer;
+  Timer? _reconnectGrace;
+  Timer? _reconnectRetry;
   Timer? _linger;
   final _earlySignals = <Map<String, Object?>>[];
   bool _mediaOpen = false;
+
+  /// Bumped by every [_reset]: an await that wakes up under another
+  /// generation belongs to a call that is already over.
+  int _gen = 0;
 
   CallsRepository get _repo => ref.read(callsRepositoryProvider);
 
@@ -194,14 +240,82 @@ class CallController extends Notifier<CallSession> {
 
   @override
   CallSession build() {
-    _events?.cancel();
-    _events = ref.watch(realtimeEventsProvider).listen(_onEvent);
+    // Owner 2026-10-20: `listen`, not `watch` — when the realtime provider
+    // rebuilt (the socket came back after the app was minimised) a watch
+    // rebuilt this controller too: the live call state became "idle" while
+    // the audio went on, so the screen showed "?" and "You're already in a
+    // call", and the call could be neither found nor ended.
+    ref.listen<Stream<RealtimeEvent>>(
+      realtimeEventsProvider,
+      (_, stream) {
+        _events?.cancel();
+        _events = stream.listen(_onEvent);
+      },
+      fireImmediately: true,
+    );
+    // The ongoing-call notification follows the call; its buttons come back.
+    listenSelf(_syncForeground);
+    final fg = ref.read(callForegroundProvider);
+    final actions = fg.actions.listen(_onNotificationAction);
+    unawaited(
+      fg.pendingAction().then<void>((a) {
+        if (a != null) _onNotificationAction(a);
+      }),
+    );
     ref.onDispose(() {
+      unawaited(actions.cancel());
       _events?.cancel();
       _clearTimers();
       unawaited(_media?.close());
     });
     return const CallSession();
+  }
+
+  // Android ongoing-call notification (owner 2026-10-20).
+  String? _fgKey;
+
+  void _syncForeground(CallSession? prev, CallSession next) {
+    final fg = ref.read(callForegroundProvider);
+    final live = next.phase == CallPhase.outgoing ||
+        next.phase == CallPhase.connecting ||
+        next.phase == CallPhase.active;
+    if (!live) {
+      if (_fgKey != null) {
+        _fgKey = null;
+        unawaited(fg.stop());
+      }
+      return;
+    }
+    final peerName = (next.peer ?? next.call?.peer)?.name ?? '';
+    final name = peerName.isEmpty ? 'LawBid' : peerName;
+    final since = next.phase == CallPhase.active
+        ? (next.connectedAt ?? DateTime.now()).millisecondsSinceEpoch
+        : 0;
+    final key = '$name|$since';
+    if (key == _fgKey) return;
+    _fgKey = key;
+    final t = ref.read(translatorProvider);
+    unawaited(
+      fg.start(
+        name: name,
+        since: since,
+        status: t.t(since > 0 ? 'call.ongoing' : 'call.status.connecting'),
+        hangup: t.t('call.end'),
+      ),
+    );
+  }
+
+  void _onNotificationAction(String action) {
+    if (action == 'hangup') {
+      if (state.busy) {
+        unawaited(hangUp());
+      } else {
+        // A stale notification: nothing to hang up, just clear it.
+        unawaited(ref.read(callForegroundProvider).stop());
+      }
+    } else if (state.busy) {
+      ref.read(callOpenRequestProvider.notifier).bump();
+    }
   }
 
   // --- Outgoing ------------------------------------------------------------
@@ -213,8 +327,13 @@ class CallController extends Notifier<CallSession> {
     CallPeer? peer,
     bool video = false,
   }) async {
-    if (state.busy) return;
+    if (state.busy) {
+      // Already talking: the call button takes you back to that call.
+      ref.read(callOpenRequestProvider.notifier).bump();
+      return;
+    }
     _reset();
+    final gen = _gen;
     state = CallSession(
       phase: CallPhase.outgoing,
       peer: peer,
@@ -222,28 +341,47 @@ class CallController extends Notifier<CallSession> {
       speaker: video,
     );
     try {
+      // The microphone first: a refusal must not ring the other phone.
+      if (!await ref.read(callMicPermissionProvider)()) {
+        if (gen != _gen || !ref.mounted) return;
+        state = state.copyWith(errorCode: kMicDenied);
+        _finish(CallStatus.failed);
+        return;
+      }
+      if (gen != _gen || !ref.mounted) return;
       unawaited(_iceServers().then<void>((_) {}, onError: (Object _) {}));
       final call = await _repo.start(conversationId, video: video);
       if (!ref.mounted) return;
+      if (gen != _gen) {
+        // Cancelled while the request was in flight: the server made the
+        // call all the same — end it, start nothing here.
+        unawaited(_endQuietly(call.id, CallEndReason.hangup));
+        return;
+      }
       if (call.status == CallStatus.busy) {
         _finish(call.status, call: call);
         return;
       }
       state = state.copyWith(call: call, peer: call.peer);
+      unawaited(ref.read(systemCallUiProvider).showOngoing(call));
       // OQ-044: the caller hears ringback tones while it rings there.
       unawaited(ref.read(appSoundsProvider).startRingback());
       // Mic + connection ready while it rings: pick-up connects faster.
       await _openMedia(call.id, video: call.video);
+      if (gen != _gen) return;
       _ringTimer = Timer(kCallRingTimeout, () {
         if (state.phase == CallPhase.outgoing) {
           unawaited(hangUp(reason: CallEndReason.noAnswer));
         }
       });
     } on ApiException catch (e) {
+      if (gen != _gen) return;
       state = state.copyWith(errorCode: e.code);
       _finish(CallStatus.failed);
-    } on Object {
+    } on Object catch (e) {
+      if (gen != _gen) return;
       final id = state.call?.id;
+      if (_isMicDenied(e)) state = state.copyWith(errorCode: kMicDenied);
       _finish(CallStatus.failed);
       if (id != null) unawaited(_endQuietly(id, CallEndReason.failed));
     }
@@ -255,8 +393,20 @@ class CallController extends Notifier<CallSession> {
     final call = state.call;
     if (call == null || state.phase != CallPhase.incoming) return;
     unawaited(ref.read(appSoundsProvider).stopRingtone());
+    if (!await ref.read(callMicPermissionProvider)()) {
+      // Cannot talk: decline, so the caller is not left waiting.
+      if (!ref.mounted || state.call?.id != call.id) return;
+      state = state.copyWith(errorCode: kMicDenied);
+      unawaited(ref.read(systemCallUiProvider).dismiss(call.id));
+      _finish(CallStatus.declined);
+      unawaited(
+        _repo.decline(call.id).then<void>((_) {}, onError: (Object _) {}),
+      );
+      return;
+    }
+    if (!ref.mounted || state.phase != CallPhase.incoming) return;
     state = state.copyWith(phase: CallPhase.connecting);
-    unawaited(ref.read(systemCallUiProvider).dismiss(call.id));
+    unawaited(_swapToOngoing(call));
     try {
       // The answer to the server and the mic/connection run side by side:
       // the caller's offer waits in [_earlySignals] until the media is open.
@@ -276,7 +426,8 @@ class CallController extends Notifier<CallSession> {
     } on ApiException catch (e) {
       state = state.copyWith(errorCode: e.code);
       _finish(CallStatus.failed);
-    } on Object {
+    } on Object catch (e) {
+      if (_isMicDenied(e)) state = state.copyWith(errorCode: kMicDenied);
       _finish(CallStatus.failed);
       unawaited(_endQuietly(call.id, CallEndReason.failed));
     }
@@ -349,10 +500,18 @@ class CallController extends Notifier<CallSession> {
   /// A ring that arrived by push / the system call UI (app was in the
   /// background): load it and show it here.
   Future<void> ringFromPush(String callId, {bool accept = false}) async {
-    if (state.busy && state.call?.id != callId) return;
+    if (state.busy && state.call?.id != callId) {
+      // Talking already: the system ring for this one must go, and the
+      // caller hears it was declined (busy).
+      unawaited(ref.read(systemCallUiProvider).dismiss(callId));
+      unawaited(
+        _repo.decline(callId).then<void>((_) {}, onError: (Object _) {}),
+      );
+      return;
+    }
     try {
       if (state.call?.id != callId) {
-        final call = await _repo.get(callId);
+        final call = await _getWithRetry(callId);
         if (call.status != CallStatus.ringing || call.outgoing) {
           // Push 2026-10-19: the call ended while the phone was asleep — a
           // system call screen answered (or still ringing) for it must go,
@@ -360,12 +519,44 @@ class CallController extends Notifier<CallSession> {
           unawaited(ref.read(systemCallUiProvider).dismiss(callId));
           return;
         }
-        _ring(call, showSystemUi: false);
+        if (state.busy) {
+          // The socket rang it (or another call began) meanwhile.
+          if (state.call?.id != callId) {
+            unawaited(ref.read(systemCallUiProvider).dismiss(callId));
+            unawaited(
+              _repo.decline(callId).then<void>((_) {}, onError: (Object _) {}),
+            );
+            return;
+          }
+        } else {
+          _ring(call, showSystemUi: false);
+        }
       }
       if (accept) await this.accept();
     } on Object {
-      // Gone already.
+      // Still unreachable after the retries: take the system call down.
+      unawaited(ref.read(systemCallUiProvider).dismiss(callId));
     }
+  }
+
+  /// The network may not be awake yet when "Accept" is tapped in the
+  /// system call UI: a few tries before giving up.
+  Future<AppCall> _getWithRetry(String callId) async {
+    Object? last;
+    for (var i = 0; i < 4; i++) {
+      try {
+        return await _repo.get(callId);
+      } on ApiException catch (e) {
+        // A real answer (gone, not allowed): no point in retrying.
+        if (e.statusCode != null && e.statusCode! < 500) rethrow;
+        last = e;
+      } on Object catch (e) {
+        last = e;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 1500));
+    }
+    if (last is Exception) throw last;
+    throw StateError('call unreachable');
   }
 
   // --- Internals -----------------------------------------------------------
@@ -404,29 +595,101 @@ class CallController extends Notifier<CallSession> {
 
   Future<void> _openMedia(String callId, {bool video = false}) async {
     if (_mediaOpen) return;
+    final gen = _gen;
     final servers = await _iceServers();
+    if (gen != _gen || !ref.mounted) return;
     final media = ref.read(callMediaFactoryProvider)();
     _media = media;
     await media.open(
       servers,
       video: video,
       onSignal: (s) => ref.read(callSignalSenderProvider)(callId, s),
-      onState: (s) {
-        if (!ref.mounted) return;
-        if (s == CallMediaState.connected &&
-            state.phase != CallPhase.active &&
-            state.phase != CallPhase.ended) {
+      onState: _onMediaState,
+    );
+    if (gen != _gen) {
+      // The call ended while the mic was being asked for.
+      unawaited(media.close());
+      return;
+    }
+    _mediaOpen = true;
+    // The other side may hang up while this phone has no socket (app in the
+    // background, Doze): ask the server now and then, so the call and its
+    // ringing/ongoing UI never outlive it.
+    _syncTimer?.cancel();
+    _syncTimer = Timer.periodic(kCallSyncInterval, (_) {
+      final id = state.call?.id;
+      if (id != null && state.busy) unawaited(_resync(id));
+    });
+  }
+
+  void _onMediaState(CallMediaState s) {
+    if (!ref.mounted) return;
+    switch (s) {
+      case CallMediaState.connected:
+        _stopReconnect();
+        if (state.phase != CallPhase.active && state.phase != CallPhase.ended) {
           _connectTimer?.cancel();
           state = state.copyWith(
             phase: CallPhase.active,
             connectedAt: DateTime.now(),
           );
-        } else if (s == CallMediaState.failed && state.busy) {
+        }
+      case CallMediaState.disconnected:
+        // A short blip often heals by itself; a longer one is retried.
+        if (state.phase == CallPhase.active) _startReconnect();
+      case CallMediaState.failed:
+        if (state.phase == CallPhase.active) {
+          _startReconnect();
+        } else if (state.busy) {
           unawaited(hangUp(reason: CallEndReason.failed));
         }
-      },
-    );
-    _mediaOpen = true;
+      case CallMediaState.connecting:
+        break;
+    }
+  }
+
+  /// The audio link dropped mid-call: show "Reconnecting…", let the caller
+  /// restart ICE every few seconds, end the call only when the grace runs out.
+  void _startReconnect() {
+    if (_reconnectGrace != null) return;
+    state = state.copyWith(reconnecting: true);
+    _reconnectGrace = Timer(kCallReconnectGrace, () {
+      _reconnectGrace = null;
+      if (state.reconnecting && state.busy) {
+        unawaited(hangUp(reason: CallEndReason.failed));
+      }
+    });
+    _reconnectRetry = Timer.periodic(kCallReconnectRetry, (_) {
+      unawaited(_restartIce());
+    });
+    unawaited(_restartIce());
+  }
+
+  void _stopReconnect() {
+    _reconnectGrace?.cancel();
+    _reconnectGrace = null;
+    _reconnectRetry?.cancel();
+    _reconnectRetry = null;
+    if (state.reconnecting) state = state.copyWith(reconnecting: false);
+  }
+
+  /// Only the caller offers; the callee answers it like the first offer.
+  Future<void> _restartIce() async {
+    final call = state.call;
+    final media = _media;
+    if (call == null || media == null || !call.outgoing || !state.busy) return;
+    try {
+      final offer = await media.restartIce();
+      await ref.read(callSignalSenderProvider)(call.id, offer);
+    } on Object {
+      // The grace timer decides.
+    }
+  }
+
+  /// getUserMedia refused: the user (or the OS) denied the microphone.
+  static bool _isMicDenied(Object e) {
+    final m = e.toString().toLowerCase();
+    return m.contains('permission') || m.contains('notallowed');
   }
 
   void _armConnectTimeout() {
@@ -518,10 +781,23 @@ class CallController extends Notifier<CallSession> {
     }
   }
 
+  /// A "call over" push (the socket may be asleep): the server decides.
+  /// Also closes the system call (CallKit) that outlived it.
+  Future<void> remoteEnded(String callId) async {
+    if (state.busy && state.call?.id == callId) {
+      await _resync(callId);
+    }
+    if (!state.busy || state.call?.id != callId) {
+      unawaited(ref.read(systemCallUiProvider).dismiss(callId));
+    }
+  }
+
   /// After a socket drop: the server knows whether the call still lives.
   Future<void> _resync(String callId) async {
     try {
       final call = await _repo.get(callId);
+      // A late answer about call A must not end the new call B.
+      if (state.call?.id != callId) return;
       if (!call.live && state.busy) _finish(call.status, call: call);
     } on Object {
       // Keep going; the next event decides.
@@ -529,15 +805,34 @@ class CallController extends Notifier<CallSession> {
   }
 
   Future<void> _endQuietly(String callId, CallEndReason reason) async {
-    try {
-      await _repo.end(callId, reason);
-    } on Object {
-      // The server's sweep closes it.
+    // A few tries: a lost request leaves the other phone ringing for a
+    // minute. The server's sweep is the last resort.
+    for (var i = 0; i < 3; i++) {
+      try {
+        await _repo.end(callId, reason);
+        return;
+      } on ApiException catch (e) {
+        final code = e.statusCode;
+        if (code != null && code < 500) return;
+        await Future<void>.delayed(Duration(seconds: 1 + i));
+      } on Object {
+        await Future<void>.delayed(Duration(seconds: 1 + i));
+      }
     }
+  }
+
+  /// The ringing screen goes away and the ongoing-call notification (with
+  /// the microphone service) takes its place, one after the other.
+  Future<void> _swapToOngoing(AppCall call) async {
+    await ref.read(systemCallUiProvider).answered(call);
   }
 
   void _finish(CallStatus outcome, {AppCall? call}) {
     final wasCalling = state.busy;
+    final endedId = call?.id ?? state.call?.id;
+    if (endedId != null) {
+      unawaited(ref.read(systemCallUiProvider).dismiss(endedId));
+    }
     _reset();
     // OQ-044: "busy" beeps, or the short end-of-call tone.
     final sounds = ref.read(appSoundsProvider);
@@ -553,6 +848,7 @@ class CallController extends Notifier<CallSession> {
       phase: CallPhase.ended,
       outcome: outcome,
       call: call,
+      reconnecting: false,
     );
     _linger = Timer(kCallEndedLinger, () {
       if (ref.mounted && state.phase == CallPhase.ended) {
@@ -562,6 +858,7 @@ class CallController extends Notifier<CallSession> {
   }
 
   void _reset() {
+    _gen++;
     _clearTimers();
     // Audit 2026-10-02: the incoming melody stops with any change.
     unawaited(ref.read(appSoundsProvider).stopRingtone());
@@ -574,6 +871,11 @@ class CallController extends Notifier<CallSession> {
   void _clearTimers() {
     _ringTimer?.cancel();
     _connectTimer?.cancel();
+    _syncTimer?.cancel();
+    _reconnectGrace?.cancel();
+    _reconnectGrace = null;
+    _reconnectRetry?.cancel();
+    _reconnectRetry = null;
     _linger?.cancel();
   }
 }

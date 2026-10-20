@@ -1,0 +1,44 @@
+#!/bin/bash
+# coturn for LawBid calls (infra/modules/turn). Runs once at first boot.
+set -euo pipefail
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -y
+apt-get install -y coturn curl
+snap install aws-cli --classic
+
+SECRET="$(/snap/bin/aws ssm get-parameter --region ${region} \
+  --name ${secret_param} --with-decryption --query Parameter.Value --output text)"
+# The instance's private address for the relay, the public one for clients.
+TOKEN="$(curl -sX PUT http://169.254.169.254/latest/api/token -H 'X-aws-ec2-metadata-token-ttl-seconds: 60')"
+PRIVATE_IP="$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/local-ipv4)"
+
+cat > /etc/turnserver.conf <<CONF
+listening-port=3478
+tls-listening-port=5349
+listening-ip=0.0.0.0
+relay-ip=$PRIVATE_IP
+external-ip=${external_ip}/$PRIVATE_IP
+min-port=49152
+max-port=65535
+realm=${realm}
+fingerprint
+use-auth-secret
+static-auth-secret=$SECRET
+# The API issues logins that live a few minutes (TURN REST API).
+no-cli
+no-multicast-peers
+no-tcp-relay
+total-quota=100
+bps-capacity=0
+stale-nonce=600
+syslog
+%{ for cidr in denied ~}
+denied-peer-ip=${cidr}
+%{ endfor ~}
+CONF
+chmod 640 /etc/turnserver.conf
+chown root:turnserver /etc/turnserver.conf
+
+sed -i 's/^#\?TURNSERVER_ENABLED=.*/TURNSERVER_ENABLED=1/' /etc/default/coturn
+systemctl enable coturn
+systemctl restart coturn
