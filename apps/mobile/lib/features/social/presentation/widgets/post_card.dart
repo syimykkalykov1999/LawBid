@@ -2809,7 +2809,6 @@ class PostActionsBar extends ConsumerWidget {
                 children: [
                   if (reactions) ...[
                     BounceIcon(
-                      size: _kBarIcon,
                       extent: _kBarExtent,
                       active: post.likedByMe,
                       activeIcon: AppIcons.favoriteRounded,
@@ -2821,7 +2820,6 @@ class PostActionsBar extends ConsumerWidget {
                     // Owner 2026-10-15 (Instagram): no count next to like or
                     // send; the comments keep theirs.
                     BounceIcon(
-                      size: _kBarIcon,
                       extent: _kBarExtent,
                       active: false,
                       activeIcon: AppIcons.modeCommentOutlined,
@@ -2836,7 +2834,6 @@ class PostActionsBar extends ConsumerWidget {
                     if (showCounts && (showTime || post.commentCount > 0))
                       _Count(post.commentCount),
                     BounceIcon(
-                      size: _kBarIcon,
                       extent: _kBarExtent,
                       active: false,
                       activeIcon: AppIcons.sendOutlined,
