@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/core/deeplinks/deep_link.dart';
+import 'package:lawbid/core/deeplinks/group_invite_handler.dart';
 import 'package:lawbid/core/navigation/app_router.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/navigation/guards/app_router_guard.dart';
@@ -133,7 +134,23 @@ class DeepLinkController extends Notifier<DeepLink?> {
         ref.read(deepLinkNavigatorProvider)(
           '${AppRoutes.referral}?code=${Uri.encodeQueryComponent(code)}',
         );
-      case ContentDeepLink(:final location) || TabDeepLink(:final location):
+      case WebLoginDeepLink(:final qrId):
+        // Owner 2026-10-20: the website's sign-in QR. A phone with a
+        // signed-in user gets the "Sign in on the web?" question (the QR
+        // lives two minutes, so a signed-out phone drops it instead of
+        // waiting); a browser gets the public "open the app" page.
+        state = null;
+        if (!kIsWeb && !hasSession) return;
+        ref.read(deepLinkNavigatorProvider)(AppRoutes.webLogin(qrId));
+      case GroupInviteDeepLink(:final token):
+        if (!hasSession) return;
+        final user = ref.read(currentUserControllerProvider).user;
+        if (user == null || AppRouterGuard.requiredStep(user) != null) return;
+        state = null;
+        ref.read(groupInviteHandlerProvider)?.call(token);
+      case ProfileDeepLink(:final location) ||
+            ContentDeepLink(:final location) ||
+            TabDeepLink(:final location):
         if (!hasSession) return; // wait for sign-in
         final user = ref.read(currentUserControllerProvider).user;
         if (user == null || AppRouterGuard.requiredStep(user) != null) {

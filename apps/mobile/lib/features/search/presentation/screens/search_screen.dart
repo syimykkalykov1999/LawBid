@@ -1,10 +1,13 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/text/bidi.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/data/cases_repository.dart'
@@ -252,7 +255,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         valueListenable: _controller,
         builder: (context, value, _) {
           final cancel = _focused && value.text.isEmpty;
-          return AppIconButton(
+          final button = AppIconButton(
             icon: AppIcon(
               cancel ? AppIcons.closeRounded : AppIcons.searchRounded,
               color: cancel ? colors.textSecondary : colors.goldDark,
@@ -264,6 +267,22 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     setState(() => _focused = false);
                   }
                 : (value.text.isEmpty ? _focus.requestFocus : _onMagnifier),
+          );
+          // Owner 2026-10-20 (WeChat): the QR scanner sits in the field
+          // while nothing is typed; the phone only (the website shows its
+          // own sign-in code instead).
+          if (kIsWeb || _focused || value.text.isNotEmpty) return button;
+          return Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AppIconButton(
+                key: const ValueKey('search-scan-qr'),
+                icon: AppIcon(AppIcons.scan, color: colors.text),
+                semanticLabel: t.t('qr.scan.title'),
+                onPressed: () => context.push(AppRoutes.qrScan),
+              ),
+              button,
+            ],
           );
         },
       ),

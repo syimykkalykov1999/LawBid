@@ -14,6 +14,7 @@ const seo = mkdtempSync(join(tmpdir(), 'seo-merge-'));
 const site = mkdtempSync(join(tmpdir(), 'site-'));
 put(seo, 'practice-areas/divorce/index.html', 'SEO divorce');
 put(seo, 'lawyers/index.html', 'SEO lawyers');
+put(seo, '.well-known/apple-app-site-association', '{}');
 put(seo, 'sitemap.xml', '<urlset><url><loc>https://lawbid.dev/lawyers/</loc></url></urlset>');
 put(site, 'index.html', 'SITE HOME');
 put(site, '404.html', 'SITE 404');
@@ -61,4 +62,8 @@ test('public-paths.txt lists what the app upload must keep', () => {
     assert.ok(list.includes(p), p);
   }
   assert.ok(!list.includes('index.html'));
+});
+
+test('.well-known is listed in public-paths.txt (the app upload must not delete it)', () => {
+  assert.ok(read('public-paths.txt').split('\n').includes('.well-known'));
 });
