@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/translator.dart';
-import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/cases/application/create_case_controller.dart';
 import 'package:lawbid/features/cases/domain/case_draft.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
@@ -151,17 +149,6 @@ class AttorneyViewPreview extends StatelessWidget {
               t: t,
               formats: formats,
               onTap: () {},
-            ),
-          ),
-        ),
-        Align(
-          alignment: AlignmentDirectional.centerStart,
-          child: TextButton(
-            key: const ValueKey('case-preview-more'),
-            onPressed: () => context.push(AppRoutes.guide),
-            child: Text(
-              t.t('cases.preview.more'),
-              style: type.bodySmall.copyWith(color: colors.goldDark),
             ),
           ),
         ),

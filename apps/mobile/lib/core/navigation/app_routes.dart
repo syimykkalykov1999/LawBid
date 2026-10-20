@@ -176,7 +176,6 @@ abstract final class AppRoutes {
   // Owner 2026-10-18 (Instagram): my archived posts.
   static const postArchive = '/profile/settings/archive';
   // Owner 2026-10-18: «Справочник» — the «i» in the case lists.
-  static const guide = '/guide';
   static const referral = '/profile/settings/referral';
   // Owner 2026-10-05: my promoted posts / cases (reach, clicks, stop).
   static const myPromotions = '/profile/settings/promotions';
