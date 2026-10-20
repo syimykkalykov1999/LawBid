@@ -577,6 +577,16 @@ describe('Case tools (e2e, 2026-10-20)', () => {
       (await api().post(`${base}/${req.id}/decline`).set(cli.auth).send({}))
         .status,
     ).toBe(409);
+
+    // purging the document takes its signatures with it: the guard trigger
+    // lets the cascade through (and only the cascade)
+    expect(
+      await prisma.caseSignature.count({ where: { request_id: req.id } }),
+    ).toBe(2);
+    await prisma.caseSignRequest.delete({ where: { id: req.id } });
+    expect(
+      await prisma.caseSignature.count({ where: { request_id: req.id } }),
+    ).toBe(0);
   });
 
   it('refuses what cannot be signed and lets the other side decline', async () => {
