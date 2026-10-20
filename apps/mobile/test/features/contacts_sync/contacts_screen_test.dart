@@ -92,6 +92,38 @@ void main() {
     }
   }
 
+  for (final MapEntry(key: name, value: (t, dir)) in locales.entries) {
+    testWidgets('the "new on LawBid" switch fits at 360 dp ($name)',
+        (tester) async {
+      useNarrowPhone(tester);
+      await tester.pumpWidget(
+        uxApp(
+          Directionality(textDirection: dir, child: const ContactsScreen()),
+          theme: AppTheme.dark(),
+          size: narrowPhone,
+          textScale: 1.1,
+          disableAnimations: true,
+          overrides: uxOverrides(
+            translator: t,
+            extra: [
+              sharedPreferencesProvider.overrideWithValue(prefs),
+              phoneContactsProvider.overrideWith((_) async => _data()),
+            ],
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+      await tester.scrollUntilVisible(
+        find.byType(SwitchListTile).last,
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(tester.takeException(), isNull);
+      expect(find.byType(SwitchListTile), findsWidgets);
+    });
+  }
+
   testWidgets('denied shows the allow button', (tester) async {
     useNarrowPhone(tester);
     await tester.pumpWidget(
