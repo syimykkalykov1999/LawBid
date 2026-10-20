@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 import 'package:lawbid/features/calls/domain/call_models.dart';
+import 'package:record/record.dart' show AudioRecorder;
 
 /// Where the audio link is (OQ-041).
 enum CallMediaState {
@@ -320,3 +321,22 @@ class WebRtcCallMedia implements CallMedia {
 /// A fresh media object per call.
 final callMediaFactoryProvider =
     Provider<CallMedia Function()>((ref) => WebRtcCallMedia.new);
+
+/// Asks for the microphone before a call is placed or answered (so a refusal
+/// never rings the other phone for nothing). True when granted — or when the
+/// platform cannot tell (web, tests): the media layer asks again.
+final callMicPermissionProvider = Provider<Future<bool> Function()>(
+  (ref) => () async {
+    if (kIsWeb) return true;
+    try {
+      final recorder = AudioRecorder();
+      try {
+        return await recorder.hasPermission();
+      } finally {
+        await recorder.dispose();
+      }
+    } on Object {
+      return true;
+    }
+  },
+);

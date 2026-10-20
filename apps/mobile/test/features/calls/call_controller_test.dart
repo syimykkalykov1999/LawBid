@@ -67,12 +67,17 @@ class _FakeRepo implements CallsRepository {
   final declined = <String>[];
 
   final startedVideo = <bool>[];
+  String nextId = 'c1';
+  Completer<void>? startGate;
+  Completer<void>? getGate;
+  CallStatus getStatus = CallStatus.ringing;
 
   @override
   Future<AppCall> start(String conversationId, {bool video = false}) async {
     startedVideo.add(video);
+    if (startGate != null) await startGate!.future;
     if (refuse != null) throw refuse!;
-    return _call('c1', startStatus, outgoing: true, video: video);
+    return _call(nextId, startStatus, outgoing: true, video: video);
   }
 
   @override
@@ -94,8 +99,10 @@ class _FakeRepo implements CallsRepository {
   }
 
   @override
-  Future<AppCall> get(String callId) async =>
-      _call(callId, CallStatus.ringing, outgoing: false);
+  Future<AppCall> get(String callId) async {
+    if (getGate != null) await getGate!.future;
+    return _call(callId, getStatus, outgoing: false);
+  }
 
   @override
   Future<List<IceServer>> iceServers() async => const [
@@ -506,5 +513,52 @@ void main() {
     await h.c.call('conv', peer: _peer);
     expect(h.container.read(callOpenRequestProvider), before + 1);
     expect(h.repo.startedVideo, hasLength(1));
+  });
+
+  // --- Reviewer tests: known holes (expected to FAIL until fixed) ---------
+
+  test('BUG: cancelling before the server answered must not leave a ghost call',
+      () async {
+    final h = _Harness();
+    addTearDown(h.dispose);
+    h.repo.startGate = Completer<void>();
+
+    final f = h.c.call('conv', peer: _peer);
+    await _settle();
+    expect(h.s.phase, CallPhase.outgoing);
+    await h.c.hangUp(); // user cancels while the request is in flight
+    expect(h.s.phase, CallPhase.ended);
+
+    h.repo.startGate!.complete();
+    await f;
+    await _settle();
+    // The server created call c1: it must be ended, no ringback, no media.
+    expect(h.repo.ends, isNotEmpty, reason: 'server call c1 left ringing');
+    expect(h.sounds.played.last, isNot('ringback'));
+    expect(h.media.opened, isFalse);
+  });
+
+  test('BUG: a stale re-read of call A must not end the new call B', () async {
+    final h = _Harness();
+    addTearDown(h.dispose);
+
+    await h.c.call('conv', peer: _peer); // call c1, ringing
+    // The socket came back: the controller re-reads c1 (slow answer, "over").
+    h.repo.getStatus = CallStatus.ended;
+    h.repo.getGate = Completer<void>();
+    h.emit(RealtimeEvent.reconnected, null);
+    await _settle();
+    await h.c.hangUp();
+    h.repo.nextId = 'c2';
+    await h.c.call('conv', peer: _peer); // user calls again at once
+    expect(h.s.call?.id, 'c2');
+    expect(h.s.phase, CallPhase.outgoing);
+    h.repo.getGate!.complete();
+    await _settle();
+    expect(
+      h.s.phase,
+      CallPhase.outgoing,
+      reason: 'call c2 was ended by the answer about call c1',
+    );
   });
 }
