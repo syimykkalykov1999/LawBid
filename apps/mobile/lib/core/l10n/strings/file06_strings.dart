@@ -176,6 +176,9 @@ const file06Ru = <String, String>{
   'chat.voice.pause': 'Пауза',
   'chat.voice.speed': 'Скорость воспроизведения',
   'chat.voice.unavailable': 'Недоступно',
+  'chat.voice.pauseRec': 'Пауза записи',
+  'chat.voice.resume': 'Продолжить запись',
+  'chat.voice.stop': 'Остановить воспроизведение',
   'chat.voice.noMic':
       'Нет доступа к микрофону. Разрешите его в настройках телефона.',
   // --- Подписка (docs/06 §1.7 п.1–2) ---
@@ -644,6 +647,9 @@ const file06En = <String, String>{
   'chat.voice.pause': 'Pause',
   'chat.voice.speed': 'Playback speed',
   'chat.voice.unavailable': 'Unavailable',
+  'chat.voice.pauseRec': 'Pause recording',
+  'chat.voice.resume': 'Resume recording',
+  'chat.voice.stop': 'Stop playback',
   'chat.voice.noMic': 'No microphone access. Allow it in your phone settings.',
   // --- Subscription (docs/06 §1.7 items 1–2) ---
   'subscription.title': 'Subscription',

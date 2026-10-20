@@ -119,6 +119,9 @@ dependencies:
   video_player: ^2.14.0
   visibility_detector: ^0.4.0+2
   audio_session: ^0.2.4
+  # Voice notes held to the ear (WhatsApp): near the face the sound moves to
+  # the earpiece and the screen goes dark.
+  proximity_sensor: ^1.3.8
   video_compress: ^3.1.4
   device_info_plus: ^12.4.0
 dev_dependencies:

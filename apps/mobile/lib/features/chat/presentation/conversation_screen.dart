@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart' show XFile;
+import 'package:just_audio/just_audio.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
@@ -32,6 +33,7 @@ import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/application/presence_providers.dart';
 import 'package:lawbid/features/chat/application/voice_player.dart';
 import 'package:lawbid/features/chat/application/voice_recorder.dart';
+import 'package:lawbid/features/chat/data/voice_files.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/domain/message_groups.dart';
 import 'package:lawbid/features/chat/presentation/attachment_widgets.dart';
@@ -1633,6 +1635,18 @@ class _ComposerState extends ConsumerState<_Composer> {
   bool _recording = false;
   bool _locked = false;
 
+  /// Lock mode: recording paused (the bars freeze, preview is offered).
+  bool _paused = false;
+
+  /// The finished file once the paused note was played back (a resume is
+  /// no longer possible then — the file is closed).
+  VoiceRecording? _held;
+  AudioPlayer? _preview;
+  StreamSubscription<Duration>? _previewPos;
+  StreamSubscription<PlayerState>? _previewState;
+  Duration _previewAt = Duration.zero;
+  bool _previewPlaying = false;
+
   /// The finger is on the mic. Starting the recorder takes a moment; a
   /// quick tap may lift the finger before it runs — then nothing records.
   bool _pressed = false;
@@ -1649,6 +1663,8 @@ class _ComposerState extends ConsumerState<_Composer> {
   void dispose() {
     _levelSub?.cancel();
     _tick?.cancel();
+    unawaited(_dropPreview());
+    unawaited(deleteVoiceFile(_held?.path));
     unawaited(() async {
       if (_rec.recording) await _rec.cancel();
       await _rec.dispose();
@@ -1662,6 +1678,9 @@ class _ComposerState extends ConsumerState<_Composer> {
     unawaited(ref.read(voicePlayerProvider.notifier).stop());
     // ignore: unawaited_futures
     HapticFeedback.mediumImpact();
+    // The buzz is over before the microphone opens, so it is not recorded.
+    await Future<void>.delayed(const Duration(milliseconds: 90));
+    if (!mounted) return;
     final ok = await _rec.start(onCap: () => _finish(send: true));
     if (!mounted) return;
     if (!ok) {
@@ -1688,27 +1707,146 @@ class _ComposerState extends ConsumerState<_Composer> {
     setState(() {
       _recording = true;
       _locked = false;
+      _paused = false;
       _drag = Offset.zero;
       _elapsed = Duration.zero;
     });
+  }
+
+  Future<void> _dropPreview() async {
+    final p = _preview;
+    _preview = null;
+    await _previewPos?.cancel();
+    await _previewState?.cancel();
+    _previewPos = _previewState = null;
+    _previewPlaying = false;
+    _previewAt = Duration.zero;
+    await p?.dispose();
+  }
+
+  /// Lock mode: pause — the bars freeze, play-back and resume appear.
+  Future<void> _pauseRec() async {
+    await _rec.pause();
+    _tick?.cancel();
+    await _levelSub?.cancel();
+    if (!mounted) return;
+    setState(() {
+      _paused = true;
+      _elapsed = _rec.elapsed;
+    });
+  }
+
+  Future<void> _resumeRec() async {
+    if (_held != null) return;
+    await _rec.resume();
+    if (!mounted) return;
+    _levelSub = _rec.levels.listen((l) {
+      if (!mounted) return;
+      setState(() {
+        _levels.add(l);
+        if (_levels.length > 40) _levels.removeAt(0);
+      });
+    });
+    _tick = Timer.periodic(const Duration(milliseconds: 200), (_) {
+      if (mounted) setState(() => _elapsed = _rec.elapsed);
+    });
+    setState(() => _paused = false);
+  }
+
+  /// Plays the paused note (closes the file the first time).
+  Future<void> _togglePreview() async {
+    var p = _preview;
+    if (p != null) {
+      if (p.playing) {
+        await p.pause();
+      } else {
+        await p.play();
+      }
+      return;
+    }
+    final r = _held ?? await _rec.stop();
+    if (!mounted) return;
+    if (r == null) {
+      showAppSnackBar(
+        context,
+        ref.read(translatorProvider).t('chat.voice.hold'),
+      );
+      return;
+    }
+    _held = r;
+    p = _preview = AudioPlayer();
+    _previewPos = p.positionStream.listen((d) {
+      if (mounted) setState(() => _previewAt = d);
+    });
+    _previewState = p.playerStateStream.listen((st) {
+      if (!mounted) return;
+      if (st.processingState == ProcessingState.completed) {
+        unawaited(p!.pause());
+        unawaited(p.seek(Duration.zero));
+      }
+      setState(
+        () => _previewPlaying =
+            st.playing && st.processingState != ProcessingState.completed,
+      );
+    });
+    try {
+      await p.setFilePath(r.path);
+      await p.play();
+    } on Object {
+      // The note stays sendable.
+    }
+  }
+
+  Future<void> _seekPreview(double f) async {
+    final h = _held;
+    if (h == null || _preview == null) return;
+    await _preview!.seek(Duration(milliseconds: (h.durationMs * f).round()));
+  }
+
+  Future<void> _sendLocked() async {
+    final h = _held;
+    if (h == null) return _finish(send: true);
+    final p = _preview;
+    if (p != null && p.playing) await p.pause();
+    await _levelSub?.cancel();
+    _tick?.cancel();
+    await _dropPreview();
+    _held = null;
+    setState(() {
+      _recording = false;
+      _locked = false;
+      _paused = false;
+    });
+    // ignore: unawaited_futures
+    HapticFeedback.lightImpact();
+    await widget.onVoice(h);
   }
 
   Future<void> _finish({required bool send}) async {
     if (!_recording) return;
     await _levelSub?.cancel();
     _tick?.cancel();
+    await _dropPreview();
     setState(() {
       _recording = false;
       _locked = false;
+      _paused = false;
       _drag = Offset.zero;
     });
     if (!send) {
       // ignore: unawaited_futures
       HapticFeedback.lightImpact();
-      await _rec.cancel();
+      final held = _held;
+      _held = null;
+      if (held != null) {
+        await deleteVoiceFile(held.path);
+      } else {
+        await _rec.cancel();
+      }
       return;
     }
-    final r = await _rec.stop();
+    final r = _held ?? await _rec.stop();
+    _held = null;
     if (!mounted) return;
     if (r == null) {
       showAppSnackBar(
@@ -1807,7 +1945,7 @@ class _ComposerState extends ConsumerState<_Composer> {
 
     final recordingRow = Container(
       height: AppSizes.touchTarget + 4,
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
       decoration: BoxDecoration(
         color: colors.bg,
         borderRadius: BorderRadius.circular(24),
@@ -1815,10 +1953,34 @@ class _ComposerState extends ConsumerState<_Composer> {
       ),
       child: Row(
         children: [
-          _RecDot(color: colors.danger),
-          const SizedBox(width: AppSpacing.sm),
+          if (_locked)
+            AppIconButton(
+              icon:
+                  AppIcon(AppIcons.deleteOutlineRounded, color: colors.danger),
+              semanticLabel: t.t('chat.voice.cancel'),
+              onPressed: () => _finish(send: false),
+            )
+          else ...[
+            const SizedBox(width: AppSpacing.sm),
+            _RecDot(color: colors.danger),
+          ],
+          if (_paused)
+            AppIconButton(
+              icon: AppIcon(
+                _previewPlaying
+                    ? AppIcons.pauseRounded
+                    : AppIcons.playArrowRounded,
+                color: colors.goldDark,
+              ),
+              semanticLabel: t.t(
+                _previewPlaying ? 'chat.voice.pause' : 'chat.voice.play',
+              ),
+              onPressed: _togglePreview,
+            )
+          else
+            const SizedBox(width: AppSpacing.sm),
           Text(
-            voiceClock(_elapsed),
+            voiceClock(_paused && _previewPlaying ? _previewAt : _elapsed),
             style: type.body.copyWith(
               color: colors.text,
               fontFeatures: const [FontFeature.tabularFigures()],
@@ -1826,26 +1988,39 @@ class _ComposerState extends ConsumerState<_Composer> {
           ),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
-            child: _locked
-                ? RecordingMeter(levels: _levels)
-                : Opacity(
-                    opacity: (1 + _drag.dx / -_cancelDx).clamp(0.2, 1.0),
-                    child: Text(
-                      '‹ ${t.t('chat.voice.slideCancel')}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
-                      style:
-                          type.bodySmall.copyWith(color: colors.textSecondary),
-                    ),
-                  ),
+            child: _paused
+                ? VoiceWave(
+                    bars: _held?.waveform ?? _rec.waveformNow,
+                    progress: _held == null || _held!.durationMs == 0
+                        ? 0
+                        : _previewAt.inMilliseconds / _held!.durationMs,
+                    onSeek: _held == null ? null : _seekPreview,
+                  )
+                : _locked
+                    ? RecordingMeter(levels: _levels)
+                    : Opacity(
+                        opacity: (1 + _drag.dx / -_cancelDx).clamp(0.2, 1.0),
+                        child: Text(
+                          '‹ ${t.t('chat.voice.slideCancel')}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: type.bodySmall
+                              .copyWith(color: colors.textSecondary),
+                        ),
+                      ),
           ),
-          if (_locked)
+          if (_locked && !_paused)
             AppIconButton(
-              icon:
-                  AppIcon(AppIcons.deleteOutlineRounded, color: colors.danger),
-              semanticLabel: t.t('chat.voice.cancel'),
-              onPressed: () => _finish(send: false),
+              icon: AppIcon(AppIcons.pauseRounded, color: colors.danger),
+              semanticLabel: t.t('chat.voice.pauseRec'),
+              onPressed: _pauseRec,
+            ),
+          if (_paused && _held == null)
+            AppIconButton(
+              icon: AppIcon(AppIcons.micRounded, color: colors.danger),
+              semanticLabel: t.t('chat.voice.resume'),
+              onPressed: _resumeRec,
             ),
         ],
       ),
@@ -1935,7 +2110,7 @@ class _ComposerState extends ConsumerState<_Composer> {
                     }
                     if (_locked) {
                       return AppPressable(
-                        onTap: () => _finish(send: true),
+                        onTap: _sendLocked,
                         child: circle(
                           icon: AppIcons.arrowUpwardRounded,
                           on: true,

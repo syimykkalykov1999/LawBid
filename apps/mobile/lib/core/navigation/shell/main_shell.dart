@@ -15,6 +15,9 @@ import 'package:lawbid/core/navigation/shell/shell_layout.dart';
 import 'package:lawbid/core/navigation/shell/tab_reselect.dart';
 import 'package:lawbid/core/navigation/shell/web_page_frame.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
+import 'package:lawbid/features/chat/application/voice_player.dart';
+import 'package:lawbid/features/chat/chat_routes.dart';
+import 'package:lawbid/features/chat/presentation/voice_widgets.dart';
 import 'package:lawbid/features/create/presentation/create_sheet.dart';
 import 'package:lawbid/features/demo/presentation/demo_banner.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
@@ -105,6 +108,9 @@ class _MainShellState extends ConsumerState<MainShell> {
     final uploading = ref.watch(
       reelPublishJobProvider.select((j) => j.phase != ReelPublishPhase.idle),
     );
+    final miniPlayer = ref.watch(
+      voicePlayerProvider.select((p) => p.messageId != null),
+    );
     // Owner 2026-10-15 (web): on a wide window the bar moves to the side.
     final layout = shellLayoutFor(MediaQuery.sizeOf(context).width);
     final side = layout != ShellLayout.bottom;
@@ -115,12 +121,16 @@ class _MainShellState extends ConsumerState<MainShell> {
             // Owner 2026-10-15: a reel uploading in the background.
             if (uploading)
               const SafeArea(bottom: false, child: ReelPublishStrip()),
+            // WhatsApp: a voice note keeps playing after the chat is left.
+            VoiceMiniPlayer(
+              onOpen: (id) => context.push(ChatRoutes.conversation(id)),
+            ),
             Expanded(
               // The strip took the status bar's room; the screens below
               // must not leave it a second time.
               child: MediaQuery.removePadding(
                 context: context,
-                removeTop: uploading,
+                removeTop: uploading || miniPlayer,
                 // Owner 2026-10-18 (speed): tabs switch instantly — the
                 // whole-body fade drew the tab into an extra layer.
                 child: KeyedSubtree(key: _bodyKey, child: navigationShell),

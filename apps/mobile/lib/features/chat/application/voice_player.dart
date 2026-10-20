@@ -1,14 +1,17 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:audio_session/audio_session.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
+import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/chat/data/voice_files.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
+import 'package:proximity_sensor/proximity_sensor.dart';
 
 /// What the one app-wide voice player is doing (OQ-040): only one note
 /// plays at a time, like Telegram.
@@ -20,9 +23,18 @@ class VoicePlayback {
     this.position = Duration.zero,
     this.speed = 1,
     this.loading = false,
+    this.title,
+    this.threadId,
+    this.durationMs = 0,
   });
 
   final String? messageId;
+
+  /// Who sent the playing note and in which chat (the mini-player shows
+  /// them once the chat is left).
+  final String? title;
+  final String? threadId;
+  final int durationMs;
   final bool playing;
   final Duration position;
   final double speed;
@@ -36,6 +48,9 @@ class VoicePlayback {
     bool? loading,
   }) =>
       VoicePlayback(
+        title: title,
+        threadId: threadId,
+        durationMs: durationMs,
         messageId: messageId ?? this.messageId,
         playing: playing ?? this.playing,
         position: position ?? this.position,
@@ -66,6 +81,7 @@ class VoicePlayer extends Notifier<VoicePlayback> {
             unawaited(p.pause());
             unawaited(p.seek(Duration.zero));
             state = state.copyWith(playing: false, position: Duration.zero);
+            if (_next.isEmpty) _unwatchProximity();
             // Owner 2026-10-17 (WhatsApp): the next voice note in a row
             // plays by itself.
             if (_next.isNotEmpty) {
@@ -90,13 +106,23 @@ class VoicePlayer extends Notifier<VoicePlayback> {
     return _player = p;
   }
 
+  StreamSubscription<int>? _proximity;
+  bool _earpiece = false;
+
   @override
   VoicePlayback build() {
     ref.onDispose(() {
       for (final s in _subs) {
         s.cancel();
       }
+      unawaited(_proximity?.cancel());
       _player?.dispose();
+    });
+    // A call (ringing or talking) takes the audio: the note stops.
+    ref.listen(callControllerProvider.select((c) => c.phase), (_, phase) {
+      if (phase != CallPhase.idle && state.messageId != null) {
+        unawaited(stop());
+      }
     });
     return VoicePlayback(speed: _savedSpeed());
   }
@@ -143,22 +169,31 @@ class VoicePlayer extends Notifier<VoicePlayback> {
     ChatMessage m, {
     List<ChatMessage> then = const [],
     void Function(ChatMessage)? onAutoPlay,
+    String? title,
+    String? threadId,
   }) async {
     final v = m.voice;
     if (v == null) return;
     final p = _p;
     if (state.messageId == m.id) {
       if (p.playing) {
-        await p.pause();
+        await _pauseFaded(p);
       } else {
-        unawaited(p.play());
+        await _playFaded(p);
       }
       return;
     }
-    if (p.playing || state.messageId != null) await p.stop();
+    if (p.playing || state.messageId != null) await _pauseFaded(p, stop: true);
     _next = then;
     _onAutoPlay = onAutoPlay;
-    state = VoicePlayback(messageId: m.id, speed: state.speed, loading: true);
+    state = VoicePlayback(
+      messageId: m.id,
+      speed: state.speed,
+      loading: true,
+      title: title ?? state.title,
+      threadId: threadId ?? state.threadId,
+      durationMs: v.durationMs,
+    );
     try {
       // Web: no file system — stream the signed link (or the unsent blob).
       if (kIsWeb) {
@@ -169,7 +204,7 @@ class VoicePlayer extends Notifier<VoicePlayback> {
         }
         await p.setUrl(url);
         await p.setSpeed(state.speed);
-        unawaited(p.play());
+        await _playFaded(p);
         return;
       }
       final path = v.localPath ?? await _cached(m.id, v.url);
@@ -181,11 +216,74 @@ class VoicePlayer extends Notifier<VoicePlayback> {
         return;
       }
       await p.setSpeed(state.speed);
-      unawaited(p.play());
+      await _playFaded(p);
     } on Object {
       if (ref.mounted) state = state.copyWith(loading: false, playing: false);
     }
   }
+
+  /// No click: the sound rises over ~120 ms when it starts or resumes and
+  /// falls over ~90 ms before it pauses (a hard cut is a pop on speakers).
+  Future<void> _playFaded(AudioPlayer p) async {
+    await p.setVolume(0);
+    unawaited(p.play());
+    _watchProximity();
+    for (var i = 1; i <= 6; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      await p.setVolume(i / 6);
+    }
+  }
+
+  Future<void> _pauseFaded(AudioPlayer p, {bool stop = false}) async {
+    for (var i = 5; i >= 0; i--) {
+      await p.setVolume(i / 6 * 1.0);
+      await Future<void>.delayed(const Duration(milliseconds: 15));
+    }
+    if (stop) {
+      await p.stop();
+    } else {
+      await p.pause();
+    }
+    await p.setVolume(1);
+  }
+
+  /// WhatsApp: held to the ear the note moves to the earpiece and the
+  /// screen goes dark; taken away it returns to the loudspeaker.
+  void _watchProximity() {
+    if (kIsWeb || _proximity != null) return;
+    try {
+      _proximity = ProximitySensor.events.listen(
+        (near) => unawaited(_setEarpiece(near > 0)),
+        onError: (Object _) {},
+      );
+    } on Object {
+      // No sensor: the loudspeaker stays.
+    }
+  }
+
+  void _unwatchProximity() {
+    final sub = _proximity;
+    _proximity = null;
+    if (sub == null) return;
+    unawaited(sub.cancel());
+    unawaited(_setEarpiece(false));
+  }
+
+  Future<void> _setEarpiece(bool on) async {
+    if (_earpiece == on || (on && !(_player?.playing ?? false))) return;
+    _earpiece = on;
+    try {
+      final session = await AudioSession.instance;
+      await session.configure(
+        on ? const AudioSessionConfiguration.speech() : _music,
+      );
+      await ProximitySensor.setProximityScreenOff(on);
+    } on Object {
+      // The session stays as it was.
+    }
+  }
+
+  static const _music = AudioSessionConfiguration.music();
 
   /// Telegram-style: a note is downloaded once into the cache and played
   /// from the file (replays work offline; the signed link may expire).
@@ -205,6 +303,17 @@ class VoicePlayer extends Notifier<VoicePlayback> {
     if (data == null || data.isEmpty) return null;
     await file.writeAsBytes(data, flush: true);
     return file.path;
+  }
+
+  /// Play/pause the current note (the mini-player).
+  Future<void> playPause() async {
+    final p = _player;
+    if (p == null || state.messageId == null) return;
+    if (p.playing) {
+      await _pauseFaded(p);
+    } else {
+      await _playFaded(p);
+    }
   }
 
   Future<void> seek(ChatMessage m, double fraction) async {
@@ -232,7 +341,13 @@ class VoicePlayer extends Notifier<VoicePlayback> {
 
   Future<void> stop() async {
     _next = const [];
-    await _player?.stop();
+    final p = _player;
+    if (p != null && p.playing) {
+      await _pauseFaded(p, stop: true);
+    } else {
+      await p?.stop();
+    }
+    _unwatchProximity();
     if (ref.mounted) state = VoicePlayback(speed: state.speed);
   }
 }
