@@ -208,7 +208,7 @@ class ReviewSummaryPanel extends ConsumerWidget {
                   ratingNumber(formats, t, summary.average),
                   style: typography.titleWelcome.copyWith(
                     color: colors.text,
-                    fontSize: 34,
+                    fontSize: typography.titleWelcome.fontSize! * 1.7,
                     height: 1,
                   ),
                 ),

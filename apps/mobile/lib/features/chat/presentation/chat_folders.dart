@@ -73,7 +73,6 @@ class ChatFolderPills extends ConsumerWidget {
                         Text(
                           t.t('chat.folder.${f.name}'),
                           style: type.bodySmall.copyWith(
-                            fontSize: 13,
                             color:
                                 f == value ? AppColorsDark.text : colors.text,
                             fontWeight: FontWeight.w600,
