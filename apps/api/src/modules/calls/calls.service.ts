@@ -50,6 +50,10 @@ import {
 export const CALL_RING_TIMEOUT_MS = 65_000;
 /** A call nobody ended (both apps died) is closed after this. */
 export const CALL_MAX_ACTIVE_MS = 4 * 60 * 60 * 1000;
+
+/** A running call nobody has asked about for this long is over: the apps
+ * read it every ~8 s (heartbeat), so silence means both are gone. */
+export const CALL_SILENT_MS = 45 * 1000;
 const LIVE: CallStatus[] = ['ringing', 'active'];
 /** Mesh calls: every member sends audio to every other — a safe size. */
 export const GROUP_MAX_AUDIO = 6;
@@ -377,7 +381,15 @@ export class CallsService {
 
   async get(user: RequestUser, id: string): Promise<CallDto> {
     await this.sweep();
-    return this.toDto(await this.load(user, id), user.sub);
+    const call = await this.load(user, id);
+    if (LIVE.includes(call.status)) {
+      // The app asks every few seconds while it is in the call: a heartbeat.
+      await this.prisma.call.updateMany({
+        where: { id: call.id, status: { in: LIVE } },
+        data: { updated_at: new Date() },
+      });
+    }
+    return this.toDto(call, user.sub);
   }
 
   /** GET /calls/ice-servers — STUN + short-lived TURN login (RFC 7635
@@ -443,6 +455,10 @@ export class CallsService {
             answered_at: {
               lt: new Date(now.getTime() - CALL_MAX_ACTIVE_MS),
             },
+          },
+          {
+            status: 'active',
+            updated_at: { lt: new Date(now.getTime() - CALL_SILENT_MS) },
           },
         ],
       },
@@ -968,8 +984,8 @@ export class CallsService {
     }
   }
 
-  private liveCallOf(userId: string) {
-    return this.prisma.call.findFirst({
+  private async liveCallOf(userId: string): Promise<{ id: string } | null> {
+    const live = await this.prisma.call.findFirst({
       where: {
         status: { in: LIVE },
         OR: [
@@ -986,8 +1002,21 @@ export class CallsService {
           },
         ],
       },
-      select: { id: true },
     });
+    // A call nobody has asked about for a while (both apps gone, the end
+    // request lost) must not keep its people "busy" for ever: the apps
+    // refresh it every few seconds (GET /calls/:id), so a silent one is
+    // over (owner 2026-10-20: "you are already in a call" after a video
+    // call that had ended).
+    if (
+      live &&
+      live.status === 'active' &&
+      live.updated_at.getTime() < Date.now() - CALL_SILENT_MS
+    ) {
+      await this.finish(live, 'ended', null);
+      return null;
+    }
+    return live;
   }
 
   private async load(user: RequestUser, id: string): Promise<Call> {
