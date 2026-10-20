@@ -12,6 +12,7 @@ import { MessageBodyCipher } from '../../common/secrets/message-body-cipher';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { maskContactInfo } from '../cases/domain/contact-detector';
+import { NotificationsService } from '../notifications/notifications.service';
 import { RealtimePublisher } from '../realtime/realtime-publisher.service';
 import { isSingleEmoji } from './chat-message-extras';
 import { ChatService } from './chat.service';
@@ -40,6 +41,7 @@ export class ChatActionsService {
     private readonly settings: AppSettingsService,
     private readonly realtime: RealtimePublisher,
     @Optional() private readonly cipher?: MessageBodyCipher,
+    @Optional() private readonly notifications?: NotificationsService,
   ) {}
 
   private seal(text: string): string {
@@ -154,7 +156,32 @@ export class ChatActionsService {
       }),
     ]);
     await this.publish(conv, m.id);
+    await this.notify(
+      user.sub === conv.client_id ? conv.attorney_id : conv.client_id,
+      conv.id,
+      m.id,
+      { event: 'edit' },
+    );
     return this.view(user, conv, m.id);
+  }
+
+  /** Push (the dispatcher groups it under the message, skips a muted or
+   * open chat and, for an edit, an already read message). */
+  private async notify(
+    recipientId: string,
+    conversationId: string,
+    messageId: string,
+    extra: Record<string, string>,
+  ): Promise<void> {
+    try {
+      await this.notifications?.emit({
+        type: 'new_message',
+        recipientId,
+        payload: { conversationId, messageId, ...extra },
+      });
+    } catch {
+      // A failed alert never fails the action.
+    }
   }
 
   /** DELETE …/messages/:messageId?scope=me|all. */
@@ -238,6 +265,14 @@ export class ChatActionsService {
         create: { message_id: m.id, user_id: user.sub, emoji: emoji.trim() },
         update: { emoji: emoji.trim(), created_at: new Date() },
       });
+      // Only the author of the message hears about a reaction.
+      if (m.sender_id && m.sender_id !== user.sub) {
+        await this.notify(m.sender_id, conv.id, m.id, {
+          event: 'reaction',
+          actorId: user.sub,
+          emoji: emoji.trim(),
+        });
+      }
     }
     await this.publish(conv, m.id);
     return this.view(user, conv, m.id);

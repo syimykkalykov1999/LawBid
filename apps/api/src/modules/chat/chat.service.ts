@@ -516,6 +516,86 @@ export class ChatService {
     id: string,
     dto: SendMessageDto,
   ): Promise<MessageDto> {
+    if (!dto.forwardFromId) return this.sendContent(user, id, dto);
+    // A retry of a forward must not copy the file twice.
+    const existing = await this.findOwn(id, user.sub, dto.clientMessageId);
+    if (existing) {
+      return this.toMessage(
+        existing,
+        user.sub,
+        undefined,
+        await this.mediaLinks([existing]),
+      );
+    }
+    return this.sendContent(user, id, await this.forwardContent(user, dto));
+  }
+
+  /**
+   * Owner 2026-10-20: the content of the message to forward as a send
+   * request — text, sticker, or a voice note / file copied as a new file row
+   * over the same stored object (FilesService.copyForUser: no upload, same
+   * type, size and quota rules).
+   */
+  private async forwardContent(
+    user: RequestUser,
+    dto: SendMessageDto,
+  ): Promise<SendMessageDto> {
+    const src = await this.prisma.message.findFirst({
+      where: {
+        id: dto.forwardFromId,
+        deleted_at: null,
+        revoked_at: null,
+        hidden_for: { none: { user_id: user.sub } },
+      },
+    });
+    if (!src) throw notFound();
+    // Only from a chat the forwarder takes part in.
+    await this.load(user, src.conversation_id);
+    if (src.type === 'system' || src.type === 'call') {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_ERROR,
+        message: 'This message cannot be forwarded.',
+        details: { field: 'forwardFromId' },
+      });
+    }
+    const text = this.cipher?.open(src.body_display) ?? src.body_display;
+    const base = {
+      clientMessageId: dto.clientMessageId,
+      forwarded: true,
+      replyToId: dto.replyToId,
+    };
+    if (src.type === 'sticker') {
+      return {
+        ...base,
+        type: 'sticker',
+        stickerId: src.sticker_id ?? undefined,
+      };
+    }
+    if (src.type === 'voice' || src.type === 'attachment') {
+      if (!src.file_id) throw notFound();
+      const copy = await this.files.copyForUser(
+        src.file_id,
+        user.sub,
+        src.type === 'voice' ? 'chat_voice' : 'chat_attachment',
+      );
+      return {
+        ...base,
+        type: src.type,
+        body: src.type === 'attachment' ? text : undefined,
+        fileId: copy.id,
+        ...(src.type === 'voice'
+          ? { durationMs: src.duration_ms ?? 0, waveform: src.waveform }
+          : { fileName: src.file_name ?? 'file' }),
+      };
+    }
+    return { ...base, body: text };
+  }
+
+  private async sendContent(
+    user: RequestUser,
+    id: string,
+    dto: SendMessageDto,
+  ): Promise<MessageDto> {
     const voice = dto.type === 'voice';
     const attachment = dto.type === 'attachment';
     // Owner 2026-10-01: a sticker carries no text.

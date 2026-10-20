@@ -237,6 +237,17 @@ export class SendMessageDto {
   @IsUUID('all')
   replyToId?: string;
 
+  /**
+   * Owner 2026-10-20: forward this message (any chat of mine): the server
+   * copies its text / sticker and, for a voice note or a file, a new file
+   * row over the same stored object (no upload). Replaces the content
+   * fields of the request.
+   */
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID('all')
+  forwardFromId?: string;
+
   /** Owner 2026-10-20: a forwarded message ("Forwarded" label). */
   @ApiPropertyOptional()
   @IsOptional()

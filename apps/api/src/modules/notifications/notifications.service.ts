@@ -262,6 +262,14 @@ export class NotificationsService {
           recipientId: input.recipientId,
           conversationId: p.conversationId,
           messageId: p.messageId,
+          // Owner 2026-10-20: a reaction / edit of an earlier message.
+          ...(p.event === 'reaction' || p.event === 'edit'
+            ? {
+                event: p.event,
+                actorId: typeof p.actorId === 'string' ? p.actorId : undefined,
+                emoji: typeof p.emoji === 'string' ? p.emoji : undefined,
+              }
+            : {}),
         });
       }
       return null;
