@@ -67,7 +67,7 @@ class L10nFormats {
     final local = _local(value);
     final text = format.format(local);
     final marker = DateFormat('a', locale).format(local);
-    if (marker.length != 1 || !RegExp('^[A-Za-z]\$').hasMatch(marker)) {
+    if (marker.length != 1 || !RegExp(r'^[A-Za-z]$').hasMatch(marker)) {
       return text;
     }
     final pm = local.hour >= 12;
