@@ -17,18 +17,21 @@ import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
+import 'package:lawbid/features/groups/application/group_call_port.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
 import 'package:lawbid/features/groups/domain/group_message_ext.dart';
 import 'package:lawbid/features/groups/group_routes.dart';
 import 'package:lawbid/features/groups/presentation/group_message_text.dart';
 import 'package:lawbid/features/groups/presentation/poll/create_poll_sheet.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_attach.dart';
+import 'package:lawbid/features/groups/presentation/widgets/group_call_ui.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_composer.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_message_bubble.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_message_menu.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_pin_banner.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_system_line.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_topic_list.dart';
+import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart'
     show GoldRingAvatar;
 import 'package:lawbid_api/lawbid_api.dart' as api;
@@ -59,6 +62,7 @@ class _GroupConversationScreenState
   final Map<String, GlobalKey> _keys = {};
   StreamSubscription<Object?>? _events;
   Timer? _highlightTimer;
+  Timer? _callTimer;
 
   api.GroupMessageDto? _replyTo;
   api.GroupMessageDto? _editing;
@@ -77,6 +81,10 @@ class _GroupConversationScreenState
   void initState() {
     super.initState();
     _scroll.addListener(_onScroll);
+    // A call may start or end in the group while this chat is open.
+    _callTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (mounted) ref.invalidate(groupRunningCallProvider(widget.groupId));
+    });
     // Being removed while the screen is open (also in the topic list,
     // which has no message thread of its own).
     _events = ref.read(realtimeEventsProvider).listen((e) {
@@ -94,11 +102,46 @@ class _GroupConversationScreenState
   void dispose() {
     _events?.cancel();
     _highlightTimer?.cancel();
+    _callTimer?.cancel();
     _scroll
       ..removeListener(_onScroll)
       ..dispose();
     _text.dispose();
     super.dispose();
+  }
+
+  Future<void> _startCall(
+    api.GroupDetailDto detail, {
+    required bool video,
+  }) async {
+    final code = await startGroupChatCall(
+      context,
+      ref,
+      detail,
+      video: video,
+      me: ref.read(currentUserIdProvider),
+    );
+    if (code != null && mounted) {
+      showAppSnackBar(
+        context,
+        groupCallError(ref.read(translatorProvider), code),
+      );
+    }
+    ref.invalidate(groupRunningCallProvider(widget.groupId));
+  }
+
+  Future<void> _joinCall(
+    api.GroupDetailDto detail,
+    GroupRunningCall running,
+  ) async {
+    final code = await running.join(detail.title, detail.avatarUrl);
+    if (code != null && mounted) {
+      showAppSnackBar(
+        context,
+        groupCallError(ref.read(translatorProvider), code),
+      );
+    }
+    ref.invalidate(groupRunningCallProvider(widget.groupId));
   }
 
   void _onScroll() {
@@ -493,7 +536,30 @@ class _GroupConversationScreenState
         ),
         title: _Header(detail: detail, topic: topic),
         actions: [
-          // The call button goes here, before the menu.
+          // Like WhatsApp: video and phone, tight, before the menu.
+          if (detail.canCall && ref.watch(groupCallPortProvider) != null) ...[
+            if (ref.watch(groupVideoCallsProvider))
+              AppIconButton(
+                key: const ValueKey('group-video-call'),
+                icon: AppIcon(
+                  AppIcons.videoCameraOutlined,
+                  size: 22,
+                  color: Theme.of(context).extension<AppColorTokens>()!.text,
+                ),
+                semanticLabel: t.t('call.videoButton'),
+                onPressed: () => _startCall(detail, video: true),
+              ),
+            AppIconButton(
+              key: const ValueKey('group-audio-call'),
+              icon: AppIcon(
+                AppIcons.callOutlined,
+                size: 22,
+                color: Theme.of(context).extension<AppColorTokens>()!.text,
+              ),
+              semanticLabel: t.t('call.button'),
+              onPressed: () => _startCall(detail, video: false),
+            ),
+          ],
           AppIconButton(
             icon: AppIcon(
               AppIcons.moreVertRounded,
@@ -568,8 +634,14 @@ class _GroupConversationScreenState
       );
     }
 
+    final running = ref.watch(groupRunningCallProvider(widget.groupId)).value;
     return Column(
       children: [
+        if (running != null)
+          GroupCallJoinBar(
+            running: running,
+            onJoin: () => _joinCall(detail, running),
+          ),
         if (showPin)
           GroupPinBanner(
             message: pinned,
