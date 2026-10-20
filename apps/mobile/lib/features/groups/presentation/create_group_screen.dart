@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
+import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/network/api_error.dart';
@@ -217,7 +218,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                     ? t.t('group.create.next')
                     : t.t(
                         'group.create.nextCount',
-                        {'count': '${_people.length}'},
+                        {'count': context.digits(_people.length)},
                       ),
                 onPressed: () => setState(() => _step = 1),
               ),
@@ -326,7 +327,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                 _MembersSummary(
                   people: _people,
                   title: t.t('group.create.membersCount', {
-                    'count': '${_people.length}',
+                    'count': context.digits(_people.length),
                   }),
                   onEdit: () => setState(() => _step = 0),
                   editLabel: t.t('group.create.editMembers'),
@@ -412,7 +413,7 @@ class _PhotoField extends StatelessWidget {
     final status = switch (state.stage) {
       GroupAvatarStage.uploading => t.t(
           'profile.photo.uploading',
-          {'percent': '${(state.progress * 100).round()}'},
+          {'percent': context.digits((state.progress * 100).round())},
         ),
       GroupAvatarStage.failed => errorText(t, state.error ?? Object()),
       _ => null,

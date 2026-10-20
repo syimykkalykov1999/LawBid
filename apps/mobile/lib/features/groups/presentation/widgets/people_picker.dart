@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
@@ -55,7 +56,7 @@ class _PeoplePickerSheetState extends ConsumerState<_PeoplePickerSheet> {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final media = MediaQuery.of(context);
-    final count = {'count': '${_picked.length}'};
+    final count = {'count': context.digits(_picked.length)};
     final doneLabel = _picked.isEmpty
         ? t.t('group.picker.doneNone')
         : t.t('group.picker.done', count);

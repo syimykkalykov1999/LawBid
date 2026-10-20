@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
+import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
 import 'package:lawbid/features/groups/presentation/poll/poll_logic.dart';
@@ -193,7 +194,10 @@ class _CreatePollSheetState extends ConsumerState<_CreatePollSheet> {
                             key: _options[i].key,
                             index: i,
                             draft: _options[i],
-                            hint: t.t('poll.option.hint', {'n': '${i + 1}'}),
+                            hint: t.t(
+                              'poll.option.hint',
+                              {'n': context.digits(i + 1)},
+                            ),
                             removeLabel: t.t('poll.option.remove'),
                             dragLabel: t.t('poll.option.drag'),
                             canRemove: _options.length > kPollOptionsMin,

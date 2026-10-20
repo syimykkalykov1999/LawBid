@@ -27,7 +27,10 @@ class GroupSystemLine extends StatelessWidget {
               vertical: AppSpacing.xs + 1,
             ),
             decoration: BoxDecoration(
-              color: chat.theirs.withValues(alpha: colors.isGlass ? 1 : 0.92),
+              // Glass plates stay translucent (opaque = pale ink on white).
+              color: colors.isGlass
+                  ? chat.theirs
+                  : chat.theirs.withValues(alpha: 0.92),
               borderRadius: BorderRadius.circular(AppRadii.pill),
               border: Border.all(color: chat.theirsBorder),
             ),
@@ -35,7 +38,7 @@ class GroupSystemLine extends StatelessWidget {
               text,
               textAlign: TextAlign.center,
               style: type.caption.copyWith(
-                color: colors.textSecondary,
+                color: chat.onTheirs,
                 fontWeight: FontWeight.w600,
               ),
             ),

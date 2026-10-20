@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
+import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/network/api_error.dart';
@@ -251,8 +252,8 @@ class _OptionRow extends StatelessWidget {
     final label = showResults
         ? '${option.text}, '
             '${t.t('poll.percentOfVotes', {
-                'percent': '${percent.round()}',
-                'votes': '${option.votes.toInt()}',
+                'percent': context.digits(percent.round()),
+                'votes': context.digits(option.votes.toInt()),
               })}'
         : option.text;
     return Semantics(
@@ -302,7 +303,7 @@ class _OptionRow extends StatelessWidget {
                           if (showResults) ...[
                             const SizedBox(width: AppSpacing.sm),
                             Text(
-                              '${percent.round()}%',
+                              '\u2066${context.digits(percent.round())}%\u2069',
                               style: typography.bodySmall.copyWith(
                                 color: colors.text,
                                 fontWeight: FontWeight.w600,
@@ -326,7 +327,8 @@ class _OptionRow extends StatelessWidget {
                             ),
                             const SizedBox(width: AppSpacing.sm),
                             Text(
-                              '${option.votes.toInt()}',
+                              '\u2066${context.digits(option.votes.toInt())}'
+                              '\u2069',
                               style: typography.caption.copyWith(
                                 color: colors.textSecondary,
                               ),

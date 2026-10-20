@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
+import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
@@ -253,7 +254,7 @@ class _GroupRow extends StatelessWidget {
                         if (username != null) '@$username',
                         t.t(
                           'group.find.members',
-                          {'count': '${group.memberCount.toInt()}'},
+                          {'count': context.digits(group.memberCount.toInt())},
                         ),
                       ].join(' · '),
                       maxLines: 1,
