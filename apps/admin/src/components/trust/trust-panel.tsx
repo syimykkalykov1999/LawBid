@@ -334,15 +334,18 @@ export function TrustPanel({ attorneyId }: { attorneyId: string }) {
               <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-faint">Требования</h4>
               <ul className="space-y-1.5">
                 {REQUIREMENTS.map((r) => {
-                  const passed = c.requirements[r];
-                  const required = c.missing.includes(r) || passed;
+                  // `requirements` are the owner's switches (what is required),
+                  // not results: required and not in `missing` = passed.
+                  const lacking = c.missing.includes(r);
+                  const passed = c.requirements[r] && !lacking;
+                  const required = lacking || passed;
                   return (
                     <li key={r} className="flex items-center justify-between gap-3">
                       <span className="text-muted" title={REQUIREMENT_RU[r].hint}>
                         {REQUIREMENT_RU[r].text}
                       </span>
-                      <Badge tone={passed ? 'success' : c.missing.includes(r) ? 'warning' : 'neutral'}>
-                        {passed ? '✓ пройдено' : c.missing.includes(r) ? 'не пройдено' : required ? '—' : 'не требуется'}
+                      <Badge tone={passed ? 'success' : lacking ? 'warning' : 'neutral'}>
+                        {passed ? '✓ пройдено' : lacking ? 'не пройдено' : required ? '—' : 'не требуется'}
                       </Badge>
                     </li>
                   );
