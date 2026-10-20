@@ -444,13 +444,19 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
       items = state.items;
       status = state.status;
     }
+    const side = EdgeInsets.symmetric(horizontal: AppSpacing.screenSide);
     final reviewsPage = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const SizedBox(height: AppSpacing.sm),
         if (!p.isSelf)
           Padding(
-            padding: const EdgeInsets.only(bottom: AppSpacing.md),
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.screenSide,
+              0,
+              AppSpacing.screenSide,
+              AppSpacing.md,
+            ),
             child: Builder(
               builder: (context) {
                 final mineAsync = ref.watch(myAttorneyReviewProvider(p.id));
@@ -484,9 +490,12 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
           ),
         summary.when(
           skipLoadingOnReload: true,
-          loading: () => const AppSkeleton(
-            height: AppSizes.stateMedallion + AppSpacing.xxl,
-            borderRadius: AppRadii.card,
+          loading: () => const Padding(
+            padding: side,
+            child: AppSkeleton(
+              height: AppSizes.stateMedallion + AppSpacing.xxl,
+              borderRadius: AppRadii.card,
+            ),
           ),
           error: (_, __) => const SizedBox.shrink(),
           // No reviews: the tab's "New — no reviews" state says it all.
@@ -495,6 +504,7 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
               : Padding(
                   padding: const EdgeInsets.only(bottom: AppSpacing.md),
                   child: ReviewSummaryPanel(
+                    flat: true,
                     summary: s,
                     selectedStars: _stars,
                     sort: _sort,
@@ -509,10 +519,18 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
         // Owner 2026-10-20: inside the rating tab, under the rating block —
         // the attorney's own call to answer questions and their numbers.
         if (p.isSelf)
-          QaProfileRow(answers: p.qaAnswers, best: p.qaBest, isSelf: p.isSelf),
-        if (reviewsState != null) reviewsState,
+          Padding(
+            padding: side,
+            child: QaProfileRow(
+              answers: p.qaAnswers,
+              best: p.qaBest,
+              isSelf: p.isSelf,
+            ),
+          ),
+        if (reviewsState != null) Padding(padding: side, child: reviewsState),
         for (final review in items) ...[
           ReviewCard(
+            flat: true,
             review: review,
             // Owner 2026-10-01 (Google-style): anyone but the author flags;
             // the author edits / deletes; the attorney replies; others vote.
@@ -525,7 +543,6 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
             onHelpful:
                 review.isMine || p.isSelf ? null : () => _helpful(t, review),
           ),
-          const SizedBox(height: AppSpacing.md),
         ],
         if (items.isNotEmpty)
           AppPaginationFooter(
@@ -555,23 +572,17 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
       initialPage: tabs.indexOf(_tab).clamp(0, tabs.length - 1),
       onPage: (i) => setState(() => _picked = tabs[i]),
       header: header,
-      tabBar: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenSide),
-        child: _Tabs(
-          tabs: tabs,
-          selected: _tab,
-          onChanged: (tab) => setState(() => _picked = tab),
-        ),
+      // Owner 2026-10-20 (Instagram): the tab bar and every tab run edge to
+      // edge (the rating tab pads its own content).
+      tabBar: _Tabs(
+        tabs: tabs,
+        selected: _tab,
+        onChanged: (tab) => setState(() => _picked = tab),
       ),
-      // Owner 2026-10-12: the Briefs & reposts tab runs edge to edge.
-      pagePadding: (i) => tabs[i] == AttorneyProfileTab.reposts
-          ? const EdgeInsets.only(top: AppSpacing.sm, bottom: AppSpacing.xxl)
-          : const EdgeInsets.fromLTRB(
-              AppSpacing.screenSide,
-              2,
-              AppSpacing.screenSide,
-              AppSpacing.xxl,
-            ),
+      pagePadding: (i) => EdgeInsets.only(
+        top: tabs[i] == AttorneyProfileTab.reposts ? AppSpacing.sm : 0,
+        bottom: AppSpacing.xxl,
+      ),
       onNearEnd: (i) {
         if (tabs[i] == AttorneyProfileTab.reviews) {
           ref.read(reviewsListProvider(_reviewsKey).notifier).loadMore();

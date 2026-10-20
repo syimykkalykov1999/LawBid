@@ -30,7 +30,12 @@ class ReviewCard extends ConsumerWidget {
     this.onDelete,
     this.onReply,
     this.onDeleteReply,
+    this.flat = false,
   });
+
+  /// Owner 2026-10-20 (Instagram): edge to edge, a full-width divider, no
+  /// frame or corners (the profile's rating tab).
+  final bool flat;
 
   final Review review;
 
@@ -57,6 +62,7 @@ class ReviewCard extends ConsumerWidget {
         (onReply != null && review.reply == null);
     // Owner 2026-10-01: laid out like a Google Maps review.
     return MapsReviewTile(
+      flat: flat,
       id: review.id,
       authorName: review.authorDisplayName ?? t.t('reviews.author.anonymous'),
       authorAvatarUrl: review.authorAvatarUrl,
@@ -164,7 +170,11 @@ class ReviewSummaryPanel extends ConsumerWidget {
     this.onStarsTap,
     this.sort = ReviewsSort.newest,
     this.onSort,
+    this.flat = false,
   });
+
+  /// Owner 2026-10-20: edge to edge with a full-width divider.
+  final bool flat;
 
   final ReviewSummary summary;
 
@@ -189,103 +199,113 @@ class ReviewSummaryPanel extends ConsumerWidget {
     // Owner 2026-10-20: compact — the average and the count on the left, the
     // sort icon on the right, then ONE row of five star chips (5 … 1) with
     // the number of reviews; a tap filters by that grade, a second clears it.
-    return AppCard(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
+    final body = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Semantics(
+              label: summary.isNew
+                  ? t.t('profile.rating.new')
+                  : t.t(
+                      'reviews.average.label',
+                      {'rating': ratingNumber(formats, t, summary.average)},
+                    ),
+              excludeSemantics: true,
+              child: Text(
+                ratingNumber(formats, t, summary.average),
+                style: typography.titleWelcome.copyWith(
+                  color: colors.text,
+                  fontSize: typography.titleWelcome.fontSize! * 1.7,
+                  height: 1,
+                ),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  StarRatingDisplay(
+                    value: summary.average ?? 0,
+                    size: AppSpacing.md + 2,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    summary.isNew
+                        ? t.t('profile.rating.new')
+                        : SocialFormat.plural(
+                            t,
+                            formats,
+                            'profile.rating.count',
+                            total,
+                          ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: typography.caption
+                        .copyWith(color: colors.textSecondary),
+                  ),
+                ],
+              ),
+            ),
+            if (onSort != null)
               Semantics(
-                label: summary.isNew
-                    ? t.t('profile.rating.new')
-                    : t.t(
-                        'reviews.average.label',
-                        {'rating': ratingNumber(formats, t, summary.average)},
-                      ),
+                button: true,
+                label: t.t('reviews.sort.label'),
                 excludeSemantics: true,
-                child: Text(
-                  ratingNumber(formats, t, summary.average),
-                  style: typography.titleWelcome.copyWith(
-                    color: colors.text,
-                    fontSize: typography.titleWelcome.fontSize! * 1.7,
-                    height: 1,
-                  ),
-                ),
-              ),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    StarRatingDisplay(
-                      value: summary.average ?? 0,
-                      size: AppSpacing.md + 2,
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      summary.isNew
-                          ? t.t('profile.rating.new')
-                          : SocialFormat.plural(
-                              t,
-                              formats,
-                              'profile.rating.count',
-                              total,
-                            ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: typography.caption
-                          .copyWith(color: colors.textSecondary),
-                    ),
-                  ],
-                ),
-              ),
-              if (onSort != null)
-                Semantics(
-                  button: true,
-                  label: t.t('reviews.sort.label'),
-                  excludeSemantics: true,
-                  child: AppTapTarget(
-                    child: AppPressable(
-                      onTap: () => _pickSort(context, t),
-                      child: SizedBox(
-                        height: AppSizes.touchTarget - AppSpacing.sm,
-                        width: AppSizes.touchTarget,
-                        child: AppIcon(
-                          AppIcons.tuneRounded,
-                          size: AppSizes.iconSm,
-                          color: sort == ReviewsSort.newest
-                              ? colors.textSecondary
-                              : colors.goldDark,
-                        ),
+                child: AppTapTarget(
+                  child: AppPressable(
+                    onTap: () => _pickSort(context, t),
+                    child: SizedBox(
+                      height: AppSizes.touchTarget - AppSpacing.sm,
+                      width: AppSizes.touchTarget,
+                      child: AppIcon(
+                        AppIcons.tuneRounded,
+                        size: AppSizes.iconSm,
+                        color: sort == ReviewsSort.newest
+                            ? colors.textSecondary
+                            : colors.goldDark,
                       ),
                     ),
                   ),
                 ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          Row(
-            children: [
-              for (var stars = 5; stars >= 1; stars--)
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 2),
-                    child: _StarChip(
-                      stars: stars,
-                      count: summary.distribution[stars] ?? 0,
-                      selected: selectedStars == stars,
-                      dimmed: selectedStars != null && selectedStars != stars,
-                      onTap:
-                          onStarsTap == null ? null : () => onStarsTap!(stars),
-                    ),
+              ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        Row(
+          children: [
+            for (var stars = 5; stars >= 1; stars--)
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 2),
+                  child: _StarChip(
+                    stars: stars,
+                    count: summary.distribution[stars] ?? 0,
+                    selected: selectedStars == stars,
+                    dimmed: selectedStars != null && selectedStars != stars,
+                    onTap: onStarsTap == null ? null : () => onStarsTap!(stars),
                   ),
                 ),
-            ],
-          ),
-        ],
+              ),
+          ],
+        ),
+      ],
+    );
+    if (!flat) {
+      return AppCard(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        child: body,
+      );
+    }
+    final colors2 = colors;
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: colors2.border)),
       ),
+      child: body,
     );
   }
 
@@ -718,8 +738,10 @@ class MapsReviewTile extends ConsumerStatefulWidget {
     this.onDeleteReply,
     this.onMenu,
     this.onAuthor,
+    this.flat = false,
   });
 
+  final bool flat;
   final String id;
   final String authorName;
   final String? authorAvatarUrl;
@@ -787,8 +809,10 @@ class _MapsReviewTileState extends ConsumerState<MapsReviewTile> {
       ),
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(AppRadii.card),
-        border: Border.all(color: colors.border),
+        borderRadius: w.flat ? null : BorderRadius.circular(AppRadii.card),
+        border: w.flat
+            ? Border(bottom: BorderSide(color: colors.border))
+            : Border.all(color: colors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
