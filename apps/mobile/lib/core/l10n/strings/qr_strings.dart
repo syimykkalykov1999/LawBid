@@ -1,0 +1,68 @@
+// ignore_for_file: lines_longer_than_80_chars
+// Owner 2026-10-20: QR code (my code, scanner, website sign-in) — compiled-in
+// strings merged into StaticTranslatorRu/En.
+
+const qrRu = <String, String>{
+  'devices.scanWeb': 'Войти на вебе',
+  'qr.link.body': 'Откройте приложение LawBid и отсканируйте там этот код.',
+  'qr.link.open': 'Открыть приложение',
+  'qr.login.approve': 'Войти',
+  'qr.login.body':
+      'Только если вы сами открыли LawBid в этом браузере. Не подтверждайте код, который вам прислали.',
+  'qr.login.browser': 'Браузер',
+  'qr.login.done': 'Вход на вебе выполнен',
+  'qr.login.expired': 'Код устарел. Обновите его на сайте.',
+  'qr.login.title': 'Войти на вебе?',
+  'qr.login.warn': 'Подтверждайте, только если сами открыли этот код на сайте.',
+  'qr.my.hint': 'Отсканируйте, чтобы открыть мой профиль',
+  'qr.my.title': 'Мой QR-код',
+  'qr.save.done': 'Сохранено в галерею',
+  'qr.save.fail': 'Не удалось сохранить',
+  'qr.scan.denied': 'Разрешите камеру в настройках, чтобы сканировать',
+  'qr.scan.group': 'Приглашения в группы пока недоступны',
+  'qr.scan.hint': 'Наведите камеру на QR-код',
+  'qr.scan.link': 'Открыть эту ссылку?',
+  'qr.scan.none': 'QR-код не найден',
+  'qr.scan.text': 'Текст из кода',
+  'qr.scan.title': 'Сканировать',
+  'qr.scan.torch': 'Свет',
+  'qr.web.rejected': 'Отклонено на телефоне',
+  'qr.web.scanned': 'Подтвердите на телефоне',
+  'qr.web.step1': 'Откройте LawBid на телефоне',
+  'qr.web.step2': 'Профиль → QR-код → Сканировать',
+  'qr.web.step3': 'Наведите телефон на этот код',
+  'qr.web.title': 'Вход по QR',
+};
+
+const qrEn = <String, String>{
+  'devices.scanWeb': 'Sign in on the web',
+  'qr.link.body': 'Open the LawBid app and scan this code there.',
+  'qr.link.open': 'Open the app',
+  'qr.login.approve': 'Sign in',
+  'qr.login.body':
+      'Only if you opened LawBid in this browser yourself. Never confirm a code someone sent you.',
+  'qr.login.browser': 'Browser',
+  'qr.login.done': 'Signed in on the web',
+  'qr.login.expired': 'This code expired. Refresh it on the website.',
+  'qr.login.title': 'Sign in on the web?',
+  'qr.login.warn':
+      'Confirm only if you opened this code on the website yourself.',
+  'qr.my.hint': 'Scan to open my profile',
+  'qr.my.title': 'My QR code',
+  'qr.save.done': 'Saved to gallery',
+  'qr.save.fail': "Couldn't save",
+  'qr.scan.denied': 'Allow camera access in Settings to scan',
+  'qr.scan.group': "Group invitations aren't available yet",
+  'qr.scan.hint': 'Point the camera at a QR code',
+  'qr.scan.link': 'Open this link?',
+  'qr.scan.none': 'No QR code found',
+  'qr.scan.text': 'Text from the code',
+  'qr.scan.title': 'Scan',
+  'qr.scan.torch': 'Light',
+  'qr.web.rejected': 'Declined on the phone',
+  'qr.web.scanned': 'Confirm on your phone',
+  'qr.web.step1': 'Open LawBid on your phone',
+  'qr.web.step2': 'Profile → QR code → Scan',
+  'qr.web.step3': 'Point your phone at this code',
+  'qr.web.title': 'Sign in with QR',
+};

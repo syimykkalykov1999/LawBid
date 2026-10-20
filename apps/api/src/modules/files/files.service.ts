@@ -92,6 +92,8 @@ const intentKey = (fileId: string): string => `files:upload:${fileId}`;
  *    `clean` file of the right purpose passes.
  */
 import { SecretsService } from '../../common/secrets/secrets.service';
+import { viewerContext } from '../../common/viewer/viewer-context';
+import { PrivacySettingsService } from '../privacy-settings/privacy-settings.service';
 import { demoContext } from '../../common/demo/demo-context';
 import { DEMO_SETTINGS_KEY, parseDemoSettings } from '../demo/demo.settings';
 export interface SignedAttachment {
@@ -118,6 +120,8 @@ export class FilesService {
     private readonly flags: FeatureFlagsService,
     @Optional() private readonly secrets?: SecretsService,
     @Optional() private readonly entitlements?: EntitlementsService,
+    // Owner 2026-10-20: a hidden profile photo is not served to the viewer.
+    @Optional() private readonly privacy?: PrivacySettingsService,
   ) {
     this.logger.setContext(FilesService.name);
   }
@@ -389,6 +393,7 @@ export class FilesService {
     if (!fileId) return none;
     const file = await this.prisma.file.findUnique({ where: { id: fileId } });
     if (!file || file.purpose !== 'avatar') return none;
+    if ((await this.photoHiddenFrom([file.id])).has(file.id)) return none;
     const url = await this.mediaUrlOf(file);
     if (!url) return none;
     const url256 =
@@ -396,6 +401,31 @@ export class FilesService {
         ? await this.mediaLink(file.s3_bucket, variantKey(file.s3_key, 256))
         : null;
     return { url, url256 };
+  }
+
+  /**
+   * Owner 2026-10-20: of these avatar files, the ones whose owner keeps
+   * the photo from the current viewer ("who sees my photo": contacts /
+   * nobody). One place for every card and list; no viewer (jobs, admin)
+   * hides nothing.
+   */
+  private async photoHiddenFrom(fileIds: string[]): Promise<Set<string>> {
+    const viewer = viewerContext.viewerId();
+    if (!viewer || !this.privacy || fileIds.length === 0) return new Set();
+    const owners = await this.prisma.user.findMany({
+      where: { avatar_file_id: { in: fileIds } },
+      select: { id: true, avatar_file_id: true },
+    });
+    const visible = await this.privacy.visibleTo(
+      viewer,
+      owners.map((o) => o.id),
+      'photo_from',
+    );
+    return new Set(
+      owners
+        .filter((o) => !visible.has(o.id) && o.avatar_file_id)
+        .map((o) => o.avatar_file_id as string),
+    );
   }
 
   /** [avatarUrls] for a whole page in one query (lists of posts,
@@ -409,9 +439,11 @@ export class FilesService {
       { url: string | null; url256: string | null }
     >();
     if (ids.length === 0) return out;
-    const files = await this.prisma.file.findMany({
+    const all = await this.prisma.file.findMany({
       where: { id: { in: ids }, purpose: 'avatar' },
     });
+    const hidden = await this.photoHiddenFrom(all.map((f) => f.id));
+    const files = all.filter((f) => !hidden.has(f.id));
     await Promise.all(
       files.map(async (file) => {
         const url = await this.mediaUrlOf(file);

@@ -584,6 +584,12 @@ enum ReportReason {
   /// Owner 2026-10-05 (legal): copyright — the report sheet opens the DMCA
   /// form (features/legal) instead of calling `POST /reports` directly.
   copyright,
+
+  /// Owner 2026-10-20: media categories.
+  nudity,
+  violence,
+  selfHarm,
+  illegal,
 }
 
 enum ReportTarget { post, comment, message, user, stickerPack }

@@ -19,6 +19,7 @@ import { AuthEventService } from './services/auth-event.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { AssistantContextService } from './assistant/assistant-context';
 import { AssistantCodeService } from './assistant/assistant-code.service';
+import { QrLoginService } from './services/qr-login.service';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { ReauthGuard } from './guards/reauth.guard';
 import { ReauthVerifier } from './services/reauth-verifier.service';
@@ -105,6 +106,7 @@ import { demoNoop } from '../../common/demo/demo-guards';
     ReauthVerifier,
     LoginMethodPolicy,
     AssistantCodeService,
+    QrLoginService,
     // docs/01 §10.6 new-device alert: one entry per delivery channel.
     EmailLoginNotificationChannel,
     PushLoginNotificationChannel,

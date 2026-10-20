@@ -14,6 +14,11 @@ Owner: «проверь все будильники и напоминалки �
 - `users.timezone` (migration 20261020110000, ERD, `PUT /me/timezone`); the app sends the phone's zone at sign-in and whenever it changes. Repeats run in that zone (DST, local weekdays); the next copy of a repeating task is also created by the minute job when the time comes, not only on «Выполнено».
 - Case deadlines and payment reminders go out at the recipient's local 09:00–21:00 (hourly job, catch-up, one per recipient and day).
 - Android safety net: a local alarm per reminder (`flutter_local_notifications`, inexact, no exact-alarm permission), same notification id as the push (one banner), re-armed at start / change / reboot, cancelled on done / delete / move; Android 13+ permission is asked after saving a task with a reminder. `push_tokens.local_reminders` tells the server the device keeps its own alarms (data-only push). iPhone: the same alarms as an exact time-sensitive local notification (nearest 60 of 64); the phone reports its armed alarms (`PUT /push-tokens/armed`, migration 20261020110100) and the visible push skips exactly those, so a task made elsewhere still arrives and nothing shows twice.
+## Tab taps and system dialogs (2026-10-20)
+
+- «Дела | Задачи», «Чаты | Команда» and every other PillTabs + SwipePages screen: the first tap on a tab lit it up but the page stayed (the page index was a lazy `late` field first read inside `didUpdateWidget`, so the tap read as "already there"). Set in `initState`; widget test `swipe_pages_tap_test`.
+- Inbox «Чаты | Команда» in right-to-left languages: the lit segment was placed from the physical left while the row of segments mirrors, so the wrong tab looked selected (`AnimatedPositionedDirectional`); test `inbox_tabs_rtl_test`.
+- Date / time dialogs and other system texts («Select date», «Cancel», «OK», AM/PM) follow the app's language: Flutter localization delegates with a nearest-language fallback for languages Flutter lacks (`core/l10n/material_locale.dart`; ht→fr, tg→ru, tk/ku→tr, so→sw, others→en). Test: all 85 languages load, date picker in ru / ar / ne.
 
 ## Case cabinet: 5 audit fixes (2026-10-19)
 

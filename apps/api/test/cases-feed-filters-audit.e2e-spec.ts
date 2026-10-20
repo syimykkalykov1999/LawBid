@@ -11,6 +11,9 @@ import { TokenService } from '../src/modules/auth/services/token.service';
  * and combined, incl. the percent budget mode. */
 jest.setTimeout(120_000);
 
+// Random digits can look like a phone number to the contact detector.
+const letters = (s: string) => s.replace(/\d/g, (d) => 'ghijklmnop'[Number(d)]);
+
 describe('Cases feed / search filters on cases (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
@@ -138,7 +141,7 @@ describe('Cases feed / search filters on cases (e2e)', () => {
   it('attorney feed: every filter, alone and combined', async () => {
     const att = await attorney(); // also creates the NJ state
     const cli = await viewer();
-    const tag = randomUUID().slice(0, 6);
+    const tag = letters(randomUUID().slice(0, 6));
     const mk = async (extra: Record<string, unknown>) => {
       const r = await api()
         .post('/api/v1/cases')
@@ -255,7 +258,7 @@ describe('Cases feed / search filters on cases (e2e)', () => {
   it('"My cases": status tabs, practice category -> leaf, state, text, cursor', async () => {
     await attorney(); // makes sure NJ exists
     const cli = await viewer();
-    const tag = randomUUID().slice(0, 6);
+    const tag = letters(randomUUID().slice(0, 6));
     const mk = async (extra: Record<string, unknown>) => {
       const r = await api()
         .post('/api/v1/cases')
@@ -263,7 +266,7 @@ describe('Cases feed / search filters on cases (e2e)', () => {
         .set('Idempotency-Key', randomUUID())
         .send({
           practiceAreaId: leafId,
-          title: `Mine filter ${tag} ${randomUUID().slice(0, 4)}`,
+          title: `Mine filter ${tag} ${letters(randomUUID().slice(0, 4))}`,
           description:
             'The landlord of our warehouse keeps the deposit and refuses to repair the roof after the storm.',
           primaryStateCode: 'NY',

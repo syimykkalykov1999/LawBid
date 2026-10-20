@@ -52,6 +52,12 @@ export const REPORT_REASON: Record<string, string> = {
   // Owner 2026-10-05 (legal): a DMCA notice from the report sheet.
   copyright: 'нарушение авторских прав (DMCA)',
   personal_info: 'личные данные',
+  fraud: 'мошенничество',
+  // Owner 2026-10-20: media categories.
+  nudity: 'обнажённое тело / сексуальный контент',
+  violence: 'насилие',
+  self_harm: 'самоповреждение',
+  illegal: 'незаконное (оружие, наркотики и т. п.)',
 };
 
 export const MOD_ACTION: Record<string, string> = {

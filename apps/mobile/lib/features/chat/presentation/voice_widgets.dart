@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -59,6 +60,10 @@ class VoiceMessageBody extends ConsumerWidget {
 
     Future<void> toggle() async {
       if (!playable) return;
+      if (player.callBusy) {
+        showAppSnackBar(context, t.t('chat.voice.duringCall'));
+        return;
+      }
       final thread = ref.read(chatThreadProvider(threadId).notifier);
       // WhatsApp: the other side's voice notes right after this one.
       final all = ref.read(chatThreadProvider(threadId)).all;
@@ -75,6 +80,9 @@ class VoiceMessageBody extends ConsumerWidget {
       }
       await player.toggle(
         m,
+        // The mini-player names who it is: my own notes say "You".
+        title: mine ? t.t('chat.you') : avatarName,
+        threadId: threadId,
         then: then,
         onAutoPlay: (x) async {
           try {
@@ -383,6 +391,148 @@ class RecordingMeter extends StatelessWidget {
           progress: 1,
           played: colors.gold,
           rest: colors.gold,
+        ),
+      ),
+    );
+  }
+}
+
+/// A waveform with a seek thumb (the preview of a locked recording).
+class VoiceWave extends StatelessWidget {
+  const VoiceWave({
+    required this.bars,
+    required this.progress,
+    this.onSeek,
+    super.key,
+  });
+
+  final List<int> bars;
+  final double progress;
+
+  /// Tap or drag: a 0…1 position; null = not seekable.
+  final void Function(double fraction)? onSeek;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    return LayoutBuilder(
+      builder: (context, box) {
+        void at(double dx) => onSeek?.call((dx / box.maxWidth).clamp(0.0, 1.0));
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTapDown: (d) => at(d.localPosition.dx),
+          onHorizontalDragUpdate: (d) => at(d.localPosition.dx),
+          child: SizedBox(
+            height: 28,
+            width: box.maxWidth,
+            child: CustomPaint(
+              painter: _WavePainter(
+                bars: bars,
+                progress: progress,
+                played: colors.gold,
+                rest: colors.textSecondary.withValues(alpha: 0.4),
+                thumb: onSeek == null ? null : colors.gold,
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// WhatsApp: a note keeps playing after the chat is left; this strip under
+/// the status bar shows who it is, with play/pause, speed and close.
+class VoiceMiniPlayer extends ConsumerWidget {
+  const VoiceMiniPlayer({required this.onOpen, super.key});
+
+  /// Opens the chat of the playing note.
+  final void Function(String threadId) onOpen;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final p = ref.watch(voicePlayerProvider);
+    if (p.messageId == null || p.messageId == kVoiceDraftId) {
+      return const SizedBox.shrink();
+    }
+    final t = ref.watch(translatorProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    final player = ref.read(voicePlayerProvider.notifier);
+    final total = Duration(milliseconds: p.durationMs);
+    final progress = total.inMilliseconds > 0
+        ? (p.position.inMilliseconds / total.inMilliseconds).clamp(0.0, 1.0)
+        : 0.0;
+    final speed = p.speed == p.speed.roundToDouble()
+        ? p.speed.toInt().toString()
+        : p.speed.toString();
+    return Material(
+      color: colors.surface,
+      child: SafeArea(
+        bottom: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            InkWell(
+              onTap: p.threadId == null ? null : () => onOpen(p.threadId!),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
+                child: Row(
+                  children: [
+                    AppIconButton(
+                      icon: AppIcon(
+                        p.playing
+                            ? AppIcons.pauseRounded
+                            : AppIcons.playArrowRounded,
+                        color: colors.goldDark,
+                      ),
+                      semanticLabel: t.t(
+                        p.playing ? 'chat.voice.pause' : 'chat.voice.play',
+                      ),
+                      onPressed: () => unawaited(player.playPause()),
+                    ),
+                    Expanded(
+                      child: Text(
+                        '${t.t('chat.voice.label')}'
+                        '${p.title == null ? '' : ' · ${p.title}'}'
+                        ' · ${voiceClock(p.position)} / ${voiceClock(total)}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: type.bodySmall.copyWith(color: colors.text),
+                      ),
+                    ),
+                    AppPressable(
+                      onTap: player.cycleSpeed,
+                      child: Padding(
+                        padding: const EdgeInsets.all(AppSpacing.sm),
+                        child: Text(
+                          '$speed×',
+                          style: type.caption.copyWith(
+                            color: colors.goldDark,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                    AppIconButton(
+                      icon: AppIcon(
+                        AppIcons.closeRounded,
+                        color: colors.textSecondary,
+                      ),
+                      semanticLabel: t.t('chat.voice.stop'),
+                      onPressed: () => unawaited(player.stop()),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            LinearProgressIndicator(
+              value: progress,
+              minHeight: 2,
+              color: colors.gold,
+              backgroundColor: colors.border,
+            ),
+          ],
         ),
       ),
     );

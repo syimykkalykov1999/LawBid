@@ -11,6 +11,7 @@ import 'package:lawbid/features/auth/presentation/screens/login_screen.dart';
 import 'package:lawbid/features/auth/presentation/screens/otp_screen.dart';
 import 'package:lawbid/features/auth/presentation/screens/phone_screen.dart';
 import 'package:lawbid/features/auth/presentation/screens/set_password_screen.dart';
+import 'package:lawbid/features/auth/presentation/screens/web_qr_login_screen.dart';
 import 'package:lawbid/features/auth/presentation/screens/welcome_screen.dart';
 
 /// Path constants for the auth/onboarding flow (file 07 §6: `/welcome`,
@@ -36,6 +37,10 @@ abstract final class AuthRoutes {
   /// password right after the one SMS code (shown by the router guard
   /// while `passwordRequired`).
   static const login = '/auth/login';
+
+  /// Owner 2026-10-20 (website only): the QR code a signed-in phone scans to
+  /// sign this browser in.
+  static const webQr = '/auth/qr';
   static const forgotPassword = '/auth/forgot-password';
   static const setPassword = '/auth/set-password';
 
@@ -94,6 +99,11 @@ List<RouteBase> authRoutes() => [
                 state.extra is String ? state.extra! as String : '',
           ),
         ),
+      ),
+      GoRoute(
+        path: AuthRoutes.webQr,
+        pageBuilder: (context, state) =>
+            AppPageTransitions.push(state, const WebQrLoginScreen()),
       ),
       GoRoute(
         path: AuthRoutes.forgotPassword,

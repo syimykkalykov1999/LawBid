@@ -1,4 +1,5 @@
 // ignore_for_file: lines_longer_than_80_chars
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -197,6 +198,34 @@ class WelcomeScreen extends ConsumerWidget {
                                 ),
                               ],
                             ),
+                            // Owner 2026-10-20 (website only, like WhatsApp Web):
+                            // sign in by scanning a QR code with the phone.
+                            if (kIsWeb)
+                              TextButton.icon(
+                                key: const ValueKey('welcome-qr'),
+                                style: TextButton.styleFrom(
+                                  minimumSize: const Size(0, 36),
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                ),
+                                onPressed: () {
+                                  if (_isTopRoute(context)) {
+                                    context.push(AuthRoutes.webQr);
+                                  }
+                                },
+                                icon: AppIcon(
+                                  AppIcons.qrCode,
+                                  color: colors.text,
+                                  size: AppSizes.iconSm,
+                                ),
+                                label: Text(
+                                  t.t('qr.web.title'),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: typography.body
+                                      .copyWith(color: colors.text),
+                                ),
+                              ),
                             const SizedBox(height: 10),
                             // Owner 2026-10-05 (docs/ops/demo-world.md): a blogger
                             // enters the demo with the admin's 8-character code.

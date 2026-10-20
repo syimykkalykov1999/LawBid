@@ -15,6 +15,7 @@ import 'clients/admin_users_client.dart';
 import 'clients/verification_client.dart';
 import 'clients/admin_verification_client.dart';
 import 'clients/files_client.dart';
+import 'clients/privacy_client.dart';
 import 'clients/bids_client.dart';
 import 'clients/firms_client.dart';
 import 'clients/admin_sanctions_client.dart';
@@ -67,11 +68,12 @@ import 'clients/i18n_client.dart';
 import 'clients/admin_i18n_client.dart';
 import 'clients/case_history_client.dart';
 import 'clients/admin_moderation_client.dart';
+import 'clients/moderation_client.dart';
+import 'clients/reports_client.dart';
 import 'clients/stickers_client.dart';
 import 'clients/feed_client.dart';
 import 'clients/client_reviews_client.dart';
 import 'clients/admin_review_appeals_client.dart';
-import 'clients/reports_client.dart';
 import 'clients/contacts_sync_client.dart';
 import 'clients/admin_integrations_client.dart';
 import 'clients/admin_ops_client.dart';
@@ -127,6 +129,7 @@ class LawbidApi {
   VerificationClient? _verification;
   AdminVerificationClient? _adminVerification;
   FilesClient? _files;
+  PrivacyClient? _privacy;
   BidsClient? _bids;
   FirmsClient? _firms;
   AdminSanctionsClient? _adminSanctions;
@@ -179,11 +182,12 @@ class LawbidApi {
   AdminI18nClient? _adminI18n;
   CaseHistoryClient? _caseHistory;
   AdminModerationClient? _adminModeration;
+  ModerationClient? _moderation;
+  ReportsClient? _reports;
   StickersClient? _stickers;
   FeedClient? _feed;
   ClientReviewsClient? _clientReviews;
   AdminReviewAppealsClient? _adminReviewAppeals;
-  ReportsClient? _reports;
   ContactsSyncClient? _contactsSync;
   AdminIntegrationsClient? _adminIntegrations;
   AdminOpsClient? _adminOps;
@@ -246,6 +250,9 @@ class LawbidApi {
       _adminVerification ??= AdminVerificationClient(_dio, baseUrl: _baseUrl);
 
   FilesClient get files => _files ??= FilesClient(_dio, baseUrl: _baseUrl);
+
+  PrivacyClient get privacy =>
+      _privacy ??= PrivacyClient(_dio, baseUrl: _baseUrl);
 
   BidsClient get bids => _bids ??= BidsClient(_dio, baseUrl: _baseUrl);
 
@@ -395,6 +402,12 @@ class LawbidApi {
   AdminModerationClient get adminModeration =>
       _adminModeration ??= AdminModerationClient(_dio, baseUrl: _baseUrl);
 
+  ModerationClient get moderation =>
+      _moderation ??= ModerationClient(_dio, baseUrl: _baseUrl);
+
+  ReportsClient get reports =>
+      _reports ??= ReportsClient(_dio, baseUrl: _baseUrl);
+
   StickersClient get stickers =>
       _stickers ??= StickersClient(_dio, baseUrl: _baseUrl);
 
@@ -405,9 +418,6 @@ class LawbidApi {
 
   AdminReviewAppealsClient get adminReviewAppeals =>
       _adminReviewAppeals ??= AdminReviewAppealsClient(_dio, baseUrl: _baseUrl);
-
-  ReportsClient get reports =>
-      _reports ??= ReportsClient(_dio, baseUrl: _baseUrl);
 
   ContactsSyncClient get contactsSync =>
       _contactsSync ??= ContactsSyncClient(_dio, baseUrl: _baseUrl);

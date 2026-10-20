@@ -32,6 +32,7 @@ import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/application/presence_providers.dart';
 import 'package:lawbid/features/chat/application/voice_player.dart';
 import 'package:lawbid/features/chat/application/voice_recorder.dart';
+import 'package:lawbid/features/chat/data/voice_files.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/domain/message_groups.dart';
 import 'package:lawbid/features/chat/presentation/attachment_widgets.dart';
@@ -424,6 +425,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                                   if (c.caseId != null && c.contactsUnlocked)
                                     ChatPaymentBar(caseId: c.caseId!),
                                   _Composer(
+                                    draftKey: widget.conversationId,
                                     controller: _text,
                                     onSend: _send,
                                     stickersOpen: _stickers,
@@ -1602,6 +1604,7 @@ class _Composer extends ConsumerStatefulWidget {
     required this.onSend,
     required this.onTyping,
     required this.onVoice,
+    required this.draftKey,
     this.onAttach,
     this.onStickers,
     this.onFieldTap,
@@ -1622,6 +1625,9 @@ class _Composer extends ConsumerStatefulWidget {
   final void Function(bool active) onTyping;
   final Future<void> Function(VoiceRecording r) onVoice;
 
+  /// The chat id: a recording left unsent waits under it.
+  final String draftKey;
+
   @override
   ConsumerState<_Composer> createState() => _ComposerState();
 }
@@ -1632,6 +1638,14 @@ class _ComposerState extends ConsumerState<_Composer> {
 
   bool _recording = false;
   bool _locked = false;
+
+  /// Lock mode: recording paused (the bars freeze, preview is offered).
+  bool _paused = false;
+
+  /// The finished file: a recording left here earlier, or the paused note
+  /// once it was played back (a resume is no longer possible then — the
+  /// file is closed).
+  VoiceRecording? _held;
 
   /// The finger is on the mic. Starting the recorder takes a moment; a
   /// quick tap may lift the finger before it runs — then nothing records.
@@ -1644,24 +1658,89 @@ class _ComposerState extends ConsumerState<_Composer> {
 
   // Owned by the composer: lives exactly as long as the chat screen.
   final VoiceRecorder _rec = VoiceRecorder();
+  late final VoiceDrafts _drafts;
+  late final VoicePlayer _player;
+
+  @override
+  void initState() {
+    super.initState();
+    // Resolved now: dispose cannot read providers.
+    _drafts = ref.read(voiceDraftsProvider.notifier);
+    _player = ref.read(voicePlayerProvider.notifier);
+    // A recording left here (call came in, screen left) is back, paused.
+    final draft = _drafts.of(widget.draftKey);
+    if (draft != null) {
+      _held = draft;
+      _recording = true;
+      _locked = true;
+      _paused = true;
+      _elapsed = Duration(milliseconds: draft.durationMs);
+    }
+  }
 
   @override
   void dispose() {
     _levelSub?.cancel();
     _tick?.cancel();
-    unawaited(() async {
-      if (_rec.recording) await _rec.cancel();
-      await _rec.dispose();
-    }());
+    unawaited(_player.stopDraft());
+    unawaited(_saveDraft());
     super.dispose();
+  }
+
+  /// Leaving the chat or a call coming in must not throw a recording away:
+  /// it is closed into a file and waits in the composer.
+  Future<void> _saveDraft() async {
+    if (!_recording) {
+      await _rec.dispose();
+      return;
+    }
+    var r = _held;
+    if (r == null && _rec.recording) {
+      r = await _rec.stop();
+    }
+    if (r != null) {
+      _drafts.put(widget.draftKey, r);
+    } else if (_rec.recording) {
+      await _rec.cancel();
+    }
+    await _rec.dispose();
+  }
+
+  bool get _callBusy => _player.callBusy;
+
+  /// A call rings or starts while recording: the microphone belongs to the
+  /// call. The note is closed into a paused draft the user can send later.
+  Future<void> _onCall() async {
+    if (!_recording || _held != null) return;
+    await _levelSub?.cancel();
+    _tick?.cancel();
+    final r = await _rec.stop();
+    if (!mounted) return;
+    if (r == null) {
+      setState(_reset);
+      return;
+    }
+    setState(() {
+      _held = r;
+      _locked = true;
+      _paused = true;
+      _elapsed = Duration(milliseconds: r.durationMs);
+    });
   }
 
   Future<void> _start() async {
     final t = ref.read(translatorProvider);
+    if (_callBusy) {
+      showAppSnackBar(context, t.t('chat.voice.duringCall'));
+      return;
+    }
     // One note at a time: stop whatever is playing.
-    unawaited(ref.read(voicePlayerProvider.notifier).stop());
+    unawaited(_player.stop());
     // ignore: unawaited_futures
     HapticFeedback.mediumImpact();
+    // The buzz is over before the microphone opens, so it is not recorded.
+    await Future<void>.delayed(const Duration(milliseconds: 130));
+    if (!mounted) return;
     final ok = await _rec.start(onCap: () => _finish(send: true));
     if (!mounted) return;
     if (!ok) {
@@ -1675,6 +1754,17 @@ class _ComposerState extends ConsumerState<_Composer> {
       return;
     }
     _levels.clear();
+    _listenLevels();
+    setState(() {
+      _recording = true;
+      _locked = false;
+      _paused = false;
+      _drag = Offset.zero;
+      _elapsed = Duration.zero;
+    });
+  }
+
+  void _listenLevels() {
     _levelSub = _rec.levels.listen((l) {
       if (!mounted) return;
       setState(() {
@@ -1685,30 +1775,36 @@ class _ComposerState extends ConsumerState<_Composer> {
     _tick = Timer.periodic(const Duration(milliseconds: 200), (_) {
       if (mounted) setState(() => _elapsed = _rec.elapsed);
     });
-    setState(() {
-      _recording = true;
-      _locked = false;
-      _drag = Offset.zero;
-      _elapsed = Duration.zero;
-    });
+  }
+
+  /// Back to an empty composer.
+  void _reset() {
+    _drafts.clear(widget.draftKey);
+    _held = null;
+    _recording = false;
+    _locked = false;
+    _paused = false;
+    _drag = Offset.zero;
   }
 
   Future<void> _finish({required bool send}) async {
     if (!_recording) return;
     await _levelSub?.cancel();
     _tick?.cancel();
-    setState(() {
-      _recording = false;
-      _locked = false;
-      _drag = Offset.zero;
-    });
+    await _player.stop();
+    final held = _held;
+    setState(_reset);
     if (!send) {
       // ignore: unawaited_futures
       HapticFeedback.lightImpact();
-      await _rec.cancel();
+      if (held != null) {
+        await deleteVoiceFile(held.path);
+      } else {
+        await _rec.cancel();
+      }
       return;
     }
-    final r = await _rec.stop();
+    final r = held ?? await _rec.stop();
     if (!mounted) return;
     if (r == null) {
       showAppSnackBar(
@@ -1722,13 +1818,77 @@ class _ComposerState extends ConsumerState<_Composer> {
     await widget.onVoice(r);
   }
 
+  /// Lock mode: pause — the bars freeze, play-back and resume appear.
+  Future<void> _pauseRec() async {
+    await _rec.pause();
+    _tick?.cancel();
+    await _levelSub?.cancel();
+    if (!mounted) return;
+    setState(() {
+      _paused = true;
+      _elapsed = _rec.elapsed;
+    });
+  }
+
+  Future<void> _resumeRec() async {
+    if (_held != null) return;
+    await _player.stop();
+    await _rec.resume();
+    if (!mounted) return;
+    _listenLevels();
+    setState(() => _paused = false);
+  }
+
+  /// Plays the paused note (closes the file the first time) through the
+  /// app's one voice player: same fades, never two sounds at once.
+  Future<void> _togglePreview() async {
+    if (_callBusy) {
+      showAppSnackBar(
+        context,
+        ref.read(translatorProvider).t('chat.voice.duringCall'),
+      );
+      return;
+    }
+    final r = _held ?? await _rec.stop();
+    if (!mounted) return;
+    if (r == null) {
+      showAppSnackBar(
+        context,
+        ref.read(translatorProvider).t('chat.voice.hold'),
+      );
+      return;
+    }
+    setState(() => _held = r);
+    await _player.toggleLocal(r.path, r.durationMs);
+  }
+
+  Future<void> _seekPreview(double f) async {
+    final h = _held;
+    if (h == null) return;
+    final playback = ref.read(voicePlayerProvider);
+    if (playback.messageId != kVoiceDraftId) await _togglePreview();
+    await _player.seekTo(Duration(milliseconds: (h.durationMs * f).round()));
+  }
+
+  Future<void> _sendLocked() async {
+    final h = _held;
+    if (h == null) return _finish(send: true);
+    await _levelSub?.cancel();
+    _tick?.cancel();
+    await _player.stop();
+    setState(_reset);
+    // ignore: unawaited_futures
+    HapticFeedback.lightImpact();
+    await widget.onVoice(h);
+  }
+
   void _onMove(PointerMoveEvent e) {
     if (!_recording || _locked) return;
     setState(() => _drag += e.delta);
     if (_drag.dx < _cancelDx) {
       unawaited(_finish(send: false));
     } else if (_drag.dy < _lockDy) {
-      HapticFeedback.selectionClick();
+      // No buzz here: the microphone is open and would record it.
       setState(() => _locked = true);
     }
   }
@@ -1739,6 +1899,13 @@ class _ComposerState extends ConsumerState<_Composer> {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final motion = context.reduceMotion ? Duration.zero : AppMotion.stateChange;
+    ref.listen(callControllerProvider.select((c) => c.phase), (_, phase) {
+      if (phase != CallPhase.idle) unawaited(_onCall());
+    });
+    final playback = ref.watch(voicePlayerProvider);
+    final onDraft = playback.messageId == kVoiceDraftId;
+    final previewPlaying = onDraft && playback.playing;
+    final previewAt = onDraft ? playback.position : Duration.zero;
 
     // Owner 2026-10-15: the counter shows up near the limit (Telegram).
     // Owner 2026-10-19: inside the field, bottom right.
@@ -1807,7 +1974,7 @@ class _ComposerState extends ConsumerState<_Composer> {
 
     final recordingRow = Container(
       height: AppSizes.touchTarget + 4,
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
       decoration: BoxDecoration(
         color: colors.bg,
         borderRadius: BorderRadius.circular(24),
@@ -1815,10 +1982,36 @@ class _ComposerState extends ConsumerState<_Composer> {
       ),
       child: Row(
         children: [
-          _RecDot(color: colors.danger),
-          const SizedBox(width: AppSpacing.sm),
+          if (_locked)
+            AppIconButton(
+              icon:
+                  AppIcon(AppIcons.deleteOutlineRounded, color: colors.danger),
+              semanticLabel: t.t('chat.voice.cancel'),
+              onPressed: () => _finish(send: false),
+            )
+          else ...[
+            const SizedBox(width: AppSpacing.sm),
+            _RecDot(color: colors.danger),
+          ],
+          if (_paused)
+            AppIconButton(
+              icon: AppIcon(
+                previewPlaying
+                    ? AppIcons.pauseRounded
+                    : AppIcons.playArrowRounded,
+                color: colors.goldDark,
+              ),
+              semanticLabel: t.t(
+                previewPlaying ? 'chat.voice.pause' : 'chat.voice.play',
+              ),
+              onPressed: _togglePreview,
+            )
+          else
+            const SizedBox(width: AppSpacing.sm),
           Text(
-            voiceClock(_elapsed),
+            voiceClock(
+              _paused && previewAt > Duration.zero ? previewAt : _elapsed,
+            ),
             style: type.body.copyWith(
               color: colors.text,
               fontFeatures: const [FontFeature.tabularFigures()],
@@ -1826,26 +2019,39 @@ class _ComposerState extends ConsumerState<_Composer> {
           ),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
-            child: _locked
-                ? RecordingMeter(levels: _levels)
-                : Opacity(
-                    opacity: (1 + _drag.dx / -_cancelDx).clamp(0.2, 1.0),
-                    child: Text(
-                      '‹ ${t.t('chat.voice.slideCancel')}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
-                      style:
-                          type.bodySmall.copyWith(color: colors.textSecondary),
-                    ),
-                  ),
+            child: _paused
+                ? VoiceWave(
+                    bars: _held?.waveform ?? _rec.waveformNow,
+                    progress: _held == null || _held!.durationMs == 0
+                        ? 0
+                        : previewAt.inMilliseconds / _held!.durationMs,
+                    onSeek: _held == null ? null : _seekPreview,
+                  )
+                : _locked
+                    ? RecordingMeter(levels: _levels)
+                    : Opacity(
+                        opacity: (1 + _drag.dx / -_cancelDx).clamp(0.2, 1.0),
+                        child: Text(
+                          '‹ ${t.t('chat.voice.slideCancel')}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: type.bodySmall
+                              .copyWith(color: colors.textSecondary),
+                        ),
+                      ),
           ),
-          if (_locked)
+          if (_locked && !_paused)
             AppIconButton(
-              icon:
-                  AppIcon(AppIcons.deleteOutlineRounded, color: colors.danger),
-              semanticLabel: t.t('chat.voice.cancel'),
-              onPressed: () => _finish(send: false),
+              icon: AppIcon(AppIcons.pauseRounded, color: colors.danger),
+              semanticLabel: t.t('chat.voice.pauseRec'),
+              onPressed: _pauseRec,
+            ),
+          if (_paused && _held == null)
+            AppIconButton(
+              icon: AppIcon(AppIcons.micRounded, color: colors.danger),
+              semanticLabel: t.t('chat.voice.resume'),
+              onPressed: _resumeRec,
             ),
         ],
       ),
@@ -1935,7 +2141,7 @@ class _ComposerState extends ConsumerState<_Composer> {
                     }
                     if (_locked) {
                       return AppPressable(
-                        onTap: () => _finish(send: true),
+                        onTap: _sendLocked,
                         child: circle(
                           icon: AppIcons.arrowUpwardRounded,
                           on: true,
