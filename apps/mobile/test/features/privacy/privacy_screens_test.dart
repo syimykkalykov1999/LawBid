@@ -32,6 +32,9 @@ class _FakePrivacy implements PrivacyRepository {
       PrivacyField.lastSeen => current.copyWith(lastSeen: value),
       PrivacyField.messageFrom => current.copyWith(messageFrom: value),
       PrivacyField.callFrom => current.copyWith(callFrom: value),
+      PrivacyField.photoFrom => current.copyWith(photoFrom: value),
+      PrivacyField.aboutFrom => current.copyWith(aboutFrom: value),
+      PrivacyField.groupAddFrom => current.copyWith(groupAddFrom: value),
     };
   }
 

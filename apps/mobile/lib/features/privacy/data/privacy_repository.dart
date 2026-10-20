@@ -27,26 +27,45 @@ class PrivacySettings {
     required this.lastSeen,
     required this.messageFrom,
     required this.callFrom,
+    this.photoFrom = Audience.everyone,
+    this.aboutFrom = Audience.everyone,
+    this.groupAddFrom = Audience.everyone,
   });
 
   final Audience lastSeen;
   final Audience messageFrom;
   final Audience callFrom;
+  final Audience photoFrom;
+  final Audience aboutFrom;
+  final Audience groupAddFrom;
 
   PrivacySettings copyWith({
     Audience? lastSeen,
     Audience? messageFrom,
     Audience? callFrom,
+    Audience? photoFrom,
+    Audience? aboutFrom,
+    Audience? groupAddFrom,
   }) =>
       PrivacySettings(
         lastSeen: lastSeen ?? this.lastSeen,
         messageFrom: messageFrom ?? this.messageFrom,
         callFrom: callFrom ?? this.callFrom,
+        photoFrom: photoFrom ?? this.photoFrom,
+        aboutFrom: aboutFrom ?? this.aboutFrom,
+        groupAddFrom: groupAddFrom ?? this.groupAddFrom,
       );
 }
 
 /// Which of the three settings a change touches.
-enum PrivacyField { lastSeen, messageFrom, callFrom }
+enum PrivacyField {
+  lastSeen,
+  messageFrom,
+  callFrom,
+  photoFrom,
+  aboutFrom,
+  groupAddFrom,
+}
 
 /// What moderation did with an object of mine (`GET /moderation/notices`).
 @immutable
@@ -131,6 +150,9 @@ class ApiPrivacyRepository implements PrivacyRepository {
         lastSeen: _audience(d.lastSeen),
         messageFrom: _audience(d.messageFrom),
         callFrom: _audience(d.callFrom),
+        photoFrom: _audience(d.photoFrom),
+        aboutFrom: _audience(d.aboutFrom),
+        groupAddFrom: _audience(d.groupAddFrom),
       );
 
   @override
@@ -146,6 +168,12 @@ class ApiPrivacyRepository implements PrivacyRepository {
         api.UpdatePrivacySettingsDto(messageFrom: _wire(value)),
       PrivacyField.callFrom =>
         api.UpdatePrivacySettingsDto(callFrom: _wire(value)),
+      PrivacyField.photoFrom =>
+        api.UpdatePrivacySettingsDto(photoFrom: _wire(value)),
+      PrivacyField.aboutFrom =>
+        api.UpdatePrivacySettingsDto(aboutFrom: _wire(value)),
+      PrivacyField.groupAddFrom =>
+        api.UpdatePrivacySettingsDto(groupAddFrom: _wire(value)),
     };
     return _settings(
       (await guardApiCall(() => _privacy.updatePrivacySettings(body: body)))

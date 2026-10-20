@@ -23,6 +23,9 @@ class PrivacySettingsNotifier extends AsyncNotifier<PrivacySettings> {
         PrivacyField.lastSeen => before.copyWith(lastSeen: value),
         PrivacyField.messageFrom => before.copyWith(messageFrom: value),
         PrivacyField.callFrom => before.copyWith(callFrom: value),
+        PrivacyField.photoFrom => before.copyWith(photoFrom: value),
+        PrivacyField.aboutFrom => before.copyWith(aboutFrom: value),
+        PrivacyField.groupAddFrom => before.copyWith(groupAddFrom: value),
       },
     );
     try {
