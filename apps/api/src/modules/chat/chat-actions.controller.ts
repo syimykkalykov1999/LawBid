@@ -130,6 +130,6 @@ export class ChatActionsController {
     @CurrentUser() user: RequestUser,
     @Param() p: ConversationIdParamDto,
   ): Promise<PinsDto> {
-    return { items: await this.actions.pins(user, p.id) };
+    return this.actions.pinsInfo(user, p.id);
   }
 }

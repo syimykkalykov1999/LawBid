@@ -127505,10 +127505,25 @@
             "items": {
               "$ref": "#/components/schemas/MessageDto"
             }
+          },
+          "editWindowMin": {
+            "type": "number",
+            "description": "Minutes a text message can be edited."
+          },
+          "deleteForAllHours": {
+            "type": "number",
+            "description": "Hours a message can be deleted for everyone."
+          },
+          "maxPins": {
+            "type": "number",
+            "description": "Pins allowed per chat."
           }
         },
         "required": [
-          "items"
+          "items",
+          "editWindowMin",
+          "deleteForAllHours",
+          "maxPins"
         ]
       },
       "PinsEnvelope": {

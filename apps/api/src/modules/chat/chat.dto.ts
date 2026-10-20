@@ -440,6 +440,15 @@ export class ReactMessageDto {
 export class PinsDto {
   @ApiProperty({ type: () => [MessageDto] })
   items!: MessageDto[];
+
+  @ApiProperty({ description: 'Minutes a text message can be edited.' })
+  editWindowMin!: number;
+
+  @ApiProperty({ description: 'Hours a message can be deleted for everyone.' })
+  deleteForAllHours!: number;
+
+  @ApiProperty({ description: 'Pins allowed per chat.' })
+  maxPins!: number;
 }
 
 export class MessageDto {

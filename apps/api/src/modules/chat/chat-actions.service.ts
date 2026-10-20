@@ -15,7 +15,7 @@ import { maskContactInfo } from '../cases/domain/contact-detector';
 import { RealtimePublisher } from '../realtime/realtime-publisher.service';
 import { isSingleEmoji } from './chat-message-extras';
 import { ChatService } from './chat.service';
-import type { MessageDto } from './chat.dto';
+import type { MessageDto, PinsDto } from './chat.dto';
 import { MESSAGE_MAX_CHARS } from './chat.dto';
 
 function messageNotFound(): NotFoundException {
@@ -289,12 +289,26 @@ export class ChatActionsService {
   }
 
   /** GET …/pins — the chat's pinned messages, newest pin first. */
+  async pinsInfo(user: RequestUser, id: string): Promise<PinsDto> {
+    const [items, editWindowMin, deleteForAllHours, maxPins] =
+      await Promise.all([
+        this.pins(user, id),
+        this.settings.number('chat.edit_window_min'),
+        this.settings.number('chat.delete_for_all_hours'),
+        this.settings.number('chat.max_pins'),
+      ]);
+    return { items, editWindowMin, deleteForAllHours, maxPins };
+  }
+
   async pins(user: RequestUser, id: string): Promise<MessageDto[]> {
     const conv = await this.chat.load(user, id);
     const pins = await this.prisma.messagePin.findMany({
       where: {
         conversation_id: id,
-        message: { hidden_for: { none: { user_id: user.sub } } },
+        message: {
+          hidden_for: { none: { user_id: user.sub } },
+          revoked_at: null,
+        },
       },
       orderBy: { pinned_at: 'desc' },
       include: { message: true },

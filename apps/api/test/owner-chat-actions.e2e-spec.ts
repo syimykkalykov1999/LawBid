@@ -1,5 +1,5 @@
+import { randomUUID } from 'node:crypto';
 import type { AddressInfo, Server } from 'node:net';
-import { createHash, randomUUID } from 'node:crypto';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
