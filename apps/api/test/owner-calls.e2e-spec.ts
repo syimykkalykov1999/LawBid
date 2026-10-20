@@ -7,6 +7,7 @@ import { io, type Socket } from 'socket.io-client';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
+import { FilesService } from '../src/modules/files/files.service';
 import { CallsService } from '../src/modules/calls/calls.service';
 import { FeatureFlagsService } from '../src/modules/feature-flags/services/feature-flags.service';
 
@@ -271,6 +272,52 @@ describe('In-app calls (e2e, OQ-041)', () => {
     ).find((m) => m.type === 'call')!;
     expect(entry.call.outcome).toBe('ended');
     expect(entry.call.durationSec).toBeGreaterThanOrEqual(75);
+  });
+
+  it('the incoming call follows the callee’s view of the caller’s photo', async () => {
+    const link = jest
+      .spyOn(
+        FilesService.prototype as unknown as {
+          mediaUrlOf: () => Promise<string | null>;
+        },
+        'mediaUrlOf',
+      )
+      .mockResolvedValue('https://media.test/a.jpg');
+    try {
+      const c = await chat();
+      const avatar = await prisma.file.create({
+        data: {
+          owner_user_id: c.attorney.id,
+          purpose: 'avatar',
+          s3_bucket: process.env.S3_BUCKET_MEDIA ?? 'lawbid-media',
+          s3_key: `avatars/${c.attorney.id}/${randomUUID()}.jpg`,
+          mime: 'image/jpeg',
+          size_bytes: 10n,
+          sha256: 'd'.repeat(64),
+          scan_status: 'clean',
+        },
+      });
+      await prisma.user.update({
+        where: { id: c.attorney.id },
+        data: { avatar_file_id: avatar.id },
+      });
+      await prisma.userPrivacySettings.create({
+        data: { user_id: c.attorney.id, photo_from: 'nobody' },
+      });
+      const clientSock = await connect(c.client.token);
+      const incoming = once<{ call: { peer: { avatarUrl: string | null } } }>(
+        clientSock,
+        'call:incoming',
+      );
+      await api()
+        .post(`/api/v1/conversations/${c.id}/calls`)
+        .set(c.attorney.auth)
+        .expect(201);
+      // The caller sees their own photo rules, the callee gets initials.
+      expect((await incoming).call.peer.avatarUrl).toBeNull();
+    } finally {
+      link.mockRestore();
+    }
   });
 
   it('decline, busy and missed (sweep) are logged; missed notifies the callee', async () => {

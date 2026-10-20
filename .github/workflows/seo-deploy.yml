@@ -14,6 +14,8 @@
 # AWS_DEPLOY_ROLE_PROD, AWS_REGION) plus
 #   WEB_SITE_URL       https://<web host>
 #   WEB_SEO_API_URL    https://api.<domain>/api/v1
+# Repository variable ANDROID_APP_SHA256: SHA-256 of the app-signing
+# certificate (Play Console → App integrity), comma-separated if several.
 name: SEO pages
 
 on:
@@ -90,6 +92,15 @@ jobs:
           npm run build:static
           test -s out/about/index.html
 
+      # App links (iOS + Android): written before the merge so that
+      # public-paths.txt lists .well-known and web-deploy.yml never deletes it.
+      # assetlinks.json needs the Play app-signing SHA-256 (repository
+      # variable ANDROID_APP_SHA256); without it only the iOS file is published.
+      - name: App links (/.well-known)
+        env:
+          ANDROID_APP_SHA256: ${{ vars.ANDROID_APP_SHA256 }}
+        run: node scripts/seo/well-known.mjs --out dist-seo
+
       - name: Merge the site into the pages (one sitemap)
         run: >-
           node scripts/seo/merge-site.mjs
@@ -119,10 +130,13 @@ jobs:
             fi
           done
           # App links for the phone apps (iOS needs it served as JSON).
-          if [ -f .well-known/apple-app-site-association ]; then
-            aws s3 cp .well-known/apple-app-site-association "$B/.well-known/apple-app-site-association" \
-              --content-type application/json --cache-control "public,max-age=3600"
-          fi
+          # Both must be application/json and served without a redirect.
+          for f in apple-app-site-association assetlinks.json; do
+            if [ -f ".well-known/$f" ]; then
+              aws s3 cp ".well-known/$f" "$B/.well-known/$f" \
+                --content-type application/json --cache-control "public,max-age=3600"
+            fi
+          done
           for f in *; do
             [ -f "$f" ] || continue
             case "$f" in

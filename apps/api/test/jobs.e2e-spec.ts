@@ -272,21 +272,35 @@ describe('Background jobs (e2e) — BullMQ cron queue', () => {
  * minute boundary.
  */
 async function expectOnePendingRunPerScheduler(queue: Queue): Promise<void> {
-  const delayed = await queue.getJobs(['delayed']);
-  const perKey = new Map<string, number>();
-  // A run whose time has come but that the queue has not moved to «waiting»
-  // yet is not a second pending run: the scheduler already queued the
-  // next one. Counting it made this check flake at a minute boundary
-  // (two «delayed» jobs for one every-minute scheduler).
-  const now = Date.now();
-  for (const j of delayed) {
-    if (j.timestamp + (j.delay ?? 0) <= now) continue;
-    const key = j.repeatJobKey ?? j.name;
-    perKey.set(key, (perKey.get(key) ?? 0) + 1);
+  // A scheduler hands its next run over a moment after the current one is
+  // promoted, so two future runs of one scheduler can coexist for a few
+  // hundred ms around a minute boundary. A real duplicate registration
+  // stays, so wait for the queue to settle (up to 15 s) and only then
+  // judge.
+  const duplicates = async (): Promise<string[]> => {
+    const delayed = await queue.getJobs(['delayed']);
+    const perKey = new Map<string, string[]>();
+    const now = Date.now();
+    for (const j of delayed) {
+      const due = j.timestamp + (j.delay ?? 0);
+      // Already due: not a pending run, the next one is queued.
+      if (due <= now) continue;
+      const key = j.repeatJobKey ?? j.name;
+      perKey.set(key, [...(perKey.get(key) ?? []), `${j.id}@${due}`]);
+    }
+    return [...perKey]
+      .filter(([, runs]) => runs.length > 1)
+      .map(([key, runs]) => `${key}: ${runs.join(', ')}`);
+  };
+  const deadline = Date.now() + 15_000;
+  let dup = await duplicates();
+  while (dup.length > 0 && Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 250));
+    dup = await duplicates();
   }
-  // The job ids and due times go into the failure, so a CI log alone shows
-  // whether two runs are really pending or one is only late to be moved.
-  expect([...perKey].filter(([, n]) => n > 1)).toEqual([]);
+  // Ids and due times go into the failure, so a CI log alone shows which
+  // scheduler really holds two runs.
+  expect(dup).toEqual([]);
   const pending = await queue.getJobs([
     'delayed',
     'waiting',

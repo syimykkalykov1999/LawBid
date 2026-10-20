@@ -198,6 +198,24 @@ describe('Group calls (e2e)', () => {
     expect(noChat.status).toBe(409);
     expect(noChat.body.error.code).toBe('CALL_NOT_ALLOWED');
 
+    // a2's privacy "who can call me" = nobody: adding them is refused.
+    await api()
+      .put('/api/v1/users/me/privacy')
+      .set(a2Auth)
+      .send({ callFrom: 'nobody' })
+      .expect(200);
+    const hidden = await api()
+      .post(`/api/v1/calls/${callId}/participants`)
+      .set(cAuth)
+      .send({ username: `@${a2.username}` });
+    expect(hidden.status).toBe(403);
+    expect(hidden.body.error.code).toBe('PRIVACY_RESTRICTED');
+    await api()
+      .put('/api/v1/users/me/privacy')
+      .set(a2Auth)
+      .send({ callFrom: 'everyone' })
+      .expect(200);
+
     // The client adds a2 by username; a2 rings (the client is a2's chat).
     const ring = once<{ call: { id: string; group: boolean } }>(
       a2Sock,

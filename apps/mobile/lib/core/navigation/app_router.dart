@@ -41,6 +41,7 @@ import 'package:lawbid/features/onboarding/presentation/screens/legal_document_s
 import 'package:lawbid/features/onboarding/presentation/screens/splash_screen.dart';
 import 'package:lawbid/features/partners/presentation/partner_screen.dart';
 import 'package:lawbid/features/plans/presentation/bid_packs_screen.dart';
+import 'package:lawbid/features/privacy/privacy_routes.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/features/profile/presentation/screens/attorney_stats_screen.dart';
 import 'package:lawbid/features/profile/presentation/screens/client_profile_edit_screen.dart';
@@ -54,6 +55,8 @@ import 'package:lawbid/features/profile/presentation/screens/settings_screen.dar
 import 'package:lawbid/features/profile/presentation/screens/verification_required_screen.dart';
 import 'package:lawbid/features/promotions/presentation/my_promotions_screen.dart';
 import 'package:lawbid/features/promotions/presentation/promotion_stats_screen.dart';
+import 'package:lawbid/features/qr/presentation/my_qr_screen.dart';
+import 'package:lawbid/features/qr/presentation/qr_scanner_screen.dart';
 import 'package:lawbid/features/referrals/presentation/referral_screen.dart';
 import 'package:lawbid/features/search/presentation/screens/search_screen.dart';
 import 'package:lawbid/features/settings/about/about_screen.dart';
@@ -447,6 +450,18 @@ GoRouter appRouter(Ref ref) {
             AppPageTransitions.push(state, const GuideScreen()),
       ),
       GoRoute(
+        path: AppRoutes.myQr,
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            AppPageTransitions.push(state, const MyQrScreen()),
+      ),
+      GoRoute(
+        path: AppRoutes.qrScan,
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            AppPageTransitions.push(state, const QrScannerScreen()),
+      ),
+      GoRoute(
         path: AppRoutes.dataExport,
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) =>
@@ -492,6 +507,7 @@ GoRouter appRouter(Ref ref) {
       ...teamRoutes(_rootNavigatorKey),
       // Owner 2026-10-05: the attorney's own trust level.
       ...trustRoutes(_rootNavigatorKey),
+      ...privacyRoutes(_rootNavigatorKey),
     ],
   );
 }

@@ -1,5 +1,11 @@
 import { AttorneyStatsDto } from '../dto/attorney-stats.dto';
-import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
+import {
+  HttpException,
+  HttpStatus,
+  Injectable,
+  Optional,
+} from '@nestjs/common';
+import { PrivacySettingsService } from '../../privacy-settings/privacy-settings.service';
 import { Prisma } from '@prisma/client';
 import { CounterAggregator } from '../../counters/counter-aggregator.service';
 import { PrismaService } from '../../../prisma/prisma.service';
@@ -80,6 +86,8 @@ export class AttorneyProfilesService {
     private readonly counters: CounterAggregator,
     private readonly usernames: UsernameRegistry,
     private readonly blocks: BlocksService,
+    // Owner 2026-10-20: who sees my photo and "about".
+    @Optional() private readonly privacy?: PrivacySettingsService,
   ) {}
 
   async getOwn(
@@ -386,17 +394,23 @@ export class AttorneyProfilesService {
     ]);
     const plus = (base: number, m: Map<string, number>) =>
       Math.max(0, base + (m.get(row.user_id) ?? 0));
+    const [photoOk, aboutOk] = this.privacy
+      ? await Promise.all([
+          this.privacy.visibleTo(viewerId, [row.user_id], 'photo_from'),
+          this.privacy.visibleTo(viewerId, [row.user_id], 'about_from'),
+        ])
+      : [new Set([row.user_id]), new Set([row.user_id])];
     return {
       id: row.user_id,
       username: row.username,
       firstName: row.user.first_name,
       lastName: row.user.last_name,
-      bio: row.bio,
+      bio: aboutOk.has(row.user_id) ? row.bio : null,
       firmName: row.firm_name,
       firms: firmsOf(row),
       firm: membership?.firm ?? null,
-      avatarUrl: avatar.url,
-      avatarUrl256: avatar.url256,
+      avatarUrl: photoOk.has(row.user_id) ? avatar.url : null,
+      avatarUrl256: photoOk.has(row.user_id) ? avatar.url256 : null,
       languages: row.languages,
       verifiedBadge: row.trust_badge,
       trustLevel: row.trust_level,

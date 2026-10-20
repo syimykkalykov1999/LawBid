@@ -101,8 +101,7 @@ class ChatPaymentBar extends ConsumerWidget {
                     .read(casePaymentsRepositoryProvider)
                     .payRequest(first);
                 ref.invalidate(casePaymentsStateProvider(caseId));
-                if (!await openCheckout(start.checkoutUrl) &&
-                    context.mounted) {
+                if (!await openCheckout(start.checkoutUrl) && context.mounted) {
                   showAppSnackBar(context, t.t('plans.cantOpen'));
                 }
               } on Object catch (e) {

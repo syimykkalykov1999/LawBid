@@ -254,7 +254,7 @@ class _Dsn {
       dsn,
       key,
       'https://${uri.host}${uri.hasPort ? ':${uri.port}' : ''}'
-          '/api/$project/envelope/',
+      '/api/$project/envelope/',
     );
   }
 }

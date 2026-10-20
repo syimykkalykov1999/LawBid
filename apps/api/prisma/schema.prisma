@@ -629,6 +629,12 @@ enum ReportReason {
   // Owner 2026-10-05 (legal): a DMCA / copyright notice; the report is
   // created by POST /legal/dmca together with a dmca_notices row.
   copyright
+  // Owner 2026-10-20 (privacy and moderation): the media categories every
+  // social app has, so the moderators' queue can be sorted by them.
+  nudity
+  violence
+  self_harm
+  illegal
 
   @@map("report_reason")
 }
@@ -829,6 +835,8 @@ model User {
   case_invites_received       CaseInvite[]                   @relation("CaseInvitesReceived")
   liability_acceptances       AssistantLiabilityAcceptance[] @relation("AssistantLiability")
   client_review_appeals       ClientReviewAppeal[]           @relation("ClientReviewAppellant")
+  privacy_settings            UserPrivacySettings?
+  moderation_appeals          ModerationAppeal[]             @relation("ModerationAppellant")
   review_helpful_votes        ReviewHelpfulVote[]            @relation("ReviewHelpfulVoter")
   client_review_helpful_votes ClientReviewHelpfulVote[]      @relation("ClientReviewHelpfulVoter")
   /// Owner 2026-10-05: the country the person works in (from the phone
@@ -2603,6 +2611,7 @@ model ModerationAction {
   id          String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   report_id   String?              @db.Uuid
   report      Report?              @relation(fields: [report_id], references: [id], onDelete: Restrict)
+  appeal      ModerationAppeal?
   admin_id    String               @db.Uuid
   admin       User                 @relation("ModerationAdmin", fields: [admin_id], references: [id], onDelete: Restrict)
   target_type ReportTargetType
@@ -2613,6 +2622,65 @@ model ModerationAction {
 
   @@index([target_type, target_id])
   @@map("moderation_actions")
+}
+
+/// Owner 2026-10-20: who may see my "last seen", write to me first and call
+/// me — everyone / my contacts (my address book matches, people I follow) /
+/// nobody. Participants of a case in work always keep their chat and calls.
+enum PrivacyAudience {
+  everyone
+  contacts
+  nobody
+
+  @@map("privacy_audience")
+}
+
+model UserPrivacySettings {
+  user_id        String          @id @db.Uuid
+  user           User            @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "user_privacy_settings_user_fkey")
+  last_seen      PrivacyAudience @default(everyone)
+  message_from   PrivacyAudience @default(everyone)
+  call_from      PrivacyAudience @default(everyone)
+  // Who sees my profile photo / my "about", and who may add me to a group.
+  photo_from     PrivacyAudience @default(everyone)
+  about_from     PrivacyAudience @default(everyone)
+  group_add_from PrivacyAudience @default(everyone)
+  updated_at     DateTime        @updatedAt @db.Timestamptz
+
+  @@map("user_privacy_settings")
+}
+
+/// Owner 2026-10-20: the author of a hidden / removed post, comment or
+/// message asks moderation to look again. One open appeal per decision
+/// (the moderation_actions row). accepted -> the content is restored.
+model ModerationAppeal {
+  id            String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  appellant_id  String                 @db.Uuid
+  appellant     User                   @relation("ModerationAppellant", fields: [appellant_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "moderation_appeals_appellant_fkey")
+  action_id     String                 @unique @db.Uuid
+  action        ModerationAction       @relation(fields: [action_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "moderation_appeals_action_fkey")
+  target_type   ReportTargetType
+  target_id     String                 @db.Uuid
+  // 1-1000 chars, CHECK in the migration.
+  message       String
+  status        ModerationAppealStatus @default(pending)
+  // Admin user id — no FK, like the audit log.
+  decided_by    String?                @db.Uuid
+  decided_at    DateTime?              @db.Timestamptz
+  decision_note String?
+  created_at    DateTime               @default(now()) @db.Timestamptz
+
+  @@index([status, created_at])
+  @@index([appellant_id, created_at(sort: Desc)])
+  @@map("moderation_appeals")
+}
+
+enum ModerationAppealStatus {
+  pending
+  accepted
+  rejected
+
+  @@map("moderation_appeal_status")
 }
 
 model AdminProfile {

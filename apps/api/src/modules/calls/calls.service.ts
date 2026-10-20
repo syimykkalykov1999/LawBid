@@ -1,3 +1,4 @@
+import { viewerContext } from '../../common/viewer/viewer-context';
 import { createHmac } from 'node:crypto';
 import {
   Optional,
@@ -20,6 +21,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { BlocksService } from '../blocks/blocks.service';
 import { caseWorkOngoing } from '../blocks/block-guard';
+import { PrivacySettingsService } from '../privacy-settings/privacy-settings.service';
 import { ChatService } from '../chat/chat.service';
 import { FilesService } from '../files/files.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -99,6 +101,8 @@ export class CallsService {
     private readonly flags: FeatureFlagsService,
     @Optional() private readonly secrets?: SecretsService,
     @Optional() private readonly entitlements?: EntitlementsService,
+    // Owner 2026-10-20: "who can call me" (Settings → Privacy).
+    @Optional() private readonly privacy?: PrivacySettingsService,
   ) {
     this.videoProvider = new WebRtcVideoProvider(secrets, config);
   }
@@ -164,8 +168,10 @@ export class CallsService {
     const callee =
       user.sub === conv.attorney_id ? conv.client_id : conv.attorney_id;
     // OQ-028: except the chat of a case in progress.
-    if (!(await caseWorkOngoing(this.prisma, conv))) {
+    const caseWork = await caseWorkOngoing(this.prisma, conv);
+    if (!caseWork) {
       await this.blocks.assertNotBlocked(user.sub, callee);
+      await this.privacy?.assertAllowed(user.sub, callee, 'call');
     }
     // Plan term (owner 2026-10-05): the admin can switch calls off per plan.
     if (
@@ -224,7 +230,21 @@ export class CallsService {
     });
     // OQ-048: a call to the attorney also rings assistants who hold the
     // "calls" duty (their own devices; whoever answers takes it).
-    const ringing = [callee, ...(await this.callAssistants(callee))];
+    // Owner 2026-10-20: an assistant's own "who can call me" applies too
+    // (not for a case in work).
+    const helpers = await this.callAssistants(callee);
+    const reachable = caseWork
+      ? helpers
+      : (
+          await Promise.all(
+            helpers.map(async (h) =>
+              (await this.privacy?.allows(user.sub, h, 'call')) === false
+                ? null
+                : h,
+            ),
+          )
+        ).filter((h): h is string => h !== null);
+    const ringing = [callee, ...reachable];
     const incoming = { call: await this.toDto(call, callee) };
     this.realtime.toUsers(ringing, 'call:incoming', incoming);
     for (const recipientId of ringing) {
@@ -717,11 +737,10 @@ export class CallsService {
     return this.toDto(call, user.sub);
   }
 
-  /** Extension point: the invitee's privacy setting "who can call me"
-   * (the check lands with the privacy settings PR). */
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  private async assertMayCall(_inviterId: string, _inviteeId: string) {
-    await Promise.resolve();
+  /** The invitee's privacy setting "who can call me" (an added person is a
+   * call to them like any other). */
+  private async assertMayCall(inviterId: string, inviteeId: string) {
+    await this.privacy?.assertAllowed(inviterId, inviteeId, 'call');
   }
 
   private async resolveInvitee(dto: InviteCallDto): Promise<string | null> {
@@ -1046,7 +1065,17 @@ export class CallsService {
     return rows.filter((r) => IN_CALL.includes(r.status)).map((r) => r.user_id);
   }
 
-  private async toDto(call: Call, viewerId: string): Promise<CallDto> {
+  /**
+   * The call as [viewerId] sees it. Built in the viewer's own context, not
+   * the context of whoever made the request: an incoming-call event for the
+   * callee must follow the callee's photo rights (a hidden photo shows as
+   * initials), not the caller's.
+   */
+  private toDto(call: Call, viewerId: string): Promise<CallDto> {
+    return viewerContext.run(viewerId, () => this.buildDto(call, viewerId));
+  }
+
+  private async buildDto(call: Call, viewerId: string): Promise<CallDto> {
     const rows = call.is_group ? await this.rowsOf(call.id) : [];
     // An invited person sees who invited them as the "peer".
     const inviter = rows.find((r) => r.user_id === viewerId)?.invited_by_id;

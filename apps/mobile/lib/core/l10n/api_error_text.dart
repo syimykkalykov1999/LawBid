@@ -189,6 +189,8 @@ const _keys = <String, String>{
   ApiErrorCodes.contentInvalidState: 'error.api.CONTENT_INVALID_STATE',
   ApiErrorCodes.searchQueryTooShort: 'error.api.SEARCH_QUERY_TOO_SHORT',
   ApiErrorCodes.userBlocked: 'error.api.USER_BLOCKED',
+  ApiErrorCodes.privacyRestricted: 'error.api.PRIVACY_RESTRICTED',
+  ApiErrorCodes.appealNotAllowed: 'error.api.APPEAL_NOT_ALLOWED',
   // Audit 2026-10-02: calls answered elsewhere / already gone.
   ApiErrorCodes.callStateConflict: 'error.api.CALL_STATE_CONFLICT',
   ApiErrorCodes.callNotFound: 'error.api.CALL_NOT_FOUND',

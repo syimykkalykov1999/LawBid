@@ -150,8 +150,7 @@ void main() {
     expect(rich, startsWith('Short text'));
   });
 
-  testWidgets('a post with files: «ещё» even when nothing is cut',
-      (t) async {
+  testWidgets('a post with files: «ещё» even when nothing is cut', (t) async {
     await pump(t, title: 'Short', text: 'Short text', forceMore: true);
     expect(more(), findsOneWidget);
     await pump(t, title: 'Only a title', text: '', forceMore: true);

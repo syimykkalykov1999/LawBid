@@ -65,6 +65,9 @@ const ENV = {
   refreshPerIpPerHour: 'AUTH_REFRESH_LIMIT_PER_IP_PER_HOUR',
 } as const;
 
+/** `identifier` of a sign-in the phone approved by scanning the web QR. */
+export const QR_LOGIN_IDENTIFIER = 'qr-login';
+
 export interface SessionListItem {
   sessionId: string; // session_chain_id
   deviceId: string | null;
@@ -636,6 +639,31 @@ export class AuthService {
     );
   }
 
+  /**
+   * Owner 2026-10-20: the website's sign-in after the phone approved its QR
+   * code. The phone's owner already proved who they are; the browser gets
+   * its own web session (which ends the account's other browser session —
+   * one phone + one website per account).
+   */
+  async issueQrLogin(
+    userId: string,
+    deviceInfo: DeviceInfo,
+    meta: RequestMeta,
+  ): Promise<AuthTokensResult> {
+    await this.loginMethods.assertPlatformAllowed(deviceInfo.platform);
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user || user.status === 'suspended' || user.status === 'deleted') {
+      throw new ForbiddenException({
+        code:
+          user?.status === 'deleted'
+            ? ErrorCode.ACCOUNT_DELETED
+            : ErrorCode.ACCOUNT_SUSPENDED,
+        message: 'This account is not available.',
+      });
+    }
+    return this.issueLogin(user, false, QR_LOGIN_IDENTIFIER, deviceInfo, meta);
+  }
+
   /** Session, tokens, audit and the new-device alert of a sign-in. */
   private async issueLogin(
     user: User,
@@ -680,9 +708,11 @@ export class AuthService {
         ? AUTH_EVENT_TYPES.SOCIAL_LOGIN_SUCCESS
         : identifier === 'assistant-code'
           ? AUTH_EVENT_TYPES.ASSISTANT_CODE_LOGIN
-          : identifier.startsWith('password:')
-            ? AUTH_EVENT_TYPES.PASSWORD_LOGIN_SUCCESS
-            : AUTH_EVENT_TYPES.OTP_VERIFY_SUCCESS,
+          : identifier === QR_LOGIN_IDENTIFIER
+            ? AUTH_EVENT_TYPES.QR_LOGIN_SUCCESS
+            : identifier.startsWith('password:')
+              ? AUTH_EVENT_TYPES.PASSWORD_LOGIN_SUCCESS
+              : AUTH_EVENT_TYPES.OTP_VERIFY_SUCCESS,
       success: true,
       identifier,
       deviceId: deviceInfo.deviceId,
