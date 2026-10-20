@@ -925,6 +925,19 @@ export class SubscriptionsService implements OnModuleDestroy {
     // Owner 2026-10-02: a free subscription under a contract counts.
     const isActive = SubscriptionAccessService.rowIsActive(row) || !!grant;
     const amounts = await this.pricing.amounts();
+    // The checkout without a plan code charges the default monthly plan, so
+    // the headline monthly price is that plan's (the legacy `monthly` price
+    // only when the plan has no price row of its own).
+    const defaultMonthly = await this.plans.defaultFor('attorney', 'month');
+    const monthlyCents =
+      (defaultMonthly?.price_kind
+        ? await this.pricing.amountOf(defaultMonthly.price_kind)
+        : null) ?? amounts.monthly;
+    const defaultYearly = await this.plans.defaultFor('attorney', 'year');
+    const yearlyCents =
+      (defaultYearly?.price_kind
+        ? await this.pricing.amountOf(defaultYearly.price_kind)
+        : null) ?? amounts.yearly;
     // Owner 2026-10-05 (plan builder).
     const [resolved, forSale] = await Promise.all([
       this.entitlements.forUser(user.sub),
@@ -964,11 +977,11 @@ export class SubscriptionsService implements OnModuleDestroy {
       isActive,
       canStart: profile?.verification_status === 'verified' && !isActive,
       trialEligible: await this.attorneyTrialEligible(user.sub),
-      priceCents: amounts.monthly,
+      priceCents: monthlyCents,
       prices: {
-        monthlyCents: amounts.monthly,
+        monthlyCents,
         seatCents: amounts.seat,
-        yearlyCents: amounts.yearly,
+        yearlyCents,
         maxSeats: await this.pricing.maxSeats(user.sub),
         trialDays: await this.pricing.defaultTrialDays(),
         monthlyDiscount: await this.pricing.discount('monthly'),

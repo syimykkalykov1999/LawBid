@@ -14,6 +14,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
+import 'package:lawbid/features/calls/application/call_foreground.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:lawbid/features/chat/application/voice_recorder.dart'
     show voiceClock;
@@ -43,10 +44,25 @@ class _CallScreenState extends ConsumerState<CallScreen>
     duration: const Duration(milliseconds: 1800),
   )..repeat();
   Timer? _tick;
+  Timer? _closeTimer;
+  CallPeer? _lastPeer;
+  late final CallScreenVisible _visible =
+      ref.read(callScreenVisibleProvider.notifier);
+
+  /// Closes this screen (the call is over).
+  void _close() {
+    if (mounted) unawaited(Navigator.of(context).maybePop());
+  }
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _visible.set(visible: true);
+      // Opened (a stale tap) with no call at all: nothing to show.
+      if (ref.read(callControllerProvider).phase == CallPhase.idle) _close();
+    });
     _tick = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() {});
     });
@@ -54,6 +70,9 @@ class _CallScreenState extends ConsumerState<CallScreen>
 
   @override
   void dispose() {
+    _closeTimer?.cancel();
+    final visible = _visible;
+    Future.microtask(() => visible.set(visible: false));
     _pulse.dispose();
     _tick?.cancel();
     super.dispose();
@@ -67,8 +86,12 @@ class _CallScreenState extends ConsumerState<CallScreen>
     final s = ref.watch(callControllerProvider);
     final c = ref.read(callControllerProvider.notifier);
     ref.listen(callControllerProvider.select((x) => x.phase), (_, phase) {
-      if (phase == CallPhase.idle && mounted) {
-        Navigator.of(context).maybePop();
+      _closeTimer?.cancel();
+      if (phase == CallPhase.idle) {
+        _close();
+      } else if (phase == CallPhase.ended) {
+        // "Call ended" stays readable for a moment, then the screen goes.
+        _closeTimer = Timer(const Duration(milliseconds: 1500), _close);
       }
     });
     // Owner 2026-10-05 (plan builder): the plan has no video calls — the
@@ -88,7 +111,9 @@ class _CallScreenState extends ConsumerState<CallScreen>
       Navigator.of(context).maybePop();
       unawaited(router.push(path));
     });
-    final peer = s.peer ?? s.call?.peer;
+    // The other member stays on screen until it closes (never a "?").
+    final peer = s.peer ?? s.call?.peer ?? _lastPeer;
+    _lastPeer = peer;
     final name = peer?.name ?? '';
     final ringing =
         s.phase == CallPhase.outgoing || s.phase == CallPhase.incoming;
@@ -101,8 +126,9 @@ class _CallScreenState extends ConsumerState<CallScreen>
       child: AnnotatedRegion<SystemUiOverlayStyle>(
         value: SystemUiOverlayStyle.light,
         child: PopScope(
-          // Back never drops a live call by accident.
-          canPop: !s.busy,
+          // Back minimises a live call (it goes on; the app shows the green
+          // "Return to call" bar) — it never drops it. A ringing call stays.
+          canPop: s.phase != CallPhase.incoming,
           child: Scaffold(
             backgroundColor: colors.navy,
             body: DecoratedBox(
@@ -131,52 +157,41 @@ class _CallScreenState extends ConsumerState<CallScreen>
                   SafeArea(
                     child: Column(
                       children: [
-                        const SizedBox(height: AppSpacing.lg),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            AppIcon(
-                              AppIcons.lockOutlineRounded,
-                              size: 14,
-                              color: colors.goldLight,
-                            ),
-                            const SizedBox(width: AppSpacing.xs),
-                            Flexible(
-                              child: Text(
-                                t.t(
-                                  s.video
-                                      ? 'call.videoLabel'
-                                      : 'call.audioOnly',
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: type.caption
-                                    .copyWith(color: colors.goldLight),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const Spacer(flex: 2),
-                        // A live video call: the picture is the background.
-                        if (!(s.video && s.phase == CallPhase.active))
-                          SizedBox(
-                            width: 220,
-                            height: 220,
-                            child: AnimatedBuilder(
-                              animation: _pulse,
-                              builder: (context, child) => CustomPaint(
-                                painter: _RingsPainter(
-                                  progress: _pulse.value,
-                                  on: ringing && !context.reduceMotion,
-                                  color: colors.gold,
-                                ),
-                                child: child,
-                              ),
-                              child:
-                                  Center(child: _Avatar(peer: peer, size: 132)),
-                            ),
+                        // Owner 2026-10-20 (like WhatsApp): minimise on the
+                        // left, add a person on the right.
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.md,
+                            vertical: AppSpacing.sm,
                           ),
-                        const SizedBox(height: AppSpacing.xl),
+                          child: Row(
+                            children: [
+                              if (s.phase != CallPhase.incoming)
+                                _TopButton(
+                                  icon: AppIcons.expandMoreRounded,
+                                  label: t.t('call.minimize'),
+                                  onTap: () => unawaited(
+                                    Navigator.of(context).maybePop(),
+                                  ),
+                                )
+                              else
+                                const SizedBox(width: 44, height: 44),
+                              const Spacer(),
+                              _TopButton(
+                                icon: AppIcons.personAddAlt1Rounded,
+                                label: t.t('call.addParticipant'),
+                                dimmed: true,
+                                onTap: () =>
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content:
+                                        Text(t.t('call.addParticipantSoon')),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                         Padding(
                           padding: const EdgeInsets.symmetric(
                             horizontal: AppSpacing.screenSide,
@@ -211,7 +226,52 @@ class _CallScreenState extends ConsumerState<CallScreen>
                             ),
                           ),
                         ),
-                        const Spacer(flex: 3),
+                        const SizedBox(height: AppSpacing.xs),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            AppIcon(
+                              AppIcons.lockOutlineRounded,
+                              size: 14,
+                              color: colors.goldLight,
+                            ),
+                            const SizedBox(width: AppSpacing.xs),
+                            Flexible(
+                              child: Text(
+                                t.t(
+                                  s.video
+                                      ? 'call.videoLabel'
+                                      : 'call.audioOnly',
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: type.caption
+                                    .copyWith(color: colors.goldLight),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const Spacer(),
+                        // A live video call: the picture is the background.
+                        if (!(s.video && s.phase == CallPhase.active))
+                          SizedBox(
+                            width: 220,
+                            height: 220,
+                            child: AnimatedBuilder(
+                              animation: _pulse,
+                              builder: (context, child) => CustomPaint(
+                                painter: _RingsPainter(
+                                  progress: _pulse.value,
+                                  on: ringing && !context.reduceMotion,
+                                  color: colors.gold,
+                                ),
+                                child: child,
+                              ),
+                              child:
+                                  Center(child: _Avatar(peer: peer, size: 132)),
+                            ),
+                          ),
+                        const Spacer(),
                         Padding(
                           padding: const EdgeInsets.fromLTRB(
                             AppSpacing.xl,
@@ -336,6 +396,48 @@ class _CallScreenState extends ConsumerState<CallScreen>
   }
 }
 
+/// A small round button in the call screen's top corners.
+class _TopButton extends StatelessWidget {
+  const _TopButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.dimmed = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool dimmed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: label,
+      child: Material(
+        color: Colors.white.withValues(alpha: 0.14),
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onTap,
+          child: SizedBox(
+            width: 44,
+            height: 44,
+            child: Center(
+              child: AppIcon(
+                icon,
+                size: 24,
+                color: Colors.white.withValues(alpha: dimmed ? 0.55 : 1),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// Owner 2026-10-05: one WebRTC picture (ours mirrored, like a mirror).
 class CallVideoView extends StatefulWidget {
   const CallVideoView({required this.stream, this.mirror = false, super.key});
@@ -406,10 +508,13 @@ String callStatusText(Translator t, CallSession s) {
     case CallPhase.connecting:
       return t.t('call.status.connecting');
     case CallPhase.active:
+      if (s.reconnecting) return t.t('call.status.reconnecting');
       final at = s.connectedAt;
       return at == null ? '' : voiceClock(DateTime.now().difference(at));
     case CallPhase.ended:
       switch (s.errorCode) {
+        case kMicDenied:
+          return t.t('call.micDenied');
         case 'CALL_NOT_ALLOWED':
           return t.t('call.notAllowed');
         case 'SUBSCRIPTION_REQUIRED':

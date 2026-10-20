@@ -175,6 +175,21 @@ export class BootstrapService {
     return { ...flags, [VIDEO_CALLS_FLAG]: a.available };
   }
 
+  /** Owner 2026-10-20: the app and the admin panel send their errors to
+   * Sentry with the DSNs saved in Admin → Integrations → Sentry. A DSN is
+   * a send-only address, safe to publish; absent keys mean "off". */
+  private async sentryDsns(): Promise<Record<string, string>> {
+    try {
+      const f = (await this.secrets?.get('sentry'))?.fields ?? {};
+      return {
+        ...(f.mobileDsn ? { 'sentry.mobile_dsn': f.mobileDsn } : {}),
+        ...(f.adminDsn ? { 'sentry.admin_dsn': f.adminDsn } : {}),
+      };
+    } catch {
+      return {};
+    }
+  }
+
   async build(): Promise<BootstrapResponse> {
     const [flags, appConfig, content] = await Promise.all([
       this.flags.getFlags(),
@@ -205,6 +220,7 @@ export class BootstrapService {
         // Owner 2026-10-07 (bug 17): the app shows and checks the admin's
         // upload limits (always present, inside the safe ceilings).
         [UPLOAD_LIMITS_KEY]: sanitizeUploadLimits(appConfig[UPLOAD_LIMITS_KEY]),
+        ...(await this.sentryDsns()),
       },
       languages: content.languages,
       translations_version: translationsVersion,
