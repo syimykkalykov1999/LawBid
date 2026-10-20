@@ -94,7 +94,7 @@ export class ChatController {
   })
   @ApiEnvelopeResponse(ConversationDto)
   @ApiErrors({
-    403: [ErrorCode.USER_BLOCKED],
+    403: [ErrorCode.USER_BLOCKED, ErrorCode.PRIVACY_RESTRICTED],
     404: [ErrorCode.NOT_FOUND],
     409: [ErrorCode.DIRECT_CHAT_NOT_ALLOWED],
   })

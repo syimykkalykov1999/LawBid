@@ -36,6 +36,7 @@ import { withTxRetry } from '../../prisma/tx-retry.util';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { BlocksService } from '../blocks/blocks.service';
 import { caseWorkOngoing } from '../blocks/block-guard';
+import { PrivacySettingsService } from '../privacy-settings/privacy-settings.service';
 import { PresenceService } from '../presence/presence.service';
 import { maskContactInfo } from '../cases/domain/contact-detector';
 import { isImageMime } from '../files/files.policy';
@@ -135,6 +136,8 @@ export class ChatService {
     @Optional() private readonly fraud?: ClientFraudService,
     // Owner 2026-10-15: the chat message limit is the admin's.
     @Optional() private readonly textLimits?: TextLimitsService,
+    // Owner 2026-10-20: "who can write to me first" (Settings → Privacy).
+    @Optional() private readonly privacy?: PrivacySettingsService,
   ) {}
 
   /**
@@ -891,6 +894,8 @@ export class ChatService {
       where: { ...pair, case_id: null },
     });
     if (existing) return this.get(user, existing.id);
+    // Owner 2026-10-20: a first message needs the person's permission.
+    await this.privacy?.assertAllowed(user.sub, other.id, 'message');
     const followsMe = await this.prisma.follow.findUnique({
       where: {
         follower_id_followee_id: {

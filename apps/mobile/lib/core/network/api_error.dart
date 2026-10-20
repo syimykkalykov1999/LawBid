@@ -145,6 +145,12 @@ abstract final class ApiErrorCodes {
   static const featureDisabled = 'FEATURE_DISABLED';
   static const searchQueryTooShort = 'SEARCH_QUERY_TOO_SHORT';
   static const userBlocked = 'USER_BLOCKED';
+
+  /// Owner 2026-10-20: the person's privacy settings keep this user out.
+  static const privacyRestricted = 'PRIVACY_RESTRICTED';
+
+  /// Owner 2026-10-20: the moderation decision cannot be appealed (again).
+  static const appealNotAllowed = 'APPEAL_NOT_ALLOWED';
   // OQ-041 in-app calls.
   static const callNotFound = 'CALL_NOT_FOUND';
   static const callNotAllowed = 'CALL_NOT_ALLOWED';
@@ -374,6 +380,8 @@ abstract final class ApiErrorCodes {
     featureDisabled,
     searchQueryTooShort,
     userBlocked,
+    privacyRestricted,
+    appealNotAllowed,
     callNotFound,
     callNotAllowed,
     callInProgress,
