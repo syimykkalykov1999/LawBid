@@ -589,7 +589,8 @@ class _AddSheetState extends ConsumerState<_AddSheet> {
   }
 
   Future<void> _add() async {
-    final name = _field.text.trim();
+    // The "@" is already in the field; one typed or pasted is fine too.
+    final name = _field.text.trim().replaceFirst(RegExp('^@+'), '');
     if (name.isEmpty || _busy) return;
     setState(() {
       _busy = true;
@@ -673,6 +674,10 @@ class _AddSheetState extends ConsumerState<_AddSheet> {
               AppTextField(
                 controller: _field,
                 autofocus: true,
+                leading: Text(
+                  '@',
+                  style: type.body.copyWith(color: colors.textSecondary),
+                ),
                 hintText: t.t('search.hint.username'),
                 errorText: _error,
                 textInputAction: TextInputAction.done,
