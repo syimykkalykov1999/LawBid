@@ -8,8 +8,8 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/buttons/player_round_button.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/design_system/widgets/display/pinch_to_zoom.dart';
+import 'package:lawbid/core/media/audio_takeover.dart';
 import 'package:lawbid/core/media/playback_visibility.dart';
-import 'package:lawbid/features/chat/application/voice_player.dart';
 import 'package:lawbid/features/reels/application/reels_providers.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
@@ -253,11 +253,9 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
 
   void _pauseVoiceNote() {
     try {
-      unawaited(
-        ProviderScope.containerOf(context, listen: false)
-            .read(voicePlayerProvider.notifier)
-            .pauseForOtherAudio(),
-      );
+      ProviderScope.containerOf(context, listen: false)
+          .read(audioTakeoverProvider.notifier)
+          .take();
     } on Object {
       // No provider scope (a bare widget test): nothing is playing.
     }
