@@ -213,6 +213,7 @@ class ApiTeamRepository implements TeamRepository {
         caseId: t.caseId,
         caseTitle: t.caseTitle,
         casePracticeCode: t.casePracticeCode,
+        consultationId: t.consultationId,
         contactName: t.contactName,
         contactPhone: t.contactPhone,
         contactEmail: t.contactEmail,

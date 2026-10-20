@@ -454,6 +454,16 @@ enum MessageType {
 }
 
 enum NotificationType {
+  /// Owner 2026-10-20: a booked consultation (payload.kind: requested,
+  /// confirmed, declined, cancelled, rescheduled, reminder_day, reminder_hour).
+  consultation_update
+  /// Owner 2026-10-20: «Вопрос юристу» — a new question in an attorney's
+  /// practice area and state (opt-in «Новые кейсы»).
+  legal_question_new
+  /// Owner 2026-10-20: «Вопрос юристу» — an answer to my question, my
+  /// answer was marked best or liked (payload.kind: answered,
+  /// best_answer, answer_liked).
+  legal_answer_update
   bid_received
   offer_countered
   offer_accepted
@@ -619,6 +629,9 @@ enum ReportTargetType {
   client_review
   // Owner 2026-10-02: user sticker packs can be reported.
   sticker_pack
+  // Owner 2026-10-20: «Вопрос юристу» — a question and an answer.
+  legal_question
+  legal_answer
 
   @@map("report_target_type")
 }
@@ -846,6 +859,14 @@ model User {
   data_access_entries         DataAccessLog[]                @relation("DataAccessAdmin")
   case_comments               CaseComment[]                  @relation("CaseCommentAuthor")
   case_comment_likes          CaseCommentLike[]              @relation("CaseCommentLiker")
+  consultation_settings       ConsultationSettings?          @relation("ConsultationSettings")
+  consultation_windows        ConsultationWindow[]           @relation("ConsultationWindows")
+  consultation_time_off       ConsultationTimeOff[]          @relation("ConsultationTimeOff")
+  consultations_as_attorney   Consultation[]                 @relation("ConsultationAttorney")
+  consultations_as_client     Consultation[]                 @relation("ConsultationClient")
+  legal_questions             LegalQuestion[]                @relation("LegalQuestionAuthor")
+  legal_answers               LegalAnswer[]                  @relation("LegalAnswerAuthor")
+  legal_answer_likes          LegalAnswerLike[]              @relation("LegalAnswerLiker")
   post_shares                 PostShare[]                    @relation("PostSharer")
   post_views                  PostView[]                     @relation("PostViewer")
   post_view_events            PostViewEvent[]                @relation("PostEventViewer")
@@ -1285,6 +1306,7 @@ model State {
   primary_for_cases CaseState[]
   cases_primary     Case[]            @relation("CasePrimaryState")
   bar_registry      StateBarRegistry?
+  legal_questions   LegalQuestion[]
 
   @@index([country_code])
   @@map("states")
@@ -1331,6 +1353,7 @@ model PracticeArea {
   form_templates        FormTemplate[]
   case_extra_practices  CaseExtraPractice[]
   search_synonym_groups SearchSynonymGroup[]
+  legal_questions       LegalQuestion[]
 
   @@index([parent_id])
   @@map("practice_areas")
@@ -3558,6 +3581,9 @@ model AttorneyTask {
   /// Owner 2026-10-13: the case task this entry mirrors (a due date or a
   /// reminder set from the case); it is not a Private task of the case.
   case_task_id             String?              @db.Uuid
+  /// Owner 2026-10-20: the booked consultation this entry mirrors (bare
+  /// uuid; the consultation owns the time, the planner shows it).
+  consultation_id          String?              @db.Uuid
   file_ids                 String[]             @default([]) @db.Uuid
   status                   AttorneyTaskStatus   @default(open)
   priority                 AttorneyTaskPriority @default(normal)
@@ -3585,6 +3611,7 @@ model AttorneyTask {
   people                   AttorneyTaskPerson[]
 
   @@index([attorney_id, status, due_at])
+  @@index([consultation_id], map: "attorney_tasks_consultation_idx")
   @@index([remind_at], map: "attorney_tasks_remind_idx")
   @@index([archived_at], map: "attorney_tasks_archived_idx")
   @@index([file_ids], map: "attorney_tasks_file_ids_idx", type: Gin)
@@ -5867,4 +5894,245 @@ model CaseConflictCheck {
   @@index([attorney_id, created_at])
   @@index([case_id, attorney_id])
   @@map("case_conflict_checks")
+}
+
+// ---------------------------------------------------------------------------
+// Owner 2026-10-20: booking a consultation, «Вопрос юристу», deadline
+// calculator. Free, our own code only.
+// ---------------------------------------------------------------------------
+
+enum ConsultationStatus {
+  pending
+  confirmed
+  declined
+  cancelled
+
+  @@map("consultation_status")
+}
+
+/// The attorney's booking rules (the time zone lives in users.timezone).
+model ConsultationSettings {
+  attorney_id      String   @id @db.Uuid
+  attorney         User     @relation("ConsultationSettings", fields: [attorney_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  /// Off = no booking button on the profile.
+  enabled          Boolean  @default(false)
+  slot_minutes     Int      @default(30) @db.SmallInt
+  /// A break after each consultation.
+  buffer_minutes   Int      @default(0) @db.SmallInt
+  /// The nearest bookable moment is this many hours from now.
+  min_notice_hours Int      @default(12) @db.SmallInt
+  /// How far ahead clients may book.
+  horizon_days     Int      @default(30) @db.SmallInt
+  /// true = a booking is confirmed at once, false = the attorney confirms.
+  auto_confirm     Boolean  @default(false)
+  created_at       DateTime @default(now()) @db.Timestamptz
+  updated_at       DateTime @updatedAt @db.Timestamptz
+
+  @@map("consultation_settings")
+}
+
+/// A weekly window of free time (ISO weekday 1 = Monday … 7 = Sunday,
+/// minutes from midnight in the attorney's time zone). Two windows in a
+/// day leave a lunch break between them.
+model ConsultationWindow {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  attorney_id  String   @db.Uuid
+  attorney     User     @relation("ConsultationWindows", fields: [attorney_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  weekday      Int      @db.SmallInt
+  start_minute Int      @db.SmallInt
+  end_minute   Int      @db.SmallInt
+  created_at   DateTime @default(now()) @db.Timestamptz
+
+  @@index([attorney_id, weekday])
+  @@map("consultation_windows")
+}
+
+/// Days off (vacation, a hearing week): no slots from starts_on to ends_on.
+model ConsultationTimeOff {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  attorney_id String   @db.Uuid
+  attorney    User     @relation("ConsultationTimeOff", fields: [attorney_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  starts_on   DateTime @db.Date
+  ends_on     DateTime @db.Date
+  note        String?  @db.VarChar(120)
+  created_at  DateTime @default(now()) @db.Timestamptz
+
+  @@index([attorney_id, starts_on])
+  @@map("consultation_time_off")
+}
+
+model Consultation {
+  id               String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  attorney_id      String             @db.Uuid
+  attorney         User               @relation("ConsultationAttorney", fields: [attorney_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  client_id        String             @db.Uuid
+  client           User               @relation("ConsultationClient", fields: [client_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  starts_at        DateTime           @db.Timestamptz
+  ends_at          DateTime           @db.Timestamptz
+  status           ConsultationStatus @default(pending)
+  /// What the client wants to discuss (≤500).
+  note             String?            @db.VarChar(500)
+  /// The client's case this is about (bare uuid, checked on booking).
+  case_id          String?            @db.Uuid
+  /// The chat where the booking line sits (bare uuid: chats are never deleted).
+  conversation_id  String?            @db.Uuid
+  confirmed_at     DateTime?          @db.Timestamptz
+  cancelled_by_id  String?            @db.Uuid
+  cancel_reason    String?            @db.VarChar(300)
+  /// Who moved it last (attorney or client) and when; the other side is told.
+  rescheduled_at   DateTime?          @db.Timestamptz
+  reminded_day_at  DateTime?          @db.Timestamptz
+  reminded_hour_at DateTime?          @db.Timestamptz
+  created_at       DateTime           @default(now()) @db.Timestamptz
+  updated_at       DateTime           @updatedAt @db.Timestamptz
+
+  @@index([attorney_id, starts_at])
+  @@index([client_id, starts_at])
+  @@index([status, starts_at])
+  @@map("consultations")
+}
+
+/// «Вопрос юристу»: a client's public question; answers only from
+/// verified attorneys.
+model LegalQuestion {
+  id               String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  author_id        String        @db.Uuid
+  author           User          @relation("LegalQuestionAuthor", fields: [author_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  practice_area_id String?       @db.Uuid
+  practice_area    PracticeArea? @relation(fields: [practice_area_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  state_code       String?       @db.Char(2)
+  state            State?        @relation(fields: [state_code], references: [code], onDelete: Restrict, onUpdate: NoAction)
+  title            String        @db.VarChar(160)
+  body             String        @db.VarChar(3000)
+  /// true = others see "Anonymous"; the author always sees their own.
+  is_anonymous     Boolean       @default(false)
+  status           ContentStatus @default(published)
+  answer_count     Int           @default(0)
+  /// The answer the author marked as the best (bare uuid).
+  best_answer_id   String?       @db.Uuid
+  deleted_at       DateTime?     @db.Timestamptz
+  created_at       DateTime      @default(now()) @db.Timestamptz
+  updated_at       DateTime      @updatedAt @db.Timestamptz
+
+  answers LegalAnswer[]
+
+  @@index([status, created_at(sort: Desc)])
+  @@index([practice_area_id, created_at(sort: Desc)])
+  @@index([state_code, created_at(sort: Desc)])
+  @@index([author_id, created_at(sort: Desc)])
+  @@map("legal_questions")
+}
+
+model LegalAnswer {
+  id          String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  question_id String        @db.Uuid
+  question    LegalQuestion @relation(fields: [question_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  attorney_id String        @db.Uuid
+  attorney    User          @relation("LegalAnswerAuthor", fields: [attorney_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  body        String        @db.VarChar(4000)
+  status      ContentStatus @default(published)
+  like_count  Int           @default(0)
+  is_best     Boolean       @default(false)
+  deleted_at  DateTime?     @db.Timestamptz
+  created_at  DateTime      @default(now()) @db.Timestamptz
+  updated_at  DateTime      @updatedAt @db.Timestamptz
+
+  likes LegalAnswerLike[]
+
+  /// One answer per attorney and question (edited, not repeated).
+  @@unique([question_id, attorney_id])
+  @@index([attorney_id, created_at(sort: Desc)])
+  @@map("legal_answers")
+}
+
+model LegalAnswerLike {
+  answer_id  String      @db.Uuid
+  answer     LegalAnswer @relation(fields: [answer_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user_id    String      @db.Uuid
+  user       User        @relation("LegalAnswerLiker", fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  created_at DateTime    @default(now()) @db.Timestamptz
+
+  @@id([answer_id, user_id])
+  @@map("legal_answer_likes")
+}
+
+enum DeadlineKind {
+  court_deadline
+  statute_of_limitations
+
+  @@map("deadline_kind")
+}
+
+enum DeadlineUnit {
+  day
+  month
+  year
+
+  @@map("deadline_unit")
+}
+
+/// Calendar days count every day; business days skip weekends and the
+/// jurisdiction's court holidays.
+enum DeadlineDayType {
+  calendar
+  business
+
+  @@map("deadline_day_type")
+}
+
+/// after = the period runs from the event forward; before = the act is due
+/// that long before the event (a motion 14 days before the hearing).
+enum DeadlineDirection {
+  after
+  before
+
+  @@map("deadline_direction")
+}
+
+/// A period of time a court or a statute sets. jurisdiction 'US' = federal
+/// courts; a state code = that state's courts. Edited in the admin.
+model DeadlineRule {
+  id            String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  jurisdiction  String            @db.VarChar(2)
+  kind          DeadlineKind
+  /// Stable slug (frcp_12a_answer).
+  code          String            @unique
+  /// {"en": "...", "ru": "..."}; the app takes its language, then English.
+  labels        Json
+  amount        Int
+  unit          DeadlineUnit      @default(day)
+  day_type      DeadlineDayType   @default(calendar)
+  direction     DeadlineDirection @default(after)
+  /// A statute of limitations: the practice category code it is for
+  /// (personal_injury), null for a court deadline.
+  practice_code String?           @db.VarChar(80)
+  /// The rule or statute it comes from (FRCP 12(a)(1)(A)(i)).
+  citation      String?           @db.VarChar(160)
+  /// An explanation shown under the result: {"en": "...", "ru": "..."}.
+  notes         Json?
+  source_url    String?           @db.VarChar(300)
+  /// A staff member checked the rule against the source.
+  verified      Boolean           @default(false)
+  is_active     Boolean           @default(true)
+  sort          Int               @default(0)
+  created_at    DateTime          @default(now()) @db.Timestamptz
+  updated_at    DateTime          @updatedAt @db.Timestamptz
+
+  @@index([jurisdiction, kind, is_active])
+  @@map("deadline_rules")
+}
+
+/// A day the courts of a jurisdiction are closed (counted like a weekend).
+model CourtHoliday {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  jurisdiction String   @db.VarChar(2)
+  date         DateTime @db.Date
+  /// {"en": "Independence Day", "ru": "День независимости"}.
+  names        Json
+  created_at   DateTime @default(now()) @db.Timestamptz
+  updated_at   DateTime @updatedAt @db.Timestamptz
+
+  @@unique([jurisdiction, date])
+  @@index([date])
+  @@map("court_holidays")
 }

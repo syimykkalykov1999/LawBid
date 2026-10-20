@@ -83,6 +83,29 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     description: 'Video calls in chats (WebRTC, needs a TURN relay)',
   },
   {
+    // Owner 2026-10-20: attorneys publish free slots, clients book a
+    // consultation from the profile.
+    key: 'consultations',
+    enabled: true,
+    app: true,
+    description: 'Booking a consultation: slots, requests, reminders',
+  },
+  {
+    // Owner 2026-10-20: «Вопрос юристу» — public questions, answers only
+    // from verified attorneys.
+    key: 'legal_qa',
+    enabled: true,
+    app: true,
+    description: 'Ask a lawyer: public questions and attorneys answers',
+  },
+  {
+    // Owner 2026-10-20: court deadlines and statutes of limitations.
+    key: 'deadline_calculator',
+    enabled: true,
+    app: true,
+    description: 'Deadline calculator (admin: Сроки)',
+  },
+  {
     key: 'document_templates',
     enabled: true,
     app: true,

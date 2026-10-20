@@ -141,6 +141,7 @@ void main() {
             'counters': {'posts': 0, 'followers': 0, 'following': 0},
             'isSelf': false,
             'isFollowing': false,
+            'consultationEnabled': false,
             'isBlocked': false,
             'hasBlockedMe': false,
           };

@@ -33,6 +33,7 @@ import 'package:lawbid/features/cases/presentation/widgets/private_details_card.
 import 'package:lawbid/features/cases/presentation/widgets/review_nudge_sheet.dart';
 import 'package:lawbid/features/cases/workspace/workspace_view.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
+import 'package:lawbid/features/deadlines/presentation/deadline_entry.dart';
 import 'package:lawbid/features/profile/presentation/widgets/profile_tab_pages.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/team/presentation/case_tasks_section.dart';
@@ -764,9 +765,16 @@ class _OwnerOpenCaseState extends ConsumerState<_OwnerOpenCase> {
                   padding: const EdgeInsets.only(top: AppSpacing.md),
                   child: OwnerCaseDossier(kase: c),
                 ),
-              if (which == 'tasks')
+              if (which == 'tasks') ...[
+                // Owner 2026-10-20: the deadline calculator, prefilled.
+                CaseDeadlinesRow(
+                  caseId: c.id,
+                  stateCode: c.primaryStateCode,
+                  practiceCategory: c.practice.artCode,
+                ),
                 if (c.status != CaseStatus.archived)
                   CaseTasksSection(caseId: c.id, caseTitle: c.title),
+              ],
             ],
           ),
         );

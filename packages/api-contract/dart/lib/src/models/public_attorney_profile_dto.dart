@@ -34,6 +34,7 @@ class PublicAttorneyProfileDto {
     required this.counters,
     required this.isSelf,
     required this.isFollowing,
+    required this.consultationEnabled,
     required this.isBlocked,
     required this.hasBlockedMe,
   });
@@ -77,6 +78,9 @@ class PublicAttorneyProfileDto {
 
   /// The viewer follows this attorney (docs/05 §6.2).
   final bool isFollowing;
+
+  /// Owner 2026-10-20: the attorney takes consultation bookings now.
+  final bool consultationEnabled;
 
   /// OQ-028: the viewer blocked this user.
   final bool isBlocked;

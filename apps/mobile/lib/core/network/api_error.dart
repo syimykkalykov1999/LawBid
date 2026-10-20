@@ -81,6 +81,9 @@ abstract final class ApiErrorCodes {
   static const reviewNoAcceptedBid = 'REVIEW_NO_ACCEPTED_BID';
   static const reviewAlreadyExists = 'REVIEW_ALREADY_EXISTS';
   static const reviewAppealExists = 'REVIEW_APPEAL_EXISTS';
+  static const consultationSlotTaken = 'CONSULTATION_SLOT_TAKEN';
+  static const consultationNotAvailable = 'CONSULTATION_NOT_AVAILABLE';
+  static const consultationStateConflict = 'CONSULTATION_STATE_CONFLICT';
   static const chatAttachmentsLocked = 'CHAT_ATTACHMENTS_LOCKED';
   // OQ-048 plans and assistants.
   static const subscriptionPlanIncludesSeats =
@@ -333,6 +336,9 @@ abstract final class ApiErrorCodes {
     reviewNoAcceptedBid,
     reviewAlreadyExists,
     reviewAppealExists,
+    consultationSlotTaken,
+    consultationNotAvailable,
+    consultationStateConflict,
     chatAttachmentsLocked,
     subscriptionPlanIncludesSeats,
     assistantSeatsInUse,

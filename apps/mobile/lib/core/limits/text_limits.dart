@@ -18,8 +18,13 @@ enum TextLimit {
   review('limits.review_chars', 1000),
   dispute('limits.dispute_chars', 1000),
   workspaceNote('limits.workspace_note_chars', 1000),
+  consultationNote('limits.consultation_note_chars', 300),
   workspaceUpdate('limits.workspace_update_chars', 5000),
   supportMessage('limits.support_message_chars', 5000),
+  // Owner 2026-10-20: «Вопрос юристу».
+  questionTitle('limits.question_title_chars', 160),
+  questionBody('limits.question_body_chars', 3000),
+  answer('limits.answer_chars', 4000),
   bio('limits.bio_chars', 150),
   name('limits.name_chars', 30);
 

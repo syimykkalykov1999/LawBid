@@ -7,6 +7,7 @@ import {
 import type Redis from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
 import { PrismaService } from '../../prisma/prisma.service';
+import { withDeleted } from '../../prisma/soft-delete.extension';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { PAYMENT_PROVIDER } from '../billing/billing.constants';
@@ -243,6 +244,58 @@ export class AccountAnonymizationService {
           anonymized_at: now,
         },
       });
+      // Owner 2026-10-20: bookings, hours, public questions and answers.
+      await tx.consultationSettings.deleteMany({
+        where: { attorney_id: userId },
+      });
+      const mine = await tx.consultation.findMany({
+        where: {
+          status: { in: ['pending', 'confirmed'] },
+          OR: [{ attorney_id: userId }, { client_id: userId }],
+        },
+        select: { id: true },
+      });
+      if (mine.length > 0) {
+        const ids = mine.map((c) => c.id);
+        await tx.consultation.updateMany({
+          where: { id: { in: ids } },
+          data: {
+            status: 'cancelled',
+            cancelled_by_id: userId,
+            cancel_reason: 'account_deleted',
+          },
+        });
+        await tx.attorneyTask.updateMany({
+          where: { consultation_id: { in: ids } },
+          data: { status: 'cancelled', archived_at: now },
+        });
+      }
+      await tx.legalQuestion.updateMany({
+        where: { author_id: userId, deleted_at: null },
+        data: { status: 'removed', deleted_at: now },
+      });
+      const answers = await tx.legalAnswer.findMany({
+        where: { attorney_id: userId, deleted_at: null },
+        select: { id: true, question_id: true, status: true },
+      });
+      for (const a of answers) {
+        await tx.legalAnswer.update({
+          where: { id: a.id },
+          data: { status: 'removed', deleted_at: now, is_best: false },
+        });
+        await tx.legalQuestion.updateMany({
+          where: withDeleted({ id: a.question_id }),
+          data: {
+            ...(a.status === 'published'
+              ? { answer_count: { decrement: 1 } }
+              : {}),
+          },
+        });
+        await tx.legalQuestion.updateMany({
+          where: withDeleted({ id: a.question_id, best_answer_id: a.id }),
+          data: { best_answer_id: null },
+        });
+      }
       await tx.userIdentifier.deleteMany({ where: { user_id: userId } });
       await tx.pushToken.deleteMany({ where: { user_id: userId } });
       // Owner 2026-10-13: address-book matches, both directions.

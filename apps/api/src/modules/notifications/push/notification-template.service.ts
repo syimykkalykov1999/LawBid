@@ -55,6 +55,12 @@ export class NotificationTemplateService {
     if (type === 'case_workspace_activity' && typeof kind === 'string') {
       return this.workspaceText(base, kind, lang);
     }
+    if (
+      (type === 'consultation_update' || type === 'legal_answer_update') &&
+      typeof kind === 'string'
+    ) {
+      return this.kindText(base, type, kind, lang);
+    }
     if (type !== 'verification_update' || typeof kind !== 'string') {
       return base;
     }
@@ -104,6 +110,20 @@ export class NotificationTemplateService {
     const when = taskReminderWhen(payload, lang, timeZone, missed);
     const body = [label, when].filter((x): x is string => !!x).join(' · ');
     return { title, body: body || base.body };
+  }
+
+  /** Owner 2026-10-20: booking / Q&A pushes say what happened
+   * (`notif.consult.<kind>`, `notif.qa.<kind>`). */
+  private async kindText(
+    base: TemplateText,
+    type: NotificationType,
+    kind: string,
+    lang: string,
+  ): Promise<TemplateText> {
+    if (!/^[a-z_]{1,40}$/.test(kind)) return base;
+    const scope = type === 'consultation_update' ? 'consult' : 'qa';
+    const body = await this.lookup(lang, `notif.${scope}.${kind}`);
+    return body ? { title: base.title, body } : base;
   }
 
   /** Audit 2026-10-19: «Новое в кейсе» + what was added. */

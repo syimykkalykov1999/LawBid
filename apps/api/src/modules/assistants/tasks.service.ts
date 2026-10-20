@@ -685,6 +685,12 @@ export class TasksService {
     status: AttorneyTaskStatus,
     opts: { note?: string; rescheduleTo?: Date | null } = {},
   ): Promise<void> {
+    if (t.consultation_id && opts.rescheduleTo) {
+      throw new ConflictException({
+        code: ErrorCode.CONSULTATION_STATE_CONFLICT,
+        message: 'Move the consultation itself, not its planner entry.',
+      });
+    }
     const reschedule =
       status === 'not_done' && opts.rescheduleTo ? opts.rescheduleTo : null;
     // A moved task stays open at its new time.
@@ -913,6 +919,13 @@ export class TasksService {
     this.assertMayPlan(user);
     const t = await this.own(user, id);
     if (t.status === 'cancelled') throw this.closed();
+    // Owner 2026-10-20: a booked consultation owns its time and title.
+    if (t.consultation_id && (dto.dueAt || dto.clearDueAt || dto.title)) {
+      throw new ConflictException({
+        code: ErrorCode.CONSULTATION_STATE_CONFLICT,
+        message: 'Move the consultation itself, not its planner entry.',
+      });
+    }
     if (dto.caseId && !dto.clearCaseId) {
       await this.assertCaseLink(user.sub, dto.caseId);
     }
@@ -1268,6 +1281,7 @@ export class TasksService {
         kind: t.kind,
         title: t.title,
         notes: t.notes,
+        consultationId: t.consultation_id,
         dueAt: t.due_at?.toISOString() ?? null,
         // Older apps read one place / one contact: the first ones.
         location: t.places[0]?.address ?? null,

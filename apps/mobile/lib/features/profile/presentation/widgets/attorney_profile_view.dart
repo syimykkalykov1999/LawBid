@@ -19,6 +19,8 @@ import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
     show showConfirmSheet;
 import 'package:lawbid/features/cases/presentation/widgets/offer_case_sheet.dart';
 import 'package:lawbid/features/chat/presentation/open_direct_chat.dart';
+import 'package:lawbid/features/consultations/application/consultations_providers.dart';
+import 'package:lawbid/features/consultations/presentation/booking_sheet.dart';
 import 'package:lawbid/features/feed/application/news_flag.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
@@ -370,6 +372,29 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
                     : p.fullName,
                 licensedStateCodes: {for (final s in p.licensedStates) s.code},
                 practiceIds: {for (final x in p.practices) x.id},
+              ),
+            ),
+          ],
+          // Owner 2026-10-20: book a consultation (flag `consultations`,
+          // the attorney switched booking on).
+          if (!p.isSelf &&
+              !(p.isBlocked || p.hasBlockedMe) &&
+              p.consultationEnabled &&
+              ref.watch(consultationsFlagProvider) &&
+              ref.watch(currentUserRoleProvider) == UserRole.client) ...[
+            const SizedBox(height: AppSpacing.sm),
+            AppButton(
+              key: const ValueKey('profile-book-consultation'),
+              label: t.t('consult.book'),
+              icon: AppIcons.eventAvailableRounded,
+              variant: AppButtonVariant.secondary,
+              height: 40,
+              onPressed: () => showConsultationBooking(
+                context,
+                attorneyId: p.id,
+                attorneyName: p.fullName.trim().isEmpty
+                    ? atHandle(p.username)
+                    : p.fullName,
               ),
             ),
           ],

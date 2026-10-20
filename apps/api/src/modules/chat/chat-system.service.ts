@@ -23,7 +23,9 @@ export type ChatSystemKey =
   | 'invoice_issued'
   | 'sign_requested'
   | 'sign_completed'
-  | 'sign_declined';
+  | 'sign_declined'
+  // Consultation booking card (body `consult:<consultationId>`).
+  | 'consult';
 
 /** A conversation changed inside a transaction; published after commit. */
 export interface ChatChange {

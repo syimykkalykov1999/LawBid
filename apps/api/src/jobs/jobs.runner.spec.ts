@@ -231,8 +231,9 @@ describe('JobsRunner', () => {
     // Owner 2026-10-15: + nightly search.learn and search.tag-topics (5 min).
     // Owner 2026-10-16: + economy.guard (every 5 minutes).
     // Owner 2026-10-16: + billing.verification-loss (every 10 minutes).
-    expect(upserts).toHaveLength(53);
-    // Owner 2026-10-20: + stars.sweep (every 3 minutes).
+    // Owner 2026-10-20: + stars.sweep (every 3 minutes) and the
+    // consultations sweep (every minute).
+    expect(upserts).toHaveLength(54);
     const byName = Object.fromEntries(
       upserts.map((c: unknown[]) => [c[0], c[1]]),
     );

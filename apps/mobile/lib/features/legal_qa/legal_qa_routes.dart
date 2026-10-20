@@ -1,0 +1,40 @@
+import 'package:flutter/widgets.dart';
+import 'package:go_router/go_router.dart';
+import 'package:lawbid/core/navigation/app_page_transitions.dart';
+import 'package:lawbid/features/legal_qa/presentation/ask_question_screen.dart';
+import 'package:lawbid/features/legal_qa/presentation/qa_feed_screen.dart';
+import 'package:lawbid/features/legal_qa/presentation/question_detail_screen.dart';
+
+/// Owner 2026-10-20: «Вопрос юристу» — the public questions.
+abstract final class LegalQaRoutes {
+  static const feed = '/questions';
+  static const ask = '/questions/ask';
+  static String question(String id) => '/questions/${Uri.encodeComponent(id)}';
+}
+
+List<RouteBase> legalQaRoutes(GlobalKey<NavigatorState> root) => [
+      GoRoute(
+        path: LegalQaRoutes.feed,
+        parentNavigatorKey: root,
+        pageBuilder: (context, state) =>
+            AppPageTransitions.push(state, const QaFeedScreen()),
+      ),
+      GoRoute(
+        path: LegalQaRoutes.ask,
+        parentNavigatorKey: root,
+        pageBuilder: (context, state) => AppPageTransitions.push(
+          state,
+          AskQuestionScreen(
+            initialState: state.uri.queryParameters['state'],
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '${LegalQaRoutes.feed}/:id',
+        parentNavigatorKey: root,
+        pageBuilder: (context, state) => AppPageTransitions.push(
+          state,
+          QuestionDetailScreen(id: state.pathParameters['id']!),
+        ),
+      ),
+    ];

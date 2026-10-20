@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-199 tables.
+208 tables.
 
 ```mermaid
 erDiagram
@@ -1214,6 +1214,7 @@ erDiagram
     String case_id FK "nullable"
     String conversation_id "nullable"
     String case_task_id "nullable"
+    String consultation_id "nullable"
     enum_AttorneyTaskStatus status
     enum_AttorneyTaskPriority priority
     enum_AttorneyTaskRepeat repeat
@@ -2473,6 +2474,112 @@ erDiagram
     Json matches
     DateTime created_at
   }
+  consultation_settings {
+    String attorney_id PK,FK
+    Boolean enabled
+    Int slot_minutes
+    Int buffer_minutes
+    Int min_notice_hours
+    Int horizon_days
+    Boolean auto_confirm
+    DateTime created_at
+    DateTime updated_at
+  }
+  consultation_windows {
+    String id PK
+    String attorney_id FK
+    Int weekday
+    Int start_minute
+    Int end_minute
+    DateTime created_at
+  }
+  consultation_time_off {
+    String id PK
+    String attorney_id FK
+    DateTime starts_on
+    DateTime ends_on
+    String note "nullable"
+    DateTime created_at
+  }
+  consultations {
+    String id PK
+    String attorney_id FK
+    String client_id FK
+    DateTime starts_at
+    DateTime ends_at
+    enum_ConsultationStatus status
+    String note "nullable"
+    String case_id "nullable"
+    String conversation_id "nullable"
+    DateTime confirmed_at "nullable"
+    String cancelled_by_id "nullable"
+    String cancel_reason "nullable"
+    DateTime rescheduled_at "nullable"
+    DateTime reminded_day_at "nullable"
+    DateTime reminded_hour_at "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  legal_questions {
+    String id PK
+    String author_id FK
+    String practice_area_id FK "nullable"
+    String state_code FK "nullable"
+    String title
+    String body
+    Boolean is_anonymous
+    enum_ContentStatus status
+    Int answer_count
+    String best_answer_id "nullable"
+    DateTime deleted_at "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  legal_answers {
+    String id PK
+    String question_id FK
+    String attorney_id FK
+    String body
+    enum_ContentStatus status
+    Int like_count
+    Boolean is_best
+    DateTime deleted_at "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  legal_answer_likes {
+    String answer_id PK,FK
+    String user_id PK,FK
+    DateTime created_at
+  }
+  deadline_rules {
+    String id PK
+    String jurisdiction
+    enum_DeadlineKind kind
+    String code UK
+    Json labels
+    Int amount
+    enum_DeadlineUnit unit
+    enum_DeadlineDayType day_type
+    enum_DeadlineDirection direction
+    String practice_code "nullable"
+    String citation "nullable"
+    Json notes "nullable"
+    String source_url "nullable"
+    Boolean verified
+    Boolean is_active
+    Int sort
+    DateTime created_at
+    DateTime updated_at
+  }
+  court_holidays {
+    String id PK
+    String jurisdiction
+    DateTime date
+    Json names
+    DateTime created_at
+    DateTime updated_at
+  }
   users }o--o| files : "avatar_file_id"
   users }o--|| countries : "country_code"
   files }o--|| users : "owner_user_id"
@@ -2717,4 +2824,16 @@ erDiagram
   case_sign_requests }o--|| cases : "case_id"
   case_signatures }o--|| case_sign_requests : "request_id"
   form_templates }o--o| practice_areas : "practice_area_id"
+  consultation_settings |o--|| users : "attorney_id"
+  consultation_windows }o--|| users : "attorney_id"
+  consultation_time_off }o--|| users : "attorney_id"
+  consultations }o--|| users : "attorney_id"
+  consultations }o--|| users : "client_id"
+  legal_questions }o--|| users : "author_id"
+  legal_questions }o--o| practice_areas : "practice_area_id"
+  legal_questions }o--o| states : "state_code"
+  legal_answers }o--|| legal_questions : "question_id"
+  legal_answers }o--|| users : "attorney_id"
+  legal_answer_likes }o--|| legal_answers : "answer_id"
+  legal_answer_likes }o--|| users : "user_id"
 ```

@@ -402,6 +402,8 @@ String newClientMessageId() {
 String systemLineText(Translator t, String body, {L10nFormats? formats}) {
   final i = body.indexOf(':');
   if (i < 0) return t.t('chat.system.$body');
+  // Owner 2026-10-20: `consult:<booking id>` — the id is not text.
+  if (body.startsWith('consult:')) return t.t('chat.system.consult');
   final raw = body.substring(i + 1);
   final key = body.substring(0, i);
   final cents = int.tryParse(raw);

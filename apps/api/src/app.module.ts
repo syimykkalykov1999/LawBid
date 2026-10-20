@@ -48,6 +48,9 @@ import { OutreachModule } from './modules/outreach/outreach.module';
 import { ClientBadgeModule } from './modules/client-badge/client-badge.module';
 import { SearchModule } from './modules/search/search.module';
 import { ContactsSyncModule } from './modules/contacts-sync/contacts-sync.module';
+import { DeadlinesModule } from './modules/deadlines/deadlines.module';
+import { LegalQaModule } from './modules/legal-qa/legal-qa.module';
+import { ConsultationsModule } from './modules/consultations/consultations.module';
 import { ChatModule } from './modules/chat/chat.module';
 import { GroupsModule } from './modules/groups/groups.module';
 import { ChatSavedModule } from './modules/chat-saved/chat-saved.module';
@@ -339,6 +342,10 @@ const isDev =
     // runs the same module as the dedicated worker service.
     JobsModule.register({ mode: 'api' }),
     ...(isDev ? [DevModule] : []),
+    // Owner 2026-10-20: booking, «Вопрос юристу», deadline calculator.
+    ConsultationsModule,
+    LegalQaModule,
+    DeadlinesModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },

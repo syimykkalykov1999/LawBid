@@ -479,4 +479,11 @@ export enum ErrorCode {
   // place a bid) needs the user to accept the updated legal documents
   // first; details.documents = the doc types.
   LEGAL_REACCEPT_REQUIRED = 'LEGAL_REACCEPT_REQUIRED',
+  // Owner 2026-10-20: booking a consultation.
+  // 409: the slot was taken, moved or is no longer offered.
+  CONSULTATION_SLOT_TAKEN = 'CONSULTATION_SLOT_TAKEN',
+  // 409: the attorney does not take bookings (off, no active subscription).
+  CONSULTATION_NOT_AVAILABLE = 'CONSULTATION_NOT_AVAILABLE',
+  // 409: the booking is not in a state that allows this action.
+  CONSULTATION_STATE_CONFLICT = 'CONSULTATION_STATE_CONFLICT',
 }
