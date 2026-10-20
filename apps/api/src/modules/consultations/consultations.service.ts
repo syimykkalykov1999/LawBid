@@ -19,6 +19,7 @@ import {
   addDaysIso,
   isValidTimeZone,
   parseIsoDate,
+  zonedParts,
 } from '../../common/utils/zoned-time';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
@@ -309,6 +310,12 @@ export class ConsultationsService {
       from,
       days,
       slots: slots.map((s) => s.toISOString()),
+      localSlots: slots.map((s) => {
+        const z = zonedParts(s, attorney.timezone);
+        const two = (n: number) => String(n).padStart(2, '0');
+        return `${z.year}-${two(z.month)}-${two(z.day)}T${two(z.hour)}:${two(z.minute)}`;
+      }),
+      lastDate: last,
     };
   }
 

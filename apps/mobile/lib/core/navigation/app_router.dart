@@ -28,11 +28,14 @@ import 'package:lawbid/features/cases/presentation/screens/work_case_screen.dart
 import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/client_badge/presentation/client_badge_screen.dart';
 import 'package:lawbid/features/client_plan/client_plan_routes.dart';
+import 'package:lawbid/features/consultations/consultations_routes.dart';
 import 'package:lawbid/features/create/presentation/screens/create_screen.dart';
+import 'package:lawbid/features/deadlines/deadlines_routes.dart';
 import 'package:lawbid/features/feed/presentation/screens/feed_screen.dart';
 import 'package:lawbid/features/guide/presentation/guide_screen.dart';
 import 'package:lawbid/features/legal/presentation/dmca_notice_screen.dart';
 import 'package:lawbid/features/legal/presentation/legal_accept_screen.dart';
+import 'package:lawbid/features/legal_qa/legal_qa_routes.dart';
 import 'package:lawbid/features/mine/presentation/screens/mine_screen.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/onboarding/onboarding_routes.dart';
@@ -479,6 +482,12 @@ GoRouter appRouter(Ref ref) {
       ...subscriptionRoutes(_rootNavigatorKey),
       // Owner 2026-10-05: payouts, case payments, Stripe return pages.
       ...casePaymentsRoutes(_rootNavigatorKey),
+      // Owner 2026-10-20: consultation booking.
+      ...consultationsRoutes(_rootNavigatorKey),
+      // Owner 2026-10-20: the deadline calculator.
+      ...deadlinesRoutes(_rootNavigatorKey),
+      // Owner 2026-10-20: «Вопрос юристу».
+      ...legalQaRoutes(_rootNavigatorKey),
       // Owner 2026-10-05 (plan builder): Settings → «Подписка клиента».
       ...clientPlanRoutes(_rootNavigatorKey),
       // OQ-048: Team, new task, assistant joining.

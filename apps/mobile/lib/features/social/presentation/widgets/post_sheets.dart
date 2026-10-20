@@ -630,7 +630,11 @@ String? _dmcaTargetType(ReportTarget target) => switch (target) {
       ReportTarget.post => 'post',
       ReportTarget.comment => 'comment',
       ReportTarget.message => 'message',
-      ReportTarget.user || ReportTarget.stickerPack => null,
+      ReportTarget.user ||
+      ReportTarget.stickerPack ||
+      ReportTarget.legalQuestion ||
+      ReportTarget.legalAnswer =>
+        null,
     };
 
 /// Owner 2026-09-30: "Edit" opens the "+" form with the post's title,

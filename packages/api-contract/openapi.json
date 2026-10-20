@@ -135471,6 +135471,18 @@
             "items": {
               "type": "string"
             }
+          },
+          "localSlots": {
+            "description": "The same starts as wall clock in the attorney time zone (YYYY-MM-DDTHH:mm), one per slot.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "lastDate": {
+            "type": "string",
+            "example": "2026-12-31",
+            "description": "Last bookable day (attorney local date)."
           }
         },
         "required": [
@@ -135480,7 +135492,9 @@
           "autoConfirm",
           "from",
           "days",
-          "slots"
+          "slots",
+          "localSlots",
+          "lastDate"
         ]
       },
       "ConsultationSlotsEnvelope": {

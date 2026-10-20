@@ -90,6 +90,11 @@ const _keys = <String, String>{
   ApiErrorCodes.reviewCaseNotClosed: 'error.api.REVIEW_CASE_NOT_CLOSED',
   ApiErrorCodes.reviewNoAcceptedBid: 'error.api.REVIEW_NO_ACCEPTED_BID',
   ApiErrorCodes.reviewAlreadyExists: 'error.api.REVIEW_ALREADY_EXISTS',
+  ApiErrorCodes.consultationSlotTaken: 'error.api.CONSULTATION_SLOT_TAKEN',
+  ApiErrorCodes.consultationNotAvailable:
+      'error.api.CONSULTATION_NOT_AVAILABLE',
+  ApiErrorCodes.consultationStateConflict:
+      'error.api.CONSULTATION_STATE_CONFLICT',
   ApiErrorCodes.reviewAppealExists: 'error.api.REVIEW_APPEAL_EXISTS',
   ApiErrorCodes.chatAttachmentsLocked: 'error.api.CHAT_ATTACHMENTS_LOCKED',
   ApiErrorCodes.subscriptionPlanIncludesSeats:

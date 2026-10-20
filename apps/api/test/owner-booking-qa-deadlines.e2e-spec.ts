@@ -178,6 +178,12 @@ describe('Booking, Q&A, deadlines (e2e)', () => {
         .set(cl.auth)
         .expect(200);
       expect(slots.body.data.slots.length).toBeGreaterThan(0);
+      expect(slots.body.data.localSlots).toHaveLength(
+        slots.body.data.slots.length,
+      );
+      expect(slots.body.data.localSlots[0]).toMatch(
+        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/,
+      );
       const start = slots.body.data.slots[1] as string;
 
       const booked = await api()

@@ -10,6 +10,8 @@ import 'package:lawbid/features/case_payments/case_payments_routes.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart';
+import 'package:lawbid/features/consultations/consultations_routes.dart';
+import 'package:lawbid/features/legal_qa/legal_qa_routes.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
 import 'package:lawbid/features/notifications/data/notifications_repository.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
@@ -168,6 +170,12 @@ String? notificationRoute({
       return AppRoutes.myCase(caseId);
     case 'payout_account_status':
       return CasePaymentsRoutes.payoutAccount;
+    // Owner 2026-10-20: a booking was requested, answered, moved or is near.
+    case 'consultation_update':
+      final consultationId = s('consultationId');
+      return consultationId == null
+          ? ConsultationsRoutes.list
+          : ConsultationsRoutes.detail(consultationId);
     case 'subscription_trial_ending' ||
           'subscription_payment_failed' ||
           'subscription_status':
@@ -191,6 +199,11 @@ String? notificationRoute({
       return AppRoutes.mine;
     case 'task_purge_soon':
       return TeamRoutes.tasksArchive;
+    // Owner 2026-10-20: a new question in my area / an answer, the best
+    // mark → the question.
+    case 'legal_question_new' || 'legal_answer_update':
+      final questionId = s('questionId');
+      return questionId == null ? null : LegalQaRoutes.question(questionId);
   }
   return null;
 }
@@ -295,6 +308,13 @@ String notificationText(Translator t, AppNotification n) {
         return '$base $detail';
       }
       return base;
+    }
+  }
+  // Owner 2026-10-20: what happened to a booking (`notif.consult.<kind>`).
+  if (n.type == 'consultation_update') {
+    final kind = n.payload['kind'];
+    if (kind is String && RegExp(r'^[a-z_]{1,40}$').hasMatch(kind)) {
+      return t.t('notif.consult.$kind');
     }
   }
   if (n.type == 'review_received' && _flag(n.payload['reply'])) {
@@ -424,9 +444,13 @@ IconData _icon(AppNotification n) => switch (n.type) {
         AppIcons.scheduleRounded,
       'case_payment_disputed' => AppIcons.errorOutlineRounded,
       'payout_account_status' => AppIcons.accountBalanceOutlined,
+      'consultation_update' => AppIcons.eventAvailableRounded,
       'assistant_task' || 'task_assigned' => AppIcons.eventNoteRounded,
       'task_reminder' => AppIcons.notificationsActiveOutlined,
       'task_purge_soon' => AppIcons.inventory2Outlined,
+      'legal_question_new' ||
+      'legal_answer_update' =>
+        AppIcons.helpOutlineRounded,
       'assistant_joined' || 'assistant_result' => AppIcons.supportAgentRounded,
       'case_deadline_soon' ||
       'case_deadline_today' ||

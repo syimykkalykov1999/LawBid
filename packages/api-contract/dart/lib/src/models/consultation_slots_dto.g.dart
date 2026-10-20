@@ -16,6 +16,10 @@ ConsultationSlotsDto _$ConsultationSlotsDtoFromJson(
   from: json['from'] as String,
   days: (json['days'] as num).toInt(),
   slots: (json['slots'] as List<dynamic>).map((e) => e as String).toList(),
+  localSlots: (json['localSlots'] as List<dynamic>)
+      .map((e) => e as String)
+      .toList(),
+  lastDate: json['lastDate'] as String,
 );
 
 Map<String, dynamic> _$ConsultationSlotsDtoToJson(
@@ -28,4 +32,6 @@ Map<String, dynamic> _$ConsultationSlotsDtoToJson(
   'from': instance.from,
   'days': instance.days,
   'slots': instance.slots,
+  'localSlots': instance.localSlots,
+  'lastDate': instance.lastDate,
 };

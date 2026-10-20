@@ -40,6 +40,7 @@ import 'package:lawbid/features/chat/presentation/chat_folders.dart';
 import 'package:lawbid/features/chat/presentation/contact_info_screen.dart';
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart';
 import 'package:lawbid/features/chat/presentation/voice_widgets.dart';
+import 'package:lawbid/features/consultations/presentation/consultation_chat_card.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/plans/presentation/plan_offer.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
@@ -623,7 +624,14 @@ class _MessageList extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               if (newDay) _DaySeparator(label: _dayLabel(t, f, m.createdAt)),
-              if (m.kind == MessageKind.system)
+              if (m.kind == MessageKind.system &&
+                  consultationIdOfSystemLine(m.body) != null)
+                // Owner 2026-10-20: a booking's card (tap opens it, a call
+                // button at the appointed time).
+                ConsultationChatCard(
+                  consultationId: consultationIdOfSystemLine(m.body)!,
+                )
+              else if (m.kind == MessageKind.system)
                 _SystemMessage(
                   text: systemLineText(t, m.body, formats: f),
                   // Owner 2026-10-19: a tap opens what the line is about.

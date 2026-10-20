@@ -586,7 +586,15 @@ enum ReportReason {
   copyright,
 }
 
-enum ReportTarget { post, comment, message, user, stickerPack }
+enum ReportTarget {
+  post,
+  comment,
+  message,
+  user,
+  stickerPack,
+  legalQuestion,
+  legalAnswer,
+}
 
 /// A client in People search / followers (OQ-026): name, handle, avatar,
 /// state — never contacts.

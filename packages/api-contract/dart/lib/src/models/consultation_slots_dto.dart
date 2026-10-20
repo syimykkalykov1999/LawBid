@@ -16,6 +16,8 @@ class ConsultationSlotsDto {
     required this.from,
     required this.days,
     required this.slots,
+    required this.localSlots,
+    required this.lastDate,
   });
 
   factory ConsultationSlotsDto.fromJson(Map<String, Object?> json) =>
@@ -30,6 +32,12 @@ class ConsultationSlotsDto {
 
   /// Start instants (UTC ISO), sorted.
   final List<String> slots;
+
+  /// The same starts as wall clock in the attorney time zone (YYYY-MM-DDTHH:mm), one per slot.
+  final List<String> localSlots;
+
+  /// Last bookable day (attorney local date).
+  final String lastDate;
 
   Map<String, Object?> toJson() => _$ConsultationSlotsDtoToJson(this);
 }

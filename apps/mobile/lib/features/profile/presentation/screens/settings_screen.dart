@@ -14,6 +14,8 @@ import 'package:lawbid/features/case_payments/application/case_payments_provider
 import 'package:lawbid/features/case_payments/case_payments_routes.dart';
 import 'package:lawbid/features/chat/application/presence_providers.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
+import 'package:lawbid/features/consultations/application/consultations_providers.dart';
+import 'package:lawbid/features/consultations/consultations_routes.dart';
 import 'package:lawbid/features/demo/application/demo_providers.dart';
 import 'package:lawbid/features/demo/presentation/demo_settings_card.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
@@ -144,6 +146,21 @@ class SettingsScreen extends ConsumerWidget {
               label: t.t('cpay.payout.title'),
               subtitle: t.t('cpay.payout.hint'),
               onTap: () => context.push(CasePaymentsRoutes.payoutAccount),
+            ),
+          // Owner 2026-10-20: consultation booking (flag `consultations`):
+          // the attorney sets the hours; both roles see the bookings.
+          if (ref.watch(consultationsFlagProvider) &&
+              !ref.watch(isAssistantProvider))
+            AppListRow(
+              key: const ValueKey('settings-consultations'),
+              icon: AppIcons.eventAvailableOutlined,
+              label: t.t('consult.title'),
+              subtitle: t.t(
+                ref.watch(currentUserRoleProvider) == UserRole.attorney
+                    ? 'consult.hint.attorney'
+                    : 'consult.hint.client',
+              ),
+              onTap: () => context.push(ConsultationsRoutes.list),
             ),
           if (ref.watch(casePaymentsFlagProvider))
             AppListRow(

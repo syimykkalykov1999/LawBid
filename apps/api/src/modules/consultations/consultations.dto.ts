@@ -229,6 +229,20 @@ export class ConsultationSlotsDto {
     description: 'Start instants (UTC ISO), sorted.',
   })
   slots!: string[];
+
+  @ApiProperty({
+    type: String,
+    isArray: true,
+    description:
+      'The same starts as wall clock in the attorney time zone (YYYY-MM-DDTHH:mm), one per slot.',
+  })
+  localSlots!: string[];
+
+  @ApiProperty({
+    example: '2026-12-31',
+    description: 'Last bookable day (attorney local date).',
+  })
+  lastDate!: string;
 }
 
 // --- bookings -----------------------------------------------------------------

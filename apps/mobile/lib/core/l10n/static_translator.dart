@@ -14,8 +14,10 @@ import 'package:lawbid/core/l10n/strings/case_urgency_strings.dart';
 import 'package:lawbid/core/l10n/strings/case_workspace_strings.dart';
 import 'package:lawbid/core/l10n/strings/chat_note_strings.dart';
 import 'package:lawbid/core/l10n/strings/client_fraud_strings.dart';
+import 'package:lawbid/core/l10n/strings/consultation_strings.dart';
 import 'package:lawbid/core/l10n/strings/contact_info_strings.dart';
 import 'package:lawbid/core/l10n/strings/contingency_strings.dart';
+import 'package:lawbid/core/l10n/strings/deadline_strings.dart';
 import 'package:lawbid/core/l10n/strings/demo_strings.dart';
 import 'package:lawbid/core/l10n/strings/email_flows_strings.dart';
 import 'package:lawbid/core/l10n/strings/feed_content_strings.dart';
@@ -26,6 +28,7 @@ import 'package:lawbid/core/l10n/strings/file07_strings.dart';
 import 'package:lawbid/core/l10n/strings/guide_strings.dart';
 import 'package:lawbid/core/l10n/strings/invite_strings.dart';
 import 'package:lawbid/core/l10n/strings/legal_docs_strings.dart';
+import 'package:lawbid/core/l10n/strings/legal_qa_strings.dart';
 import 'package:lawbid/core/l10n/strings/legal_strings.dart';
 import 'package:lawbid/core/l10n/strings/news_off_strings.dart';
 import 'package:lawbid/core/l10n/strings/partner_strings.dart';
@@ -1162,6 +1165,9 @@ class StaticTranslatorRu extends _MapTranslator {
         ...demoRu,
         ...reelsDocsRu,
         ...templatesRu,
+        ...consultationRu,
+        ...legalQaRu,
+        ...deadlineRu,
         ...storageRu,
         ...supportRu,
         ...caseCoverRu,
@@ -2584,6 +2590,9 @@ class StaticTranslatorEn extends _MapTranslator {
         ...demoEn,
         ...reelsDocsEn,
         ...templatesEn,
+        ...consultationEn,
+        ...legalQaEn,
+        ...deadlineEn,
         ...storageEn,
         ...supportEn,
         ...caseCoverEn,
