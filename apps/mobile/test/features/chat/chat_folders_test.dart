@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/chat/data/chat_repository.dart';
@@ -259,12 +262,59 @@ void main() {
       ),
       findsOneWidget,
     );
+    // «New chat» (+) sits next to ⋮ and is not repeated inside it.
+    expect(find.byKey(const ValueKey('chats-new-chat')), findsOneWidget);
     // ⋮ is the one place for all three actions.
     await tester.tap(find.byKey(const ValueKey('chats-menu')));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('chats-menu-select')), findsOneWidget);
     expect(find.byKey(const ValueKey('menu-new-group')), findsOneWidget);
     expect(find.byKey(const ValueKey('menu-find-groups')), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(BottomSheet),
+        matching: find.byKey(const ValueKey('chats-new-chat')),
+      ),
+      findsNothing,
+    );
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(minutes: 5));
+  });
+
+  testWidgets('Chats: the + button opens Contacts', (tester) async {
+    tester.view.physicalSize = const Size(1000, 2000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final router = GoRouter(
+      routes: [
+        GoRoute(path: '/', builder: (_, __) => const InboxScreen()),
+        GoRoute(
+          path: AppRoutes.contacts,
+          builder: (_, __) => const Scaffold(body: Text('contacts-page')),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: uxOverrides(
+          extra: [
+            chatRepositoryProvider.overrideWithValue(_Chats()),
+            groupRepositoryProvider.overrideWithValue(FakeGroupRepository()),
+            currentUserIdProvider.overrideWithValue('me'),
+            realtimeClientProvider.overrideWithValue(null),
+          ],
+        ),
+        child: MaterialApp.router(
+          theme: AppTheme.light(),
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('chats-new-chat')));
+    await tester.pumpAndSettle();
+    expect(find.text('contacts-page'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(minutes: 5));
   });
