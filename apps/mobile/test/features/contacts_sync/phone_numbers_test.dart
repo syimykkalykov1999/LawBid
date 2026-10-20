@@ -24,4 +24,29 @@ void main() {
     expect(h.length, 1);
     expect(RegExp(r'^[0-9a-f]{64}$').hasMatch(h.first), isTrue);
   });
+
+  test('national formats are read in the country of the account number', () {
+    expect(normalizeToE164('0555 123 456', region: 'KG'), '+996555123456');
+    expect(normalizeToE164('8 912 345-67-89', region: 'RU'), '+79123456789');
+    expect(normalizeToE164('07912 345678', region: 'GB'), '+447912345678');
+    // international stays as it is, whatever the region
+    expect(normalizeToE164('+1 415 555 2680', region: 'KG'), '+14155552680');
+    // the US guess (+1) applies to US/CA accounts only
+    expect(normalizeToE164('4155552680', region: 'US'), '+14155552680');
+    expect(normalizeToE164('4155552680', region: 'KG'), isNull);
+  });
+
+  test('a whole book is hashed by hashPhoneBook (first entry wins)', () {
+    final out = hashPhoneBook(
+      (
+        numbers: [
+          ['0555 123 456'],
+          ['+996555123456', 'junk'],
+        ],
+        region: 'KG',
+      ),
+    );
+    expect(out.length, 1);
+    expect(out.values.single, 0);
+  });
 }
