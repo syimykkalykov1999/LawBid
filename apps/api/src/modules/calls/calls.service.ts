@@ -625,43 +625,10 @@ export class CallsService {
         message: 'User not found.',
       });
     }
-    // Calls stay between people who can chat: the invitee has an open,
-    // unlocked chat with the inviter or with someone already in the call
-    // (a friend of a member), or is an attorney with an active subscription.
-    const memberRows = call.is_group ? await this.rowsOf(call.id) : [];
-    const memberIds = call.is_group
-      ? memberRows.filter((r) => r.status === 'joined').map((r) => r.user_id)
-      : [call.caller_id, call.callee_id];
-    let conv = await this.prisma.conversation.findFirst({
-      where: {
-        status: { not: 'closed' },
-        contacts_unlocked: true,
-        OR: [
-          { client_id: user.sub, attorney_id: targetId },
-          { client_id: targetId, attorney_id: user.sub },
-          { client_id: { in: memberIds }, attorney_id: targetId },
-          { client_id: targetId, attorney_id: { in: memberIds } },
-        ],
-      },
-    });
-    if (!conv) {
-      // A public professional: any attorney with an active subscription.
-      const lawyer = await this.prisma.user.findFirst({
-        where: { id: targetId, role: 'attorney' },
-        select: { id: true },
-      });
-      if (lawyer && (await this.subscriptions.isActive(targetId))) {
-        conv = await this.prisma.conversation.findFirst({
-          where: { id: call.conversation_id },
-        });
-      }
-    }
-    if (!conv) {
-      throw new ConflictException({
-        code: ErrorCode.CALL_NOT_ALLOWED,
-        message: 'You can only add people you can chat with.',
-      });
-    }
+    // Owner 2026-10-20 (like Telegram): anyone found by @username or from
+    // the contacts may be added, not only the people of an accepted bid or
+    // case. What still applies: blocks, the invitee's "who can call me"
+    // (assertMayCall), a busy invitee and the size of the call.
     await this.blocks.assertNotBlocked(user.sub, targetId);
     if (
       this.entitlements &&
@@ -672,7 +639,6 @@ export class CallsService {
         message: 'Your plan does not include calls.',
       });
     }
-    await this.assertSubscription(conv);
 
     const rows = call.is_group ? await this.rowsOf(call.id) : [];
     const current = call.is_group
