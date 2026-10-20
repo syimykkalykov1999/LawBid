@@ -53,6 +53,11 @@ class RealtimeClient {
     'conversation:update',
     // Owner 2026-10-01: a chat partner came online / left.
     'presence:update',
+    // Owner 2026-10-20: group chats and polls.
+    'group:message',
+    'group:update',
+    'group:member_removed',
+    'poll:update',
   ];
 
   Stream<RealtimeEvent> get events => _events.stream;

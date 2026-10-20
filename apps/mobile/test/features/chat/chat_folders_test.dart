@@ -1,16 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/chat/data/chat_repository.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart';
+import 'package:lawbid/features/groups/application/group_providers.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 
 import '../../helpers/ux_harness.dart';
+import '../groups/fake_group_repository.dart';
 
 Conversation _conv(
   String id, {
@@ -142,6 +147,7 @@ void main() {
         overrides: uxOverrides(
           extra: [
             chatRepositoryProvider.overrideWithValue(repo),
+            groupRepositoryProvider.overrideWithValue(FakeGroupRepository()),
             currentUserIdProvider.overrideWithValue('me'),
             realtimeClientProvider.overrideWithValue(null),
           ],
@@ -199,6 +205,7 @@ void main() {
         overrides: uxOverrides(
           extra: [
             chatRepositoryProvider.overrideWithValue(repo),
+            groupRepositoryProvider.overrideWithValue(FakeGroupRepository()),
             currentUserIdProvider.overrideWithValue('me'),
             realtimeClientProvider.overrideWithValue(null),
           ],
@@ -217,6 +224,97 @@ void main() {
     await tester.tap(find.text('Delete').last);
     await tester.pumpAndSettle();
     expect(repo.hiddenIds, isNotEmpty);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(minutes: 5));
+  });
+
+  testWidgets(
+      'Chats: one ⋮ menu with select / new group / find groups, one search '
+      'magnifier, no second groups button', (tester) async {
+    final repo = _Chats();
+    tester.view.physicalSize = const Size(1000, 2000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      uxApp(
+        const InboxScreen(),
+        size: const Size(1000, 2000),
+        theme: AppTheme.light(),
+        disableAnimations: true,
+        overrides: uxOverrides(
+          extra: [
+            chatRepositoryProvider.overrideWithValue(repo),
+            groupRepositoryProvider.overrideWithValue(FakeGroupRepository()),
+            currentUserIdProvider.overrideWithValue('me'),
+            realtimeClientProvider.overrideWithValue(null),
+          ],
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    // The groups button next to the search box is gone.
+    expect(find.byKey(const ValueKey('chats-compose')), findsNothing);
+    // The search box has ONE magnifier (at the start).
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('chat-search')),
+        matching: find.byIcon(AppIcons.searchRounded),
+      ),
+      findsOneWidget,
+    );
+    // «New chat» (+) sits next to ⋮ and is not repeated inside it.
+    expect(find.byKey(const ValueKey('chats-new-chat')), findsOneWidget);
+    // ⋮ is the one place for all three actions.
+    await tester.tap(find.byKey(const ValueKey('chats-menu')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('chats-menu-select')), findsOneWidget);
+    expect(find.byKey(const ValueKey('menu-new-group')), findsOneWidget);
+    expect(find.byKey(const ValueKey('menu-find-groups')), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(BottomSheet),
+        matching: find.byKey(const ValueKey('chats-new-chat')),
+      ),
+      findsNothing,
+    );
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(minutes: 5));
+  });
+
+  testWidgets('Chats: the + button opens Contacts', (tester) async {
+    tester.view.physicalSize = const Size(1000, 2000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final router = GoRouter(
+      routes: [
+        GoRoute(path: '/', builder: (_, __) => const InboxScreen()),
+        GoRoute(
+          path: AppRoutes.contacts,
+          builder: (_, __) => const Scaffold(body: Text('contacts-page')),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: uxOverrides(
+          extra: [
+            chatRepositoryProvider.overrideWithValue(_Chats()),
+            groupRepositoryProvider.overrideWithValue(FakeGroupRepository()),
+            currentUserIdProvider.overrideWithValue('me'),
+            realtimeClientProvider.overrideWithValue(null),
+          ],
+        ),
+        child: MaterialApp.router(
+          theme: AppTheme.light(),
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('chats-new-chat')));
+    await tester.pumpAndSettle();
+    expect(find.text('contacts-page'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(minutes: 5));
   });

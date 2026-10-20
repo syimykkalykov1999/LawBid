@@ -168,6 +168,39 @@ void main() {
       expect(parse('https://lawbid.dev/r/x!'), isNull);
     });
 
+    test('group invite links: /g/<code> and /g/@username', () {
+      const code = 'Xk3_aB-9Qz1LmN4pR7sT0w';
+      expect(
+        parse('https://lawbid.dev/g/$code'),
+        const GroupInviteDeepLink(code),
+      );
+      expect(
+        parse('https://www.lawbid.dev/g/$code'),
+        const GroupInviteDeepLink(code),
+      );
+      expect(
+        parse('lawbid://g/$code'),
+        const GroupInviteDeepLink(code),
+      );
+      expect(
+        parse('https://lawbid.dev/g/@law_chat'),
+        const ContentDeepLink(ContentKind.group, '@law_chat'),
+      );
+      expect(
+        const ContentDeepLink(ContentKind.group, code).location,
+        '/g/$code',
+      );
+      expect(
+        const ContentDeepLink(ContentKind.group, '@law_chat').location,
+        '/g/%40law_chat',
+      );
+      expect(parse('https://lawbid.dev/g'), isNull);
+      expect(parse('https://lawbid.dev/g/ab'), isNull);
+      expect(parse('https://lawbid.dev/g/a%20b%20c%20d'), isNull);
+      expect(parse('https://lawbid.dev/g/$code/extra'), isNull);
+      expect(parse('https://evil.example/g/$code'), isNull);
+    });
+
     test('in-app locations', () {
       expect(
         const ContentDeepLink(ContentKind.caseItem, 'abc').location,

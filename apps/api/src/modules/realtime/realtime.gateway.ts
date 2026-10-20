@@ -332,13 +332,23 @@ export class RealtimeGateway
       where: { conversation_id_user_id: { conversation_id: id, user_id: uid } },
       select: { user_id: true },
     });
-    if (!member) return { ok: false };
+    // Owner 2026-10-20: a group chat is "open" the same way (push
+    // suppression); no peer presence is followed in a group.
+    const groupMember = member
+      ? null
+      : await this.prisma.chatGroupMember.findFirst({
+          where: { group_id: id, user_id: uid, left_at: null },
+          select: { user_id: true },
+        });
+    if (!member && !groupMember) return { ok: false };
     await socket.join(conversationRoom(id));
     state(socket).viewing.add(id);
-    const others = await this.prisma.conversationParticipant.findMany({
-      where: { conversation_id: id, user_id: { not: uid } },
-      select: { user_id: true },
-    });
+    const others = member
+      ? await this.prisma.conversationParticipant.findMany({
+          where: { conversation_id: id, user_id: { not: uid } },
+          select: { user_id: true },
+        })
+      : [];
     (state(socket).peers ??= new Map()).set(
       id,
       others.map((o) => o.user_id),

@@ -1,0 +1,178 @@
+{
+  "group.onlyAdminsWrite": {
+    "en": "Only admins can write here",
+    "ru": "Писать могут только админы"
+  },
+  "group.conv.topicClosed": {
+    "en": "This topic is closed",
+    "ru": "Тема закрыта"
+  },
+  "group.conv.members.one": {
+    "en": "{count} member",
+    "ru": "{count} участник"
+  },
+  "group.conv.members.few": {
+    "en": "{count} members",
+    "ru": "{count} участника"
+  },
+  "group.conv.members.many": {
+    "en": "{count} members",
+    "ru": "{count} участников"
+  },
+  "group.conv.members.other": {
+    "en": "{count} members",
+    "ru": "{count} участника"
+  },
+  "group.conv.edited": {
+    "en": "edited",
+    "ru": "изм."
+  },
+  "group.conv.reply": {
+    "en": "Reply",
+    "ru": "Ответить"
+  },
+  "group.conv.replyTo": {
+    "en": "Reply to {name}",
+    "ru": "Ответ для {name}"
+  },
+  "group.conv.copy": {
+    "en": "Copy text",
+    "ru": "Копировать текст"
+  },
+  "group.conv.copied": {
+    "en": "Copied",
+    "ru": "Скопировано"
+  },
+  "group.conv.edit": {
+    "en": "Edit",
+    "ru": "Изменить"
+  },
+  "group.conv.editing": {
+    "en": "Editing",
+    "ru": "Изменение"
+  },
+  "group.conv.saveEdit": {
+    "en": "Save",
+    "ru": "Сохранить"
+  },
+  "group.conv.pin": {
+    "en": "Pin",
+    "ru": "Закрепить"
+  },
+  "group.conv.unpin": {
+    "en": "Unpin",
+    "ru": "Открепить"
+  },
+  "group.conv.pinned": {
+    "en": "Pinned message",
+    "ru": "Закреплённое сообщение"
+  },
+  "group.conv.deleteForAll": {
+    "en": "Delete for everyone",
+    "ru": "Удалить для всех"
+  },
+  "group.conv.deleteTitle": {
+    "en": "Delete message?",
+    "ru": "Удалить сообщение?"
+  },
+  "group.conv.deleteText": {
+    "en": "It will be removed for all members.",
+    "ru": "Оно исчезнет у всех участников."
+  },
+  "group.conv.attachPoll": {
+    "en": "Poll",
+    "ru": "Опрос"
+  },
+  "group.conv.jumpMissing": {
+    "en": "Message not found",
+    "ru": "Сообщение не найдено"
+  },
+  "group.conv.empty": {
+    "en": "No messages yet. Say hello!",
+    "ru": "Сообщений пока нет. Напишите первым!"
+  },
+  "group.conv.toBottom": {
+    "en": "Go to latest",
+    "ru": "К новым сообщениям"
+  },
+  "group.conv.info": {
+    "en": "Group info",
+    "ru": "О группе"
+  },
+  "group.conv.mute": {
+    "en": "Mute",
+    "ru": "Отключить звук"
+  },
+  "group.conv.unmute": {
+    "en": "Unmute",
+    "ru": "Включить звук"
+  },
+  "group.conv.muted": {
+    "en": "Notifications off",
+    "ru": "Уведомления отключены"
+  },
+  "group.conv.unmuted": {
+    "en": "Notifications on",
+    "ru": "Уведомления включены"
+  },
+  "group.conv.leave": {
+    "en": "Leave group",
+    "ru": "Выйти из группы"
+  },
+  "group.conv.leaveTitle": {
+    "en": "Leave group?",
+    "ru": "Выйти из группы?"
+  },
+  "group.conv.leaveText": {
+    "en": "You will leave «{title}» and stop getting its messages.",
+    "ru": "Вы выйдете из «{title}» и перестанете получать её сообщения."
+  },
+  "group.conv.gone": {
+    "en": "You are no longer in this group",
+    "ru": "Вы больше не в этой группе"
+  },
+  "group.topic.general": {
+    "en": "General",
+    "ru": "Общее"
+  },
+  "group.topic.new": {
+    "en": "New topic",
+    "ru": "Новая тема"
+  },
+  "group.topic.edit": {
+    "en": "Edit topic",
+    "ru": "Изменить тему"
+  },
+  "group.topic.title": {
+    "en": "Topic name",
+    "ru": "Название темы"
+  },
+  "group.topic.emoji": {
+    "en": "Icon (emoji)",
+    "ru": "Значок (эмодзи)"
+  },
+  "group.topic.color": {
+    "en": "Color",
+    "ru": "Цвет"
+  },
+  "group.topic.closed": {
+    "en": "Closed",
+    "ru": "Закрыта"
+  },
+  "group.topic.pinned": {
+    "en": "Pinned",
+    "ru": "Закреплена"
+  },
+  "group.topic.save": {
+    "en": "Save",
+    "ru": "Сохранить"
+  },
+  "group.topic.create": {
+    "en": "Create",
+    "ru": "Создать"
+  },
+  "group.topic.empty": {
+    "en": "No topics yet",
+    "ru": "Тем пока нет"
+  }
+}
