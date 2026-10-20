@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/features/stories/domain/story_models.dart';
 import 'package:lawbid/features/stories/presentation/story_creator_screen.dart';
 
@@ -96,5 +99,71 @@ void main() {
     await tester.drag(find.text('🔥'), const Offset(0, 400));
     await tester.pump();
     expect(find.text('🔥'), findsNothing);
+  });
+
+  testWidgets('Back from a creator that is the only page goes to the feed',
+      (tester) async {
+    useSmallPhone(tester);
+    final router = GoRouter(
+      initialLocation: '/stories/new',
+      routes: [
+        GoRoute(
+          path: '/stories/new',
+          builder: (_, __) => const StoryCreatorScreen(),
+        ),
+        GoRoute(
+          path: '/feed',
+          builder: (_, __) => const Text('FEED'),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: await storyOverrides(repo: FakeStoriesRepository()),
+        child: MaterialApp.router(
+          theme: AppTheme.light(),
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.byType(AppBackButton));
+    await tester.pumpAndSettle();
+    expect(find.text('FEED'), findsOneWidget);
+  });
+
+  testWidgets('a tap outside a field with onTapOutside off keeps the keyboard',
+      (tester) async {
+    useSmallPhone(tester);
+    var taps = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: Scaffold(
+          body: Column(
+            children: [
+              AppTextField(
+                key: const ValueKey('f'),
+                onTapOutside: (_) {},
+              ),
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => taps++,
+                child:
+                    const SizedBox(width: 100, height: 100, key: ValueKey('b')),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.byKey(const ValueKey('f')));
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('b')));
+    await tester.pump();
+    expect(taps, 1);
+    final field = tester.widget<EditableText>(find.byType(EditableText));
+    expect(field.focusNode.hasFocus, isTrue);
   });
 }

@@ -7,12 +7,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart' show CustomSemanticsAction;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/media/video_frames.dart';
+import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/stories/application/stories_providers.dart';
 import 'package:lawbid/features/stories/application/story_publish_job.dart';
 import 'package:lawbid/features/stories/domain/story_models.dart';
@@ -338,9 +340,17 @@ class _StoryCreatorScreenState extends ConsumerState<StoryCreatorScreen> {
   }
 
   /// Closes the screen for good (the discard question was answered).
+  ///
+  /// Owner 2026-10-20: Back never leaves the app. When the creator is the
+  /// only page (opened by a link, or the stack was rebuilt) it goes to the
+  /// feed instead of popping the last route.
   void _leave() {
     final nav = Navigator.of(context);
-    if (nav.canPop()) nav.pop();
+    if (nav.canPop()) {
+      nav.pop();
+    } else {
+      GoRouter.maybeOf(context)?.go(AppRoutes.feed);
+    }
   }
 
   Future<void> _confirmLeave() async {
@@ -386,9 +396,14 @@ class _StoryCreatorScreenState extends ConsumerState<StoryCreatorScreen> {
       });
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     return PopScope(
-      canPop: !_dirty || job.busy,
+      canPop: (!_dirty || job.busy) && Navigator.of(context).canPop(),
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) unawaited(_confirmLeave());
+        if (didPop) return;
+        if (_dirty && !job.busy) {
+          unawaited(_confirmLeave());
+        } else {
+          _leave();
+        }
       },
       child: Scaffold(
         backgroundColor: colors.bg,
@@ -399,7 +414,7 @@ class _StoryCreatorScreenState extends ConsumerState<StoryCreatorScreen> {
               if (_dirty && !job.busy) {
                 unawaited(_confirmLeave());
               } else {
-                unawaited(Navigator.of(context).maybePop());
+                _leave();
               }
             },
           ),
@@ -537,6 +552,10 @@ class _StoryCreatorScreenState extends ConsumerState<StoryCreatorScreen> {
               if (_mode != _Mode.text)
                 AppTextField(
                   controller: _caption,
+                  // A tap on Share / the audience chip must not first close
+                  // the keyboard: the panel moved down under the finger and
+                  // the tap landed on the neighbouring chip.
+                  onTapOutside: (_) {},
                   hintText: t.t('story.create.caption'),
                   semanticLabel: t.t('story.create.caption'),
                   maxLength: kStoryTextMax,
