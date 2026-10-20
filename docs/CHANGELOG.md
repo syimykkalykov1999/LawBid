@@ -13,7 +13,7 @@ Owner: «проверь все будильники и напоминалки �
 - Push text says the kind and the time on the person's own clock («Встреча · 14:30»), never the task title; 2 keys in 85 languages (`notif.cases.task_reminder.title` / `.missed`).
 - `users.timezone` (migration 20261020080000, ERD, `PUT /me/timezone`); the app sends the phone's zone at sign-in and whenever it changes. Repeats run in that zone (DST, local weekdays); the next copy of a repeating task is also created by the minute job when the time comes, not only on «Выполнено».
 - Case deadlines and payment reminders go out at the recipient's local 09:00–21:00 (hourly job, catch-up, one per recipient and day).
-- Android safety net: a local alarm per reminder (`flutter_local_notifications`, inexact, no exact-alarm permission), same notification id as the push (one banner), re-armed at start / change / reboot, cancelled on done / delete / move; Android 13+ permission is asked after saving a task with a reminder. `push_tokens.local_reminders` tells the server the device keeps its own alarms (data-only push). iOS: time-sensitive push.
+- Android safety net: a local alarm per reminder (`flutter_local_notifications`, inexact, no exact-alarm permission), same notification id as the push (one banner), re-armed at start / change / reboot, cancelled on done / delete / move; Android 13+ permission is asked after saving a task with a reminder. `push_tokens.local_reminders` tells the server the device keeps its own alarms (data-only push). iPhone: the same alarms as an exact time-sensitive local notification (nearest 60 of iOS's 64), the server sends such a phone a silent push that the app shows only if its own alarm is not pending or up.
 
 ## Case cabinet: 5 audit fixes (2026-10-19)
 

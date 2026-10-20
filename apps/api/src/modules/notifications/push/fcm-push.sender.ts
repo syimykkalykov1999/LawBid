@@ -76,6 +76,10 @@ export class FcmPushSender implements PushSender {
     for (const device of devices) {
       if (skip.has(device)) continue;
       const dataOnly = message.call || localReminder.has(device);
+      // Owner 2026-10-20: an iPhone that arms its own alarms gets the reminder
+      // as a silent (background) push; the app shows it only if its own alarm
+      // is not already pending or up.
+      const silentIos = !message.call && localReminder.has(device);
       // Claim the device before the call: a crash between FCM's 200 and
       // the mark can at most skip a push, never double it (load review).
       const claimed = await this.redis.set(
@@ -144,57 +148,68 @@ export class FcmPushSender implements PushSender {
                               }
                             : {}),
                         },
-                  apns: {
-                    // Push 2026-10-19: delivered at once (screen off / Low Power
-                    // mode too) as a visible alert; a call is useless after it
-                    // stops ringing, so it expires with the ring.
-                    headers: {
-                      'apns-priority': '10',
-                      'apns-push-type': 'alert',
-                      ...(message.call
-                        ? {
-                            'apns-expiration': String(
-                              Math.floor(Date.now() / 1000) + CALL_TTL_SEC,
-                            ),
-                          }
-                        : {}),
-                    },
-                    payload: {
-                      aps: {
-                        // Owner 2026-10-02: a call the user switched off in
-                        // Settings arrives without sound (data.silent = '1').
-                        ...(message.call && message.data?.silent === '1'
-                          ? {}
-                          : {
-                              sound: message.sound
-                                ? PUSH_SOUNDS[message.sound].ios
-                                : 'default',
-                            }),
-                        ...(message.call
-                          ? {
-                              alert: {
-                                title: message.title,
-                                body: message.body,
-                              },
-                              'interruption-level':
-                                message.data?.silent === '1'
-                                  ? 'active'
-                                  : 'time-sensitive',
-                            }
-                          : message.reminder
-                            ? // Owner 2026-10-20: a planner reminder breaks
-                              // through Focus like a calendar alert.
-                              { 'interruption-level': 'time-sensitive' }
+                  apns: silentIos
+                    ? {
+                        headers: {
+                          'apns-priority': '5',
+                          'apns-push-type': 'background',
+                          'apns-expiration': String(
+                            Math.floor(Date.now() / 1000) + REMINDER_TTL_SEC,
+                          ),
+                        },
+                        payload: { aps: { 'content-available': 1 } },
+                      }
+                    : {
+                        // Push 2026-10-19: delivered at once (screen off / Low Power
+                        // mode too) as a visible alert; a call is useless after it
+                        // stops ringing, so it expires with the ring.
+                        headers: {
+                          'apns-priority': '10',
+                          'apns-push-type': 'alert',
+                          ...(message.call
+                            ? {
+                                'apns-expiration': String(
+                                  Math.floor(Date.now() / 1000) + CALL_TTL_SEC,
+                                ),
+                              }
                             : {}),
-                        ...(message.badge !== undefined
-                          ? { badge: message.badge }
-                          : {}),
-                        // Lets a notification service extension (if one is
-                        // added) enrich the alert; ignored without one.
-                        'mutable-content': 1,
+                        },
+                        payload: {
+                          aps: {
+                            // Owner 2026-10-02: a call the user switched off in
+                            // Settings arrives without sound (data.silent = '1').
+                            ...(message.call && message.data?.silent === '1'
+                              ? {}
+                              : {
+                                  sound: message.sound
+                                    ? PUSH_SOUNDS[message.sound].ios
+                                    : 'default',
+                                }),
+                            ...(message.call
+                              ? {
+                                  alert: {
+                                    title: message.title,
+                                    body: message.body,
+                                  },
+                                  'interruption-level':
+                                    message.data?.silent === '1'
+                                      ? 'active'
+                                      : 'time-sensitive',
+                                }
+                              : message.reminder
+                                ? // Owner 2026-10-20: a planner reminder breaks
+                                  // through Focus like a calendar alert.
+                                  { 'interruption-level': 'time-sensitive' }
+                                : {}),
+                            ...(message.badge !== undefined
+                              ? { badge: message.badge }
+                              : {}),
+                            // Lets a notification service extension (if one is
+                            // added) enrich the alert; ignored without one.
+                            'mutable-content': 1,
+                          },
+                        },
                       },
-                    },
-                  },
                 },
           }),
         });

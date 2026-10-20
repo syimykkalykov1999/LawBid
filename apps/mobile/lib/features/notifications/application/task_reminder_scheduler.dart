@@ -9,12 +9,14 @@ import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:timezone/timezone.dart' as tz;
 
 /// Owner 2026-10-20 («будильники как часики»): the planner's safety net on
-/// the phone. Every task with a reminder also gets a local alarm (Android,
-/// inexact — no exact-alarm permission), so a reminder still arrives when a
-/// push is late or lost. The local alarm and the reminder push share one
-/// notification id per task: whichever comes second replaces the first, and
-/// it never alerts twice. iOS keeps to the push (a displayed remote alert
-/// cannot be told apart from a local one there).
+/// the phone. Every task with a reminder also gets a local alarm, so a
+/// reminder arrives with no network and when a push is late or lost.
+/// Android: inexact (no exact-alarm permission), the push replaces the
+/// alarm's notification under the same id. iPhone: an exact time-sensitive
+/// calendar alarm (iOS keeps at most 64 pending, so only the nearest
+/// [maxArmedReminders]
+/// are armed); the server sends such a phone only a silent push, which is
+/// shown only when the phone's own alarm is not pending or already up.
 
 /// The channel the system notifications already use (MainActivity.kt).
 const _channelId = 'general';
@@ -125,6 +127,9 @@ abstract class LocalNotificationsGateway {
 
   Future<Map<int, String?>> pending();
 
+  /// Ids of the notifications of this app that are on screen now.
+  Future<Set<int>> active();
+
   Future<void> schedule({
     required int id,
     required DateTime at,
@@ -161,6 +166,15 @@ class PluginNotificationsGateway implements LocalNotificationsGateway {
       // The push for the same task replaces this one without a second beep.
       onlyAlertOnce: true,
     ),
+    iOS: DarwinNotificationDetails(
+      presentAlert: true,
+      presentSound: true,
+      presentBadge: true,
+      // Breaks through Focus like a calendar alert (entitlement in
+      // Runner.entitlements).
+      interruptionLevel: InterruptionLevel.timeSensitive,
+      threadIdentifier: 'task-reminders',
+    ),
   );
 
   @override
@@ -169,6 +183,12 @@ class PluginNotificationsGateway implements LocalNotificationsGateway {
       await _plugin.initialize(
         settings: const InitializationSettings(
           android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+          // The permission is asked by the push set-up, not here.
+          iOS: DarwinInitializationSettings(
+            requestAlertPermission: false,
+            requestBadgePermission: false,
+            requestSoundPermission: false,
+          ),
         ),
         onDidReceiveNotificationResponse: (r) => onTap(r.payload),
       );
@@ -187,6 +207,15 @@ class PluginNotificationsGateway implements LocalNotificationsGateway {
   Future<Map<int, String?>> pending() async {
     final list = await _plugin.pendingNotificationRequests();
     return {for (final p in list) p.id: p.payload};
+  }
+
+  @override
+  Future<Set<int>> active() async {
+    final list = await _plugin.getActiveNotifications();
+    return {
+      for (final n in list)
+        if (n.id != null) n.id!,
+    };
   }
 
   @override
@@ -237,10 +266,17 @@ class TaskReminderScheduler {
   final LocalNotificationsGateway _gateway;
   Future<void> _queue = Future<void>.value();
 
-  /// Whether this platform keeps local reminders (Android; the web has
-  /// none, iOS relies on the push).
+  /// Whether this platform keeps local reminders (Android and iPhone; the
+  /// web has none).
   static bool get supported =>
-      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.iOS);
+
+  /// iPhone: the phone's own alarm is the reminder, the silent push only
+  /// fills a gap.
+  static bool get _silentPush =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
 
   Future<void> init({required void Function(String? payload) onTap}) =>
       _gateway.init(onTap: onTap);
@@ -286,15 +322,21 @@ class TaskReminderScheduler {
     });
   }
 
-  /// A reminder push that arrived (data-only, Android): shown under the
+  /// A reminder push that arrived (data-only): shown under the
   /// task's id, replacing the local alarm's notification if it is up.
   Future<void> showFromPush(Map<String, dynamic> data) async {
     final taskId = data['taskId'];
     final title = data['title'];
     final body = data['body'];
     if (taskId is! String || title is! String || body is! String) return;
+    final id = reminderNotificationId(taskId);
+    if (_silentPush &&
+        ((await _gateway.pending()).containsKey(id) ||
+            (await _gateway.active()).contains(id))) {
+      return;
+    }
     await _gateway.show(
-      id: reminderNotificationId(taskId),
+      id: id,
       title: title,
       body: body,
       payload: jsonEncode({
