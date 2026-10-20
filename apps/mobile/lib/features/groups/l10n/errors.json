@@ -1,0 +1,1086 @@
+{
+ "group.onlyAdminsWrite": {
+  "en": "Only admins can write here",
+  "ru": "Писать могут только админы"
+ },
+ "group.conv.topicClosed": {
+  "en": "This topic is closed",
+  "ru": "Тема закрыта"
+ },
+ "group.conv.members.one": {
+  "en": "{count} member",
+  "ru": "{count} участник"
+ },
+ "group.conv.members.few": {
+  "en": "{count} members",
+  "ru": "{count} участника"
+ },
+ "group.conv.members.many": {
+  "en": "{count} members",
+  "ru": "{count} участников"
+ },
+ "group.conv.members.other": {
+  "en": "{count} members",
+  "ru": "{count} участника"
+ },
+ "group.conv.edited": {
+  "en": "edited",
+  "ru": "изм."
+ },
+ "group.conv.reply": {
+  "en": "Reply",
+  "ru": "Ответить"
+ },
+ "group.conv.replyTo": {
+  "en": "Reply to {name}",
+  "ru": "Ответ для {name}"
+ },
+ "group.conv.copy": {
+  "en": "Copy text",
+  "ru": "Копировать текст"
+ },
+ "group.conv.copied": {
+  "en": "Copied",
+  "ru": "Скопировано"
+ },
+ "group.conv.edit": {
+  "en": "Edit",
+  "ru": "Изменить"
+ },
+ "group.conv.editing": {
+  "en": "Editing",
+  "ru": "Изменение"
+ },
+ "group.conv.saveEdit": {
+  "en": "Save",
+  "ru": "Сохранить"
+ },
+ "group.conv.pin": {
+  "en": "Pin",
+  "ru": "Закрепить"
+ },
+ "group.conv.unpin": {
+  "en": "Unpin",
+  "ru": "Открепить"
+ },
+ "group.conv.pinned": {
+  "en": "Pinned message",
+  "ru": "Закреплённое сообщение"
+ },
+ "group.conv.deleteForAll": {
+  "en": "Delete for everyone",
+  "ru": "Удалить для всех"
+ },
+ "group.conv.deleteTitle": {
+  "en": "Delete message?",
+  "ru": "Удалить сообщение?"
+ },
+ "group.conv.deleteText": {
+  "en": "It will be removed for all members.",
+  "ru": "Оно исчезнет у всех участников."
+ },
+ "group.conv.attachPoll": {
+  "en": "Poll",
+  "ru": "Опрос"
+ },
+ "group.conv.jumpMissing": {
+  "en": "Message not found",
+  "ru": "Сообщение не найдено"
+ },
+ "group.conv.empty": {
+  "en": "No messages yet. Say hello!",
+  "ru": "Сообщений пока нет. Напишите первым!"
+ },
+ "group.conv.toBottom": {
+  "en": "Go to latest",
+  "ru": "К новым сообщениям"
+ },
+ "group.conv.info": {
+  "en": "Group info",
+  "ru": "О группе"
+ },
+ "group.conv.mute": {
+  "en": "Mute",
+  "ru": "Отключить звук"
+ },
+ "group.conv.unmute": {
+  "en": "Unmute",
+  "ru": "Включить звук"
+ },
+ "group.conv.muted": {
+  "en": "Notifications off",
+  "ru": "Уведомления отключены"
+ },
+ "group.conv.unmuted": {
+  "en": "Notifications on",
+  "ru": "Уведомления включены"
+ },
+ "group.conv.leave": {
+  "en": "Leave group",
+  "ru": "Выйти из группы"
+ },
+ "group.conv.leaveTitle": {
+  "en": "Leave group?",
+  "ru": "Выйти из группы?"
+ },
+ "group.conv.leaveText": {
+  "en": "You will leave «{title}» and stop getting its messages.",
+  "ru": "Вы выйдете из «{title}» и перестанете получать её сообщения."
+ },
+ "group.conv.gone": {
+  "en": "You are no longer in this group",
+  "ru": "Вы больше не в этой группе"
+ },
+ "group.topic.general": {
+  "en": "General",
+  "ru": "Общее"
+ },
+ "group.topic.new": {
+  "en": "New topic",
+  "ru": "Новая тема"
+ },
+ "group.topic.edit": {
+  "en": "Edit topic",
+  "ru": "Изменить тему"
+ },
+ "group.topic.title": {
+  "en": "Topic name",
+  "ru": "Название темы"
+ },
+ "group.topic.emoji": {
+  "en": "Icon (emoji)",
+  "ru": "Значок (эмодзи)"
+ },
+ "group.topic.color": {
+  "en": "Color",
+  "ru": "Цвет"
+ },
+ "group.topic.closed": {
+  "en": "Closed",
+  "ru": "Закрыта"
+ },
+ "group.topic.pinned": {
+  "en": "Pinned",
+  "ru": "Закреплена"
+ },
+ "group.topic.save": {
+  "en": "Save",
+  "ru": "Сохранить"
+ },
+ "group.topic.create": {
+  "en": "Create",
+  "ru": "Создать"
+ },
+ "group.topic.empty": {
+  "en": "No topics yet",
+  "ru": "Тем пока нет"
+ },
+ "group.picker.title": {
+  "en": "Add people",
+  "ru": "Добавить людей"
+ },
+ "group.picker.search": {
+  "en": "Search",
+  "ru": "Поиск"
+ },
+ "group.picker.remove": {
+  "en": "Remove",
+  "ru": "Убрать"
+ },
+ "group.picker.empty": {
+  "en": "Start a chat with someone first, then you can add them here. Or share the group link.",
+  "ru": "Сначала начните чат с человеком — тогда его можно добавить сюда. Или поделитесь ссылкой на группу."
+ },
+ "group.picker.noMatch": {
+  "en": "No one found",
+  "ru": "Никого не найдено"
+ },
+ "group.picker.done": {
+  "en": "Done ({count})",
+  "ru": "Готово ({count})"
+ },
+ "group.picker.doneNone": {
+  "en": "Done",
+  "ru": "Готово"
+ },
+ "group.create.membersTitle": {
+  "en": "Add members",
+  "ru": "Участники"
+ },
+ "group.create.title": {
+  "en": "New group",
+  "ru": "Новая группа"
+ },
+ "group.create.membersHint": {
+  "en": "Public and closed groups can start with just you.",
+  "ru": "Публичная и закрытая группа может начаться только с вас."
+ },
+ "group.create.next": {
+  "en": "Next",
+  "ru": "Далее"
+ },
+ "group.create.nextCount": {
+  "en": "Next ({count})",
+  "ru": "Далее ({count})"
+ },
+ "group.create.photo": {
+  "en": "Add group photo",
+  "ru": "Фото группы"
+ },
+ "group.create.photoChange": {
+  "en": "Group photo",
+  "ru": "Фото группы"
+ },
+ "group.create.photoRemove": {
+  "en": "Remove",
+  "ru": "Убрать"
+ },
+ "group.create.name": {
+  "en": "Group name",
+  "ru": "Название группы"
+ },
+ "group.create.description": {
+  "en": "Description (optional)",
+  "ru": "Описание (необязательно)"
+ },
+ "group.create.type": {
+  "en": "Group type",
+  "ru": "Тип группы"
+ },
+ "group.create.type.public": {
+  "en": "Public",
+  "ru": "Публичная"
+ },
+ "group.create.type.public.desc": {
+  "en": "Anyone can find it by @username and join.",
+  "ru": "Любой найдёт её по @username и вступит."
+ },
+ "group.create.type.closed": {
+  "en": "Closed",
+  "ru": "Закрытая"
+ },
+ "group.create.type.closed.desc": {
+  "en": "People join only by the invite link.",
+  "ru": "Вступают только по ссылке-приглашению."
+ },
+ "group.create.type.private": {
+  "en": "Private",
+  "ru": "Приватная"
+ },
+ "group.create.type.private.desc": {
+  "en": "Only admins add people. No link.",
+  "ru": "Людей добавляют только админы. Без ссылки."
+ },
+ "group.create.approval": {
+  "en": "Admins approve new members",
+  "ru": "Админы одобряют новых участников"
+ },
+ "group.create.username": {
+  "en": "Username",
+  "ru": "Имя группы (@username)"
+ },
+ "group.create.usernameHint": {
+  "en": "Letters, digits and _ , 5 to 32 characters",
+  "ru": "Буквы, цифры и _ , от 5 до 32 символов"
+ },
+ "group.username.startsWithLetter": {
+  "en": "Must start with a letter",
+  "ru": "Должно начинаться с буквы"
+ },
+ "group.username.badChars": {
+  "en": "Only letters, digits and _",
+  "ru": "Только буквы, цифры и _"
+ },
+ "group.username.tooShort": {
+  "en": "At least 5 characters",
+  "ru": "Не короче 5 символов"
+ },
+ "group.username.tooLong": {
+  "en": "At most 32 characters",
+  "ru": "Не длиннее 32 символов"
+ },
+ "group.create.membersCount": {
+  "en": "Members: {count}",
+  "ru": "Участников: {count}"
+ },
+ "group.create.editMembers": {
+  "en": "Change",
+  "ru": "Изменить"
+ },
+ "group.create.button": {
+  "en": "Create group",
+  "ru": "Создать группу"
+ },
+ "group.create.needPeople": {
+  "en": "A private group needs at least one person. Go back and add someone.",
+  "ru": "В приватной группе нужен хотя бы один человек. Вернитесь и добавьте."
+ },
+ "group.create.needName": {
+  "en": "Enter a group name",
+  "ru": "Введите название группы"
+ },
+ "group.find.title": {
+  "en": "Find groups",
+  "ru": "Поиск групп"
+ },
+ "group.find.hint": {
+  "en": "Group name or @username",
+  "ru": "Название или @username"
+ },
+ "group.find.initial": {
+  "en": "Search public groups by name or @username and join them.",
+  "ru": "Ищите публичные группы по названию или @username и вступайте."
+ },
+ "group.find.short": {
+  "en": "Type at least 2 characters",
+  "ru": "Введите хотя бы 2 символа"
+ },
+ "group.find.empty": {
+  "en": "No public groups found for «{query}»",
+  "ru": "Публичных групп по запросу «{query}» нет"
+ },
+ "group.find.members": {
+  "en": "Members: {count}",
+  "ru": "Участников: {count}"
+ },
+ "group.find.join": {
+  "en": "Join",
+  "ru": "Вступить"
+ },
+ "group.find.request": {
+  "en": "Request",
+  "ru": "Подать заявку"
+ },
+ "group.find.requested": {
+  "en": "Request sent",
+  "ru": "Заявка отправлена"
+ },
+ "group.find.open": {
+  "en": "Open",
+  "ru": "Открыть"
+ },
+ "group.join.title": {
+  "en": "Group",
+  "ru": "Группа"
+ },
+ "group.join.members": {
+  "en": "Members: {count}",
+  "ru": "Участников: {count}"
+ },
+ "group.join.join": {
+  "en": "Join group",
+  "ru": "Вступить в группу"
+ },
+ "group.join.request": {
+  "en": "Request to join",
+  "ru": "Подать заявку"
+ },
+ "group.join.requested": {
+  "en": "Request sent",
+  "ru": "Заявка отправлена"
+ },
+ "group.join.open": {
+  "en": "Open group",
+  "ru": "Открыть группу"
+ },
+ "group.join.approvalNote": {
+  "en": "Admins approve new members.",
+  "ru": "Новых участников одобряют админы."
+ },
+ "group.join.notFoundTitle": {
+  "en": "Link not working",
+  "ru": "Ссылка не работает"
+ },
+ "group.join.notFound": {
+  "en": "This invite link is invalid or expired, or the group no longer exists.",
+  "ru": "Ссылка недействительна или устарела, либо группы больше нет."
+ },
+ "group.new": {
+  "en": "New group",
+  "ru": "Новая группа"
+ },
+ "group.find": {
+  "en": "Find groups",
+  "ru": "Найти группы"
+ },
+ "group.empty.preview": {
+  "en": "No messages yet",
+  "ru": "Сообщений пока нет"
+ },
+ "group.menu.title": {
+  "en": "Group actions",
+  "ru": "Действия с группой"
+ },
+ "group.menu.pin": {
+  "en": "Pin to the top",
+  "ru": "Закрепить сверху"
+ },
+ "group.menu.unpin": {
+  "en": "Unpin",
+  "ru": "Открепить"
+ },
+ "group.menu.mute": {
+  "en": "Mute",
+  "ru": "Отключить звук"
+ },
+ "group.menu.unmute": {
+  "en": "Unmute",
+  "ru": "Включить звук"
+ },
+ "group.menu.hide": {
+  "en": "Remove from list",
+  "ru": "Убрать из списка"
+ },
+ "group.select.hideMessage": {
+  "en": "Groups leave your list and come back with a new message. Chats are removed from your list only.",
+  "ru": "Группы уйдут из списка и вернутся с новым сообщением. Чаты удаляются только из вашего списка."
+ },
+ "group.info.title": {
+  "en": "Group info",
+  "ru": "О группе"
+ },
+ "group.info.members.one": {
+  "en": "{count} member",
+  "ru": "{count} участник"
+ },
+ "group.info.members.few": {
+  "en": "{count} members",
+  "ru": "{count} участника"
+ },
+ "group.info.members.many": {
+  "en": "{count} members",
+  "ru": "{count} участников"
+ },
+ "group.info.members.other": {
+  "en": "{count} members",
+  "ru": "{count} участников"
+ },
+ "group.info.added.one": {
+  "en": "{count} person added",
+  "ru": "Добавлен {count} человек"
+ },
+ "group.info.added.few": {
+  "en": "{count} people added",
+  "ru": "Добавлено {count} человека"
+ },
+ "group.info.added.many": {
+  "en": "{count} people added",
+  "ru": "Добавлено {count} человек"
+ },
+ "group.info.added.other": {
+  "en": "{count} people added",
+  "ru": "Добавлено {count} человек"
+ },
+ "group.info.created": {
+  "en": "Created {date}",
+  "ru": "Создана {date}"
+ },
+ "group.info.add": {
+  "en": "Add",
+  "ru": "Добавить"
+ },
+ "group.info.addMembers": {
+  "en": "Add members",
+  "ru": "Добавить участников"
+ },
+ "group.info.addDescription": {
+  "en": "Add a description",
+  "ru": "Добавить описание"
+ },
+ "group.info.editTitle": {
+  "en": "Group name",
+  "ru": "Название группы"
+ },
+ "group.info.titleHint": {
+  "en": "Group name",
+  "ru": "Название группы"
+ },
+ "group.info.editDescription": {
+  "en": "Description",
+  "ru": "Описание"
+ },
+ "group.info.descriptionHint": {
+  "en": "What is this group about?",
+  "ru": "О чём эта группа?"
+ },
+ "group.info.fieldRequired": {
+  "en": "This field is required",
+  "ru": "Поле обязательно"
+ },
+ "group.info.photoChange": {
+  "en": "Change group photo",
+  "ru": "Изменить фото группы"
+ },
+ "group.info.photoRemove": {
+  "en": "Remove photo",
+  "ru": "Удалить фото"
+ },
+ "group.info.gone": {
+  "en": "This group no longer exists or you are not in it.",
+  "ru": "Этой группы больше нет, или вы в ней не состоите."
+ },
+ "group.info.toInbox": {
+  "en": "Back to chats",
+  "ru": "К чатам"
+ },
+ "group.info.username": {
+  "en": "Username",
+  "ru": "Имя группы"
+ },
+ "group.info.usernameHint": {
+  "en": "groupname",
+  "ru": "groupname"
+ },
+ "group.info.usernameRule": {
+  "en": "5-32 letters, digits or _, starting with a letter",
+  "ru": "5-32 символа: латиница, цифры или _, начинается с буквы"
+ },
+ "group.info.usernameInvalid": {
+  "en": "Use 5-32 letters, digits or _, starting with a letter",
+  "ru": "Нужно 5-32 символа: латиница, цифры или _, первая — буква"
+ },
+ "group.info.mute.title": {
+  "en": "Notifications",
+  "ru": "Уведомления"
+ },
+ "group.info.mute.mute": {
+  "en": "Mute",
+  "ru": "Без звука"
+ },
+ "group.info.mute.unmute": {
+  "en": "Unmute",
+  "ru": "Включить звук"
+ },
+ "group.info.mute.off": {
+  "en": "Unmute",
+  "ru": "Включить уведомления"
+ },
+ "group.info.mute.hour": {
+  "en": "For 1 hour",
+  "ru": "На 1 час"
+ },
+ "group.info.mute.hours8": {
+  "en": "For 8 hours",
+  "ru": "На 8 часов"
+ },
+ "group.info.mute.week": {
+  "en": "For 1 week",
+  "ru": "На неделю"
+ },
+ "group.info.mute.forever": {
+  "en": "Forever",
+  "ru": "Навсегда"
+ },
+ "group.info.mute.muted": {
+  "en": "Notifications muted",
+  "ru": "Уведомления выключены"
+ },
+ "group.info.mute.unmuted": {
+  "en": "Notifications on",
+  "ru": "Уведомления включены"
+ },
+ "group.info.settings.permissions": {
+  "en": "Who can",
+  "ru": "Кто может"
+ },
+ "group.info.settings.whoPost": {
+  "en": "Write messages",
+  "ru": "Писать сообщения"
+ },
+ "group.info.settings.whoAdd": {
+  "en": "Add members",
+  "ru": "Добавлять участников"
+ },
+ "group.info.settings.whoEdit": {
+  "en": "Edit group info",
+  "ru": "Менять данные группы"
+ },
+ "group.info.settings.whoCall": {
+  "en": "Start calls",
+  "ru": "Начинать звонки"
+ },
+ "group.info.who.all": {
+  "en": "Everyone",
+  "ru": "Все"
+ },
+ "group.info.who.admins": {
+  "en": "Admins only",
+  "ru": "Только админы"
+ },
+ "group.info.settings.access": {
+  "en": "Access",
+  "ru": "Доступ"
+ },
+ "group.info.settings.type": {
+  "en": "Group type",
+  "ru": "Тип группы"
+ },
+ "group.info.settings.approval": {
+  "en": "Approve new members",
+  "ru": "Одобрять новых участников"
+ },
+ "group.info.settings.approvalNote": {
+  "en": "Admins accept each join request",
+  "ru": "Админы принимают каждую заявку"
+ },
+ "group.info.settings.inviteLink": {
+  "en": "Invite link",
+  "ru": "Ссылка-приглашение"
+ },
+ "group.info.settings.inviteLinkNote": {
+  "en": "People can join with the link",
+  "ru": "Вступать можно по ссылке"
+ },
+ "group.info.settings.topics": {
+  "en": "Topics",
+  "ru": "Темы"
+ },
+ "group.info.settings.topicsNote": {
+  "en": "Topics split the chat into separate threads, like a forum. Turning them on creates «General» for the existing messages.",
+  "ru": "Темы делят чат на отдельные ветки, как форум. При включении создаётся тема «Общее» для прежних сообщений."
+ },
+ "group.info.settings.topicsOffTitle": {
+  "en": "Turn off topics?",
+  "ru": "Выключить темы?"
+ },
+ "group.info.settings.topicsOffBody": {
+  "en": "The group becomes a single chat again. Topics are kept if you turn them back on.",
+  "ru": "Группа снова станет одним чатом. Темы сохранятся, если включить их снова."
+ },
+ "group.info.settings.topicsOffConfirm": {
+  "en": "Turn off",
+  "ru": "Выключить"
+ },
+ "group.info.type.public": {
+  "en": "Public",
+  "ru": "Публичная"
+ },
+ "group.info.type.publicNote": {
+  "en": "Anyone can find it by @username and join",
+  "ru": "Любой найдёт по @имени и вступит"
+ },
+ "group.info.type.closed": {
+  "en": "Closed",
+  "ru": "Закрытая"
+ },
+ "group.info.type.closedNote": {
+  "en": "People join with the invite link",
+  "ru": "Вступают по ссылке-приглашению"
+ },
+ "group.info.type.private": {
+  "en": "Private",
+  "ru": "Приватная"
+ },
+ "group.info.type.privateNote": {
+  "en": "Only admins add people",
+  "ru": "Участников добавляют только админы"
+ },
+ "group.info.link.title": {
+  "en": "Invite link",
+  "ru": "Ссылка-приглашение"
+ },
+ "group.info.link.copy": {
+  "en": "Copy",
+  "ru": "Копировать"
+ },
+ "group.info.link.copied": {
+  "en": "Link copied",
+  "ru": "Ссылка скопирована"
+ },
+ "group.info.link.share": {
+  "en": "Share",
+  "ru": "Поделиться"
+ },
+ "group.info.link.usernameNote": {
+  "en": "Public username",
+  "ru": "Публичное имя группы"
+ },
+ "group.info.link.usernameCopied": {
+  "en": "Username copied",
+  "ru": "Имя скопировано"
+ },
+ "group.info.link.reset": {
+  "en": "Reset link",
+  "ru": "Сбросить ссылку"
+ },
+ "group.info.link.resetTitle": {
+  "en": "Reset the link?",
+  "ru": "Сбросить ссылку?"
+ },
+ "group.info.link.resetBody": {
+  "en": "The old link will stop working. People in the group stay.",
+  "ru": "Старая ссылка перестанет работать. Участники останутся в группе."
+ },
+ "group.info.requests.title": {
+  "en": "Join requests",
+  "ru": "Заявки на вступление"
+ },
+ "group.info.requests.empty": {
+  "en": "No requests",
+  "ru": "Заявок нет"
+ },
+ "group.info.requests.sent": {
+  "en": "Requested {date}",
+  "ru": "Заявка от {date}"
+ },
+ "group.info.requests.approve": {
+  "en": "Approve",
+  "ru": "Принять"
+ },
+ "group.info.requests.decline": {
+  "en": "Decline",
+  "ru": "Отклонить"
+ },
+ "group.info.requests.approved": {
+  "en": "{name} joined",
+  "ru": "{name} принят(а)"
+ },
+ "group.info.requests.declined": {
+  "en": "Request declined",
+  "ru": "Заявка отклонена"
+ },
+ "group.info.role.owner": {
+  "en": "Owner",
+  "ru": "Владелец"
+ },
+ "group.info.role.admin": {
+  "en": "Admin",
+  "ru": "Админ"
+ },
+ "group.info.member.actions": {
+  "en": "Member actions",
+  "ru": "Действия с участником"
+ },
+ "group.info.member.makeAdmin": {
+  "en": "Make admin",
+  "ru": "Сделать админом"
+ },
+ "group.info.member.removeAdmin": {
+  "en": "Remove admin",
+  "ru": "Снять с админов"
+ },
+ "group.info.member.remove": {
+  "en": "Remove from group",
+  "ru": "Удалить из группы"
+ },
+ "group.info.member.removeTitle": {
+  "en": "Remove {name}?",
+  "ru": "Удалить {name}?"
+ },
+ "group.info.member.removeBody": {
+  "en": "They will no longer see the chat.",
+  "ru": "Человек больше не увидит этот чат."
+ },
+ "group.info.topics.title": {
+  "en": "Topics",
+  "ru": "Темы"
+ },
+ "group.info.topics.general": {
+  "en": "General",
+  "ru": "Общее"
+ },
+ "group.info.topics.new": {
+  "en": "New topic",
+  "ru": "Новая тема"
+ },
+ "group.info.topics.actions": {
+  "en": "Topic actions",
+  "ru": "Действия с темой"
+ },
+ "group.info.topics.edit": {
+  "en": "Edit",
+  "ru": "Изменить"
+ },
+ "group.info.topics.pin": {
+  "en": "Pin",
+  "ru": "Закрепить"
+ },
+ "group.info.topics.unpin": {
+  "en": "Unpin",
+  "ru": "Открепить"
+ },
+ "group.info.topics.close": {
+  "en": "Close topic",
+  "ru": "Закрыть тему"
+ },
+ "group.info.topics.reopen": {
+  "en": "Reopen topic",
+  "ru": "Открыть тему"
+ },
+ "group.info.topics.pinned": {
+  "en": "Pinned",
+  "ru": "Закреплена"
+ },
+ "group.info.topics.closed": {
+  "en": "Closed",
+  "ru": "Закрыта"
+ },
+ "group.info.leave.title": {
+  "en": "Leave group",
+  "ru": "Выйти из группы"
+ },
+ "group.info.leave.body": {
+  "en": "You will stop receiving its messages.",
+  "ru": "Вы перестанете получать её сообщения."
+ },
+ "group.info.leave.bodyOwner": {
+  "en": "You are the owner. Ownership passes to the longest-serving admin or member. If nobody else is left, the group is deleted.",
+  "ru": "Вы владелец. Права владельца перейдут админу или участнику, который в группе дольше всех. Если больше никого нет, группа будет удалена."
+ },
+ "group.info.leave.confirm": {
+  "en": "Leave",
+  "ru": "Выйти"
+ },
+ "group.info.delete.title": {
+  "en": "Delete group",
+  "ru": "Удалить группу"
+ },
+ "group.info.delete.body": {
+  "en": "The group and all its messages will be deleted for everyone.",
+  "ru": "Группа и все её сообщения будут удалены у всех."
+ },
+ "group.info.delete.confirm": {
+  "en": "Continue",
+  "ru": "Продолжить"
+ },
+ "group.info.delete.title2": {
+  "en": "Delete for everyone?",
+  "ru": "Удалить у всех?"
+ },
+ "group.info.delete.body2": {
+  "en": "This cannot be undone.",
+  "ru": "Это нельзя отменить."
+ },
+ "group.info.delete.confirm2": {
+  "en": "Delete group",
+  "ru": "Удалить группу"
+ },
+ "poll.anonymous": {
+  "en": "Anonymous poll",
+  "ru": "Анонимный опрос"
+ },
+ "poll.public": {
+  "en": "Public poll",
+  "ru": "Открытый опрос"
+ },
+ "poll.multiple": {
+  "en": "multiple choice",
+  "ru": "несколько ответов"
+ },
+ "poll.closed": {
+  "en": "closed",
+  "ru": "завершён"
+ },
+ "poll.voters.one": {
+  "en": "{count} vote",
+  "ru": "{count} голос"
+ },
+ "poll.voters.other": {
+  "en": "{count} votes",
+  "ru": "{count} голосов"
+ },
+ "poll.percentOfVotes": {
+  "en": "{percent} percent, {votes} votes",
+  "ru": "{percent} процентов, голосов: {votes}"
+ },
+ "poll.vote": {
+  "en": "Vote",
+  "ru": "Голосовать"
+ },
+ "poll.retract": {
+  "en": "Retract vote",
+  "ru": "Отменить голос"
+ },
+ "poll.viewVotes": {
+  "en": "View votes",
+  "ru": "Кто голосовал"
+ },
+ "poll.close": {
+  "en": "Close poll",
+  "ru": "Завершить опрос"
+ },
+ "poll.close.title": {
+  "en": "Close this poll?",
+  "ru": "Завершить опрос?"
+ },
+ "poll.close.message": {
+  "en": "No one will be able to vote any more.",
+  "ru": "Голосовать больше будет нельзя."
+ },
+ "poll.votersTitle": {
+  "en": "Votes",
+  "ru": "Голоса"
+ },
+ "poll.noVotes": {
+  "en": "No votes",
+  "ru": "Нет голосов"
+ },
+ "poll.new": {
+  "en": "New poll",
+  "ru": "Новый опрос"
+ },
+ "poll.question": {
+  "en": "Question",
+  "ru": "Вопрос"
+ },
+ "poll.question.hint": {
+  "en": "Ask a question",
+  "ru": "Задайте вопрос"
+ },
+ "poll.options": {
+  "en": "Options",
+  "ru": "Варианты"
+ },
+ "poll.option.hint": {
+  "en": "Option {n}",
+  "ru": "Вариант {n}"
+ },
+ "poll.option.add": {
+  "en": "Add an option",
+  "ru": "Добавить вариант"
+ },
+ "poll.option.remove": {
+  "en": "Remove option",
+  "ru": "Удалить вариант"
+ },
+ "poll.option.drag": {
+  "en": "Drag to reorder",
+  "ru": "Перетащите, чтобы изменить порядок"
+ },
+ "poll.option.max": {
+  "en": "Up to {max} options",
+  "ru": "Не больше {max} вариантов"
+ },
+ "poll.anonymous.switch": {
+  "en": "Anonymous voting",
+  "ru": "Анонимное голосование"
+ },
+ "poll.anonymous.hintOn": {
+  "en": "Nobody sees who voted",
+  "ru": "Никто не увидит, кто как голосовал"
+ },
+ "poll.anonymous.hintOff": {
+  "en": "Members see who voted",
+  "ru": "Участники увидят, кто как голосовал"
+ },
+ "poll.multiple.switch": {
+  "en": "Multiple answers",
+  "ru": "Несколько ответов"
+ },
+ "poll.multiple.hint": {
+  "en": "Members can pick several options",
+  "ru": "Можно выбрать несколько вариантов"
+ },
+ "poll.send": {
+  "en": "Send",
+  "ru": "Отправить"
+ },
+ "poll.error.question": {
+  "en": "Enter a question",
+  "ru": "Введите вопрос"
+ },
+ "poll.error.options": {
+  "en": "Add at least 2 options",
+  "ru": "Добавьте минимум 2 варианта"
+ },
+ "poll.error.duplicates": {
+  "en": "Options must be different",
+  "ru": "Варианты не должны повторяться"
+ },
+ "group.someone": {
+  "en": "Someone",
+  "ru": "Кто-то"
+ },
+ "group.you": {
+  "en": "You",
+  "ru": "Вы"
+ },
+ "group.message.deleted": {
+  "en": "Message deleted",
+  "ru": "Сообщение удалено"
+ },
+ "group.preview.poll": {
+  "en": "Poll: {question}",
+  "ru": "Опрос: {question}"
+ },
+ "group.preview.photo": {
+  "en": "Photo",
+  "ru": "Фото"
+ },
+ "group.preview.file": {
+  "en": "File: {name}",
+  "ru": "Файл: {name}"
+ },
+ "group.system.created": {
+  "en": "{name} created the group",
+  "ru": "{name} создал(а) группу"
+ },
+ "group.system.added": {
+  "en": "{name} added {people}",
+  "ru": "{name} добавил(а) {people}"
+ },
+ "group.system.joined": {
+  "en": "{name} joined the group",
+  "ru": "{name} вступил(а) в группу"
+ },
+ "group.system.left": {
+  "en": "{name} left the group",
+  "ru": "{name} вышел(а) из группы"
+ },
+ "group.system.removed": {
+  "en": "{name} removed {people}",
+  "ru": "{name} удалил(а) {people}"
+ },
+ "group.system.removedByAdmin": {
+  "en": "{people} was removed by moderators",
+  "ru": "{people} удалён(а) модераторами"
+ },
+ "group.system.renamed": {
+  "en": "{name} renamed the group to «{title}»",
+  "ru": "{name} переименовал(а) группу в «{title}»"
+ },
+ "group.system.photo": {
+  "en": "{name} changed the group photo",
+  "ru": "{name} изменил(а) фото группы"
+ },
+ "group.system.description": {
+  "en": "{name} changed the description",
+  "ru": "{name} изменил(а) описание"
+ },
+ "group.system.promoted": {
+  "en": "{name} made {people} an admin",
+  "ru": "{name} назначил(а) админом {people}"
+ },
+ "group.system.demoted": {
+  "en": "{name} removed admin rights from {people}",
+  "ru": "{name} снял(а) права админа у {people}"
+ },
+ "group.system.pinned": {
+  "en": "{name} pinned a message",
+  "ru": "{name} закрепил(а) сообщение"
+ },
+ "group.system.topicCreated": {
+  "en": "{name} created the topic «{title}»",
+  "ru": "{name} создал(а) тему «{title}»"
+ },
+ "error.api.GROUP_NOT_FOUND": {
+  "en": "This group does not exist or the link is no longer valid",
+  "ru": "Группа не найдена или ссылка больше не действует"
+ },
+ "error.api.GROUP_FORBIDDEN": {
+  "en": "You do not have access to this group or action",
+  "ru": "У вас нет доступа к этой группе или действию"
+ },
+ "error.api.GROUP_FULL": {
+  "en": "The group is full",
+  "ru": "В группе больше нет мест"
+ },
+ "error.api.GROUP_USERNAME_TAKEN": {
+  "en": "This @username is already taken",
+  "ru": "Этот @ник уже занят"
+ },
+ "error.api.POLL_CLOSED": {
+  "en": "This poll is closed",
+  "ru": "Опрос уже закрыт"
+ }
+}

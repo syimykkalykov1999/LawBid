@@ -368,10 +368,147 @@ export class PushDispatcher
     return 'sent';
   }
 
+  /**
+   * Owner 2026-10-20: a group chat message. Same gates as a 1:1 message
+   * (active user, still a member, muted, chat open, setting, quiet hours);
+   * a system line only pushes to the person just added; @mentioned members
+   * get a push even while the group is muted.
+   */
+  private async dispatchGroupMessage(
+    data: MessageJobData & { groupId: string },
+    jobId: string,
+  ): Promise<DispatchResult> {
+    const [user, member, message, group] = await Promise.all([
+      this.prisma.user.findUnique({
+        where: { id: data.recipientId },
+        select: { status: true, ui_language: true },
+      }),
+      this.prisma.chatGroupMember.findUnique({
+        where: {
+          group_id_user_id: {
+            group_id: data.groupId,
+            user_id: data.recipientId,
+          },
+        },
+        select: { muted_until: true, left_at: true },
+      }),
+      this.prisma.chatGroupMessage.findUnique({
+        where: { id: data.messageId, deleted_at: {} },
+        select: {
+          body: true,
+          type: true,
+          sender_id: true,
+          deleted_at: true,
+          system_kind: true,
+          system_payload: true,
+          mention_ids: true,
+          poll: { select: { question: true } },
+        },
+      }),
+      this.prisma.chatGroup.findUnique({
+        where: { id: data.groupId },
+        select: { title: true, deleted_at: true },
+      }),
+    ]);
+    if (
+      !user ||
+      user.status !== 'active' ||
+      !member ||
+      member.left_at ||
+      !message ||
+      !group ||
+      group.deleted_at
+    ) {
+      return 'no_user';
+    }
+    if (message.deleted_at) return 'no_push';
+    const ru = user.ui_language === 'ru';
+    const mentioned = message.mention_ids.includes(data.recipientId);
+    let body: string;
+    if (message.type === 'system') {
+      const payload = (message.system_payload ?? {}) as {
+        targetIds?: string[];
+      };
+      if (
+        message.system_kind !== 'added' ||
+        !payload.targetIds?.includes(data.recipientId)
+      ) {
+        return 'no_push';
+      }
+      body = ru ? 'Вас добавили в группу' : 'You were added to the group';
+    } else {
+      const sender = message.sender_id
+        ? await this.prisma.user.findUnique({
+            where: { id: message.sender_id },
+            select: { first_name: true, last_name: true },
+          })
+        : null;
+      const who = [sender?.first_name, sender?.last_name]
+        .filter(Boolean)
+        .join(' ');
+      const caption = [
+        ...(message.type === 'poll'
+          ? (message.poll?.question ?? '')
+          : message.body),
+      ]
+        .slice(0, MESSAGE_PREVIEW_CHARS)
+        .join('');
+      const preview =
+        message.type === 'poll'
+          ? `📊 ${caption}`
+          : message.type === 'attachment'
+            ? (ru ? '📎 Файл' : '📎 File') + (caption ? `: ${caption}` : '')
+            : caption;
+      body = (who ? `${who}: ` : '') + preview;
+      if (mentioned) {
+        body = (ru ? '@ Вас упомянули. ' : '@ Mentioned you. ') + body;
+      }
+    }
+    const muted = !!member.muted_until && member.muted_until > new Date();
+    if (muted && !mentioned) return 'muted';
+    if (await this.realtime.isViewing(data.recipientId, data.groupId)) {
+      return 'viewing';
+    }
+    if (!(await this.pushAllowed(data.recipientId, 'messages'))) {
+      return 'disabled';
+    }
+    if (!data.deferred) {
+      const until = await this.quietUntil(data.recipientId);
+      if (until) {
+        await this.queue.defer(data, until, jobId || data.messageId);
+        return 'deferred';
+      }
+    }
+    const badge = (await this.badges.get(data.recipientId)).total;
+    await this.sender.send(
+      {
+        userId: data.recipientId,
+        title: group.title,
+        body,
+        data: {
+          type: 'new_message',
+          groupId: data.groupId,
+          conversationId: data.groupId,
+          messageId: data.messageId,
+        },
+        badge,
+        sound: 'message',
+      },
+      `m:${data.messageId}`,
+    );
+    return 'sent';
+  }
+
   private async dispatchMessage(
     data: MessageJobData,
     jobId: string,
   ): Promise<DispatchResult> {
+    if (data.groupId) {
+      return this.dispatchGroupMessage(
+        { ...data, groupId: data.groupId },
+        jobId,
+      );
+    }
     const [user, part, message] = await Promise.all([
       this.prisma.user.findUnique({
         where: { id: data.recipientId },

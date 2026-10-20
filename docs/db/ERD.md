@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-176 tables.
+185 tables.
 
 ```mermaid
 erDiagram
@@ -721,6 +721,113 @@ erDiagram
     DateTime deleted_at "nullable"
     DateTime created_at
     DateTime updated_at
+  }
+  chat_groups {
+    String id PK
+    String title
+    String description "nullable"
+    String avatar_file_id FK "nullable"
+    String created_by FK
+    enum_GroupType group_type
+    String username "nullable"
+    String username_lower UK "nullable"
+    Boolean join_approval
+    Boolean topics_enabled
+    String general_topic_id "nullable"
+    String invite_code UK
+    Boolean invite_enabled
+    enum_GroupWho who_can_post
+    enum_GroupWho who_can_add
+    enum_GroupWho who_can_edit_info
+    enum_GroupWho who_can_call
+    String pinned_message_id "nullable"
+    String last_message_id "nullable"
+    DateTime last_message_at "nullable"
+    Int member_count
+    DateTime deleted_at "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  chat_group_members {
+    String group_id PK,FK
+    String user_id PK,FK
+    enum_ChatGroupRole role
+    String added_by "nullable"
+    DateTime joined_at
+    DateTime left_at "nullable"
+    String left_reason "nullable"
+    String last_read_message_id "nullable"
+    DateTime muted_until "nullable"
+    DateTime pinned_at "nullable"
+    DateTime hidden_at "nullable"
+    DateTime updated_at
+  }
+  chat_group_messages {
+    String id PK
+    String group_id FK
+    String sender_id FK "nullable"
+    enum_GroupMessageType type
+    String body
+    String client_message_id
+    String system_kind "nullable"
+    Json system_payload "nullable"
+    String topic_id FK "nullable"
+    String reply_to_id FK "nullable"
+    String file_id FK "nullable"
+    String file_name "nullable"
+    DateTime edited_at "nullable"
+    DateTime deleted_at "nullable"
+    DateTime created_at
+  }
+  chat_group_topics {
+    String id PK
+    String group_id FK
+    String title
+    String icon_emoji "nullable"
+    Int color
+    Boolean is_general
+    String created_by "nullable"
+    DateTime closed_at "nullable"
+    DateTime pinned_at "nullable"
+    String last_message_id "nullable"
+    DateTime last_message_at "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  chat_group_topic_reads {
+    String topic_id PK,FK
+    String user_id PK,FK
+    String last_read_message_id "nullable"
+    DateTime updated_at
+  }
+  chat_group_join_requests {
+    String group_id PK,FK
+    String user_id PK,FK
+    DateTime created_at
+  }
+  chat_group_polls {
+    String id PK
+    String group_id FK
+    String message_id FK,UK
+    String creator_id FK
+    String question
+    Boolean multiple
+    Boolean anonymous
+    DateTime closed_at "nullable"
+    String closed_by "nullable"
+    DateTime created_at
+  }
+  chat_group_poll_options {
+    String id PK
+    String poll_id FK
+    Int position
+    String text
+  }
+  chat_group_poll_votes {
+    String poll_id FK
+    String option_id PK,FK
+    String user_id PK,FK
+    DateTime created_at
   }
   notifications {
     String id PK
@@ -2303,6 +2410,27 @@ erDiagram
   messages }o--o| users : "sender_id"
   messages }o--o| files : "file_id"
   messages }o--o| stickers : "sticker_id"
+  chat_groups }o--o| files : "avatar_file_id"
+  chat_groups }o--|| users : "created_by"
+  chat_group_members }o--|| chat_groups : "group_id"
+  chat_group_members }o--|| users : "user_id"
+  chat_group_messages }o--|| chat_groups : "group_id"
+  chat_group_messages }o--o| users : "sender_id"
+  chat_group_messages }o--o| chat_group_topics : "topic_id"
+  chat_group_messages }o--o| chat_group_messages : "reply_to_id"
+  chat_group_messages }o--o| files : "file_id"
+  chat_group_topics }o--|| chat_groups : "group_id"
+  chat_group_topic_reads }o--|| chat_group_topics : "topic_id"
+  chat_group_topic_reads }o--|| users : "user_id"
+  chat_group_join_requests }o--|| chat_groups : "group_id"
+  chat_group_join_requests }o--|| users : "user_id"
+  chat_group_polls }o--|| chat_groups : "group_id"
+  chat_group_polls |o--|| chat_group_messages : "message_id"
+  chat_group_polls }o--|| users : "creator_id"
+  chat_group_poll_options }o--|| chat_group_polls : "poll_id"
+  chat_group_poll_votes }o--|| chat_group_polls : "poll_id"
+  chat_group_poll_votes }o--|| chat_group_poll_options : "option_id"
+  chat_group_poll_votes }o--|| users : "user_id"
   notifications }o--|| users : "user_id"
   notification_settings }o--|| users : "user_id"
   notification_quiet_hours |o--|| users : "user_id"

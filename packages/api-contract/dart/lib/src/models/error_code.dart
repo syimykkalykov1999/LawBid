@@ -274,6 +274,16 @@ enum ErrorCode {
   commentNotFound('COMMENT_NOT_FOUND'),
   @JsonValue('FOLLOW_NOT_ALLOWED')
   followNotAllowed('FOLLOW_NOT_ALLOWED'),
+  @JsonValue('GROUP_NOT_FOUND')
+  groupNotFound('GROUP_NOT_FOUND'),
+  @JsonValue('GROUP_FORBIDDEN')
+  groupForbidden('GROUP_FORBIDDEN'),
+  @JsonValue('GROUP_FULL')
+  groupFull('GROUP_FULL'),
+  @JsonValue('GROUP_USERNAME_TAKEN')
+  groupUsernameTaken('GROUP_USERNAME_TAKEN'),
+  @JsonValue('POLL_CLOSED')
+  pollClosed('POLL_CLOSED'),
   @JsonValue('CONVERSATION_NOT_FOUND')
   conversationNotFound('CONVERSATION_NOT_FOUND'),
   @JsonValue('CONVERSATION_CLOSED')

@@ -104,6 +104,7 @@
                 <data android:pathPrefix="/case/" />
                 <data android:pathPrefix="/lawyer/" />
                 <data android:pathPrefix="/post/" />
+                <data android:pathPrefix="/g/" />
                 <data android:pathPrefix="/r/" />
                 <data android:pathPrefix="/u/" />
                 <data android:pathPrefix="/q/" />

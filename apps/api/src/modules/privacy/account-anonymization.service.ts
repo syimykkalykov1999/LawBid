@@ -118,6 +118,27 @@ export class AccountAnonymizationService {
     }
   }
 
+  /** Owner 2026-10-20: the same for group chats — own group messages
+   * become `[deleted]`, the person leaves every group. */
+  private async scrubGroupMessages(userId: string): Promise<void> {
+    for (;;) {
+      const n = await this.prisma.$executeRaw`
+        UPDATE chat_group_messages
+        SET body = ${DELETED_MESSAGE_BODY}, mention_ids = '{}'
+        WHERE ctid IN (
+          SELECT ctid FROM chat_group_messages
+          WHERE sender_id = ${userId}::UUID
+            AND type::TEXT IN ('text', 'attachment')
+            AND body <> ${DELETED_MESSAGE_BODY}
+          LIMIT 5000)`;
+      if (n < 5000) break;
+    }
+    await this.prisma.chatGroupMember.updateMany({
+      where: { user_id: userId, left_at: null },
+      data: { left_at: new Date(), left_reason: 'left' },
+    });
+  }
+
   /** Anonymizes one user (idempotent: a second run is a no-op). */
   async anonymize(userId: string, now: Date = new Date()): Promise<boolean> {
     const user = await this.prisma.user.findUnique({
@@ -349,6 +370,7 @@ export class AccountAnonymizationService {
       );
     }
     await this.scrubMessages(userId);
+    await this.scrubGroupMessages(userId);
     // Access tokens of the revoked chains die within their 15 minutes.
     if (chains.length > 0) {
       await Promise.all(

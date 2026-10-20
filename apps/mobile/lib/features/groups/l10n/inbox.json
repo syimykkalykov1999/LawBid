@@ -1,0 +1,12 @@
+{
+  "group.new": {"en": "New group", "ru": "Новая группа"},
+  "group.find": {"en": "Find groups", "ru": "Найти группы"},
+  "group.empty.preview": {"en": "No messages yet", "ru": "Сообщений пока нет"},
+  "group.menu.title": {"en": "Group actions", "ru": "Действия с группой"},
+  "group.menu.pin": {"en": "Pin to the top", "ru": "Закрепить сверху"},
+  "group.menu.unpin": {"en": "Unpin", "ru": "Открепить"},
+  "group.menu.mute": {"en": "Mute", "ru": "Отключить звук"},
+  "group.menu.unmute": {"en": "Unmute", "ru": "Включить звук"},
+  "group.menu.hide": {"en": "Remove from list", "ru": "Убрать из списка"},
+  "group.select.hideMessage": {"en": "Groups leave your list and come back with a new message. Chats are removed from your list only.", "ru": "Группы уйдут из списка и вернутся с новым сообщением. Чаты удаляются только из вашего списка."}
+}
