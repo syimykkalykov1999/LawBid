@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:lawbid/core/media/audio_takeover.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
@@ -115,6 +116,10 @@ class VoicePlayer extends Notifier<VoicePlayback> {
 
   @override
   VoicePlayback build() {
+    ref.listen(
+      audioTakeoverProvider,
+      (_, __) => unawaited(pauseForOtherAudio()),
+    );
     ref.onDispose(() {
       for (final s in _subs) {
         s.cancel();

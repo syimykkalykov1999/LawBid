@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
-import 'package:lawbid/features/chat/application/voice_player.dart';
+import 'package:lawbid/core/media/audio_takeover.dart';
 import 'package:lawbid/features/reels/presentation/reel_video.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:video_player/video_player.dart';
@@ -38,16 +38,6 @@ class _Player extends VideoPlayerController {
   Future<void> seekTo(Duration position) async {}
 }
 
-var _paused = 0;
-
-class _Voice extends VoicePlayer {
-  @override
-  VoicePlayback build() => const VoicePlayback();
-
-  @override
-  Future<void> pauseForOtherAudio() async => _paused++;
-}
-
 const _video = PostVideo(
   status: 'ready',
   playbackUrl: 'https://cdn.test/v.m3u8',
@@ -56,7 +46,6 @@ const _video = PostVideo(
 
 void main() {
   testWidgets('unmuting an open reel pauses the voice note', (t) async {
-    _paused = 0;
     final options = <bool>[];
     debugReelPlayerFactory = (_, o) {
       options.add(o.mixWithOthers);
@@ -64,9 +53,12 @@ void main() {
     };
     addTearDown(() => debugReelPlayerFactory = null);
     final muted = ValueNotifier(true);
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    int taken() => container.read(audioTakeoverProvider);
     await t.pumpWidget(
-      ProviderScope(
-        overrides: [voicePlayerProvider.overrideWith(_Voice.new)],
+      UncontrolledProviderScope(
+        container: container,
         child: MaterialApp(
           theme: AppTheme.dark(),
           home: ValueListenableBuilder<bool>(
@@ -79,13 +71,13 @@ void main() {
     );
     await t.pump(const Duration(milliseconds: 50));
     expect(options, [true]);
-    expect(_paused, 0);
+    expect(taken(), 0);
     muted.value = false;
     await t.pump(const Duration(milliseconds: 50));
-    expect(_paused, 1);
+    expect(taken(), 1);
     expect(options, [true], reason: 'no restart of the player');
     muted.value = true;
     await t.pump(const Duration(milliseconds: 50));
-    expect(_paused, 1);
+    expect(taken(), 1);
   });
 }
