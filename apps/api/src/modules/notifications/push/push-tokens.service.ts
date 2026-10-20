@@ -120,6 +120,28 @@ export class PushTokensService {
     return rows.map((r) => r.fcm_token);
   }
 
+  /** The reminders an iPhone has armed itself (it reports after each
+   * change); a replace, newest list wins. */
+  async setArmedReminders(
+    userId: string,
+    token: string,
+    ids: string[],
+  ): Promise<void> {
+    await this.prisma.pushToken.updateMany({
+      where: { user_id: userId, fcm_token: token },
+      data: { armed_reminders: ids },
+    });
+  }
+
+  /** token → armed reminder keys, for the user's iPhones. */
+  async armedReminders(userId: string): Promise<Map<string, Set<string>>> {
+    const rows = await this.prisma.pushToken.findMany({
+      where: { user_id: userId, platform: 'ios' },
+      select: { fcm_token: true, armed_reminders: true },
+    });
+    return new Map(rows.map((r) => [r.fcm_token, new Set(r.armed_reminders)]));
+  }
+
   /** FCM said UNREGISTERED / invalid (§9.5). */
   async remove(token: string): Promise<void> {
     await this.prisma.pushToken.deleteMany({ where: { fcm_token: token } });

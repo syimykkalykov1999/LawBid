@@ -238,6 +238,25 @@ export class PushTokenDto {
   localReminders?: boolean;
 }
 
+/** Owner 2026-10-20: the planner reminders an iPhone has armed locally. */
+export class ArmedRemindersDto {
+  @ApiProperty({ description: 'FCM registration token of this device.' })
+  @IsString()
+  @MinLength(20)
+  @MaxLength(4096)
+  token!: string;
+
+  @ApiProperty({
+    type: [String],
+    description: '`<taskId>@<remindAt ms>` of each armed reminder.',
+  })
+  @IsArray()
+  @ArrayMaxSize(100)
+  @IsString({ each: true })
+  @MaxLength(100, { each: true })
+  ids!: string[];
+}
+
 /** Owner 2026-10-17: an iPhone's PushKit (VoIP) token for calls. */
 export class VoipTokenDto {
   @ApiProperty({ description: 'PushKit token, hex.' })

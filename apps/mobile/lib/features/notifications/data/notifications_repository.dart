@@ -204,6 +204,10 @@ abstract interface class NotificationsRepository {
   });
   Future<void> deletePushToken(String token);
 
+  /// Owner 2026-10-20: the reminders this iPhone has armed as local alarms
+  /// (`<taskId>@<remindAt ms>`); the reminder push skips them.
+  Future<void> setArmedReminders(String token, List<String> ids);
+
   /// Owner 2026-10-20: the phone's IANA time zone — the server repeats
   /// tasks and sends daily reminders by this clock.
   Future<void> setTimezone(String timezone);
@@ -406,6 +410,14 @@ class ApiNotificationsRepository implements NotificationsRepository {
                     : api.PushTokenDtoPlatform.android,
             localReminders: localReminders,
           ),
+        ),
+      );
+
+  @override
+  Future<void> setArmedReminders(String token, List<String> ids) =>
+      guardApiCall(
+        () => _api.setArmedReminders(
+          body: api.ArmedRemindersDto(token: token, ids: ids),
         ),
       );
 

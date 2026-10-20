@@ -1,12 +1,16 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_router.dart';
 import 'package:lawbid/core/navigation/root_messenger.dart';
+import 'package:lawbid/features/notifications/application/notifications_providers.dart';
 import 'package:lawbid/features/notifications/application/system_notifications.dart';
 import 'package:lawbid/features/notifications/application/task_reminder_scheduler.dart';
 import 'package:lawbid/features/notifications/presentation/notifications_view.dart';
@@ -77,6 +81,7 @@ final taskReminderSyncProvider = Provider<void>((ref) {
         (_) => t.t('notif.cases.task_reminder.title'),
         (s) => reminderBody(t, f, s),
       );
+      unawaited(_reportArmed(ref, slots));
       final now = {for (final s in slots) '${s.taskId}@${s.at}'};
       final added = known != null && now.difference(known!).isNotEmpty;
       known = now;
@@ -119,6 +124,22 @@ class _ResumeObserver with WidgetsBindingObserver {
   }
 }
 
+/// Owner 2026-10-20: an iPhone tells the server which reminders it holds as
+/// local alarms, so the reminder push skips exactly those (no double banner;
+/// a reminder made elsewhere and not armed here still arrives by push).
+Future<void> _reportArmed(Ref ref, List<ReminderSlot> slots) async {
+  if (kIsWeb || defaultTargetPlatform != TargetPlatform.iOS) return;
+  try {
+    final token = await FirebaseMessaging.instance.getToken();
+    if (token == null) return;
+    await ref.read(notificationsRepositoryProvider).setArmedReminders(token, [
+      for (final s in slots) '${s.taskId}@${s.at.millisecondsSinceEpoch}',
+    ]);
+  } on Object catch (e) {
+    debugPrint('armed reminders not reported: $e');
+  }
+}
+
 /// Owner 2026-10-20: asked at the moment it matters — when a reminder is
 /// added to the planner (the list sync sees a new one): if the phone has
 /// notifications switched off the system prompt comes up (Android 13+), and
@@ -133,12 +154,16 @@ Future<void> _ensureReminderPermission(Ref ref) async {
   rootMessengerKey.currentState
     ?..hideCurrentSnackBar()
     ..showSnackBar(
-      SnackBar(
-        content: Text(t.t('notif.system.off')),
-        action: SnackBarAction(
-          label: t.t('notif.system.open'),
-          onPressed: () => unawaited(system.openSettings()),
-        ),
-      ),
+      reminderPermissionSnackBar(t, () => unawaited(system.openSettings())),
     );
 }
+
+/// The «notifications are off» message with a way to the phone's settings.
+SnackBar reminderPermissionSnackBar(Translator t, VoidCallback onOpen) =>
+    SnackBar(
+      content: Text(t.t('notif.system.off')),
+      action: SnackBarAction(
+        label: t.t('notif.system.open'),
+        onPressed: onOpen,
+      ),
+    );

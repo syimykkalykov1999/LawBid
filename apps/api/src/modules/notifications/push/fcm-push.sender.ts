@@ -20,6 +20,13 @@ const CALL_TTL_SEC = 60;
 /** A planner reminder still matters for a while after its time. */
 const REMINDER_TTL_SEC = 6 * 3600;
 
+/** `<taskId>@<remindAt ms>` of a reminder push (what an iPhone reports as
+ * armed); null for anything else. */
+function reminderKey(data: Record<string, string> | undefined): string | null {
+  const at = data?.remindAt ? Date.parse(data.remindAt) : NaN;
+  return data?.taskId && !Number.isNaN(at) ? `${data.taskId}@${at}` : null;
+}
+
 /** A temporary FCM failure: BullMQ retries the job (§9.5: 3 attempts,
  * exponential backoff). */
 export class FcmTemporaryError extends Error {}
@@ -73,8 +80,15 @@ export class FcmPushSender implements PushSender {
         ? await this.tokens.localReminderTokens(message.userId)
         : [],
     );
+    // Owner 2026-10-20: an iPhone that armed this very reminder as a local
+    // alarm does not get the push too (one banner, not two).
+    const armed = message.reminder
+      ? await this.tokens.armedReminders(message.userId)
+      : new Map<string, Set<string>>();
+    const key = reminderKey(message.data);
     for (const device of devices) {
       if (skip.has(device)) continue;
+      if (key && armed.get(device)?.has(key)) continue;
       const dataOnly = message.call || localReminder.has(device);
       // Claim the device before the call: a crash between FCM's 200 and
       // the mark can at most skip a push, never double it (load review).

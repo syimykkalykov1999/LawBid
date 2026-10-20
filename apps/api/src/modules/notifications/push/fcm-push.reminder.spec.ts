@@ -7,6 +7,7 @@ import type { PushTokensService } from './push-tokens.service';
  * time-sensitive. */
 describe('FcmPushSender planner reminder', () => {
   const sent: Record<string, unknown>[] = [];
+  let armed = new Map<string, Set<string>>();
 
   function build() {
     sent.length = 0;
@@ -14,6 +15,7 @@ describe('FcmPushSender planner reminder', () => {
       activeTokens: jest.fn().mockResolvedValue(['plain', 'local']),
       localReminderTokens: jest.fn().mockResolvedValue(['local']),
       webTokens: jest.fn().mockResolvedValue([]),
+      armedReminders: jest.fn().mockResolvedValue(armed),
       remove: jest.fn(),
     } as unknown as PushTokensService;
     const redis = { set: jest.fn().mockResolvedValue('OK'), del: jest.fn() };
@@ -65,6 +67,17 @@ describe('FcmPushSender planner reminder', () => {
     expect(plain.android.notification.tag).toBe('task:t1');
     expect(plain.apns.payload.aps['interruption-level']).toBe('time-sensitive');
     expect(plain.apns.headers['apns-collapse-id']).toBe('task:t1');
+  });
+
+  it('an iPhone that armed this very reminder is not sent the push', async () => {
+    const at = '2026-10-20T10:00:00.000Z';
+    armed = new Map([['plain', new Set([`t1@${Date.parse(at)}`])]]);
+    await build().send(
+      { ...message, data: { ...message.data, remindAt: at } },
+      'n:n3',
+    );
+    armed = new Map();
+    expect(sent.map((m) => m.token)).toEqual(['local']);
   });
 
   it('an ordinary push is untouched', async () => {

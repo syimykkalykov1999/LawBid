@@ -28,6 +28,7 @@ import {
   NotificationSettingsDto,
   NotificationsQueryDto,
   PushTokenDto,
+  ArmedRemindersDto,
   VoipTokenDto,
   QuietHoursDto,
   TimezoneDto,
@@ -176,6 +177,19 @@ export class NotificationsApiController {
       dto.platform,
       dto.localReminders === true && dto.platform === 'android',
     );
+  }
+
+  // Owner 2026-10-20: an iPhone reports the reminders it armed locally.
+  @AssistantSelf()
+  @Put('push-tokens/armed')
+  @HttpCode(204)
+  @ApiOperation({ summary: 'Planner reminders this device keeps as alarms' })
+  @ApiErrors({ 400: [ErrorCode.VALIDATION_ERROR] })
+  async setArmedReminders(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: ArmedRemindersDto,
+  ): Promise<void> {
+    await this.tokens.setArmedReminders(user.sub, dto.token, dto.ids);
   }
 
   // Owner 2026-10-17: an iPhone registers its PushKit token for calls.

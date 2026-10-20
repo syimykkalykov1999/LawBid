@@ -5,6 +5,7 @@
 import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
+import '../models/armed_reminders_dto.dart';
 import '../models/badges_envelope.dart';
 import '../models/delete_push_token_dto.dart';
 import '../models/new_case_alerts_envelope.dart';
@@ -104,6 +105,13 @@ abstract class NotificationsClient {
   @DELETE('/push-tokens')
   Future<void> deletePushToken({
     @Body() required DeletePushTokenDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Planner reminders this device keeps as alarms
+  @PUT('/push-tokens/armed')
+  Future<void> setArmedReminders({
+    @Body() required ArmedRemindersDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 
