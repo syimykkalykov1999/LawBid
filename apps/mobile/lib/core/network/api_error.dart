@@ -140,6 +140,11 @@ abstract final class ApiErrorCodes {
   static const followNotAllowed = 'FOLLOW_NOT_ALLOWED';
   static const conversationNotFound = 'CONVERSATION_NOT_FOUND';
   static const conversationClosed = 'CONVERSATION_CLOSED';
+  static const groupNotFound = 'GROUP_NOT_FOUND';
+  static const groupForbidden = 'GROUP_FORBIDDEN';
+  static const groupFull = 'GROUP_FULL';
+  static const groupUsernameTaken = 'GROUP_USERNAME_TAKEN';
+  static const pollClosed = 'POLL_CLOSED';
   static const messageTooLong = 'MESSAGE_TOO_LONG';
   static const textTooLong = 'TEXT_TOO_LONG';
   static const featureDisabled = 'FEATURE_DISABLED';
@@ -369,6 +374,11 @@ abstract final class ApiErrorCodes {
     followNotAllowed,
     conversationNotFound,
     conversationClosed,
+    groupNotFound,
+    groupForbidden,
+    groupFull,
+    groupUsernameTaken,
+    pollClosed,
     messageTooLong,
     textTooLong,
     featureDisabled,
