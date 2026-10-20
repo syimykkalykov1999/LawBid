@@ -1,4 +1,5 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <!-- Store release 2026-10-06: release builds must declare network
          access themselves (the template only adds it to debug/profile). -->
     <uses-permission android:name="android.permission.INTERNET" />
@@ -17,6 +18,9 @@
          The camera is optional hardware: devices without one can still
          upload license/ID files from storage. -->
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Video calls are off (flag), so the call service must not declare the
+         camera foreground-service type: Play asks for a demo video per type. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" tools:node="remove" />
     <uses-permission android:name="android.permission.READ_CONTACTS" />
     <!-- OQ-040: voice messages; in-app calls. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
@@ -100,6 +104,10 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <service
+            android:name="com.hiennv.flutter_callkit_incoming.CallkitNotificationService"
+            android:foregroundServiceType="phoneCall|microphone"
+            tools:replace="android:foregroundServiceType" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

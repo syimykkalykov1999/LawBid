@@ -117,6 +117,17 @@ final callSignalSenderProvider = Provider<CallSignalSender>((ref) {
 abstract interface class SystemCallUi {
   Future<void> showIncoming(AppCall call);
   Future<void> dismiss(String callId);
+
+  /// Android: the ongoing-call notification with the timer, and the
+  /// microphone foreground service that keeps the call alive in the
+  /// background. Started while the app is in the foreground.
+  Future<void> showOngoing(AppCall call);
+
+  /// This phone answered [call]: the ringing screen goes away and the
+  /// ongoing-call UI takes its place (Android notification + service; on
+  /// iPhone a call answered on the CallKit screen stays there, so its green
+  /// bar and audio session last until [dismiss] at the end).
+  Future<void> answered(AppCall call);
 }
 
 class NoSystemCallUi implements SystemCallUi {
@@ -127,6 +138,12 @@ class NoSystemCallUi implements SystemCallUi {
 
   @override
   Future<void> dismiss(String callId) async {}
+
+  @override
+  Future<void> showOngoing(AppCall call) async {}
+
+  @override
+  Future<void> answered(AppCall call) async {}
 }
 
 /// The real one (CallKit) is set in `CallHost`'s scope by the app;
@@ -141,6 +158,10 @@ const kCallRingTimeout = Duration(seconds: 30);
 /// The link must come up this fast after pick-up, else "failed".
 const kCallConnectTimeout = Duration(seconds: 25);
 
+/// While a call lives, its state is re-read from the server this often (a
+/// missed `call:ended` must not leave the other phone ringing or talking).
+const kCallSyncInterval = Duration(seconds: 8);
+
 /// How long the "Call ended" screen stays.
 const kCallEndedLinger = Duration(milliseconds: 1600);
 
@@ -152,6 +173,7 @@ class CallController extends Notifier<CallSession> {
   StreamSubscription<RealtimeEvent>? _events;
   Timer? _ringTimer;
   Timer? _connectTimer;
+  Timer? _syncTimer;
   Timer? _linger;
   final _earlySignals = <Map<String, Object?>>[];
   bool _mediaOpen = false;
@@ -230,6 +252,7 @@ class CallController extends Notifier<CallSession> {
         return;
       }
       state = state.copyWith(call: call, peer: call.peer);
+      unawaited(ref.read(systemCallUiProvider).showOngoing(call));
       // OQ-044: the caller hears ringback tones while it rings there.
       unawaited(ref.read(appSoundsProvider).startRingback());
       // Mic + connection ready while it rings: pick-up connects faster.
@@ -256,7 +279,7 @@ class CallController extends Notifier<CallSession> {
     if (call == null || state.phase != CallPhase.incoming) return;
     unawaited(ref.read(appSoundsProvider).stopRingtone());
     state = state.copyWith(phase: CallPhase.connecting);
-    unawaited(ref.read(systemCallUiProvider).dismiss(call.id));
+    unawaited(_swapToOngoing(call));
     try {
       // The answer to the server and the mic/connection run side by side:
       // the caller's offer waits in [_earlySignals] until the media is open.
@@ -427,6 +450,14 @@ class CallController extends Notifier<CallSession> {
       },
     );
     _mediaOpen = true;
+    // The other side may hang up while this phone has no socket (app in the
+    // background, Doze): ask the server now and then, so the call and its
+    // ringing/ongoing UI never outlive it.
+    _syncTimer?.cancel();
+    _syncTimer = Timer.periodic(kCallSyncInterval, (_) {
+      final id = state.call?.id;
+      if (id != null && state.busy) unawaited(_resync(id));
+    });
   }
 
   void _armConnectTimeout() {
@@ -536,8 +567,18 @@ class CallController extends Notifier<CallSession> {
     }
   }
 
+  /// The ringing screen goes away and the ongoing-call notification (with
+  /// the microphone service) takes its place, one after the other.
+  Future<void> _swapToOngoing(AppCall call) async {
+    await ref.read(systemCallUiProvider).answered(call);
+  }
+
   void _finish(CallStatus outcome, {AppCall? call}) {
     final wasCalling = state.busy;
+    final endedId = call?.id ?? state.call?.id;
+    if (endedId != null) {
+      unawaited(ref.read(systemCallUiProvider).dismiss(endedId));
+    }
     _reset();
     // OQ-044: "busy" beeps, or the short end-of-call tone.
     final sounds = ref.read(appSoundsProvider);
@@ -574,6 +615,7 @@ class CallController extends Notifier<CallSession> {
   void _clearTimers() {
     _ringTimer?.cancel();
     _connectTimer?.cancel();
+    _syncTimer?.cancel();
     _linger?.cancel();
   }
 }
