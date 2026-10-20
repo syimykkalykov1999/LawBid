@@ -616,7 +616,8 @@ export const PROVIDERS: ProviderDefinition[] = [
   {
     id: 'sentry',
     label: 'Sentry (error reports)',
-    description: 'Crash and error reports of the server, the app and the admin.',
+    description:
+      'Crash and error reports of the server, the app and the admin.',
     restartRequired: true,
     fields: [
       {
