@@ -172,12 +172,17 @@ export class GroupsService {
 
   // ------------------------------------------------------------------ reads
 
-  async list(user: RequestUser, cursor?: string): Promise<GroupPage> {
+  async list(
+    user: RequestUser,
+    cursor?: string,
+    archived = false,
+  ): Promise<GroupPage> {
     const c = cursor ? decodeCursor(cursor) : undefined;
     const base: Prisma.ChatGroupMemberWhereInput = {
       user_id: user.sub,
       left_at: null,
       hidden_at: null,
+      archived_at: archived ? { not: null } : null,
       group: { deleted_at: null, last_message_at: { not: null } },
     };
     const pinned = !c
@@ -1377,11 +1382,14 @@ export class GroupsService {
       data.pinned_at = dto.pinned ? new Date() : null;
     if (dto.hidden !== undefined)
       data.hidden_at = dto.hidden ? new Date() : null;
+    if (dto.archived !== undefined)
+      data.archived_at = dto.archived ? new Date() : null;
     await this.prisma.chatGroupMember.update({
       where: { group_id_user_id: { group_id: id, user_id: user.sub } },
       data,
     });
-    if (dto.hidden !== undefined) await this.badges.chatsChanged(user.sub);
+    if (dto.hidden !== undefined || dto.archived !== undefined)
+      await this.badges.chatsChanged(user.sub);
     const { group, me } = await this.requireMember(user.sub, id);
     return (await this.presenter.groups([{ group, me }], user.sub))[0];
   }

@@ -435,7 +435,7 @@ export class RealtimeGateway
   @SubscribeMessage('typing:start')
   typingStart(
     @ConnectedSocket() socket: Socket,
-    @MessageBody() body: { conversationId?: unknown },
+    @MessageBody() body: { conversationId?: unknown; kind?: unknown },
   ): void {
     this.relayTyping(socket, body, true);
   }
@@ -452,7 +452,7 @@ export class RealtimeGateway
    * 5 s without a new `typing` (§8.5 TTL). */
   private relayTyping(
     socket: Socket,
-    body: { conversationId?: unknown },
+    body: { conversationId?: unknown; kind?: unknown },
     typing: boolean,
   ): void {
     const id = this.conversationIdOf(body);
@@ -468,7 +468,12 @@ export class RealtimeGateway
     const peers = s.peers?.get(id) ?? [];
     socket
       .to([conversationRoom(id), ...peers.map(userRoom)])
-      .emit('typing', { conversationId: id, typing });
+      // Owner 2026-10-20: `kind` tells «typing…» from «recording a voice…».
+      .emit('typing', {
+        conversationId: id,
+        typing,
+        kind: body?.kind === 'voice' ? 'voice' : 'text',
+      });
   }
 
   /**

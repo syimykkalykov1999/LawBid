@@ -8,13 +8,20 @@ part 'chat_folder_counts_dto.g.dart';
 
 @JsonSerializable()
 class ChatFolderCountsDto {
-  const ChatFolderCountsDto({required this.waiting, required this.requests});
+  const ChatFolderCountsDto({
+    required this.waiting,
+    required this.requests,
+    required this.archived,
+  });
 
   factory ChatFolderCountsDto.fromJson(Map<String, Object?> json) =>
       _$ChatFolderCountsDtoFromJson(json);
 
   final num waiting;
   final num requests;
+
+  /// Chats and groups in my Archive.
+  final num archived;
 
   Map<String, Object?> toJson() => _$ChatFolderCountsDtoToJson(this);
 }

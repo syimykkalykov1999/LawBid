@@ -163,11 +163,26 @@ export class ChatService {
     folder: ConversationFolderName,
   ): Prisma.ConversationWhereInput[] {
     // Owner 2026-10-02: chats I removed from my list stay out of every folder.
+    // Owner 2026-10-20: archived ones live only in the «archive» folder.
+    const hiddenOut: Prisma.ConversationWhereInput = {
+      NOT: {
+        participants: { some: { user_id: me, hidden_at: { not: null } } },
+      },
+    };
+    if (folder === 'archive') {
+      return [
+        hiddenOut,
+        {
+          participants: { some: { user_id: me, archived_at: { not: null } } },
+        },
+      ];
+    }
     return [
       ...this.folderWhereInner(me, folder),
+      hiddenOut,
       {
         NOT: {
-          participants: { some: { user_id: me, hidden_at: { not: null } } },
+          participants: { some: { user_id: me, archived_at: { not: null } } },
         },
       },
     ];
@@ -385,6 +400,9 @@ export class ChatService {
       ...(dto.hidden !== undefined
         ? { hidden_at: dto.hidden ? new Date() : null }
         : {}),
+      ...(dto.archived !== undefined
+        ? { archived_at: dto.archived ? new Date() : null }
+        : {}),
       ...(dto.pinned !== undefined
         ? {
             pinned_at: dto.pinned ? (current?.pinned_at ?? new Date()) : null,
@@ -403,25 +421,49 @@ export class ChatService {
       update: data,
     });
     // A hidden chat leaves the unread badge (and comes back when unhidden).
-    if (dto.hidden !== undefined) await this.badges.chatsChanged(user.sub);
+    if (dto.hidden !== undefined || dto.archived !== undefined)
+      await this.badges.chatsChanged(user.sub);
     return this.get(user, id);
   }
 
   /** Owner 2026-10-01: badges of the Waiting and Requests folders. */
   async folderCounts(user: RequestUser): Promise<ChatFolderCountsDto> {
-    if (!this.sideOf(user)) return { waiting: 0, requests: 0 };
-    const [waiting, requests] = await Promise.all([
-      this.prisma.conversation.count({
-        where: {
-          AND: [
-            { OR: [{ client_id: user.sub }, { attorney_id: user.sub }] },
-            ...this.folderWhere(user.sub, 'waiting'),
-          ],
-        },
-      }),
-      this.requestsCount(user),
-    ]);
-    return { waiting, requests: requests.count };
+    if (!this.sideOf(user)) return { waiting: 0, requests: 0, archived: 0 };
+    const [waiting, requests, archivedChats, archivedGroups] =
+      await Promise.all([
+        this.prisma.conversation.count({
+          where: {
+            AND: [
+              { OR: [{ client_id: user.sub }, { attorney_id: user.sub }] },
+              ...this.folderWhere(user.sub, 'waiting'),
+            ],
+          },
+        }),
+        this.requestsCount(user),
+        this.prisma.conversation.count({
+          where: {
+            AND: [
+              { OR: [{ client_id: user.sub }, { attorney_id: user.sub }] },
+              ...this.folderWhere(user.sub, 'archive'),
+              { last_message_at: { not: null } },
+            ],
+          },
+        }),
+        this.prisma.chatGroupMember.count({
+          where: {
+            user_id: user.sub,
+            left_at: null,
+            hidden_at: null,
+            archived_at: { not: null },
+            group: { deleted_at: null, last_message_at: { not: null } },
+          },
+        }),
+      ]);
+    return {
+      waiting,
+      requests: requests.count,
+      archived: archivedChats + archivedGroups,
+    };
   }
 
   async get(user: RequestUser, id: string): Promise<ConversationDto> {

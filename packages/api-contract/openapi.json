@@ -81377,7 +81377,7 @@
             "name": "folder",
             "required": false,
             "in": "query",
-            "description": "Owner 2026-10-01: all · primary (case chats by default) · general · waiting (marked \"waiting for my answer\") · requests (OQ-043, message requests sent to me).",
+            "description": "Owner 2026-10-01: all · primary (case chats by default) · general · waiting (marked \"waiting for my answer\") · requests (OQ-043, message requests sent to me) · archive (Owner 2026-10-20: my archived chats; every other folder leaves them out).",
             "schema": {
               "$ref": "#/components/schemas/ConversationFolder"
             }
@@ -85458,6 +85458,15 @@
             "description": "meta.nextCursor of the previous page.",
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "archived",
+            "required": false,
+            "in": "query",
+            "description": "Owner 2026-10-20: true = only my archived groups; otherwise archived ones are left out.",
+            "schema": {
+              "type": "boolean"
             }
           }
         ],
@@ -149258,7 +149267,8 @@
           "primary",
           "general",
           "waiting",
-          "requests"
+          "requests",
+          "archive"
         ]
       },
       "ConversationListEnvelope": {
@@ -149286,11 +149296,16 @@
           },
           "requests": {
             "type": "number"
+          },
+          "archived": {
+            "type": "number",
+            "description": "Chats and groups in my Archive."
           }
         },
         "required": [
           "waiting",
-          "requests"
+          "requests",
+          "archived"
         ]
       },
       "ChatFolderCountsEnvelope": {
@@ -149685,6 +149700,10 @@
           "hidden": {
             "type": "boolean",
             "description": "Remove the chat from my list only; a new message revives it."
+          },
+          "archived": {
+            "type": "boolean",
+            "description": "Owner 2026-10-20: move the chat to my Archive (true) or back (false); a new message does not bring it back."
           }
         }
       },
@@ -151741,6 +151760,10 @@
           "hidden": {
             "type": "boolean",
             "description": "Hide the chat from my list."
+          },
+          "archived": {
+            "type": "boolean",
+            "description": "Move the chat to my Archive or back."
           }
         }
       },

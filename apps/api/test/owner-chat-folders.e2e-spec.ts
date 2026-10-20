@@ -156,7 +156,7 @@ describe('Chat folders (e2e, owner 2026-10-01)', () => {
       .get('/api/v1/conversations/folders/counts')
       .set(auth)
       .expect(200);
-    expect(counts.body.data).toEqual({ waiting: 1, requests: 0 });
+    expect(counts.body.data).toEqual({ waiting: 1, requests: 0, archived: 0 });
 
     // Move the direct chat to Primary; pin the case chat to the top.
     await api()
@@ -188,6 +188,47 @@ describe('Chat folders (e2e, owner 2026-10-01)', () => {
       pinnedAt: null,
       folder: 'primary',
     });
+
+    // Owner 2026-10-20: the Archive — out of every folder, only for me, and a
+    // new message does not bring the chat back.
+    await api()
+      .patch(`/api/v1/conversations/${direct}/organize`)
+      .set(auth)
+      .send({ archived: true })
+      .expect(200);
+    expect(await ids('all')).toEqual([caseChat]);
+    expect(await ids('primary')).toEqual([caseChat]);
+    expect(await ids('archive')).toEqual([direct]);
+    const theirList = await api()
+      .get('/api/v1/conversations?folder=all')
+      .set(bearer(c2.id, 'client'))
+      .expect(200);
+    expect(
+      (theirList.body as { data: { id: string }[] }).data.map((x) => x.id),
+    ).toEqual([direct]);
+    await api()
+      .post(`/api/v1/conversations/${direct}/messages`)
+      .set(bearer(c2.id, 'client'))
+      .send({
+        type: 'text',
+        body: 'Still there?',
+        clientMessageId: 'archive-keeps-0001',
+      })
+      .expect(201);
+    expect(await ids('archive')).toEqual([direct]);
+    expect(await ids('all')).toEqual([caseChat]);
+    const archCounts = await api()
+      .get('/api/v1/conversations/folders/counts')
+      .set(auth)
+      .expect(200);
+    expect(archCounts.body.data.archived).toBe(1);
+    await api()
+      .patch(`/api/v1/conversations/${direct}/organize`)
+      .set(auth)
+      .send({ archived: false })
+      .expect(200);
+    expect(await ids('archive')).toEqual([]);
+    expect(await ids('all')).toContain(direct);
 
     // Not my chat → 404; a too-long note → 400.
     await api()

@@ -85,7 +85,7 @@ export class GroupsController {
     @CurrentUser() user: RequestUser,
     @Query() q: GroupsQueryDto,
   ): Promise<GroupPage> {
-    return this.groups.list(user, q.cursor);
+    return this.groups.list(user, q.cursor, q.archived === true);
   }
 
   @Post()

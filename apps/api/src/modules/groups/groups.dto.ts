@@ -325,6 +325,21 @@ export class GroupsQueryDto {
   @IsOptional()
   @IsString()
   cursor?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Owner 2026-10-20: true = only my archived groups; otherwise archived ones are left out.',
+  })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === 'true' || value === true
+      ? true
+      : value === 'false' || value === false
+        ? false
+        : value,
+  )
+  @IsBoolean()
+  archived?: boolean;
 }
 
 export class SendGroupMessageDto {
@@ -430,6 +445,11 @@ export class UpdateGroupMeDto {
   @IsOptional()
   @IsBoolean()
   hidden?: boolean;
+
+  @ApiPropertyOptional({ description: 'Move the chat to my Archive or back.' })
+  @IsOptional()
+  @IsBoolean()
+  archived?: boolean;
 }
 
 export class CreatePollDto {

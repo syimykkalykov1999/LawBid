@@ -16,6 +16,7 @@ class OrganizeConversationDto {
     this.note,
     this.pinned,
     this.hidden,
+    this.archived,
   });
 
   factory OrganizeConversationDto.fromJson(Map<String, Object?> json) =>
@@ -35,6 +36,9 @@ class OrganizeConversationDto {
 
   /// Remove the chat from my list only; a new message revives it.
   final bool? hidden;
+
+  /// Owner 2026-10-20: move the chat to my Archive (true) or back (false); a new message does not bring it back.
+  final bool? archived;
 
   Map<String, Object?> toJson() => _$OrganizeConversationDtoToJson(this);
 }

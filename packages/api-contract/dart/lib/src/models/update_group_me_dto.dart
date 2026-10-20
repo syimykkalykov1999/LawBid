@@ -8,7 +8,12 @@ part 'update_group_me_dto.g.dart';
 
 @JsonSerializable()
 class UpdateGroupMeDto {
-  const UpdateGroupMeDto({this.mutedUntil, this.pinned, this.hidden});
+  const UpdateGroupMeDto({
+    this.mutedUntil,
+    this.pinned,
+    this.hidden,
+    this.archived,
+  });
 
   factory UpdateGroupMeDto.fromJson(Map<String, Object?> json) =>
       _$UpdateGroupMeDtoFromJson(json);
@@ -21,6 +26,9 @@ class UpdateGroupMeDto {
 
   /// Hide the chat from my list.
   final bool? hidden;
+
+  /// Move the chat to my Archive or back.
+  final bool? archived;
 
   Map<String, Object?> toJson() => _$UpdateGroupMeDtoToJson(this);
 }

@@ -41,7 +41,7 @@ abstract class ChatClient {
   ///
   /// [updatedSince] - Only conversations changed since (ISO time) — catch-up after a reconnect (§8.5).
   ///
-  /// [folder] - Owner 2026-10-01: all · primary (case chats by default) · general · waiting (marked "waiting for my answer") · requests (OQ-043, message requests sent to me).
+  /// [folder] - Owner 2026-10-01: all · primary (case chats by default) · general · waiting (marked "waiting for my answer") · requests (OQ-043, message requests sent to me) · archive (Owner 2026-10-20: my archived chats; every other folder leaves them out).
   ///
   /// [q] - Owner 2026-10-18: search my chats — the other person's name (any alphabet, typos, word order) or @username, the case title, or the words of any message. Items then carry matchedMessage.
   @GET('/conversations')

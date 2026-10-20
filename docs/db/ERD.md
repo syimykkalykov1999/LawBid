@@ -680,6 +680,7 @@ erDiagram
     String note "nullable"
     DateTime pinned_at "nullable"
     DateTime hidden_at "nullable"
+    DateTime archived_at "nullable"
     DateTime created_at
     DateTime updated_at
   }
@@ -803,6 +804,7 @@ erDiagram
     DateTime muted_until "nullable"
     DateTime pinned_at "nullable"
     DateTime hidden_at "nullable"
+    DateTime archived_at "nullable"
     DateTime updated_at
   }
   chat_group_messages {

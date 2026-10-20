@@ -23,11 +23,15 @@ class _GroupsClient implements GroupsClient {
   @override
   Future<GroupListEnvelope> listGroups({
     String? cursor,
+    bool? archived,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
     _extra.addAll(extras ?? <String, dynamic>{});
-    final queryParameters = <String, dynamic>{r'cursor': cursor};
+    final queryParameters = <String, dynamic>{
+      r'cursor': cursor,
+      r'archived': archived,
+    };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};
     const Map<String, dynamic>? _data = null;

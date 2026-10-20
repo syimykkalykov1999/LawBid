@@ -43,9 +43,12 @@ abstract class GroupsClient {
   /// My groups, newest first (pinned lead page 1).
   ///
   /// [cursor] - meta.nextCursor of the previous page.
+  ///
+  /// [archived] - Owner 2026-10-20: true = only my archived groups; otherwise archived ones are left out.
   @GET('/groups')
   Future<GroupListEnvelope> listGroups({
     @Query('cursor') String? cursor,
+    @Query('archived') bool? archived,
     @Extras() Map<String, dynamic>? extras,
   });
 

@@ -16,6 +16,8 @@ enum ConversationFolder {
   waiting('waiting'),
   @JsonValue('requests')
   requests('requests'),
+  @JsonValue('archive')
+  archive('archive'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);
