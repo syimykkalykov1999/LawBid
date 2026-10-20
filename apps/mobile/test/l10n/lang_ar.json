@@ -2588,6 +2588,7 @@
 "post.kind.postHint":"نصيحة أو تحليل لقضية أو تجربة — في الخلاصة وعلى ملفك الشخصي.",
 "post.licensedAttorney":"محامٍ مرخَّص",
 "post.like":"إعجاب",
+"post.likers.empty":"لا توجد إعجابات بعد.",
 "post.likes.few":"{count} إعجابات",
 "post.likes.many":"{count} إعجابًا",
 "post.likes.one":"{count} إعجاب",

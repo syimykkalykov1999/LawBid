@@ -169,15 +169,15 @@ abstract final class AppColorsGlass {
   ];
 
   /// Soft light spots drawn over the gradient (fraction of the screen).
-  static const Color spotBlue = Color(0x8C78BEDC);
-  static const Color spotIndigo = Color(0x804678BE);
-  static const Color spotTeal = Color(0x7328969A);
+  static const Color spotBlue = Color(0x3A78BEDC);
+  static const Color spotIndigo = Color(0x3A4678BE);
+  static const Color spotTeal = Color(0x3828969A);
   static const Color surface = Color(0x1AFFFFFF);
 
   /// A sheet / dialog over the glass (artifact `--shb`).
   static const Color sheet = Color(0xFF142C3C);
   static const Color text = Color(0xFFF4F8FB);
-  static const Color textSecondary = Color(0xADE2ECF4);
+  static const Color textSecondary = Color(0xEBE2ECF4);
   static const Color border = Color(0x2EFFFFFF);
   static const Color chip = Color(0x24FFFFFF);
   static const Color gold = Color(0xFFE8D2A0);

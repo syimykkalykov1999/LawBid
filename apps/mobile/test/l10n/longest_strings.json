@@ -2588,6 +2588,7 @@
 "post.kind.postHint":"Un conseil, l'analyse d'une affaire ou un retour d'expérience, dans le fil et sur votre profil.",
 "post.licensedAttorney":"Luật sư có giấy phép hành nghề",
 "post.like":"Synes godt om",
+"post.likers.empty":"Oraindik ez dago atsegin-markarik.",
 "post.likes.few":"{count} отметки «Нравится»",
 "post.likes.many":"{count} отметок «Нравится»",
 "post.likes.one":"{count} отметка «Нравится»",

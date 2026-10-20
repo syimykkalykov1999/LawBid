@@ -240,6 +240,15 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
   /// The gold of selected icons and the gold check: a shade per theme so
   /// it stays visible on that theme's bars (contrast ≥ 3:1).
   final Color goldAccent;
+
+  /// Owner 2026-10-20: gold for SMALL TEXT (links, captions): the deep gold
+  /// on the light theme (the plain gold is 2.3:1 on white), the plain gold on
+  /// the dark ones. Big icons and buttons keep [gold].
+  Color get goldText {
+    if (isGlass) return goldLight;
+    return bg.computeLuminance() > 0.5 ? goldDark : gold;
+  }
+
   final Color navy;
   final Color panFill;
   final Color panText;

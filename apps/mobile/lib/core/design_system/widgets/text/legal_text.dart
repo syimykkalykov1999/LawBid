@@ -32,7 +32,7 @@ class LegalText extends StatelessWidget {
     final baseStyle =
         (style ?? typography.caption).copyWith(color: colors.textSecondary);
     final linkStyle = baseStyle.copyWith(
-      color: colors.gold,
+      color: colors.goldText,
       decoration: TextDecoration.underline,
     );
 

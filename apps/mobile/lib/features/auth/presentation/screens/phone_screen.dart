@@ -297,9 +297,9 @@ class SwitchChannelLink extends StatelessWidget {
               child: Text(
                 label,
                 style: typography.bodySmall.copyWith(
-                  color: colors.gold,
+                  color: colors.goldText,
                   decoration: TextDecoration.underline,
-                  decorationColor: colors.gold,
+                  decorationColor: colors.goldText,
                 ),
               ),
             ),
