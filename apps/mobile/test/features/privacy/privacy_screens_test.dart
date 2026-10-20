@@ -17,6 +17,8 @@ import '../../helpers/long_locale.dart';
 import '../../helpers/ux_harness.dart';
 
 class _FakePrivacy implements PrivacyRepository {
+  final appeals = <(String, String)>[];
+
   PrivacySettings current = const PrivacySettings(
     lastSeen: Audience.everyone,
     messageFrom: Audience.everyone,
@@ -57,8 +59,10 @@ class _FakePrivacy implements PrivacyRepository {
       ];
 
   @override
-  Future<ModerationNotice> appeal(String actionId, String message) async =>
-      (await notices()).first;
+  Future<ModerationNotice> appeal(String actionId, String message) async {
+    appeals.add((actionId, message));
+    return (await notices()).first;
+  }
 
   @override
   Future<List<MyReport>> myReports() async => [
@@ -81,6 +85,8 @@ void main() {
     'longest rtl': (LongestTranslator(), TextDirection.rtl),
     'ne': (ShippedTranslator('ne'), TextDirection.ltr),
     'ar': (ShippedTranslator('ar'), TextDirection.rtl),
+    'de': (ShippedTranslator('de'), TextDirection.ltr),
+    'mr': (ShippedTranslator('mr'), TextDirection.ltr),
     'ru': (
       L10nTranslator(language: AppLanguage.ru, cache: const {}),
       TextDirection.ltr,
@@ -135,8 +141,68 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('an appeal is sent with the written message', (tester) async {
+    final repo = _FakePrivacy();
+    await pump(tester, const ModerationNoticesScreen(), repo);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('appeal-a0')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey('appeal-field')),
+      'It is a court exhibit.',
+    );
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('appeal-send')));
+    await tester.pumpAndSettle();
+    expect(repo.appeals, [('a0', 'It is a court exhibit.')]);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('the appeal sheet fits at 360 dp, large text, German and Arabic',
+      (tester) async {
+    for (final (t, dir) in [
+      (ShippedTranslator('de'), TextDirection.ltr),
+      (ShippedTranslator('ar'), TextDirection.rtl),
+    ]) {
+      final repo = _FakePrivacy();
+      await pump(
+        tester,
+        const ModerationNoticesScreen(),
+        repo,
+        t: t,
+        dir: dir,
+        scale: 1.3,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('appeal-a0')));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(seconds: 30));
+    }
+  });
+
+  test('new privacy captions are really translated, not English', () {
+    for (final code in ['ar', 'de', 'ne', 'mr']) {
+      final t = ShippedTranslator(code);
+      for (final key in [
+        'privacy.photoFrom',
+        'privacy.aboutFrom',
+        'privacy.groupAddFrom',
+        'privacy.title',
+        'notices.appeal',
+      ]) {
+        expect(
+          t.t(key),
+          isNot(equals(const StaticTranslatorEn().t(key))),
+          reason: '$code $key',
+        );
+      }
+    }
+  });
+
   for (final MapEntry(key: name, value: (t, dir)) in locales.entries) {
-    for (final scale in [1.0, 1.1]) {
+    for (final scale in [1.0, 1.1, 1.3]) {
       testWidgets('no overflow at 360 dp ($name, x$scale)', (tester) async {
         final repo = _FakePrivacy();
         for (final screen in <Widget>[
