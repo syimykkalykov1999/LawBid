@@ -165,6 +165,10 @@ abstract interface class SystemCallUi {
   /// iPhone a call answered on the CallKit screen stays there, so its green
   /// bar and audio session last until [dismiss] at the end).
   Future<void> answered(AppCall call);
+
+  /// The call is over: no ringing / ongoing leftover of any call stays in
+  /// the notification shade (ghosts of calls ended while the app slept).
+  Future<void> endAll();
 }
 
 class NoSystemCallUi implements SystemCallUi {
@@ -181,6 +185,9 @@ class NoSystemCallUi implements SystemCallUi {
 
   @override
   Future<void> answered(AppCall call) async {}
+
+  @override
+  Future<void> endAll() async {}
 }
 
 /// The real one (CallKit) is set in `CallHost`'s scope by the app;
@@ -1381,7 +1388,8 @@ class CallController extends Notifier<CallSession> {
     final wasCalling = state.busy;
     final endedId = call?.id ?? state.call?.id;
     if (endedId != null) {
-      unawaited(ref.read(systemCallUiProvider).dismiss(endedId));
+      final ui = ref.read(systemCallUiProvider);
+      unawaited(ui.dismiss(endedId).then<void>((_) => ui.endAll()));
     }
     _reset();
     // OQ-044: "busy" beeps, or the short end-of-call tone.

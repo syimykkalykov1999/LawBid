@@ -395,6 +395,26 @@ class _FakeForeground implements CallForeground {
   Future<void> stop() async => stops++;
 }
 
+class _SystemUi implements SystemCallUi {
+  final dismissed = <String>[];
+  int endAlls = 0;
+
+  @override
+  Future<void> showIncoming(AppCall call) async {}
+
+  @override
+  Future<void> dismiss(String callId) async => dismissed.add(callId);
+
+  @override
+  Future<void> showOngoing(AppCall call) async {}
+
+  @override
+  Future<void> answered(AppCall call) async {}
+
+  @override
+  Future<void> endAll() async => endAlls++;
+}
+
 class _Harness {
   _Harness() {
     container = ProviderContainer(
@@ -404,6 +424,7 @@ class _Harness {
         realtimeEventsProvider.overrideWithValue(events.stream),
         appSoundsProvider.overrideWithValue(sounds),
         callForegroundProvider.overrideWithValue(foreground),
+        systemCallUiProvider.overrideWithValue(systemUi),
         callMyIdProvider.overrideWithValue('me'),
         callMicPermissionProvider.overrideWithValue(() async => true),
         callSignalSenderProvider.overrideWithValue((id, data, {to}) async {
@@ -419,6 +440,7 @@ class _Harness {
   final repo = _FakeRepo();
   final sounds = _Sounds();
   final foreground = _FakeForeground();
+  final systemUi = _SystemUi();
   final media = _FakeMedia();
   final events = StreamController<RealtimeEvent>.broadcast();
   final signals = <Map<String, Object?>>[];
@@ -758,6 +780,25 @@ void main() {
     await h.c.decline();
     expect(h.repo.declined, ['c3']);
     expect(h.s.outcome, CallStatus.declined);
+  });
+
+  test('every end leaves the shade clean (decline and hang-up)', () async {
+    final h = _Harness();
+    addTearDown(h.dispose);
+    h.emit(
+      'call:incoming',
+      _event(_call('c3', CallStatus.ringing, outgoing: false)),
+    );
+    await _settle();
+    await h.c.decline();
+    await _settle();
+    expect(h.systemUi.dismissed.toSet(), {'c3'});
+    expect(h.systemUi.endAlls, greaterThanOrEqualTo(1));
+
+    await h.c.call('conv', peer: _peer);
+    await h.c.hangUp();
+    await _settle();
+    expect(h.systemUi.endAlls, greaterThanOrEqualTo(2));
   });
 
   test('picked up on another of my devices: this one stops ringing', () async {

@@ -42,6 +42,20 @@ class CallkitSystemUi implements SystemCallUi {
   }
 
   @override
+  Future<void> endAll() async {
+    // Android's plugin keeps only the last call and its notification: after
+    // a call, nothing of ours may stay in the shade (device test
+    // 2026-10-20: ghosts of finished calls). A call that rings now is
+    // impossible — one call at a time, the server declines the other.
+    if (defaultTargetPlatform != TargetPlatform.android) return;
+    try {
+      await FlutterCallkitIncoming.endAllCalls();
+    } on Object {
+      // No plugin.
+    }
+  }
+
+  @override
   Future<void> answered(AppCall call) async {
     if (defaultTargetPlatform == TargetPlatform.iOS) {
       // Answered on the CallKit screen: keep that call (green bar in the
@@ -290,11 +304,12 @@ final callkitEventsProvider = Provider<void>((ref) {
     try {
       final calls = await FlutterCallkitIncoming.activeCalls();
       for (final c in calls) {
-        if (c.isAccepted) {
-          await ref
-              .read(callControllerProvider.notifier)
-              .ringFromPush(c.id, accept: true);
-        }
+        // Accepted: carry on. Not accepted: still ringing, or a ghost of a
+        // call that ended while the app was closed — the server decides
+        // (ringFromPush takes a finished one off the screen).
+        await ref
+            .read(callControllerProvider.notifier)
+            .ringFromPush(c.id, accept: c.isAccepted);
       }
     } on Object {
       // No plugin.

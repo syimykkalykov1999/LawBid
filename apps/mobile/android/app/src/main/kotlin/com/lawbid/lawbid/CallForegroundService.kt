@@ -33,6 +33,7 @@ class CallForegroundService : Service() {
      * (45 s without a heartbeat, calls.service.ts sweepSilentMembers). */
     override fun onTaskRemoved(rootIntent: Intent?) {
         stopForeground(STOP_FOREGROUND_REMOVE)
+        clearNotification()
         stopSelf()
         super.onTaskRemoved(rootIntent)
     }
@@ -44,12 +45,14 @@ class CallForegroundService : Service() {
             // already released
         }
         wakeLock = null
+        clearNotification()
         super.onDestroy()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
             stopForeground(STOP_FOREGROUND_REMOVE)
+            clearNotification()
             stopSelf()
             return START_NOT_STICKY
         }
@@ -108,6 +111,16 @@ class CallForegroundService : Service() {
             }
         }
         return START_NOT_STICKY
+    }
+
+    /** The ongoing-call notification must never outlive the call (a
+     * fallback `notify` or a killed service left copies in the shade). */
+    private fun clearNotification() {
+        try {
+            getSystemService(NotificationManager::class.java)?.cancel(NOTIFICATION_ID)
+        } catch (e: Exception) {
+            // nothing to cancel
+        }
     }
 
     private fun build(name: String, since: Long, status: String, hangup: String): Notification {
