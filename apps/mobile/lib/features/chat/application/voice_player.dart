@@ -413,6 +413,13 @@ class VoicePlayer extends Notifier<VoicePlayback> {
     }
   }
 
+  /// Another source (a reel that just got its sound) takes the speakers:
+  /// the note pauses where it is, the mini-player stays to resume it.
+  Future<void> pauseForOtherAudio() async {
+    final p = _player;
+    if (p != null && p.playing) await _pauseFaded(p);
+  }
+
   Future<void> seek(ChatMessage m, double fraction) async {
     final v = m.voice;
     if (v == null) return;
