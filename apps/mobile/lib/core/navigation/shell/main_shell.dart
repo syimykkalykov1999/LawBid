@@ -130,9 +130,8 @@ class _MainShellState extends ConsumerState<MainShell> {
             Expanded(
               // The strip took the status bar's room; the screens below
               // must not leave it a second time.
-              child: MediaQuery.removePadding(
-                context: context,
-                removeTop: uploading || miniPlayer,
+              child: StatusBarTaken(
+                taken: uploading || miniPlayer,
                 // Owner 2026-10-18 (speed): tabs switch instantly — the
                 // whole-body fade drew the tab into an extra layer.
                 child: KeyedSubtree(key: _bodyKey, child: navigationShell),
@@ -186,6 +185,30 @@ class _MainShellState extends ConsumerState<MainShell> {
               onCreatePressed: () => showCreateSheet(context, ref),
               createSemanticLabel: translator.t('nav.create'),
             ),
+    );
+  }
+}
+
+/// A strip above [child] already covers the status bar: the screens below
+/// must not leave its room a second time. Both `padding` and `viewPadding`
+/// lose their top (screens read either), so the strip moves the content by
+/// exactly its own height.
+class StatusBarTaken extends StatelessWidget {
+  const StatusBarTaken({required this.taken, required this.child, super.key});
+
+  final bool taken;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!taken) return child;
+    final media = MediaQuery.of(context);
+    return MediaQuery(
+      data: media.copyWith(
+        padding: media.padding.copyWith(top: 0),
+        viewPadding: media.viewPadding.copyWith(top: 0),
+      ),
+      child: child,
     );
   }
 }

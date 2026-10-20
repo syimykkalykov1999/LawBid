@@ -80,7 +80,8 @@ class VoiceMessageBody extends ConsumerWidget {
       }
       await player.toggle(
         m,
-        title: avatarName,
+        // The mini-player names who it is: my own notes say "You".
+        title: mine ? t.t('chat.you') : avatarName,
         threadId: threadId,
         then: then,
         onAutoPlay: (x) async {

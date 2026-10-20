@@ -255,8 +255,10 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
     final url = widget.video.playerUrl(web: kIsWeb);
     if (url == null) return;
     // One audio mode for every reel (see didUpdateWidget): with sound a
-    // reel takes the audio focus, like Instagram.
-    final options = VideoPlayerOptions();
+    // reel takes the audio focus, like Instagram. A silent one (a feed
+    // card) mixes instead — grabbing the focus paused a voice note playing
+    // in the mini-player the moment the chat was left for the feed.
+    final options = VideoPlayerOptions(mixWithOthers: widget.muted);
     final c = debugReelPlayerFactory?.call(Uri.parse(url), options) ??
         VideoPlayerController.networkUrl(
           Uri.parse(url),
