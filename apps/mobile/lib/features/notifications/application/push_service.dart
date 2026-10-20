@@ -117,7 +117,15 @@ class PushService {
             // (realtime updates the in-app screen).
             if (msg.data['type'] == 'call_ended' &&
                 msg.data['callId'] is String) {
-              unawaited(stopLawbidIncoming(msg.data['callId'] as String));
+              final id = msg.data['callId'] as String;
+              if (msg.data['ended'] == '1') {
+                // The answered call is over: re-read it, close the call.
+                unawaited(
+                  _ref.read(callControllerProvider.notifier).remoteEnded(id),
+                );
+              } else {
+                unawaited(stopLawbidIncoming(id));
+              }
               return;
             }
             if (msg.data['type'] == 'incoming_call' &&

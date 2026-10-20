@@ -108,7 +108,11 @@ export class PushTokensService {
    * and shows the reminder push under its own id (data-only message). */
   async localReminderTokens(userId: string): Promise<string[]> {
     const rows = await this.prisma.pushToken.findMany({
-      where: { user_id: userId, platform: { in: ['android', 'ios'] }, local_reminders: true },
+      where: {
+        user_id: userId,
+        platform: { in: ['android', 'ios'] },
+        local_reminders: true,
+      },
       select: { fcm_token: true },
     });
     return rows.map((r) => r.fcm_token);
