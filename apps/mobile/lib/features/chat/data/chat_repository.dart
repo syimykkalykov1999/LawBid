@@ -548,7 +548,6 @@ const kChatAttachmentMaxBytes = 50 * 1024 * 1024;
 /// The most any setting allows per chat or task file (the API's ceiling).
 const kChatAttachmentCeilingBytes = 100 * 1024 * 1024;
 
-
 /// Extensions for the file picker (same list as `chatMimeForName`).
 const kChatFileExtensions = [
   'pdf',
