@@ -133,6 +133,8 @@ class _ClientBody extends ConsumerWidget {
         children: [
           StoryAvatarRing(
             userId: profile.id,
+            photoUrl: avatarUrl,
+            photoCloseLabel: t.t('common.close'),
             size: AppSizes.profileAvatar,
             child: ProfileAvatar(
               size: AppSizes.profileAvatar,

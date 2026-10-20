@@ -696,6 +696,8 @@ class _HeaderCard extends ConsumerWidget {
         ),
         child: StoryAvatarRing(
           userId: profile.id,
+          photoUrl: profile.avatarUrl,
+          photoCloseLabel: t.t('common.close'),
           size: _avatar,
           child: ProfileAvatar(
             size: _avatar,

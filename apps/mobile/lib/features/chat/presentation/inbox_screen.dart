@@ -789,6 +789,7 @@ class ConversationsView extends ConsumerWidget {
                     compact: true,
                     icon: AppIcon(
                       AppIcons.campaignOutlined,
+                      size: 22,
                       color: colors.text,
                     ),
                     semanticLabel: t.t('channel.title'),
@@ -802,10 +803,11 @@ class ConversationsView extends ConsumerWidget {
                 child: ChatFolderPills(value: folder, onChanged: onFolder!),
               )
             : null;
-    // Owner 2026-10-20 (Telegram): the stories strip above the folders,
-    // folded away while the list is scrolled down.
+    // Owner 2026-10-20 (Telegram): the stories strip under the folders,
+    // hidden by default; two separate pulls open it.
     return CollapsingHeader(
       collapsible: const StoriesTray(),
+      hint: const StoriesHint(),
       pinned: filters,
       body: body,
     );

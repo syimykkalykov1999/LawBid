@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/stories/application/stories_providers.dart';
@@ -51,6 +52,74 @@ class StoriesTray extends ConsumerWidget {
   }
 }
 
+/// Owner 2026-10-20 (Telegram): the folded teaser of the strip — a few tiny
+/// circles and a chevron, shown after the first pull-down; a tap (or a second
+/// pull) opens the whole row.
+class StoriesHint extends ConsumerWidget {
+  const StoriesHint({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (!ref.watch(storiesEnabledProvider)) return const SizedBox.shrink();
+    final items = ref.watch(storyTrayProvider).value;
+    if (items == null || items.isEmpty) return const SizedBox.shrink();
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final t = ref.watch(translatorProvider);
+    final shown = items.take(6).toList();
+    const size = 22.0;
+    return Semantics(
+      button: true,
+      label: t.t('story.tray.add'),
+      excludeSemantics: true,
+      child: SizedBox(
+        key: const ValueKey('stories-hint'),
+        height: 32,
+        child: Center(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: size + (shown.length - 1) * 14,
+                height: size,
+                child: Stack(
+                  children: [
+                    for (var i = 0; i < shown.length; i++)
+                      PositionedDirectional(
+                        start: i * 14.0,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(color: colors.bg, width: 2),
+                          ),
+                          child: AppAvatar(
+                            size: size,
+                            initials: shown[i].user.initials,
+                            imageProvider: shown[i].user.avatarUrl == null
+                                ? null
+                                : appNetworkImage(
+                                    shown[i].user.avatarUrl!,
+                                    decodeWidthFor(size),
+                                  ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: AppSpacing.xs),
+              Icon(
+                AppIcons.expandMoreRounded,
+                size: 18,
+                color: colors.textSecondary,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 const double _avatar = 48;
 const double _bubbleWidth = 64;
 
@@ -78,6 +147,9 @@ class _Bubble extends ConsumerWidget {
             : (item.hasUnseen ? StoryRingState.unseen : StoryRingState.seen);
     final name =
         item.isMe ? t.t('story.tray.yourStory') : item.user.displayName;
+    // Owner 2026-10-20: the caption under my own circle is short («You»), the
+    // screen reader still hears «Your story».
+    final shown = item.isMe ? t.t('group.you') : name;
     final semantic = item.isMe
         ? name
         : t.t(
@@ -119,7 +191,7 @@ class _Bubble extends ConsumerWidget {
               ),
               const SizedBox(height: AppSpacing.xs),
               Text(
-                name,
+                shown,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,

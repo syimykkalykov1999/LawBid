@@ -143,11 +143,13 @@ class _ChipsSearchRowState extends ConsumerState<ChipsSearchRow> {
           Padding(
             padding: const EdgeInsetsDirectional.only(
               start: AppSpacing.xs,
-              end: AppSpacing.screenSide,
+              end: AppSpacing.sm,
             ),
             child: AppIconButton(
               key: widget.openKey,
-              icon: AppIcon(AppIcons.searchRounded, color: colors.text),
+              compact: true,
+              icon:
+                  AppIcon(AppIcons.searchRounded, size: 22, color: colors.text),
               semanticLabel: t.t(widget.hintKey),
               onPressed: _openSearch,
             ),

@@ -33,7 +33,7 @@ class ChatFolderPills extends ConsumerWidget {
           _ => null,
         };
     return SizedBox(
-      height: 36,
+      height: 32,
       child: ListView(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsetsDirectional.only(
@@ -57,8 +57,8 @@ class ChatFolderPills extends ConsumerWidget {
                   },
                   child: AnimatedContainer(
                     duration: dur,
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                    // Owner 2026-10-20: a little smaller, to fit at 360 dp.
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
                       color: f == value ? colors.navy : colors.surface,
@@ -73,6 +73,7 @@ class ChatFolderPills extends ConsumerWidget {
                         Text(
                           t.t('chat.folder.${f.name}'),
                           style: type.bodySmall.copyWith(
+                            fontSize: 13,
                             color:
                                 f == value ? AppColorsDark.text : colors.text,
                             fontWeight: FontWeight.w600,

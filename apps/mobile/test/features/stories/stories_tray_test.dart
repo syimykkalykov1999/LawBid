@@ -41,7 +41,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Your story'), findsOneWidget);
+    expect(find.text('You'), findsOneWidget);
     expect(find.byIcon(AppIcons.addRounded), findsOneWidget);
     expect(_ringOf(tester, 'me'), StoryRingState.none);
     expect(_ringOf(tester, 'u1'), StoryRingState.unseen);

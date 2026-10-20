@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/features/stories/application/stories_providers.dart';
 import 'package:lawbid/features/stories/presentation/story_navigation.dart';
 import 'package:lawbid/features/stories/presentation/story_ring.dart';
@@ -14,12 +15,19 @@ class StoryAvatarRing extends ConsumerWidget {
     required this.userId,
     required this.size,
     required this.child,
+    this.photoUrl,
+    this.photoCloseLabel,
     super.key,
   });
 
   final String userId;
   final double size;
   final Widget child;
+
+  /// The photo itself: with a live story a tap plays the story and a long
+  /// press opens this photo full screen (owner 2026-10-20).
+  final String? photoUrl;
+  final String? photoCloseLabel;
 
   /// What the ring adds to the photo's diameter.
   static double ringExtra = StoryRingAvatar.outerFor(0);
@@ -29,11 +37,19 @@ class StoryAvatarRing extends ConsumerWidget {
     if (!ref.watch(storiesEnabledProvider)) return child;
     final stories = ref.watch(userStoriesProvider(userId)).value;
     if (stories == null || stories.isEmpty) return child;
+    final photo = photoUrl;
     final unseen = stories.any((s) => !s.viewedByMe);
     return GestureDetector(
       key: const ValueKey('profile-story-ring'),
       behavior: HitTestBehavior.opaque,
       onTap: () => openStories(context, userId),
+      onLongPress: photo == null || photo.isEmpty
+          ? null
+          : () => showPhotoGallery(
+                context,
+                urls: [photo],
+                closeLabel: photoCloseLabel ?? '',
+              ),
       child: StoryRing(
         state: unseen ? StoryRingState.unseen : StoryRingState.seen,
         size: size,

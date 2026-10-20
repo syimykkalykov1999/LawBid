@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:lawbid/core/design_system/widgets/display/photo_gallery.dart';
+import 'package:lawbid/features/profile/presentation/widgets/profile_avatar.dart';
 import 'package:lawbid/features/stories/presentation/story_avatar_ring.dart';
 import 'package:lawbid/features/stories/presentation/story_ring.dart';
 import 'package:lawbid/shared/presentation/collapsing_header.dart';
@@ -33,6 +35,11 @@ void main() {
               height: 90,
               child: Text('strip'),
             ),
+            hint: const SizedBox(
+              key: ValueKey('hint'),
+              height: 30,
+              child: Text('hint'),
+            ),
             pinned: const SizedBox(height: 40, child: Text('pinned')),
             body: list(n: n),
           ),
@@ -45,39 +52,81 @@ void main() {
   double stripHeight(WidgetTester tester) =>
       tester.getSize(find.byKey(const ValueKey('collapsing-header'))).height;
 
+  double hintHeight(WidgetTester tester) =>
+      tester.getSize(find.byKey(const ValueKey('collapsing-hint'))).height;
+
+  Future<void> pull(WidgetTester tester, double dy) async {
+    await tester.drag(find.byType(ListView), Offset(0, dy));
+    await tester.pumpAndSettle();
+  }
+
   testWidgets(
-      'folded by default, a pull at the top opens it, scrolling '
-      'down folds it again', (tester) async {
+      'hidden by default; the first pull at the top shows only the hint, a '
+      'second separate pull opens the strip, scrolling down hides it',
+      (tester) async {
     await pumpHeader(tester);
     expect(stripHeight(tester), 0);
+    expect(hintHeight(tester), 0);
 
-    await tester.drag(find.byType(ListView), const Offset(0, 200));
-    await tester.pumpAndSettle();
-    expect(stripHeight(tester), 90);
-
-    await tester.drag(find.byType(ListView), const Offset(0, -300));
-    await tester.pumpAndSettle();
+    await pull(tester, 200);
+    expect(hintHeight(tester), 30);
     expect(stripHeight(tester), 0);
 
-    // Scrolling back up in the middle of the list does not open it.
-    await tester.drag(find.byType(ListView), const Offset(0, 150));
-    await tester.pumpAndSettle();
+    await pull(tester, 200);
+    expect(hintHeight(tester), 0);
+    expect(stripHeight(tester), 90);
+
+    await pull(tester, -300);
+    expect(stripHeight(tester), 0);
+    expect(hintHeight(tester), 0);
+
+    // Scrolling back up in the middle of the list opens nothing.
+    await pull(tester, 150);
+    expect(stripHeight(tester), 0);
+    expect(hintHeight(tester), 0);
+  });
+
+  testWidgets('one long pull is one step, a short pull is none',
+      (tester) async {
+    await pumpHeader(tester);
+    await pull(tester, 30);
+    expect(hintHeight(tester), 0);
+    await pull(tester, 900);
+    expect(hintHeight(tester), 30);
     expect(stripHeight(tester), 0);
   });
 
-  testWidgets(
-      'a list too short to scroll still folds the strip: upward drag or '
-      'a tap on a row (owner 2026-10-20)', (tester) async {
-    await pumpHeader(tester, n: 3);
-    await tester.drag(find.byType(ListView), const Offset(0, 200));
+  testWidgets('a fling back to the top (inertia) opens nothing',
+      (tester) async {
+    await pumpHeader(tester);
+    await pull(tester, -600);
+    await tester.fling(find.byType(ListView), const Offset(0, 400), 4000);
+    await tester.pumpAndSettle();
+    expect(find.text('row 0'), findsOneWidget);
+    expect(hintHeight(tester), 0);
+    expect(stripHeight(tester), 0);
+  });
+
+  testWidgets('a tap on the hint opens the strip', (tester) async {
+    await pumpHeader(tester);
+    await pull(tester, 200);
+    await tester.tap(find.byKey(const ValueKey('hint')));
     await tester.pumpAndSettle();
     expect(stripHeight(tester), 90);
-    await tester.drag(find.byType(ListView), const Offset(0, -100));
-    await tester.pumpAndSettle();
+  });
+
+  testWidgets(
+      'a list too short to scroll still hides the strip: upward drag or '
+      'a tap on a row (owner 2026-10-20)', (tester) async {
+    await pumpHeader(tester, n: 3);
+    await pull(tester, 200);
+    await pull(tester, 200);
+    expect(stripHeight(tester), 90);
+    await pull(tester, -100);
     expect(stripHeight(tester), 0);
 
-    await tester.drag(find.byType(ListView), const Offset(0, 200));
-    await tester.pumpAndSettle();
+    await pull(tester, 200);
+    await pull(tester, 200);
     expect(stripHeight(tester), 90);
     await tester.tap(find.text('row 0'));
     await tester.pumpAndSettle();
@@ -161,5 +210,68 @@ void main() {
     // the ring's tap was the one that fired.
     expect(tester.takeException(), isNotNull);
     expect(photoTaps, 0);
+  });
+
+  testWidgets(
+      'long press on a photo with a story opens the photo, not the story',
+      (tester) async {
+    useSmallPhone(tester);
+    final repo = FakeStoriesRepository(
+      byUser: {
+        'u1': [fakeStory('s1')],
+      },
+    );
+    await tester.pumpWidget(
+      storyApp(
+        const Scaffold(
+          body: StoryAvatarRing(
+            userId: 'u1',
+            size: 60,
+            photoUrl: 'https://img.test/a.jpg',
+            photoCloseLabel: 'Close',
+            child: SizedBox.square(dimension: 60),
+          ),
+        ),
+        overrides: await storyOverrides(repo: repo),
+      ),
+    );
+    await tester.pumpAndSettle();
+    debugGalleryImage = (_) => const SizedBox(key: ValueKey('gallery-photo'));
+    addTearDown(() => debugGalleryImage = null);
+    await tester.longPress(find.byKey(const ValueKey('profile-story-ring')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    // The gallery is on top, no story viewer.
+    expect(find.byKey(const ValueKey('gallery-photo')), findsOneWidget);
+  });
+
+  testWidgets('no story: a tap on the photo opens the photo', (tester) async {
+    useSmallPhone(tester);
+    debugGalleryImage = (_) => const SizedBox(key: ValueKey('gallery-photo'));
+    addTearDown(() => debugGalleryImage = null);
+    await tester.pumpWidget(
+      storyApp(
+        const Scaffold(
+          body: StoryAvatarRing(
+            userId: 'nobody',
+            size: 60,
+            photoUrl: 'https://img.test/a.jpg',
+            photoCloseLabel: 'Close',
+            child: ProfileAvatar(
+              size: 60,
+              url: 'https://img.test/a.jpg',
+              initials: 'A',
+              viewerCloseLabel: 'Close',
+            ),
+          ),
+        ),
+        overrides: await storyOverrides(repo: FakeStoriesRepository()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('avatar-open')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.byKey(const ValueKey('gallery-photo')), findsOneWidget);
   });
 }

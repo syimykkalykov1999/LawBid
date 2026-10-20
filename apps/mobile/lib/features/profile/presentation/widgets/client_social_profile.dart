@@ -207,6 +207,8 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
                 goldLabel: p.verified ? t.t('profile.verified.label') : null,
                 child: StoryAvatarRing(
                   userId: p.id,
+                  photoUrl: p.avatarUrl,
+                  photoCloseLabel: t.t('common.close'),
                   size: AppSizes.profileAvatar,
                   child: ProfileAvatar(
                     size: AppSizes.profileAvatar,
