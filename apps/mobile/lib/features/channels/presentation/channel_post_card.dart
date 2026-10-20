@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -184,169 +186,167 @@ class ChannelPostCard extends ConsumerWidget {
           ref.read(channelPostsProvider(channel.id).notifier).viewed(post.id);
         }
       },
-      child: AppCard(
-        key: ValueKey('channel-post-card-${post.id}'),
-        padding: EdgeInsets.zero,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (video != null)
-              ChannelVideoView(
-                key: ValueKey('channel-video-${post.id}'),
-                video: video,
-              ),
-            if (media.isNotEmpty)
-              ClipRRect(
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(AppRadii.card),
+      // Telegram: a long press on the post opens the reaction picker; the
+      // reactions themselves show only as chips under the text.
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onLongPress: () => unawaited(_pickReaction(context, ref)),
+        child: AppCard(
+          key: ValueKey('channel-post-card-${post.id}'),
+          padding: EdgeInsets.zero,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (video != null)
+                ChannelVideoView(
+                  key: ValueKey('channel-video-${post.id}'),
+                  video: video,
                 ),
-                child: PostMediaCarousel(
-                  media: media,
-                  inList: true,
-                  semanticLabel: t.t('channel.post.photos'),
-                  onDoubleTap: () {
-                    if (post.myReaction == null) _react(context, ref, '❤️');
-                  },
-                  onTap: (i) => showPhotoGallery(
-                    context,
-                    urls: [for (final m in media) m.url],
-                    initial: i,
-                    closeLabel: t.t('common.close'),
+              if (media.isNotEmpty)
+                ClipRRect(
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(AppRadii.card),
+                  ),
+                  child: PostMediaCarousel(
+                    media: media,
+                    inList: true,
+                    semanticLabel: t.t('channel.post.photos'),
+                    onDoubleTap: () {
+                      if (post.myReaction == null) _react(context, ref, '❤️');
+                    },
+                    onTap: (i) => showPhotoGallery(
+                      context,
+                      urls: [for (final m in media) m.url],
+                      initial: i,
+                      closeLabel: t.t('common.close'),
+                    ),
                   ),
                 ),
-              ),
-            if (post.body.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.lg,
-                  AppSpacing.sm,
-                  AppSpacing.lg,
-                  0,
+              if (post.body.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.lg,
+                    AppSpacing.sm,
+                    AppSpacing.lg,
+                    0,
+                  ),
+                  child: ChannelLinkedText(text: post.body, collapsedLines: 10),
                 ),
-                child: ChannelLinkedText(text: post.body, collapsedLines: 10),
-              ),
-            // Owner 2026-10-20 (Telegram): small reaction chips from the
-            // start edge right under the text; nothing is centered.
-            if (post.reactions.any((r) => r.count > 0))
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.lg,
-                  AppSpacing.sm,
-                  AppSpacing.lg,
-                  0,
+              // Owner 2026-10-20 (Telegram): small reaction chips from the
+              // start edge right under the text; nothing is centered.
+              if (post.reactions.any((r) => r.count > 0))
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.lg,
+                    AppSpacing.sm,
+                    AppSpacing.lg,
+                    0,
+                  ),
+                  child: Wrap(
+                    spacing: AppSpacing.xs,
+                    runSpacing: AppSpacing.xs,
+                    children: [
+                      for (final r in post.reactions)
+                        if (r.count > 0)
+                          _ReactionChip(
+                            key: ValueKey('channel-react-${r.emoji}'),
+                            emoji: r.emoji,
+                            count: SocialFormat.count(f, r.count),
+                            selected: post.myReaction == r.emoji,
+                            label: t.t('channel.react.chip', {
+                              'emoji': r.emoji,
+                              'count': '${r.count}',
+                            }),
+                            onTap: () => _react(context, ref, r.emoji),
+                          ),
+                    ],
+                  ),
                 ),
-                child: Wrap(
-                  spacing: AppSpacing.xs,
-                  runSpacing: AppSpacing.xs,
+              // Icons with their numbers on the start side, views and the
+              // time at the end (Telegram), then the menu.
+              Padding(
+                padding: const EdgeInsetsDirectional.fromSTEB(
+                  AppSpacing.md,
+                  0,
+                  AppSpacing.xs,
+                  AppSpacing.xs,
+                ),
+                child: Row(
                   children: [
-                    for (final r in post.reactions)
-                      if (r.count > 0)
-                        _ReactionChip(
-                          key: ValueKey('channel-react-${r.emoji}'),
-                          emoji: r.emoji,
-                          count: SocialFormat.count(f, r.count),
-                          selected: post.myReaction == r.emoji,
-                          label: t.t('channel.react.chip', {
-                            'emoji': r.emoji,
-                            'count': '${r.count}',
-                          }),
-                          onTap: () => _react(context, ref, r.emoji),
+                    Expanded(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: AlignmentDirectional.centerStart,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (channel.commentsEnabled)
+                              _ActionButton(
+                                key: const ValueKey('channel-post-comments'),
+                                icon: AppIcons.modeCommentOutlined,
+                                label: t.t('channel.comments'),
+                                text: post.commentCount > 0
+                                    ? SocialFormat.count(f, post.commentCount)
+                                    : null,
+                                onTap: () => ChannelCommentsScreen.open(
+                                  context,
+                                  channel,
+                                  post,
+                                ),
+                              ),
+                            _ActionButton(
+                              key: const ValueKey('channel-post-share'),
+                              icon: AppIcons.iosShareRounded,
+                              label: t.t('channel.share'),
+                              text: post.shareCount > 0
+                                  ? SocialFormat.count(f, post.shareCount)
+                                  : null,
+                              onTap: () => shareChannel(
+                                context,
+                                ref,
+                                channel,
+                                postId: post.id,
+                              ),
+                            ),
+                          ],
                         ),
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    AppIcon(
+                      AppIcons.visibilityOutlined,
+                      size: 16,
+                      color: colors.textSecondary,
+                    ),
+                    const SizedBox(width: AppSpacing.xs),
+                    Semantics(
+                      label: SocialFormat.plural(
+                        t,
+                        f,
+                        'channel.post.views',
+                        post.viewCount,
+                      ),
+                      excludeSemantics: true,
+                      child: Text(
+                        '${SocialFormat.count(f, post.viewCount)} · $when',
+                        maxLines: 1,
+                        style: type.caption.copyWith(
+                          color: colors.textSecondary,
+                        ),
+                      ),
+                    ),
+                    AppIconButton(
+                      key: const ValueKey('channel-post-menu'),
+                      icon:
+                          AppIcon(AppIcons.moreVertRounded, color: colors.text),
+                      semanticLabel: t.t('channel.post.menu'),
+                      onPressed: () => _menu(context, ref),
+                    ),
                   ],
                 ),
               ),
-            // Icons with their numbers on the start side, views and the
-            // time at the end (Telegram), then the menu.
-            Padding(
-              padding: const EdgeInsetsDirectional.fromSTEB(
-                AppSpacing.md,
-                0,
-                AppSpacing.xs,
-                AppSpacing.xs,
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      alignment: AlignmentDirectional.centerStart,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _ActionButton(
-                            key: const ValueKey('channel-react-add'),
-                            icon: AppIcons.thumbUpAltOutlined,
-                            label: t.t('channel.react.add'),
-                            text: post.reactionTotal > 0
-                                ? SocialFormat.count(f, post.reactionTotal)
-                                : null,
-                            onTap: () => _pickReaction(context, ref),
-                          ),
-                          if (channel.commentsEnabled)
-                            _ActionButton(
-                              key: const ValueKey('channel-post-comments'),
-                              icon: AppIcons.modeCommentOutlined,
-                              label: t.t('channel.comments'),
-                              text: post.commentCount > 0
-                                  ? SocialFormat.count(f, post.commentCount)
-                                  : null,
-                              onTap: () => ChannelCommentsScreen.open(
-                                context,
-                                channel,
-                                post,
-                              ),
-                            ),
-                          _ActionButton(
-                            key: const ValueKey('channel-post-share'),
-                            icon: AppIcons.iosShareRounded,
-                            label: t.t('channel.share'),
-                            text: post.shareCount > 0
-                                ? SocialFormat.count(f, post.shareCount)
-                                : null,
-                            onTap: () => shareChannel(
-                              context,
-                              ref,
-                              channel,
-                              postId: post.id,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  AppIcon(
-                    AppIcons.visibilityOutlined,
-                    size: 16,
-                    color: colors.textSecondary,
-                  ),
-                  const SizedBox(width: AppSpacing.xs),
-                  Semantics(
-                    label: SocialFormat.plural(
-                      t,
-                      f,
-                      'channel.post.views',
-                      post.viewCount,
-                    ),
-                    excludeSemantics: true,
-                    child: Text(
-                      '${SocialFormat.count(f, post.viewCount)} · $when',
-                      maxLines: 1,
-                      style: type.caption.copyWith(
-                        color: colors.textSecondary,
-                      ),
-                    ),
-                  ),
-                  AppIconButton(
-                    key: const ValueKey('channel-post-menu'),
-                    icon: AppIcon(AppIcons.moreVertRounded, color: colors.text),
-                    semanticLabel: t.t('channel.post.menu'),
-                    onPressed: () => _menu(context, ref),
-                  ),
-                ],
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
