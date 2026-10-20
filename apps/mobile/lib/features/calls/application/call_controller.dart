@@ -1157,19 +1157,23 @@ class CallController extends Notifier<CallSession> {
   }
 
   Future<void> _endQuietly(String callId, CallEndReason reason) async {
-    // A few tries: a lost request leaves the other phone ringing for a
-    // minute. The server's sweep is the last resort.
-    for (var i = 0; i < 3; i++) {
+    // The request must get through even when the network is out for a
+    // while (owner 2026-10-20: a hung-up video call stayed "live" on the
+    // server): retried with growing pauses for about a minute, and it keeps
+    // going after this controller is gone. The server's own watchdog closes
+    // a silent call as the last resort.
+    final repo = _repo;
+    for (var i = 0; i < 9; i++) {
       try {
-        await _repo.end(callId, reason);
+        await repo.end(callId, reason);
         return;
       } on ApiException catch (e) {
         final code = e.statusCode;
-        if (code != null && code < 500) return;
-        await Future<void>.delayed(Duration(seconds: 1 + i));
+        if (code != null && code < 500 && code != 408 && code != 429) return;
       } on Object {
-        await Future<void>.delayed(Duration(seconds: 1 + i));
+        // Offline: try again.
       }
+      await Future<void>.delayed(Duration(seconds: i < 4 ? 1 << i : 8));
     }
   }
 

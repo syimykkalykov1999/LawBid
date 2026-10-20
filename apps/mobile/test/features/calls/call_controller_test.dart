@@ -123,10 +123,15 @@ class _FakeRepo implements CallsRepository {
   /// Whether the media was already closed when the hang-up reached us.
   bool Function()? mediaClosed;
   bool? closedAtEnd;
+  int endFailures = 0;
 
   @override
   Future<AppCall> end(String callId, CallEndReason reason) async {
     closedAtEnd = mediaClosed?.call();
+    if (endFailures > 0) {
+      endFailures--;
+      throw Exception('offline');
+    }
     ends.add(reason);
     return _call(callId, CallStatus.ended, outgoing: true);
   }
@@ -509,6 +514,26 @@ void main() {
     await h.c.hangUp();
     expect(h.repo.closedAtEnd, isFalse);
     expect(h.media.closed, isTrue);
+  });
+
+  test(
+      'the hang-up is retried until the server has it (no network for a while)',
+      () {
+    fakeAsync((async) {
+      final h = _Harness();
+      h.repo.endFailures = 5;
+      h.c.call('conv', peer: _peer);
+      async.flushMicrotasks();
+      h.c.hangUp();
+      async.flushMicrotasks();
+      expect(h.s.phase, CallPhase.ended);
+      expect(h.repo.ends, isEmpty);
+      async.elapse(const Duration(seconds: 40));
+      expect(h.repo.ends, hasLength(1));
+      h
+        ..sub.close()
+        ..container.dispose();
+    });
   });
 
   test('the link drops because the other side hung up: closes at once',
