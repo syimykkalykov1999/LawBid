@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import {
+  APP_PATHS,
   appleAppSiteAssociation,
   normalizeFingerprint,
   parseFingerprints,
@@ -51,4 +52,18 @@ test('files are written; assetlinks.json only with a real fingerprint', async ()
   assert.equal(links[0].target.package_name, 'com.lawbid.lawbid');
   assert.deepEqual(links[0].target.sha256_cert_fingerprints, [FP]);
   assert.deepEqual(links[0].relation, ['delegate_permission/common.handle_all_urls']);
+});
+
+test('Android manifest opens the same paths as the iOS file', () => {
+  const manifest = readFileSync(
+    new URL('../../../apps/mobile/android/app/src/main/AndroidManifest.xml', import.meta.url),
+    'utf8',
+  );
+  assert.match(manifest, /android:autoVerify="true"/);
+  const android = new Set(
+    [...manifest.matchAll(/android:(?:pathPrefix|path)="(\/[^"]*)"/g)].map((m) => m[1]),
+  );
+  const ios = APP_PATHS.map(([p]) => p.replace(/\*$/, ''));
+  for (const p of ios) assert.ok(android.has(p), `AndroidManifest.xml is missing ${p}`);
+  for (const p of android) assert.ok(ios.includes(p), `apple-app-site-association is missing ${p}`);
 });
