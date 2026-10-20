@@ -65,15 +65,23 @@ void main() {
     expect(stripHeight(tester), 0);
   });
 
-  testWidgets('a list too short to scroll never folds the strip',
-      (tester) async {
+  testWidgets(
+      'a list too short to scroll still folds the strip: upward drag or '
+      'a tap on a row (owner 2026-10-20)', (tester) async {
     await pumpHeader(tester, n: 3);
     await tester.drag(find.byType(ListView), const Offset(0, 200));
     await tester.pumpAndSettle();
     expect(stripHeight(tester), 90);
     await tester.drag(find.byType(ListView), const Offset(0, -100));
     await tester.pumpAndSettle();
+    expect(stripHeight(tester), 0);
+
+    await tester.drag(find.byType(ListView), const Offset(0, 200));
+    await tester.pumpAndSettle();
     expect(stripHeight(tester), 90);
+    await tester.tap(find.text('row 0'));
+    await tester.pumpAndSettle();
+    expect(stripHeight(tester), 0);
   });
 
   testWidgets('the feed no longer shows the stories row', (tester) async {

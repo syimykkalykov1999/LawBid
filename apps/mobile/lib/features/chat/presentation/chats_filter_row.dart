@@ -27,6 +27,9 @@ class ChatsFilterRow extends ConsumerStatefulWidget {
   final String query;
   final ValueChanged<String> onQuery;
 
+  /// The bar's height in both states.
+  static const double height = 56;
+
   @override
   ConsumerState<ChatsFilterRow> createState() => _ChatsFilterRowState();
 }
@@ -85,36 +88,41 @@ class _ChatsFilterRowState extends ConsumerState<ChatsFilterRow> {
   Widget build(BuildContext context) {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
+    // Owner 2026-10-20: the bar is opaque and a whole number of pixels high in
+    // both states, so a row never shows through or sticks half-hidden under it.
+    Widget bar(Widget child) => ColoredBox(
+          color: colors.bg,
+          child: SizedBox(height: ChatsFilterRow.height, child: child),
+        );
     if (_open) {
-      return Padding(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.screenSide,
-          AppSpacing.xs,
-          AppSpacing.screenSide,
-          AppSpacing.sm,
-        ),
-        child: FlipSearchBar(
-          key: const ValueKey('chat-search'),
-          controller: _text,
-          focusNode: _focus,
-          semanticLabel: t.t('chat.search.hint'),
-          cancelLabel: t.t('common.cancel'),
-          clearLabel: t.t('search.clear'),
-          showCancel: false,
-          hints: [t.t('chat.search.hint')],
-          onSubmitted: widget.onQuery,
-          trailing: AppIconButton(
-            key: const ValueKey('chat-search-close'),
-            icon: AppIcon(AppIcons.closeRounded, color: colors.textSecondary),
-            semanticLabel: t.t('common.close'),
-            onPressed: _close,
+      return bar(
+        Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.screenSide,
+            vertical: AppSpacing.xs,
+          ),
+          child: FlipSearchBar(
+            key: const ValueKey('chat-search'),
+            controller: _text,
+            focusNode: _focus,
+            semanticLabel: t.t('chat.search.hint'),
+            cancelLabel: t.t('common.cancel'),
+            clearLabel: t.t('search.clear'),
+            showCancel: false,
+            hints: [t.t('chat.search.hint')],
+            onSubmitted: widget.onQuery,
+            trailing: AppIconButton(
+              key: const ValueKey('chat-search-close'),
+              icon: AppIcon(AppIcons.closeRounded, color: colors.textSecondary),
+              semanticLabel: t.t('common.close'),
+              onPressed: _close,
+            ),
           ),
         ),
       );
     }
-    return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-      child: Row(
+    return bar(
+      Row(
         children: [
           Expanded(
             child: ChatFolderPills(

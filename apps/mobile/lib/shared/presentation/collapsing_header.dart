@@ -22,6 +22,10 @@ class CollapsingHeader extends StatefulWidget {
   /// Scrolling less than this does not flip the strip.
   static const double threshold = 6;
 
+  /// An upward drag of this many dp folds the strip even over a list that
+  /// does not scroll.
+  static const double dragUp = 12;
+
   /// A list that can scroll only this little never folds the strip (the
   /// freed height would leave nothing to scroll back with).
   static const double minScrollable = 160;
@@ -54,6 +58,20 @@ class _CollapsingHeaderState extends State<CollapsingHeader> {
     return false;
   }
 
+  // Owner 2026-10-20 (Mac): a list too short to scroll still folds the strip —
+  // an upward drag over it, or a tap on a row, closes it.
+  double _drag = 0;
+
+  void _pointerMove(PointerMoveEvent e) {
+    _drag += e.delta.dy;
+    if (_drag < -CollapsingHeader.dragUp) _set(false);
+  }
+
+  void _pointerUp(PointerUpEvent e) {
+    if (_drag.abs() < CollapsingHeader.threshold) _set(false);
+    _drag = 0;
+  }
+
   void _set(bool shown) {
     if (shown != _shown) setState(() => _shown = shown);
   }
@@ -75,9 +93,15 @@ class _CollapsingHeaderState extends State<CollapsingHeader> {
         ),
         if (widget.pinned != null) widget.pinned!,
         Expanded(
-          child: NotificationListener<ScrollNotification>(
-            onNotification: _onScroll,
-            child: widget.body,
+          child: Listener(
+            onPointerDown: (_) => _drag = 0,
+            onPointerMove: _pointerMove,
+            onPointerUp: _pointerUp,
+            onPointerCancel: (_) => _drag = 0,
+            child: NotificationListener<ScrollNotification>(
+              onNotification: _onScroll,
+              child: widget.body,
+            ),
           ),
         ),
       ],
