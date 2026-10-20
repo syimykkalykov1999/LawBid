@@ -152,3 +152,21 @@ class QuestionsQuery {
   @override
   int get hashCode => Object.hash(q, practiceAreaId, stateCode, filter);
 }
+
+/// Owner 2026-10-20: the attorney's quiet count of fresh questions and the
+/// admin's switches for the feed card and the profile call.
+class QaSummary {
+  const QaSummary({
+    this.newCount = 0,
+    this.bannerEnabled = true,
+    this.bannerIntervalHours = 24,
+    this.bannerMinNew = 1,
+    this.profileCtaEnabled = true,
+  });
+
+  final int newCount;
+  final bool bannerEnabled;
+  final int bannerIntervalHours;
+  final int bannerMinNew;
+  final bool profileCtaEnabled;
+}

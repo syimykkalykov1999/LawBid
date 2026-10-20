@@ -424,6 +424,15 @@ String notificationText(Translator t, AppNotification n) {
       {'title': '${n.payload['channelTitle'] ?? ''}'},
     );
   }
+  // Owner 2026-10-20: «Ask a lawyer» notices have no actor name; the
+  // answer / best-answer ones say what happened.
+  if (n.type == 'legal_answer_update') {
+    return t.t(
+      n.payload['kind'] == 'best'
+          ? 'notif.list.legal_answer_best'
+          : 'notif.list.legal_answer_update',
+    );
+  }
   final name = n.actor?.displayName ?? '';
   final others = n.aggregateCount - 1;
   // Owner 2026-10-12: a text post is a "Brief" — the notice says so.

@@ -41,7 +41,20 @@ class _QaLine extends StatelessWidget {
             ),
             child: Row(
               children: [
-                AppIcon(AppIcons.helpOutlineRounded, color: colors.goldDark),
+                // Champagne accent, like the other feed cards.
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: colors.gold.withValues(alpha: 0.16),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppSpacing.xs),
+                    child: AppIcon(
+                      AppIcons.helpOutlineRounded,
+                      color: colors.goldDark,
+                    ),
+                  ),
+                ),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
                   child: Column(
@@ -91,14 +104,13 @@ class QaNewQuestionsBanner extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final count = ref.watch(qaNewCountProvider).value ?? 0;
-    if (count <= 0 || ref.watch(qaBannerHiddenProvider)) {
-      return const SizedBox.shrink();
-    }
+    if (!ref.watch(qaBannerVisibleProvider)) return const SizedBox.shrink();
+    final count = ref.watch(qaSummaryProvider).value?.newCount ?? 0;
     final t = ref.watch(translatorProvider);
     return Dismissible(
       key: const ValueKey('qa-new-banner'),
-      onDismissed: (_) => ref.read(qaBannerHiddenProvider.notifier).hideToday(),
+      onDismissed: (_) =>
+          ref.read(qaBannerLastUsedProvider.notifier).markUsed(),
       child: Padding(
         padding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.screenSide,
@@ -107,7 +119,7 @@ class QaNewQuestionsBanner extends ConsumerWidget {
         child: _QaLine(
           text: t.t('qa.new.banner', {'count': '$count'}),
           onTap: () {
-            ref.read(qaBannerHiddenProvider.notifier).hideToday();
+            ref.read(qaBannerLastUsedProvider.notifier).markUsed();
             context.push(LegalQaRoutes.unanswered);
           },
         ),
@@ -124,7 +136,7 @@ class QaMineEntry extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (!ref.watch(legalQaEnabledProvider)) return const SizedBox.shrink();
-    final count = ref.watch(qaNewCountProvider).value ?? 0;
+    final count = ref.watch(qaSummaryProvider).value?.newCount ?? 0;
     if (count <= 0) return const SizedBox.shrink();
     final t = ref.watch(translatorProvider);
     return Padding(
@@ -142,9 +154,9 @@ class QaMineEntry extends ConsumerWidget {
   }
 }
 
-/// Owner 2026-10-20: under the rating on an attorney's profile — «Answers
-/// N · best M». On one's own profile with a call to answer questions (taps
-/// into «Вопрос юристу»); on others', only the numbers, and only if any.
+/// Owner 2026-10-20: in the «Rating» tab of an attorney's own profile, under
+/// the rating block — a call to answer questions with «Answers N · best M»
+/// (taps into «Вопрос юристу»). Nobody else sees it.
 class QaProfileRow extends ConsumerWidget {
   const QaProfileRow({
     required this.answers,
@@ -160,17 +172,26 @@ class QaProfileRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (!ref.watch(legalQaEnabledProvider)) return const SizedBox.shrink();
-    if (!isSelf && answers == 0) return const SizedBox.shrink();
+    if (!isSelf) return const SizedBox.shrink();
     final t = ref.watch(translatorProvider);
+    final cta = ref.watch(qaSummaryProvider).value?.profileCtaEnabled ?? true;
     final stats = t.t('qa.stats', {'answers': '$answers', 'best': '$best'});
     return Padding(
-      padding: const EdgeInsets.only(top: AppSpacing.sm),
+      padding: const EdgeInsets.only(bottom: AppSpacing.md),
       child: _QaLine(
         key: const ValueKey('profile-qa'),
-        text: isSelf ? t.t('qa.cta') : stats,
-        subtitle: isSelf ? stats : null,
+        text: cta ? t.t('qa.cta') : stats,
+        subtitle: cta ? stats : null,
         onTap: () => context.push(LegalQaRoutes.feed),
       ),
     );
   }
 }
+
+/// Owner 2026-10-20: puts the «New questions» card above the second post of
+/// an attorney's feed (above the first when there is only one). The card
+/// draws nothing for clients, without fresh questions, or once shown.
+Widget withQaBanner(int index, int total, Widget post) =>
+    index == (total >= 2 ? 1 : 0)
+        ? Column(children: [const QaNewQuestionsBanner(), post])
+        : post;

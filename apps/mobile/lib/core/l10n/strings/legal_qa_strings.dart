@@ -60,6 +60,9 @@ const legalQaRu = <String, String>{
   'qa.cta': 'Отвечайте на вопросы — привлекайте клиентов',
   'qa.stats': 'Ответов {answers} · лучших {best}',
   'qa.newShort': '{count} новых',
+  'notif.list.legal_question_new': 'Новый вопрос по вашей практике',
+  'notif.list.legal_answer_update': 'Новый ответ на ваш вопрос',
+  'notif.list.legal_answer_best': 'Ваш ответ признан лучшим',
   'qa.entry.waiting': 'Ждут ответа: {count}',
 };
 
@@ -121,5 +124,8 @@ const legalQaEn = <String, String>{
   'qa.cta': 'Answer questions, win clients',
   'qa.stats': 'Answers {answers} · best {best}',
   'qa.newShort': '{count} new',
+  'notif.list.legal_question_new': 'New question in your practice',
+  'notif.list.legal_answer_update': 'New answer to your question',
+  'notif.list.legal_answer_best': 'Your answer was marked best',
   'qa.entry.waiting': 'Awaiting answers: {count}',
 };

@@ -158197,10 +158197,30 @@
           "newCount": {
             "type": "number",
             "description": "Unanswered questions of the last 24 hours in my practice areas and states (attorney; 0 for others)"
+          },
+          "bannerEnabled": {
+            "type": "boolean",
+            "description": "Show the card among the feed posts"
+          },
+          "bannerIntervalHours": {
+            "type": "number",
+            "description": "Hours between two showings of the card"
+          },
+          "bannerMinNew": {
+            "type": "number",
+            "description": "Show the card from this many new questions"
+          },
+          "profileCtaEnabled": {
+            "type": "boolean",
+            "description": "Show the call line on the own profile"
           }
         },
         "required": [
-          "newCount"
+          "newCount",
+          "bannerEnabled",
+          "bannerIntervalHours",
+          "bannerMinNew",
+          "profileCtaEnabled"
         ]
       },
       "QaSummaryEnvelope": {

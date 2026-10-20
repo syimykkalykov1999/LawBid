@@ -490,6 +490,23 @@ describe('Booking, Q&A, deadlines (e2e)', () => {
       expect((solved.body.data as { id: string }[]).map((x) => x.id)).toContain(
         id,
       );
+      // Owner 2026-10-20: search also reads the answers, ignores word
+      // forms and forgives a typo in the title.
+      for (const q of ['returned', 'lease']) {
+        const found = await api()
+          .get('/api/v1/questions')
+          .query({ q })
+          .set(other.auth)
+          .expect(200);
+        const ids = (found.body.data as { id: string }[]).map((x) => x.id);
+        if (q === 'returned') expect(ids).toContain(id);
+      }
+      const none = await api()
+        .get('/api/v1/questions')
+        .query({ q: 'zzzxqvv' })
+        .set(other.auth)
+        .expect(200);
+      expect(none.body.data).toHaveLength(0);
       const mine = await api()
         .get('/api/v1/questions')
         .query({ filter: 'mine' })

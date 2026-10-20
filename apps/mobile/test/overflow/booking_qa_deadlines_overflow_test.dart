@@ -24,6 +24,8 @@ import 'package:lawbid/features/legal_qa/presentation/ask_question_screen.dart';
 import 'package:lawbid/features/legal_qa/presentation/qa_banners.dart';
 import 'package:lawbid/features/legal_qa/presentation/qa_feed_screen.dart';
 import 'package:lawbid/features/legal_qa/presentation/question_detail_screen.dart';
+import 'package:lawbid/features/profile/domain/profile_models.dart';
+import 'package:lawbid/features/profile/presentation/widgets/review_widgets.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -254,6 +256,21 @@ void main() {
     'deadline calculator, statute of limitations': () =>
         const DeadlineCalculatorScreen(kind: 'statute_of_limitations'),
     'questions filter sheet': () => const QaFeedScreen(),
+    'rating block with the questions row': () => Column(
+          children: [
+            ReviewSummaryPanel(
+              summary: const ReviewSummary(
+                average: 4.8,
+                count: 12345,
+                distribution: {5: 9876, 4: 1234, 3: 123, 2: 12, 1: 1},
+              ),
+              selectedStars: 4,
+              onStarsTap: (_) {},
+              onSort: (_) {},
+            ),
+            const QaProfileRow(answers: 128, best: 37, isSelf: true),
+          ],
+        ),
     'attorney qa cards': () => const Column(
           children: [
             QaNewQuestionsBanner(),
@@ -318,7 +335,9 @@ void main() {
                       extra: [
                         ...base,
                         actsAsAttorneyProvider.overrideWithValue(attorney),
-                        qaNewCountProvider.overrideWith((ref) async => 12),
+                        qaSummaryProvider.overrideWith(
+                          (ref) async => const QaSummary(newCount: 12),
+                        ),
                       ],
                     ),
                   ),

@@ -78,16 +78,13 @@ class PostsFeedView extends ConsumerWidget {
             skeleton: const PostListSkeleton(),
             itemKey: (p) => p.id,
             prefetch: prefetchPost,
-            itemBuilder: (context, p, i) => Column(
-              children: [
-                // Owner 2026-10-20: a compact «New questions» card among the
-                // posts (attorney; once a day).
-                if (i == 2) const QaNewQuestionsBanner(),
-                PostImpressionTracker(
-                  post: p,
-                  child: PostCard(post: p, feedHeight: height),
-                ),
-              ],
+            itemBuilder: (context, p, i) => withQaBanner(
+              i,
+              value.value?.items.length ?? 0,
+              PostImpressionTracker(
+                post: p,
+                child: PostCard(post: p, feedHeight: height),
+              ),
             ),
             // §2.3: "Пока в ленте пусто" + recommended attorneys to follow.
             empty: ListView(
@@ -130,19 +127,24 @@ class LatestPostsView extends ConsumerWidget {
       builder: (context, box) {
         final height =
             feedChromeCardHeight(context) ?? feedCardHeight(box.maxHeight);
+        final posts = _withoutDeleted(
+          ref.watch(latestPostsProvider(stateCode)),
+          ref.watch(deletedPostsProvider),
+        );
         return PagedListBody<Post>(
-          value: _withoutDeleted(
-            ref.watch(latestPostsProvider(stateCode)),
-            ref.watch(deletedPostsProvider),
-          ),
+          value: posts,
           t: t,
           edgeToEdge: true,
           skeleton: const PostListSkeleton(),
           itemKey: (p) => p.id,
           prefetch: prefetchPost,
-          itemBuilder: (context, p, _) => PostImpressionTracker(
-            post: p,
-            child: PostCard(post: p, feedHeight: height),
+          itemBuilder: (context, p, i) => withQaBanner(
+            i,
+            posts.value?.items.length ?? 0,
+            PostImpressionTracker(
+              post: p,
+              child: PostCard(post: p, feedHeight: height),
+            ),
           ),
           empty: AppEmptyState(
             icon: AppIcons.mapOutlined,
@@ -197,19 +199,24 @@ class FilteredPostsView extends ConsumerWidget {
       builder: (context, box) {
         final height =
             feedChromeCardHeight(context) ?? feedCardHeight(box.maxHeight);
+        final posts = _withoutDeleted(
+          ref.watch(filteredPostsProvider(key)),
+          ref.watch(deletedPostsProvider),
+        );
         return PagedListBody<Post>(
-          value: _withoutDeleted(
-            ref.watch(filteredPostsProvider(key)),
-            ref.watch(deletedPostsProvider),
-          ),
+          value: posts,
           t: t,
           edgeToEdge: true,
           skeleton: const PostListSkeleton(),
           itemKey: (p) => p.id,
           prefetch: prefetchPost,
-          itemBuilder: (context, p, _) => PostImpressionTracker(
-            post: p,
-            child: PostCard(post: p, feedHeight: height),
+          itemBuilder: (context, p, i) => withQaBanner(
+            i,
+            posts.value?.items.length ?? 0,
+            PostImpressionTracker(
+              post: p,
+              child: PostCard(post: p, feedHeight: height),
+            ),
           ),
           empty: AppEmptyState(
             icon: newsOnly ? AppIcons.newspaperRounded : AppIcons.tagRounded,

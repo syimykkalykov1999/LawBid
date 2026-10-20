@@ -215,4 +215,12 @@ export class QaSummaryDto {
       'Unanswered questions of the last 24 hours in my practice areas and states (attorney; 0 for others)',
   })
   newCount!: number;
+  @ApiProperty({ description: 'Show the card among the feed posts' })
+  bannerEnabled!: boolean;
+  @ApiProperty({ description: 'Hours between two showings of the card' })
+  bannerIntervalHours!: number;
+  @ApiProperty({ description: 'Show the card from this many new questions' })
+  bannerMinNew!: number;
+  @ApiProperty({ description: 'Show the call line on the own profile' })
+  profileCtaEnabled!: boolean;
 }

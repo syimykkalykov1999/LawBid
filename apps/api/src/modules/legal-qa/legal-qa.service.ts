@@ -21,6 +21,7 @@ import { BlocksService } from '../blocks/blocks.service';
 import { maskContactInfo } from '../cases/cases.public';
 import { FeatureFlagsService } from '../feature-flags/feature-flags.public';
 import { FilesService } from '../files/files.service';
+import { SearchSynonymsService } from '../search/search-synonyms.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import {
   type AnswerDto,
@@ -72,9 +73,42 @@ export class LegalQaService {
     private readonly settings: AppSettingsService,
     private readonly blocks: BlocksService,
     private readonly files: FilesService,
+    private readonly synonyms: SearchSynonymsService,
   ) {}
 
   // --- questions ------------------------------------------------------------
+
+  /**
+   * Owner 2026-10-20: the same kinds of match as the main search — whole
+   * words (full text, accents ignored), typos (trigram word similarity on
+   * the title), plain substrings, and the topic the query's synonyms point
+   * at — over the title, the text and every published answer.
+   */
+  private async searchIds(text: string): Promise<string[]> {
+    const topics = (await this.synonyms.resolve(text)).practiceIds;
+    const like = `%${text.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+    const rows = await this.prisma.$queryRaw<{ id: string }[]>`
+      SELECT q.id::TEXT AS id
+      FROM legal_questions q
+      WHERE q.status = 'published' AND q.deleted_at IS NULL
+        AND (
+          to_tsvector('simple', f_unaccent(q.title || ' ' || q.body))
+            @@ websearch_to_tsquery('simple', f_unaccent(${text}))
+          OR word_similarity(f_unaccent(lower(${text})), f_unaccent(lower(q.title))) > 0.45
+          OR q.title ILIKE ${like} OR q.body ILIKE ${like}
+          OR (${topics.length > 0} AND q.practice_area_id = ANY(${topics}::UUID[]))
+          OR EXISTS (
+            SELECT 1 FROM legal_answers a
+            WHERE a.question_id = q.id AND a.status = 'published'
+              AND a.deleted_at IS NULL
+              AND (to_tsvector('simple', f_unaccent(a.body))
+                     @@ websearch_to_tsquery('simple', f_unaccent(${text}))
+                   OR a.body ILIKE ${like}))
+        )
+      ORDER BY q.created_at DESC
+      LIMIT 500`;
+    return rows.map((r) => r.id);
+  }
 
   async list(user: RequestUser, q: QuestionsQueryDto): Promise<QuestionPage> {
     await this.assertEnabled();
@@ -111,24 +145,7 @@ export class LegalQaService {
       });
     }
     const text = q.q?.trim();
-    if (text) {
-      where.push({
-        OR: [
-          { title: { contains: text, mode: 'insensitive' } },
-          { body: { contains: text, mode: 'insensitive' } },
-          // Owner 2026-10-20: the answers are searched too.
-          {
-            answers: {
-              some: {
-                status: 'published',
-                deleted_at: null,
-                body: { contains: text, mode: 'insensitive' },
-              },
-            },
-          },
-        ],
-      });
-    }
+    if (text) where.push({ id: { in: await this.searchIds(text) } });
     if (q.cursor) {
       const c = decodeCursor(q.cursor);
       where.push({
@@ -408,8 +425,29 @@ export class LegalQaService {
    * ones the case alerts use. Blocks either way are skipped.
    */
   async summary(user: RequestUser): Promise<QaSummaryDto> {
-    if (user.role !== 'attorney' || user.assistant) return { newCount: 0 };
-    if (!(await this.flags.isEnabled('legal_qa', true))) return { newCount: 0 };
+    // Owner 2026-10-20: how often and from how many the card shows is set
+    // in the admin (Настройки).
+    const [
+      bannerEnabled,
+      bannerIntervalHours,
+      bannerMinNew,
+      profileCtaEnabled,
+    ] = await Promise.all([
+      this.settings.boolean('qa.banner_enabled'),
+      this.settings.number('qa.banner_interval_hours'),
+      this.settings.number('qa.banner_min_new'),
+      this.settings.boolean('qa.profile_cta_enabled'),
+    ]);
+    const base = {
+      bannerEnabled,
+      bannerIntervalHours,
+      bannerMinNew,
+      profileCtaEnabled,
+    };
+    if (user.role !== 'attorney' || user.assistant)
+      return { newCount: 0, ...base };
+    if (!(await this.flags.isEnabled('legal_qa', true)))
+      return { newCount: 0, ...base };
     const [row] = await this.prisma.$queryRaw<{ n: number }[]>`
       SELECT COUNT(*)::INT AS n
       FROM legal_questions q
@@ -434,7 +472,7 @@ export class LegalQaService {
           SELECT 1 FROM user_blocks b
           WHERE (b.blocker_id = ${user.sub}::UUID AND b.blocked_id = q.author_id)
              OR (b.blocker_id = q.author_id AND b.blocked_id = ${user.sub}::UUID))`;
-    return { newCount: row?.n ?? 0 };
+    return { newCount: row?.n ?? 0, ...base };
   }
 
   async alertAttorneys(

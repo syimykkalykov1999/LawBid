@@ -4,6 +4,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/static_translator.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/features/legal_qa/application/legal_qa_providers.dart';
+import 'package:lawbid/features/legal_qa/domain/qa_models.dart';
 import 'package:lawbid/features/legal_qa/presentation/qa_banners.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -23,8 +24,7 @@ void main() {
   Future<void> pump(
     WidgetTester tester,
     Widget child, {
-    int count = 3,
-    bool attorney = true,
+    QaSummary summary = const QaSummary(newCount: 3),
   }) async {
     useNarrowPhone(tester);
     await tester.pumpWidget(
@@ -39,7 +39,7 @@ void main() {
             sharedPreferencesProvider.overrideWithValue(prefs),
             referralOffOverride,
             promotionsOffOverride,
-            qaNewCountProvider.overrideWith((ref) async => count),
+            qaSummaryProvider.overrideWith((ref) async => summary),
           ],
         ),
       ),
@@ -73,14 +73,18 @@ void main() {
     await pump(
       tester,
       const Column(children: [QaNewQuestionsBanner(), QaMineEntry()]),
-      count: 0,
+      summary: const QaSummary(),
     );
     expect(find.textContaining('Новые вопросы'), findsNothing);
     expect(find.byKey(const ValueKey('mine-qa')), findsNothing);
   });
 
   testWidgets('«Мои» line: title and count', (tester) async {
-    await pump(tester, const QaMineEntry(), count: 5);
+    await pump(
+      tester,
+      const QaMineEntry(),
+      summary: const QaSummary(newCount: 5),
+    );
     expect(find.text('Вопрос юристу · 5 новых'), findsOneWidget);
   });
 
@@ -96,19 +100,60 @@ void main() {
     expect(find.text('Ответов 12 · лучших 4'), findsOneWidget);
   });
 
-  testWidgets('profile: others see only numbers, and only if any', (
-    tester,
-  ) async {
+  testWidgets('profile: nobody but the attorney sees the row', (tester) async {
     await pump(
       tester,
       const QaProfileRow(answers: 12, best: 4, isSelf: false),
     );
-    expect(find.text('Ответов 12 · лучших 4'), findsOneWidget);
-    expect(find.textContaining('Отвечайте'), findsNothing);
-    await pump(
-      tester,
-      const QaProfileRow(answers: 0, best: 0, isSelf: false),
-    );
     expect(find.byKey(const ValueKey('profile-qa')), findsNothing);
+  });
+
+  group('admin settings', () {
+    Future<void> banner(WidgetTester tester, QaSummary s) =>
+        pump(tester, const QaNewQuestionsBanner(), summary: s);
+
+    testWidgets('switched off: no card', (tester) async {
+      await banner(tester, const QaSummary(newCount: 5, bannerEnabled: false));
+      expect(find.textContaining('Новые вопросы'), findsNothing);
+    });
+
+    testWidgets('below the minimum: no card', (tester) async {
+      await banner(tester, const QaSummary(newCount: 2, bannerMinNew: 3));
+      expect(find.textContaining('Новые вопросы'), findsNothing);
+    });
+
+    testWidgets('at the minimum: the card', (tester) async {
+      await banner(tester, const QaSummary(newCount: 3, bannerMinNew: 3));
+      expect(find.textContaining('Новые вопросы'), findsOneWidget);
+    });
+
+    testWidgets('comes back only after the interval', (tester) async {
+      const hour = Duration.millisecondsPerHour;
+      final now = DateTime.now().millisecondsSinceEpoch;
+      SharedPreferences.setMockInitialValues({'qa.banner.at': now - 5 * hour});
+      prefs = await SharedPreferences.getInstance();
+      await banner(
+        tester,
+        const QaSummary(newCount: 4, bannerIntervalHours: 6),
+      );
+      expect(find.textContaining('Новые вопросы'), findsNothing);
+      SharedPreferences.setMockInitialValues({'qa.banner.at': now - 7 * hour});
+      prefs = await SharedPreferences.getInstance();
+      await banner(
+        tester,
+        const QaSummary(newCount: 4, bannerIntervalHours: 6),
+      );
+      expect(find.textContaining('Новые вопросы'), findsOneWidget);
+    });
+
+    testWidgets('profile call off: only the numbers', (tester) async {
+      await pump(
+        tester,
+        const QaProfileRow(answers: 3, best: 1, isSelf: true),
+        summary: const QaSummary(profileCtaEnabled: false),
+      );
+      expect(find.textContaining('Отвечайте'), findsNothing);
+      expect(find.text('Ответов 3 · лучших 1'), findsOneWidget);
+    });
   });
 }

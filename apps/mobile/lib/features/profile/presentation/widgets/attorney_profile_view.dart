@@ -331,12 +331,6 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
           _AboutSection(profile: p),
           const SizedBox(height: AppSpacing.md),
           _ChipRows(profile: p),
-          // Owner 2026-10-20: «Answers N · best M» under the rating.
-          QaProfileRow(
-            answers: p.qaAnswers,
-            best: p.qaBest,
-            isSelf: p.isSelf,
-          ),
           // Owner 2026-10-20: gifts on the profile (flag `stars`).
           if (!(p.isBlocked || p.hasBlockedMe))
             GiftShowcase(userId: p.id, isMe: p.isSelf),
@@ -512,6 +506,10 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
                   ),
                 ),
         ),
+        // Owner 2026-10-20: inside the rating tab, under the rating block —
+        // the attorney's own call to answer questions and their numbers.
+        if (p.isSelf)
+          QaProfileRow(answers: p.qaAnswers, best: p.qaBest, isSelf: p.isSelf),
         if (reviewsState != null) reviewsState,
         for (final review in items) ...[
           ReviewCard(

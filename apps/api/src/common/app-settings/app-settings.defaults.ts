@@ -659,6 +659,14 @@ export const OWNER_BOOKING_QA_SETTINGS = {
    * attorneys of its practice area and state (those who turned on «Новые
    * кейсы»). */
   'qa.push_attorneys': false,
+  /** The compact «new questions» card among an attorney's feed posts. */
+  'qa.banner_enabled': true,
+  /** Hours between two showings of that card to one attorney. */
+  'qa.banner_interval_hours': 24,
+  /** The card appears from this many new unanswered questions. */
+  'qa.banner_min_new': 1,
+  /** The «answer questions, win clients» call on an attorney's profile. */
+  'qa.profile_cta_enabled': true,
   'qa.alert_max_attorneys': 500,
   /** Whether a client may ask a question anonymously. */
   'qa.allow_anonymous': true,

@@ -138,6 +138,7 @@ void main() {
             'licensedStates': <Object?>[],
             'practiceAreas': <Object?>[],
             'rating': {'avg': 0, 'count': 0},
+            'qa': {'answers': 0, 'best': 0},
             'counters': {'posts': 0, 'followers': 0, 'following': 0},
             'isSelf': false,
             'isFollowing': false,

@@ -45,36 +45,48 @@ final questionDetailProvider =
 );
 
 /// Owner 2026-10-20: no pushes to attorneys; instead a quiet count of fresh
-/// unanswered questions of their practice (0 for everyone else, offline,
-/// or while the flag is off).
-final qaNewCountProvider = FutureProvider.autoDispose<int>((ref) async {
+/// unanswered questions of their practice (zeros for everyone else, offline,
+/// or while the flag is off) plus the admin's display settings.
+final qaSummaryProvider = FutureProvider.autoDispose<QaSummary>((ref) async {
   if (!ref.watch(legalQaEnabledProvider) ||
       !ref.watch(actsAsAttorneyProvider)) {
-    return 0;
+    return const QaSummary();
   }
   try {
-    return await ref.watch(legalQaRepositoryProvider).newCount();
+    return await ref.watch(legalQaRepositoryProvider).summary();
   } on Object {
-    return 0;
+    return const QaSummary();
   }
 });
 
-const _kBannerDay = 'qa.banner.day';
+const _kBannerAt = 'qa.banner.at';
 
-String _today() => DateTime.now().toIso8601String().substring(0, 10);
-
-/// Whether the feed banner was already used today (shown at most once a
-/// day: a tap or a swipe puts it away until tomorrow).
-class QaBannerHidden extends Notifier<bool> {
+/// When the feed card was last used (tapped or swiped away), as epoch ms;
+/// it comes back after the admin's interval (default 24 h).
+class QaBannerLastUsed extends Notifier<int?> {
   @override
-  bool build() =>
-      ref.watch(sharedPreferencesProvider).getString(_kBannerDay) == _today();
+  int? build() => ref.watch(sharedPreferencesProvider).getInt(_kBannerAt);
 
-  void hideToday() {
-    state = true;
-    ref.read(sharedPreferencesProvider).setString(_kBannerDay, _today());
+  void markUsed() {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    state = now;
+    ref.read(sharedPreferencesProvider).setInt(_kBannerAt, now);
   }
 }
 
-final qaBannerHiddenProvider =
-    NotifierProvider<QaBannerHidden, bool>(QaBannerHidden.new);
+final qaBannerLastUsedProvider =
+    NotifierProvider<QaBannerLastUsed, int?>(QaBannerLastUsed.new);
+
+/// Whether the card shows now: switched on, enough new questions, and the
+/// interval since it was last used has passed.
+final qaBannerVisibleProvider = Provider.autoDispose<bool>((ref) {
+  final s = ref.watch(qaSummaryProvider).value;
+  if (s == null || !s.bannerEnabled || s.newCount < s.bannerMinNew) {
+    return false;
+  }
+  if (s.newCount <= 0) return false;
+  final last = ref.watch(qaBannerLastUsedProvider);
+  if (last == null) return true;
+  final due = last + s.bannerIntervalHours * Duration.millisecondsPerHour;
+  return DateTime.now().millisecondsSinceEpoch >= due;
+});
