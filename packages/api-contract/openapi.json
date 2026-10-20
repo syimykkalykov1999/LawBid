@@ -76739,6 +76739,86 @@
         ]
       }
     },
+    "/me/timezone": {
+      "put": {
+        "operationId": "setTimezone",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TimezoneDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Set the person's IANA time zone",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
     "/notification-settings/quiet-hours": {
       "put": {
         "operationId": "setQuietHours",
@@ -98794,8 +98874,8 @@
             "nullable": true,
             "enum": [
               "call",
-              "sms",
               "email",
+              "sms",
               "in_app_chat"
             ],
             "type": "string"
@@ -98817,8 +98897,8 @@
             "nullable": true,
             "enum": [
               "call",
-              "sms",
               "email",
+              "sms",
               "in_app_chat"
             ],
             "type": "string"
@@ -99634,8 +99714,8 @@
             "nullable": true,
             "enum": [
               "call",
-              "sms",
               "email",
+              "sms",
               "in_app_chat"
             ]
           },
@@ -122487,7 +122567,6 @@
               "more",
               "message",
               "profile",
-              "download",
               "call"
             ],
             "description": "The button under a promoted post (posts only)."
@@ -123092,7 +123171,6 @@
                 "more",
                 "message",
                 "profile",
-                "download",
                 "call"
               ]
             },
@@ -123243,7 +123321,6 @@
                 "more",
                 "message",
                 "profile",
-                "download",
                 "call"
               ]
             },
@@ -127423,6 +127500,20 @@
           "useProfile"
         ]
       },
+      "TimezoneDto": {
+        "type": "object",
+        "properties": {
+          "timezone": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "example": "America/New_York"
+          }
+        },
+        "required": [
+          "timezone"
+        ]
+      },
       "PushTokenDto": {
         "type": "object",
         "properties": {
@@ -127439,6 +127530,10 @@
               "web"
             ],
             "type": "string"
+          },
+          "localReminders": {
+            "type": "boolean",
+            "description": "Owner 2026-10-20: this app keeps planner reminders locally and shows the reminder push itself (Android)."
           }
         },
         "required": [

@@ -5,11 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import type {
-  AttorneyTaskRepeat,
-  AttorneyTaskStatus,
-  Prisma,
-} from '@prisma/client';
+import type { AttorneyTaskStatus, Prisma } from '@prisma/client';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -18,6 +14,13 @@ import { FilesService } from '../files/files.service';
 import { assertUploadCount, readUploadLimits } from '../files/upload-limits';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AssistantsService, nameOf } from './assistants.service';
+import {
+  createNextOccurrence,
+  nextOccurrence,
+  ownerTimeZone,
+  remindAtFor,
+  remindedAtFor,
+} from './task-series';
 import type {
   BulkTasksDto,
   BulkTasksResultDto,
@@ -89,44 +92,9 @@ const INCLUDE = {
 
 type TaskRow = Prisma.AttorneyTaskGetPayload<{ include: typeof INCLUDE }>;
 
-/** Owner 2026-10-05: the next time of a repeating task. */
-export function nextOccurrence(from: Date, repeat: AttorneyTaskRepeat): Date {
-  const d = new Date(from.getTime());
-  switch (repeat) {
-    case 'daily':
-      d.setUTCDate(d.getUTCDate() + 1);
-      break;
-    case 'weekdays':
-      do {
-        d.setUTCDate(d.getUTCDate() + 1);
-      } while (d.getUTCDay() === 0 || d.getUTCDay() === 6);
-      break;
-    case 'weekly':
-      d.setUTCDate(d.getUTCDate() + 7);
-      break;
-    case 'monthly': {
-      const day = d.getUTCDate();
-      d.setUTCDate(1);
-      d.setUTCMonth(d.getUTCMonth() + 1);
-      const last = new Date(
-        Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0),
-      ).getUTCDate();
-      d.setUTCDate(Math.min(day, last));
-      break;
-    }
-    case 'yearly':
-      d.setUTCFullYear(d.getUTCFullYear() + 1);
-      break;
-    default:
-      break;
-  }
-  return d;
-}
+export { nextOccurrence };
 
-function remindAt(due: Date | null, before: number | null): Date | null {
-  if (!due || before === null) return null;
-  return new Date(due.getTime() - before * 60_000);
-}
+const remindAt = remindAtFor;
 
 function fullName(u: {
   first_name: string | null;
@@ -415,6 +383,7 @@ export class TasksService {
         repeat_until: dto.repeatUntil ? new Date(dto.repeatUntil) : null,
         remind_before_min: before,
         remind_at: remindAt(due, before),
+        reminded_at: remindedAtFor(remindAt(due, before)),
         keep_forever: dto.keepForever ?? false,
         steps: {
           create: (dto.steps ?? []).map((st, i) => ({
@@ -732,7 +701,9 @@ export class TasksService {
               rescheduled_to: reschedule,
               due_at: reschedule,
               remind_at: remindAt(reschedule, t.remind_before_min),
-              reminded_at: null,
+              reminded_at: remindedAtFor(
+                remindAt(reschedule, t.remind_before_min),
+              ),
             }
           : {}),
         done_at: status === 'done' || status === 'not_done' ? now : null,
@@ -762,67 +733,8 @@ export class TasksService {
    * one (same people, places, steps unchecked) — once per task. */
   private async repeatNext(t: TaskRow): Promise<void> {
     if (t.repeat === 'none') return;
-    let due = nextOccurrence(t.due_at ?? new Date(), t.repeat);
-    // A long-overdue series continues from today, not from the past.
-    while (due.getTime() < Date.now() - DAY_MS) {
-      due = nextOccurrence(due, t.repeat);
-    }
-    if (t.repeat_until && due > t.repeat_until) return;
-    const { count } = await this.prisma.attorneyTask.updateMany({
-      where: { id: t.id, repeated_at: null },
-      data: { repeated_at: new Date() },
-    });
-    if (count === 0) return;
-    const nextDue = t.due_at ? due : null;
-    await this.prisma.attorneyTask.create({
-      data: {
-        attorney_id: t.attorney_id,
-        created_by_membership_id: t.created_by_membership_id,
-        assignee_membership_id: t.assignee_membership_id,
-        kind: t.kind,
-        title: t.title,
-        notes: t.notes,
-        due_at: nextDue,
-        case_id: t.case_id,
-        conversation_id: t.conversation_id,
-        file_ids: t.file_ids,
-        priority: t.priority,
-        repeat: t.repeat,
-        repeat_until: t.repeat_until,
-        remind_before_min: t.remind_before_min,
-        remind_at: remindAt(nextDue, t.remind_before_min),
-        keep_forever: t.keep_forever,
-        steps: {
-          create: t.steps.map((s) => ({
-            position: s.position,
-            kind: s.kind,
-            title: s.title,
-            location: s.location,
-            contact_name: s.contact_name,
-            contact_phone: s.contact_phone,
-            contact_email: s.contact_email,
-            created_by_name: s.created_by_name,
-          })),
-        },
-        places: {
-          create: t.places.map((p) => ({
-            position: p.position,
-            label: p.label,
-            address: p.address,
-          })),
-        },
-        people: {
-          create: t.people.map((p) => ({
-            position: p.position,
-            user_id: p.user_id,
-            role: p.role,
-            name: p.name,
-            phone: p.phone,
-            email: p.email,
-          })),
-        },
-      },
-    });
+    const zone = await ownerTimeZone(this.prisma, t.attorney_id);
+    await createNextOccurrence(this.prisma, t, zone);
   }
 
   // --- steps ----------------------------------------------------------
@@ -1070,7 +982,7 @@ export class TasksService {
           due_at: due,
           remind_before_min: before,
           remind_at: remind,
-          ...(remindChanged ? { reminded_at: null } : {}),
+          ...(remindChanged ? { reminded_at: remindedAtFor(remind) } : {}),
           ...(dto.priority ? { priority: dto.priority } : {}),
           ...(dto.repeat ? { repeat: dto.repeat } : {}),
           ...(dto.clearRepeatUntil

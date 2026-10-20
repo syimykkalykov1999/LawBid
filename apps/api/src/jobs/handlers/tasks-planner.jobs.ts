@@ -1,14 +1,26 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
+import type Redis from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { FileReleaseService } from '../../modules/files/storage/file-release.service';
 import { NotificationsService } from '../../modules/notifications/notifications.service';
+import {
+  createNextOccurrence,
+  ownerTimeZone,
+} from '../../modules/assistants/task-series';
 import { PrismaService } from '../../prisma/prisma.service';
+import { REDIS_CLIENT } from '../../redis/redis.constants';
+import { emitOnce } from './reminder-claim';
 
 const DAY_MS = 24 * 3600 * 1000;
-/** A reminder later than this is not sent at all (an outage of the
- * worker must not wake everybody with yesterday's reminders). */
+/** A reminder up to this late is sent as the reminder it is (an outage of
+ * the worker must not wake everybody with yesterday's reminders)… */
 const REMINDER_GRACE_MS = 6 * 3600 * 1000;
+/** …later than that, and up to this old, it is sent once as "missed"
+ * (Owner 2026-10-20: a reminder is never lost in silence). */
+const MISSED_WINDOW_MS = 2 * DAY_MS;
+/** Outlives the window a reminder can be sent in. */
+const CLAIM_TTL_SEC = 4 * 24 * 3600;
 const BATCH = 500;
 /** Days before removal when the owner hears about it. */
 export const PURGE_NOTICE_DAYS = [30, 7] as const;
@@ -18,6 +30,12 @@ export const PURGE_NOTICE_DAYS = [30, 7] as const;
  * task's time minus `remind_before_min`) the owner of the planner and the
  * assistant the task is assigned to get `task_reminder`. `reminded_at`
  * is claimed with a conditional update, so overlapping runs send it once.
+ *
+ * Owner 2026-10-20: the claim is released when sending fails (the next
+ * minute tries again, per recipient under a Redis claim so nobody gets it
+ * twice); a reminder older than the grace window goes out once as
+ * "missed"; and a repeating task whose time has come sets up the next one
+ * here, whether or not it was ticked off — the series never stops.
  */
 @Injectable()
 export class TaskRemindersJob {
@@ -25,59 +43,133 @@ export class TaskRemindersJob {
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
     private readonly logger: PinoLogger,
+    @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {
     this.logger.setContext(TaskRemindersJob.name);
   }
 
-  async run(now: Date = new Date()): Promise<{ sent: number }> {
+  async run(
+    now: Date = new Date(),
+  ): Promise<{ sent: number; missed: number; rolled: number }> {
     const due = await this.prisma.attorneyTask.findMany({
       where: {
         remind_at: {
           lte: now,
-          gt: new Date(now.getTime() - REMINDER_GRACE_MS),
+          gt: new Date(now.getTime() - MISSED_WINDOW_MS),
         },
         reminded_at: null,
         status: { in: ['open', 'taken'] },
         archived_at: null,
       },
+      orderBy: { remind_at: 'asc' },
       select: {
         id: true,
         attorney_id: true,
         kind: true,
         due_at: true,
+        remind_at: true,
         assignee: { select: { assistant_user_id: true, status: true } },
       },
       take: BATCH,
     });
     let sent = 0;
+    let missed = 0;
     for (const t of due) {
+      const remindAt = t.remind_at;
+      if (!remindAt) continue;
       const { count } = await this.prisma.attorneyTask.updateMany({
         where: { id: t.id, reminded_at: null },
         data: { reminded_at: now },
       });
       if (count === 0) continue;
+      const late = now.getTime() - remindAt.getTime() > REMINDER_GRACE_MS;
       const payload = {
         taskId: t.id,
         kind: t.kind,
+        remindAt: remindAt.toISOString(),
         ...(t.due_at ? { dueAt: t.due_at.toISOString() } : {}),
+        ...(late ? { missed: true } : {}),
       };
-      await this.notifications.emit({
-        type: 'task_reminder',
-        recipientId: t.attorney_id,
-        payload,
-      });
       const a = t.assignee;
-      if (a?.assistant_user_id && a.status === 'active') {
-        await this.notifications.emit({
-          type: 'task_reminder',
-          recipientId: a.assistant_user_id,
-          payload,
+      const recipients = [
+        t.attorney_id,
+        ...(a?.assistant_user_id && a.status === 'active'
+          ? [a.assistant_user_id]
+          : []),
+      ];
+      try {
+        for (const recipientId of recipients) {
+          await emitOnce(
+            this.redis,
+            `reminder:task:${t.id}:${remindAt.getTime()}:${recipientId}`,
+            CLAIM_TTL_SEC,
+            () =>
+              this.notifications.emit({
+                type: 'task_reminder',
+                recipientId,
+                payload,
+              }),
+          );
+        }
+        if (late) missed += 1;
+        else sent += 1;
+      } catch (err) {
+        // Not sent: the reminder is pending again for the next run.
+        await this.prisma.attorneyTask.updateMany({
+          where: { id: t.id, reminded_at: now },
+          data: { reminded_at: null },
         });
+        this.logger.warn(
+          { taskId: t.id, err: String(err) },
+          'task reminder failed, will retry',
+        );
       }
-      sent += 1;
     }
-    if (sent) this.logger.info({ sent }, 'task reminders');
-    return { sent };
+    const rolled = await this.rollSeries(now);
+    if (sent || missed || rolled) {
+      this.logger.info({ sent, missed, rolled }, 'task reminders');
+    }
+    return { sent, missed, rolled };
+  }
+
+  /** The next task of every repeating series whose time has come. */
+  private async rollSeries(now: Date): Promise<number> {
+    let rolled = 0;
+    try {
+      const rows = await this.prisma.attorneyTask.findMany({
+        where: {
+          repeat: { not: 'none' },
+          repeated_at: null,
+          due_at: { lte: now },
+          status: { in: ['open', 'taken'] },
+          archived_at: null,
+        },
+        include: { steps: true, places: true, people: true },
+        orderBy: { due_at: 'asc' },
+        take: BATCH,
+      });
+      const zones = new Map<string, string>();
+      for (const t of rows) {
+        try {
+          let zone = zones.get(t.attorney_id);
+          if (!zone) {
+            zone = await ownerTimeZone(this.prisma, t.attorney_id);
+            zones.set(t.attorney_id, zone);
+          }
+          if (await createNextOccurrence(this.prisma, t, zone, now)) {
+            rolled += 1;
+          }
+        } catch (err) {
+          this.logger.warn(
+            { taskId: t.id, err: String(err) },
+            'repeating task: next not created, will retry',
+          );
+        }
+      }
+    } catch (err) {
+      this.logger.warn({ err: String(err) }, 'repeating tasks sweep failed');
+    }
+    return rolled;
   }
 }
 

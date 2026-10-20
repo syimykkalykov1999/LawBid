@@ -158,6 +158,8 @@ const tasksPlannerRu = <String, String>{
   'notif.list.task_purge_soon':
       'Через {days} дн. удалятся выполненные задачи: {count}. Откройте архив, чтобы сохранить нужные.',
   'notification.task_reminder': 'Напоминание о задаче',
+  'notif.cases.task_reminder.title': 'Напоминание о задаче',
+  'notif.cases.task_reminder.missed': 'Пропущено напоминание о задаче',
   'notification.task_assigned': 'Новое поручение',
   'notification.task_purge_soon': 'Скоро удалятся старые задачи',
 };
@@ -316,6 +318,8 @@ const tasksPlannerEn = <String, String>{
   'notif.list.task_purge_soon':
       '{count} finished tasks will be removed in {days} days. Open the archive to keep the ones you need.',
   'notification.task_reminder': 'Task reminder',
+  'notif.cases.task_reminder.title': 'Task reminder',
+  'notif.cases.task_reminder.missed': 'Missed reminder',
   'notification.task_assigned': 'New assigned task',
   'notification.task_purge_soon': 'Old tasks will be removed soon',
 };

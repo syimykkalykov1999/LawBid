@@ -1502,6 +1502,7 @@ export 'models/update_notification_settings_dto.dart';
 export 'models/new_case_alerts_dto.dart';
 export 'models/new_case_alerts_envelope.dart';
 export 'models/update_new_case_alerts_dto.dart';
+export 'models/timezone_dto.dart';
 export 'models/push_token_dto.dart';
 export 'models/voip_token_dto.dart';
 export 'models/delete_push_token_dto.dart';

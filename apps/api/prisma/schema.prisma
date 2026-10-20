@@ -713,6 +713,10 @@ model User {
   password_hash           String?
   password_set_at         DateTime?               @db.Timestamptz
   ui_language             String                  @default("en")
+  /// Owner 2026-10-20: the person's IANA time zone (the app sends it at
+  /// sign-in and when it changes). Repeating tasks and the daily
+  /// reminders follow this local clock; null = the quiet-hours zone, else UTC.
+  timezone                String?                 @db.VarChar(64)
   /// Owner 2026-10-15: do not show like counters under other people's posts.
   hide_like_counts        Boolean                 @default(false)
   theme                   ThemePref               @default(system)
@@ -895,12 +899,12 @@ model File {
   verification_documents VerificationDocument[]
   data_export_jobs       DataExportJob[]
 
-  post_media        PostMedia[]
-  post_attachments  PostAttachment[]
-  case_photos       CasePhoto[]
-  voice_messages    Message[]         @relation("MessageVoice")
-  sticker           Sticker?
-  document_template DocumentTemplate?
+  post_media            PostMedia[]
+  post_attachments      PostAttachment[]
+  case_photos           CasePhoto[]
+  voice_messages        Message[]            @relation("MessageVoice")
+  sticker               Sticker?
+  document_template     DocumentTemplate?
   support_message_files SupportMessageFile[]
 
   @@index([owner_user_id])
@@ -2385,15 +2389,19 @@ model NotificationQuietHours {
 }
 
 model PushToken {
-  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id      String   @db.Uuid
-  user         User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  session_id   String   @db.Uuid
-  session      Session  @relation(fields: [session_id], references: [id], onDelete: Cascade)
-  fcm_token    String   @unique
-  platform     String
-  last_seen_at DateTime @default(now()) @db.Timestamptz
-  created_at   DateTime @default(now()) @db.Timestamptz
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id         String   @db.Uuid
+  user            User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  session_id      String   @db.Uuid
+  session         Session  @relation(fields: [session_id], references: [id], onDelete: Cascade)
+  fcm_token       String   @unique
+  platform        String
+  /// Owner 2026-10-20: the app on this device keeps its own copy of the
+  /// planner reminders (local alarm) and shows the reminder push itself,
+  /// under the same id, so the two never show twice. Android only.
+  local_reminders Boolean  @default(false)
+  last_seen_at    DateTime @default(now()) @db.Timestamptz
+  created_at      DateTime @default(now()) @db.Timestamptz
 
   @@index([user_id])
   @@map("push_tokens")
@@ -4070,18 +4078,18 @@ model SupportTicket {
 }
 
 model SupportMessage {
-  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  ticket_id       String   @db.Uuid
+  id              String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ticket_id       String               @db.Uuid
   // Exactly one of author_user_id (the app user) / author_admin_id.
-  author_user_id  String?  @db.Uuid
-  author_admin_id String?  @db.Uuid
+  author_user_id  String?              @db.Uuid
+  author_admin_id String?              @db.Uuid
   // Admin-only note, never shown to the user.
-  internal        Boolean  @default(false)
+  internal        Boolean              @default(false)
   // Owner 2026-10-05: an automatic answer (after hours, "we got it"):
   // neither author id is set; shown as "LawBid Support".
-  auto            Boolean  @default(false)
-  body            String   @db.VarChar(20000)
-  created_at      DateTime @default(now()) @db.Timestamptz
+  auto            Boolean              @default(false)
+  body            String               @db.VarChar(20000)
+  created_at      DateTime             @default(now()) @db.Timestamptz
   files           SupportMessageFile[]
 
   @@index([ticket_id, created_at])

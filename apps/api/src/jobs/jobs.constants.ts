@@ -172,14 +172,16 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   // 16:20 UTC: notices arrive in the US daytime.
   { name: CRON_JOBS.taskArchivePurge, pattern: '20 16 * * *' },
   { name: CRON_JOBS.casePaymentsExpire, pattern: '7-57/10 * * * *' },
-  // 15:00 UTC ≈ 08:00 Pacific / 11:00 Eastern: a morning reminder.
-  { name: CRON_JOBS.casePaymentsRemind, pattern: '0 15 * * *' },
+  // Hourly: each client is reminded in their own morning (09:00–21:00
+  // local), so a missed run is caught up the same day.
+  { name: CRON_JOBS.casePaymentsRemind, pattern: '0 * * * *' },
   { name: CRON_JOBS.partnersSweep, pattern: '20 3 * * *' },
   // 04:25 UTC daily: the 1st settles the month just finished.
   { name: CRON_JOBS.countryPartnersSweep, pattern: '25 4 * * *' },
   { name: CRON_JOBS.demoSweep, pattern: '7 * * * *' },
-  // 15:10 UTC = morning across the US: a reminder, not a night push.
-  { name: CRON_JOBS.caseDeadlineReminder, pattern: '10 15 * * *' },
+  // Hourly: each person is reminded in their own morning (09:00–21:00
+  // local), so a missed run is caught up the same day.
+  { name: CRON_JOBS.caseDeadlineReminder, pattern: '10 * * * *' },
   { name: CRON_JOBS.supportSweep, pattern: '1-56/5 * * * *' },
   // 14:30 UTC ≈ 07:30 Pacific: the day after a period ends.
   { name: CRON_JOBS.rewardsAward, pattern: '30 14 * * *' },

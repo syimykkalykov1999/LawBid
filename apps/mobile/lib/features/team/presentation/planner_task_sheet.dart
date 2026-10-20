@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -6,6 +8,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/cases/workspace/compose_sheet.dart';
+import 'package:lawbid/features/notifications/application/task_reminders.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
@@ -48,7 +51,13 @@ Future<bool> showPlannerTaskSheet(
     } else {
       await updatePlannerTaskFrom(ref, existing, r);
     }
-    if (context.mounted) showAppSnackBar(context, t.t('tasks.saved'));
+    if (context.mounted) {
+      showAppSnackBar(context, t.t('tasks.saved'));
+      // Owner 2026-10-20: a reminder needs the phone's notifications on.
+      if (r.dueAt != null && r.remindBeforeMin != null) {
+        unawaited(ensureReminderPermission(context, ref));
+      }
+    }
     return true;
   } on Object catch (e) {
     if (context.mounted) showAppSnackBar(context, errorText(t, e));

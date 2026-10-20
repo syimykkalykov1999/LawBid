@@ -165,6 +165,15 @@ export class CategorySettingViewDto extends CategorySettingDto {
   locked!: boolean;
 }
 
+/** Owner 2026-10-20: the device's IANA time zone. */
+export class TimezoneDto {
+  @ApiProperty({ example: 'America/New_York' })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(64)
+  timezone!: string;
+}
+
 export class QuietHoursDto {
   @ApiPropertyOptional({
     type: String,
@@ -219,6 +228,14 @@ export class PushTokenDto {
   @ApiProperty({ enum: ['ios', 'android', 'web'] })
   @IsIn(['ios', 'android', 'web'])
   platform!: 'ios' | 'android' | 'web';
+
+  @ApiPropertyOptional({
+    description:
+      'Owner 2026-10-20: this app keeps planner reminders locally and shows the reminder push itself (Android).',
+  })
+  @IsOptional()
+  @IsBoolean()
+  localReminders?: boolean;
 }
 
 /** Owner 2026-10-17: an iPhone's PushKit (VoIP) token for calls. */

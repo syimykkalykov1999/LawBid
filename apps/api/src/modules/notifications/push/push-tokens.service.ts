@@ -18,6 +18,7 @@ export class PushTokensService {
     sessionChainId: string,
     token: string,
     platform: string,
+    localReminders = false,
   ): Promise<void> {
     const session = await this.prisma.session.findFirst({
       where: {
@@ -36,11 +37,13 @@ export class PushTokensService {
         session_id: session.id,
         fcm_token: token,
         platform,
+        local_reminders: localReminders,
       },
       update: {
         user_id: userId,
         session_id: session.id,
         platform,
+        local_reminders: localReminders,
         last_seen_at: new Date(),
       },
     });
@@ -96,6 +99,16 @@ export class PushTokensService {
   async webTokens(userId: string): Promise<string[]> {
     const rows = await this.prisma.pushToken.findMany({
       where: { user_id: userId, platform: 'web' },
+      select: { fcm_token: true },
+    });
+    return rows.map((r) => r.fcm_token);
+  }
+
+  /** Android devices whose app keeps the planner reminders itself and
+   * shows the reminder push under its own id (data-only message). */
+  async localReminderTokens(userId: string): Promise<string[]> {
+    const rows = await this.prisma.pushToken.findMany({
+      where: { user_id: userId, platform: 'android', local_reminders: true },
       select: { fcm_token: true },
     });
     return rows.map((r) => r.fcm_token);

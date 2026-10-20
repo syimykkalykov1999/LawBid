@@ -17,6 +17,8 @@ const SENT_TTL_SEC = 24 * 3600;
 const FCM_TIMEOUT_MS = 10_000;
 /** A ring is useless once the call stopped ringing (server: 40 s). */
 const CALL_TTL_SEC = 45;
+/** A planner reminder still matters for a while after its time. */
+const REMINDER_TTL_SEC = 6 * 3600;
 
 /** A temporary FCM failure: BullMQ retries the job (§9.5: 3 attempts,
  * exponential backoff). */
@@ -65,8 +67,15 @@ export class FcmPushSender implements PushSender {
     if (message.callEnd) {
       for (const t of await this.tokens.webTokens(message.userId)) skip.add(t);
     }
+    // Owner 2026-10-20: devices whose app shows the reminder itself.
+    const localReminder = new Set(
+      message.reminder
+        ? await this.tokens.localReminderTokens(message.userId)
+        : [],
+    );
     for (const device of devices) {
       if (skip.has(device)) continue;
+      const dataOnly = message.call || localReminder.has(device);
       // Claim the device before the call: a crash between FCM's 200 and
       // the mark can at most skip a push, never double it (load review).
       const claimed = await this.redis.set(
@@ -94,7 +103,7 @@ export class FcmPushSender implements PushSender {
                   // OQ-041: Android rings from a data-only message (the app
                   // draws the full-screen call UI); iOS gets a time-sensitive
                   // alert.
-                  ...(message.call
+                  ...(dataOnly
                     ? {}
                     : {
                         notification: {
@@ -102,7 +111,7 @@ export class FcmPushSender implements PushSender {
                           body: message.body,
                         },
                       }),
-                  data: message.call
+                  data: dataOnly
                     ? {
                         ...message.data,
                         title: message.title,
@@ -111,18 +120,30 @@ export class FcmPushSender implements PushSender {
                     : message.data,
                   android: message.call
                     ? { priority: 'high', ttl: `${CALL_TTL_SEC}s` }
-                    : {
-                        priority: 'high',
-                        ...(message.sound
-                          ? {
-                              notification: {
-                                channel_id:
-                                  PUSH_SOUNDS[message.sound].channelId,
-                                sound: PUSH_SOUNDS[message.sound].android,
-                              },
-                            }
-                          : {}),
-                      },
+                    : dataOnly
+                      ? { priority: 'high', ttl: `${REMINDER_TTL_SEC}s` }
+                      : {
+                          priority: 'high',
+                          ...(message.sound || message.reminder
+                            ? {
+                                notification: {
+                                  ...(message.sound
+                                    ? {
+                                        channel_id:
+                                          PUSH_SOUNDS[message.sound].channelId,
+                                        sound:
+                                          PUSH_SOUNDS[message.sound].android,
+                                      }
+                                    : {}),
+                                  // One notification per task: a repeat of the
+                                  // same reminder replaces it.
+                                  ...(message.reminder && message.data?.taskId
+                                    ? { tag: `task:${message.data.taskId}` }
+                                    : {}),
+                                },
+                              }
+                            : {}),
+                        },
                   apns: {
                     // Push 2026-10-19: delivered at once (screen off / Low Power
                     // mode too) as a visible alert; a call is useless after it
@@ -160,7 +181,11 @@ export class FcmPushSender implements PushSender {
                                   ? 'active'
                                   : 'time-sensitive',
                             }
-                          : {}),
+                          : message.reminder
+                            ? // Owner 2026-10-20: a planner reminder breaks
+                              // through Focus like a calendar alert.
+                              { 'interruption-level': 'time-sensitive' }
+                            : {}),
                         ...(message.badge !== undefined
                           ? { badge: message.badge }
                           : {}),

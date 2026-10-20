@@ -30,6 +30,7 @@ import {
   PushTokenDto,
   VoipTokenDto,
   QuietHoursDto,
+  TimezoneDto,
   ReadNotificationsDto,
   ReadNotificationsResultDto,
   UpdateNewCaseAlertsDto,
@@ -134,6 +135,20 @@ export class NotificationsApiController {
     return this.api.setNewCaseAlerts(user.sub, dto);
   }
 
+  // Owner 2026-10-20: the app sends the phone's time zone at sign-in and
+  // when it changes; repeating tasks and daily reminders follow it.
+  @AssistantSelf()
+  @Put('me/timezone')
+  @HttpCode(204)
+  @ApiOperation({ summary: "Set the person's IANA time zone" })
+  @ApiErrors({ 400: [ErrorCode.VALIDATION_ERROR] })
+  async setTimezone(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: TimezoneDto,
+  ): Promise<void> {
+    await this.api.setTimezone(user.sub, dto.timezone);
+  }
+
   // OQ-048: an assistant has their own notifications and devices.
   @AssistantSelf()
   @Put('notification-settings/quiet-hours')
@@ -154,7 +169,13 @@ export class NotificationsApiController {
     @CurrentUser() user: RequestUser,
     @Body() dto: PushTokenDto,
   ): Promise<void> {
-    await this.tokens.register(user.sub, user.sid, dto.token, dto.platform);
+    await this.tokens.register(
+      user.sub,
+      user.sid,
+      dto.token,
+      dto.platform,
+      dto.localReminders === true && dto.platform === 'android',
+    );
   }
 
   // Owner 2026-10-17: an iPhone registers its PushKit token for calls.

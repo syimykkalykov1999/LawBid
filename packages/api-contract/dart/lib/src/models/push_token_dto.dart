@@ -10,7 +10,11 @@ part 'push_token_dto.g.dart';
 
 @JsonSerializable()
 class PushTokenDto {
-  const PushTokenDto({required this.token, required this.platform});
+  const PushTokenDto({
+    required this.token,
+    required this.platform,
+    this.localReminders,
+  });
 
   factory PushTokenDto.fromJson(Map<String, Object?> json) =>
       _$PushTokenDtoFromJson(json);
@@ -18,6 +22,9 @@ class PushTokenDto {
   /// FCM registration token.
   final String token;
   final PushTokenDtoPlatform platform;
+
+  /// Owner 2026-10-20: this app keeps planner reminders locally and shows the reminder push itself (Android).
+  final bool? localReminders;
 
   Map<String, Object?> toJson() => _$PushTokenDtoToJson(this);
 }

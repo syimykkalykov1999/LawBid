@@ -22,6 +22,11 @@ import {
   decodeCursor,
   encodeCursor,
 } from '../../common/pagination/cursor.util';
+import {
+  safeTimeZone,
+  zonedParts,
+  zonedToUtc,
+} from '../../common/utils/zoned-time';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
@@ -1513,10 +1518,14 @@ export class CasePaymentsService {
   }
 
   /**
-   * Cron `case-payments.remind` (daily): the client is reminded N days
-   * before a request is due (admin setting), then every K days while it
-   * is overdue; a request left unpaid long after its due date is closed
-   * as expired (the client may still pay it from the case).
+   * Cron `case-payments.remind` (hourly since 2026-10-20): the client is
+   * reminded N days before a request is due (admin setting), then every K
+   * days while it is overdue; a request left unpaid long after its due
+   * date is closed as expired (the client may still pay it from the case).
+   * The days count on the client's own calendar and the reminder goes out
+   * in their morning (09:00–21:00 local), caught up by the next hourly
+   * run if one was missed; `last_reminded_at` is claimed with a
+   * conditional update, so an overlapping run never sends it twice.
    */
   async remind(
     now = new Date(),
@@ -1524,25 +1533,35 @@ export class CasePaymentsService {
     const s = await this.settings();
     const result = { reminded: 0, overdue: 0, expired: 0 };
     if (!(await this.enabled())) return result;
-    const today = Date.UTC(
-      now.getUTCFullYear(),
-      now.getUTCMonth(),
-      now.getUTCDate(),
-    );
     const open = await this.prisma.paymentRequest.findMany({
       where: { status: 'open', due_at: { not: null } },
+      orderBy: { due_at: 'asc' },
       take: 2000,
     });
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: [...new Set(open.map((r) => r.client_id))] } },
+      select: {
+        id: true,
+        timezone: true,
+        quiet_hours: { select: { timezone: true } },
+      },
+    });
+    const zones = new Map(
+      users.map((u) => [
+        u.id,
+        safeTimeZone(u.timezone ?? u.quiet_hours?.timezone),
+      ]),
+    );
     for (const r of open) {
       if (!r.due_at) continue;
-      const dueDay = Date.UTC(
-        r.due_at.getUTCFullYear(),
-        r.due_at.getUTCMonth(),
-        r.due_at.getUTCDate(),
+      const zone = zones.get(r.client_id) ?? 'UTC';
+      const here = zonedParts(now, zone);
+      const dueHere = zonedParts(r.due_at, zone);
+      const daysLeft = Math.round(
+        (Date.UTC(dueHere.year, dueHere.month - 1, dueHere.day) -
+          Date.UTC(here.year, here.month - 1, here.day)) /
+          DAY_MS,
       );
-      const daysLeft = Math.round((dueDay - today) / DAY_MS);
-      const remindedToday =
-        !!r.last_reminded_at && r.last_reminded_at.getTime() >= today;
       if (
         daysLeft < 0 &&
         s.invoiceExpireDays > 0 &&
@@ -1555,29 +1574,61 @@ export class CasePaymentsService {
         result.expired += 1;
         continue;
       }
+      // The client's local morning; later runs of the day catch up.
+      if (here.hour < 9 || here.hour >= 21) continue;
+      const dayStart = zonedToUtc(
+        { year: here.year, month: here.month, day: here.day },
+        zone,
+      );
+      const remindedToday =
+        !!r.last_reminded_at &&
+        r.last_reminded_at.getTime() >= dayStart.getTime();
       let type: 'payment_request_due' | 'payment_request_overdue' | null = null;
       if (daysLeft >= 0 && s.invoiceReminderDays.includes(daysLeft)) {
         type = 'payment_request_due';
       } else if (daysLeft < 0 && s.overdueReminderEveryDays > 0) {
         const since = r.last_reminded_at ?? r.due_at;
         if (
-          now.getTime() - since.getTime() >=
-          s.overdueReminderEveryDays * DAY_MS
+          dayStart.getTime() - since.getTime() >=
+          (s.overdueReminderEveryDays - 1) * DAY_MS
         )
           type = 'payment_request_overdue';
       }
       if (!type || remindedToday) continue;
-      await this.notify(r.client_id, type, {
-        caseId: r.case_id,
-        requestId: r.id,
-        amountCents: r.amount_cents,
-        dueAt: r.due_at.toISOString(),
-        daysLeft,
-      });
-      await this.prisma.paymentRequest.update({
-        where: { id: r.id },
+      // Claim before sending: of two overlapping runs only one gets it.
+      const { count } = await this.prisma.paymentRequest.updateMany({
+        where: {
+          id: r.id,
+          status: 'open',
+          last_reminded_at: r.last_reminded_at,
+        },
         data: { last_reminded_at: now, reminders_sent: { increment: 1 } },
       });
+      if (count === 0) continue;
+      try {
+        await this.notifications?.emit({
+          type,
+          recipientId: r.client_id,
+          payload: {
+            caseId: r.case_id,
+            requestId: r.id,
+            amountCents: r.amount_cents,
+            dueAt: r.due_at.toISOString(),
+            daysLeft,
+          },
+        });
+      } catch (e) {
+        // Not sent: released, the next hourly run tries again.
+        await this.prisma.paymentRequest.updateMany({
+          where: { id: r.id, last_reminded_at: now },
+          data: {
+            last_reminded_at: r.last_reminded_at,
+            reminders_sent: { decrement: 1 },
+          },
+        });
+        this.logger.warn(`notification ${type} failed: ${String(e)}`);
+        continue;
+      }
       if (type === 'payment_request_due') result.reminded += 1;
       else result.overdue += 1;
     }

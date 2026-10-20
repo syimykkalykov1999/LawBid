@@ -227,6 +227,8 @@ export class PushDispatcher
         user: {
           select: {
             ui_language: true,
+            timezone: true,
+            quiet_hours: { select: { timezone: true } },
             status: true,
             email: true,
             email_verified_at: true,
@@ -269,7 +271,12 @@ export class PushDispatcher
       typeof payload.body === 'string'
         ? { title: payload.title, body: payload.body }
         : fillTemplate(
-            await this.templates.renderFor(n.type, payload, n.user.ui_language),
+            await this.templates.renderFor(
+              n.type,
+              payload,
+              n.user.ui_language,
+              n.user.timezone ?? n.user.quiet_hours?.timezone ?? 'UTC',
+            ),
             payload,
           );
     const deepLink: Record<string, string> = {
@@ -290,9 +297,13 @@ export class PushDispatcher
       'kind',
       'requestId',
       'taskId',
+      // Owner 2026-10-20: the planner reminder — when it is for.
+      'remindAt',
+      'dueAt',
     ]) {
       if (typeof payload[k] === 'string') deepLink[k] = payload[k];
     }
+    if (payload.missed === true) deepLink.missed = '1';
     const badge = (await this.badges.get(n.user_id)).total;
     await this.sender.send(
       {
@@ -301,6 +312,7 @@ export class PushDispatcher
         data: deepLink,
         badge,
         sound: 'notification',
+        ...(n.type === 'task_reminder' ? { reminder: true } : {}),
       },
       `n:${n.id}`,
     );

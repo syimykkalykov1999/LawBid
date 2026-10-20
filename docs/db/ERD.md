@@ -25,6 +25,7 @@ erDiagram
     String password_hash "nullable"
     DateTime password_set_at "nullable"
     String ui_language
+    String timezone "nullable"
     Boolean hide_like_counts
     enum_ThemePref theme
     String suspended_reason "nullable"
@@ -737,6 +738,7 @@ erDiagram
     String session_id FK
     String fcm_token UK
     String platform
+    Boolean local_reminders
     DateTime last_seen_at
     DateTime created_at
   }

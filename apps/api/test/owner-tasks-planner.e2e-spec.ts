@@ -11,6 +11,7 @@ import {
   TaskRemindersJob,
 } from '../src/jobs/handlers/tasks-planner.jobs';
 import { nextOccurrence } from '../src/modules/assistants/tasks.service';
+import { NotificationsService } from '../src/modules/notifications/notifications.service';
 
 /**
  * Owner 2026-10-05: the attorney's planner — many addresses and people on
@@ -440,6 +441,137 @@ describe('Tasks planner (e2e, owner 2026-10-05)', () => {
     });
     expect(pushes).toHaveLength(1);
     expect(pushes[0].payload).toMatchObject({ taskId: soon.body.data.id });
+  });
+
+  // Owner 2026-10-20 (alarms like a clock): a failed send is retried, a late
+  // reminder says so, a repeating series goes on by itself, and the zone is
+  // the person's own.
+  it('reminders: retried after a failed send, "missed" when late, series roll on their own', async () => {
+    const att = await attorney('Zoe');
+    const job = app.get(TaskRemindersJob);
+    const notifications = app.get(NotificationsService);
+    const make = async (body: Record<string, unknown>) =>
+      (
+        await api()
+          .post('/api/v1/tasks')
+          .set(att.auth)
+          .send({ kind: 'meeting', ...body })
+          .expect(201)
+      ).body.data.id as string;
+
+    // 1. The send fails once: the reminder is not lost, the next run sends it.
+    const retry = await make({ title: 'Retry me', dueAt: inHours(1) });
+    await prisma.attorneyTask.update({
+      where: { id: retry },
+      data: { remind_at: new Date(Date.now() - 60_000), reminded_at: null },
+    });
+    const emit = jest
+      .spyOn(notifications, 'emit')
+      .mockRejectedValueOnce(new Error('queue down'));
+    await job.run();
+    expect(
+      (await prisma.attorneyTask.findUniqueOrThrow({ where: { id: retry } }))
+        .reminded_at,
+    ).toBeNull();
+    emit.mockRestore();
+    await job.run();
+    const got = await prisma.notification.findMany({
+      where: {
+        user_id: att.id,
+        type: 'task_reminder',
+        payload: { path: ['taskId'], equals: retry },
+      },
+    });
+    expect(got).toHaveLength(1);
+    expect(got[0].payload).not.toHaveProperty('missed');
+
+    // 2. Later than the grace window: sent once, as missed.
+    const late = await make({ title: 'Late', dueAt: inHours(1) });
+    await prisma.attorneyTask.update({
+      where: { id: late },
+      data: {
+        remind_at: new Date(Date.now() - 9 * 3_600_000),
+        reminded_at: null,
+      },
+    });
+    await job.run();
+    await job.run();
+    const missed = await prisma.notification.findMany({
+      where: {
+        user_id: att.id,
+        type: 'task_reminder',
+        payload: { path: ['taskId'], equals: late },
+      },
+    });
+    expect(missed).toHaveLength(1);
+    expect(missed[0].payload).toMatchObject({ missed: true });
+
+    // 3. A reminder time already gone when the task is made is not sent late.
+    const gone = await make({
+      title: 'Already gone',
+      dueAt: inHours(0.5),
+      remindBeforeMin: 600,
+    });
+    await job.run();
+    expect(
+      await prisma.notification.count({
+        where: {
+          user_id: att.id,
+          type: 'task_reminder',
+          payload: { path: ['taskId'], equals: gone },
+        },
+      }),
+    ).toBe(0);
+
+    // 4. A daily task whose time came sets up the next one, once, even if
+    // nobody ticks it off.
+    const daily = await make({
+      title: 'Stand-up',
+      dueAt: inHours(1),
+      repeat: 'daily',
+    });
+    await prisma.attorneyTask.update({
+      where: { id: daily },
+      data: { due_at: new Date(Date.now() - 3_600_000) },
+    });
+    const r = await job.run();
+    expect(r.rolled).toBeGreaterThanOrEqual(1);
+    await job.run();
+    const series = await prisma.attorneyTask.findMany({
+      where: { attorney_id: att.id, title: 'Stand-up' },
+      orderBy: { due_at: 'asc' },
+    });
+    expect(series).toHaveLength(2);
+    expect(series[1].due_at!.getTime()).toBeGreaterThan(Date.now());
+    // Ticking the old one off afterwards adds nothing more.
+    await api()
+      .patch(`/api/v1/tasks/${daily}/status`)
+      .set(att.auth)
+      .send({ status: 'done' })
+      .expect(200);
+    expect(
+      await prisma.attorneyTask.count({
+        where: { attorney_id: att.id, title: 'Stand-up' },
+      }),
+    ).toBe(2);
+  });
+
+  it("the person's time zone is saved and checked", async () => {
+    const att = await attorney('Tim');
+    await api()
+      .put('/api/v1/me/timezone')
+      .set(att.auth)
+      .send({ timezone: 'America/New_York' })
+      .expect(204);
+    expect(
+      (await prisma.user.findUniqueOrThrow({ where: { id: att.id } })).timezone,
+    ).toBe('America/New_York');
+    await api()
+      .put('/api/v1/me/timezone')
+      .set(att.auth)
+      .send({ timezone: 'Mars/Olympus' })
+      .expect(400);
+    await api().put('/api/v1/me/timezone').set(att.auth).send({}).expect(400);
   });
 
   it('archive: bulk actions, keep forever, notices and the yearly cleanup', async () => {

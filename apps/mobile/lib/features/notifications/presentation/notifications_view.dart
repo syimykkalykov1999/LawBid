@@ -343,6 +343,10 @@ String notificationText(Translator t, AppNotification n) {
       {'count': '${count is num ? count.toInt() : 1}'},
     );
   }
+  // Owner 2026-10-20: a reminder that could not be sent in time says so.
+  if (n.type == 'task_reminder' && n.payload['missed'] == true) {
+    return t.t('notif.cases.task_reminder.missed');
+  }
   // Owner 2026-10-05: "N days until the case's date".
   if (n.type == 'case_deadline_soon') {
     final days = n.payload['days'];

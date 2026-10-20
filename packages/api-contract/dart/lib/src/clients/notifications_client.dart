@@ -15,6 +15,7 @@ import '../models/push_token_dto.dart';
 import '../models/quiet_hours_dto.dart';
 import '../models/read_notifications_dto.dart';
 import '../models/read_notifications_result_envelope.dart';
+import '../models/timezone_dto.dart';
 import '../models/update_new_case_alerts_dto.dart';
 import '../models/update_notification_settings_dto.dart';
 import '../models/voip_token_dto.dart';
@@ -75,6 +76,13 @@ abstract class NotificationsClient {
   @PUT('/notification-settings/new-cases')
   Future<NewCaseAlertsEnvelope> setNewCaseAlerts({
     @Body() required UpdateNewCaseAlertsDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Set the person's IANA time zone
+  @PUT('/me/timezone')
+  Future<void> setTimezone({
+    @Body() required TimezoneDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 
