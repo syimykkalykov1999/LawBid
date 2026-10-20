@@ -27,7 +27,7 @@ import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { BlocksService } from '../blocks/blocks.service';
 import { ChatSystemMessages } from '../chat/chat-system.service';
 import type { ChatChange } from '../chat/chat-system.service';
-import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
+import { FeatureFlagsService } from '../feature-flags/feature-flags.public';
 import { FilesService } from '../files/files.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { SubscriptionAccessService } from '../subscriptions/subscription-access.service';

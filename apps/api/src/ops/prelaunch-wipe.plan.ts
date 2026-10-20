@@ -27,6 +27,8 @@ export const KEEP_TABLES: Readonly<Record<string, string>> = {
   blocked_email_domains: 'disposable e-mail domains (seed)',
   countries: 'where the app works (reference)',
   states: 'US states (seed)',
+  deadline_rules: 'deadline calculator rules (seed + admin)',
+  court_holidays: 'court holidays for the deadline calculator (seed + admin)',
   practice_areas: 'practice-area tree (seed)',
   state_bar_registries: 'how each state bar is checked (admin)',
   i18n_languages: 'languages (import)',
@@ -92,6 +94,14 @@ export const WIPE_TABLES: Readonly<Record<string, string>> = {
   client_fraud_events: 'fraud history',
   client_verifications: 'client ID checks',
   country_waitlist: 'people waiting for a country',
+  // consultations and the Ask-a-lawyer board
+  consultation_settings: 'attorney booking hours',
+  consultation_windows: 'attorney weekly booking windows',
+  consultation_time_off: 'attorney time off',
+  consultations: 'booked consultations',
+  legal_questions: 'questions to lawyers',
+  legal_answers: 'answers to questions',
+  legal_answer_likes: 'likes of answers',
   // profiles and verification
   client_profiles: 'client profiles',
   attorney_profiles: 'attorney profiles',

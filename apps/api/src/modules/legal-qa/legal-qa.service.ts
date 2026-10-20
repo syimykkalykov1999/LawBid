@@ -18,8 +18,8 @@ import { withDeleted } from '../../prisma/soft-delete.extension';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { BlocksService } from '../blocks/blocks.service';
-import { maskContactInfo } from '../cases/domain/contact-detector';
-import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
+import { maskContactInfo } from '../cases/cases.public';
+import { FeatureFlagsService } from '../feature-flags/feature-flags.public';
 import { FilesService } from '../files/files.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import {

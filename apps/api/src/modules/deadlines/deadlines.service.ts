@@ -9,7 +9,7 @@ import type { CourtHoliday, DeadlineRule, Prisma } from '@prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { parseIsoDate } from '../../common/utils/zoned-time';
 import { PrismaService } from '../../prisma/prisma.service';
-import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
+import { FeatureFlagsService } from '../feature-flags/feature-flags.public';
 import { computeDeadline } from './deadline-calc';
 import {
   type AdminDeadlineRuleDto,
