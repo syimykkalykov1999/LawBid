@@ -6,6 +6,7 @@ import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/widgets/language_picker_sheet.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/navigation/push_once.dart';
 import 'package:lawbid/core/theme/theme_picker_sheet.dart';
 import 'package:lawbid/features/auth/application/sign_out.dart';
 import 'package:lawbid/features/auth/auth_routes.dart';
@@ -301,7 +302,7 @@ class SettingsScreen extends ConsumerWidget {
           AppListRow(
             icon: AppIcons.notificationsNoneRounded,
             label: t.t('settings.notifications'),
-            onTap: () => context.push(ChatRoutes.notificationSettings),
+            onTap: () => context.pushOnce(ChatRoutes.notificationSettings),
           ),
           // Owner 2026-10-20: last seen, who may write / call me, blocked
           // users, my reports and moderation decisions in one place.
