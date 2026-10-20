@@ -38,17 +38,18 @@ export function Topbar({ me, onMenu, onSearch }: { me: Me | undefined; onMenu: (
   const initials = (me?.email ?? '?').slice(0, 2).toUpperCase();
 
   return (
-    <header className="sticky top-0 z-40 flex h-16 items-center gap-3 border-b border-line bg-canvas/75 px-4 backdrop-blur-xl lg:px-8">
+    <header className="sticky top-0 z-40 flex h-14 items-center gap-2 border-b border-line bg-canvas/75 px-3 pt-[env(safe-area-inset-top)] sm:h-16 sm:gap-3 sm:px-4 backdrop-blur-xl lg:px-8">
       <button
         type="button"
         onClick={onMenu}
         aria-label="Меню"
-        className="rounded-lg p-2 text-muted hover:bg-surface-2 hover:text-ink lg:hidden"
+        className="hidden rounded-lg p-2 text-muted hover:bg-surface-2 hover:text-ink sm:block lg:hidden"
       >
         <List size={20} />
       </button>
       <div className="min-w-0 flex-1 truncate text-sm text-muted">
         <span className="hidden sm:inline">LawBid</span>
+        {section && section.href === '/' ? <span className="font-medium text-ink sm:hidden">LawBid</span> : null}
         {section && section.href !== '/' ? (
           <>
             <span className="mx-2 hidden text-faint sm:inline">/</span>
@@ -75,7 +76,7 @@ export function Topbar({ me, onMenu, onSearch }: { me: Me | undefined; onMenu: (
         type="button"
         onClick={onSearch}
         aria-label="Поиск"
-        className="grid h-9 w-9 place-items-center rounded-xl border border-line bg-surface text-muted md:hidden"
+        className="grid h-10 w-10 place-items-center rounded-xl border border-line bg-surface text-muted md:hidden"
       >
         <MagnifyingGlass size={18} />
       </button>
@@ -85,7 +86,7 @@ export function Topbar({ me, onMenu, onSearch }: { me: Me | undefined; onMenu: (
         <button
           type="button"
           onClick={() => setMenu((m) => !m)}
-          className="flex h-9 items-center gap-2 rounded-xl border border-line bg-surface pr-2 pl-1 text-sm transition-colors hover:border-gold/50"
+          className="flex h-10 items-center gap-2 rounded-xl border border-line bg-surface pr-2 pl-1 sm:h-9 text-sm transition-colors hover:border-gold/50"
         >
           <span className="grid h-7 w-7 place-items-center rounded-lg bg-gradient-to-br from-brand-navy to-[#1b3170] text-[11px] font-semibold text-gold-300">
             {initials}
@@ -99,7 +100,7 @@ export function Topbar({ me, onMenu, onSearch }: { me: Me | undefined; onMenu: (
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -6, scale: 0.98 }}
               transition={{ duration: 0.16 }}
-              className="absolute right-0 mt-2 w-64 origin-top-right rounded-2xl border border-line bg-elevated p-2 shadow-pop"
+              className="absolute right-0 mt-2 w-[min(16rem,calc(100vw-1.5rem))] origin-top-right rounded-2xl border border-line bg-elevated p-2 shadow-pop"
             >
               <div className="px-3 py-2">
                 <div className="truncate text-sm font-medium text-ink">{me?.email}</div>

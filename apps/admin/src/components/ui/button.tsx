@@ -18,10 +18,10 @@ const buttonVariants = cva(
         'danger-soft': 'bg-danger-soft text-danger hover:brightness-95 dark:hover:brightness-125',
       },
       size: {
-        default: 'h-10 px-4',
-        sm: 'h-8 rounded-[10px] px-3 text-xs',
+        default: 'h-10 px-4 pointer-coarse:h-11',
+        sm: 'h-8 rounded-[10px] px-3 text-xs pointer-coarse:h-10',
         lg: 'h-11 px-6',
-        icon: 'h-9 w-9 p-0',
+        icon: 'h-9 w-9 p-0 pointer-coarse:h-11 pointer-coarse:w-11',
       },
     },
     defaultVariants: { variant: 'default', size: 'default' },

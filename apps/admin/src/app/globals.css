@@ -245,3 +245,19 @@ html.theme-switching * {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Phone: nothing pushes the page sideways; wide content scrolls in its own box. */
+html,
+body {
+  max-width: 100%;
+  overflow-x: clip;
+}
+img,
+video,
+canvas,
+svg {
+  max-width: 100%;
+}
+pre {
+  overflow-x: auto;
+}

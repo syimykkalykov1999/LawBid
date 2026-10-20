@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { useMe } from '@/lib/hooks';
 import { canOpen, sectionFor } from '@/lib/rbac';
 import { cn } from '@/lib/utils';
+import { BottomNav } from './bottom-nav';
 import { CommandPalette } from './command-palette';
 import { SectionTabs } from './section-tabs';
 import { Sidebar } from './sidebar';
@@ -68,7 +69,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               animate={{ x: 0 }}
               exit={{ x: -300 }}
               transition={{ type: 'spring', stiffness: 420, damping: 40 }}
-              className="absolute inset-y-0 left-0 w-[284px] border-r border-line bg-canvas shadow-pop"
+              className="absolute inset-y-0 left-0 w-[min(284px,85vw)] border-r border-line bg-canvas shadow-pop"
             >
               <Sidebar me={me} collapsed={false} mobile onNavigate={() => setDrawer(false)} />
             </motion.aside>
@@ -78,7 +79,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       <div className={cn('relative min-w-0 overflow-x-clip transition-[padding] duration-300', collapsed ? 'lg:pl-[76px]' : 'lg:pl-[264px]')}>
         <Topbar me={me} onMenu={() => setDrawer(true)} onSearch={() => setPalette(true)} />
-        <main className="mx-auto w-full max-w-[1480px] px-4 py-7 sm:px-6 lg:px-10 lg:py-9">
+        <main className="mx-auto w-full max-w-[1480px] px-3 pt-4 pb-[calc(5rem+env(safe-area-inset-bottom))] sm:px-6 sm:pt-7 lg:px-10 lg:py-9">
           {/* Owner 2026-10-07: the tabs stay put while the page below
               changes, so a far-right tab doesn't throw the strip back. */}
           {hidden ? null : <SectionTabs me={me} />}
@@ -99,6 +100,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </motion.div>
         </main>
       </div>
+      <BottomNav me={me} onMore={() => setDrawer(true)} />
       <CommandPalette me={me} open={palette} setOpen={setPalette} />
     </div>
   );

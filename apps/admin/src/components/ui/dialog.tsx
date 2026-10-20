@@ -51,7 +51,7 @@ export function Dialog({
     <AnimatePresence>
       {open ? (
         <motion.div
-          className="fixed inset-0 z-[60] flex items-end justify-center p-0 sm:items-center sm:p-6"
+          className="fixed inset-0 z-[60] flex items-stretch justify-center p-0 sm:items-center sm:p-6"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -66,7 +66,7 @@ export function Dialog({
             exit={{ opacity: 0, y: 16, scale: 0.98, transition: { duration: 0.15 } }}
             transition={{ type: 'spring', stiffness: 380, damping: 32 }}
             className={cn(
-              'relative max-h-[92vh] w-full overflow-y-auto rounded-t-[var(--radius-xl)] border border-line bg-elevated p-6 shadow-pop sm:rounded-[var(--radius-xl)]',
+              'relative h-dvh w-full overflow-y-auto border-0 border-line bg-elevated p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))] shadow-pop sm:h-auto sm:max-h-[92vh] sm:rounded-[var(--radius-xl)] sm:border sm:p-6',
               wide ? 'sm:max-w-2xl' : 'sm:max-w-md',
               className,
             )}
@@ -75,7 +75,7 @@ export function Dialog({
               type="button"
               aria-label="Закрыть"
               onClick={onClose}
-              className="absolute top-4 right-4 rounded-full p-1.5 text-faint transition-colors hover:bg-surface-2 hover:text-ink"
+              className="absolute top-[max(0.75rem,env(safe-area-inset-top))] right-3 grid h-10 w-10 place-items-center rounded-full sm:top-4 sm:right-4 sm:h-auto sm:w-auto sm:p-1.5 text-faint transition-colors hover:bg-surface-2 hover:text-ink"
             >
               <X size={16} />
             </button>
