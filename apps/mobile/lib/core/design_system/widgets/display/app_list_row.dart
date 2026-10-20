@@ -166,9 +166,10 @@ class _AppListRowState extends State<AppListRow> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     textAlign: TextAlign.end,
-                    style: typography.bodySmall.copyWith(
-                      color: colors.textSecondary,
-                    ),
+                    style: (widget.dense
+                            ? typography.caption
+                            : typography.bodySmall)
+                        .copyWith(color: colors.textSecondary),
                   ),
                 ),
               ],
