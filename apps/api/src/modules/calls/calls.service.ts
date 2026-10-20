@@ -1,3 +1,4 @@
+import { viewerContext } from '../../common/viewer/viewer-context';
 import { createHmac } from 'node:crypto';
 import {
   Optional,
@@ -529,7 +530,17 @@ export class CallsService {
     return call;
   }
 
-  private async toDto(call: Call, viewerId: string): Promise<CallDto> {
+  /**
+   * The call as [viewerId] sees it. Built in the viewer's own context, not
+   * the context of whoever made the request: an incoming-call event for the
+   * callee must follow the callee's photo rights (a hidden photo shows as
+   * initials), not the caller's.
+   */
+  private toDto(call: Call, viewerId: string): Promise<CallDto> {
+    return viewerContext.run(viewerId, () => this.buildDto(call, viewerId));
+  }
+
+  private async buildDto(call: Call, viewerId: string): Promise<CallDto> {
     const peerId =
       call.caller_id === viewerId ? call.callee_id : call.caller_id;
     const peer = await this.prisma.user.findUnique({
