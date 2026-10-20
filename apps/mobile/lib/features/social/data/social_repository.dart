@@ -182,6 +182,9 @@ abstract interface class SocialRepository {
   /// Owner 2026-10-18: who reposted a post (avatar, name, follow).
   Future<CursorPage<PersonRow>> postReposters(String postId, {String? cursor});
 
+  /// Owner 2026-10-20: people who liked a post (the like counter's tap).
+  Future<CursorPage<PersonRow>> postLikers(String postId, {String? cursor});
+
   /// OQ-034: newest posts (of attorneys licensed in [state] when given);
   /// owner 2026-09-30: of a qualification ([practice], a category with its
   /// subcategories; older posts by their topic [tag]) and only News.
@@ -436,6 +439,20 @@ class ApiSocialRepository implements SocialRepository {
     );
     return CursorPage(
       items: env.data.map(SocialMappers.post).toList(),
+      nextCursor: env.meta?.nextCursor,
+    );
+  }
+
+  @override
+  Future<CursorPage<PersonRow>> postLikers(
+    String postId, {
+    String? cursor,
+  }) async {
+    final env = await guardApiCall(
+      () => _posts.listLikers(id: postId, cursor: cursor),
+    );
+    return CursorPage(
+      items: env.data.map(SocialMappers.person).whereType<PersonRow>().toList(),
       nextCursor: env.meta?.nextCursor,
     );
   }

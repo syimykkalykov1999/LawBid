@@ -2925,6 +2925,7 @@
 "post.kind.postHint":"Ein Tipp, eine Fallanalyse oder Erfahrung – im Feed und auf Ihrem Profil.",
 "post.licensedAttorney":"Zugelassener Anwalt",
 "post.like":"Gefällt mir",
+"post.likers.empty":"Noch keine Likes.",
 "post.likes.few":"{count} Likes",
 "post.likes.many":"{count} Likes",
 "post.likes.one":"{count} Like",

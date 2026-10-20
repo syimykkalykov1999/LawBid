@@ -253,7 +253,7 @@ class _ChangeIdentifierLink extends StatelessWidget {
               child: Text(
                 label,
                 style: typography.caption.copyWith(
-                  color: colors.gold,
+                  color: colors.goldText,
                   decoration: TextDecoration.underline,
                 ),
               ),
@@ -342,7 +342,7 @@ class _ResendCountdownState extends State<_ResendCountdown> {
           child: Text(
             widget.t.t('auth.otp.resend'),
             style: typography.caption.copyWith(
-              color: colors.gold,
+              color: colors.goldText,
               decoration: TextDecoration.underline,
             ),
           ),

@@ -2925,6 +2925,7 @@
 "post.kind.postHint":"सुझाव, मुद्दाको विश्लेषण वा अनुभव — फिड र तपाईंको प्रोफाइलमा।",
 "post.licensedAttorney":"इजाजतप्राप्त वकिल",
 "post.like":"लाइक",
+"post.likers.empty":"अहिलेसम्म कुनै लाइक छैन।",
 "post.likes.few":"{count} लाइक",
 "post.likes.many":"{count} लाइक",
 "post.likes.one":"{count} लाइक",

@@ -1074,7 +1074,7 @@ class _RecentHistory extends ConsumerWidget {
                   child: Text(
                     t.t('search.recent.clear'),
                     style: type.body.copyWith(
-                      color: colors.gold,
+                      color: colors.goldText,
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
                     ),

@@ -267,7 +267,7 @@ class _MemberTile extends StatelessWidget {
                     member.joinCode!,
                     key: ValueKey('tile-code-${member.id}'),
                     style: typography.caption.copyWith(
-                      color: colors.gold,
+                      color: colors.goldText,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 1,
                     ),

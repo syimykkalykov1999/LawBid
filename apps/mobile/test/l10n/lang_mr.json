@@ -2925,6 +2925,7 @@
 "post.kind.postHint":"टिप, प्रकरणाचे विश्लेषण किंवा अनुभव — फीडमध्ये आणि आपल्या प्रोफाइलवर.",
 "post.licensedAttorney":"परवानाधारक वकील",
 "post.like":"लाइक करा",
+"post.likers.empty":"अजून लाइक नाहीत.",
 "post.likes.few":"{count} लाइक",
 "post.likes.many":"{count} लाइक",
 "post.likes.one":"{count} लाइक",

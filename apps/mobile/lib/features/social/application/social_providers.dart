@@ -298,6 +298,26 @@ final userRepostsProvider = AsyncNotifierProvider.autoDispose
   retry: _noRetry,
 );
 
+/// Owner 2026-10-20: people who liked a post.
+class PostLikersNotifier extends PagedNotifier<PersonRow> {
+  PostLikersNotifier(this.postId);
+
+  final String postId;
+
+  @override
+  Future<CursorPage<PersonRow>> fetch(String? cursor) =>
+      ref.read(socialRepositoryProvider).postLikers(postId, cursor: cursor);
+
+  @override
+  Object idOf(PersonRow item) => item.id;
+}
+
+final postLikersProvider = AsyncNotifierProvider.autoDispose
+    .family<PostLikersNotifier, PaginatedList<PersonRow>, String>(
+  PostLikersNotifier.new,
+  retry: _noRetry,
+);
+
 /// Owner 2026-10-18: people who reposted a post.
 class PostRepostersNotifier extends PagedNotifier<PersonRow> {
   PostRepostersNotifier(this.postId);

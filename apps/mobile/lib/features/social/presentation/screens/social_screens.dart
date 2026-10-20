@@ -613,6 +613,44 @@ class _FollowListScreenState extends ConsumerState<FollowListScreen> {
   }
 }
 
+/// Owner 2026-10-20: people who liked a post (avatar, name, follow).
+class LikersScreen extends ConsumerWidget {
+  const LikersScreen({required this.postId, super.key});
+
+  final String postId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final value = ref.watch(postLikersProvider(postId));
+    final n = ref.read(postLikersProvider(postId).notifier);
+    return Scaffold(
+      backgroundColor: colors.bg,
+      appBar: AppTopBar(
+        leading: AppBackButton(
+          semanticLabel: t.t('common.back'),
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
+        title: Text(t.t('post.stats.likes')),
+      ),
+      body: PagedListBody<PersonRow>(
+        value: value,
+        t: t,
+        itemKey: (r) => r.id,
+        itemBuilder: (context, r, _) => PersonTile(row: r),
+        empty: AppEmptyState(
+          icon: AppIcons.favoriteRounded,
+          message: t.t('post.likers.empty'),
+        ),
+        onRefresh: n.refresh,
+        onLoadMore: n.loadMore,
+        onRetryMore: n.retryLoadMore,
+      ),
+    );
+  }
+}
+
 /// Owner 2026-10-18: people who reposted a post (avatar, name, follow).
 class RepostersScreen extends ConsumerWidget {
   const RepostersScreen({required this.postId, super.key});

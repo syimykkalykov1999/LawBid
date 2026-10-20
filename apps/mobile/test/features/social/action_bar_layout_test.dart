@@ -99,10 +99,10 @@ void main() {
         ),
         findsOneWidget,
       );
-      // Instagram size: 22dp icons, the bookmark 24.
+      // Owner 2026-10-20: 26dp icons, the bookmark 28.
       final like = t.getSize(find.byIcon(AppIcons.favoriteBorderRounded)).width;
       final save = t.getSize(find.byIcon(AppIcons.bookmarkBorderRounded)).width;
-      expect(like, 22);
+      expect(like, 26);
       expect(save, greaterThan(like));
       expect(save - like, lessThanOrEqualTo(3));
     });
