@@ -158,6 +158,14 @@ class MainActivity : FlutterFragmentActivity() {
                                 CallForegroundService.EXTRA_SINCE,
                                 (call.argument<Number>("since") ?: 0L).toLong(),
                             )
+                            .putExtra(
+                                CallForegroundService.EXTRA_STATUS,
+                                call.argument<String>("status") ?: "",
+                            )
+                            .putExtra(
+                                CallForegroundService.EXTRA_HANGUP,
+                                call.argument<String>("hangup") ?: "",
+                            )
                         try {
                             if (Build.VERSION.SDK_INT >= 26) startForegroundService(intent)
                             else startService(intent)

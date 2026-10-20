@@ -14,6 +14,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
+import 'package:lawbid/features/calls/application/call_foreground.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:lawbid/features/chat/application/voice_recorder.dart'
     show voiceClock;
@@ -43,10 +44,25 @@ class _CallScreenState extends ConsumerState<CallScreen>
     duration: const Duration(milliseconds: 1800),
   )..repeat();
   Timer? _tick;
+  Timer? _closeTimer;
+  CallPeer? _lastPeer;
+  late final CallScreenVisible _visible =
+      ref.read(callScreenVisibleProvider.notifier);
+
+  /// Closes this screen (the call is over).
+  void _close() {
+    if (mounted) unawaited(Navigator.of(context).maybePop());
+  }
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _visible.set(visible: true);
+      // Opened (a stale tap) with no call at all: nothing to show.
+      if (ref.read(callControllerProvider).phase == CallPhase.idle) _close();
+    });
     _tick = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() {});
     });
@@ -54,6 +70,9 @@ class _CallScreenState extends ConsumerState<CallScreen>
 
   @override
   void dispose() {
+    _closeTimer?.cancel();
+    final visible = _visible;
+    Future.microtask(() => visible.set(visible: false));
     _pulse.dispose();
     _tick?.cancel();
     super.dispose();
@@ -67,8 +86,12 @@ class _CallScreenState extends ConsumerState<CallScreen>
     final s = ref.watch(callControllerProvider);
     final c = ref.read(callControllerProvider.notifier);
     ref.listen(callControllerProvider.select((x) => x.phase), (_, phase) {
-      if (phase == CallPhase.idle && mounted) {
-        Navigator.of(context).maybePop();
+      _closeTimer?.cancel();
+      if (phase == CallPhase.idle) {
+        _close();
+      } else if (phase == CallPhase.ended) {
+        // "Call ended" stays readable for a moment, then the screen goes.
+        _closeTimer = Timer(const Duration(milliseconds: 1500), _close);
       }
     });
     // Owner 2026-10-05 (plan builder): the plan has no video calls — the
@@ -88,7 +111,9 @@ class _CallScreenState extends ConsumerState<CallScreen>
       Navigator.of(context).maybePop();
       unawaited(router.push(path));
     });
-    final peer = s.peer ?? s.call?.peer;
+    // The other member stays on screen until it closes (never a "?").
+    final peer = s.peer ?? s.call?.peer ?? _lastPeer;
+    _lastPeer = peer;
     final name = peer?.name ?? '';
     final ringing =
         s.phase == CallPhase.outgoing || s.phase == CallPhase.incoming;

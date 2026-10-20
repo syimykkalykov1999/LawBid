@@ -7,6 +7,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/audio/app_sounds.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
+import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/calls/application/call_foreground.dart';
 import 'package:lawbid/features/calls/application/call_media.dart';
@@ -288,7 +289,15 @@ class CallController extends Notifier<CallSession> {
     final key = '$name|$since';
     if (key == _fgKey) return;
     _fgKey = key;
-    unawaited(fg.start(name: name, since: since));
+    final t = ref.read(translatorProvider);
+    unawaited(
+      fg.start(
+        name: name,
+        since: since,
+        status: t.t(since > 0 ? 'call.ongoing' : 'call.status.connecting'),
+        hangup: t.t('call.end'),
+      ),
+    );
   }
 
   void _onNotificationAction(String action) {

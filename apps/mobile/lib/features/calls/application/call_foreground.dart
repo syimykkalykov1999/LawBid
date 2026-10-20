@@ -43,11 +43,22 @@ class CallForeground {
 
   /// Shows / updates the notification; [since] (ms since epoch) starts the
   /// timer, 0 = still connecting.
-  Future<void> start({required String name, int since = 0}) async {
+  ///
+  /// [status] and [hangup] are the app's own (in-app language) texts.
+  Future<void> start({
+    required String name,
+    int since = 0,
+    String status = '',
+    String hangup = '',
+  }) async {
     if (!_supported) return;
     try {
-      await _channel
-          .invokeMethod<bool>('start', {'name': name, 'since': since});
+      await _channel.invokeMethod<bool>('start', {
+        'name': name,
+        'since': since,
+        'status': status,
+        'hangup': hangup,
+      });
     } on Object catch (e) {
       debugPrint('call service unavailable: $e');
     }
@@ -77,3 +88,15 @@ class CallOpenRequest extends Notifier<int> {
 
 final callOpenRequestProvider =
     NotifierProvider<CallOpenRequest, int>(CallOpenRequest.new);
+
+/// True while the call screen is on top (the "Return to call" bar hides).
+class CallScreenVisible extends Notifier<bool> {
+  @override
+  bool build() => false;
+
+  // ignore: use_setters_to_change_properties
+  void set({required bool visible}) => state = visible;
+}
+
+final callScreenVisibleProvider =
+    NotifierProvider<CallScreenVisible, bool>(CallScreenVisible.new);

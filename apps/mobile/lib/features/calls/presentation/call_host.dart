@@ -26,7 +26,8 @@ class CallHost extends ConsumerWidget {
   final GoRouter router;
   final Widget child;
 
-  bool _onCallScreen() =>
+  bool _onCallScreen(WidgetRef ref) =>
+      ref.read(callScreenVisibleProvider) ||
       router.routerDelegate.currentConfiguration.uri.path == ChatRoutes.call;
 
   @override
@@ -38,21 +39,22 @@ class CallHost extends ConsumerWidget {
       final opened = (prev == null || prev == CallPhase.idle) &&
           (next == CallPhase.outgoing || next == CallPhase.incoming);
       if (!opened) return;
-      if (!_onCallScreen()) unawaited(router.push<void>(ChatRoutes.call));
+      if (!_onCallScreen(ref)) unawaited(router.push<void>(ChatRoutes.call));
     });
     ref.listen(callOpenRequestProvider, (_, __) {
-      if (ref.read(callControllerProvider).busy && !_onCallScreen()) {
+      if (ref.read(callControllerProvider).busy && !_onCallScreen(ref)) {
         unawaited(router.push<void>(ChatRoutes.call));
       }
     });
     final s = ref.watch(callControllerProvider);
+    ref.watch(callScreenVisibleProvider);
     final talking = s.phase == CallPhase.outgoing ||
         s.phase == CallPhase.connecting ||
         s.phase == CallPhase.active;
     return ListenableBuilder(
       listenable: router.routerDelegate,
       builder: (context, _) {
-        final bar = talking && !_onCallScreen();
+        final bar = talking && !_onCallScreen(ref);
         if (!bar) return child;
         // The bar takes the status-bar strip; what is below it must not
         // pad for the status bar a second time.
