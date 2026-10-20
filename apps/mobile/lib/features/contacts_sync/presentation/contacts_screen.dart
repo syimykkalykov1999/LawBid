@@ -1,15 +1,20 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/presentation/contact_info_screen.dart';
 import 'package:lawbid/features/chat/presentation/open_direct_chat.dart';
+import 'package:lawbid/features/contacts_sync/application/contacts_background_sync.dart';
 import 'package:lawbid/features/contacts_sync/application/contacts_sync_providers.dart';
 import 'package:lawbid/features/contacts_sync/application/phone_contacts.dart';
 import 'package:lawbid/features/contacts_sync/presentation/contact_rows.dart';
@@ -125,6 +130,8 @@ class _BodyState extends ConsumerState<_Body> {
                     child: Text(t.t('phoneContacts.limited')),
                   ),
                 ),
+              // At the top: below the invite list it is hundreds of rows away.
+              const SliverToBoxAdapter(child: _NotifyNewSwitch()),
               SliverToBoxAdapter(
                 child: ContactsSectionTitle(
                   t.t('phoneContacts.onLawBid'),
@@ -149,11 +156,7 @@ class _BodyState extends ConsumerState<_Body> {
                   itemCount: onLawBid.length,
                   itemBuilder: (context, i) => LawBidContactRow(
                     contact: onLawBid[i],
-                    onTap: () => openDirectChat(
-                      context,
-                      ref,
-                      onLawBid[i].userId,
-                    ),
+                    onTap: () => _openProfile(context, ref, onLawBid[i]),
                     trailing: _Actions(contact: onLawBid[i]),
                   ),
                 ),
@@ -202,6 +205,23 @@ class _BodyState extends ConsumerState<_Body> {
       },
     );
   }
+}
+
+/// A tap on a row opens the person's profile (a chat when they have no
+/// public username).
+void _openProfile(BuildContext context, WidgetRef ref, LawBidContact c) {
+  final username = c.person.username;
+  if (username == null || username.isEmpty || c.person.role == 'assistant') {
+    unawaited(openDirectChat(context, ref, c.userId));
+    return;
+  }
+  unawaited(
+    context.push(
+      c.person.isAttorney
+          ? AppRoutes.lawyer(username)
+          : AppRoutes.client(username),
+    ),
+  );
 }
 
 /// Message / call / video of one contact. A call needs the chat to be
@@ -319,6 +339,36 @@ class _FindByPhoneSwitch extends ConsumerWidget {
             },
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// "Notify me when contacts join LawBid" — on by default.
+class _NotifyNewSwitch extends ConsumerStatefulWidget {
+  const _NotifyNewSwitch();
+
+  @override
+  ConsumerState<_NotifyNewSwitch> createState() => _NotifyNewSwitchState();
+}
+
+class _NotifyNewSwitchState extends ConsumerState<_NotifyNewSwitch> {
+  @override
+  Widget build(BuildContext context) {
+    final t = ref.watch(translatorProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final sync = ref.read(contactsBackgroundSyncProvider);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenSide),
+      child: SwitchListTile.adaptive(
+        contentPadding: EdgeInsets.zero,
+        title: Text(t.t('phoneContacts.notifyNew')),
+        value: sync.notifyNew,
+        activeTrackColor: colors.gold,
+        onChanged: (v) async {
+          await sync.setNotifyNew(on: v);
+          if (mounted) setState(() {});
+        },
       ),
     );
   }

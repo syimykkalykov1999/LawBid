@@ -525,11 +525,7 @@ export class GroupsService {
   ): Promise<GroupDetailDto> {
     const m = await this.requireMember(user.sub, id);
     if (!(m.admin || m.group.who_can_add === 'all')) throw forbidden();
-    const candidates = await this.addableIds(user.sub, dto.userIds);
-    const wanted: string[] = [];
-    for (const uid of candidates) {
-      if (await this.addPolicy.allows(user.sub, uid)) wanted.push(uid);
-    }
+    const wanted = await this.addableIds(user.sub, dto.userIds);
     const notAdded = dto.userIds.filter(
       (u) => u !== user.sub && !wanted.includes(u),
     );
@@ -1507,7 +1503,7 @@ export class GroupsService {
 
   // ---------------------------------------------------------------- helpers
 
-  /** Live users [by] may add: active, not blocked either way, not self. */
+  /** Live users [by] may add: active, not blocked, not self, privacy ok. */
   private async addableIds(by: string, ids: string[]): Promise<string[]> {
     const wanted = [...new Set(ids)].filter((u) => u !== by);
     if (wanted.length === 0) return [];
@@ -1518,7 +1514,14 @@ export class GroupsService {
       }),
       this.blocks.hiddenIds(by),
     ]);
-    return users.map((u) => u.id).filter((u) => !hidden.has(u));
+    const out: string[] = [];
+    for (const u of users) {
+      if (hidden.has(u.id)) continue;
+      // Their "who can add me to groups" setting (a «no» stays out; the
+      // caller reports them as not added).
+      if (await this.addPolicy.allows(by, u.id)) out.push(u.id);
+    }
+    return out;
   }
 
   private async system(

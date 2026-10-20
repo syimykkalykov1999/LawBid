@@ -14,6 +14,7 @@ import 'package:lawbid/features/groups/group_routes.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
 import 'package:lawbid/features/notifications/data/notifications_repository.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
+import 'package:lawbid/features/privacy/privacy_routes.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
@@ -195,6 +196,10 @@ String? notificationRoute({
       return AppRoutes.mine;
     case 'task_purge_soon':
       return TeamRoutes.tasksArchive;
+    // Owner 2026-10-20: a moderation decision or an appeal answer opens
+    // «Decisions on my content».
+    case 'moderation_notice':
+      return PrivacyRoutes.notices;
   }
   return null;
 }
@@ -364,7 +369,10 @@ String notificationText(Translator t, AppNotification n) {
   // Audit 2026-10-02: a moderation notice shows the moderator's reason.
   if (n.type == 'moderation_notice') {
     final reason = n.payload['reason'];
-    final base = t.t('notif.list.moderation_notice', {'name': ''});
+    final action = n.payload['action'];
+    final base = action is String && action.startsWith('appeal_')
+        ? t.t('notif.list.$action')
+        : t.t('notif.list.moderation_notice', {'name': ''});
     return reason is String && reason.trim().isNotEmpty
         ? '$base: ${reason.trim()}'
         : base;

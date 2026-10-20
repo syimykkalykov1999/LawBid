@@ -247,11 +247,29 @@ export class RealtimeGateway
     lastSeenAt: Date | null,
   ): Promise<void> {
     if (!this.nsp || !(await this.presence.visible(userId))) return;
-    this.nsp.to(presenceRoom(userId)).emit('presence:update', {
+    const room = presenceRoom(userId);
+    const payload = {
       userId,
       online,
       lastSeenAt: lastSeenAt?.toISOString() ?? null,
-    });
+    };
+    // Owner 2026-10-20 (privacy review): each watcher is checked against the
+    // person's *current* "last seen" audience — someone who stopped being a
+    // contact (or lost the right after a setting change) is dropped from the
+    // room instead of staying subscribed.
+    const sockets = await this.nsp.in(room).fetchSockets();
+    const allowed = new Map<string, boolean>();
+    for (const s of sockets) {
+      const viewer = (s.data as SocketState | undefined)?.user?.sub;
+      if (!viewer) continue;
+      let ok = allowed.get(viewer);
+      if (ok === undefined) {
+        ok = (await this.presence.snapshot(viewer, [userId])).has(userId);
+        allowed.set(viewer, ok);
+      }
+      if (ok) s.emit('presence:update', payload);
+      else s.leave(room);
+    }
   }
 
   async handleDisconnect(socket: Socket): Promise<void> {

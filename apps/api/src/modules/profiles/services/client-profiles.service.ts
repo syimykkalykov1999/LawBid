@@ -1,3 +1,4 @@
+import { PrivacySettingsService } from '../../privacy-settings/privacy-settings.service';
 import { activeClientBadgeIds } from '../../client-badge/client-badge.util';
 import { CounterAggregator } from '../../counters/counter-aggregator.service';
 import {
@@ -72,6 +73,8 @@ export class ClientProfilesService {
     private readonly files: FilesService,
     private readonly blocks: BlocksService,
     @Optional() private readonly counters?: CounterAggregator,
+    // Owner 2026-10-20: who sees my photo.
+    @Optional() private readonly privacy?: PrivacySettingsService,
   ) {}
 
   /** Audit 2026-10-02: counters shown = DB + deltas not yet flushed
@@ -296,6 +299,9 @@ export class ClientProfilesService {
       throw notFound();
     }
     const avatars = await this.files.avatarUrlsMany([row.user.avatar_file_id]);
+    const photoOk = this.privacy
+      ? await this.privacy.visibleTo(viewerId, [row.user_id], 'photo_from')
+      : new Set([row.user_id]);
     // Owner 2026-09-30: client reviews warn everyone — every signed-in
     // attorney or client sees them.
     const seeReviews =
@@ -307,9 +313,10 @@ export class ClientProfilesService {
       username: row.username,
       firstName: row.user.first_name,
       lastName: row.user.last_name,
-      avatarUrl: row.user.avatar_file_id
-        ? (avatars.get(row.user.avatar_file_id)?.url ?? null)
-        : null,
+      avatarUrl:
+        row.user.avatar_file_id && photoOk.has(row.user_id)
+          ? (avatars.get(row.user.avatar_file_id)?.url ?? null)
+          : null,
       state: { code: row.state.code, name: row.state.name },
       memberSince: row.user.created_at.toISOString().slice(0, 10),
       isSelf: row.user_id === viewerId,

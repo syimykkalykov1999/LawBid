@@ -25,7 +25,7 @@ describe('menu sections with tabs', () => {
     const mod = { role: 'moderator' as const, permissions: { moderation: 'manage' as const, content: 'view' as const } };
     expect(groupsFor(mod).map((g) => g.key)).toEqual(['home', 'moderation', 'system']);
     expect(tabsFor(mod, '/moderation').map((t) => t.href)).toEqual([
-      '/moderation', '/review-appeals', '/group-chats', '/content', '/document-templates', '/search',
+      '/moderation', '/review-appeals', '/moderation-appeals', '/moderation-journal', '/group-chats', '/content', '/document-templates', '/search',
     ]);
     // Same section, tab without the right: not shown, URL answers 404.
     expect(canOpen(mod, '/sanctions')).toBe(false);

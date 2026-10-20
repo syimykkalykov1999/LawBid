@@ -42,6 +42,7 @@ import 'package:lawbid/features/onboarding/presentation/screens/legal_document_s
 import 'package:lawbid/features/onboarding/presentation/screens/splash_screen.dart';
 import 'package:lawbid/features/partners/presentation/partner_screen.dart';
 import 'package:lawbid/features/plans/presentation/bid_packs_screen.dart';
+import 'package:lawbid/features/privacy/privacy_routes.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/features/profile/presentation/screens/attorney_stats_screen.dart';
 import 'package:lawbid/features/profile/presentation/screens/client_profile_edit_screen.dart';
@@ -509,6 +510,7 @@ GoRouter appRouter(Ref ref) {
       ...teamRoutes(_rootNavigatorKey),
       // Owner 2026-10-05: the attorney's own trust level.
       ...trustRoutes(_rootNavigatorKey),
+      ...privacyRoutes(_rootNavigatorKey),
     ],
   );
 }

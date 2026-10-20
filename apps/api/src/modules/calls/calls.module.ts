@@ -5,6 +5,7 @@ import { ChatModule } from '../chat/chat.module';
 import { FeatureFlagsModule } from '../feature-flags/feature-flags.module';
 import { FilesModule } from '../files/files.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { PrivacySettingsModule } from '../privacy-settings/privacy-settings.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { CallsController } from './calls.controller';
 import { CallsService } from './calls.service';
@@ -20,6 +21,7 @@ import { CallsService } from './calls.service';
     FilesModule,
     NotificationsModule,
     SubscriptionsModule,
+    PrivacySettingsModule,
   ],
   controllers: [CallsController],
   providers: [CallsService],

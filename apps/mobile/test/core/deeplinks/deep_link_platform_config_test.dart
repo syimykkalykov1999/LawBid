@@ -54,15 +54,15 @@ void main() {
     expect(AppEnvironment.defaultDeepLinkHost, 'lawbid.dev');
   });
 
-  test('hosting templates (docs/deeplinks) cover every flavor and path', () {
+  test(
+      'hosting files (docs/deeplinks, published by seo-deploy) cover the prod app and every path',
+      () {
     final aasa =
         jsonDecode(read('../../docs/deeplinks/apple-app-site-association'))
             as Map<String, dynamic>;
     final details =
         ((aasa['applinks'] as Map<String, dynamic>)['details'] as List).single
             as Map<String, dynamic>;
-    // Production only: scripts/seo/well-known.mjs publishes the file to
-    // lawbid.dev (staging and dev builds are not served from it).
     expect(details['appIDs'], {'78T56RPM74.com.lawbid.lawbid'});
     final paths = (details['components'] as List)
         .map((c) => (c as Map<String, dynamic>)['/'])

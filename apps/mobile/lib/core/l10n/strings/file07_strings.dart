@@ -3,6 +3,9 @@
 // tasks — compiled-in strings merged into StaticTranslatorRu/En.
 
 const file07Ru = <String, String>{
+  'phoneContacts.joined': '{name} теперь в LawBid',
+  'phoneContacts.joinedMany': '{count} ваших контактов теперь в LawBid',
+  'phoneContacts.notifyNew': 'Сообщать, когда контакты появляются в LawBid',
   'phoneContacts.inviteTo': '{name}, присоединяйтесь ко мне в LawBid: {link}',
   'phoneContacts.consentTitle': 'Найти людей из контактов?',
   'phoneContacts.consentBody':
@@ -620,6 +623,9 @@ const file07Ru = <String, String>{
 };
 
 const file07En = <String, String>{
+  'phoneContacts.joined': '{name} is now on LawBid',
+  'phoneContacts.joinedMany': '{count} of your contacts are now on LawBid',
+  'phoneContacts.notifyNew': 'Notify me when contacts join LawBid',
   'phoneContacts.inviteTo': '{name}, join me on LawBid: {link}',
   'phoneContacts.consentTitle': 'Find people from your contacts?',
   'phoneContacts.consentBody':

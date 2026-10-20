@@ -434,6 +434,42 @@ describe('Group chats and polls (e2e)', () => {
       .expect(404);
   });
 
+  it('adding people respects their «who can add me» setting and reports who was skipped', async () => {
+    const { owner, ann, cy, id } = await makeGroup();
+    await api()
+      .put('/api/v1/users/me/privacy')
+      .set(bearer(cy.id))
+      .send({ groupAddFrom: 'nobody' })
+      .expect(200);
+    const added = await api()
+      .post(`/api/v1/groups/${id}/members`)
+      .set(bearer(owner.id))
+      .send({ userIds: [cy.id] })
+      .expect(200);
+    expect(added.body.data.notAdded).toEqual([cy.id]);
+    expect(added.body.data.memberCount).toBe(3);
+    // By link they can still come in on their own.
+    const open = await api()
+      .get(`/api/v1/groups/${id}`)
+      .set(bearer(ann.id))
+      .expect(200);
+    expect(
+      open.body.data.members.map((m: { userId: string }) => m.userId),
+    ).not.toContain(cy.id);
+    await api()
+      .put('/api/v1/users/me/privacy')
+      .set(bearer(cy.id))
+      .send({ groupAddFrom: 'everyone' })
+      .expect(200);
+    const again = await api()
+      .post(`/api/v1/groups/${id}/members`)
+      .set(bearer(owner.id))
+      .send({ userIds: [cy.id] })
+      .expect(200);
+    expect(again.body.data.notAdded).toEqual([]);
+    expect(again.body.data.memberCount).toBe(4);
+  });
+
   it('anonymous multi-answer polls hide the voters', async () => {
     const { ann, bob, id } = await makeGroup();
     const made = await api()
