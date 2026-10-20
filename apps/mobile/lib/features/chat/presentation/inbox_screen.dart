@@ -9,6 +9,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/text/bidi.dart';
 import 'package:lawbid/features/calls/presentation/call_log_entry.dart'
     show callLogKey;
@@ -242,6 +243,20 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                                     ),
                                     semanticLabel: t.t('chat.select.menu'),
                                     onPressed: () => _showChatsMenu(context, t),
+                                  ),
+                                // Owner 2026-10-20 (WhatsApp): «new chat» —
+                                // opens Contacts (who is on LawBid: chat,
+                                // call, video, invite).
+                                if (tab == InboxTab.chats)
+                                  AppIconButton(
+                                    key: const ValueKey('chats-new-chat'),
+                                    icon: AppIcon(
+                                      AppIcons.addRounded,
+                                      color: colors.accent,
+                                    ),
+                                    semanticLabel: t.t('phoneContacts.title'),
+                                    onPressed: () =>
+                                        context.push(AppRoutes.contacts),
                                   ),
                                 // Owner 2026-10-02: the notification filter /
                                 // settings sit up here, left of the bell, in
