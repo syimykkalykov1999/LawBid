@@ -38,6 +38,7 @@ import 'package:lawbid/features/chat/presentation/attachment_widgets.dart';
 import 'package:lawbid/features/chat/presentation/chat_album.dart';
 import 'package:lawbid/features/chat/presentation/chat_cards.dart';
 import 'package:lawbid/features/chat/presentation/chat_folders.dart';
+import 'package:lawbid/features/chat/presentation/chat_translation.dart';
 import 'package:lawbid/features/chat/presentation/contact_info_screen.dart';
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart';
 import 'package:lawbid/features/chat/presentation/message_actions.dart';
@@ -55,7 +56,6 @@ import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/features/team/team_routes.dart';
 import 'package:lawbid/features/templates/application/templates_providers.dart';
 import 'package:lawbid/features/templates/presentation/templates_screen.dart';
-import 'package:lawbid/features/translation/presentation/translate_block.dart';
 
 /// docs/05 §8.2: 2000 characters, text only.
 int get kMessageMaxChars => TextLimits.of(TextLimit.chatMessage);
@@ -1279,11 +1279,6 @@ class _Bubble extends ConsumerWidget {
                           message: m,
                           spans: spans,
                           style: type.body.copyWith(color: fg, height: 1.35),
-                          // Owner 2026-10-04: only other people's text.
-                          translatable: !mine &&
-                              m.kind == MessageKind.text &&
-                              m.body.trim().isNotEmpty,
-                          threadId: threadId,
                         ),
                       const SizedBox(height: 2),
                       Row(
@@ -1496,46 +1491,28 @@ class _Bubble extends ConsumerWidget {
 }
 
 /// Three dots bouncing in turn (§8.2 "печатает…").
-/// Owner 2026-10-04: a message's text with "Translate" under it (chats
-/// only). The translation is into the app language and replaces the text
-/// in place until "Show original"; the original is never lost.
-class _MessageText extends ConsumerStatefulWidget {
+/// A message's text; when the person translated it from the long-press menu
+/// (flag `chat_translate`), the translation replaces it in place until
+/// «Показать оригинал».
+class _MessageText extends ConsumerWidget {
   const _MessageText({
     required this.message,
     required this.spans,
     required this.style,
-    required this.translatable,
-    required this.threadId,
   });
 
   final ChatMessage message;
   final List<InlineSpan> spans;
   final TextStyle style;
-  final bool translatable;
-  final String threadId;
 
   @override
-  ConsumerState<_MessageText> createState() => _MessageTextState();
-}
-
-class _MessageTextState extends ConsumerState<_MessageText> {
-  @override
-  Widget build(BuildContext context) {
-    return TranslateBlock(
-      text: widget.message.body,
-      enabled: widget.translatable,
-      identity: widget.message.id,
-      // The paid server translation, only while the admin switched it on.
-      serverOn: ref.watch(featureFlagsControllerProvider).isEnabled(
-            'chat_translate',
-          ),
-      server: (target) => ref
-          .read(chatRepositoryProvider)
-          .translate(widget.threadId, widget.message.id, target),
-      builder: (context, translation) => translation == null
-          ? Text.rich(TextSpan(children: widget.spans), style: widget.style)
-          : Text(translation, style: widget.style),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final translation = ref.watch(
+      chatTranslationsProvider.select((m) => m[message.id]),
     );
+    return translation == null
+        ? Text.rich(TextSpan(children: spans), style: style)
+        : Text(translation, style: style);
   }
 }
 

@@ -27,6 +27,7 @@ import 'package:lawbid/features/stars/domain/stars_models.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
+import '../../helpers/translate_flag_overrides.dart';
 import '../../helpers/ux_harness.dart';
 
 /// Owner 2026-10-20: edit / delete / react / pin / reply / unread divider.
@@ -248,6 +249,75 @@ void main() {
       await tester.pump(const Duration(seconds: 5));
     },
   );
+
+  // Owner 2026-10-20: «Перевести» is off by default; on, it is a menu item
+  // (Telegram), never a button under the message.
+  for (final on in [false, true]) {
+    testWidgets(
+      on
+          ? 'translate flag on: «Перевести» is in the menu of their text only'
+          : 'translate flag off: no «Перевести» anywhere in the menu',
+      (tester) async {
+        await tester.runAsync(initializeDateFormatting);
+        final chat = _Chat([_msg('a', sender: 'them'), _msg('b')]);
+        final s = _setup(
+          chat,
+          extra: [
+            ...translateFlagOverrides(on: on),
+            translatorProvider.overrideWithValue(const StaticTranslatorEn()),
+            l10nFormatsProvider
+                .overrideWithValue(L10nFormats(AppLanguage.fromCode('en'))),
+          ],
+        );
+        final c = s.c;
+        final sub = c.listen(chatThreadProvider('c1'), (_, __) {});
+        addTearDown(sub.close);
+        await tester.runAsync(_settle);
+        final msgs = c.read(chatThreadProvider('c1')).messages;
+
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: c,
+            child: MaterialApp(
+              theme: AppTheme.of(AppThemeId.values.first),
+              home: Consumer(
+                builder: (context, ref, _) => Column(
+                  children: [
+                    for (final m in msgs)
+                      TextButton(
+                        onPressed: () => showMessageMenu(context, ref, 'c1', m),
+                        child: Text('open-${m.id}'),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+        Future<void> settle() async {
+          for (var i = 0; i < 3; i++) {
+            await tester.runAsync(_settle);
+            await tester.pump(const Duration(milliseconds: 400));
+          }
+        }
+
+        await tester.tap(find.text('open-a'));
+        await settle();
+        expect(
+          find.byKey(const ValueKey('msg-act-translate')),
+          on ? findsOneWidget : findsNothing,
+        );
+        await tester.tapAt(const Offset(5, 5));
+        await settle();
+
+        await tester.tap(find.text('open-b'));
+        await settle();
+        expect(find.byKey(const ValueKey('msg-act-translate')), findsNothing);
+        await tester.pumpWidget(const SizedBox());
+        await tester.pump(const Duration(seconds: 5));
+      },
+    );
+  }
 
   test('edit is allowed only for my text inside the server window', () async {
     final chat = _Chat([

@@ -14,6 +14,7 @@ import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/application/chat_saved_providers.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/presentation/chat_message_menu.dart';
+import 'package:lawbid/features/chat/presentation/chat_translation.dart';
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart'
     show kContactMask;
 import 'package:lawbid/features/social/application/social_providers.dart';
@@ -444,6 +445,19 @@ Future<void> showMessageMenu(
                   AppIcons.copyOutlined,
                   t.t('chat.act.copy'),
                   () => unawaited(copyMessages(context, ref, [m])),
+                ),
+              if (canTranslateChatMessage(ref, m, mine: mine))
+                row(
+                  'translate',
+                  AppIcons.translateRounded,
+                  t.t(
+                    ref.read(chatTranslationsProvider).containsKey(m.id)
+                        ? 'chat.translate.original'
+                        : 'chat.translate',
+                  ),
+                  () => unawaited(
+                    toggleChatTranslation(context, ref, conversationId, m),
+                  ),
                 ),
               if (live && MessageMenuTarget.savable(m))
                 row(

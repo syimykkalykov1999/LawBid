@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/app_language.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/language_providers.dart';
@@ -123,6 +124,13 @@ class _TranslateBlockState extends ConsumerState<TranslateBlock> {
     final showing = _showTranslation && _translated != null;
     final body = widget.builder(context, showing ? _translated : null);
     if (!widget.enabled || widget.text.trim().isEmpty) return body;
+    // Owner 2026-10-20: the translator is off until the admin switches
+    // `chat_translate` on: no button, and no model download starts.
+    if (!ref
+        .watch(featureFlagsControllerProvider)
+        .isEnabled('chat_translate')) {
+      return body;
+    }
     final device = ref.watch(deviceTranslatorProvider);
     final target =
         (ref.watch(languageControllerProvider).value ?? AppLanguage.fallback)

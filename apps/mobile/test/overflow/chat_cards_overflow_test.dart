@@ -21,6 +21,7 @@ import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../helpers/long_locale.dart';
+import '../helpers/translate_flag_overrides.dart';
 import '../helpers/ux_harness.dart';
 
 class _Engine implements TranslationEngine {
@@ -160,6 +161,7 @@ void main() {
             ...uxOverrides(
               translator: t,
               extra: [
+                ...translateFlagOverrides(on: true),
                 sharedPreferencesProvider.overrideWithValue(prefs),
                 chatExtrasRepositoryProvider.overrideWithValue(_SavedRepo()),
                 deviceTranslatorProvider.overrideWithValue(
