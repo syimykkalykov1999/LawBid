@@ -54,8 +54,9 @@ Future<void> showLawbidIncoming({
         appName: 'LawBid',
         avatar: avatarUrl,
         handle: 'LawBid',
-        // 0 = audio call, 1 = video call.
-        type: video ? 1 : 0,
+        // 0 = audio call, 1 = video call. Android always rings as audio: the
+        // call service has no camera foreground-service type (video calls off).
+        type: video && defaultTargetPlatform != TargetPlatform.android ? 1 : 0,
         duration: 45000,
         extra: {'callId': callId},
         missedCallNotification: const NotificationParams(
