@@ -25,6 +25,7 @@ import 'package:lawbid/features/cases/presentation/screens/invites_screen.dart';
 import 'package:lawbid/features/cases/presentation/screens/mine_views.dart';
 import 'package:lawbid/features/cases/presentation/screens/owner_case_screen.dart';
 import 'package:lawbid/features/cases/presentation/screens/work_case_screen.dart';
+import 'package:lawbid/features/channels/channels_routes.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/client_badge/presentation/client_badge_screen.dart';
 import 'package:lawbid/features/client_plan/client_plan_routes.dart';
@@ -62,6 +63,7 @@ import 'package:lawbid/features/settings/archive/archive_screen.dart';
 import 'package:lawbid/features/settings/data_export/presentation/data_export_screen.dart';
 import 'package:lawbid/features/settings/saved/saved_screen.dart';
 import 'package:lawbid/features/social/social_routes.dart';
+import 'package:lawbid/features/stories/stories_routes.dart';
 import 'package:lawbid/features/subscription/subscription_routes.dart';
 import 'package:lawbid/features/support/presentation/support_list_screen.dart';
 import 'package:lawbid/features/support/presentation/support_new_screen.dart';
@@ -485,6 +487,9 @@ GoRouter appRouter(Ref ref) {
       ...teamRoutes(_rootNavigatorKey),
       // Owner 2026-10-05: the attorney's own trust level.
       ...trustRoutes(_rootNavigatorKey),
+      // Owner 2026-10-20: stories (24 h) and Telegram-style channels.
+      ...storiesRoutes(_rootNavigatorKey),
+      ...channelsRoutes(_rootNavigatorKey),
     ],
   );
 }

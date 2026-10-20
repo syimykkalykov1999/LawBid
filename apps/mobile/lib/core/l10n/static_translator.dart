@@ -12,6 +12,7 @@ import 'package:lawbid/core/l10n/strings/case_dossier_strings.dart';
 import 'package:lawbid/core/l10n/strings/case_payments_strings.dart';
 import 'package:lawbid/core/l10n/strings/case_urgency_strings.dart';
 import 'package:lawbid/core/l10n/strings/case_workspace_strings.dart';
+import 'package:lawbid/core/l10n/strings/channels_strings.dart';
 import 'package:lawbid/core/l10n/strings/chat_note_strings.dart';
 import 'package:lawbid/core/l10n/strings/client_fraud_strings.dart';
 import 'package:lawbid/core/l10n/strings/contact_info_strings.dart';
@@ -36,6 +37,7 @@ import 'package:lawbid/core/l10n/strings/reels_docs_strings.dart';
 import 'package:lawbid/core/l10n/strings/reels_strings.dart';
 import 'package:lawbid/core/l10n/strings/stale_case_strings.dart';
 import 'package:lawbid/core/l10n/strings/storage_strings.dart';
+import 'package:lawbid/core/l10n/strings/stories_strings.dart';
 import 'package:lawbid/core/l10n/strings/support_strings.dart';
 import 'package:lawbid/core/l10n/strings/tasks_planner_strings.dart';
 import 'package:lawbid/core/l10n/strings/templates_strings.dart';
@@ -1187,6 +1189,8 @@ class StaticTranslatorRu extends _MapTranslator {
         ...themeRu,
         ...postInnerRu,
         ...emailFlowsRu,
+        ...storiesRu,
+        ...channelsRu,
       };
 }
 
@@ -2608,6 +2612,8 @@ class StaticTranslatorEn extends _MapTranslator {
         ...caseWorkspaceEn,
         ...themeEn,
         ...postInnerEn,
+        ...storiesEn,
+        ...channelsEn,
         ...emailFlowsEn,
       };
 }
