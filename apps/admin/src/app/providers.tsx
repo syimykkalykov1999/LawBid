@@ -3,6 +3,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MotionConfig } from 'motion/react';
 import { useState } from 'react';
+import { SentryInit } from '@/components/sentry-init';
 import { ToastProvider } from '@/components/ui/toast';
 import { ApiError } from '@/lib/api/client';
 import { ThemeProvider } from '@/lib/theme';
@@ -28,6 +29,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <MotionConfig reducedMotion="user">
         <QueryClientProvider client={client}>
           <ToastProvider>{children}</ToastProvider>
+          <SentryInit />
         </QueryClientProvider>
       </MotionConfig>
     </ThemeProvider>
