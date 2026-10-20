@@ -15,6 +15,7 @@ import 'clients/admin_users_client.dart';
 import 'clients/verification_client.dart';
 import 'clients/admin_verification_client.dart';
 import 'clients/files_client.dart';
+import 'clients/privacy_client.dart';
 import 'clients/bids_client.dart';
 import 'clients/firms_client.dart';
 import 'clients/admin_sanctions_client.dart';
@@ -37,7 +38,6 @@ import 'clients/users_client.dart';
 import 'clients/admin_analytics_client.dart';
 import 'clients/app_events_client.dart';
 import 'clients/blocks_client.dart';
-import 'clients/privacy_client.dart';
 import 'clients/comments_client.dart';
 import 'clients/case_comments_client.dart';
 import 'clients/cases_client.dart';
@@ -129,6 +129,7 @@ class LawbidApi {
   VerificationClient? _verification;
   AdminVerificationClient? _adminVerification;
   FilesClient? _files;
+  PrivacyClient? _privacy;
   BidsClient? _bids;
   FirmsClient? _firms;
   AdminSanctionsClient? _adminSanctions;
@@ -151,7 +152,6 @@ class LawbidApi {
   AdminAnalyticsClient? _adminAnalytics;
   AppEventsClient? _appEvents;
   BlocksClient? _blocks;
-  PrivacyClient? _privacy;
   CommentsClient? _comments;
   CaseCommentsClient? _caseComments;
   CasesClient? _cases;
@@ -251,6 +251,9 @@ class LawbidApi {
 
   FilesClient get files => _files ??= FilesClient(_dio, baseUrl: _baseUrl);
 
+  PrivacyClient get privacy =>
+      _privacy ??= PrivacyClient(_dio, baseUrl: _baseUrl);
+
   BidsClient get bids => _bids ??= BidsClient(_dio, baseUrl: _baseUrl);
 
   FirmsClient get firms => _firms ??= FirmsClient(_dio, baseUrl: _baseUrl);
@@ -309,9 +312,6 @@ class LawbidApi {
       _appEvents ??= AppEventsClient(_dio, baseUrl: _baseUrl);
 
   BlocksClient get blocks => _blocks ??= BlocksClient(_dio, baseUrl: _baseUrl);
-
-  PrivacyClient get privacy =>
-      _privacy ??= PrivacyClient(_dio, baseUrl: _baseUrl);
 
   CommentsClient get comments =>
       _comments ??= CommentsClient(_dio, baseUrl: _baseUrl);
