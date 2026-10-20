@@ -144,7 +144,44 @@ enum ChatFolder { primary, general }
 enum ChatListFolder { all, primary, general, waiting, requests }
 
 // OQ-047: `attachment` — a photo or a document after acceptance.
-enum MessageKind { text, system, voice, call, attachment, sticker }
+// Owner 2026-10-20: `contact` — a shared attorney card, `place` — an address.
+enum MessageKind {
+  text,
+  system,
+  voice,
+  call,
+  attachment,
+  sticker,
+  contact,
+  place,
+}
+
+/// Owner 2026-10-20: an attorney shared in a chat — the public profile only
+/// (never a phone or an e-mail).
+@immutable
+class ContactCard {
+  const ContactCard({
+    required this.userId,
+    required this.username,
+    required this.displayName,
+    required this.verified,
+    this.avatarUrl,
+    this.firmNames = const [],
+    this.practiceKeys = const [],
+    this.licensedStates = const [],
+  });
+
+  final String userId;
+  final String username;
+  final String displayName;
+  final String? avatarUrl;
+  final bool verified;
+  final List<String> firmNames;
+
+  /// Translation keys of the practice areas.
+  final List<String> practiceKeys;
+  final List<String> licensedStates;
+}
 
 /// OQ-041: a call in the chat log (the sender placed it).
 @immutable
@@ -275,7 +312,12 @@ class ChatMessage {
     this.attachment,
     this.sentByAssistant,
     this.sticker,
+    this.contact,
   });
+
+  /// Owner 2026-10-20: set for [MessageKind.contact] (null when that
+  /// attorney is gone).
+  final ContactCard? contact;
 
   /// Owner 2026-10-01: set for [MessageKind.sticker].
   final ChatSticker? sticker;
@@ -330,6 +372,7 @@ class ChatMessage {
         attachment: attachment ?? this.attachment,
         sentByAssistant: sentByAssistant,
         sticker: sticker,
+        contact: contact,
       );
 }
 

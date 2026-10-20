@@ -548,7 +548,6 @@ const kChatAttachmentMaxBytes = 50 * 1024 * 1024;
 /// The most any setting allows per chat or task file (the API's ceiling).
 const kChatAttachmentCeilingBytes = 100 * 1024 * 1024;
 
-
 /// Extensions for the file picker (same list as `chatMimeForName`).
 const kChatFileExtensions = [
   'pdf',
@@ -598,8 +597,22 @@ abstract final class ChatMappers {
           api.MessageDtoType.call => MessageKind.call,
           api.MessageDtoType.attachment => MessageKind.attachment,
           api.MessageDtoType.sticker => MessageKind.sticker,
+          api.MessageDtoType.contact => MessageKind.contact,
+          api.MessageDtoType.place => MessageKind.place,
           _ => MessageKind.text,
         },
+        contact: d.contact == null
+            ? null
+            : ContactCard(
+                userId: d.contact!.userId,
+                username: d.contact!.username,
+                displayName: d.contact!.displayName,
+                avatarUrl: d.contact!.avatarUrl,
+                verified: d.contact!.verifiedBadge,
+                firmNames: [...d.contact!.firmNames],
+                practiceKeys: [...d.contact!.practiceKeys],
+                licensedStates: [...d.contact!.licensedStates],
+              ),
         sticker:
             d.sticker == null ? null : StickersRepository.sticker(d.sticker!),
         body: d.body,

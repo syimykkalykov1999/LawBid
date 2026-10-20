@@ -46,6 +46,7 @@ import { ClientBadgeModule } from './modules/client-badge/client-badge.module';
 import { SearchModule } from './modules/search/search.module';
 import { ContactsSyncModule } from './modules/contacts-sync/contacts-sync.module';
 import { ChatModule } from './modules/chat/chat.module';
+import { ChatSavedModule } from './modules/chat-saved/chat-saved.module';
 import { TranslationModule } from './modules/translation/translation.module';
 import { CallsModule } from './modules/calls/calls.module';
 import { MentionsModule } from './modules/mentions/mentions.module';
@@ -290,6 +291,7 @@ const isDev =
     RealtimeModule,
     RealtimeGatewayModule,
     ChatModule,
+    ChatSavedModule,
     TranslationModule,
     CallsModule,
     MentionsModule,

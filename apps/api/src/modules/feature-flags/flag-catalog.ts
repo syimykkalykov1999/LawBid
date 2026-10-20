@@ -156,10 +156,14 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     description: 'Guide («Справочник») section 8: Deleting your account',
   },
   {
+    // Owner 2026-10-20: the app translates free on the phone (Google ML
+    // Kit); this switches on the paid server Google Translate for the
+    // languages the phone cannot do (off by default).
     key: 'chat_translate',
     enabled: false,
     app: true,
-    description: 'Translate button under chat messages (Google Translate)',
+    description:
+      'Paid server translation (Google Translate) for languages the phone cannot translate; the app translates free on the phone',
   },
   {
     key: 'payroll_stripe_payouts',

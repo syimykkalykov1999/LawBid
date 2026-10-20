@@ -554,6 +554,11 @@ String messagePreview(Translator t, ChatMessage m, {String? me}) {
   if (m.kind == MessageKind.sticker) {
     return '${m.sticker?.emoji ?? ''} ${t.t('stickers.label')}'.trim();
   }
+  // Owner 2026-10-20: "👤 Contact" / "📍 address".
+  if (m.kind == MessageKind.contact) {
+    return '👤 ${m.contact?.displayName ?? t.t('card.contact')}';
+  }
+  if (m.kind == MessageKind.place) return '📍 ${m.body}';
   // OQ-047: "📎 File" / "📷 Photo" (+ caption).
   if (m.kind == MessageKind.attachment) {
     final photo = m.attachment?.isImage ?? false;

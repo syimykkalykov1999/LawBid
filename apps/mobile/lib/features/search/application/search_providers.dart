@@ -75,6 +75,10 @@ bool myCaseMatches(String title, List<String> names, String query) {
 
 typedef SearchKey = ({String q, SearchFilters filters});
 
+/// People search limited to attorneys (the chat's contact picker).
+SearchKey attorneySearchKey(String q) =>
+    (q: q, filters: const SearchFilters(role: 'attorney'));
+
 /// OQ-026 People tab: attorneys and clients in one ranked list.
 class PeopleSearchNotifier extends PagedNotifier<PersonRow> {
   PeopleSearchNotifier(this.key);

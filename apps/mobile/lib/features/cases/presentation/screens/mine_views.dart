@@ -14,6 +14,7 @@ import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:lawbid/features/cases/presentation/widgets/invites_list.dart';
 import 'package:lawbid/features/cases/presentation/widgets/my_case_row.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
+import 'package:lawbid/features/chat/presentation/saved_chats_view.dart';
 import 'package:lawbid/features/feed/presentation/widgets/feed_chrome.dart';
 import 'package:lawbid/features/mine/presentation/widgets/mine_grid.dart';
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart';
@@ -467,7 +468,7 @@ class _WorkGrid extends ConsumerWidget {
   }
 }
 
-enum _SavedKind { cases, posts }
+enum _SavedKind { cases, posts, chats }
 
 /// "Saved" for attorneys: saved cases (a grid, searchable) and posts.
 class _AttorneySaved extends ConsumerStatefulWidget {
@@ -499,6 +500,8 @@ class _AttorneySavedState extends ConsumerState<_AttorneySaved> {
           options: [
             (_SavedKind.cases, t.t('mine.saved.cases')),
             (_SavedKind.posts, t.t('mine.saved.posts')),
+            // Owner 2026-10-20: messages, files and links kept from chats.
+            (_SavedKind.chats, t.t('inbox.tab.chats')),
           ],
           onChanged: (v) => setState(() => _kind = v),
         ),
@@ -512,6 +515,7 @@ class _AttorneySavedState extends ConsumerState<_AttorneySaved> {
             pageBuilder: (_, kind) => switch (kind) {
               _SavedKind.cases => _SavedGrid(search: widget.search),
               _SavedKind.posts => const SavedPostsList(),
+              _SavedKind.chats => const SavedChatsView(),
             },
           ),
         ),

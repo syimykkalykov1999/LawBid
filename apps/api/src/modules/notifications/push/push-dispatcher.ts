@@ -405,7 +405,14 @@ export class PushDispatcher
             ? ru
               ? 'Стикер'
               : 'Sticker'
-            : caption;
+            : // Owner 2026-10-20: a shared attorney / a place.
+              message.type === 'contact'
+              ? ru
+                ? '👤 Контакт'
+                : '👤 Contact'
+              : message.type === 'place'
+                ? `📍 ${caption}`
+                : caption;
     // Owner 2026-10-01: an assistant's message says so (not who exactly).
     const from = message.sent_by_name
       ? ru

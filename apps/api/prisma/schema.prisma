@@ -437,6 +437,11 @@ enum MessageType {
   attachment
   // Owner 2026-10-01: a Telegram-style sticker (messages.sticker_id).
   sticker
+  // Owner 2026-10-20: a shared attorney card (body = the attorney's user id;
+  // the app draws the public profile).
+  contact
+  // Owner 2026-10-20: a place (body = the address; opens in the phone's maps).
+  place
 
   @@map("message_type")
 }
@@ -783,6 +788,7 @@ model User {
   blocks_made                 UserBlock[]                    @relation("Blocker")
   blocked_by                  UserBlock[]                    @relation("Blocked")
   saved_items                 SavedItem[]
+  saved_chat_messages         SavedChatMessage[]
   conversations_attorney      Conversation[]                 @relation("ConversationAttorney")
   conversations_client        Conversation[]                 @relation("ConversationClient")
   conversation_memberships    ConversationParticipant[]
@@ -2201,6 +2207,37 @@ model SavedItem {
   @@map("saved_items")
 }
 
+/// Owner 2026-10-20: a chat message the person saved («Сохранённое», like
+/// WeChat favorites / Telegram Saved Messages). Only the reference is stored:
+/// the text stays sealed in `messages`, and it is read again through the
+/// chat's own membership check.
+model SavedChatMessage {
+  user_id    String        @db.Uuid
+  user       User          @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  message_id String        @db.Uuid
+  message    Message       @relation(fields: [message_id], references: [id], onDelete: Cascade)
+  kind       SavedChatKind
+  created_at DateTime      @default(now()) @db.Timestamptz
+
+  @@id([user_id, message_id])
+  @@index([user_id, kind, created_at(sort: Desc)])
+  @@index([user_id, created_at(sort: Desc)])
+  @@index([message_id])
+  @@map("saved_chat_messages")
+}
+
+enum SavedChatKind {
+  text
+  link
+  file
+  media
+  voice
+  contact
+  place
+
+  @@map("saved_chat_kind")
+}
+
 model Conversation {
   id                String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   // Nullable since 2026-09-28 (migration applied, then the owner kept
@@ -2328,6 +2365,7 @@ model Message {
   // Owner 2026-10-01: a sticker message.
   sticker_id            String?      @db.Uuid
   sticker               Sticker?     @relation(fields: [sticker_id], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "messages_sticker_fkey")
+  saved_by              SavedChatMessage[]
   deleted_at            DateTime?    @db.Timestamptz
   created_at            DateTime     @default(now()) @db.Timestamptz
   updated_at            DateTime     @updatedAt @db.Timestamptz
