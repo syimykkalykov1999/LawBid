@@ -67,37 +67,34 @@ class CallHost extends ConsumerWidget {
     return ListenableBuilder(
       listenable: router.routerDelegate,
       builder: (context, _) {
-        if (s.phase == CallPhase.incoming && !_onCallScreen(ref)) {
-          return Column(
-            children: [
-              _IncomingBanner(
-                session: s,
-                onOpen: () => unawaited(router.push<void>(ChatRoutes.call)),
-              ),
-              Expanded(
-                child: MediaQuery.removePadding(
-                  context: context,
-                  removeTop: true,
-                  child: child,
-                ),
-              ),
-            ],
+        final onScreen = _onCallScreen(ref);
+        final Widget? top;
+        if (s.phase == CallPhase.incoming && !onScreen) {
+          top = _IncomingBanner(
+            session: s,
+            onOpen: () => unawaited(router.push<void>(ChatRoutes.call)),
           );
+        } else if (talking && !onScreen) {
+          top = _ReturnToCallBar(
+            session: s,
+            onTap: () => unawaited(router.push<void>(ChatRoutes.call)),
+          );
+        } else {
+          top = null;
         }
-        final bar = talking && !_onCallScreen(ref);
-        if (!bar) return child;
-        // The bar takes the status-bar strip; what is below it must not
+        // The app below keeps one place in the tree whether the bar shows or
+        // not: moving `child` between a bare return and a Column remounted
+        // the whole navigator under it (a debug `_dependents.isEmpty`
+        // assertion on the first call from a chat, device test 2026-10-20).
+        // The bar takes the status-bar strip, so what is below it must not
         // pad for the status bar a second time.
         return Column(
           children: [
-            _ReturnToCallBar(
-              session: s,
-              onTap: () => unawaited(router.push<void>(ChatRoutes.call)),
-            ),
+            if (top != null) top else const SizedBox.shrink(),
             Expanded(
               child: MediaQuery.removePadding(
                 context: context,
-                removeTop: true,
+                removeTop: top != null,
                 child: child,
               ),
             ),
