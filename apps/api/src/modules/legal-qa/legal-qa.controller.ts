@@ -38,6 +38,7 @@ import {
   QuestionDto,
   QuestionIdParamDto,
   QuestionsQueryDto,
+  QaSummaryDto,
   type QuestionPage,
 } from './legal-qa.dto';
 import { LegalQaService } from './legal-qa.service';
@@ -76,6 +77,15 @@ export class LegalQaController {
   })
   askQuestion(@CurrentUser() user: RequestUser, @Body() dto: AskQuestionDto) {
     return this.qa.ask(user, dto);
+  }
+
+  @Get('summary')
+  @ApiOperation({
+    summary: 'Attorney: fresh unanswered questions in my practice',
+  })
+  @ApiEnvelopeResponse(QaSummaryDto)
+  freshForMe(@CurrentUser() user: RequestUser): Promise<QaSummaryDto> {
+    return this.qa.summary(user);
   }
 
   @Get(':id')

@@ -17,7 +17,10 @@ import 'package:lawbid/shared/presentation/flip_search_bar.dart';
 /// Owner 2026-10-20 — «Вопрос юристу»: all questions, unanswered, solved
 /// and mine; search, topic and state; «Ask» for clients.
 class QaFeedScreen extends ConsumerStatefulWidget {
-  const QaFeedScreen({super.key});
+  const QaFeedScreen({this.initialUnanswered = false, super.key});
+
+  /// Opened from the «New questions» card: starts on «Unanswered».
+  final bool initialUnanswered;
 
   @override
   ConsumerState<QaFeedScreen> createState() => _QaFeedScreenState();
@@ -27,7 +30,9 @@ class _QaFeedScreenState extends ConsumerState<QaFeedScreen> {
   final _search = TextEditingController();
   final _focus = FocusNode();
   Timer? _debounce;
-  QuestionsQuery _query = const QuestionsQuery();
+  late QuestionsQuery _query = widget.initialUnanswered
+      ? const QuestionsQuery(filter: QaFilter.unanswered)
+      : const QuestionsQuery();
 
   @override
   void initState() {

@@ -9,6 +9,7 @@ import '../models/answer_body_dto.dart';
 import '../models/answer_envelope.dart';
 import '../models/ask_question_dto.dart';
 import '../models/best_answer_dto.dart';
+import '../models/qa_summary_envelope.dart';
 import '../models/question_detail_envelope.dart';
 import '../models/question_envelope.dart';
 import '../models/question_filter.dart';
@@ -36,6 +37,12 @@ abstract class QuestionsClient {
   @POST('/questions')
   Future<QuestionEnvelope> askQuestion({
     @Body() required AskQuestionDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Attorney: fresh unanswered questions in my practice
+  @GET('/questions/summary')
+  Future<QaSummaryEnvelope> freshForMe({
     @Extras() Map<String, dynamic>? extras,
   });
 

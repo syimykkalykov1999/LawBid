@@ -33,6 +33,7 @@ PublicAttorneyProfileDto _$PublicAttorneyProfileDtoFromJson(
       .map((e) => SelectedPracticeAreaDto.fromJson(e as Map<String, dynamic>))
       .toList(),
   rating: RatingDto.fromJson(json['rating'] as Map<String, dynamic>),
+  qa: QaStatsDto.fromJson(json['qa'] as Map<String, dynamic>),
   counters: ProfileCountersDto.fromJson(
     json['counters'] as Map<String, dynamic>,
   ),
@@ -62,6 +63,7 @@ Map<String, dynamic> _$PublicAttorneyProfileDtoToJson(
   'licensedStates': instance.licensedStates.map((e) => e.toJson()).toList(),
   'practiceAreas': instance.practiceAreas.map((e) => e.toJson()).toList(),
   'rating': instance.rating.toJson(),
+  'qa': instance.qa.toJson(),
   'counters': instance.counters.toJson(),
   'isSelf': instance.isSelf,
   'isFollowing': instance.isFollowing,

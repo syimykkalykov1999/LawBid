@@ -22,6 +22,7 @@ import 'package:lawbid/features/chat/presentation/open_direct_chat.dart';
 import 'package:lawbid/features/consultations/application/consultations_providers.dart';
 import 'package:lawbid/features/consultations/presentation/booking_sheet.dart';
 import 'package:lawbid/features/feed/application/news_flag.dart';
+import 'package:lawbid/features/legal_qa/presentation/qa_banners.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
@@ -330,6 +331,12 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
           _AboutSection(profile: p),
           const SizedBox(height: AppSpacing.md),
           _ChipRows(profile: p),
+          // Owner 2026-10-20: «Answers N · best M» under the rating.
+          QaProfileRow(
+            answers: p.qaAnswers,
+            best: p.qaBest,
+            isSelf: p.isSelf,
+          ),
           // Owner 2026-10-20: gifts on the profile (flag `stars`).
           if (!(p.isBlocked || p.hasBlockedMe))
             GiftShowcase(userId: p.id, isMe: p.isSelf),

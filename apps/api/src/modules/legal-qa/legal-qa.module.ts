@@ -4,6 +4,8 @@ import { BlocksModule } from '../blocks/blocks.module';
 import { FeatureFlagsModule } from '../feature-flags/feature-flags.module';
 import { FilesModule } from '../files/files.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { AdminLegalQaController } from './admin-legal-qa.controller';
+import { AdminLegalQaService } from './admin-legal-qa.service';
 import { LegalQaController } from './legal-qa.controller';
 import { LegalQaService } from './legal-qa.service';
 
@@ -16,8 +18,8 @@ import { LegalQaService } from './legal-qa.service';
     NotificationsModule,
     UsageLimitsModule,
   ],
-  controllers: [LegalQaController],
-  providers: [LegalQaService],
+  controllers: [LegalQaController, AdminLegalQaController],
+  providers: [LegalQaService, AdminLegalQaService],
   exports: [LegalQaService],
 })
 export class LegalQaModule {}

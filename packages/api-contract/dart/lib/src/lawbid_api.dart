@@ -119,6 +119,7 @@ import 'clients/case_documents_client.dart';
 import 'clients/admin_form_templates_client.dart';
 import 'clients/consultations_client.dart';
 import 'clients/questions_client.dart';
+import 'clients/admin_legal_qa_client.dart';
 import 'clients/deadlines_client.dart';
 import 'clients/admin_deadlines_client.dart';
 
@@ -248,6 +249,7 @@ class LawbidApi {
   AdminFormTemplatesClient? _adminFormTemplates;
   ConsultationsClient? _consultations;
   QuestionsClient? _questions;
+  AdminLegalQaClient? _adminLegalQa;
   DeadlinesClient? _deadlines;
   AdminDeadlinesClient? _adminDeadlines;
 
@@ -578,6 +580,9 @@ class LawbidApi {
 
   QuestionsClient get questions =>
       _questions ??= QuestionsClient(_dio, baseUrl: _baseUrl);
+
+  AdminLegalQaClient get adminLegalQa =>
+      _adminLegalQa ??= AdminLegalQaClient(_dio, baseUrl: _baseUrl);
 
   DeadlinesClient get deadlines =>
       _deadlines ??= DeadlinesClient(_dio, baseUrl: _baseUrl);

@@ -140,6 +140,8 @@ class PublicAttorneyProfile {
     this.isBlocked = false,
     this.hasBlockedMe = false,
     this.consultationEnabled = false,
+    this.qaAnswers = 0,
+    this.qaBest = 0,
   });
 
   /// Owner 2026-10-20: the attorney takes consultation bookings.
@@ -163,6 +165,10 @@ class PublicAttorneyProfile {
   final int trustLevel;
   final List<StateRef> licensedStates;
   final List<SelectedPractice> practices;
+
+  /// «Вопрос юристу»: published answers and those marked best.
+  final int qaAnswers;
+  final int qaBest;
   final RatingInfo rating;
   final ProfileCounters counters;
   final bool isSelf;

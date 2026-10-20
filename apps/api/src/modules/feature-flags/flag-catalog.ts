@@ -113,9 +113,11 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     description: 'Ask a lawyer: public questions and attorneys answers',
   },
   {
-    // Owner 2026-10-20: court deadlines and statutes of limitations.
+    // Owner 2026-10-20: court deadlines and statutes of limitations. Off by
+    // default (legal risk: a wrong date reads as advice); the rules stay in
+    // the database and the owner can switch it on in «Функции».
     key: 'deadline_calculator',
-    enabled: true,
+    enabled: false,
     app: true,
     description: 'Deadline calculator (admin: Сроки)',
   },

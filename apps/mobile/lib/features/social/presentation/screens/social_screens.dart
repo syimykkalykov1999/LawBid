@@ -8,6 +8,7 @@ import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/feed/application/feed_topics.dart';
 import 'package:lawbid/features/feed/presentation/widgets/feed_chrome.dart';
+import 'package:lawbid/features/legal_qa/presentation/qa_banners.dart';
 import 'package:lawbid/features/practice/practice_options.dart'
     as practice_options;
 import 'package:lawbid/features/practice/practice_options.dart' as practices;
@@ -77,9 +78,16 @@ class PostsFeedView extends ConsumerWidget {
             skeleton: const PostListSkeleton(),
             itemKey: (p) => p.id,
             prefetch: prefetchPost,
-            itemBuilder: (context, p, _) => PostImpressionTracker(
-              post: p,
-              child: PostCard(post: p, feedHeight: height),
+            itemBuilder: (context, p, i) => Column(
+              children: [
+                // Owner 2026-10-20: a compact «New questions» card among the
+                // posts (attorney; once a day).
+                if (i == 2) const QaNewQuestionsBanner(),
+                PostImpressionTracker(
+                  post: p,
+                  child: PostCard(post: p, feedHeight: height),
+                ),
+              ],
             ),
             // §2.3: "Пока в ленте пусто" + recommended attorneys to follow.
             empty: ListView(

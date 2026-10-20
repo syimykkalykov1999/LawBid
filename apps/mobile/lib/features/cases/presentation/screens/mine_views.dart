@@ -18,6 +18,7 @@ import 'package:lawbid/features/cases/tools/running_timer_chip.dart';
 import 'package:lawbid/features/chat/presentation/saved_chats_view.dart';
 import 'package:lawbid/features/deadlines/presentation/deadline_entry.dart';
 import 'package:lawbid/features/feed/presentation/widgets/feed_chrome.dart';
+import 'package:lawbid/features/legal_qa/presentation/qa_banners.dart';
 import 'package:lawbid/features/mine/presentation/widgets/mine_grid.dart';
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart';
 import 'package:lawbid/features/team/presentation/tasks_tab.dart';
@@ -339,6 +340,7 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
                       topRow,
                       filters,
                       kinds,
+                      const QaMineEntry(),
                       const DeadlineMineEntry(),
                       const SizedBox(height: AppSpacing.sm),
                     ],

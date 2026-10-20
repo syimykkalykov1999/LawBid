@@ -337,7 +337,7 @@ export class DeadlinesService {
   // --- guards ---------------------------------------------------------------------
 
   private async assertEnabled(): Promise<void> {
-    if (!(await this.flags.isEnabled('deadline_calculator', true))) {
+    if (!(await this.flags.isEnabled('deadline_calculator', false))) {
       throw new ForbiddenException({
         code: ErrorCode.FEATURE_DISABLED,
         message: 'The deadline calculator is switched off.',

@@ -6,6 +6,7 @@ import 'package:json_annotation/json_annotation.dart';
 
 import 'profile_counters_dto.dart';
 import 'profile_firm_dto.dart';
+import 'qa_stats_dto.dart';
 import 'rating_dto.dart';
 import 'selected_practice_area_dto.dart';
 import 'state_ref_dto.dart';
@@ -31,6 +32,7 @@ class PublicAttorneyProfileDto {
     required this.licensedStates,
     required this.practiceAreas,
     required this.rating,
+    required this.qa,
     required this.counters,
     required this.isSelf,
     required this.isFollowing,
@@ -71,6 +73,7 @@ class PublicAttorneyProfileDto {
   final List<StateRefDto> licensedStates;
   final List<SelectedPracticeAreaDto> practiceAreas;
   final RatingDto rating;
+  final QaStatsDto qa;
   final ProfileCountersDto counters;
 
   /// True when this is the caller's own profile.

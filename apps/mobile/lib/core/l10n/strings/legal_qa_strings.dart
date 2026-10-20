@@ -56,6 +56,10 @@ const legalQaRu = <String, String>{
   'qa.deleteA.title': 'Удалить ответ?',
   'qa.deleteA.msg': 'Ответ исчезнет.',
   'qa.entry.hint': 'Спросите адвоката',
+  'qa.new.banner': 'Новые вопросы по вашей практике: {count}',
+  'qa.cta': 'Отвечайте на вопросы — привлекайте клиентов',
+  'qa.stats': 'Ответов {answers} · лучших {best}',
+  'qa.newShort': '{count} новых',
   'qa.entry.waiting': 'Ждут ответа: {count}',
 };
 
@@ -113,5 +117,9 @@ const legalQaEn = <String, String>{
   'qa.deleteA.title': 'Delete answer?',
   'qa.deleteA.msg': 'The answer will go.',
   'qa.entry.hint': 'Ask an attorney',
+  'qa.new.banner': 'New questions in your practice: {count}',
+  'qa.cta': 'Answer questions, win clients',
+  'qa.stats': 'Answers {answers} · best {best}',
+  'qa.newShort': '{count} new',
   'qa.entry.waiting': 'Awaiting answers: {count}',
 };

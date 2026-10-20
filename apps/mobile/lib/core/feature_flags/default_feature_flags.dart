@@ -35,7 +35,7 @@ const Map<String, bool> defaultFeatureFlags = {
   'channels': true,
   'consultations': true,
   'legal_qa': true,
-  'deadline_calculator': true,
+  'deadline_calculator': false,
   'document_templates': true,
   'video_posts': false,
   'payments_in_app': false,

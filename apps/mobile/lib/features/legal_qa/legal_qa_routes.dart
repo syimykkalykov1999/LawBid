@@ -9,6 +9,7 @@ import 'package:lawbid/features/legal_qa/presentation/question_detail_screen.dar
 abstract final class LegalQaRoutes {
   static const feed = '/questions';
   static const ask = '/questions/ask';
+  static const unanswered = '/questions?filter=unanswered';
   static String question(String id) => '/questions/${Uri.encodeComponent(id)}';
 }
 
@@ -16,8 +17,13 @@ List<RouteBase> legalQaRoutes(GlobalKey<NavigatorState> root) => [
       GoRoute(
         path: LegalQaRoutes.feed,
         parentNavigatorKey: root,
-        pageBuilder: (context, state) =>
-            AppPageTransitions.push(state, const QaFeedScreen()),
+        pageBuilder: (context, state) => AppPageTransitions.push(
+          state,
+          QaFeedScreen(
+            initialUnanswered:
+                state.uri.queryParameters['filter'] == 'unanswered',
+          ),
+        ),
       ),
       GoRoute(
         path: LegalQaRoutes.ask,

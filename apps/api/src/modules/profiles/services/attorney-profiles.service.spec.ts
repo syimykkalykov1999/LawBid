@@ -212,6 +212,7 @@ describe('AttorneyProfilesService', () => {
         attorneyProfile: { findUnique: jest.fn(() => Promise.resolve(row)) },
         follow: { findUnique: jest.fn(() => Promise.resolve(null)) },
         firmMember: { findFirst: jest.fn(() => Promise.resolve(null)) },
+        legalAnswer: { count: jest.fn(() => Promise.resolve(0)) },
       };
       return new AttorneyProfilesService(
         prisma as unknown as PrismaService,

@@ -12,6 +12,7 @@ import 'package:lawbid/features/legal_qa/domain/qa_models.dart';
 import 'package:lawbid/features/legal_qa/legal_qa_routes.dart';
 import 'package:lawbid/features/legal_qa/presentation/ask_question_screen.dart';
 import 'package:lawbid/features/legal_qa/presentation/qa_feed_screen.dart';
+import 'package:lawbid/features/legal_qa/presentation/qa_widgets.dart';
 import 'package:lawbid/features/legal_qa/presentation/question_detail_screen.dart';
 import 'package:lawbid/features/notifications/presentation/notifications_view.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
@@ -166,8 +167,9 @@ void main() {
     expect(find.text('Вопрос юристу'), findsOneWidget);
     expect(find.textContaining('Can my landlord'), findsOneWidget);
     expect(find.text('NY'), findsOneWidget);
-    expect(find.text('Лучший ответ'), findsOneWidget);
-    expect(find.text('Ответов: 1'), findsOneWidget);
+    // Owner 2026-10-20: icon + number only in the card.
+    expect(find.byType(QaBestBadge), findsOneWidget);
+    expect(find.text('1'), findsOneWidget);
     // A client can ask; the first query is «all».
     expect(find.text('Задать вопрос'), findsOneWidget);
     expect(repo.queries.first.filter, QaFilter.all);

@@ -207,3 +207,12 @@ export interface QuestionPage {
   items: QuestionDto[];
   nextCursor: string | null;
 }
+
+/** Owner 2026-10-20: no pushes to attorneys; a quiet count instead. */
+export class QaSummaryDto {
+  @ApiProperty({
+    description:
+      'Unanswered questions of the last 24 hours in my practice areas and states (attorney; 0 for others)',
+  })
+  newCount!: number;
+}

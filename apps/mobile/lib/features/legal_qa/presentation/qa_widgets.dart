@@ -117,14 +117,28 @@ class QaTag extends StatelessWidget {
 /// «Best answer» / «Solved» badge — green, with a check (never colour
 /// alone).
 class QaBestBadge extends ConsumerWidget {
-  const QaBestBadge({required this.label, super.key});
+  const QaBestBadge({required this.label, this.iconOnly = false, super.key});
 
   final String label;
+
+  /// Owner 2026-10-20: in a feed card only the tick (the words did not
+  /// fit at 360 dp); the label stays for screen readers.
+  final bool iconOnly;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    if (iconOnly) {
+      return Semantics(
+        label: label,
+        child: AppIcon(
+          AppIcons.checkCircleRounded,
+          size: 16,
+          color: colors.success,
+        ),
+      );
+    }
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -165,7 +179,8 @@ class QuestionCard extends ConsumerWidget {
     });
     return Semantics(
       button: true,
-      label: '${question.title}. $answers',
+      label: '${question.title}. $answers'
+          '${question.solved ? '. ${t.t('qa.best')}' : ''}',
       excludeSemantics: true,
       child: AppCard(
         onTap: onTap,
@@ -216,7 +231,7 @@ class QuestionCard extends ConsumerWidget {
                 const SizedBox(width: AppSpacing.xs),
                 Flexible(
                   child: Text(
-                    answers,
+                    formats.number(question.answerCount),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: type.caption.copyWith(color: colors.textSecondary),
@@ -224,7 +239,7 @@ class QuestionCard extends ConsumerWidget {
                 ),
                 if (question.solved) ...[
                   const SizedBox(width: AppSpacing.md),
-                  Flexible(child: QaBestBadge(label: t.t('qa.best'))),
+                  QaBestBadge(label: t.t('qa.best'), iconOnly: true),
                 ],
                 const Spacer(),
                 Text(

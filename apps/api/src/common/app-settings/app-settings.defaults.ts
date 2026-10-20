@@ -653,9 +653,15 @@ export const OWNER_BOOKING_QA_SETTINGS = {
   'rate_limit.answer_per_hour': 30,
   /** Pending + confirmed upcoming consultations one client may hold. */
   'consultations.max_active_per_client': 5,
-  /** A new question alerts at most this many attorneys of its practice
-   * area and state (those who turned on «Новые кейсы»). */
+  /** Owner 2026-10-20: a push to attorneys about every new question is OFF
+   * (it would nag them); they open «Вопрос юристу» themselves and see a
+   * badge. When on, a new question alerts at most `qa.alert_max_attorneys`
+   * attorneys of its practice area and state (those who turned on «Новые
+   * кейсы»). */
+  'qa.push_attorneys': false,
   'qa.alert_max_attorneys': 500,
+  /** Whether a client may ask a question anonymously. */
+  'qa.allow_anonymous': true,
 };
 
 import { OWNER_TEXT_LIMIT_SETTINGS } from './text-limits';

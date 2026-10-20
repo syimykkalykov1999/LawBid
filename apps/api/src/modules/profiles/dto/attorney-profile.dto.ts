@@ -194,6 +194,15 @@ export class RatingDto {
   count!: number;
 }
 
+/** Owner 2026-10-20: «Ответов: N, лучших: M» from «Вопрос юристу». */
+export class QaStatsDto {
+  @ApiProperty({ description: 'Published answers to public questions.' })
+  answers!: number;
+
+  @ApiProperty({ description: 'Of them chosen as the best answer.' })
+  best!: number;
+}
+
 export class ProfileCountersDto {
   @ApiProperty()
   posts!: number;
@@ -381,6 +390,9 @@ export class PublicAttorneyProfileDto {
 
   @ApiProperty({ type: RatingDto })
   rating!: RatingDto;
+
+  @ApiProperty({ type: QaStatsDto })
+  qa!: QaStatsDto;
 
   @ApiProperty({ type: ProfileCountersDto })
   counters!: ProfileCountersDto;

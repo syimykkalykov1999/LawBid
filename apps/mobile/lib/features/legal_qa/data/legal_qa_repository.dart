@@ -36,6 +36,10 @@ class LegalQaRepository {
     );
   }
 
+  /// Attorney: unanswered questions of the last 24 h in my practice.
+  Future<int> newCount() async =>
+      (await guardApiCall(_api.freshForMe)).data.newCount.toInt();
+
   Future<Question> detail(String id) async {
     final d = (await guardApiCall(() => _api.getQuestion(id: id))).data;
     return _question(

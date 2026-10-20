@@ -418,6 +418,7 @@ export class AttorneyProfilesService {
       trustLevel: row.trust_level,
       licensedStates: [...states].map(([code, name]) => ({ code, name })),
       practiceAreas,
+      qa: await this.qaStats(row.user_id),
       rating: { avg: Number(row.rating_avg), count: row.rating_count },
       counters: {
         posts: plus(row.posts_count, pPosts),
@@ -431,6 +432,22 @@ export class AttorneyProfilesService {
         ((await this.consultations?.isBookable(row.user_id)) ?? false),
       ...(await this.blocks.relation(viewerId, row.user_id)),
     };
+  }
+
+  /** Owner 2026-10-20: «Ответов / лучших» in «Вопрос юристу». */
+  private async qaStats(
+    attorneyId: string,
+  ): Promise<{ answers: number; best: number }> {
+    const where = {
+      attorney_id: attorneyId,
+      status: 'published' as const,
+      deleted_at: null,
+    };
+    const [answers, best] = await Promise.all([
+      this.prisma.legalAnswer.count({ where }),
+      this.prisma.legalAnswer.count({ where: { ...where, is_best: true } }),
+    ]);
+    return { answers, best };
   }
 
   /** GET /attorneys/username-available?u= — format, reserved list and

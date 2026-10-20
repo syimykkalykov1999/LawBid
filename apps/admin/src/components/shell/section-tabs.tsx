@@ -6,6 +6,7 @@ import type { Me } from '@/lib/hooks';
 import { groupFor, sectionFor, tabsFor } from '@/lib/rbac';
 import { ICONS } from './icons';
 import { useNavCounts } from './use-nav-counts';
+import { useOffFlags } from './use-off-flags';
 
 /** Owner 2026-10-05: the tabs of the current menu section — only the ones
  * this admin may open. One allowed tab → no tab row at all.
@@ -14,8 +15,9 @@ import { useNavCounts } from './use-nav-counts';
 export function SectionTabs({ me }: { me: Me | undefined }) {
   const pathname = usePathname();
   const counts = useNavCounts(me);
+  const off = useOffFlags(me);
   if (!me) return null;
-  const tabs = tabsFor(me, pathname);
+  const tabs = tabsFor(me, pathname, off);
   if (tabs.length < 2) return null;
   return (
     <OverflowTabs

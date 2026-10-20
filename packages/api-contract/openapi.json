@@ -101920,6 +101920,73 @@
         ]
       }
     },
+    "/questions/summary": {
+      "get": {
+        "operationId": "freshForMe",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QaSummaryEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Attorney: fresh unanswered questions in my practice",
+        "tags": [
+          "questions"
+        ]
+      }
+    },
     "/questions/{id}": {
       "get": {
         "operationId": "getQuestion",
@@ -102689,6 +102756,344 @@
         "summary": "Clear the best-answer mark",
         "tags": [
           "questions"
+        ]
+      }
+    },
+    "/admin/legal-qa/questions": {
+      "get": {
+        "operationId": "listAdminQuestions",
+        "parameters": [
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "description": "Title or text",
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/AdminQaStatus"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminQaQuestionListEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "All questions, hidden and removed too (search)",
+        "tags": [
+          "admin-legal-qa"
+        ]
+      }
+    },
+    "/admin/legal-qa/questions/{id}": {
+      "get": {
+        "operationId": "getAdminQuestion",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminQaQuestionDetailEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "A question with all its answers",
+        "tags": [
+          "admin-legal-qa"
+        ]
+      }
+    },
+    "/admin/legal-qa/questions/{id}/clear-best": {
+      "post": {
+        "operationId": "clearAdminQuestionBest",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminQaQuestionDetailEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Take the «best answer» mark off",
+        "tags": [
+          "admin-legal-qa"
         ]
       }
     },
@@ -117470,6 +117875,23 @@
           "name"
         ]
       },
+      "QaStatsDto": {
+        "type": "object",
+        "properties": {
+          "answers": {
+            "type": "number",
+            "description": "Published answers to public questions."
+          },
+          "best": {
+            "type": "number",
+            "description": "Of them chosen as the best answer."
+          }
+        },
+        "required": [
+          "answers",
+          "best"
+        ]
+      },
       "PublicAttorneyProfileDto": {
         "type": "object",
         "properties": {
@@ -117555,6 +117977,9 @@
           "rating": {
             "$ref": "#/components/schemas/RatingDto"
           },
+          "qa": {
+            "$ref": "#/components/schemas/QaStatsDto"
+          },
           "counters": {
             "$ref": "#/components/schemas/ProfileCountersDto"
           },
@@ -117596,6 +118021,7 @@
           "licensedStates",
           "practiceAreas",
           "rating",
+          "qa",
           "counters",
           "isSelf",
           "isFollowing",
@@ -157765,6 +158191,32 @@
           "data"
         ]
       },
+      "QaSummaryDto": {
+        "type": "object",
+        "properties": {
+          "newCount": {
+            "type": "number",
+            "description": "Unanswered questions of the last 24 hours in my practice areas and states (attorney; 0 for others)"
+          }
+        },
+        "required": [
+          "newCount"
+        ]
+      },
+      "QaSummaryEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/QaSummaryDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
       "AnswerDto": {
         "type": "object",
         "properties": {
@@ -157951,6 +158403,233 @@
         },
         "required": [
           "answerId"
+        ]
+      },
+      "AdminQaPersonDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ]
+      },
+      "AdminQaQuestionDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "description": "published | hidden | removed (a deleted one reads removed)"
+          },
+          "isAnonymous": {
+            "type": "boolean"
+          },
+          "answerCount": {
+            "type": "number"
+          },
+          "bestAnswerId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "stateCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "practiceArea": {
+            "type": "string",
+            "nullable": true
+          },
+          "author": {
+            "description": "Shown to the admin even when the author is anonymous to others.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AdminQaPersonDto"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "body",
+          "status",
+          "isAnonymous",
+          "answerCount",
+          "bestAnswerId",
+          "stateCode",
+          "practiceArea",
+          "author",
+          "createdAt"
+        ]
+      },
+      "AdminQaStatus": {
+        "type": "string",
+        "enum": [
+          "all",
+          "published",
+          "hidden",
+          "removed"
+        ]
+      },
+      "AdminQaQuestionListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminQaQuestionDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "AdminQaAnswerDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "body": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "description": "published | hidden | removed"
+          },
+          "isBest": {
+            "type": "boolean"
+          },
+          "likeCount": {
+            "type": "number"
+          },
+          "attorney": {
+            "$ref": "#/components/schemas/AdminQaPersonDto"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "body",
+          "status",
+          "isBest",
+          "likeCount",
+          "attorney",
+          "createdAt"
+        ]
+      },
+      "AdminQaQuestionDetailDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "description": "published | hidden | removed (a deleted one reads removed)"
+          },
+          "isAnonymous": {
+            "type": "boolean"
+          },
+          "answerCount": {
+            "type": "number"
+          },
+          "bestAnswerId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "stateCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "practiceArea": {
+            "type": "string",
+            "nullable": true
+          },
+          "author": {
+            "description": "Shown to the admin even when the author is anonymous to others.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AdminQaPersonDto"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "answers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminQaAnswerDto"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "body",
+          "status",
+          "isAnonymous",
+          "answerCount",
+          "bestAnswerId",
+          "stateCode",
+          "practiceArea",
+          "author",
+          "createdAt",
+          "answers"
+        ]
+      },
+      "AdminQaQuestionDetailEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminQaQuestionDetailDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
         ]
       },
       "DeadlineKind": {

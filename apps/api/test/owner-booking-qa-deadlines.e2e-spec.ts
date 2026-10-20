@@ -11,6 +11,7 @@ import { TokenService } from '../src/modules/auth/services/token.service';
 import { ConsultationRemindersJob } from '../src/modules/consultations/consultation-reminders.job';
 import { adminSession } from './support/admin-login';
 import { LegalQaService } from '../src/modules/legal-qa/legal-qa.service';
+import { FeatureFlagsService } from '../src/modules/feature-flags/services/feature-flags.service';
 
 /**
  * Owner 2026-10-20: booking a consultation, «Вопрос юристу» and the
@@ -524,6 +525,113 @@ describe('Booking, Q&A, deadlines (e2e)', () => {
       });
     });
 
+    it('admin: browse questions, take the best mark off, hide through moderation, anonymous switch', async () => {
+      const admin = await adminSession(base, prisma, 'super_admin');
+      const cl = await client();
+      const att = await attorney();
+      const area = await leafArea();
+      const ask = (anonymous: boolean) =>
+        api()
+          .post('/api/v1/questions')
+          .set(cl.auth)
+          .set('Idempotency-Key', randomUUID())
+          .send({
+            title: 'Admin browse: who keeps the deposit?',
+            body: 'Moved out last month and the landlord has not answered.',
+            practiceAreaId: area.id,
+            stateCode: 'NY',
+            anonymous,
+          });
+      const q = await ask(true).expect(201);
+      const id = q.body.data.id as string;
+      const ans = await api()
+        .put(`/api/v1/questions/${id}/answer`)
+        .set(att.auth)
+        .send({ body: 'Ask for it in writing and keep the receipt.' })
+        .expect(200);
+      const answerId = ans.body.data.id as string;
+      await api()
+        .put(`/api/v1/questions/${id}/best`)
+        .set(cl.auth)
+        .send({ answerId })
+        .expect(200);
+
+      // The admin sees the author even when the question is anonymous.
+      const list = await api()
+        .get('/api/v1/admin/legal-qa/questions')
+        .query({ q: 'Admin browse' })
+        .set(admin.auth)
+        .expect(200);
+      const row = (list.body.data as { id: string }[]).find((r) => r.id === id);
+      expect(row).toBeTruthy();
+      const detail = await api()
+        .get(`/api/v1/admin/legal-qa/questions/${id}`)
+        .set(admin.auth)
+        .expect(200);
+      expect(detail.body.data).toMatchObject({
+        isAnonymous: true,
+        bestAnswerId: answerId,
+      });
+      expect(detail.body.data.author.id).toBe(cl.id);
+      expect(detail.body.data.answers[0]).toMatchObject({
+        id: answerId,
+        isBest: true,
+      });
+
+      // Take the mark off; the author can mark again.
+      const cleared = await api()
+        .post(`/api/v1/admin/legal-qa/questions/${id}/clear-best`)
+        .set(admin.auth)
+        .expect(200);
+      expect(cleared.body.data.bestAnswerId).toBeNull();
+      expect(cleared.body.data.answers[0].isBest).toBe(false);
+
+      // Hide through the moderation actions: it leaves the public feed but
+      // stays in the admin list under «hidden».
+      await api()
+        .post(`/api/v1/admin/moderation/targets/legal_question/${id}/actions`)
+        .set(admin.auth)
+        .send({ action: 'hide', reason: 'off-topic for the board' })
+        .expect(200);
+      const hidden = await api()
+        .get('/api/v1/admin/legal-qa/questions')
+        .query({ status: 'hidden' })
+        .set(admin.auth)
+        .expect(200);
+      expect(
+        (hidden.body.data as { id: string }[]).some((r) => r.id === id),
+      ).toBe(true);
+      const pub = await api()
+        .get('/api/v1/questions')
+        .set(att.auth)
+        .expect(200);
+      expect((pub.body.data as { id: string }[]).some((r) => r.id === id)).toBe(
+        false,
+      );
+
+      // The anonymous switch: off → an anonymous question is refused, a
+      // named one still goes through.
+      await api()
+        .put('/api/v1/admin/config/qa.allow_anonymous')
+        .set(admin.auth)
+        .send({ value: false })
+        .expect(200);
+      await ask(true).expect(400);
+      await ask(false).expect(201);
+      await api()
+        .put('/api/v1/admin/config/qa.allow_anonymous')
+        .set(admin.auth)
+        .send({ value: true })
+        .expect(200);
+      await ask(true).expect(201);
+
+      // Not for a plain client token.
+      await api()
+        .get('/api/v1/admin/legal-qa/questions')
+        .set(cl.auth)
+        .expect(401);
+    });
+
     it('alerts verified attorneys of the practice area and state who opted in', async () => {
       const cl = await client();
       const att = await attorney();
@@ -551,7 +659,22 @@ describe('Booking, Q&A, deadlines (e2e)', () => {
           body: 'Some longer question text.',
         },
       });
-      const n = await app.get(LegalQaService).alertAttorneys(q);
+      const qa = app.get(LegalQaService);
+      // Owner 2026-10-20: no push about new questions by default.
+      expect(await qa.alertAttorneys(q)).toBe(0);
+      // Instead the attorney sees a quiet count of fresh unanswered ones.
+      const asAtt = { sub: att.id, role: 'attorney' } as never;
+      expect((await qa.summary(asAtt)).newCount).toBeGreaterThanOrEqual(1);
+      expect(
+        (await qa.summary({ sub: cl.id, role: 'client' } as never)).newCount,
+      ).toBe(0);
+      const admin = await adminSession(base, prisma, 'super_admin');
+      await api()
+        .put('/api/v1/admin/config/qa.push_attorneys')
+        .set(admin.auth)
+        .send({ value: true })
+        .expect(200);
+      const n = await qa.alertAttorneys(q);
       expect(n).toBe(1);
       expect(
         await prisma.notification.count({
@@ -562,6 +685,38 @@ describe('Booking, Q&A, deadlines (e2e)', () => {
   });
 
   describe('deadline calculator', () => {
+    // Owner 2026-10-20: off by default (legal risk); these tests switch it on.
+    const setFlag = async (enabled: boolean) => {
+      await prisma.featureFlag.upsert({
+        where: { key: 'deadline_calculator' },
+        create: { key: 'deadline_calculator', enabled },
+        update: { enabled },
+      });
+      await app.get(FeatureFlagsService).invalidate();
+    };
+    beforeAll(() => setFlag(true));
+    afterAll(() => setFlag(false));
+
+    it('answers «disabled» on every public endpoint while the flag is off', async () => {
+      const cl = await client();
+      await setFlag(false);
+      try {
+        for (const [path, query] of [
+          ['/api/v1/deadlines/rules', {}],
+          ['/api/v1/deadlines/holidays', { year: 2026 }],
+          [
+            '/api/v1/deadlines/calculate',
+            { ruleCode: 'frcp_12a_answer', eventDate: '2026-10-05' },
+          ],
+        ] as const) {
+          const res = await api().get(path).query(query).set(cl.auth);
+          expect(res.status).toBe(403);
+          expect(res.body.error.code).toBe('FEATURE_DISABLED');
+        }
+      } finally {
+        await setFlag(true);
+      }
+    });
     it('counts the federal answer period past a weekend and a holiday', async () => {
       const cl = await client();
       const ok = await api()

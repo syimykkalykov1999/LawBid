@@ -26,6 +26,7 @@ import {
   type AnswerDto,
   type AskQuestionDto,
   type QaPersonDto,
+  type QaSummaryDto,
   type QuestionDetailDto,
   type QuestionDto,
   type QuestionPage,
@@ -115,6 +116,16 @@ export class LegalQaService {
         OR: [
           { title: { contains: text, mode: 'insensitive' } },
           { body: { contains: text, mode: 'insensitive' } },
+          // Owner 2026-10-20: the answers are searched too.
+          {
+            answers: {
+              some: {
+                status: 'published',
+                deleted_at: null,
+                body: { contains: text, mode: 'insensitive' },
+              },
+            },
+          },
         ],
       });
     }
@@ -173,6 +184,12 @@ export class LegalQaService {
     }
     if (dto.practiceAreaId) await this.assertArea(dto.practiceAreaId);
     if (dto.stateCode) await this.assertState(dto.stateCode);
+    if (dto.anonymous && !(await this.settings.boolean('qa.allow_anonymous'))) {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_ERROR,
+        message: 'Anonymous questions are switched off.',
+      });
+    }
     await this.limits.consume('question_create', user.sub);
     const row = await this.prisma.legalQuestion.create({
       data: {
@@ -390,6 +407,36 @@ export class LegalQaService {
    * state) who turned on «Новые кейсы»: their alert practices are the same
    * ones the case alerts use. Blocks either way are skipped.
    */
+  async summary(user: RequestUser): Promise<QaSummaryDto> {
+    if (user.role !== 'attorney' || user.assistant) return { newCount: 0 };
+    if (!(await this.flags.isEnabled('legal_qa', true))) return { newCount: 0 };
+    const [row] = await this.prisma.$queryRaw<{ n: number }[]>`
+      SELECT COUNT(*)::INT AS n
+      FROM legal_questions q
+      WHERE q.status = 'published' AND q.deleted_at IS NULL
+        AND q.answer_count = 0
+        AND q.created_at > now() - interval '24 hours'
+        AND q.author_id <> ${user.sub}::UUID
+        AND (q.state_code IS NULL OR EXISTS (
+          SELECT 1 FROM attorney_licenses l
+          WHERE l.attorney_id = ${user.sub}::UUID
+            AND l.state_code = q.state_code
+            AND l.license_status = 'verified'))
+        AND (q.practice_area_id IS NULL OR EXISTS (
+          SELECT 1 FROM attorney_practice_areas ap
+          JOIN practice_areas qa ON qa.id = q.practice_area_id
+          WHERE ap.attorney_id = ${user.sub}::UUID
+            AND (ap.practice_area_id = qa.id
+              OR ap.practice_area_id = qa.parent_id
+              OR ap.practice_area_id IN (
+                   SELECT c.id FROM practice_areas c WHERE c.parent_id = qa.id))))
+        AND NOT EXISTS (
+          SELECT 1 FROM user_blocks b
+          WHERE (b.blocker_id = ${user.sub}::UUID AND b.blocked_id = q.author_id)
+             OR (b.blocker_id = q.author_id AND b.blocked_id = ${user.sub}::UUID))`;
+    return { newCount: row?.n ?? 0 };
+  }
+
   async alertAttorneys(
     q: Pick<
       QuestionRow,
@@ -397,6 +444,8 @@ export class LegalQaService {
     >,
   ): Promise<number> {
     if (!q.practice_area_id) return 0;
+    // Owner 2026-10-20: no push about new questions unless switched on.
+    if (!(await this.settings.boolean('qa.push_attorneys'))) return 0;
     const max = await this.settings.number('qa.alert_max_attorneys');
     const stateFilter = q.state_code
       ? Prisma.sql`AND EXISTS (

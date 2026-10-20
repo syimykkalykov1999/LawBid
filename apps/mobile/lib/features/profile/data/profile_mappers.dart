@@ -64,6 +64,8 @@ abstract final class ProfileMappers {
         trustLevel: d.trustLevel,
         licensedStates: d.licensedStates.map(state).toList(growable: false),
         practices: d.practiceAreas.map(selected).toList(growable: false),
+        qaAnswers: d.qa.answers.toInt(),
+        qaBest: d.qa.best.toInt(),
         rating: rating(d.rating),
         counters: counters(d.counters),
         isSelf: d.isSelf,
