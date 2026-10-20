@@ -102,3 +102,10 @@ PUT /admin/storage/uploads added the new `webm` enum value to the `data/places/i
 PUT /admin/promotions/settings removed the enum value `download` of the request property `ctaTypes/items/`
 POST /cases/{id}/promotions removed the enum value `download` of the request property `ctaType`
 POST /posts/{id}/promotions removed the enum value `download` of the request property `ctaType`
+# 2026-10-20: the moderation queue and card gain two report targets (legal_question, legal_answer); admin web only, the generated clients map unknown values to $unknown
+GET /admin/moderation/queue added the new `legal_answer` enum value to the `data/items/targetType` response property for the response status `200`
+GET /admin/moderation/queue added the new `legal_question` enum value to the `data/items/targetType` response property for the response status `200`
+GET /admin/moderation/targets/{type}/{id} added the new `legal_answer` enum value to the `data/targetType` response property for the response status `200`
+GET /admin/moderation/targets/{type}/{id} added the new `legal_question` enum value to the `data/targetType` response property for the response status `200`
+POST /admin/moderation/targets/{type}/{id}/actions added the new `legal_answer` enum value to the `data/targetType` response property for the response status `200`
+POST /admin/moderation/targets/{type}/{id}/actions added the new `legal_question` enum value to the `data/targetType` response property for the response status `200`
