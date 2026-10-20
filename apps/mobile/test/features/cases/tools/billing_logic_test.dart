@@ -8,7 +8,9 @@ void main() {
     test('elapsed seconds never go negative (device clock behind)', () {
       expect(elapsedSeconds(since, since.add(const Duration(seconds: 75))), 75);
       expect(
-          elapsedSeconds(since, since.subtract(const Duration(hours: 1))), 0);
+        elapsedSeconds(since, since.subtract(const Duration(hours: 1))),
+        0,
+      );
     });
 
     test('a live run adds to the minutes counted before it', () {

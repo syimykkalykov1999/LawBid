@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/features/cases/tools/billing_logic.dart';
+import 'package:lawbid/features/cases/tools/running_timer_chip.dart';
 import 'package:lawbid/features/cases/workspace/workspace_data.dart'
     show PickedCaseFile;
 import 'package:lawbid/features/social/application/social_providers.dart'
@@ -38,7 +39,9 @@ class CaseBillingActions {
     try {
       await guardApiCall(call);
     } finally {
-      _ref.invalidate(caseBillingProvider(caseId));
+      _ref
+        ..invalidate(caseBillingProvider(caseId))
+        ..invalidate(runningTimerProvider);
     }
   }
 

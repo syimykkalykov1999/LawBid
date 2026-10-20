@@ -82,8 +82,12 @@ String pickLanguage(List<String> languages, String preferred) {
 }
 
 /// A calendar date as the server wants it: `2026-10-20`.
-String isoDate(DateTime d) =>
-    '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+String isoDate(DateTime d) {
+  final y = d.year.toString().padLeft(4, '0');
+  final m = d.month.toString().padLeft(2, '0');
+  final day = d.day.toString().padLeft(2, '0');
+  return '$y-$m-$day';
+}
 
 DateTime? parseIsoDate(String v) {
   if (!_dateRe.hasMatch(v)) return null;
