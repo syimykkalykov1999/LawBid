@@ -34,6 +34,7 @@ class ConversationDto {
     this.lastMessageAt,
     this.mutedUntil,
     this.counterpartLastReadMessageId,
+    this.counterpartLastReadAt,
     this.matchedMessage,
     this.waitingSince,
     this.note,
@@ -58,6 +59,9 @@ class ConversationDto {
 
   /// For "Seen" on own messages (§8.2).
   final String? counterpartLastReadMessageId;
+
+  /// When the other side last read; "read at" for every message up to it.
+  final DateTime? counterpartLastReadAt;
   final DateTime updatedAt;
   final ChatFolder folder;
 

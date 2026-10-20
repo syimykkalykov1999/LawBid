@@ -1117,10 +1117,19 @@ class ChatThread extends Notifier<ChatThreadState> {
                 unreadCount: c.unreadCount,
                 mutedUntil: c.mutedUntil,
                 counterpartLastReadId: last,
+                counterpartLastReadAt: DateTime.tryParse(
+                      '${data['readAt']}',
+                    ) ??
+                    DateTime.now(),
                 updatedAt: c.updatedAt,
                 isDirect: c.isDirect,
                 request: c.request,
                 requestedByMe: c.requestedByMe,
+                folder: c.folder,
+                folderAuto: c.folderAuto,
+                waitingSince: c.waitingSince,
+                note: c.note,
+                pinnedAt: c.pinnedAt,
               ),
             );
           }

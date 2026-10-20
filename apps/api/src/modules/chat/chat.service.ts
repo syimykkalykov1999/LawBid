@@ -1126,6 +1126,7 @@ export class ChatService {
       this.realtime.toUsers([other], 'message:read', {
         conversationId: id,
         lastReadMessageId: result.lastReadMessageId,
+        readAt: new Date().toISOString(),
       });
       await this.badges.chatsChanged(user.sub);
     }

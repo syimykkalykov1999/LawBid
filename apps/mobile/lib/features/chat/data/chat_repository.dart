@@ -112,6 +112,15 @@ abstract interface class ChatRepository {
     String? caption,
   });
 
+  /// Owner 2026-10-20: passes message [sourceId] on to chat [id]; the server
+  /// copies a voice note / file as a reference to the same stored object
+  /// (nothing is uploaded again).
+  Future<ChatMessage> forward(
+    String id,
+    String clientMessageId,
+    String sourceId,
+  );
+
   /// Owner 2026-10-01: a sticker message.
   Future<ChatMessage> sendSticker(
     String id,
@@ -339,6 +348,25 @@ class ApiChatRepository implements ChatRepository {
               fileId: fileId,
               fileName: fileName,
               body: caption,
+            ),
+          ),
+        ))
+            .data,
+      );
+
+  @override
+  Future<ChatMessage> forward(
+    String id,
+    String clientMessageId,
+    String sourceId,
+  ) async =>
+      ChatMappers.message(
+        (await guardApiCall(
+          () => _chat.sendMessage(
+            id: id,
+            body: api.SendMessageDto(
+              clientMessageId: clientMessageId,
+              forwardFromId: sourceId,
             ),
           ),
         ))
@@ -799,6 +827,7 @@ abstract final class ChatMappers {
         unreadCount: d.unreadCount.toInt(),
         mutedUntil: d.mutedUntil,
         counterpartLastReadId: d.counterpartLastReadMessageId,
+        counterpartLastReadAt: d.counterpartLastReadAt,
         updatedAt: d.updatedAt,
         isDirect: d.kind == api.ConversationKind.direct,
         request: switch (d.requestStatus) {

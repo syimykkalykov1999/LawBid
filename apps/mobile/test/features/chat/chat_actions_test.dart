@@ -10,6 +10,7 @@ import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/chat/data/chat_repository.dart';
 import 'package:lawbid/features/chat/data/realtime_client.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
+import 'package:lawbid/features/chat/presentation/message_actions.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/data/social_local_database.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
@@ -53,10 +54,10 @@ class _Chat implements ChatRepository {
 
   @override
   Future<ChatMessage> editMessage(
-          String id,
-          String messageId,
-          String body,
-        ) async =>
+    String id,
+    String messageId,
+    String body,
+  ) async =>
       stored.firstWhere((m) => m.id == messageId).copyWith(
             body: body,
             editedAt: DateTime(2026, 10, 20, 12),
@@ -320,6 +321,48 @@ void main() {
     final st = s.c.read(chatThreadProvider('c1'));
     expect(st.unreadFromId, 'new1');
     expect(st.unreadCount, 2);
+  });
+
+  test('voice notes and files can be forwarded, calls and tombstones not', () {
+    ChatMessage of(MessageKind k, {bool revoked = false}) => ChatMessage(
+          id: 'x',
+          conversationId: 'c1',
+          kind: k,
+          body: '',
+          createdAt: DateTime.now(),
+          revoked: revoked,
+        );
+    for (final k in [
+      MessageKind.text,
+      MessageKind.sticker,
+      MessageKind.voice,
+      MessageKind.attachment,
+    ]) {
+      expect(canForward(of(k)), isTrue, reason: '$k');
+    }
+    expect(canForward(of(MessageKind.call)), isFalse);
+    expect(canForward(of(MessageKind.system)), isFalse);
+    expect(canForward(of(MessageKind.voice, revoked: true)), isFalse);
+  });
+
+  test('message:read keeps the read time and the chat organisation', () async {
+    final chat = _Chat([_msg('a')]);
+    final s = _setup(chat);
+    final sub = s.c.listen(chatThreadProvider('c1'), (_, __) {});
+    addTearDown(sub.close);
+    await _settle();
+    s.events.add(
+      const RealtimeEvent('message:read', {
+        'conversationId': 'c1',
+        'lastReadMessageId': 'a',
+        'readAt': '2026-10-20T10:07:00.000Z',
+      }),
+    );
+    await _settle();
+    final c = s.c.read(chatThreadProvider('c1')).conversation!;
+    expect(c.counterpartLastReadId, 'a');
+    expect(c.counterpartLastReadAt, DateTime.utc(2026, 10, 20, 10, 7));
+    expect(c.caseTitle, 'Case');
   });
 
   test('MessageDto maps the action fields', () {

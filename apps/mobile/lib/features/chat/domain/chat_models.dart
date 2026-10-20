@@ -60,6 +60,7 @@ class Conversation {
     this.lastMessageAt,
     this.mutedUntil,
     this.counterpartLastReadId,
+    this.counterpartLastReadAt,
     this.isDirect = false,
     this.request = MessageRequest.none,
     this.requestedByMe = false,
@@ -131,6 +132,10 @@ class Conversation {
   final int unreadCount;
   final DateTime? mutedUntil;
   final String? counterpartLastReadId;
+
+  /// When the other side last read: "seen at HH:MM" for every message up
+  /// to [counterpartLastReadId].
+  final DateTime? counterpartLastReadAt;
   final DateTime updatedAt;
 
   bool get muted => mutedUntil != null && mutedUntil!.isAfter(DateTime.now());

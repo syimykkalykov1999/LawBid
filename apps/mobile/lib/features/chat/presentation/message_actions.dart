@@ -104,12 +104,15 @@ String _errorOf(Translator t, Object e) {
   return errorText(t, e);
 }
 
-/// Only text and stickers can be passed on: a voice note's or file's upload
-/// is single-use on the server.
+/// Everything a person wrote or sent can be passed on: the server copies a
+/// voice note's or file's reference, so nothing is uploaded again.
 bool canForward(ChatMessage m) =>
     !m.isLocal &&
     !m.revoked &&
-    (m.kind == MessageKind.text || m.kind == MessageKind.sticker);
+    (m.kind == MessageKind.text ||
+        m.kind == MessageKind.sticker ||
+        m.kind == MessageKind.voice ||
+        m.kind == MessageKind.attachment);
 
 /// Sends [messages] (oldest first) to every chat in [targets]; returns how
 /// many of them could not be passed on.
@@ -131,13 +134,9 @@ Future<int> forwardMessages(
         skipped++;
         continue;
       }
-      if (m.kind == MessageKind.sticker && m.sticker != null) {
+      if (m.kind != MessageKind.text) {
         try {
-          await repo.sendSticker(
-            target,
-            newClientMessageId(),
-            stickerId: m.sticker!.id,
-          );
+          await repo.forward(target, newClientMessageId(), m.id);
         } on Object {
           skipped++;
         }
@@ -251,6 +250,30 @@ Future<bool> confirmDelete(
   return !failed;
 }
 
+bool _sameDay(DateTime a, DateTime b) {
+  final x = a.toLocal();
+  final y = b.toLocal();
+  return x.year == y.year && x.month == y.month && x.day == y.day;
+}
+
+/// When the other side read my message [m]: the time they last read the
+/// chat, for every message up to the one they stopped at (WhatsApp's "Read
+/// at"). null = not read yet.
+DateTime? _readAt(WidgetRef ref, String conversationId, ChatMessage m) {
+  final c = ref.read(chatThreadProvider(conversationId)).conversation;
+  final at = c?.counterpartLastReadAt;
+  final last = c?.counterpartLastReadId;
+  if (c == null || at == null || last == null) return null;
+  if (m.id == last) return at;
+  final stop = ref
+      .read(chatThreadProvider(conversationId))
+      .messages
+      .where((x) => x.id == last)
+      .firstOrNull;
+  final upTo = stop?.createdAt ?? at;
+  return m.createdAt.isAfter(upTo) ? null : at;
+}
+
 /// The long-press sheet: quick reactions, then the actions that apply.
 Future<void> showMessageMenu(
   BuildContext context,
@@ -266,6 +289,8 @@ Future<void> showMessageMenu(
   final mine = m.senderId == ref.read(currentUserIdProvider);
   final live = !m.isLocal && !m.revoked;
   final text = m.kind == MessageKind.text && !m.revoked;
+  final readAt = mine && live ? _readAt(ref, conversationId, m) : null;
+  final f = ref.read(l10nFormatsProvider);
   final myEmoji = m.reactions.where((r) => r.mine).firstOrNull?.emoji;
   unawaited(HapticFeedback.mediumImpact());
 
@@ -326,6 +351,32 @@ Future<void> showMessageMenu(
                           );
                         },
                       ),
+                  ],
+                ),
+              ),
+            if (readAt != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.md,
+                  vertical: AppSpacing.sm,
+                ),
+                child: Row(
+                  key: const ValueKey('msg-read-at'),
+                  children: [
+                    AppIcon(AppIcons.doneAllRounded, color: colors.gold),
+                    const SizedBox(width: AppSpacing.sm),
+                    Text(
+                      [
+                        t.t('chat.seen'),
+                        if (!_sameDay(readAt, DateTime.now()))
+                          f.dayMonth(readAt),
+                        f.time(readAt),
+                      ].join(' · '),
+                      style: Theme.of(context)
+                          .extension<AppTypographyTokens>()!
+                          .body
+                          .copyWith(color: colors.textSecondary),
+                    ),
                   ],
                 ),
               ),

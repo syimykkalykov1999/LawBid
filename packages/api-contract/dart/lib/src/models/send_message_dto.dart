@@ -15,6 +15,7 @@ class SendMessageDto {
     this.stickerId,
     this.fileName,
     this.replyToId,
+    this.forwardFromId,
     this.forwarded,
     this.body,
     this.fileId,
@@ -38,6 +39,12 @@ class SendMessageDto {
 
   /// Owner 2026-10-20: a reply quotes this message of the same chat.
   final String? replyToId;
+
+  /// Owner 2026-10-20: forward this message (any chat of mine): the server.
+  /// copies its text / sticker and, for a voice note or a file, a new file.
+  /// row over the same stored object (no upload). Replaces the content.
+  /// fields of the request.
+  final String? forwardFromId;
 
   /// Owner 2026-10-20: a forwarded message ("Forwarded" label).
   final bool? forwarded;

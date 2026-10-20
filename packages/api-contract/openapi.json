@@ -127003,6 +127003,12 @@
             "format": "uuid",
             "description": "For \"Seen\" on own messages (§8.2)."
           },
+          "counterpartLastReadAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true,
+            "description": "When the other side last read; \"read at\" for every message up to it."
+          },
           "updatedAt": {
             "format": "date-time",
             "type": "string"
@@ -127289,6 +127295,11 @@
           "replyToId": {
             "type": "string",
             "description": "Owner 2026-10-20: a reply quotes this message of the same chat.",
+            "format": "uuid"
+          },
+          "forwardFromId": {
+            "type": "string",
+            "description": "Owner 2026-10-20: forward this message (any chat of mine): the server\ncopies its text / sticker and, for a voice note or a file, a new file\nrow over the same stored object (no upload). Replaces the content\nfields of the request.",
             "format": "uuid"
           },
           "forwarded": {
