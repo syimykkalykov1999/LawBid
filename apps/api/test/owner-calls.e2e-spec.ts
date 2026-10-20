@@ -221,6 +221,7 @@ describe('In-app calls (e2e, OQ-041)', () => {
     expect(await gotOffer).toEqual({
       callId,
       data: { type: 'offer', sdp: 'v=0' },
+      from: c.attorney.id,
     });
     const stranger = await prisma.user.create({
       data: { role: 'client', first_name: 'Eve', last_name: 'Drop' },
@@ -323,7 +324,7 @@ describe('In-app calls (e2e, OQ-041)', () => {
       await prisma.notification.count({
         where: { user_id: c.attorney.id, type: 'missed_call' },
       }),
-    ).toBe(1);
+    ).toBe(2); // the busy call and the unanswered one
 
     expect((await callLog(c.id)).map((m) => m.body_display)).toEqual([
       'declined',

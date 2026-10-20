@@ -451,7 +451,7 @@ export class RealtimeGateway
   @SubscribeMessage('call:signal')
   async callSignal(
     @ConnectedSocket() socket: Socket,
-    @MessageBody() body: { callId?: unknown; data?: unknown },
+    @MessageBody() body: { callId?: unknown; data?: unknown; to?: unknown },
   ): Promise<{ ok: boolean }> {
     const uid = state(socket)?.user?.sub;
     const callId =
@@ -464,21 +464,46 @@ export class RealtimeGateway
     }
     // SDP is a few KB; anything larger is not signaling.
     if (JSON.stringify(data).length > SIGNAL_MAX_BYTES) return { ok: false };
+    const to =
+      typeof body?.to === 'string' && UUID_RE.test(body.to)
+        ? body.to
+        : undefined;
     const call = await this.prisma.call.findUnique({
       where: { id: callId },
-      select: { caller_id: true, callee_id: true, status: true },
+      select: {
+        caller_id: true,
+        callee_id: true,
+        status: true,
+        is_group: true,
+        participants: {
+          where: { status: 'joined' },
+          select: { user_id: true },
+        },
+      },
     });
     if (!call || (call.status !== 'ringing' && call.status !== 'active')) {
       return { ok: false };
     }
-    const peer =
-      call.caller_id === uid
-        ? call.callee_id
-        : call.callee_id === uid
-          ? call.caller_id
-          : null;
-    if (!peer) return { ok: false };
-    this.nsp?.to(userRoom(peer)).emit('call:signal', { callId, data });
+    let targets: string[] = [];
+    if (call.is_group) {
+      // Group call: only joined members signal, to one named member or
+      // (no `to`) to all the others.
+      const joined = call.participants.map((p) => p.user_id);
+      if (joined.includes(uid)) {
+        const others = joined.filter((u) => u !== uid);
+        targets = to ? others.filter((u) => u === to) : others;
+      }
+    } else if (call.caller_id === uid) {
+      targets = [call.callee_id];
+    } else if (call.callee_id === uid) {
+      targets = [call.caller_id];
+    }
+    if (targets.length === 0) return { ok: false };
+    for (const t of targets) {
+      this.nsp
+        ?.to(userRoom(t))
+        .emit('call:signal', { callId, data, from: uid });
+    }
     return { ok: true };
   }
 

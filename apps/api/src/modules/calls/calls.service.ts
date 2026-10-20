@@ -7,7 +7,12 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { Call, CallStatus, Conversation } from '@prisma/client';
+import type {
+  Call,
+  CallParticipant,
+  CallStatus,
+  Conversation,
+} from '@prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
 import { SecretsService } from '../../common/secrets/secrets.service';
@@ -25,7 +30,9 @@ import { SubscriptionAccessService } from '../subscriptions/subscription-access.
 import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
 import type {
   CallDto,
+  CallParticipantDto,
   EndCallDto,
+  InviteCallDto,
   IceServersDto,
   StartCallDto,
   VideoCallConfigDto,
@@ -42,6 +49,10 @@ export const CALL_RING_TIMEOUT_MS = 65_000;
 /** A call nobody ended (both apps died) is closed after this. */
 export const CALL_MAX_ACTIVE_MS = 4 * 60 * 60 * 1000;
 const LIVE: CallStatus[] = ['ringing', 'active'];
+/** Mesh calls: every member sends audio to every other — a safe size. */
+export const GROUP_MAX_AUDIO = 6;
+export const GROUP_MAX_VIDEO = 4;
+const IN_CALL = ['joined', 'invited'];
 const TURN_TTL_SEC = 3600;
 
 type Outcome = 'ended' | 'missed' | 'declined' | 'busy' | 'canceled' | 'failed';
@@ -241,6 +252,10 @@ export class CallsService {
   async accept(user: RequestUser, id: string): Promise<CallDto> {
     await this.sweep();
     const call = await this.load(user, id);
+    const invite = call.is_group ? await this.rowOf(call.id, user.sub) : null;
+    if (invite?.status === 'invited') {
+      return this.joinAsInvitee(user, call, invite);
+    }
     if (call.callee_id !== user.sub) throw notFound();
     const conv = await this.prisma.conversation.findUniqueOrThrow({
       where: { id: call.conversation_id },
@@ -276,12 +291,25 @@ export class CallsService {
     }
   }
 
+  /** The call is over: people still being rung (group invites) stop. */
+  private async stopInvitePushes(call: Call): Promise<void> {
+    if (!call.is_group) return;
+    const invited = await this.prisma.callParticipant.findMany({
+      where: { call_id: call.id, status: 'invited' },
+      select: { user_id: true },
+    });
+    for (const { user_id: recipientId } of invited) {
+      await this.push.enqueueCallEnded({ recipientId, callId: call.id });
+    }
+  }
+
   /** Owner 2026-10-20: a minimised phone has no socket to hear `call:ended`
    * (the other side hung up, the call failed, the sweep closed it) — a
    * silent push tells both phones the answered call is over, so the app
    * closes the screen, the notification and the CallKit call at once. */
   private async endedActivePush(call: Call): Promise<void> {
-    for (const recipientId of [call.caller_id, call.callee_id]) {
+    const rows = call.is_group ? await this.rowsOf(call.id) : [];
+    for (const recipientId of this.audience(call, rows)) {
       await this.push.enqueueCallEnded({
         recipientId,
         callId: call.id,
@@ -293,6 +321,10 @@ export class CallsService {
   /** POST /calls/:id/decline — the callee rejects a ringing call. */
   async decline(user: RequestUser, id: string): Promise<CallDto> {
     const call = await this.load(user, id);
+    const invite = call.is_group ? await this.rowOf(call.id, user.sub) : null;
+    if (invite?.status === 'invited') {
+      return this.declineInvite(user, call, invite);
+    }
     if (call.callee_id !== user.sub) throw notFound();
     if (call.status !== 'ringing') return this.toDto(call, user.sub);
     return this.finish(call, 'declined', user.sub);
@@ -302,6 +334,13 @@ export class CallsService {
   async end(user: RequestUser, id: string, dto: EndCallDto): Promise<CallDto> {
     const call = await this.load(user, id);
     if (!LIVE.includes(call.status)) return this.toDto(call, user.sub);
+    if (call.is_group) {
+      // Hanging up a group call = leaving it (it goes on for the others).
+      const row = await this.rowOf(call.id, user.sub);
+      if (row?.status === 'joined') return this.leaveGroup(user, call, row);
+      if (row?.status === 'invited') return this.declineInvite(user, call, row);
+      return this.toDto(call, user.sub);
+    }
     const reason = dto.reason ?? 'hangup';
     let outcome: Outcome;
     if (reason === 'failed') {
@@ -392,6 +431,7 @@ export class CallsService {
     for (const c of stale) {
       await this.finish(c, c.status === 'ringing' ? 'missed' : 'ended', null);
     }
+    await this.sweepInvites(now);
     return stale.length;
   }
 
@@ -426,10 +466,25 @@ export class CallsService {
       } else {
         await this.endedActivePush(call);
       }
+      await this.stopInvitePushes(call);
       await this.logCall(fresh, outcome);
-      for (const uid of [call.caller_id, call.callee_id]) {
+      const rows = call.is_group ? await this.rowsOf(call.id) : [];
+      const audience = [
+        ...new Set([
+          ...this.audience(call, rows),
+          // Anyone who was rung or in the call hears that it is over.
+          ...rows.map((r) => r.user_id),
+        ]),
+      ];
+      for (const uid of audience) {
         this.realtime.toUsers([uid], 'call:ended', {
           call: await this.toDto(fresh, uid),
+        });
+      }
+      if (call.is_group) {
+        await this.prisma.callParticipant.updateMany({
+          where: { call_id: call.id, status: { in: IN_CALL } },
+          data: { status: 'left', left_at: now },
         });
       }
       if (outcome === 'missed' || outcome === 'canceled') {
@@ -445,6 +500,426 @@ export class CallsService {
       }
     }
     return this.toDto(fresh, viewerId ?? call.caller_id);
+  }
+
+  // --- Group calls (owner 2026-10-20) ---------------------------------------
+
+  private async participantDtos(
+    rows: CallParticipant[],
+  ): Promise<CallParticipantDto[]> {
+    if (rows.length === 0) return [];
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: rows.map((r) => r.user_id) } },
+      select: {
+        id: true,
+        first_name: true,
+        last_name: true,
+        avatar_file_id: true,
+        attorney_profile: { select: { username: true } },
+        client_profile: { select: { username: true } },
+      },
+    });
+    const byId = new Map(users.map((u) => [u.id, u]));
+    const avatars = await this.files.avatarUrlsMany(
+      users.map((u) => u.avatar_file_id),
+    );
+    return rows.map((r) => {
+      const u = byId.get(r.user_id);
+      const name =
+        [u?.first_name, u?.last_name].filter(Boolean).join(' ').trim() || null;
+      const a = u?.avatar_file_id ? avatars.get(u.avatar_file_id) : undefined;
+      return {
+        userId: r.user_id,
+        displayName: name,
+        username:
+          u?.attorney_profile?.username ?? u?.client_profile?.username ?? null,
+        avatarUrl: a?.url256 ?? a?.url ?? null,
+        status: r.status as CallParticipantDto['status'],
+        muted: r.muted,
+        mutedByHost: r.muted_by_host,
+        joinedAt: r.joined_at,
+      };
+    });
+  }
+
+  /** `call:participants` to everyone in (or ringing for) the call. */
+  private async broadcastParticipants(
+    callId: string,
+    extra: string[] = [],
+  ): Promise<void> {
+    const call = await this.prisma.call.findUnique({ where: { id: callId } });
+    if (!call?.is_group) return;
+    const rows = await this.rowsOf(callId);
+    const ids = [...new Set([...this.audience(call, rows), ...extra])];
+    this.realtime.toUsers(ids, 'call:participants', {
+      callId,
+      hostId: this.hostOf(call, rows),
+      participants: await this.participantDtos(rows),
+    });
+  }
+
+  /** Turns a two-person call into a group call (idempotent). */
+  private async ensureGroup(call: Call): Promise<Call> {
+    if (call.is_group) return call;
+    const joinedAt = call.answered_at ?? new Date();
+    return this.prisma.$transaction(async (tx) => {
+      const fresh = await tx.call.update({
+        where: { id: call.id },
+        data: { is_group: true },
+      });
+      for (const uid of [call.caller_id, call.callee_id]) {
+        await tx.callParticipant.upsert({
+          where: { call_id_user_id: { call_id: call.id, user_id: uid } },
+          create: {
+            call_id: call.id,
+            user_id: uid,
+            status: 'joined',
+            joined_at: joinedAt,
+          },
+          update: {},
+        });
+      }
+      return fresh;
+    });
+  }
+
+  /** POST /calls/:id/participants — a member adds a person to the call. */
+  async invite(
+    user: RequestUser,
+    id: string,
+    dto: InviteCallDto,
+  ): Promise<CallDto> {
+    await this.sweep();
+    let call = await this.load(user, id);
+    if (call.status !== 'active') throw conflict();
+    const me = await this.rowOf(call.id, user.sub);
+    const isMember = call.is_group
+      ? me?.status === 'joined'
+      : call.caller_id === user.sub || call.callee_id === user.sub;
+    if (!isMember) throw notFound();
+
+    const targetId = await this.resolveInvitee(dto);
+    if (!targetId || targetId === user.sub) {
+      throw new NotFoundException({
+        code: ErrorCode.NOT_FOUND,
+        message: 'User not found.',
+      });
+    }
+    // Calls stay between people who can chat: the invitee has an open,
+    // unlocked chat with the inviter or with someone already in the call
+    // (a friend of a member), or is an attorney with an active subscription.
+    const memberRows = call.is_group ? await this.rowsOf(call.id) : [];
+    const memberIds = call.is_group
+      ? memberRows.filter((r) => r.status === 'joined').map((r) => r.user_id)
+      : [call.caller_id, call.callee_id];
+    let conv = await this.prisma.conversation.findFirst({
+      where: {
+        status: { not: 'closed' },
+        contacts_unlocked: true,
+        OR: [
+          { client_id: user.sub, attorney_id: targetId },
+          { client_id: targetId, attorney_id: user.sub },
+          { client_id: { in: memberIds }, attorney_id: targetId },
+          { client_id: targetId, attorney_id: { in: memberIds } },
+        ],
+      },
+    });
+    if (!conv) {
+      // A public professional: any attorney with an active subscription.
+      const lawyer = await this.prisma.user.findFirst({
+        where: { id: targetId, role: 'attorney' },
+        select: { id: true },
+      });
+      if (lawyer && (await this.subscriptions.isActive(targetId))) {
+        conv = await this.prisma.conversation.findFirst({
+          where: { id: call.conversation_id },
+        });
+      }
+    }
+    if (!conv) {
+      throw new ConflictException({
+        code: ErrorCode.CALL_NOT_ALLOWED,
+        message: 'You can only add people you can chat with.',
+      });
+    }
+    await this.blocks.assertNotBlocked(user.sub, targetId);
+    if (
+      this.entitlements &&
+      !(await this.entitlements.has(user.sub, 'calls'))
+    ) {
+      throw new ForbiddenException({
+        code: ErrorCode.ENTITLEMENT_REQUIRED,
+        message: 'Your plan does not include calls.',
+      });
+    }
+    await this.assertSubscription(conv);
+
+    const rows = call.is_group ? await this.rowsOf(call.id) : [];
+    const current = call.is_group
+      ? rows.filter((r) => IN_CALL.includes(r.status))
+      : [];
+    const size = call.is_group ? current.length : 2;
+    const max = call.video ? GROUP_MAX_VIDEO : GROUP_MAX_AUDIO;
+    if (current.some((r) => r.user_id === targetId))
+      return this.toDto(call, user.sub);
+    if (
+      !call.is_group &&
+      (targetId === call.caller_id || targetId === call.callee_id)
+    ) {
+      return this.toDto(call, user.sub);
+    }
+    if (size >= max) {
+      throw new ConflictException({
+        code: ErrorCode.CALL_STATE_CONFLICT,
+        message: 'The call is full.',
+      });
+    }
+    if (await this.liveCallOf(targetId)) {
+      throw new ConflictException({
+        code: ErrorCode.CALL_IN_PROGRESS,
+        message: 'That person is in another call.',
+      });
+    }
+
+    call = await this.ensureGroup(call);
+    await this.prisma.callParticipant.upsert({
+      where: { call_id_user_id: { call_id: call.id, user_id: targetId } },
+      create: {
+        call_id: call.id,
+        user_id: targetId,
+        invited_by_id: user.sub,
+        status: 'invited',
+      },
+      update: {
+        invited_by_id: user.sub,
+        status: 'invited',
+        invited_at: new Date(),
+        joined_at: null,
+        left_at: null,
+        muted: false,
+        muted_by_host: false,
+      },
+    });
+    this.realtime.toUsers([targetId], 'call:incoming', {
+      call: await this.toDto(call, targetId),
+    });
+    await this.push.enqueueCall({ recipientId: targetId, callId: call.id });
+    await this.broadcastParticipants(call.id);
+    return this.toDto(call, user.sub);
+  }
+
+  private async resolveInvitee(dto: InviteCallDto): Promise<string | null> {
+    if (dto.userId) {
+      const u = await this.prisma.user.findFirst({
+        where: { id: dto.userId, status: 'active' },
+        select: { id: true },
+      });
+      return u?.id ?? null;
+    }
+    const handle = dto.username?.trim().replace(/^@/, '').toLowerCase();
+    if (!handle) return null;
+    const u = await this.prisma.user.findFirst({
+      where: {
+        status: 'active',
+        OR: [
+          { attorney_profile: { username_lower: handle } },
+          { client_profile: { username_lower: handle } },
+        ],
+      },
+      select: { id: true },
+    });
+    return u?.id ?? null;
+  }
+
+  /** An invited person picks up (POST /calls/:id/accept). */
+  private async joinAsInvitee(
+    user: RequestUser,
+    call: Call,
+    row: CallParticipant,
+  ): Promise<CallDto> {
+    if (call.status !== 'active') throw conflict();
+    const { count } = await this.prisma.callParticipant.updateMany({
+      where: { id: row.id, status: 'invited' },
+      data: { status: 'joined', joined_at: new Date() },
+    });
+    if (count === 0) throw conflict();
+    this.realtime.toUsers([user.sub], 'call:accepted', {
+      call: await this.toDto(call, user.sub),
+    });
+    // Their other devices stop ringing.
+    await this.push.enqueueCallEnded({
+      recipientId: user.sub,
+      callId: call.id,
+    });
+    await this.broadcastParticipants(call.id);
+    return this.toDto(call, user.sub);
+  }
+
+  /** An invited person says no (POST /calls/:id/decline). */
+  private async declineInvite(
+    user: RequestUser,
+    call: Call,
+    row: CallParticipant,
+  ): Promise<CallDto> {
+    await this.prisma.callParticipant.updateMany({
+      where: { id: row.id, status: 'invited' },
+      data: { status: 'declined', left_at: new Date() },
+    });
+    await this.push.enqueueCallEnded({
+      recipientId: user.sub,
+      callId: call.id,
+    });
+    await this.broadcastParticipants(call.id, [user.sub]);
+    return this.toDto(call, user.sub);
+  }
+
+  /** A joined member hangs up a group call: they leave, the call goes on
+   * while two or more are in it. */
+  private async leaveGroup(
+    user: RequestUser,
+    call: Call,
+    row: CallParticipant,
+  ): Promise<CallDto> {
+    await this.prisma.callParticipant.updateMany({
+      where: { id: row.id, status: 'joined' },
+      data: { status: 'left', left_at: new Date() },
+    });
+    const rows = await this.rowsOf(call.id);
+    const joined = rows.filter((r) => r.status === 'joined');
+    if (joined.length < 2) {
+      return this.finish(call, 'ended', user.sub);
+    }
+    await this.push.enqueueCallEnded({
+      recipientId: user.sub,
+      callId: call.id,
+      ended: true,
+    });
+    await this.broadcastParticipants(call.id, [user.sub]);
+    return this.toDto(call, user.sub);
+  }
+
+  private async hostOnly(
+    user: RequestUser,
+    id: string,
+  ): Promise<{ call: Call; rows: CallParticipant[] }> {
+    const call = await this.load(user, id);
+    if (!call.is_group || call.status !== 'active') throw conflict();
+    const rows = await this.rowsOf(call.id);
+    if (this.hostOf(call, rows) !== user.sub) {
+      throw new ForbiddenException({
+        code: ErrorCode.FORBIDDEN,
+        message: 'Only the host can do this.',
+      });
+    }
+    return { call, rows };
+  }
+
+  /** POST /calls/:id/participants/:userId/mute — the host switches
+   * someone's microphone off (they may switch it on again). */
+  async muteParticipant(
+    user: RequestUser,
+    id: string,
+    targetId: string,
+    muted: boolean,
+  ): Promise<CallDto> {
+    const { call, rows } = await this.hostOnly(user, id);
+    const row = rows.find((r) => r.user_id === targetId);
+    if (!row || row.status !== 'joined') throw notFound();
+    await this.prisma.callParticipant.update({
+      where: { id: row.id },
+      data: muted
+        ? { muted: true, muted_by_host: true }
+        : { muted_by_host: false },
+    });
+    this.realtime.toUsers([targetId], 'call:muted', {
+      callId: call.id,
+      muted,
+      byUserId: user.sub,
+    });
+    await this.broadcastParticipants(call.id);
+    return this.toDto(call, user.sub);
+  }
+
+  /** DELETE /calls/:id/participants/:userId — the host removes someone. */
+  async removeParticipant(
+    user: RequestUser,
+    id: string,
+    targetId: string,
+  ): Promise<CallDto> {
+    const { call, rows } = await this.hostOnly(user, id);
+    const row = rows.find((r) => r.user_id === targetId);
+    if (!row || !IN_CALL.includes(row.status) || targetId === user.sub) {
+      throw notFound();
+    }
+    await this.prisma.callParticipant.update({
+      where: { id: row.id },
+      data: { status: 'removed', left_at: new Date() },
+    });
+    this.realtime.toUsers([targetId], 'call:removed', { callId: call.id });
+    await this.push.enqueueCallEnded({
+      recipientId: targetId,
+      callId: call.id,
+      ended: true,
+    });
+    const joined = (await this.rowsOf(call.id)).filter(
+      (r) => r.status === 'joined',
+    );
+    if (joined.length < 2) return this.finish(call, 'ended', user.sub);
+    await this.broadcastParticipants(call.id, [targetId]);
+    return this.toDto(call, user.sub);
+  }
+
+  /** POST /calls/:id/mute-state — a member tells the others their own
+   * microphone is off / on (the mute icon in the list). */
+  async setMuteState(
+    user: RequestUser,
+    id: string,
+    muted: boolean,
+  ): Promise<CallDto> {
+    const call = await this.load(user, id);
+    if (!call.is_group || call.status !== 'active') {
+      return this.toDto(call, user.sub);
+    }
+    await this.prisma.callParticipant.updateMany({
+      where: { call_id: call.id, user_id: user.sub, status: 'joined' },
+      data: muted ? { muted: true } : { muted: false, muted_by_host: false },
+    });
+    await this.broadcastParticipants(call.id);
+    return this.toDto(call, user.sub);
+  }
+
+  /** Invited people nobody answered for too long: missed. */
+  private async sweepInvites(now: Date): Promise<void> {
+    const stale = await this.prisma.callParticipant.findMany({
+      where: {
+        status: 'invited',
+        invited_at: { lt: new Date(now.getTime() - CALL_RING_TIMEOUT_MS) },
+        call: { status: 'active' },
+      },
+      take: 200,
+    });
+    for (const row of stale) {
+      const { count } = await this.prisma.callParticipant.updateMany({
+        where: { id: row.id, status: 'invited' },
+        data: { status: 'declined', left_at: now },
+      });
+      if (count === 0) continue;
+      await this.push.enqueueCallEnded({
+        recipientId: row.user_id,
+        callId: row.call_id,
+      });
+      this.realtime.toUsers([row.user_id], 'call:ended', {
+        call: await this.toDtoById(row.call_id, row.user_id),
+      });
+      await this.broadcastParticipants(row.call_id);
+    }
+  }
+
+  private async toDtoById(callId: string, viewerId: string) {
+    const call = await this.prisma.call.findUniqueOrThrow({
+      where: { id: callId },
+    });
+    return this.toDto(call, viewerId);
   }
 
   /** The finished call as a chat message (sender = caller). */
@@ -496,7 +971,19 @@ export class CallsService {
     return this.prisma.call.findFirst({
       where: {
         status: { in: LIVE },
-        OR: [{ caller_id: userId }, { callee_id: userId }],
+        OR: [
+          // A group call counts only while the person is still in it.
+          {
+            is_group: false,
+            OR: [{ caller_id: userId }, { callee_id: userId }],
+          },
+          {
+            is_group: true,
+            participants: {
+              some: { user_id: userId, status: { in: IN_CALL } },
+            },
+          },
+        ],
       },
       select: { id: true },
     });
@@ -504,15 +991,52 @@ export class CallsService {
 
   private async load(user: RequestUser, id: string): Promise<Call> {
     const call = await this.prisma.call.findUnique({ where: { id } });
-    if (!call || (call.caller_id !== user.sub && call.callee_id !== user.sub)) {
-      throw notFound();
-    }
-    return call;
+    if (!call) throw notFound();
+    if (call.caller_id === user.sub || call.callee_id === user.sub) return call;
+    if (call.is_group && (await this.rowOf(call.id, user.sub))) return call;
+    throw notFound();
+  }
+
+  private rowOf(callId: string, userId: string) {
+    return this.prisma.callParticipant.findUnique({
+      where: { call_id_user_id: { call_id: callId, user_id: userId } },
+    });
+  }
+
+  private rowsOf(callId: string) {
+    return this.prisma.callParticipant.findMany({
+      where: { call_id: callId },
+      orderBy: { invited_at: 'asc' },
+    });
+  }
+
+  /** Who can mute / remove others: the caller while they are in the call,
+   * else whoever joined first. Null for a plain two-person call. */
+  private hostOf(call: Call, rows: CallParticipant[]): string | null {
+    if (!call.is_group) return null;
+    const joined = rows
+      .filter((r) => r.status === 'joined')
+      .sort(
+        (a, b) => (a.joined_at?.getTime() ?? 0) - (b.joined_at?.getTime() ?? 0),
+      );
+    if (joined.some((r) => r.user_id === call.caller_id)) return call.caller_id;
+    return joined[0]?.user_id ?? null;
+  }
+
+  /** Everyone who should hear about the call: both original members of a
+   * plain call, or the joined and invited of a group call. */
+  private audience(call: Call, rows: CallParticipant[]): string[] {
+    if (!call.is_group) return [call.caller_id, call.callee_id];
+    return rows.filter((r) => IN_CALL.includes(r.status)).map((r) => r.user_id);
   }
 
   private async toDto(call: Call, viewerId: string): Promise<CallDto> {
+    const rows = call.is_group ? await this.rowsOf(call.id) : [];
+    // An invited person sees who invited them as the "peer".
+    const inviter = rows.find((r) => r.user_id === viewerId)?.invited_by_id;
     const peerId =
-      call.caller_id === viewerId ? call.callee_id : call.caller_id;
+      inviter ??
+      (call.caller_id === viewerId ? call.callee_id : call.caller_id);
     const peer = await this.prisma.user.findUnique({
       where: { id: peerId },
       select: {
@@ -545,12 +1069,15 @@ export class CallsService {
           peer?.client_profile?.username ??
           null,
         avatarUrl: peer?.avatar_file_id
-          ? ((avatars.get(peer.avatar_file_id)?.url ??
-              avatars.get(peer.avatar_file_id)?.url256 ??
-              null))
+          ? (avatars.get(peer.avatar_file_id)?.url ??
+            avatars.get(peer.avatar_file_id)?.url256 ??
+            null)
           : null,
         kind: peer?.role === 'attorney' ? 'attorney' : 'client',
       },
+      group: call.is_group,
+      hostId: this.hostOf(call, rows),
+      participants: await this.participantDtos(rows),
       createdAt: call.created_at,
       answeredAt: call.answered_at,
       endedAt: call.ended_at,

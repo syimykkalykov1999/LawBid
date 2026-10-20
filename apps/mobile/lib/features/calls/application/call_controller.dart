@@ -392,6 +392,7 @@ class CallController extends Notifier<CallSession> {
   Future<void> accept() async {
     final call = state.call;
     if (call == null || state.phase != CallPhase.incoming) return;
+    final gen = _gen;
     unawaited(ref.read(appSoundsProvider).stopRingtone());
     if (!await ref.read(callMicPermissionProvider)()) {
       // Cannot talk: decline, so the caller is not left waiting.
@@ -404,7 +405,7 @@ class CallController extends Notifier<CallSession> {
       );
       return;
     }
-    if (!ref.mounted || state.phase != CallPhase.incoming) return;
+    if (!ref.mounted || gen != _gen || state.phase != CallPhase.incoming) return;
     state = state.copyWith(phase: CallPhase.connecting);
     unawaited(_swapToOngoing(call));
     try {
@@ -414,7 +415,8 @@ class CallController extends Notifier<CallSession> {
       unawaited(acceptF.then<void>((_) {}, onError: (Object _) {}));
       await _openMedia(call.id, video: call.video);
       final accepted = await acceptF;
-      if (!ref.mounted) return;
+      // The call ended (or another began) while the answer was in flight.
+      if (!ref.mounted || gen != _gen) return;
       state = state.copyWith(call: accepted);
       _armConnectTimeout();
       // The caller's offer may already be here.
@@ -424,9 +426,11 @@ class CallController extends Notifier<CallSession> {
         await _onSignal(s);
       }
     } on ApiException catch (e) {
+      if (gen != _gen) return;
       state = state.copyWith(errorCode: e.code);
       _finish(CallStatus.failed);
     } on Object catch (e) {
+      if (gen != _gen) return;
       if (_isMicDenied(e)) state = state.copyWith(errorCode: kMicDenied);
       _finish(CallStatus.failed);
       unawaited(_endQuietly(call.id, CallEndReason.failed));

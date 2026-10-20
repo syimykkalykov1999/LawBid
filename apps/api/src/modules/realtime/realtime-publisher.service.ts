@@ -21,6 +21,10 @@ export type RealtimeEvent =
   | 'call:incoming'
   | 'call:accepted'
   | 'call:ended'
+  // Group calls: the member list changed / the host muted or removed you.
+  | 'call:participants'
+  | 'call:muted'
+  | 'call:removed'
   | 'conversation:update'
   | 'notification:new'
   | 'badge:update';
