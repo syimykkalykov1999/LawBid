@@ -65,7 +65,10 @@ export const USAGE_LIMITS: Record<
     setting: 'rate_limit.channel_create_per_day',
     windowSec: DAY,
   },
-  channel_post: { setting: 'rate_limit.channel_post_per_hour', windowSec: HOUR },
+  channel_post: {
+    setting: 'rate_limit.channel_post_per_hour',
+    windowSec: HOUR,
+  },
   channel_comment: {
     setting: 'rate_limit.channel_comment_per_hour',
     windowSec: HOUR,

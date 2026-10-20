@@ -161,6 +161,18 @@ export const WIPE_TABLES: Readonly<Record<string, string>> = {
   video_assets: 'Bunny video rows (videos are deleted in Bunny too)',
   user_sticker_packs: 'installed sticker packs',
   user_recent_stickers: 'recent stickers',
+  // stories and channels (owner 2026-10-20)
+  stories: 'stories',
+  story_views: 'story views',
+  story_hidden: 'who stories are hidden from',
+  story_settings: 'story privacy settings',
+  channels: 'channels',
+  channel_admins: 'channel admins',
+  channel_subscriptions: 'channel subscribers',
+  channel_posts: 'channel posts',
+  channel_post_views: 'channel post views',
+  channel_reactions: 'channel reactions',
+  channel_comments: 'channel comments',
   // chat and calls
   conversations: 'chats',
   conversation_participants: 'chat members',
