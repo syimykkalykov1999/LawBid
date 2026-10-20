@@ -2,11 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/shared/presentation/edge_swipe.dart';
 
 /// Owner 2026-10-20 (Telegram): a chat row — a direct chat or a group — that
 /// pins on a swipe right and mutes on a swipe left; the row springs back
 /// (the action is done, the row stays in the list). Archive and delete live
-/// in the long-press menu and in «Select chats».
+/// in the long-press menu and in «Select chats». The swipe only starts at the
+/// two edges of the row (see [EdgeSwipe]); in the middle it changes the
+/// section.
 class ChatSwipe extends ConsumerWidget {
   const ChatSwipe({
     required this.id,
@@ -29,29 +32,25 @@ class ChatSwipe extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translatorProvider);
-    return Dismissible(
+    return KeyedSubtree(
       key: ValueKey('chat-swipe-$id'),
-      confirmDismiss: (dir) async {
-        if (dir == DismissDirection.startToEnd) {
-          onPin();
-        } else {
-          onMute();
-        }
-        return false;
-      },
-      background: _SwipeBackground(
-        key: ValueKey('chat-swipe-pin-$id'),
-        icon: pinned ? AppIcons.pushPinOutlined : AppIcons.pushPin,
-        label: t.t(pinned ? 'chat.organize.unpin' : 'chat.organize.pin'),
-        alignEnd: false,
+      child: EdgeSwipe(
+        onStart: onPin,
+        onEnd: onMute,
+        startBackground: _SwipeBackground(
+          key: ValueKey('chat-swipe-pin-$id'),
+          icon: pinned ? AppIcons.pushPinOutlined : AppIcons.pushPin,
+          label: t.t(pinned ? 'chat.organize.unpin' : 'chat.organize.pin'),
+          alignEnd: false,
+        ),
+        endBackground: _SwipeBackground(
+          key: ValueKey('chat-swipe-mute-$id'),
+          icon: AppIcons.notificationsOffOutlined,
+          label: t.t(muted ? 'chat.unmute' : 'chat.mute'),
+          alignEnd: true,
+        ),
+        child: child,
       ),
-      secondaryBackground: _SwipeBackground(
-        key: ValueKey('chat-swipe-mute-$id'),
-        icon: AppIcons.notificationsOffOutlined,
-        label: t.t(muted ? 'chat.unmute' : 'chat.mute'),
-        alignEnd: true,
-      ),
-      child: child,
     );
   }
 }

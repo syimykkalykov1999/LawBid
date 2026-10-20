@@ -27,6 +27,7 @@ import 'package:lawbid/features/team/presentation/task_sheet.dart';
 import 'package:lawbid/features/team/presentation/task_widgets.dart';
 import 'package:lawbid/features/team/presentation/team_widgets.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
+import 'package:lawbid/shared/presentation/edge_swipe.dart';
 
 /// Owner 2026-10-05: «Сегодня» (by time of day), «Все» (by day),
 /// «Архив» (finished — kept a year, then removed) and an assistant's
@@ -1319,27 +1320,20 @@ class _SwipeRow extends StatelessWidget {
       colors.goldTint,
       start: false,
     );
-    return Dismissible(
+    final rightBg =
+        bg(AppIcons.checkRounded, rightLabel, colors.gold, start: true);
+    void fire(VoidCallback? call) {
+      unawaited(HapticFeedback.mediumImpact());
+      // The card stays; the list updates from the server.
+      call?.call();
+    }
+
+    return EdgeSwipe(
       key: ValueKey('dismiss-${task.id}'),
-      direction: right && left
-          ? DismissDirection.horizontal
-          : right
-              ? DismissDirection.startToEnd
-              : DismissDirection.endToStart,
-      background: right
-          ? bg(AppIcons.checkRounded, rightLabel, colors.gold, start: true)
-          : leftBg,
-      secondaryBackground: right && left ? leftBg : null,
-      confirmDismiss: (d) async {
-        unawaited(HapticFeedback.mediumImpact());
-        if (d == DismissDirection.startToEnd) {
-          onRight?.call();
-        } else {
-          onLeft?.call();
-        }
-        // The card stays; the list updates from the server.
-        return false;
-      },
+      onStart: right ? () => fire(onRight) : null,
+      onEnd: left ? () => fire(onLeft) : null,
+      startBackground: right ? rightBg : leftBg,
+      endBackground: leftBg,
       child: child,
     );
   }
