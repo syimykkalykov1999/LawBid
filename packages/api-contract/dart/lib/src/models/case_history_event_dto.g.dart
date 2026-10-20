@@ -15,6 +15,7 @@ CaseHistoryEventDto _$CaseHistoryEventDtoFromJson(Map<String, dynamic> json) =>
         json['actorRole'] as String,
       ),
       amountCents: (json['amountCents'] as num?)?.toInt(),
+      percentBps: (json['percentBps'] as num?)?.toInt(),
       feeType: json['feeType'] == null
           ? null
           : FeeType.fromJson(json['feeType'] as String),
@@ -30,6 +31,7 @@ Map<String, dynamic> _$CaseHistoryEventDtoToJson(
   'createdAt': instance.createdAt,
   'actorRole': instance.actorRole.toJson(),
   'amountCents': ?instance.amountCents,
+  'percentBps': ?instance.percentBps,
   'feeType': ?instance.feeType?.toJson(),
   'roundNo': ?instance.roundNo,
   'reason': ?instance.reason,

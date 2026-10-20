@@ -64,6 +64,14 @@ export class CaseDto {
   @ApiProperty()
   description!: string;
 
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description:
+      'Owner 2026-10-18: the private details — only for the owner and the accepted attorney.',
+  })
+  privateDetails!: string | null;
+
   @ApiProperty({ type: PracticeAreaRefDto })
   practiceArea!: PracticeAreaRefDto;
 
@@ -87,6 +95,13 @@ export class CaseDto {
 
   @ApiPropertyOptional({ type: 'integer', nullable: true })
   budgetCents!: number | null;
+
+  @ApiPropertyOptional({
+    type: 'integer',
+    nullable: true,
+    description: 'Owner 2026-10-17: budgetMode = percent → basis points.',
+  })
+  budgetPercentBps!: number | null;
 
   /** Owner 2026-10-04: `art:0..3` / `icon:<name>`; null = from the id. */
   @ApiPropertyOptional({ type: String, nullable: true, example: 'art:2' })
@@ -166,6 +181,29 @@ export class CaseDto {
    */
   @ApiPropertyOptional({ type: String, nullable: true })
   stalePromptSentAt!: string | null;
+
+  /** OQ-054: set when the case was paused (hidden from the attorneys' feed
+   * and search): the client's screens show «Кейс скрыт · Вернуть». */
+  @ApiPropertyOptional({ type: String, nullable: true })
+  pausedAt!: string | null;
+
+  /** OQ-054: «Вам ещё нужен адвокат?» is waiting for an answer. */
+  @ApiProperty()
+  stillNeededPending!: boolean;
+
+  /** OQ-054: «Сменить на «Не срочно»» is offered (urgent / very urgent
+   * and older than 7 days). */
+  @ApiProperty()
+  canMakeNotUrgent!: boolean;
+
+  /** OQ-054: when the unanswered question hides the case from the
+   * attorneys' feed (null = no question waiting). */
+  @ApiPropertyOptional({ type: String, nullable: true })
+  hidesAt!: string | null;
+
+  /** OQ-054: when a paused case moves to the archive (null = not paused). */
+  @ApiPropertyOptional({ type: String, nullable: true })
+  archivesAt!: string | null;
 }
 
 /** One card of GET /users/me/cases (docs/04 §11.1). */
@@ -206,6 +244,13 @@ export class CaseSummaryDto {
 
   @ApiPropertyOptional({ type: 'integer', nullable: true })
   budgetCents!: number | null;
+
+  @ApiPropertyOptional({
+    type: 'integer',
+    nullable: true,
+    description: 'Owner 2026-10-17: budgetMode = percent → basis points.',
+  })
+  budgetPercentBps!: number | null;
 
   /** Owner 2026-10-04: `art:0..3` / `icon:<name>`; null = from the id. */
   @ApiPropertyOptional({ type: String, nullable: true, example: 'art:2' })
@@ -254,6 +299,25 @@ export class CaseSummaryDto {
 
   @ApiProperty()
   lastActivityAt!: string;
+
+  /** OQ-054: paused = hidden from the attorneys' feed («На паузе»). */
+  @ApiPropertyOptional({ type: String, nullable: true })
+  pausedAt!: string | null;
+
+  @ApiProperty()
+  stillNeededPending!: boolean;
+
+  @ApiProperty()
+  canMakeNotUrgent!: boolean;
+
+  /** OQ-054: when the unanswered question hides the case from the
+   * attorneys' feed (null = no question waiting). */
+  @ApiPropertyOptional({ type: String, nullable: true })
+  hidesAt!: string | null;
+
+  /** OQ-054: when a paused case moves to the archive (null = not paused). */
+  @ApiPropertyOptional({ type: String, nullable: true })
+  archivesAt!: string | null;
 }
 
 export interface CasePage {

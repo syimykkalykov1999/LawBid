@@ -30,6 +30,7 @@ import 'package:lawbid/features/client_badge/presentation/client_badge_screen.da
 import 'package:lawbid/features/client_plan/client_plan_routes.dart';
 import 'package:lawbid/features/create/presentation/screens/create_screen.dart';
 import 'package:lawbid/features/feed/presentation/screens/feed_screen.dart';
+import 'package:lawbid/features/guide/presentation/guide_screen.dart';
 import 'package:lawbid/features/legal/presentation/dmca_notice_screen.dart';
 import 'package:lawbid/features/legal/presentation/legal_accept_screen.dart';
 import 'package:lawbid/features/mine/presentation/screens/mine_screen.dart';
@@ -57,6 +58,7 @@ import 'package:lawbid/features/search/presentation/screens/search_screen.dart';
 import 'package:lawbid/features/settings/about/about_screen.dart';
 import 'package:lawbid/features/settings/account/account_routes.dart';
 import 'package:lawbid/features/settings/active_devices/presentation/active_devices_screen.dart';
+import 'package:lawbid/features/settings/archive/archive_screen.dart';
 import 'package:lawbid/features/settings/data_export/presentation/data_export_screen.dart';
 import 'package:lawbid/features/settings/saved/saved_screen.dart';
 import 'package:lawbid/features/social/social_routes.dart';
@@ -94,7 +96,7 @@ GoRouter appRouter(Ref ref) {
     // goes through the splash like every start; DeepLinkController opens it
     // right after (and after sign-in).
     overridePlatformDefaultLocation: kIsWeb,
-    observers: [routeObserver],
+    observers: [routeObserver, UnfocusOnNavigateObserver()],
     refreshListenable: refresh,
     redirect: (context, state) {
       CrashReporter.setRoute(state.matchedLocation);
@@ -125,6 +127,7 @@ GoRouter appRouter(Ref ref) {
         ),
         branches: [
           StatefulShellBranch(
+            observers: [UnfocusOnNavigateObserver()],
             routes: [
               GoRoute(
                 path: AppRoutes.feed,
@@ -133,6 +136,7 @@ GoRouter appRouter(Ref ref) {
             ],
           ),
           StatefulShellBranch(
+            observers: [UnfocusOnNavigateObserver()],
             routes: [
               GoRoute(
                 path: AppRoutes.search,
@@ -141,6 +145,7 @@ GoRouter appRouter(Ref ref) {
             ],
           ),
           StatefulShellBranch(
+            observers: [UnfocusOnNavigateObserver()],
             routes: [
               GoRoute(
                 path: AppRoutes.mine,
@@ -149,6 +154,7 @@ GoRouter appRouter(Ref ref) {
             ],
           ),
           StatefulShellBranch(
+            observers: [UnfocusOnNavigateObserver()],
             routes: [
               GoRoute(
                 path: AppRoutes.profile,
@@ -426,6 +432,18 @@ GoRouter appRouter(Ref ref) {
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) =>
             AppPageTransitions.push(state, const SavedScreen()),
+      ),
+      GoRoute(
+        path: AppRoutes.postArchive,
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            AppPageTransitions.push(state, const ArchiveScreen()),
+      ),
+      GoRoute(
+        path: AppRoutes.guide,
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            AppPageTransitions.push(state, const GuideScreen()),
       ),
       GoRoute(
         path: AppRoutes.dataExport,

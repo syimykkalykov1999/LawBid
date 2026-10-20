@@ -4,7 +4,7 @@ import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
 import 'package:lawbid/core/design_system/theme/app_typography_tokens.dart';
 import 'package:lawbid/core/design_system/tokens/app_radii.dart';
 import 'package:lawbid/core/design_system/tokens/app_spacing.dart';
-import 'package:lawbid/core/l10n/l10n_formats.dart';
+import 'package:lawbid/core/design_system/widgets/inputs/field_counter.dart';
 
 /// General-purpose text field (file 07 §4 "AppTextField"): height 52, radius
 /// 12, `surface` fill, 1px `border`, focused border `gold` 1.5px, text 16.
@@ -103,6 +103,14 @@ class _AppTextFieldState extends State<AppTextField> {
     super.dispose();
   }
 
+  /// Owner 2026-10-19: the `n/max` counter inside the field, bottom right.
+  Widget _withCounter(Widget field) {
+    final max = widget.maxLength;
+    final controller = widget.controller;
+    if (max == null || controller == null) return field;
+    return InsideCounter(controller: controller, max: max, child: field);
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
@@ -129,77 +137,86 @@ class _AppTextFieldState extends State<AppTextField> {
             ),
             const SizedBox(height: AppSpacing.sm),
           ],
-          Container(
-            constraints: BoxConstraints(minHeight: widget.minHeight),
-            decoration: BoxDecoration(
-              color: colors.surface,
-              borderRadius: BorderRadius.circular(AppRadii.field),
-              border: Border.all(color: borderColor, width: borderWidth),
-              boxShadow: _focused && !hasError
-                  ? [
-                      BoxShadow(
-                        color: colors.focusRingGlow,
-                        blurRadius: 4,
-                        spreadRadius: 1,
-                      ),
-                    ]
-                  : null,
-            ),
-            child: Row(
-              children: [
-                if (widget.leading != null) ...[
-                  const SizedBox(width: AppSpacing.md),
-                  widget.leading!,
-                  const SizedBox(width: 6),
-                ] else
-                  const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: TextField(
-                    onTapOutside: hideKeyboardOnTapOutside,
-                    controller: widget.controller,
-                    focusNode: _focusNode,
-                    autofocus: widget.autofocus,
-                    keyboardType: widget.keyboardType,
-                    inputFormatters: [
-                      ...?widget.inputFormatters,
-                      if (widget.maxLength != null)
-                        LengthLimitingTextInputFormatter(widget.maxLength),
-                    ],
-                    onChanged: (value) {
-                      if (widget.maxLength != null) setState(() {});
-                      widget.onChanged?.call(value);
-                    },
-                    obscureText: widget.obscureText,
-                    maxLines: widget.obscureText ? 1 : widget.maxLines,
-                    minLines: 1,
-                    textCapitalization: widget.textCapitalization,
-                    textInputAction: widget.textInputAction,
-                    autofillHints: widget.autofillHints,
-                    onSubmitted: widget.onSubmitted,
-                    enabled: widget.enabled,
-                    cursorColor: colors.gold,
-                    cursorWidth: 1.5,
-                    style: const TextStyle(fontSize: 14)
-                        .copyWith(color: colors.text),
-                    decoration: InputDecoration(
-                      hintText: widget.hintText,
-                      hintStyle: typography.body.copyWith(
-                        color: colors.textSecondary,
-                        fontSize: 14,
-                      ),
-                      border: InputBorder.none,
-                      isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(
-                        vertical: AppSpacing.lg + 1,
+          _withCounter(
+            Container(
+              constraints: BoxConstraints(minHeight: widget.minHeight),
+              decoration: BoxDecoration(
+                color: colors.surface,
+                borderRadius: BorderRadius.circular(AppRadii.field),
+                border: Border.all(color: borderColor, width: borderWidth),
+                boxShadow: _focused && !hasError
+                    ? [
+                        BoxShadow(
+                          color: colors.focusRingGlow,
+                          blurRadius: 4,
+                          spreadRadius: 1,
+                        ),
+                      ]
+                    : null,
+              ),
+              child: Row(
+                children: [
+                  if (widget.leading != null) ...[
+                    const SizedBox(width: AppSpacing.md),
+                    widget.leading!,
+                    const SizedBox(width: 6),
+                  ] else
+                    const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: TextField(
+                      onTapOutside: hideKeyboardOnTapOutside,
+                      controller: widget.controller,
+                      focusNode: _focusNode,
+                      autofocus: widget.autofocus,
+                      keyboardType: widget.keyboardType,
+                      inputFormatters: [
+                        ...?widget.inputFormatters,
+                        if (widget.maxLength != null)
+                          LengthLimitingTextInputFormatter(widget.maxLength),
+                      ],
+                      onChanged: (value) {
+                        if (widget.maxLength != null) setState(() {});
+                        widget.onChanged?.call(value);
+                      },
+                      obscureText: widget.obscureText,
+                      maxLines: widget.obscureText ? 1 : widget.maxLines,
+                      minLines: 1,
+                      textCapitalization: widget.textCapitalization,
+                      textInputAction: widget.textInputAction,
+                      autofillHints: widget.autofillHints,
+                      onSubmitted: widget.onSubmitted,
+                      enabled: widget.enabled,
+                      cursorColor: colors.gold,
+                      cursorWidth: 1.5,
+                      style: const TextStyle(fontSize: 14)
+                          .copyWith(color: colors.text),
+                      decoration: InputDecoration(
+                        hintText: widget.hintText,
+                        hintStyle: typography.body.copyWith(
+                          color: colors.textSecondary,
+                          fontSize: 14,
+                        ),
+                        border: InputBorder.none,
+                        isDense: true,
+                        // Owner 2026-10-19: room for the counter inside.
+                        contentPadding: EdgeInsets.only(
+                          top: AppSpacing.lg + 1,
+                          bottom: AppSpacing.lg +
+                              1 +
+                              (widget.maxLength != null &&
+                                      widget.controller != null
+                                  ? kInsideCounterRoom - 4
+                                  : 0),
+                        ),
                       ),
                     ),
                   ),
-                ),
-                if (widget.trailing != null)
-                  widget.trailing!
-                else
-                  const SizedBox(width: AppSpacing.md),
-              ],
+                  if (widget.trailing != null)
+                    widget.trailing!
+                  else
+                    const SizedBox(width: AppSpacing.md),
+                ],
+              ),
             ),
           ),
           if (hasError) ...[
@@ -208,28 +225,11 @@ class _AppTextFieldState extends State<AppTextField> {
               widget.errorText!,
               style: typography.caption.copyWith(color: colors.danger),
             ),
-          ] else if (widget.helperText != null || widget.maxLength != null) ...[
+          ] else if (widget.helperText != null) ...[
             const SizedBox(height: AppSpacing.xs),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    widget.helperText ?? '',
-                    style: typography.caption
-                        .copyWith(color: colors.textSecondary),
-                  ),
-                ),
-                if (widget.maxLength != null)
-                  ExcludeSemantics(
-                    child: Text(
-                      context.digits(
-                        '${widget.controller?.text.characters.length ?? 0}/${widget.maxLength}',
-                      ),
-                      style: typography.caption
-                          .copyWith(color: colors.textSecondary),
-                    ),
-                  ),
-              ],
+            Text(
+              widget.helperText!,
+              style: typography.caption.copyWith(color: colors.textSecondary),
             ),
           ],
         ],

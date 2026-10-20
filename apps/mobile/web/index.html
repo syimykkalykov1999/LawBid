@@ -18,7 +18,28 @@
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <script>
+    /* Owner 2026-10-18 (iPhone): Flutter replaces this tag with one that
+       allows zoom up to 5x, and its hidden text fields are 14px, so iOS
+       Safari zoomed into the page on every tap in a field and half the
+       screen went off the edge. Keep our tag: no automatic zoom (pinch still
+       works on iOS), and the notch area is ours (viewport-fit=cover). */
+    (function () {
+      var want = 'width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover';
+      function fix() {
+        var tags = document.querySelectorAll('meta[name="viewport"]');
+        for (var i = 0; i < tags.length; i++) {
+          if (tags[i].getAttribute('content') !== want) tags[i].setAttribute('content', want);
+        }
+      }
+      new MutationObserver(fix).observe(document.head, { childList: true, subtree: true, attributes: true, attributeFilter: ['content'] });
+      /* After the keyboard closes iOS can leave the page shifted up. */
+      document.addEventListener('focusout', function () {
+        setTimeout(function () { if (window.scrollY || window.scrollX) window.scrollTo(0, 0); }, 60);
+      });
+    })();
+  </script>
   <meta name="description" content="LawBid: post your legal matter, licensed attorneys respond with offers, you choose. Find a lawyer by state and practice area.">
   <!-- Search engines: the address / and the public pages (scripts/seo) are
        indexed; every other address of the app answers with an

@@ -3,9 +3,11 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:lawbid/core/files/file_types.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
+import 'package:lawbid/features/cases/application/case_media_picker.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/domain/case_draft.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
@@ -33,7 +35,11 @@ class CasePhotoUpload {
 
   /// OQ-034: set for a document (PDF / Word) — shown as a file tile.
   final String? name;
-  bool get isDocument => name != null;
+
+  /// Owner 2026-10-19: a video counts with the photos.
+  bool get isVideo => isCaseVideoName(name);
+
+  bool get isDocument => name != null && !isVideo;
 
   /// Set once the upload passed the antivirus scan.
   final String? fileId;
@@ -41,10 +47,6 @@ class CasePhotoUpload {
 
   bool get uploading => fileId == null && !failed;
 }
-
-/// OQ-031: photos per case.
-/// OQ-031 default; the live count is the admin's (bug 17, [UploadPlace.kase]).
-const kCaseMaxPhotos = 9;
 
 class CreateCaseState {
   const CreateCaseState({
@@ -186,11 +188,21 @@ class CreateCaseController extends Notifier<CreateCaseState> {
         for (final b in picked) (bytes: b, name: null),
       ]);
 
-  /// OQ-034: photos and documents share the admin's slots (bug 17).
+  /// OQ-034 / owner 2026-10-19: photos (no `name`) and documents have
+  /// their own admin limits.
   void addFiles(List<({Uint8List bytes, String? name})> picked) {
-    final left = ref.read(uploadLimitsProvider)[UploadPlace.kase].maxFiles -
-        state.photos.length;
-    for (final f in picked.take(left)) {
+    final limits = ref.read(uploadLimitsProvider)[UploadPlace.kase];
+    bool doc(String? name) => name != null && !isCaseVideoName(name);
+    var media = state.photos.where((p) => !p.isDocument).length;
+    var docs = state.photos.length - media;
+    for (final f in picked) {
+      if (doc(f.name)) {
+        if (docs >= limits.maxFiles) continue;
+        docs++;
+      } else {
+        if (media >= limits.maxPhotos) continue;
+        media++;
+      }
       final item =
           CasePhotoUpload(key: _photoKey++, bytes: f.bytes, name: f.name);
       state = state.copyWith(photos: [...state.photos, item]);
@@ -202,6 +214,16 @@ class CreateCaseController extends Notifier<CreateCaseState> {
     CasePhotoUpload done;
     try {
       final limits = ref.read(uploadLimitsProvider)[UploadPlace.kase];
+      // Owner 2026-10-19: a format the admin has off fails here, on the
+      // tile of that file, not at «Опубликовать»; the others still upload.
+      final mime = sniffImageMime(item.bytes) ??
+          (item.name == null ? null : limits.mimeForName(item.name!));
+      if (mime != null && !limits.allowsMime(mime)) {
+        throw const ApiException(
+          code: ApiErrorCodes.fileTypeNotAllowed,
+          message: 'type',
+        );
+      }
       final id = await ref.read(socialActionsProvider).uploadPhoto(
             item.bytes,
             casePhoto: true,
@@ -375,10 +397,13 @@ CaseDraft draftFromCase(OwnerCase c) => CaseDraft(
       practiceNameEn: c.practice.nameEn,
       title: c.title,
       description: c.description,
+      privateDetails: c.privateDetails ?? '',
       primaryStateCode: c.primaryStateCode,
       additionalStateCodes: c.additionalStateCodes,
       city: c.city ?? '',
-      budgetIsAmount: !c.budget.isClarifyLater,
+      budgetIsAmount: !c.budget.isClarifyLater && !c.budget.isPercent,
+      budgetIsPercent: c.budget.isPercent,
+      budgetPercentBps: c.budget.percentBps,
       budgetDollars:
           c.budget.amountCents == null ? null : c.budget.amountCents! ~/ 100,
       practiceCode: c.practice.code,

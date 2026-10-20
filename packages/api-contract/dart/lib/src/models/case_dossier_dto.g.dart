@@ -11,6 +11,7 @@ CaseDossierDto _$CaseDossierDtoFromJson(Map<String, dynamic> json) =>
       imagesCount: (json['imagesCount'] as num).toInt(),
       documentsCount: (json['documentsCount'] as num).toInt(),
       descriptionLength: (json['descriptionLength'] as num).toInt(),
+      privateDetailsLength: (json['privateDetailsLength'] as num).toInt(),
     );
 
 Map<String, dynamic> _$CaseDossierDtoToJson(CaseDossierDto instance) =>
@@ -18,4 +19,5 @@ Map<String, dynamic> _$CaseDossierDtoToJson(CaseDossierDto instance) =>
       'imagesCount': instance.imagesCount,
       'documentsCount': instance.documentsCount,
       'descriptionLength': instance.descriptionLength,
+      'privateDetailsLength': instance.privateDetailsLength,
     };

@@ -33,6 +33,12 @@ export const POST_BODY_MAX = 5000;
 export const POST_TITLE_MAX = 120;
 export const POST_KINDS = ['post', 'news'] as const;
 export type PostKindValue = (typeof POST_KINDS)[number];
+
+/** Owner 2026-10-18 (profile tabs): 'video' — video posts / reels (Рилсы);
+ * 'visual' — photo or file posts without a video (Посты grid); 'text' —
+ * text-only posts (briefs). */
+export const POST_MEDIA_FILTERS = ['video', 'visual', 'text'] as const;
+export type PostMediaFilter = (typeof POST_MEDIA_FILTERS)[number];
 /** Hard ceilings; the live counts are the admin's «Загрузки и файлы»
  * (bug 17, default 9 photos and 9 documents per post / reel). */
 export const POST_MEDIA_MAX = 20;
@@ -88,11 +94,12 @@ export class PostAttachmentInputDto {
 
 /** POST /posts (docs/05 §3.1). */
 export class CreatePostDto {
-  /** Owner 2026-09-30: the card's title. */
-  @ApiProperty({ minLength: 1, maxLength: POST_TITLE_MAX })
+  /** Owner 2026-09-30: the card's title. Owner 2026-10-18: optional
+   * ('' is fine) — a post needs a title, a text, photos, a video or files
+   * (checked in PostsService.create). */
+  @ApiProperty({ maxLength: POST_TITLE_MAX })
   @Transform(trim)
   @IsString()
-  @MinLength(1)
   @MaxTextChars('limits.post_title_chars')
   title!: string;
 
@@ -194,11 +201,12 @@ export class CreatePostDto {
 
 /** PATCH /posts/:id — the title, the text and the qualification. */
 export class UpdatePostDto {
-  @ApiPropertyOptional({ minLength: 1, maxLength: POST_TITLE_MAX })
+  /** Owner 2026-10-18: '' clears the title (the post keeps its text,
+   * photos, video or files). */
+  @ApiPropertyOptional({ maxLength: POST_TITLE_MAX })
   @IsOptional()
   @Transform(trim)
   @IsString()
-  @MinLength(1)
   @MaxTextChars('limits.post_title_chars')
   title?: string;
 
@@ -244,6 +252,13 @@ export class PostCountersDto {
   @IsOptional()
   @IsBoolean()
   hideViews?: boolean;
+}
+
+/** Owner 2026-10-18: the author turns comments of an own post on / off. */
+export class PostCommentsSettingDto {
+  @ApiProperty()
+  @IsBoolean()
+  enabled!: boolean;
 }
 
 export class PostIdParamDto {
@@ -312,6 +327,15 @@ export class PostsPageQueryDto {
   @IsOptional()
   @IsIn(POST_KINDS)
   kind?: PostKindValue;
+
+  /** Owner 2026-10-18: the profile's Posts / Reels / briefs tabs. */
+  @ApiPropertyOptional({
+    enum: POST_MEDIA_FILTERS,
+    enumName: 'PostMediaFilter',
+  })
+  @IsOptional()
+  @IsIn(POST_MEDIA_FILTERS)
+  media?: PostMediaFilter;
 }
 
 export class PostAuthorDto {
@@ -371,8 +395,17 @@ export class PostReposterDto {
   @ApiProperty()
   username!: string;
 
+  /** Display name ("First Last"), empty when none is set. */
+  @ApiProperty()
+  name!: string;
+
   @ApiProperty({ enum: ['attorney', 'client'] })
   role!: 'attorney' | 'client';
+
+  /** Owner 2026-10-18: when this person reposted it (profile «Брифы и
+   * репосты» orders briefs and reposts by time); null in other lists. */
+  @ApiPropertyOptional({ type: String, nullable: true })
+  repostedAt?: string | null;
 }
 
 export class PostMediaDto {
@@ -446,6 +479,11 @@ export class PostDto {
 
   @ApiProperty({ default: true })
   commentsEnabled!: boolean;
+
+  /** Owner 2026-10-18: set while the author keeps the post in «Архив»
+   * (nobody else gets an archived post). */
+  @ApiPropertyOptional({ type: String, nullable: true, format: 'date-time' })
+  archivedAt!: string | null;
 
   /** Owner 2026-10-15: the author hid this counter (counts are 0 for others). */
   @ApiProperty({ default: false })
@@ -602,6 +640,9 @@ export class SavedPostsQueryDto {
   @MaxLength(300)
   cursor?: string;
 }
+
+/** Owner 2026-10-18: /posts/:id/reposts and /users/:id/reposts. */
+export class RepostsQueryDto extends SavedPostsQueryDto {}
 
 /** Owner 2026-10-13: can the caller attach files to a new post / reel. */
 export class PostAttachmentsAllowedDto {

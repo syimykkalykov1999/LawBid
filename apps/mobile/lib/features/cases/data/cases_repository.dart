@@ -20,6 +20,7 @@ class BidInput {
     required this.message,
     required this.startAvailability,
     this.amountCents,
+    this.percentBps,
     this.startDate,
     this.estimatedDurationDays,
     this.sendAsAttorneyId,
@@ -29,6 +30,9 @@ class BidInput {
   final String? sendAsAttorneyId;
   final FeeType feeType;
   final int? amountCents;
+
+  /// Owner 2026-10-17: contingency → basis points (3300 = 33 %).
+  final int? percentBps;
   final String message;
   final StartAvailability startAvailability;
   final DateTime? startDate;
@@ -43,6 +47,8 @@ class CaseFeedExtras {
     this.budgetMin,
     this.budgetMax,
     this.budgetUnknown = false,
+    this.budgetPercent = false,
+    this.percentMax,
     this.noBids = false,
     this.minUrgency,
     this.hasDeadline = false,
@@ -54,6 +60,10 @@ class CaseFeedExtras {
   final int? budgetMin;
   final int? budgetMax;
   final bool budgetUnknown;
+
+  /// Owner 2026-10-18: percent budgets too (up to [percentMax] percent).
+  final bool budgetPercent;
+  final int? percentMax;
   final bool noBids;
 
   /// Owner 2026-10-05: `soon` · `urgent` · `very_urgent` (at least), or
@@ -74,6 +84,8 @@ class CaseFeedExtras {
       other.budgetMin == budgetMin &&
       other.budgetMax == budgetMax &&
       other.budgetUnknown == budgetUnknown &&
+      other.budgetPercent == budgetPercent &&
+      other.percentMax == percentMax &&
       other.noBids == noBids;
 
   @override
@@ -82,6 +94,8 @@ class CaseFeedExtras {
         budgetMin,
         budgetMax,
         budgetUnknown,
+        budgetPercent,
+        percentMax,
         noBids,
         minUrgency,
         hasDeadline,
@@ -115,6 +129,10 @@ abstract interface class CasesRepository {
     DateTime? deadline,
     String? deadlineKind,
   });
+
+  /// Audit 2026-10-19: «Подробности» — the client, also once hired; an
+  /// empty text clears them.
+  Future<void> setPrivateDetails(String caseId, String text);
   Future<CursorPage<CaseSummary>> myCases(
     MyCasesFilter filter, {
     String? cursor,
@@ -130,14 +148,24 @@ abstract interface class CasesRepository {
   Future<void> deleteCase(String caseId);
   Future<void> restoreCase(String caseId);
   Future<void> keepAlive(String caseId);
+
+  /// OQ-054: the answer to «Вам ещё нужен адвокат?».
+  Future<void> answerStillNeeded(String caseId, StillNeededAnswer answer);
+
+  /// OQ-054: bring a paused case back into the attorneys' feed.
+  Future<void> resumeCase(String caseId);
   Future<void> completeCase(String caseId);
 
   // --- both parties of a bid ---
   Future<CaseBid> bid(String bidId);
   Future<CaseBid> accept(String bidId);
+
+  /// [percentBps] for a contingency bid (owner 2026-10-17), else
+  /// [amountCents].
   Future<CaseBid> counter(
     String bidId, {
-    required int amountCents,
+    int? amountCents,
+    int? percentBps,
     String? message,
   });
   Future<CaseBid> decline(String bidId);
@@ -220,14 +248,17 @@ class ApiCasesRepository implements CasesRepository {
               : [for (final p in draft.extraPractices) p.id],
           title: draft.title.trim(),
           description: draft.description.trim(),
+          privateDetails: draft.privateDetails.trim().isEmpty
+              ? null
+              : draft.privateDetails.trim(),
           primaryStateCode: draft.primaryStateCode!,
           additionalStateCodes: draft.additionalStateCodes,
           city: draft.city.trim().isEmpty ? null : draft.city.trim(),
-          budgetMode: draft.budgetIsAmount
-              ? api.BudgetMode.amount
-              : api.BudgetMode.clarifyLater,
+          budgetMode: _budgetMode(draft),
           budgetAmountDollars:
               draft.budgetIsAmount ? draft.budgetDollars : null,
+          budgetPercentBps:
+              draft.budgetIsPercent ? draft.budgetPercentBps : null,
           clientContactSharingConsent: contactSharingConsent ? true : null,
           photoFileIds: photoFileIds.isEmpty ? null : photoFileIds,
           coverKey: draft.coverKey,
@@ -256,15 +287,21 @@ class ApiCasesRepository implements CasesRepository {
     final amountCents = draft.budgetIsAmount && draft.budgetDollars != null
         ? draft.budgetDollars! * 100
         : null;
-    final budgetChanged = draft.budgetIsAmount ==
-            original.budget.isClarifyLater ||
-        (draft.budgetIsAmount && amountCents != original.budget.amountCents);
+    final budgetChanged = _budgetMode(draft) != original.budget.mode ||
+        (draft.budgetIsAmount && amountCents != original.budget.amountCents) ||
+        (draft.budgetIsPercent &&
+            draft.budgetPercentBps != original.budget.percentBps);
     await guardApiCall(
       () => _cases.updateCase(
         id: original.id,
         body: api.UpdateCaseDto(
           title: draft.title.trim(),
           description: draft.description.trim(),
+          // Sent only when changed; an empty string clears it.
+          privateDetails:
+              draft.privateDetails.trim() != (original.privateDetails ?? '')
+                  ? draft.privateDetails.trim()
+                  : null,
           practiceAreaId: draft.practiceAreaId != original.practice.id
               ? draft.practiceAreaId
               : null,
@@ -280,13 +317,12 @@ class ApiCasesRepository implements CasesRepository {
           additionalStateCodes: statesChanged ? states : null,
           // An empty string clears the city (null would mean "unchanged").
           city: draft.city.trim(),
-          budgetMode: budgetChanged
-              ? (draft.budgetIsAmount
-                  ? api.BudgetMode.amount
-                  : api.BudgetMode.clarifyLater)
-              : null,
+          budgetMode: budgetChanged ? _budgetMode(draft) : null,
           budgetAmountDollars: budgetChanged && draft.budgetIsAmount
               ? draft.budgetDollars
+              : null,
+          budgetPercentBps: budgetChanged && draft.budgetIsPercent
+              ? draft.budgetPercentBps
               : null,
           coverKey: draft.coverKey != original.coverKey ? draft.coverKey : null,
           urgency:
@@ -305,6 +341,16 @@ class ApiCasesRepository implements CasesRepository {
               ? api.CaseDeadlineKind.fromJson(draft.deadlineKind!)
               : null,
         ),
+      ),
+    );
+  }
+
+  @override
+  Future<void> setPrivateDetails(String caseId, String text) async {
+    await guardApiCall(
+      () => _cases.updateCasePrivateDetails(
+        id: caseId,
+        body: api.UpdatePrivateDetailsDto(privateDetails: text.trim()),
       ),
     );
   }
@@ -416,6 +462,19 @@ class ApiCasesRepository implements CasesRepository {
       guardApiCall(() => _cases.keepCaseAlive(id: caseId));
 
   @override
+  Future<void> answerStillNeeded(String caseId, StillNeededAnswer answer) =>
+      guardApiCall(
+        () => _cases.answerStillNeeded(
+          id: caseId,
+          body: api.StillNeededAnswerDto(answer: answer),
+        ),
+      );
+
+  @override
+  Future<void> resumeCase(String caseId) =>
+      guardApiCall(() => _cases.resumeCase(id: caseId));
+
+  @override
   Future<void> completeCase(String caseId) =>
       guardApiCall(() => _cases.completeCase(id: caseId));
 
@@ -437,7 +496,8 @@ class ApiCasesRepository implements CasesRepository {
   @override
   Future<CaseBid> counter(
     String bidId, {
-    required int amountCents,
+    int? amountCents,
+    int? percentBps,
     String? message,
   }) async =>
       CasesMappers.bid(
@@ -446,6 +506,7 @@ class ApiCasesRepository implements CasesRepository {
             id: bidId,
             body: api.CounterOfferDto(
               amountCents: amountCents,
+              percentBps: percentBps,
               message:
                   (message?.trim().isEmpty ?? true) ? null : message!.trim(),
             ),
@@ -495,6 +556,8 @@ class ApiCasesRepository implements CasesRepository {
         budgetMin: extras.budgetMin,
         budgetMax: extras.budgetMax,
         budgetUnknown: extras.budgetUnknown ? true : null,
+        budgetPercent: extras.budgetPercent ? true : null,
+        percentMax: extras.budgetPercent ? extras.percentMax : null,
         noBids: extras.noBids ? true : null,
         minUrgency: extras.minUrgency == null
             ? null
@@ -536,9 +599,13 @@ class ApiCasesRepository implements CasesRepository {
             caseId: caseId,
             body: api.CreateBidDto(
               feeType: input.feeType,
-              amountCents: input.feeType == FeeType.freeConsultation
+              amountCents: input.feeType == FeeType.freeConsultation ||
+                      input.feeType == FeeType.contingency
                   ? null
                   : input.amountCents,
+              percentBps: input.feeType == FeeType.contingency
+                  ? input.percentBps
+                  : null,
               message: input.message.trim(),
               startAvailability: input.startAvailability,
               startDate: input.startAvailability == StartAvailability.customDate
@@ -729,3 +796,10 @@ class ApiCasesRepository implements CasesRepository {
 
 bool _sameIds(List<String> a, List<String> b) =>
     a.length == b.length && a.toSet().containsAll(b);
+
+/// Owner 2026-10-17: «Сумма», «Проценты» or «Уточню позже».
+api.BudgetMode _budgetMode(CaseDraft d) => d.budgetIsPercent
+    ? api.BudgetMode.percent
+    : d.budgetIsAmount
+        ? api.BudgetMode.amount
+        : api.BudgetMode.clarifyLater;

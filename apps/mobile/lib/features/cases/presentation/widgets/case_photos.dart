@@ -1,17 +1,13 @@
-import 'dart:typed_data';
-
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
-import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
-import 'package:lawbid/core/media/photo_limits.dart';
 import 'package:lawbid/core/text/bidi.dart';
+import 'package:lawbid/features/cases/application/case_media_picker.dart';
 import 'package:lawbid/features/cases/application/create_case_controller.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -20,8 +16,6 @@ import 'package:url_launcher/url_launcher.dart';
 /// They upload at once; "Next" waits while any is still uploading.
 class CasePhotosPicker extends ConsumerWidget {
   const CasePhotosPicker({super.key});
-
-  static const double _tile = 96;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -33,31 +27,38 @@ class CasePhotosPicker extends ConsumerWidget {
     final c = ref.read(createCaseControllerProvider.notifier);
     // Owner 2026-10-07 (bug 17): count and formats from the admin.
     final upload = ref.watch(uploadLimitsProvider)[UploadPlace.kase];
+    // Owner 2026-10-19: photos and documents have their own limits.
+    final maxPhotos = upload.maxPhotos;
     final maxFiles = upload.maxFiles;
+    final photoCount = photos.where((p) => !p.isDocument).length;
+    final fileCount = photos.length - photoCount;
 
+    // Owner 2026-10-19: one gallery for photos and videos (videos are
+    // compressed on the phone and count with the photos).
     Future<void> pick() async {
-      final left = maxFiles - photos.length;
-      if (left <= 0) return;
-      final limits = photoLimitsOf(ref.read(featureFlagsControllerProvider));
-      final picked = await ImagePicker().pickMultiImage(
-        maxWidth: limits.maxPx,
-        maxHeight: limits.maxPx,
-        imageQuality: limits.quality,
-        limit: left > 1 ? left : null,
+      final picked = await pickCaseMedia(
+        ref,
+        left: maxPhotos - photoCount,
+        videos: upload.allowsVideo,
       );
-      final bytes = <Uint8List>[
-        for (final f in picked.take(left)) await f.readAsBytes(),
-      ];
-      c.addPhotos(bytes);
+      c.addFiles(picked);
     }
 
     // OQ-034: PDF / Word documents next to the photos.
     Future<void> pickFiles() async {
-      final left = maxFiles - photos.length;
+      final left = maxFiles - fileCount;
       if (left <= 0) return;
       final result = await FilePicker.pickFiles(
+        // Web: a big file from iCloud or a HEIC to convert arrives after the
+        // window gets focus back; don't drop it.
+        cancelUploadOnWindowBlur: false,
         type: FileType.custom,
-        allowedExtensions: upload.documentExtensions,
+        // Owner 2026-10-19: a video from a computer too (counts with the
+        // photos).
+        allowedExtensions: [
+          ...upload.documentExtensions,
+          if (upload.allowsVideo) ...kCaseVideoExtensions,
+        ],
         allowMultiple: true,
         withData: true,
       );
@@ -74,142 +75,158 @@ class CasePhotosPicker extends ConsumerWidget {
         Row(
           children: [
             Expanded(
-              child: Text(
-                t.t('cases.photos.title'),
-                style: type.body.copyWith(
-                  color: colors.text,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            Text(
-              ltrIsolate('${photos.length} / $maxFiles'),
-              style: type.caption.copyWith(color: colors.textSecondary),
-            ),
-          ],
-        ),
-        const SizedBox(height: AppSpacing.xs),
-        Text(
-          t.t('cases.photos.privacy'),
-          style: type.caption.copyWith(color: colors.textSecondary),
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        // Tiles sit centred, not against the left edge.
-        Wrap(
-          alignment: WrapAlignment.center,
-          spacing: AppSpacing.sm,
-          runSpacing: AppSpacing.sm,
-          children: [
-            for (final p in photos)
-              SizedBox.square(
-                dimension: _tile,
-                child: Stack(
-                  fit: StackFit.expand,
+              child: Text.rich(
+                TextSpan(
+                  text: t.t('cases.photos.title'),
+                  style: type.body.copyWith(
+                    color: colors.text,
+                    fontWeight: FontWeight.w600,
+                  ),
                   children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(AppRadii.field),
-                      child: p.isDocument
-                          ? _DocTile(name: p.name!)
-                          // A photo restored with a saved draft has no
-                          // bytes on the device any more.
-                          : p.bytes.isEmpty
-                              ? ColoredBox(
-                                  color: colors.surface,
-                                  child: AppIcon(
-                                    AppIcons.imageOutlined,
-                                    color: colors.goldDark,
-                                  ),
-                                )
-                              : Image.memory(p.bytes, fit: BoxFit.cover),
-                    ),
-                    if (p.uploading)
-                      const Center(
-                        child: SizedBox.square(
-                          dimension: 24,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                      ),
-                    if (p.failed)
-                      Center(
-                        child: AppIconButton(
-                          plain: false,
-                          icon: AppIcon(
-                            AppIcons.refreshRounded,
-                            color: colors.danger,
-                          ),
-                          semanticLabel: t.t('error.retry'),
-                          onPressed: () => c.retryPhoto(p.key),
-                        ),
-                      ),
-                    Positioned(
-                      top: 2,
-                      right: 2,
-                      child: GestureDetector(
-                        onTap: () => c.removePhoto(p.key),
-                        child: Semantics(
-                          button: true,
-                          label: t.t('cases.photos.remove'),
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: colors.bg.withValues(alpha: 0.85),
-                              shape: BoxShape.circle,
-                            ),
-                            padding: const EdgeInsets.all(2),
-                            child: AppIcon(
-                              AppIcons.closeRounded,
-                              size: 18,
-                              color: colors.text,
-                            ),
-                          ),
-                        ),
+                    TextSpan(
+                      text: ' ${t.t('cases.photos.optional')}',
+                      style: type.body.copyWith(
+                        color: colors.textSecondary,
+                        fontWeight: FontWeight.w400,
                       ),
                     ),
                   ],
                 ),
               ),
-            if (photos.length < maxFiles)
-              Semantics(
-                button: true,
-                label: t.t('cases.photos.add'),
-                child: AppPressable(
-                  onTap: pick,
-                  child: Container(
-                    width: _tile,
-                    height: _tile,
-                    decoration: BoxDecoration(
-                      color: colors.goldTint,
-                      borderRadius: BorderRadius.circular(AppRadii.field),
-                      border: Border.all(color: colors.goldStroke),
-                    ),
-                    child: AppIcon(
-                      AppIcons.addPhotoAlternateOutlined,
-                      color: colors.goldDark,
-                    ),
-                  ),
-                ),
-              ),
-            if (photos.length < maxFiles)
-              Semantics(
-                button: true,
-                label: t.t('cases.files.add'),
-                child: AppPressable(
-                  onTap: pickFiles,
-                  child: Container(
-                    width: _tile,
-                    height: _tile,
-                    decoration: BoxDecoration(
-                      color: colors.goldTint,
-                      borderRadius: BorderRadius.circular(AppRadii.field),
-                      border: Border.all(color: colors.goldStroke),
-                    ),
-                    child: AppIcon(
-                      AppIcons.noteAddOutlined,
-                      color: colors.goldDark,
-                    ),
-                  ),
-                ),
-              ),
+            ),
           ],
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        Text(
+          t.t(
+              upload.allowsVideo
+                  ? 'cases.photos.privacyMedia'
+                  : 'cases.photos.privacySplit',
+              {
+                'photos': '$maxPhotos',
+                'files': '$maxFiles',
+              }),
+          style: type.caption.copyWith(color: colors.textSecondary),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        // Owner 2026-10-19: the two add buttons stand still in their own
+        // row (greyed at the limit, never moving); the attachments below
+        // go three a row across the full width.
+        Row(
+          children: [
+            Expanded(
+              child: _AddButton(
+                icon: AppIcons.addPhotoAlternateOutlined,
+                label: t.t(
+                  upload.allowsVideo
+                      ? 'cases.photos.tileMedia'
+                      : 'cases.photos.tilePhoto',
+                ),
+                semantic: t.t('cases.photos.add'),
+                count: photoCount < maxPhotos
+                    ? ltrIsolate('$photoCount / $maxPhotos')
+                    : t.t('cases.photos.limitReached', {'max': '$maxPhotos'}),
+                onTap: photoCount < maxPhotos ? pick : null,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: _AddButton(
+                icon: AppIcons.noteAddOutlined,
+                label: t.t('cases.photos.tileFile'),
+                semantic: t.t('cases.files.add'),
+                count: fileCount < maxFiles
+                    ? ltrIsolate('$fileCount / $maxFiles')
+                    : t.t('cases.photos.limitReached', {'max': '$maxFiles'}),
+                onTap: fileCount < maxFiles ? pickFiles : null,
+              ),
+            ),
+          ],
+        ),
+        if (photos.isNotEmpty) const SizedBox(height: AppSpacing.sm),
+        LayoutBuilder(
+          builder: (context, box) {
+            final tile =
+                ((box.maxWidth - 2 * AppSpacing.sm) / 3).floorToDouble();
+            return Wrap(
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.sm,
+              children: [
+                for (final p in photos)
+                  SizedBox.square(
+                    dimension: tile,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(AppRadii.field),
+                          child: p.isVideo
+                              ? const _VideoTile()
+                              : p.isDocument
+                                  ? _DocTile(name: p.name!)
+                                  // A photo restored with a saved draft has no
+                                  // bytes on the device any more.
+                                  : p.bytes.isEmpty
+                                      ? ColoredBox(
+                                          color: colors.surface,
+                                          child: AppIcon(
+                                            AppIcons.imageOutlined,
+                                            color: colors.goldDark,
+                                          ),
+                                        )
+                                      : Image.memory(
+                                          p.bytes,
+                                          fit: BoxFit.cover,
+                                        ),
+                        ),
+                        if (p.uploading)
+                          const Center(
+                            child: SizedBox.square(
+                              dimension: 24,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          ),
+                        if (p.failed)
+                          Center(
+                            child: AppIconButton(
+                              plain: false,
+                              icon: AppIcon(
+                                AppIcons.refreshRounded,
+                                color: colors.danger,
+                              ),
+                              semanticLabel: t.t('error.retry'),
+                              onPressed: () => c.retryPhoto(p.key),
+                            ),
+                          ),
+                        Positioned(
+                          top: 2,
+                          right: 2,
+                          child: GestureDetector(
+                            onTap: () => c.removePhoto(p.key),
+                            child: Semantics(
+                              button: true,
+                              label: t.t('cases.photos.remove'),
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: colors.bg.withValues(alpha: 0.85),
+                                  shape: BoxShape.circle,
+                                ),
+                                padding: const EdgeInsets.all(2),
+                                child: AppIcon(
+                                  AppIcons.closeRounded,
+                                  size: 18,
+                                  color: colors.text,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            );
+          },
         ),
         if (photos.any((p) => p.failed)) ...[
           const SizedBox(height: AppSpacing.sm),
@@ -221,6 +238,76 @@ class CasePhotosPicker extends ConsumerWidget {
             ),
           ),
         ],
+      ],
+    );
+  }
+}
+
+/// Icon with a short caption under it, centred in an add tile.
+/// «Фото» / «Файл»: fixed in place; [onTap] null = the limit is reached
+/// (greyed, not hidden).
+class _AddButton extends StatelessWidget {
+  const _AddButton({
+    required this.icon,
+    required this.label,
+    required this.semantic,
+    required this.count,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final String semantic;
+
+  /// «3 / 9» under the button; at the limit «Достигнут лимит: 9».
+  final String count;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    final enabled = onTap != null;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Semantics(
+          button: true,
+          enabled: enabled,
+          label: semantic,
+          child: Opacity(
+            opacity: enabled ? 1 : 0.45,
+            child: AppPressable(
+              onTap: onTap,
+              child: Container(
+                height: 48,
+                // Owner 2026-10-18: the theme's own tile (no gold fill).
+                decoration: BoxDecoration(
+                  color: colors.chip,
+                  borderRadius: BorderRadius.circular(AppRadii.field),
+                  border: Border.all(color: colors.border),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    AppIcon(icon, color: colors.textSecondary),
+                    const SizedBox(width: AppSpacing.sm),
+                    Text(
+                      label,
+                      style: type.body.copyWith(color: colors.textSecondary),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        Text(
+          count,
+          textAlign: TextAlign.center,
+          style: type.caption.copyWith(color: colors.textSecondary),
+        ),
       ],
     );
   }
@@ -286,6 +373,20 @@ class CasePhotosStrip extends ConsumerWidget {
 
   Widget _tile(BuildContext context, Translator t, int i) {
     final p = photos[i];
+    // Owner 2026-10-19: a video plays in the system player.
+    if (p.mime.startsWith('video/')) {
+      return AppPressable(
+        onTap: () => openCaseDocument(p.url),
+        child: Semantics(
+          button: true,
+          label: t.t('cases.files.video'),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(AppRadii.field),
+            child: const SizedBox.square(dimension: 112, child: _VideoTile()),
+          ),
+        ),
+      );
+    }
     // OQ-034: documents open in the system viewer.
     if (!p.isImage) {
       final pdf = p.mime == 'application/pdf';
@@ -331,6 +432,26 @@ class CasePhotosStrip extends ConsumerWidget {
             height: 112,
             fit: BoxFit.cover,
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Owner 2026-10-19: a video tile (play sign on the theme's surface).
+class _VideoTile extends StatelessWidget {
+  const _VideoTile();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    return ColoredBox(
+      color: colors.surface,
+      child: Center(
+        child: AppIcon(
+          AppIcons.playCircleOutlined,
+          size: 40,
+          color: colors.goldDark,
         ),
       ),
     );

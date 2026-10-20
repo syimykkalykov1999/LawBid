@@ -11,7 +11,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import {
-  ALL_UPLOAD_FORMATS,
+  ANY_UPLOAD_FORMATS,
   UPLOAD_PLACES,
   type CountMode,
   type UploadFormat,
@@ -58,14 +58,14 @@ export class UploadPlaceLimitsDto {
   totalMb!: number;
 
   @ApiProperty({
-    enum: ALL_UPLOAD_FORMATS,
+    enum: ANY_UPLOAD_FORMATS,
     enumName: 'UploadFormat',
     isArray: true,
   })
   @IsArray()
   @ArrayUnique()
-  @ArrayMaxSize(ALL_UPLOAD_FORMATS.length)
-  @IsIn(ALL_UPLOAD_FORMATS, { each: true })
+  @ArrayMaxSize(ANY_UPLOAD_FORMATS.length)
+  @IsIn(ANY_UPLOAD_FORMATS, { each: true })
   formats!: UploadFormat[];
 }
 
@@ -80,7 +80,7 @@ export class UploadPlaceDto {
   count!: CountMode;
 
   @ApiProperty({
-    enum: ALL_UPLOAD_FORMATS,
+    enum: ANY_UPLOAD_FORMATS,
     enumName: 'UploadFormat',
     isArray: true,
     description: 'Formats that may be turned on here (all safe).',

@@ -18,7 +18,7 @@ export async function tagCategories(
       SELECT COALESCE(cat.code, pa.code)
       FROM post_tags pt
       JOIN posts p ON p.id = pt.post_id
-        AND p.status = 'published' AND p.deleted_at IS NULL
+        AND p.status = 'published' AND p.deleted_at IS NULL AND p.archived_at IS NULL
         AND p.practice_area_id IS NOT NULL
       JOIN practice_areas pa ON pa.id = p.practice_area_id
       LEFT JOIN practice_areas cat ON cat.id = pa.parent_id

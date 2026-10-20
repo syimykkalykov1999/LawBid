@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:lawbid/shared/domain/cursor_page.dart';
@@ -16,9 +18,36 @@ abstract class PagedNotifier<T> extends AsyncNotifier<PaginatedList<T>> {
 
   Object idOf(T item);
 
+  /// Owner 2026-10-18 (speed): how long a list stays in memory after its
+  /// last screen let go of it (Posts ↔ Reels, a topic switch, the chats
+  /// closed and reopened). Coming back within that time shows the loaded
+  /// rows at once instead of a fresh first-page load. Null (the default) =
+  /// dropped right away as before. Pull-to-refresh and invalidation still
+  /// re-read the list as before.
+  Duration? get keepAliveFor => null;
+
   @override
-  Future<PaginatedList<T>> build() async =>
-      PaginatedList.firstPage(await fetch(null));
+  Future<PaginatedList<T>> build() async {
+    _cacheFor();
+    return PaginatedList.firstPage(await fetch(null));
+  }
+
+  /// The standard Riverpod "cache for" pattern: hold the provider, and let
+  /// it go [keepAliveFor] after the last listener left (a listener coming
+  /// back in time cancels the countdown).
+  void _cacheFor() {
+    final hold = keepAliveFor;
+    if (hold == null) return;
+    final link = ref.keepAlive();
+    Timer? timer;
+    ref
+      ..onCancel(() {
+        timer?.cancel();
+        timer = Timer(hold, link.close);
+      })
+      ..onResume(() => timer?.cancel())
+      ..onDispose(() => timer?.cancel());
+  }
 
   Future<void> refresh() async {
     _generation++;

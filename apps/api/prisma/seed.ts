@@ -159,7 +159,14 @@ async function seedI18nTranslations(): Promise<void> {
     const existingValues = new Map(
       (existing?.translations ?? []).map((t) => [t.lang, t.value]),
     );
+    // Owner 2026-10-18: a text changed in the admin stays as it is.
+    const adminEdited = new Set(
+      (existing?.translations ?? [])
+        .filter((t) => t.admin_edited)
+        .map((t) => t.lang),
+    );
     for (const [lang, value] of Object.entries(row.values)) {
+      if (adminEdited.has(lang)) continue;
       if (existingValues.get(lang) !== value) {
         changedKeys.push({ key: row.key, lang });
         affectedLangs.add(lang);
@@ -431,6 +438,12 @@ async function seedAdmin(): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  // Owner 2026-10-18: `npm run seed:i18n` loads only the translations —
+  // the full seed resets the feature flags the admin switched.
+  if (process.argv.includes('--i18n-only')) {
+    await seedI18nTranslations();
+    return;
+  }
   console.log('Seeding LawBid...');
   // Order per docs/02_DATABASE.md §7.2.
   await seedStates();

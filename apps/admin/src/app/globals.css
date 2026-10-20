@@ -122,6 +122,8 @@ body {
   font-feature-settings: 'cv11', 'ss01';
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  /* Phone: a long e-mail, key or link wraps instead of pushing the page wider. */
+  overflow-wrap: break-word;
 }
 
 /* Smooth theme switch without animating every hover. */

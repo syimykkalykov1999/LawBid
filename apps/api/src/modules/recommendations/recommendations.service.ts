@@ -298,10 +298,10 @@ export class RecommendationsService {
         a.followers_count::INT AS followers_count,
         a.trust_level::INT AS trust_level, a.trust_badge,
         (SELECT count(*) FROM posts p WHERE p.author_id = a.user_id
-           AND p.status = 'published' AND p.deleted_at IS NULL
+           AND p.status = 'published' AND p.deleted_at IS NULL AND p.archived_at IS NULL
            AND p.created_at > now() - INTERVAL '30 days')::INT AS posts_30d,
         (SELECT max(p.created_at) FROM posts p WHERE p.author_id = a.user_id
-           AND p.status = 'published' AND p.deleted_at IS NULL) AS last_post_at,
+           AND p.status = 'published' AND p.deleted_at IS NULL AND p.archived_at IS NULL) AS last_post_at,
         COALESCE((SELECT array_agg(DISTINCT l.state_code::TEXT) FROM attorney_licenses l
            WHERE l.attorney_id = a.user_id AND l.license_status = 'verified'),
            ARRAY[]::TEXT[]) AS states,
@@ -518,6 +518,7 @@ export class RecommendationsService {
               comment_count: true,
               urgency: true,
               deadline_at: true,
+              client_active_at: true,
             },
           }),
           this.caseViewer(attorneyId, candidates),
@@ -552,6 +553,7 @@ export class RecommendationsService {
               commentCount: r.comment_count,
               urgency: r.urgency,
               deadlineAt: r.deadline_at,
+              clientActiveAt: r.client_active_at,
               clientRatingAvg: Number(client?.rating_avg ?? 0),
               clientRatingCount: client?.rating_count ?? 0,
             };

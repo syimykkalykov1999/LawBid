@@ -70,8 +70,10 @@ abstract final class ProfileMappers {
         isFollowing: d.isFollowing,
         isBlocked: d.isBlocked,
         hasBlockedMe: d.hasBlockedMe,
-        // The header avatar is small: prefer the 256 px square variant.
-        avatarUrl: d.avatarUrl256 ?? d.avatarUrl,
+        // Owner 2026-10-18: the profile header shows the full avatar (the
+        // 256 px variant looked soft at ~100 dp on a Retina screen);
+        // AppAvatar decodes it at the size it is drawn.
+        avatarUrl: d.avatarUrl ?? d.avatarUrl256,
       );
 
   static LicenseState license(api.LicenseStatus s) => switch (s) {
@@ -119,6 +121,27 @@ abstract final class ProfileMappers {
           _ => d.available ? null : UsernameIssue.invalid,
         },
       );
+
+  /// `GET /attorneys/username-available` read raw (it carries
+  /// `suggestions`, which the generated DTO does not have yet).
+  static UsernameCheck usernameJson(Map<String, dynamic> j, String asked) {
+    final available = j['available'] == true;
+    final suggestions = j['suggestions'];
+    return UsernameCheck(
+      username: j['username'] as String? ?? asked,
+      available: available,
+      issue: available
+          ? null
+          : switch (j['reason']) {
+              'reserved' => UsernameIssue.reserved,
+              'taken' => UsernameIssue.taken,
+              _ => UsernameIssue.invalid,
+            },
+      suggestions: suggestions is List
+          ? suggestions.whereType<String>().toList()
+          : const [],
+    );
+  }
 
   static ReviewSummary summary(api.ReviewSummaryDto d) => ReviewSummary(
         average: d.ratingAvg?.toDouble(),

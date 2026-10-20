@@ -63,6 +63,7 @@ class _Chats implements ChatRepository {
     DateTime? updatedSince,
     bool requests = false,
     ChatListFolder folder = ChatListFolder.all,
+    String? q,
   }) async {
     folders.add(requests ? ChatListFolder.requests : folder);
     return CursorPage(
@@ -165,7 +166,7 @@ void main() {
     expect(find.byKey(const ValueKey('chat-waiting-w')), findsOneWidget);
 
     // ⋯ → waiting on + a note → saved.
-    await tester.tap(find.byKey(const ValueKey('chat-organize-w')));
+    await tester.longPress(find.byKey(const ValueKey('chat-organize-w')));
     await tester.pumpAndSettle();
     await tester.enterText(
       find.byKey(const ValueKey('organize-note')),
@@ -176,7 +177,7 @@ void main() {
     expect(repo.organized.last, 'w:null:true:Call back at 5:null');
 
     // ⋯ → move to Primary (takes the waiting mark off, as the bulk move).
-    await tester.tap(find.byKey(const ValueKey('chat-organize-w')));
+    await tester.longPress(find.byKey(const ValueKey('chat-organize-w')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('organize-move')));
     await tester.pumpAndSettle();

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -157,6 +158,10 @@ class PagedListBody<T> extends ConsumerWidget {
                   AppSpacing.xxl,
                 ),
           itemKey: itemKey,
+          // Owner 2026-10-19 (smooth scroll, Instagram): screen-tall feed
+          // cards are built one screen ahead.
+          scrollCacheExtent:
+              edgeToEdge ? const ScrollCacheExtent.viewport(1) : null,
           status: value.loadMoreError != null
               ? AppPaginationStatus.error
               : value.isLoadingMore
@@ -214,7 +219,9 @@ class PagedListBody<T> extends ConsumerWidget {
         ),
     };
     return AnimatedSwitcher(
-      duration: context.reduceMotion ? Duration.zero : AppMotion.stateChange,
+      // Owner 2026-10-19 («мигание»): loading, data and tab bodies
+      // swap at once (Instagram), no cross-fade.
+      duration: Duration.zero,
       child: body,
     );
   }
@@ -250,7 +257,9 @@ class AsyncDetailBody<T> extends StatelessWidget {
       _ => const DetailSkeleton(key: ValueKey('loading')),
     };
     return AnimatedSwitcher(
-      duration: context.reduceMotion ? Duration.zero : AppMotion.stateChange,
+      // Owner 2026-10-19 («мигание»): loading, data and tab bodies
+      // swap at once (Instagram), no cross-fade.
+      duration: Duration.zero,
       child: body,
     );
   }

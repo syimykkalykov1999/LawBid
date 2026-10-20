@@ -76,7 +76,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         ) : null}
       </AnimatePresence>
 
-      <div className={cn('relative transition-[padding] duration-300', collapsed ? 'lg:pl-[76px]' : 'lg:pl-[264px]')}>
+      <div className={cn('relative min-w-0 overflow-x-clip transition-[padding] duration-300', collapsed ? 'lg:pl-[76px]' : 'lg:pl-[264px]')}>
         <Topbar me={me} onMenu={() => setDrawer(true)} onSearch={() => setPalette(true)} />
         <main className="mx-auto w-full max-w-[1480px] px-4 py-7 sm:px-6 lg:px-10 lg:py-9">
           {/* Owner 2026-10-07: the tabs stay put while the page below

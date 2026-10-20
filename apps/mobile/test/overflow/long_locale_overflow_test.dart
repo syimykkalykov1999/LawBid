@@ -77,6 +77,9 @@ void main() {
   final locales = <String, (Translator, TextDirection)>{
     'longest of all languages': (LongestTranslator(), TextDirection.ltr),
     'longest, right-to-left': (LongestTranslator(), TextDirection.rtl),
+    // Owner 2026-10-19: Nepali and Arabic, the longest, in their own text.
+    'ne': (ShippedTranslator('ne'), TextDirection.ltr),
+    'ar': (ShippedTranslator('ar'), TextDirection.rtl),
     'ru': (
       L10nTranslator(language: AppLanguage.ru, cache: const {}),
       TextDirection.ltr,

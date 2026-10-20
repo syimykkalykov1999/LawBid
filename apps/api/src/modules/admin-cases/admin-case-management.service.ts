@@ -193,6 +193,7 @@ export class AdminCaseManagementService {
       select: {
         ...ROW,
         description: true,
+        private_details: true,
         city: true,
         budget_mode: true,
         budget_cents: true,
@@ -278,6 +279,7 @@ export class AdminCaseManagementService {
     return {
       ...toRow(kase, reports.get(id) ?? 0, promoted.has(id), files.get(id)),
       description: kase.description,
+      privateDetails: kase.private_details,
       city: kase.city,
       budgetMode: kase.budget_mode,
       budgetCents: kase.budget_cents,

@@ -4,6 +4,7 @@ import { ErrorCode } from '../../common/errors/error-code.enum';
 import type { PrismaService } from '../../prisma/prisma.service';
 import type { RateLimitService } from '../auth/services/rate-limit.service';
 import type { SupportDeskService } from './support-desk.service';
+import type { SupportFilesService } from './support-files.service';
 import { SupportService } from './support.service';
 
 const T0 = new Date('2026-10-01T10:00:00Z');
@@ -33,6 +34,7 @@ function ticket(over: Partial<SupportTicket> = {}): SupportTicket {
     sla_due_at: null,
     sla_breached_at: null,
     country_code: 'US',
+    client_context: null,
     ...over,
   };
 }
@@ -98,13 +100,19 @@ function setup(opts: { found?: SupportTicket | null; allowed?: boolean } = {}) {
     onUserMessage: jest.fn().mockResolvedValue(undefined),
     info: jest.fn(),
   };
+  const files = {
+    assertAttachable: jest.fn().mockResolvedValue(undefined),
+    attach: jest.fn().mockResolvedValue(undefined),
+    forMessages: jest.fn().mockResolvedValue(new Map()),
+  };
   const service = new SupportService(
     prisma as unknown as PrismaService,
     rateLimit as unknown as RateLimitService,
     settings as unknown as AppSettingsService,
     desk as unknown as SupportDeskService,
+    files as unknown as SupportFilesService,
   );
-  return { service, prisma, rateLimit, settings, desk };
+  return { service, prisma, rateLimit, settings, desk, files };
 }
 
 describe('SupportService (app side)', () => {

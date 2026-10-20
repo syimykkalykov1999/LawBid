@@ -25,6 +25,7 @@ export const UPLOAD_PLACES = [
   'avatar',
   'verification',
   'client_badge',
+  'support',
 ] as const;
 export type UploadPlace = (typeof UPLOAD_PLACES)[number];
 
@@ -47,11 +48,20 @@ export const DOC_FORMATS = [
   'txt',
   'csv',
 ] as const;
+/** Owner 2026-10-17: video formats — chat only. */
+export const VIDEO_FORMATS = ['mp4', 'mov', 'webm'] as const;
 export type UploadFormat =
-  (typeof PHOTO_FORMATS)[number] | (typeof DOC_FORMATS)[number];
+  | (typeof PHOTO_FORMATS)[number]
+  | (typeof DOC_FORMATS)[number]
+  | (typeof VIDEO_FORMATS)[number];
 export const ALL_UPLOAD_FORMATS: readonly UploadFormat[] = [
   ...PHOTO_FORMATS,
   ...DOC_FORMATS,
+];
+/** Every format any place may use (photos, documents, chat videos). */
+export const ANY_UPLOAD_FORMATS: readonly UploadFormat[] = [
+  ...ALL_UPLOAD_FORMATS,
+  ...VIDEO_FORMATS,
 ];
 
 export const FORMAT_MIME: Record<UploadFormat, FileMime> = {
@@ -73,6 +83,9 @@ export const FORMAT_MIME: Record<UploadFormat, FileMime> = {
   rtf: FILE_MIME.rtf,
   txt: FILE_MIME.txt,
   csv: FILE_MIME.csv,
+  mp4: FILE_MIME.mp4,
+  mov: FILE_MIME.mov,
+  webm: FILE_MIME.webmVideo,
 };
 
 /** How a place counts files:
@@ -104,12 +117,17 @@ export interface PlaceSpec {
 }
 
 const PHOTOS: readonly UploadFormat[] = ['jpeg', 'png', 'heic', 'webp'];
+/** Owner 2026-10-19: places whose photos may also be a GIF (posts, reels,
+ * reviews, the profile photo) — stored as a still picture. */
+const PHOTOS_GIF: readonly UploadFormat[] = [...PHOTOS, 'gif'];
 const POST_DEFAULT: UploadFormat[] = [
   'jpeg',
   'png',
   'heic',
   // Owner 2026-10-16: saved web images are often WebP.
   'webp',
+  // Owner 2026-10-19: and GIFs.
+  'gif',
   'pdf',
   'doc',
   'docx',
@@ -122,7 +140,7 @@ const POST_DEFAULT: UploadFormat[] = [
 export const PLACE_SPECS: Record<UploadPlace, PlaceSpec> = {
   post: {
     count: 'split',
-    safeFormats: [...PHOTOS, ...DOC_FORMATS],
+    safeFormats: [...PHOTOS_GIF, ...DOC_FORMATS],
     ceiling: { count: 20, fileMb: 50, totalMb: 200 },
     defaults: {
       maxPhotos: 9,
@@ -134,7 +152,7 @@ export const PLACE_SPECS: Record<UploadPlace, PlaceSpec> = {
   },
   reel: {
     count: 'split',
-    safeFormats: [...PHOTOS, ...DOC_FORMATS],
+    safeFormats: [...PHOTOS_GIF, ...DOC_FORMATS],
     ceiling: { count: 20, fileMb: 50, totalMb: 200 },
     defaults: {
       maxPhotos: 9,
@@ -144,28 +162,35 @@ export const PLACE_SPECS: Record<UploadPlace, PlaceSpec> = {
       formats: POST_DEFAULT,
     },
   },
+  // Owner 2026-10-19: up to 9 photos AND up to 3 documents, counted
+  // separately (was 9 together).
   case: {
-    count: 'combined',
-    safeFormats: [...PHOTOS, ...DOC_FORMATS],
+    count: 'split',
+    // Owner 2026-10-19: videos count with the photos (9 photos and videos
+    // + 3 documents); 50 MB a file so a phone video fits.
+    safeFormats: [...PHOTOS, ...DOC_FORMATS, ...VIDEO_FORMATS],
     ceiling: { count: 20, fileMb: 50, totalMb: 0 },
     defaults: {
-      maxPhotos: 0,
-      maxFiles: 9,
-      fileMb: 10,
+      maxPhotos: 9,
+      maxFiles: 3,
+      fileMb: 50,
       totalMb: 0,
-      formats: ['jpeg', 'png', 'heic', 'pdf', 'docx'],
+      // Owner 2026-10-19: WebP too — the app's picked photos may be WebP
+      // (a case with them could not be published); and videos.
+      formats: ['jpeg', 'png', 'heic', 'webp', 'pdf', 'docx', 'mp4', 'mov'],
     },
   },
+  // Owner 2026-10-17: videos too (compressed to 720p on the phone).
   chat: {
     count: 'none',
-    safeFormats: ALL_UPLOAD_FORMATS,
+    safeFormats: ANY_UPLOAD_FORMATS,
     ceiling: { count: 0, fileMb: 100, totalMb: 0 },
     defaults: {
       maxPhotos: 0,
       maxFiles: 0,
-      fileMb: 25,
+      fileMb: 50,
       totalMb: 0,
-      formats: [...ALL_UPLOAD_FORMATS],
+      formats: [...ANY_UPLOAD_FORMATS],
     },
   },
   task: {
@@ -182,26 +207,29 @@ export const PLACE_SPECS: Record<UploadPlace, PlaceSpec> = {
   },
   review: {
     count: 'photos',
-    safeFormats: PHOTOS,
+    safeFormats: PHOTOS_GIF,
     ceiling: { count: 20, fileMb: 50, totalMb: 0 },
     defaults: {
       maxPhotos: 10,
       maxFiles: 0,
       fileMb: 10,
       totalMb: 0,
-      formats: ['jpeg', 'png', 'heic'],
+      // Owner 2026-10-19: WebP too — a picked photo is often WebP (saved
+      // from the web), and it was refused here.
+      formats: ['jpeg', 'png', 'heic', 'webp', 'gif'],
     },
   },
   avatar: {
     count: 'none',
-    safeFormats: PHOTOS,
+    safeFormats: PHOTOS_GIF,
     ceiling: { count: 0, fileMb: 20, totalMb: 0 },
     defaults: {
       maxPhotos: 0,
       maxFiles: 0,
       fileMb: 5,
       totalMb: 0,
-      formats: ['jpeg', 'png', 'heic'],
+      // Owner 2026-10-19: WebP too (see review).
+      formats: ['jpeg', 'png', 'heic', 'webp', 'gif'],
     },
   },
   verification: {
@@ -213,7 +241,22 @@ export const PLACE_SPECS: Record<UploadPlace, PlaceSpec> = {
       maxFiles: 3,
       fileMb: 10,
       totalMb: 0,
-      formats: ['jpeg', 'png', 'heic', 'pdf'],
+      // Owner 2026-10-19: WebP too (see review).
+      formats: ['jpeg', 'png', 'heic', 'webp', 'pdf'],
+    },
+  },
+  // Owner 2026-10-18 (OQ-055): files in a support ticket message, both
+  // ways (photos, documents, videos).
+  support: {
+    count: 'combined',
+    safeFormats: ANY_UPLOAD_FORMATS,
+    ceiling: { count: 10, fileMb: 100, totalMb: 0 },
+    defaults: {
+      maxPhotos: 0,
+      maxFiles: 5,
+      fileMb: 25,
+      totalMb: 0,
+      formats: [...ANY_UPLOAD_FORMATS],
     },
   },
   // Uses the verification files (their size and formats); only the count.
@@ -248,7 +291,12 @@ export function sanitizeUploadLimits(raw: unknown): UploadLimits {
     const spec = PLACE_SPECS[place];
     const d = spec.defaults;
     const v = src[place];
-    const p = v && typeof v === 'object' ? (v as Record<string, unknown>) : {};
+    let p = v && typeof v === 'object' ? (v as Record<string, unknown>) : {};
+    // A case limit saved while photos and documents were counted together
+    // (no maxPhotos) is read as the new split defaults; formats and MB stay.
+    if (place === 'case' && p.maxPhotos === undefined) {
+      p = { ...p, maxFiles: undefined };
+    }
     const picked = Array.isArray(p.formats) ? (p.formats as unknown[]) : null;
     out[place] = {
       maxPhotos:
@@ -286,6 +334,7 @@ export const PURPOSE_PLACES: Partial<Record<FilePurpose, UploadPlace[]>> = {
   case_photo: ['case'],
   case_attachment: ['case'],
   chat_attachment: ['chat'],
+  support_attachment: ['support'],
   task_attachment: ['task'],
   verification_document: ['verification'],
   verification_selfie: ['verification'],

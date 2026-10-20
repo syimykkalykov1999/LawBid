@@ -73,9 +73,6 @@ enum TrustRequirement {
 /// Where the attorney stands with staff (`OwnTrustDto.staffStatus`).
 enum TrustStaffStatus { selfDeclared, needsStaff, cleared, suspended }
 
-/// What staff asked for (`OwnTrustDto.documentsRequested`).
-enum DocumentRequestTemplate { idSelfie, barCard, firmLetter, custom }
-
 /// `trust.docs.<template>` — the template sentence of a document request
 /// (notification + the own screen's card); `custom` shows the staff note.
 String documentRequestTextKey(String? template) => switch (template) {

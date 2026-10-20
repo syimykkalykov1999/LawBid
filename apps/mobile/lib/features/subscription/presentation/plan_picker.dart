@@ -11,8 +11,6 @@ import 'package:lawbid/features/subscription/presentation/plan_tier_card.dart';
 import 'package:lawbid/features/subscription/presentation/promo_code_field.dart';
 import 'package:lawbid/features/subscription/presentation/subscription_screen.dart';
 
-final phoneE164 = RegExp(r'^\+[1-9][0-9]{7,14}$');
-
 /// What the monthly plan includes (owner 2026-10-01: listed on the card).
 List<String> monthlyFeatures(Translator t, String seatPrice) => [
       t.t('subscription.plan.feature.bids'),

@@ -266,6 +266,7 @@ describe('RecommendationsService.casesFor', () => {
     comment_count: 0,
     urgency: 'soon',
     deadline_at: null,
+    client_active_at: new Date(),
     ...over,
   });
 

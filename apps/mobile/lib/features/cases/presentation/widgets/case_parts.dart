@@ -139,9 +139,12 @@ class CaseFigures extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    final money = budget.isClarifyLater
-        ? t.t('cases.facts.negotiable')
-        : CaseFormat.money(formats, budget.amountCents!);
+    // Owner 2026-10-19: a percent budget has no amount (it crashed here).
+    final money = budget.isPercent
+        ? CaseFormat.percent(t, formats, budget.percentBps!)
+        : budget.isClarifyLater
+            ? t.t('cases.facts.negotiable')
+            : CaseFormat.money(formats, budget.amountCents!);
     final deadline = CaseUrgencyText.label(t, formats, urgency);
     Widget fig(String label, String value, {bool last = false}) => Container(
           padding: EdgeInsetsDirectional.only(end: last ? 0 : AppSpacing.md),
@@ -318,14 +321,22 @@ class CaseFileLine extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    final empty = dossier.documentsCount + dossier.imagesCount == 0;
+    final empty = dossier.documentsCount + dossier.imagesCount == 0 &&
+        dossier.privateDetailsLength == 0;
     final parts = [
       if (dossier.documentsCount > 0)
         t.plural('cases.dossier.docs', dossier.documentsCount),
       if (dossier.imagesCount > 0)
         t.plural('cases.dossier.photos', dossier.imagesCount),
     ];
-    final label = empty ? t.t('cases.dossier.noFiles') : parts.join(' · ');
+    // Owner 2026-10-18: the client's private details count as locked too.
+    final hasPrivate = dossier.privateDetailsLength > 0;
+    final privateParts = [t.t('cases.dossier.privateText'), ...parts];
+    final label = hasPrivate
+        ? t.t('cases.dossier.privateLine', {'items': privateParts.join(', ')})
+        : empty
+            ? t.t('cases.dossier.noFiles')
+            : parts.join(' · ');
     return Padding(
       padding: padding,
       child: Row(
@@ -340,7 +351,9 @@ class CaseFileLine extends StatelessWidget {
           const SizedBox(width: AppSpacing.sm),
           Flexible(
             child: Text(
-              !empty && locked ? '$label · ${t.t('cases.card.locked')}' : label,
+              !empty && locked && dossier.privateDetailsLength == 0
+                  ? '$label · ${t.t('cases.card.locked')}'
+                  : label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: type.bodySmall.copyWith(
@@ -372,12 +385,16 @@ class CaseTextTabs extends StatefulWidget {
     required this.items,
     required this.index,
     required this.onChanged,
+    this.pages,
     super.key,
   });
 
   final List<CaseTabItem> items;
   final int index;
   final ValueChanged<int> onChanged;
+
+  /// The pages under the tabs: the line follows the swipe between tabs.
+  final PageController? pages;
 
   @override
   State<CaseTextTabs> createState() => _CaseTextTabsState();
@@ -386,6 +403,17 @@ class CaseTextTabs extends StatefulWidget {
 class _CaseTextTabsState extends State<CaseTextTabs> {
   late List<GlobalKey> _keys =
       List.generate(widget.items.length, (_) => GlobalKey());
+  static const double _gap = 18;
+
+  /// How chosen tab [i] is, 0…1: follows the finger between two tabs.
+  double _chosen(int i) {
+    final pages = widget.pages;
+    var at = widget.index.toDouble();
+    if (pages != null && pages.hasClients && pages.positions.length == 1) {
+      at = pages.page ?? at;
+    }
+    return (1 - (at - i).abs()).clamp(0.0, 1.0);
+  }
 
   @override
   void didUpdateWidget(CaseTextTabs old) {
@@ -416,6 +444,8 @@ class _CaseTextTabsState extends State<CaseTextTabs> {
     final onChanged = widget.onChanged;
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    // Owner 2026-10-19: no line under the tabs — the chosen one is told by
+    // its text colour, which follows the finger between two tabs.
     return DecoratedBox(
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: colors.border)),
@@ -435,27 +465,28 @@ class _CaseTextTabsState extends State<CaseTextTabs> {
                   onTap: () => onChanged(i),
                   child: Container(
                     // Owner 2026-10-15: smaller tabs, like Instagram — 13sp
-                    // (the active one semibold), ~44dp high, 2dp indicator.
-                    margin: const EdgeInsetsDirectional.only(end: 18),
-                    padding: const EdgeInsets.only(top: 14, bottom: 10),
-                    decoration: BoxDecoration(
-                      border: Border(
-                        bottom: BorderSide(
-                          width: 2,
-                          color: i == index ? colors.gold : Colors.transparent,
-                        ),
-                      ),
-                    ),
+                    // (the active one semibold), ~44dp high.
+                    margin: const EdgeInsetsDirectional.only(end: _gap),
+                    padding: const EdgeInsets.only(top: 14, bottom: 12),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(
-                          it.label,
-                          style: type.bodySmall.copyWith(
-                            fontWeight:
-                                i == index ? FontWeight.w600 : FontWeight.w500,
-                            color:
-                                i == index ? colors.text : colors.textSecondary,
+                        AnimatedBuilder(
+                          animation: widget.pages ??
+                              const AlwaysStoppedAnimation<double>(0),
+                          builder: (context, _) => Text(
+                            it.label,
+                            key: ValueKey('case-tab-label-$i'),
+                            style: type.bodySmall.copyWith(
+                              fontWeight: i == index
+                                  ? FontWeight.w600
+                                  : FontWeight.w500,
+                              color: Color.lerp(
+                                colors.textSecondary,
+                                colors.text,
+                                _chosen(i),
+                              ),
+                            ),
                           ),
                         ),
                         if (it.locked) ...[
@@ -539,9 +570,12 @@ class CaseHero extends StatelessWidget {
     final accent = practiceAccent(categoryCode, surface: base);
     final top = Color.alphaBlend(accent.withValues(alpha: 0.2), base);
     final fg = readableOn(accent, top);
-    final money = budget.isClarifyLater
-        ? t.t('cases.facts.negotiable')
-        : CaseFormat.money(formats, budget.amountCents!);
+    // Owner 2026-10-19: a percent budget has no amount (it crashed here).
+    final money = budget.isPercent
+        ? CaseFormat.percent(t, formats, budget.percentBps!)
+        : budget.isClarifyLater
+            ? t.t('cases.facts.negotiable')
+            : CaseFormat.money(formats, budget.amountCents!);
     final deadline = CaseUrgencyText.label(t, formats, urgency);
     Widget fact(IconData icon, String text) => Container(
           height: 26,
@@ -665,15 +699,16 @@ class CaseHero extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: AppSpacing.sm),
-              Flexible(
-                child: Text(
-                  t.t('cases.hero.published', {
-                    'date': formats.dayMonth(publishedAt),
-                  }),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: type.caption.copyWith(color: colors.textSecondary),
-                ),
+              // Owner 2026-10-19: the date sits at the right edge — the
+              // stage text above is Expanded, so this takes only its own
+              // width at the end of the row (a Flexible here shrank to the
+              // text and stood mid-row).
+              Text(
+                t.t('cases.hero.published', {
+                  'date': formats.dayMonth(publishedAt),
+                }),
+                maxLines: 1,
+                style: type.caption.copyWith(color: colors.textSecondary),
               ),
             ],
           ),

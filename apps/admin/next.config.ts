@@ -8,6 +8,8 @@ const securityHeaders = [
   { key: 'X-Content-Type-Options', value: 'nosniff' },
   { key: 'Referrer-Policy', value: 'no-referrer' },
   { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+  // Outside production http: is allowed too: on a phone in the same Wi-Fi
+  // the local storage (MinIO) answers at http://<mac-ip>:9000.
   {
     key: 'Content-Security-Policy',
     value: [
@@ -15,11 +17,11 @@ const securityHeaders = [
       // `next dev` needs eval for react-refresh; production stays strict.
       `script-src 'self' 'unsafe-inline'${process.env.NODE_ENV === 'production' ? '' : " 'unsafe-eval'"}`,
       "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: blob: https:",
+      `img-src 'self' data: blob: https:${process.env.NODE_ENV === 'production' ? '' : ' http:'}`,
       // Reels play from signed Bunny/S3 links and sticker files upload
       // straight to the media bucket (admin/media).
-      "media-src 'self' https: blob:",
-      `connect-src 'self' https:${process.env.NODE_ENV === 'production' ? '' : ' http://localhost:9000'}`,
+      `media-src 'self' https: blob:${process.env.NODE_ENV === 'production' ? '' : ' http:'}`,
+      `connect-src 'self' https:${process.env.NODE_ENV === 'production' ? '' : ' http:'}`,
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self'",

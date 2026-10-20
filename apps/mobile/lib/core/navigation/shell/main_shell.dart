@@ -4,12 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:lawbid/core/design_system/tokens/app_motion.dart';
 import 'package:lawbid/core/design_system/widgets/bars/app_bottom_nav.dart';
 import 'package:lawbid/core/design_system/widgets/bars/app_side_nav.dart';
 import 'package:lawbid/core/design_system/widgets/motion/app_entrance.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/navigation/route_observer.dart';
 import 'package:lawbid/core/navigation/shell/bottom_nav_config.dart';
 import 'package:lawbid/core/navigation/shell/shell_layout.dart';
 import 'package:lawbid/core/navigation/shell/tab_reselect.dart';
@@ -52,6 +52,8 @@ class _MainShellState extends ConsumerState<MainShell> {
 
   void _onTabSelected(int index) {
     final reselect = index == navigationShell.currentIndex;
+    // Owner 2026-10-19: switching tabs drops the keyboard of the tab left.
+    dropKeyboard();
     navigationShell.goBranch(index, initialLocation: reselect);
     if (reselect) unawaited(_scrollToTopAndRefresh());
   }
@@ -97,8 +99,12 @@ class _MainShellState extends ConsumerState<MainShell> {
       ..listen(badgesProvider, (_, __) {})
       ..listen(sessionServicesProvider, (_, __) {});
 
-    final uploading =
-        ref.watch(reelPublishJobProvider).phase != ReelPublishPhase.idle;
+    // Owner 2026-10-18 (speed): only "is a reel uploading" — the upload's
+    // progress ticks must not rebuild the whole shell (the strip watches
+    // them itself).
+    final uploading = ref.watch(
+      reelPublishJobProvider.select((j) => j.phase != ReelPublishPhase.idle),
+    );
     // Owner 2026-10-15 (web): on a wide window the bar moves to the side.
     final layout = shellLayoutFor(MediaQuery.sizeOf(context).width);
     final side = layout != ShellLayout.bottom;
@@ -115,10 +121,9 @@ class _MainShellState extends ConsumerState<MainShell> {
               child: MediaQuery.removePadding(
                 context: context,
                 removeTop: uploading,
-                child: _TabFade(
-                  index: navigationShell.currentIndex,
-                  child: KeyedSubtree(key: _bodyKey, child: navigationShell),
-                ),
+                // Owner 2026-10-18 (speed): tabs switch instantly — the
+                // whole-body fade drew the tab into an extra layer.
+                child: KeyedSubtree(key: _bodyKey, child: navigationShell),
               ),
             ),
           ],
@@ -169,53 +174,6 @@ class _MainShellState extends ConsumerState<MainShell> {
               onCreatePressed: () => showCreateSheet(context, ref),
               createSemanticLabel: translator.t('nav.create'),
             ),
-    );
-  }
-}
-
-/// Fades the tab body in whenever the selected branch changes (UI
-/// modernization pass, 2026-09-27). The SAME [child] instance is kept
-/// mounted (no key change), so `StatefulShellRoute.indexedStack` still
-/// preserves every branch's navigator/scroll state. No-op under
-/// reduce-motion.
-class _TabFade extends StatefulWidget {
-  const _TabFade({required this.index, required this.child});
-
-  final int index;
-  final Widget child;
-
-  @override
-  State<_TabFade> createState() => _TabFadeState();
-}
-
-class _TabFadeState extends State<_TabFade>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller = AnimationController(
-    vsync: this,
-    duration: AppMotion.stateChange,
-    value: 1,
-  );
-
-  @override
-  void didUpdateWidget(covariant _TabFade oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.index != widget.index && !context.reduceMotion) {
-      _controller.forward(from: 0);
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FadeTransition(
-      opacity:
-          CurvedAnimation(parent: _controller, curve: AppMotion.enterCurve),
-      child: widget.child,
     );
   }
 }

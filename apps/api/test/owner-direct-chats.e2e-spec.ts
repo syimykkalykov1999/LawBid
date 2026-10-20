@@ -9,10 +9,12 @@ import { TokenService } from '../src/modules/auth/services/token.service';
 
 /**
  * OQ-043 (owner 2026-09-30): "Message" on a profile opens one direct chat
- * per attorney/client pair; the first messages are a request waiting in
- * the recipient's "Requests" (max 3, no "Seen"); a reply or Accept moves
- * it to the main list; Delete stops the requester; same-role and blocked
- * pairs are refused; contacts stay masked; calls stay closed.
+ * per pair; the first messages are a request waiting in the recipient's
+ * "Requests" (no "Seen"); a reply or Accept moves it to the main list;
+ * Delete stops the requester; self and blocked pairs are refused; contacts
+ * stay masked; calls stay closed. Owner 2026-10-17: any two users (client ↔
+ * client, attorney ↔ attorney too), no cap while pending, and a recipient
+ * who follows the caller gets the chat straight in the main list.
  */
 jest.setTimeout(120_000);
 
@@ -118,15 +120,13 @@ describe('Direct chats and message requests (e2e, OQ-043)', () => {
       .expect(200);
     expect(again.body.data.id).toBe(convId);
 
-    // Up to 3 messages while pending; contacts are masked.
+    // No cap while pending; contacts are masked.
     const first = await send(cli.auth, convId, 'Hi, call me at 555 123 4567');
     expect(first.status).toBe(201);
     expect(first.body.data.contactMasked).toBe(true);
     await send(cli.auth, convId, 'Question about a DUI').expect(201);
     await send(cli.auth, convId, 'Thanks').expect(201);
-    const fourth = await send(cli.auth, convId, 'Hello?');
-    expect(fourth.status).toBe(409);
-    expect(fourth.body.error.code).toBe('MESSAGE_REQUEST_LIMIT');
+    await send(cli.auth, convId, 'Hello?').expect(201);
 
     // The attorney sees it only under Requests (the client is visible).
     const primary = await api().get('/api/v1/conversations').set(att.auth);
@@ -230,14 +230,13 @@ describe('Direct chats and message requests (e2e, OQ-043)', () => {
       .expect(200);
     expect(acc.body.data.requestStatus).toBe('accepted');
 
-    // Same role, self and blocked pairs.
-    const att2 = await person('attorney');
-    const same = await api()
+    // Self and blocked pairs.
+    const self = await api()
       .post('/api/v1/conversations/direct')
       .set(att.auth)
-      .send({ userId: att2.id });
-    expect(same.status).toBe(409);
-    expect(same.body.error.code).toBe('DIRECT_CHAT_NOT_ALLOWED');
+      .send({ userId: att.id });
+    expect(self.status).toBe(409);
+    expect(self.body.error.code).toBe('DIRECT_CHAT_NOT_ALLOWED');
     const cli3 = await person('client');
     await prisma.userBlock.create({
       data: { blocker_id: cli3.id, blocked_id: att.id },
@@ -258,5 +257,61 @@ describe('Direct chats and message requests (e2e, OQ-043)', () => {
     const noSub = await send(lapsed.auth, o3.body.data.id, 'Hi');
     expect(noSub.status).toBe(403);
     expect(noSub.body.error.code).toBe('SUBSCRIPTION_REQUIRED');
+  });
+
+  it('client ↔ client and attorney ↔ attorney chat freely (owner 2026-10-17)', async () => {
+    const a = await person('client');
+    const b = await person('client');
+    const open = await api()
+      .post('/api/v1/conversations/direct')
+      .set(a.auth)
+      .send({ userId: b.id })
+      .expect(200);
+    const convId = open.body.data.id as string;
+    expect(open.body.data).toMatchObject({
+      requestStatus: 'pending',
+      counterpart: { kind: 'client', id: b.id },
+    });
+    // The other side opening it lands on the same chat.
+    const back = await api()
+      .post('/api/v1/conversations/direct')
+      .set(b.auth)
+      .send({ userId: a.id })
+      .expect(200);
+    expect(back.body.data.id).toBe(convId);
+    for (let i = 0; i < 5; i += 1) {
+      await send(a.auth, convId, `hi ${i}`).expect(201);
+    }
+    await send(b.auth, convId, 'hey').expect(201);
+    const after = await api()
+      .get(`/api/v1/conversations/${convId}`)
+      .set(a.auth);
+    expect(after.body.data.requestStatus).toBe('accepted');
+    await api()
+      .post(`/api/v1/conversations/${convId}/calls`)
+      .set(a.auth)
+      .expect(201);
+
+    // Attorneys without a subscription still talk to each other; a
+    // follower gets the chat straight in the main list.
+    const x = await person('attorney', false);
+    const y = await person('attorney', false);
+    await prisma.follow.create({
+      data: { follower_id: y.id, followee_id: x.id },
+    });
+    const o = await api()
+      .post('/api/v1/conversations/direct')
+      .set(x.auth)
+      .send({ userId: y.id })
+      .expect(200);
+    expect(o.body.data).toMatchObject({
+      requestStatus: 'accepted',
+      contactsUnlocked: true,
+      counterpart: { kind: 'attorney' },
+    });
+    await send(x.auth, o.body.data.id, 'Colleague question').expect(201);
+    expect(ids(await api().get('/api/v1/conversations').set(y.auth))).toContain(
+      o.body.data.id,
+    );
   });
 });

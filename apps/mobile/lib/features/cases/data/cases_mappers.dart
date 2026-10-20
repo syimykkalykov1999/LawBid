@@ -36,7 +36,11 @@ abstract final class CasesMappers {
         additionalStateCount: c.additionalStateCount,
         city: c.city,
         status: c.status,
-        budget: CaseBudget(mode: c.budgetMode, amountCents: c.budgetCents),
+        budget: CaseBudget(
+          mode: c.budgetMode,
+          amountCents: c.budgetCents,
+          percentBps: c.budgetPercentBps,
+        ),
         bidsCount: c.bidsCount,
         createdAt: _date(c.createdAt),
         lastActivityAt: _date(c.lastActivityAt),
@@ -48,12 +52,18 @@ abstract final class CasesMappers {
           deadlineAt: c.deadlineAt,
           kind: c.deadlineKind,
         ),
+        pausedAt: _dateOrNull(c.pausedAt),
+        stillNeededPending: c.stillNeededPending,
+        canMakeNotUrgent: c.canMakeNotUrgent,
+        hidesAt: _dateOrNull(c.hidesAt),
+        archivesAt: _dateOrNull(c.archivesAt),
       );
 
   static OwnerCase ownerCase(api.OwnerCaseDetailDto c) => OwnerCase(
         id: c.id,
         title: c.title,
         description: c.description,
+        privateDetails: c.privateDetails,
         practice: practiceRef(c.practiceArea),
         extraPractices: [for (final p in c.extraPracticeAreas) practiceRef(p)],
         primaryStateCode: c.primaryStateCode,
@@ -62,7 +72,11 @@ abstract final class CasesMappers {
             if (!s.isPrimary) s.stateCode,
         ],
         city: c.city,
-        budget: CaseBudget(mode: c.budgetMode, amountCents: c.budgetCents),
+        budget: CaseBudget(
+          mode: c.budgetMode,
+          amountCents: c.budgetCents,
+          percentBps: c.budgetPercentBps,
+        ),
         status: c.status,
         viewCount: c.viewCount,
         bidsCount: c.bidsCount,
@@ -85,6 +99,11 @@ abstract final class CasesMappers {
           deadlineAt: c.deadlineAt,
           kind: c.deadlineKind,
         ),
+        pausedAt: _dateOrNull(c.pausedAt),
+        stillNeededPending: c.stillNeededPending,
+        canMakeNotUrgent: c.canMakeNotUrgent,
+        hidesAt: _dateOrNull(c.hidesAt),
+        archivesAt: _dateOrNull(c.archivesAt),
       );
 
   static CasePhoto casePhoto(api.CasePhotoDto p) => CasePhoto(
@@ -114,6 +133,7 @@ abstract final class CasesMappers {
         fromRole: o.fromRole,
         feeType: o.feeType,
         amountCents: o.amountCents,
+        percentBps: o.percentBps,
         message: o.message,
         status: o.status,
         createdAt: o.createdAt.toLocal(),
@@ -126,6 +146,7 @@ abstract final class CasesMappers {
         status: b.status,
         feeType: b.feeType,
         amountCents: b.amountCents,
+        percentBps: b.percentBps,
         message: b.message,
         startAvailability: b.startAvailability,
         startDate: b.startDate,
@@ -146,6 +167,7 @@ abstract final class CasesMappers {
         status: b.status,
         feeType: b.feeType,
         amountCents: b.amountCents,
+        percentBps: b.percentBps,
         message: b.message,
         startAvailability: b.startAvailability,
         startDate: b.startDate,
@@ -171,8 +193,11 @@ abstract final class CasesMappers {
         additionalStateCodes: c.additionalStateCodes,
         city: c.city,
         status: c.status,
-        budget:
-            CaseBudget(mode: c.budget.mode, amountCents: c.budget.amountCents),
+        budget: CaseBudget(
+          mode: c.budget.mode,
+          amountCents: c.budget.amountCents,
+          percentBps: c.budget.percentBps,
+        ),
         viewCount: c.viewCount,
         bidsCount: c.bidsCount,
         createdAt: c.createdAt.toLocal(),
@@ -193,12 +218,23 @@ abstract final class CasesMappers {
           kind: c.deadlineKind,
         ),
         dossier: dossier(c.dossier),
+        clientActivity: clientActivity(c.clientActivity),
       );
+
+  /// OQ-054: null when the client's activity status is hidden.
+  static ClientActivity? clientActivity(api.ClientActivityDto? a) => a == null
+      ? null
+      : ClientActivity(
+          online: a.online,
+          lastSeenDays: a.lastSeenDays,
+          respondsWithinDay: a.respondsWithinDay,
+        );
 
   static CaseDossier dossier(api.CaseDossierDto d) => CaseDossier(
         imagesCount: d.imagesCount,
         documentsCount: d.documentsCount,
         descriptionLength: d.descriptionLength,
+        privateDetailsLength: d.privateDetailsLength,
       );
 
   static FeedCase attorneyCase(api.CaseDetailForAttorneyDto c) => FeedCase(
@@ -211,14 +247,18 @@ abstract final class CasesMappers {
         additionalStateCodes: c.additionalStateCodes,
         city: c.city,
         status: c.status,
-        budget:
-            CaseBudget(mode: c.budget.mode, amountCents: c.budget.amountCents),
+        budget: CaseBudget(
+          mode: c.budget.mode,
+          amountCents: c.budget.amountCents,
+          percentBps: c.budget.percentBps,
+        ),
         viewCount: c.viewCount,
         bidsCount: c.bidsCount,
         createdAt: c.createdAt.toLocal(),
         isNew: c.isNew,
         hasOwnBid: c.hasOwnBid,
         description: c.description,
+        privateDetails: c.privateDetails,
         isSaved: c.isSaved,
         ownBidId: c.ownBidId,
         completionRequestedBy: c.completionRequestedBy?.json,
@@ -239,6 +279,7 @@ abstract final class CasesMappers {
           kind: c.deadlineKind,
         ),
         dossier: dossier(c.dossier),
+        clientActivity: clientActivity(c.clientActivity),
       );
 
   static MyBid myBid(api.MyBidItemDto b) => MyBid(
@@ -249,6 +290,7 @@ abstract final class CasesMappers {
           status: b.status,
           feeType: b.feeType,
           amountCents: b.amountCents,
+          percentBps: b.percentBps,
           message: b.message,
           startAvailability: b.startAvailability,
           startDate: b.startDate,
@@ -280,6 +322,7 @@ abstract final class CasesMappers {
         additionalStateCount: w.additionalStateCount,
         feeType: w.feeType,
         amountCents: w.amountCents,
+        percentBps: w.percentBps,
         autoCloseAt: _dateOrNull(w.autoCloseAt),
         acceptedAt: _dateOrNull(w.acceptedAt),
         closedAt: _dateOrNull(w.closedAt),
@@ -321,6 +364,7 @@ abstract final class CasesMappers {
         closedAt: _dateOrNull(c.closedAt),
         archivedAt: _dateOrNull(c.archivedAt),
         acceptedAmountCents: c.acceptedBid?.amountCents,
+        acceptedPercentBps: c.acceptedBid?.percentBps,
         acceptedFeeType: c.acceptedBid?.feeType,
       );
 
@@ -338,6 +382,7 @@ abstract final class CasesMappers {
           closedAt: _dateOrNull(c.closedAt),
           archivedAt: _dateOrNull(c.archivedAt),
           acceptedAmountCents: c.acceptedBid?.amountCents,
+          acceptedPercentBps: c.acceptedBid?.percentBps,
           acceptedFeeType: c.acceptedBid?.feeType,
         ),
         clientName: c.clientName,
@@ -355,6 +400,7 @@ abstract final class CasesMappers {
                 _ => HistoryActor.system,
               },
               amountCents: e.amountCents,
+              percentBps: e.percentBps,
               feeType: e.feeType,
               roundNo: e.roundNo,
               reason: e.reason,

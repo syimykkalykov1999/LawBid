@@ -1,3 +1,5 @@
+import { ApnsVoipSender } from './apns-voip.sender';
+import { VoipTokensService } from './voip-tokens.service';
 import { FeatureFlagsService } from '../../feature-flags/services/feature-flags.service';
 import { emailFlowsOn } from '../../feature-flags/email-flows';
 import {
@@ -93,6 +95,9 @@ export class PushDispatcher
     @Optional() private readonly costGuard?: CostGuardService,
     @Optional() private readonly cipher?: MessageBodyCipher,
     @Optional() private readonly flags?: FeatureFlagsService,
+    // Owner 2026-10-17: iPhone calls as VoIP (PushKit) pushes.
+    @Optional() private readonly voip?: ApnsVoipSender,
+    @Optional() private readonly voipTokens?: VoipTokensService,
   ) {
     this.logger.setContext(PushDispatcher.name);
   }
@@ -120,6 +125,20 @@ export class PushDispatcher
   /** Returns what happened (tests, dashboards). */
   async dispatch(data: PushJobData, jobId: string): Promise<DispatchResult> {
     if (data.kind === 'call') return this.dispatchCall(data);
+    if (data.kind === 'call_end') {
+      // Never held by settings or quiet hours: it only silences a ring.
+      await this.sender.send(
+        {
+          userId: data.recipientId,
+          title: '',
+          body: '',
+          data: { type: 'call_ended', callId: data.callId },
+          callEnd: true,
+        },
+        `ce:${data.callId}`,
+      );
+      return 'sent';
+    }
     return data.kind === 'message'
       ? this.dispatchMessage(data, jobId)
       : this.dispatchNotification(data, jobId);
@@ -150,6 +169,20 @@ export class PushDispatcher
       [call.caller.first_name, call.caller.last_name]
         .filter(Boolean)
         .join(' ') || 'LawBid';
+    // Owner 2026-10-17: iPhones with a VoIP token ring through Apple
+    // directly (CallKit, even when the app is closed); their FCM call push
+    // is skipped so they don't ring twice.
+    const rang =
+      (await this.voip?.ringCall(data.recipientId, {
+        callId: data.callId,
+        conversationId: call.conversation_id,
+        callerName: name,
+        video: call.video,
+        silent,
+      })) ?? [];
+    const skipTokens = rang.length
+      ? ((await this.voipTokens?.fcmTokensCoveredBy(rang)) ?? [])
+      : [];
     await this.sender.send(
       {
         userId: data.recipientId,
@@ -171,6 +204,7 @@ export class PushDispatcher
           ...(call.video ? { video: '1' } : {}),
         },
         call: true,
+        skipTokens,
       },
       `c:${data.callId}`,
     );

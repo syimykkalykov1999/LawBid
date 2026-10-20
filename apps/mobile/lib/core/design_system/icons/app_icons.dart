@@ -95,6 +95,9 @@ abstract final class AppIcons {
       IconData(0xe182, fontFamily: lightFamily);
   static const IconData chevronRightRounded =
       IconData(0xe13a, fontFamily: lightFamily);
+
+  /// Owner 2026-10-19: the photo framing's «original / square» switch.
+  static const IconData cornersOut = IconData(0xe1d0, fontFamily: lightFamily);
   static const IconData closeRounded =
       IconData(0xe4f6, fontFamily: lightFamily);
   static const IconData cloudUploadOutlined =
@@ -531,6 +534,11 @@ abstract final class AppIcons {
       IconData(0xe8c0, fontFamily: fillFamily);
   static const IconData speakerHigh = IconData(0xe44a, fontFamily: fillFamily);
   static const IconData speakerSlash = IconData(0xe45a, fontFamily: fillFamily);
+
+  /// Owner 2026-10-18: the profile «Рилсы» tab — a play button in a circle
+  /// reads as "video" everywhere (outline, like the other tab icons).
+  static const IconData playCircleOutlined =
+      IconData(0xe3d2, fontFamily: lightFamily);
   static const IconData playCircleRounded =
       IconData(0xe3d2, fontFamily: fillFamily);
   static const IconData stickerOutlined =

@@ -199,8 +199,9 @@ export class ImageProcessor {
     return this.encode(out, format);
   }
 
-  /** Quality 85 JPEG (mozjpeg) or quality 80 WebP — the same look; sharp
-   * writes no metadata (EXIF/GPS) unless asked to. */
+  /** Quality 90 JPEG (mozjpeg) or quality 88 WebP — the same look; sharp
+   * writes no metadata (EXIF/GPS) unless asked to. Owner 2026-10-19: was
+   * 85 / 80 — on top of the phone's own compression it looked soft. */
   private async encode(
     img: sharp.Sharp,
     format: ImageFormat,
@@ -208,10 +209,10 @@ export class ImageProcessor {
     const out =
       format === 'webp'
         ? await img
-            .webp({ quality: 80, effort: 4 })
+            .webp({ quality: 88, effort: 4 })
             .toBuffer({ resolveWithObject: true })
         : await img
-            .jpeg({ quality: 85, mozjpeg: true })
+            .jpeg({ quality: 90, mozjpeg: true })
             .toBuffer({ resolveWithObject: true });
     return {
       data: out.data,

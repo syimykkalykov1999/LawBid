@@ -8,12 +8,16 @@ part 'counter_offer_dto.g.dart';
 
 @JsonSerializable()
 class CounterOfferDto {
-  const CounterOfferDto({required this.amountCents, this.message});
+  const CounterOfferDto({this.amountCents, this.percentBps, this.message});
 
   factory CounterOfferDto.fromJson(Map<String, Object?> json) =>
       _$CounterOfferDtoFromJson(json);
 
-  final int amountCents;
+  /// Required unless the bid is contingency.
+  final int? amountCents;
+
+  /// Owner 2026-10-17: required for a contingency bid.
+  final int? percentBps;
   final String? message;
 
   Map<String, Object?> toJson() => _$CounterOfferDtoToJson(this);

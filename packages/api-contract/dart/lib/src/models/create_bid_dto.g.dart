@@ -14,6 +14,7 @@ CreateBidDto _$CreateBidDtoFromJson(Map<String, dynamic> json) => CreateBidDto(
   ),
   sendAsAttorneyId: json['sendAsAttorneyId'] as String?,
   amountCents: (json['amountCents'] as num?)?.toInt(),
+  percentBps: (json['percentBps'] as num?)?.toInt(),
   startDate: json['startDate'] == null
       ? null
       : DateTime.parse(json['startDate'] as String),
@@ -25,6 +26,7 @@ Map<String, dynamic> _$CreateBidDtoToJson(CreateBidDto instance) =>
       'sendAsAttorneyId': ?instance.sendAsAttorneyId,
       'feeType': instance.feeType.toJson(),
       'amountCents': ?instance.amountCents,
+      'percentBps': ?instance.percentBps,
       'message': instance.message,
       'startAvailability': instance.startAvailability.toJson(),
       'startDate': ?instance.startDate?.toIso8601String(),

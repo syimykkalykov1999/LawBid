@@ -12,6 +12,7 @@ CreateSupportMacroDto _$CreateSupportMacroDtoFromJson(
   title: json['title'] as String,
   body: json['body'] as String,
   active: json['active'] as bool? ?? true,
+  bodyRu: json['bodyRu'] as String?,
   category: json['category'] == null
       ? null
       : CreateSupportMacroDtoCategory.fromJson(json['category'] as String),
@@ -22,6 +23,7 @@ Map<String, dynamic> _$CreateSupportMacroDtoToJson(
 ) => <String, dynamic>{
   'title': instance.title,
   'body': instance.body,
+  'bodyRu': ?instance.bodyRu,
   'category': ?instance.category?.toJson(),
   'active': instance.active,
 };

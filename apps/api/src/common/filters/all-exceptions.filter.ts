@@ -110,6 +110,23 @@ export class AllExceptionsFilter implements ExceptionFilter {
       };
     }
 
+    // Owner 2026-10-19 («нажимаю на оплату не переходит»): a Stripe call
+    // that fails (wrong or revoked key, a price from the other mode, Stripe
+    // unreachable) is «payments unavailable» for the app, not a bare 500.
+    // A declined card keeps the generic error.
+    const stripeType = (exception as { type?: unknown } | null)?.type;
+    if (
+      typeof stripeType === 'string' &&
+      stripeType.startsWith('Stripe') &&
+      stripeType !== 'StripeCardError'
+    ) {
+      return {
+        status: HttpStatus.SERVICE_UNAVAILABLE,
+        code: ErrorCode.PAYMENTS_NOT_CONFIGURED,
+        message: 'Payments are temporarily unavailable.',
+      };
+    }
+
     return {
       status: HttpStatus.INTERNAL_SERVER_ERROR,
       code: ErrorCode.INTERNAL_ERROR,

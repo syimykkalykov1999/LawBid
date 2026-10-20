@@ -10,7 +10,7 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import type { ContentStatus, File, Post, Prisma } from '@prisma/client';
+import type { ContentStatus, File, Prisma } from '@prisma/client';
 import { classifyPost, isPostContentClass } from './content-filter.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
@@ -39,13 +39,20 @@ import {
   type PostCountersDto,
   type PostDto,
   type PostPage,
-  type PostReposterDto,
+  type PostMediaFilter,
 } from './dto/posts.dto';
 import { SubscriptionAlertsService } from '../notifications/subscription-alerts.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { VideosService } from '../videos/videos.service';
 import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
-import { hiddenTagOf, hiddenTagsFor, legacyTopicTags } from './hidden-tags';
+import {
+  hiddenTagsFor,
+  legacyTopicTags,
+  postPracticeWhere,
+} from './hidden-tags';
+import type Redis from 'ioredis';
+import { REDIS_CLIENT } from '../../redis/redis.constants';
+import { cachedBlockSet } from '../blocks/block-set.cache';
 import { extractHashtags } from './hashtags';
 import { PostAttachmentsPolicy } from './post-attachments.policy';
 import {
@@ -64,6 +71,31 @@ export function safeFileName(name: string): string {
 
 /** Owner 2026-10-06: the whole News system, off by default. */
 export const NEWS_FLAG = 'news_posts';
+
+/** Owner 2026-10-18 (profile tabs Посты | Рилсы | Брифы): which posts a
+ * media filter keeps — the same split as the app's PostCard.isThreadsStyle. */
+export function postMediaWhere(
+  media: PostMediaFilter | undefined,
+): Prisma.PostWhereInput {
+  switch (media) {
+    case 'video':
+      return { video_asset_id: { not: null } };
+    case 'visual':
+      // AND, not OR: the caller's cursor clause is an OR of its own.
+      return {
+        video_asset_id: null,
+        AND: [{ OR: [{ media: { some: {} } }, { attachments: { some: {} } }] }],
+      };
+    case 'text':
+      return {
+        video_asset_id: null,
+        media: { none: {} },
+        attachments: { none: {} },
+      };
+    default:
+      return {};
+  }
+}
 
 export function postNotFound(): NotFoundException {
   return new NotFoundException({
@@ -91,6 +123,7 @@ export class PostsService {
     private readonly notifications: NotificationsService,
     private readonly attachmentsPolicy: PostAttachmentsPolicy,
     private readonly settings: AppSettingsService,
+    @Inject(REDIS_CLIENT) private readonly redis: Redis,
     @Optional() private readonly alerts?: SubscriptionAlertsService,
     @Optional() private readonly promoDelivery?: PromotionDeliveryService,
     @Optional() private readonly flags?: FeatureFlagsService,
@@ -142,6 +175,9 @@ export class PostsService {
         details: { field: 'body', maxChars },
       });
     }
+    // Owner 2026-10-18: the title and the text are optional when photos, a
+    // video or files are attached (Instagram / TikTok); an empty post is not.
+    assertNotEmptyPost(dto.title, dto.body, hasFiles);
     // Owner 2026-10-13: documents need the right to attach (the admin's
     // setting + plan). Owner 2026-10-16: photos (up to the admin's count,
     // 9) and a reel's video never do.
@@ -204,7 +240,11 @@ export class PostsService {
           .create({
             data: {
               author_id: user.sub,
-              title: dto.title,
+              // Owner 2026-10-18: a title typed in the composer is stored
+              // as is; '' = the author chose no title (the app then shows
+              // the description only). Not sent at all = NULL (older
+              // clients: the first line is the title).
+              title: dto.title === undefined ? null : dto.title.trim(),
               practice_area_id: practice?.id ?? null,
               kind,
               // Owner 2026-10-05: legal vs general (personal) post.
@@ -302,11 +342,14 @@ export class PostsService {
         author_id: true,
         kind: true,
         video_asset_id: true,
+        archived_at: true,
         _count: { select: { media: true, attachments: true } },
         author: { select: { role: true } },
       },
     });
-    if (!post) return;
+    // Owner 2026-10-18: an archived post is not public (it counts and
+    // alerts when the author shows it in the profile again).
+    if (!post || post.archived_at) return;
     await this.counters.bump(
       profileEntity(post.author.role === 'client' ? 'client' : 'attorney'),
       post.author_id,
@@ -464,7 +507,11 @@ export class PostsService {
         details: { field: 'body', maxChars },
       });
     }
-    const title = dto.title ?? current.title;
+    // Owner 2026-10-18: '' clears the title ('' = no title, see create).
+    const title = dto.title === undefined ? current.title : dto.title.trim();
+    // Owner 2026-10-18: an edit may clear the title and the text only while
+    // the post keeps photos, a video or files.
+    assertNotEmptyPost(title, body, files > 0);
     const practice = dto.practiceCode
       ? await this.practiceByCode(dto.practiceCode)
       : null;
@@ -530,7 +577,11 @@ export class PostsService {
         postId: id,
       });
     }
-    if (current.status === 'published' && post.status !== 'published') {
+    if (
+      current.status === 'published' &&
+      post.status !== 'published' &&
+      !current.archived_at
+    ) {
       await this.counters.bump(
         profileEntity(user.role),
         user.sub,
@@ -550,7 +601,7 @@ export class PostsService {
     if (count !== 1) throw postNotFound();
     const post = await this.prisma.post.findFirst({
       where: { id },
-      select: { status: true, video_asset_id: true },
+      select: { status: true, video_asset_id: true, archived_at: true },
     });
     // Owner 2026-10-01: the reel's video goes with the post.
     if (post?.video_asset_id) {
@@ -560,7 +611,8 @@ export class PostsService {
       });
       if (asset) await this.videos.purgeNow(asset);
     }
-    if (post?.status === 'published') {
+    // An archived post is already out of the profile count.
+    if (post?.status === 'published' && !post.archived_at) {
       await this.counters.bump(
         profileEntity(user.role),
         user.sub,
@@ -580,6 +632,7 @@ export class PostsService {
         id,
         author_id: user.sub,
         deleted_at: null,
+        archived_at: null,
         status: 'published',
         kind: 'post',
       },
@@ -632,6 +685,113 @@ export class PostsService {
     return (await this.presenter.present([post], user.sub))[0];
   }
 
+  /** Owner 2026-10-18: the author turns comments on / off (⋯ menu, like
+   * Instagram). While off nobody adds a comment or a reply and the existing
+   * ones are hidden (kept, they come back when comments are on again). */
+  async setCommentsEnabled(
+    user: RequestUser,
+    id: string,
+    enabled: boolean,
+  ): Promise<PostDto> {
+    const { count } = await this.prisma.post.updateMany({
+      where: { id, author_id: user.sub, deleted_at: null },
+      data: { comments_enabled: enabled },
+    });
+    if (count !== 1) throw postNotFound();
+    return this.get(user, id);
+  }
+
+  /** Owner 2026-10-18: «Архивировать» — the post leaves every list for
+   * everyone (its author still opens it from Settings → «Архив»); likes,
+   * comments and saves are kept. Idempotent; a pin is dropped. */
+  async archive(user: RequestUser, id: string): Promise<PostDto> {
+    const post = await this.prisma.post.findFirst({
+      where: { id, author_id: user.sub, deleted_at: null },
+      select: { id: true, status: true, archived_at: true },
+    });
+    if (!post) throw postNotFound();
+    if (post.status === 'processing') {
+      throw new ConflictException({
+        code: ErrorCode.VIDEO_NOT_READY,
+        message: 'The video is still processing; archive the post later.',
+      });
+    }
+    if (!post.archived_at) {
+      const { count } = await this.prisma.post.updateMany({
+        where: { id, archived_at: null },
+        data: { archived_at: new Date(), pin_slot: null, pin_group: null },
+      });
+      if (count === 1 && post.status === 'published') {
+        await this.counters.bump(
+          profileEntity(user.role),
+          user.sub,
+          'posts_count',
+          -1,
+        );
+      }
+    }
+    return this.get(user, id);
+  }
+
+  /** Owner 2026-10-18: «Показать в профиле» — back to its original place
+   * (created_at is never changed). Idempotent. */
+  async unarchive(user: RequestUser, id: string): Promise<PostDto> {
+    const post = await this.prisma.post.findFirst({
+      where: { id, author_id: user.sub, deleted_at: null },
+      select: { id: true, status: true },
+    });
+    if (!post) throw postNotFound();
+    const { count } = await this.prisma.post.updateMany({
+      where: { id, archived_at: { not: null } },
+      data: { archived_at: null },
+    });
+    if (count === 1 && post.status === 'published') {
+      await this.counters.bump(
+        profileEntity(user.role),
+        user.sub,
+        'posts_count',
+        1,
+      );
+    }
+    return this.get(user, id);
+  }
+
+  /** Owner 2026-10-18: GET /me/archived-posts — the author's archive,
+   * newest archived first. */
+  async listArchived(
+    user: RequestUser,
+    query: { cursor?: string; limit?: number },
+  ): Promise<PostPage> {
+    const limit = query.limit ?? POSTS_PAGE_DEFAULT;
+    const c = query.cursor ? decodeCursor(query.cursor) : undefined;
+    const rows = await this.prisma.post.findMany({
+      where: {
+        author_id: user.sub,
+        deleted_at: null,
+        archived_at: { not: null },
+        ...(c
+          ? {
+              OR: [
+                { archived_at: { lt: c.createdAt } },
+                { archived_at: c.createdAt, id: { lt: c.id } },
+              ],
+            }
+          : {}),
+      },
+      orderBy: [{ archived_at: 'desc' }, { id: 'desc' }],
+      take: limit + 1,
+    });
+    const page = rows.slice(0, limit);
+    const last = page[page.length - 1];
+    return {
+      items: await this.presenter.present(page, user.sub),
+      nextCursor:
+        rows.length > limit && last?.archived_at
+          ? encodeCursor({ createdAt: last.archived_at, id: last.id })
+          : null,
+    };
+  }
+
   /** GET /posts/:id — the author also sees their own hidden post. */
   async get(user: RequestUser, id: string): Promise<PostDto> {
     const post = await this.prisma.post.findFirst({
@@ -649,17 +809,24 @@ export class PostsService {
   async listByAttorney(
     user: RequestUser,
     attorneyId: string,
-    query: { cursor?: string; limit?: number; kind?: 'post' | 'news' },
+    query: {
+      cursor?: string;
+      limit?: number;
+      kind?: 'post' | 'news';
+      media?: PostMediaFilter;
+    },
   ): Promise<PostPage> {
     const limit = query.limit ?? POSTS_PAGE_DEFAULT;
     const c = query.cursor ? decodeCursor(query.cursor) : undefined;
     const own = attorneyId === user.sub;
+    const media = postMediaWhere(query.media);
     const rows = await this.prisma.post.findMany({
       where: {
         author_id: attorneyId,
         // Owner 2026-09-30: the profile's News tab.
         ...(query.kind ? { kind: query.kind } : {}),
-        ...(own ? { deleted_at: null } : VISIBLE_POST_WHERE),
+        ...(own ? { deleted_at: null, archived_at: null } : VISIBLE_POST_WHERE),
+        ...media,
         // Owner 2026-10-12: pinned posts lead the first page, once.
         ...(query.kind === 'news' ? {} : { pin_slot: null }),
         ...(c
@@ -674,60 +841,10 @@ export class PostsService {
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
       take: limit + 1,
     });
-    // Owner 2026-10-12 (Threads): the profile's list also carries the
-    // briefs this person reposted, by the time of the repost.
-    const reposts =
-      query.kind === 'news'
-        ? []
-        : await this.prisma.postRepost.findMany({
-            where: {
-              user_id: attorneyId,
-              ...(c
-                ? {
-                    OR: [
-                      { created_at: { lt: c.createdAt } },
-                      { created_at: c.createdAt, id: { lt: c.id } },
-                    ],
-                  }
-                : {}),
-              post: {
-                AND: [VISIBLE_POST_WHERE, BRIEF_POST_WHERE],
-                author_id: { not: attorneyId },
-              },
-            },
-            include: { post: true },
-            orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
-            take: limit + 1,
-          });
-    type Entry = { at: Date; id: string; post: Post; repost: boolean };
-    const entries: Entry[] = [
-      ...rows.map((p) => ({
-        at: p.created_at,
-        id: p.id,
-        post: p,
-        repost: false,
-      })),
-      ...reposts.map((r) => ({
-        at: r.created_at,
-        id: r.id,
-        post: r.post,
-        repost: true,
-      })),
-    ].sort(
-      (x, y) =>
-        y.at.getTime() - x.at.getTime() ||
-        (x.id < y.id ? 1 : x.id > y.id ? -1 : 0),
-    );
-    const page = entries.slice(0, limit);
+    // Owner 2026-10-18: reposts have their own profile tab
+    // (GET /users/:id/reposts); this list is the person's own posts only.
+    const page = rows.slice(0, limit);
     const last = page[page.length - 1];
-    const names = await this.presenter.reposterNames(
-      page.some((e) => e.repost) ? [attorneyId] : [],
-    );
-    const reposter = names.get(attorneyId);
-    const reposters = new Map<string, PostReposterDto>();
-    if (reposter) {
-      for (const e of page) if (e.repost) reposters.set(e.post.id, reposter);
-    }
     const pinned =
       !c && query.kind !== 'news'
         ? await this.prisma.post.findMany({
@@ -735,20 +852,19 @@ export class PostsService {
               author_id: attorneyId,
               kind: 'post',
               pin_slot: { not: null },
-              ...(own ? { deleted_at: null } : VISIBLE_POST_WHERE),
+              ...(own
+                ? { deleted_at: null, archived_at: null }
+                : VISIBLE_POST_WHERE),
+              ...media,
             },
             orderBy: [{ pin_group: 'asc' }, { pin_slot: 'asc' }],
           })
         : [];
     return {
-      items: await this.presenter.present(
-        [...pinned, ...page.map((e) => e.post)],
-        user.sub,
-        reposters,
-      ),
+      items: await this.presenter.present([...pinned, ...page], user.sub),
       nextCursor:
-        entries.length > limit && last
-          ? encodeCursor({ createdAt: last.at, id: last.id })
+        rows.length > limit && last
+          ? encodeCursor({ createdAt: last.created_at, id: last.id })
           : null,
     };
   }
@@ -763,13 +879,8 @@ export class PostsService {
     const limit = Math.min(query.limit ?? 20, 20);
     const practice = query.practice?.trim().toLowerCase();
     const c = query.cursor ? decodeCursor(query.cursor) : undefined;
-    const blocks = await this.prisma.userBlock.findMany({
-      where: { OR: [{ blocker_id: user.sub }, { blocked_id: user.sub }] },
-      select: { blocker_id: true, blocked_id: true },
-    });
-    const hidden = blocks.map((b) =>
-      b.blocker_id === user.sub ? b.blocked_id : b.blocker_id,
-    );
+    // Owner 2026-10-18 (speed): the cached block set (block-set.cache.ts).
+    const hidden = await cachedBlockSet(this.prisma, this.redis, user.sub);
     const rows = await this.prisma.post.findMany({
       where: {
         AND: [
@@ -777,24 +888,7 @@ export class PostsService {
           { video_asset: { status: 'ready', deleted_at: null } },
           // One tag algorithm: the qualification and everything under it.
           practice
-            ? {
-                OR: [
-                  {
-                    tags: {
-                      some: { tag: { tag_lower: hiddenTagOf(practice) } },
-                    },
-                  },
-                  // Older posts have only the topic hashtag.
-                  {
-                    practice_area_id: null,
-                    tags: {
-                      some: {
-                        tag: { tag_lower: { in: legacyTopicTags(practice) } },
-                      },
-                    },
-                  },
-                ],
-              }
+            ? postPracticeWhere([practice], legacyTopicTags(practice))
             : {},
           hidden.length ? { author_id: { notIn: hidden } } : {},
           c
@@ -967,4 +1061,19 @@ export class PostsService {
       skipDuplicates: true,
     });
   }
+}
+
+/** Owner 2026-10-18: a post carries a title, a text, photos, a video or
+ * files — one of them at least. */
+function assertNotEmptyPost(
+  title: string | null | undefined,
+  body: string | null | undefined,
+  hasFiles: boolean,
+): void {
+  if (hasFiles || (title ?? '').trim() || (body ?? '').trim()) return;
+  throw new BadRequestException({
+    code: ErrorCode.VALIDATION_ERROR,
+    message: 'Add a title, a text, photos, a video or files.',
+    details: { field: 'body' },
+  });
 }

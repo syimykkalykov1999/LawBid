@@ -439,13 +439,6 @@ void invalidateAllTasks(WidgetRef ref) {
   }
 }
 
-/// Owner 2026-10-05: addresses used before — the address field offers them.
-final taskPlacesProvider =
-    FutureProvider.autoDispose<List<TaskPlaceSuggestion>>(
-  (ref) => ref.watch(teamRepositoryProvider).taskPlaces(),
-  retry: _noRetry,
-);
-
 /// Owner 2026-10-05: people to add (team, chats, contacts; attorneys by
 /// name when searching).
 final taskPeopleProvider =
@@ -453,12 +446,6 @@ final taskPeopleProvider =
   (ref, q) => ref.watch(teamRepositoryProvider).taskPeople(q),
   retry: _noRetry,
 );
-
-/// Open tasks count for the Mine → Tasks tab badge.
-final openTasksCountProvider = Provider.autoDispose<int>((ref) {
-  final list = ref.watch(tasksProvider((done: false, mine: false))).value;
-  return list?.length ?? 0;
-});
 
 // --- Seat limit (owner 2026-10-05) ----------------------------------------
 

@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart' show XFile;
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
@@ -15,9 +17,10 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/language_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/limits/text_limits.dart';
+import 'package:lawbid/core/media/video_compression.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
-import 'package:lawbid/core/navigation/shell/web_page_frame.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
+import 'package:lawbid/core/text/bidi.dart';
 import 'package:lawbid/features/blocks/application/blocks_providers.dart';
 import 'package:lawbid/features/blocks/presentation/block_actions.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
@@ -30,13 +33,16 @@ import 'package:lawbid/features/chat/application/presence_providers.dart';
 import 'package:lawbid/features/chat/application/voice_player.dart';
 import 'package:lawbid/features/chat/application/voice_recorder.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
+import 'package:lawbid/features/chat/domain/message_groups.dart';
 import 'package:lawbid/features/chat/presentation/attachment_widgets.dart';
+import 'package:lawbid/features/chat/presentation/chat_album.dart';
+import 'package:lawbid/features/chat/presentation/chat_folders.dart';
+import 'package:lawbid/features/chat/presentation/contact_info_screen.dart';
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart';
 import 'package:lawbid/features/chat/presentation/voice_widgets.dart';
+import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/plans/presentation/plan_offer.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
-import 'package:lawbid/features/social/domain/social_models.dart';
-import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart';
 import 'package:lawbid/features/stickers/presentation/sticker_widgets.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
@@ -157,7 +163,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
   }
 
   /// OQ-047: pick photos / documents and send each; the typed text goes
-  /// with the first as its caption.
+  /// with the last as its caption. Owner 2026-10-19 (albums): they upload
+  /// together but are sent in the picked order (one album bubble).
   Future<void> _attach() async {
     final t = ref.read(translatorProvider);
     final files = await pickChatFiles(
@@ -165,21 +172,42 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
       t,
       onTemplate: ref.read(templatesEnabledProvider) ? _sendTemplate : null,
       limits: ref.read(uploadLimitsProvider)[UploadPlace.chat],
+      prepareVideo: _prepareVideo,
     );
     if (files.isEmpty || !mounted) return;
     final caption = _text.text.trim();
     if (caption.isNotEmpty) _text.clear();
+    Future<void>? previous;
     for (var i = 0; i < files.length; i++) {
       final f = files[i];
-      unawaited(
-        _thread.sendAttachment(
-          bytes: f.bytes,
-          name: f.name,
-          mime: f.mime,
-          caption: i == 0 && caption.isNotEmpty ? caption : null,
-        ),
+      final last = i == files.length - 1;
+      previous = _thread.sendAttachment(
+        bytes: f.bytes,
+        name: f.name,
+        mime: f.mime,
+        caption: last && caption.isNotEmpty ? caption : null,
+        after: previous,
       );
+      unawaited(previous);
     }
+  }
+
+  /// Owner 2026-10-17 (WhatsApp): a chat video is re-encoded on the phone
+  /// to at most 720p (the admin's reel setting may make it smaller) before
+  /// upload; the original goes when compressing fails or doesn't help.
+  Future<XFile> _prepareVideo(XFile video) async {
+    final t = ref.read(translatorProvider);
+    showAppSnackBar(context, t.t('chat.attach.videoPreparing'));
+    final reel = videoLimitsOf(ref.read(featureFlagsControllerProvider));
+    final limits = (
+      maxHeight: reel.maxHeight <= 0 ? 720 : math.min(720, reel.maxHeight),
+      frameRate: reel.frameRate,
+    );
+    final out =
+        await ref.read(videoCompressorProvider).compress(video, limits: limits);
+    return out == null
+        ? video
+        : XFile(out.path, name: 'video.mp4', mimeType: 'video/mp4');
   }
 
   /// Owner 2026-10-05: a document template from the library, sent as a
@@ -205,21 +233,30 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
           mainAxisSize: MainAxisSize.min,
           children: [
             const AppSheetHandle(),
-            // OQ-047: every photo and document of this chat.
-            if (c.contactsUnlocked)
-              AppListRow(
-                icon: AppIcons.folderOpenRounded,
-                label: t.t('chat.files.title'),
-                onTap: () {
-                  Navigator.of(sheet).pop();
-                  Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) =>
-                          webPageRoute(ChatFilesScreen(conversationId: c.id)),
-                    ),
-                  );
-                },
-              ),
+            // Owner 2026-10-18: the contact screen holds the media, mute,
+            // block and report rows; the menu keeps what it does not.
+            AppListRow(
+              key: const ValueKey('chat-menu-contact'),
+              icon: AppIcons.personOutlineRounded,
+              label: t.t('contact.menu'),
+              onTap: () {
+                Navigator.of(sheet).pop();
+                openContactInfo(
+                  context,
+                  conversationId: c.id,
+                  onCall: () => _call(c),
+                );
+              },
+            ),
+            AppListRow(
+              key: const ValueKey('chat-menu-organize'),
+              icon: AppIcons.pushPinOutlined,
+              label: t.t('contact.menuOrganize'),
+              onTap: () {
+                Navigator.of(sheet).pop();
+                showChatOrganizeSheet(context, ref, c);
+              },
+            ),
             // Owner 2026-10-05: a task about this chat — linked to it (and
             // its case), with this person already on it.
             if (ref.read(actsAsAttorneyProvider) &&
@@ -233,7 +270,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                   final name = c.counterpart.displayName ??
                       (c.counterpart.username == null
                           ? null
-                          : '@${c.counterpart.username}');
+                          : atHandle(c.counterpart.username));
                   context.push(
                     TeamRoutes.newTaskFor(
                       chatId: c.id,
@@ -245,53 +282,6 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                       personRole:
                           c.counterpart.isAttorney ? 'attorney' : 'client',
                     ),
-                  );
-                },
-              ),
-            AppListRow(
-              icon: c.muted
-                  ? AppIcons.notificationsActiveOutlined
-                  : AppIcons.notificationsOffOutlined,
-              label: t.t(c.muted ? 'chat.unmute' : 'chat.mute'),
-              showChevron: false,
-              onTap: () async {
-                Navigator.of(sheet).pop();
-                try {
-                  await _thread.setMuted(!c.muted);
-                } on Object catch (e) {
-                  if (mounted) showAppSnackBar(context, errorText(t, e));
-                }
-              },
-            ),
-            // OQ-028: block / unblock the other party. Audit 2026-10-04: not
-            // inside an active case (the work goes through the case).
-            if (c.counterpart.id != null &&
-                !(c.caseId != null && c.contactsUnlocked && !c.closed))
-              BlockListRow(
-                userId: c.counterpart.id!,
-                displayName: c.counterpart.displayName ??
-                    (c.counterpart.username == null
-                        ? ''
-                        : '@${c.counterpart.username}'),
-                currentlyBlocked: ref.read(blockedIdsProvider).value?.contains(
-                          c.counterpart.id,
-                        ) ??
-                    false,
-                onChanged: () =>
-                    ref.invalidate(chatThreadProvider(widget.conversationId)),
-              ),
-            if (c.counterpart.id != null)
-              AppListRow(
-                icon: AppIcons.flagOutlined,
-                label: t.t('post.menu.report'),
-                showChevron: false,
-                onTap: () {
-                  Navigator.of(sheet).pop();
-                  showReportSheet(
-                    context,
-                    ref,
-                    ReportTarget.user,
-                    c.counterpart.id!,
                   );
                 },
               ),
@@ -318,13 +308,15 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
         ref.watch(outboxSenderProvider).subscriptionRequired;
 
     return Scaffold(
-      backgroundColor: colors.bg,
+      // Owner 2026-10-17: the chat's own wallpaper (WhatsApp-like).
+      backgroundColor: ChatColors.of(context).wallpaper,
       appBar: AppTopBar(
         leading: AppBackButton(
           semanticLabel: t.t('common.back'),
           onPressed: () => Navigator.of(context).maybePop(),
         ),
-        title: c == null ? null : _Header(conversation: c),
+        title:
+            c == null ? null : _Header(conversation: c, onCall: () => _call(c)),
         actions: [
           // OQ-041: an in-app audio call (after acceptance).
           // OQ-043: a direct chat gets calls once the request is accepted.
@@ -332,19 +324,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
           // Audit 2026-10-02: no call button across a block or for an
           // assistant without the "calls" duty (the server refuses both).
           // Audit 2026-10-04: nor in a case chat before acceptance.
-          if (c != null &&
-              !c.closed &&
-              c.contactsUnlocked &&
-              !c.blockedHere &&
-              !c.myRequestPending &&
-              !c.awaitingMyAnswer &&
-              !c.myRequestDeclined &&
-              ref.watch(canDoProvider(AssistantDuty.calls)) &&
-              !(ref
-                      .watch(blockedIdsProvider)
-                      .value
-                      ?.contains(c.counterpart.id) ??
-                  false))
+          if (c != null && chatAudioCallAllowed(ref, c))
             AppIconButton(
               icon: AppIcon(
                 AppIcons.callOutlined,
@@ -484,9 +464,10 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
 }
 
 class _Header extends ConsumerWidget {
-  const _Header({required this.conversation});
+  const _Header({required this.conversation, this.onCall});
 
   final Conversation conversation;
+  final VoidCallback? onCall;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -494,67 +475,27 @@ class _Header extends ConsumerWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final c = conversation;
-    final attorney = ref.watch(actsAsAttorneyProvider);
-    final caseId = c.caseId;
     final formats = ref.watch(l10nFormatsProvider);
     // Owner 2026-10-01: online / last seen, live while the chat is open.
-    final otherId = c.counterpart.id;
-    final live = otherId == null || c.counterpart.online == null
-        ? null
-        : ref.watch(presenceProvider(otherId));
-    final presence = live ??
-        (c.counterpart.online == null
-            ? null
-            : PresenceView(
-                online: c.counterpart.online!,
-                lastSeenAt: c.counterpart.lastSeenAt,
-              ));
-    final context2 = c.caseTitle ??
-        (c.counterpart.username == null
-            ? t.t('chat.direct')
-            : '@${c.counterpart.username}');
+    final presence = chatPresenceOf(ref, c);
+    // Owner 2026-10-18 (WhatsApp): the name and the status only; the
+    // "@username" and the case live on the contact screen.
     return Semantics(
-      button: caseId != null,
-      label: caseId != null ? t.t('chat.openCase') : counterpartName(t, c),
+      button: true,
+      label: t.t('contact.title'),
       child: AppPressable(
-        // Without a case (reserved) the header opens the attorney's profile.
-        onTap: () {
-          if (caseId != null) {
-            // Audit 2026-10-04: the hired attorney opens the work card —
-            // the case card's "Message client" would push this chat again.
-            context.push(
-              !attorney
-                  ? AppRoutes.myCase(caseId)
-                  : c.contactsUnlocked
-                      ? AppRoutes.workCase(caseId)
-                      : AppRoutes.caseDetail(caseId),
-            );
-          } else if (c.counterpart.username != null) {
-            // OQ-043: a direct chat opens the other person's profile.
-            context.push(
-              c.counterpart.isAttorney
-                  ? AppRoutes.lawyer(c.counterpart.username!)
-                  : AppRoutes.client(c.counterpart.username!),
-            );
-          }
-        },
+        key: const ValueKey('chat-header'),
+        onTap: () => openContactInfo(
+          context,
+          conversationId: c.id,
+          onCall: onCall,
+        ),
         child: Row(
           children: [
-            // Owner 2026-10-07: the photo itself opens full screen; the
-            // name beside it opens the profile / case.
-            GestureDetector(
-              onTap: c.counterpart.avatarUrl == null
-                  ? null
-                  : () => showPhotoGallery(
-                        context,
-                        urls: [c.counterpart.avatarUrl!],
-                        closeLabel: t.t('common.close'),
-                      ),
-              child: CounterpartAvatar(
-                counterpart: c.counterpart,
-                size: 36,
-                online: presence?.online,
-              ),
+            CounterpartAvatar(
+              counterpart: c.counterpart,
+              size: 36,
+              online: presence?.online,
             ),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
@@ -571,34 +512,24 @@ class _Header extends ConsumerWidget {
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  Text.rich(
-                    TextSpan(
-                      children: [
-                        if (presence != null)
-                          TextSpan(
-                            text: '${presenceLabel(
-                              t,
-                              presence,
-                              time: formats.time,
-                              date: formats.date,
-                            )} · ',
-                            style: TextStyle(
-                              color: presence.online
-                                  ? colors.gold
-                                  : colors.textSecondary,
-                              fontWeight: presence.online
-                                  ? FontWeight.w600
-                                  : FontWeight.w400,
-                            ),
-                          ),
-                        TextSpan(text: context2),
-                      ],
+                  if (presence != null)
+                    Text(
+                      presenceLabel(
+                        t,
+                        presence,
+                        time: formats.time,
+                        date: formats.date,
+                      ),
+                      key: const ValueKey('chat-presence'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: type.caption.copyWith(
+                        color: presence.online
+                            ? colors.goldDark
+                            : colors.textSecondary,
+                        fontWeight: presence.online ? FontWeight.w600 : null,
+                      ),
                     ),
-                    key: const ValueKey('chat-presence'),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: type.caption.copyWith(color: colors.goldDark),
-                  ),
                 ],
               ),
             ),
@@ -634,78 +565,99 @@ class _MessageList extends ConsumerWidget {
     final newestOwnSeen = seenIndex < 0
         ? null
         : items.skip(seenIndex).where((m) => m.senderId == me).firstOrNull?.id;
+    // Owner 2026-10-19: photos / files sent together share one bubble.
+    final entries = groupChatMessages(items);
+    final seenIds = seenIndex < 0
+        ? const <String>{}
+        : items.skip(seenIndex).map((m) => m.id).toSet();
 
-    return ListView.builder(
-      reverse: true,
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.screenSide,
-        vertical: AppSpacing.md,
-      ),
-      itemCount: items.length + (state.nextCursor != null ? 1 : 0),
-      itemBuilder: (context, i) {
-        if (i == items.length) {
-          if (state.loadMoreFailed) {
-            return Center(
-              child: TextButton(
-                onPressed: onMore,
-                child: Text(t.t('error.retry')),
-              ),
-            );
-          }
-          // Ask for the older page after this frame (never during build).
-          if (!state.loadingMore) {
-            WidgetsBinding.instance.addPostFrameCallback((_) => onMore());
-          }
-          return const Padding(
-            padding: EdgeInsets.all(AppSpacing.md),
-            child: Center(
-              child: SizedBox.square(
-                dimension: AppSizes.footerSpinner,
-                child: CircularProgressIndicator(
-                  strokeWidth: AppSizes.footerSpinnerStroke,
+    return CustomPaint(
+      // Owner 2026-10-17: a faint pattern of legal signs behind the
+      // messages (it stays put while they scroll, like WhatsApp).
+      painter: _WallpaperPainter(ChatColors.of(context).pattern),
+      child: ListView.builder(
+        reverse: true,
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.screenSide,
+          vertical: AppSpacing.md,
+        ),
+        itemCount: entries.length + (state.nextCursor != null ? 1 : 0),
+        itemBuilder: (context, i) {
+          if (i == entries.length) {
+            if (state.loadMoreFailed) {
+              return Center(
+                child: TextButton(
+                  onPressed: onMore,
+                  child: Text(t.t('error.retry')),
+                ),
+              );
+            }
+            // Ask for the older page after this frame (never during build).
+            if (!state.loadingMore) {
+              WidgetsBinding.instance.addPostFrameCallback((_) => onMore());
+            }
+            return const Padding(
+              padding: EdgeInsets.all(AppSpacing.md),
+              child: Center(
+                child: SizedBox.square(
+                  dimension: AppSizes.footerSpinner,
+                  child: CircularProgressIndicator(
+                    strokeWidth: AppSizes.footerSpinnerStroke,
+                  ),
                 ),
               ),
-            ),
-          );
-        }
-        final m = items[i];
-        final older = i + 1 < items.length ? items[i + 1] : null;
-        final newDay = older == null ||
-            !DateUtils.isSameDay(
-              older.createdAt.toLocal(),
-              m.createdAt.toLocal(),
             );
-        final seen = seenIndex >= 0 && i >= seenIndex && m.senderId == me;
-        return Column(
-          // Stretch: a bubble sits at the right (mine) or left (theirs)
-          // edge like Telegram, never centered (owner 2026-09-29).
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (newDay) _DaySeparator(label: _dayLabel(t, f, m.createdAt)),
-            if (m.kind == MessageKind.system)
-              _SystemMessage(text: systemLineText(t, m.body, formats: f))
-            else if (m.kind == MessageKind.call && m.callLog != null)
-              CallLogEntry(
-                message: m,
-                mine: m.senderId == me,
-                conversation: state.conversation,
-              )
-            else
-              _Bubble(
-                message: m,
-                mine: m.senderId == me,
-                seen: seen,
-                showSeenLabel: m.id == newestOwnSeen,
-                threadId: state.conversation?.id ?? m.conversationId,
-                // Owner 2026-10-01: the client sees "Assistant of <the
-                // attorney>", not the assistant's own account.
-                attorneyName: m.senderId == me
-                    ? null
-                    : state.conversation?.counterpart.displayName,
-              ),
-          ],
-        );
-      },
+          }
+          final entry = entries[i];
+          final m = entry.newest;
+          final older = i + 1 < entries.length ? entries[i + 1].newest : null;
+          final newDay = older == null ||
+              !DateUtils.isSameDay(
+                older.createdAt.toLocal(),
+                entry.oldest.createdAt.toLocal(),
+              );
+          final seen = seenIds.contains(m.id) && m.senderId == me;
+          return Column(
+            // Stretch: a bubble sits at the right (mine) or left (theirs)
+            // edge like Telegram, never centered (owner 2026-09-29).
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (newDay) _DaySeparator(label: _dayLabel(t, f, m.createdAt)),
+              if (m.kind == MessageKind.system)
+                _SystemMessage(
+                  text: systemLineText(t, m.body, formats: f),
+                  // Owner 2026-10-19: a tap opens what the line is about.
+                  target: _systemTarget(
+                    m.body,
+                    caseId: state.conversation?.caseId,
+                    attorney: ref.read(actsAsAttorneyProvider),
+                  ),
+                )
+              else if (m.kind == MessageKind.call && m.callLog != null)
+                CallLogEntry(
+                  message: m,
+                  mine: m.senderId == me,
+                  conversation: state.conversation,
+                )
+              else
+                _Bubble(
+                  message: m,
+                  group: entry.isGroup ? entry.messages : null,
+                  mine: m.senderId == me,
+                  seen: seen,
+                  showSeenLabel:
+                      entry.messages.any((x) => x.id == newestOwnSeen),
+                  threadId: state.conversation?.id ?? m.conversationId,
+                  // Owner 2026-10-01: the client sees "Assistant of <the
+                  // attorney>", not the assistant's own account.
+                  attorneyName: m.senderId == me
+                      ? null
+                      : state.conversation?.counterpart.displayName,
+                ),
+            ],
+          );
+        },
+      ),
     );
   }
 
@@ -729,68 +681,119 @@ class _DaySeparator extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    // Owner 2026-10-17 (WhatsApp): the day on a small pill in the middle.
+    final chat = ChatColors.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
-      child: Row(
-        children: [
-          Expanded(child: Divider(color: colors.border)),
-          Flexible(
-            flex: 4,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: type.caption.copyWith(color: colors.textSecondary),
-              ),
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+          decoration: BoxDecoration(
+            color: chat.theirs.withValues(alpha: colors.isGlass ? 1 : 0.92),
+            borderRadius: BorderRadius.circular(AppRadii.pill),
+            border: Border.all(color: chat.theirsBorder),
+          ),
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: type.caption.copyWith(
+              color: colors.textSecondary,
+              fontWeight: FontWeight.w600,
             ),
           ),
-          Expanded(child: Divider(color: colors.border)),
-        ],
+        ),
       ),
     );
   }
 }
 
+/// Owner 2026-10-19: where a system line leads — the case it is about
+/// (the hired attorney's work card, the client's case), or null.
+String? _systemTarget(
+  String body, {
+  required String? caseId,
+  required bool attorney,
+}) {
+  if (caseId == null) return null;
+  final key = body.split(':').first;
+  return switch (key) {
+    'offer_accepted' ||
+    'case_closed' ||
+    'payment_received' ||
+    'payment_requested' ||
+    'payment_request_canceled' ||
+    'payment_fee_countered' ||
+    'payment_fee_agreed' =>
+      attorney ? AppRoutes.workCase(caseId) : AppRoutes.myCase(caseId),
+    'no_agreement' ||
+    'accepted_by_other' =>
+      attorney ? AppRoutes.caseDetail(caseId) : AppRoutes.myCase(caseId),
+    _ => attorney ? AppRoutes.caseDetail(caseId) : AppRoutes.myCase(caseId),
+  };
+}
+
 class _SystemMessage extends StatelessWidget {
-  const _SystemMessage({required this.text});
+  const _SystemMessage({required this.text, this.target});
 
   final String text;
+
+  /// The route a tap opens (null: not tappable).
+  final String? target;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    final to = target;
+    final onTap = to == null ? null : () => context.push(to);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
       child: Center(
-        child: Container(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.md,
-            vertical: AppSpacing.sm,
-          ),
-          decoration: BoxDecoration(
-            color: colors.goldTint,
-            borderRadius: BorderRadius.circular(AppRadii.pill),
-            border: Border.all(color: colors.goldStroke),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              AppIcon(AppIcons.gavelRounded, size: 14, color: colors.goldDark),
-              const SizedBox(width: AppSpacing.xs),
-              Flexible(
-                child: Text(
-                  text,
-                  textAlign: TextAlign.center,
-                  style: type.caption.copyWith(
-                    color: colors.text,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
+        child: Semantics(
+          button: onTap != null,
+          child: AppPressable(
+            onTap: onTap,
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md,
+                vertical: AppSpacing.sm,
               ),
-            ],
+              decoration: BoxDecoration(
+                color: colors.goldTint,
+                borderRadius: BorderRadius.circular(AppRadii.pill),
+                border: Border.all(color: colors.goldStroke),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  AppIcon(
+                    AppIcons.gavelRounded,
+                    size: 14,
+                    color: colors.goldDark,
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                  Flexible(
+                    child: Text(
+                      text,
+                      textAlign: TextAlign.center,
+                      style: type.caption.copyWith(
+                        color: colors.text,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  if (onTap != null) ...[
+                    const SizedBox(width: AppSpacing.xs),
+                    AppIcon(
+                      AppIcons.chevronRightRounded,
+                      size: 14,
+                      color: colors.goldDark,
+                    ),
+                  ],
+                ],
+              ),
+            ),
           ),
         ),
       ),
@@ -805,6 +808,7 @@ class _Bubble extends ConsumerWidget {
     required this.seen,
     required this.showSeenLabel,
     required this.threadId,
+    this.group,
     this.attorneyName,
   });
 
@@ -817,6 +821,50 @@ class _Bubble extends ConsumerWidget {
   final bool showSeenLabel;
   final String threadId;
 
+  /// Owner 2026-10-19: an album / a list of files sent together (oldest
+  /// first, [message] is the newest — its time, ticks and caption).
+  final List<ChatMessage>? group;
+
+  Widget _attachment(WidgetRef ref, ChatMessage m) {
+    final g = group;
+    if (g == null) return AttachmentMessageBody(message: m, mine: mine);
+    return ChatAttachmentGroupBody(
+      messages: g,
+      mine: mine,
+      onRetry: (x) => ref.read(chatThreadProvider(threadId).notifier).retry(x),
+    );
+  }
+
+  /// Owner 2026-10-17: a voice note shows its sender's photo (WhatsApp).
+  Widget _voice(WidgetRef ref, ChatMessage m) {
+    String? url;
+    String? name;
+    if (mine) {
+      final me = ref.watch(currentUserControllerProvider).user;
+      url = me?.avatarUrl;
+      name = [me?.firstName, me?.lastName]
+          .whereType<String>()
+          .where((x) => x.trim().isNotEmpty)
+          .join(' ');
+    } else {
+      final c = ref.watch(
+        chatThreadProvider(threadId).select((s) => s.conversation),
+      );
+      final p = c?.counterpart;
+      if (p != null && !p.hidden) {
+        url = p.avatarUrl;
+        name = attorneyName ?? p.displayName ?? p.username;
+      }
+    }
+    return VoiceMessageBody(
+      message: m,
+      mine: mine,
+      threadId: threadId,
+      avatarUrl: url,
+      avatarName: name,
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translatorProvider);
@@ -824,8 +872,36 @@ class _Bubble extends ConsumerWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final m = message;
-    final fg = mine ? colors.onAccent : colors.text;
+    // Owner 2026-10-17: WhatsApp-like colours of the theme (ChatColors).
+    final chat = ChatColors.of(context);
+    final fg = mine ? chat.onMine : chat.onTheirs;
+    final meta = mine ? chat.mineMeta : chat.theirsMeta;
     final failed = m.delivery == DeliveryState.failed;
+    final a = m.kind == MessageKind.attachment ? m.attachment : null;
+    // A photo / video without a caption: a thin frame, the time on it.
+    final media =
+        a != null && (a.isImage || a.isVideo) && m.body.trim().isEmpty;
+    final fileNames = [
+      for (final x in group ?? [m]) x.attachment?.name ?? '',
+    ].join(', ');
+    final failedItems = [
+      for (final x in group ?? [m])
+        if (x.delivery == DeliveryState.failed) x,
+    ];
+    Widget ticks(Color plain) => AppIcon(
+          switch (m.delivery) {
+            DeliveryState.sending => AppIcons.scheduleRounded,
+            DeliveryState.failed => AppIcons.errorOutlineRounded,
+            DeliveryState.sent =>
+              seen ? AppIcons.doneAllRounded : AppIcons.doneRounded,
+          },
+          size: 15,
+          color: failed
+              ? colors.danger
+              : seen
+                  ? chat.tickRead
+                  : plain,
+        );
 
     // Hidden contacts shown as a localized inline marker (§8.3).
     final parts = m.body.split(kContactMask);
@@ -874,21 +950,7 @@ class _Bubble extends ConsumerWidget {
                     ),
                     if (mine) ...[
                       const SizedBox(width: 4),
-                      AppIcon(
-                        switch (m.delivery) {
-                          DeliveryState.sending => AppIcons.scheduleRounded,
-                          DeliveryState.failed => AppIcons.errorOutlineRounded,
-                          DeliveryState.sent => seen
-                              ? AppIcons.doneAllRounded
-                              : AppIcons.doneRounded,
-                        },
-                        size: 14,
-                        color: failed
-                            ? colors.danger
-                            : seen
-                                ? colors.gold
-                                : colors.textSecondary,
-                      ),
+                      ticks(colors.textSecondary),
                     ],
                   ],
                 ),
@@ -899,78 +961,102 @@ class _Bubble extends ConsumerWidget {
             constraints: BoxConstraints(
               maxWidth: MediaQuery.sizeOf(context).width * 0.78,
             ),
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.md,
-              AppSpacing.sm,
-              AppSpacing.md,
-              AppSpacing.xs,
-            ),
+            padding: media
+                ? const EdgeInsets.all(3)
+                : const EdgeInsets.fromLTRB(
+                    AppSpacing.md,
+                    AppSpacing.sm,
+                    AppSpacing.md,
+                    AppSpacing.xs,
+                  ),
             decoration: BoxDecoration(
-              color: mine ? colors.accent : colors.surface,
+              color: mine ? chat.mine : chat.theirs,
               borderRadius: BorderRadius.only(
                 topLeft: const Radius.circular(18),
                 topRight: const Radius.circular(18),
                 bottomLeft: Radius.circular(mine ? 18 : 4),
                 bottomRight: Radius.circular(mine ? 4 : 18),
               ),
-              border: mine ? null : Border.all(color: colors.border),
+              border: mine ? null : Border.all(color: chat.theirsBorder),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (m.kind == MessageKind.voice && m.voice != null)
-                  VoiceMessageBody(message: m, mine: mine, threadId: threadId)
-                else if (m.kind == MessageKind.attachment &&
-                    m.attachment != null)
-                  AttachmentMessageBody(message: m, mine: mine)
-                else
-                  _MessageText(
-                    message: m,
-                    spans: spans,
-                    style: type.body.copyWith(color: fg, height: 1.35),
-                    // Owner 2026-10-04: only other people's text messages.
-                    translatable: !mine &&
-                        m.kind == MessageKind.text &&
-                        m.body.trim().isNotEmpty &&
-                        ref
-                            .watch(featureFlagsControllerProvider)
-                            .isEnabled('chat_translate'),
-                    threadId: threadId,
-                  ),
-                const SizedBox(height: 2),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      f.time(m.createdAt),
-                      style: type.caption.copyWith(
-                        color: fg.withValues(alpha: 0.7),
-                        fontSize: 11,
-                      ),
-                    ),
-                    if (mine) ...[
-                      const SizedBox(width: 4),
-                      AppIcon(
-                        switch (m.delivery) {
-                          DeliveryState.sending => AppIcons.scheduleRounded,
-                          DeliveryState.failed => AppIcons.errorOutlineRounded,
-                          DeliveryState.sent => seen
-                              ? AppIcons.doneAllRounded
-                              : AppIcons.doneRounded,
-                        },
-                        size: 14,
-                        color: failed
-                            ? colors.danger
-                            : seen
-                                ? colors.gold
-                                : fg.withValues(alpha: 0.7),
+            child: media
+                ? Stack(
+                    children: [
+                      _attachment(ref, m),
+                      // WhatsApp: the time (and ticks) on the picture.
+                      Positioned(
+                        right: 6,
+                        bottom: 6,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: ChatColors.mediaScrim,
+                            borderRadius: BorderRadius.circular(AppRadii.pill),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                f.time(m.createdAt),
+                                style: type.caption.copyWith(
+                                  color: ChatColors.onMediaScrim,
+                                ),
+                              ),
+                              if (mine) ...[
+                                const SizedBox(width: 3),
+                                ticks(ChatColors.onMediaScrim),
+                              ],
+                            ],
+                          ),
+                        ),
                       ),
                     ],
-                  ],
-                ),
-              ],
-            ),
+                  )
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (m.kind == MessageKind.voice && m.voice != null)
+                        _voice(ref, m)
+                      else if (m.kind == MessageKind.attachment &&
+                          m.attachment != null)
+                        _attachment(ref, m)
+                      else
+                        _MessageText(
+                          message: m,
+                          spans: spans,
+                          style: type.body.copyWith(color: fg, height: 1.35),
+                          // Owner 2026-10-04: only other people's text.
+                          translatable: !mine &&
+                              m.kind == MessageKind.text &&
+                              m.body.trim().isNotEmpty &&
+                              ref
+                                  .watch(featureFlagsControllerProvider)
+                                  .isEnabled('chat_translate'),
+                          threadId: threadId,
+                        ),
+                      const SizedBox(height: 2),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            f.time(m.createdAt),
+                            style: type.caption.copyWith(
+                              color: meta,
+                              fontSize: 11,
+                            ),
+                          ),
+                          if (mine) ...[
+                            const SizedBox(width: 4),
+                            ticks(meta),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ),
           );
 
     return Padding(
@@ -1016,7 +1102,7 @@ class _Bubble extends ConsumerWidget {
                 else if (m.kind == MessageKind.sticker)
                   '${t.t('stickers.label')} ${m.sticker?.emoji ?? ''}'
                 else if (m.kind == MessageKind.attachment)
-                  '${t.t('chat.attach.label')}: ${m.attachment?.name ?? ''}'
+                  '${t.t('chat.attach.label')}: $fileNames'
                 else
                   m.body.replaceAll(kContactMask, t.t('chat.masked')),
                 if (mine) t.t(_deliveryKey(m.delivery, seen)),
@@ -1036,7 +1122,7 @@ class _Bubble extends ConsumerWidget {
               ),
             ),
           // One row; in long languages the labels shrink instead of moving.
-          if (failed)
+          if (failedItems.isNotEmpty)
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -1048,17 +1134,23 @@ class _Bubble extends ConsumerWidget {
                 ),
                 Flexible(
                   child: TextButton(
-                    onPressed: () => ref
-                        .read(chatThreadProvider(threadId).notifier)
-                        .retry(m),
+                    onPressed: () {
+                      final n = ref.read(chatThreadProvider(threadId).notifier);
+                      for (final x in failedItems) {
+                        unawaited(n.retry(x));
+                      }
+                    },
                     child: FitText(t.t('error.retry')),
                   ),
                 ),
                 Flexible(
                   child: TextButton(
-                    onPressed: () => ref
-                        .read(chatThreadProvider(threadId).notifier)
-                        .discard(m),
+                    onPressed: () {
+                      final n = ref.read(chatThreadProvider(threadId).notifier);
+                      for (final x in failedItems) {
+                        unawaited(n.discard(x));
+                      }
+                    },
                     child: FitText(t.t('chat.discard')),
                   ),
                 ),
@@ -1648,68 +1740,69 @@ class _ComposerState extends ConsumerState<_Composer> {
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final motion = context.reduceMotion ? Duration.zero : AppMotion.stateChange;
 
-    final field = TextField(
-      onTapOutside: hideKeyboardOnTapOutside,
-      controller: widget.controller,
-      minLines: 1,
-      maxLines: 5,
-      maxLength: kMessageMaxChars,
-      // Owner 2026-10-15: the counter shows up near the limit (Telegram).
-      buildCounter: (
-        _, {
-        required currentLength,
-        required isFocused,
-        maxLength,
-      }) =>
-          maxLength != null && currentLength >= maxLength * 0.9
-              ? Text(
-                  context.digits('$currentLength/$maxLength'),
-                  style: type.caption.copyWith(
-                    color: currentLength >= maxLength
-                        ? colors.danger
-                        : colors.textSecondary,
-                  ),
-                )
-              : null,
-      textCapitalization: TextCapitalization.sentences,
-      onChanged: (v) => widget.onTyping(v.isNotEmpty),
-      onTap: widget.onFieldTap,
-      style: type.body.copyWith(color: colors.text),
-      decoration: InputDecoration(
-        hintText: t.t('chat.hint'),
-        suffixIcon: widget.onStickers == null
-            ? null
-            : IconButton(
-                tooltip: t.t('stickers.button'),
-                onPressed: widget.onStickers,
-                icon: AppIcon(
-                  widget.stickersOpen
-                      ? AppIcons.keyboardRounded
-                      : AppIcons.smileyStickerOutlined,
-                  color: widget.stickersOpen
-                      ? colors.goldDark
-                      : colors.textSecondary,
-                ),
+    // Owner 2026-10-15: the counter shows up near the limit (Telegram).
+    // Owner 2026-10-19: inside the field, bottom right.
+    final maxChars = kMessageMaxChars;
+    final counterFrom = (maxChars * 0.9).ceil();
+    final field = ListenableBuilder(
+      listenable: widget.controller,
+      builder: (context, _) {
+        final near = widget.controller.text.characters.length >= counterFrom;
+        return InsideCounter(
+          controller: widget.controller,
+          max: maxChars,
+          showFrom: counterFrom,
+          child: TextField(
+            onTapOutside: hideKeyboardOnTapOutside,
+            controller: widget.controller,
+            minLines: 1,
+            maxLines: 5,
+            maxLength: maxChars,
+            buildCounter: noFieldCounter,
+            textCapitalization: TextCapitalization.sentences,
+            onChanged: (v) => widget.onTyping(v.isNotEmpty),
+            onTap: widget.onFieldTap,
+            style: type.body.copyWith(color: colors.text),
+            decoration: InputDecoration(
+              hintText: t.t('chat.hint'),
+              suffixIcon: widget.onStickers == null
+                  ? null
+                  : IconButton(
+                      tooltip: t.t('stickers.button'),
+                      onPressed: widget.onStickers,
+                      icon: AppIcon(
+                        widget.stickersOpen
+                            ? AppIcons.keyboardRounded
+                            : AppIcons.smileyStickerOutlined,
+                        color: widget.stickersOpen
+                            ? colors.goldDark
+                            : colors.textSecondary,
+                      ),
+                    ),
+              filled: true,
+              fillColor: colors.bg,
+              contentPadding: EdgeInsets.fromLTRB(
+                AppSpacing.md,
+                AppSpacing.md,
+                AppSpacing.md,
+                AppSpacing.md + (near ? kInsideCounterRoom : 0),
               ),
-        filled: true,
-        fillColor: colors.bg,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.md,
-          vertical: AppSpacing.md,
-        ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(24),
-          borderSide: BorderSide(color: colors.border),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(24),
-          borderSide: BorderSide(color: colors.border),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(24),
-          borderSide: BorderSide(color: colors.gold),
-        ),
-      ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(24),
+                borderSide: BorderSide(color: colors.border),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(24),
+                borderSide: BorderSide(color: colors.border),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(24),
+                borderSide: BorderSide(color: colors.gold),
+              ),
+            ),
+          ),
+        );
+      },
     );
 
     final recordingRow = Container(
@@ -1951,4 +2044,92 @@ class _RecDotState extends State<_RecDot> with SingleTickerProviderStateMixin {
               BoxDecoration(shape: BoxShape.circle, color: widget.color),
         ),
       );
+}
+
+/// Owner 2026-10-17: the chat wallpaper's pattern — small legal signs
+/// (scales, gavel, document, quote, lock) in a loose staggered grid, one
+/// faint colour per theme (ChatColors.pattern).
+class _WallpaperPainter extends CustomPainter {
+  _WallpaperPainter(this.color);
+
+  final Color color;
+
+  static const _icons = [
+    AppIcons.balanceRounded,
+    AppIcons.gavelRounded,
+    AppIcons.descriptionOutlined,
+    AppIcons.chatBubbleOutlineRounded,
+    AppIcons.lockOutlineRounded,
+    AppIcons.eventOutlined,
+  ];
+  static const _cell = 76.0;
+  static const _glyph = 22.0;
+
+  /// Owner 2026-10-18 (speed): the pattern is recorded once per colour and
+  /// size into a picture and that picture is drawn on every repaint (it
+  /// used to lay out ~70 icon glyphs — a TextPainter each — on every
+  /// repaint). The six glyphs are laid out once per colour and kept with
+  /// the picture.
+  static Color? _pictureColor;
+  static Size? _pictureSize;
+  static ui.Picture? _picture;
+  static List<TextPainter> _glyphs = const [];
+
+  static ui.Picture _patternFor(Color color, Size size) {
+    final cached = _picture;
+    if (cached != null && _pictureColor == color && _pictureSize == size) {
+      return cached;
+    }
+    if (_pictureColor != color) {
+      for (final g in _glyphs) {
+        g.dispose();
+      }
+      _glyphs = [
+        for (final icon in _icons)
+          TextPainter(
+            text: TextSpan(
+              text: String.fromCharCode(icon.codePoint),
+              style: TextStyle(
+                fontFamily: icon.fontFamily,
+                package: icon.fontPackage,
+                fontSize: _glyph,
+                color: color,
+              ),
+            ),
+            textDirection: TextDirection.ltr,
+          )..layout(),
+      ];
+    }
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    var row = 0;
+    for (var y = 0.0; y < size.height + _cell; y += _cell, row++) {
+      var col = 0;
+      final shift = row.isOdd ? _cell / 2 : 0.0;
+      for (var x = -shift; x < size.width + _cell; x += _cell, col++) {
+        final tp = _glyphs[(row * 5 + col * 3) % _icons.length];
+        canvas
+          ..save()
+          ..translate(x + 18, y + 18)
+          ..rotate(((row + col) % 5 - 2) * 0.18);
+        tp.paint(canvas, Offset(-tp.width / 2, -tp.height / 2));
+        canvas.restore();
+      }
+    }
+    cached?.dispose();
+    final picture = recorder.endRecording();
+    _picture = picture;
+    _pictureColor = color;
+    _pictureSize = size;
+    return picture;
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (color.a == 0) return;
+    canvas.drawPicture(_patternFor(color, size));
+  }
+
+  @override
+  bool shouldRepaint(_WallpaperPainter old) => old.color != color;
 }

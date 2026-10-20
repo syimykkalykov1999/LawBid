@@ -126,7 +126,7 @@ class _CommentsSheetState extends ConsumerState<CommentsSheet> {
                   child: Padding(
                     padding: const EdgeInsets.all(AppSpacing.lg),
                     child: Text(
-                      t.t('reels.commentsOff'),
+                      t.t('post.comments.off'),
                       textAlign: TextAlign.center,
                       style:
                           type.bodySmall.copyWith(color: colors.textSecondary),

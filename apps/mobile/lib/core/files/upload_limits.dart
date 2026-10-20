@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 
@@ -18,7 +19,8 @@ enum UploadPlace {
   review,
   avatar,
   verification,
-  clientBadge('client_badge');
+  clientBadge('client_badge'),
+  support;
 
   const UploadPlace([this._key]);
   final String? _key;
@@ -47,9 +49,17 @@ const kUploadFormatMime = <String, String>{
   'rtf': 'application/rtf',
   'txt': 'text/plain',
   'csv': 'text/csv',
+  // Owner 2026-10-17: videos in a chat.
+  'mp4': 'video/mp4',
+  'mov': 'video/quicktime',
+  // Owner 2026-10-19: a WebM video from a computer (chat, support).
+  'webm': 'video/webm',
 };
 
 const kPhotoFormats = {'jpeg', 'png', 'heic', 'webp', 'gif'};
+
+/// Owner 2026-10-17: video formats (chat; cases since 2026-10-19).
+const kVideoFormats = {'mp4', 'mov', 'webm'};
 
 /// File-name extensions of a format (what the picker offers).
 const _extensions = <String, List<String>>{
@@ -83,12 +93,26 @@ class PlaceUploadLimits {
   /// Document formats that are on, as picker extensions.
   List<String> get documentExtensions => [
         for (final f in formats)
-          if (!kPhotoFormats.contains(f)) ...(_extensions[f] ?? [f]),
+          if (!kPhotoFormats.contains(f) && !kVideoFormats.contains(f))
+            ...(_extensions[f] ?? [f]),
       ];
 
-  /// Every format that is on, as picker extensions.
+  /// A video format is on here (owner 2026-10-17: chat).
+  bool get allowsVideo => formats.any(kVideoFormats.contains);
+
+  /// Owner 2026-10-19: the photo types turned on here (image/jpeg, …), to
+  /// refuse a photo the moment it is picked instead of after the upload.
+  Set<String> get photoMimes => {
+        for (final f in formats)
+          if (kPhotoFormats.contains(f)) kUploadFormatMime[f]!,
+      };
+
+  /// Every format that is on, as picker extensions. In the browser HEIC is
+  /// left out: the page can't show a HEIC, and without it in the list
+  /// iPhone Safari hands over the photo as a JPEG.
   List<String> get allExtensions => [
-        for (final f in formats) ...(_extensions[f] ?? [f]),
+        for (final f in formats)
+          if (!(kIsWeb && f == 'heic')) ...(_extensions[f] ?? [f]),
       ];
 
   /// MIME of a file name when its format is on here, else null.
@@ -128,6 +152,8 @@ const _postFormats = {
   'png',
   'heic',
   'webp',
+  // Owner 2026-10-19: GIFs too (as on the server).
+  'gif',
   'pdf',
   'doc',
   'docx',
@@ -152,19 +178,21 @@ const kDefaultUploadLimits = <UploadPlace, PlaceUploadLimits>{
     totalMb: 30,
     formats: _postFormats,
   ),
+  // Owner 2026-10-19: 9 photos and 3 documents, counted separately.
   UploadPlace.kase: PlaceUploadLimits(
-    maxPhotos: 0,
-    maxFiles: 9,
-    fileMb: 10,
+    maxPhotos: 9,
+    maxFiles: 3,
+    fileMb: 50,
     totalMb: 0,
-    formats: {'jpeg', 'png', 'heic', 'pdf', 'docx'},
+    // Owner 2026-10-19: and videos (they count with the photos).
+    formats: {'jpeg', 'png', 'heic', 'webp', 'pdf', 'docx', 'mp4', 'mov'},
   ),
   UploadPlace.chat: PlaceUploadLimits(
     maxPhotos: 0,
     maxFiles: 0,
-    fileMb: 25,
+    fileMb: 50,
     totalMb: 0,
-    formats: {...kPhotoFormats, ..._docs},
+    formats: {...kPhotoFormats, ..._docs, ...kVideoFormats},
   ),
   UploadPlace.task: PlaceUploadLimits(
     maxPhotos: 0,
@@ -178,21 +206,32 @@ const kDefaultUploadLimits = <UploadPlace, PlaceUploadLimits>{
     maxFiles: 0,
     fileMb: 10,
     totalMb: 0,
-    formats: {'jpeg', 'png', 'heic'},
+    // Owner 2026-10-19: WebP too (as on the server).
+    formats: {'jpeg', 'png', 'heic', 'webp', 'gif'},
   ),
   UploadPlace.avatar: PlaceUploadLimits(
     maxPhotos: 0,
     maxFiles: 0,
     fileMb: 5,
     totalMb: 0,
-    formats: {'jpeg', 'png', 'heic'},
+    // Owner 2026-10-19: WebP too (as on the server).
+    formats: {'jpeg', 'png', 'heic', 'webp', 'gif'},
   ),
   UploadPlace.verification: PlaceUploadLimits(
     maxPhotos: 0,
     maxFiles: 3,
     fileMb: 10,
     totalMb: 0,
-    formats: {'jpeg', 'png', 'heic', 'pdf'},
+    // Owner 2026-10-19: WebP too (as on the server).
+    formats: {'jpeg', 'png', 'heic', 'webp', 'pdf'},
+  ),
+  // Owner 2026-10-18 (OQ-055): files in a support ticket, both ways.
+  UploadPlace.support: PlaceUploadLimits(
+    maxPhotos: 0,
+    maxFiles: 5,
+    fileMb: 25,
+    totalMb: 0,
+    formats: {...kPhotoFormats, ..._docs, ...kVideoFormats},
   ),
   UploadPlace.clientBadge: PlaceUploadLimits(
     maxPhotos: 0,

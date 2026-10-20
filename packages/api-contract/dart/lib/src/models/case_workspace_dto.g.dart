@@ -17,6 +17,7 @@ CaseWorkspaceDto _$CaseWorkspaceDtoFromJson(Map<String, dynamic> json) =>
       publishedAt: json['publishedAt'] as String,
       bidsCount: (json['bidsCount'] as num).toInt(),
       newUpdates: (json['newUpdates'] as num).toInt(),
+      canWrite: json['canWrite'] as bool,
       acceptedAt: json['acceptedAt'] as String?,
     );
 
@@ -30,4 +31,5 @@ Map<String, dynamic> _$CaseWorkspaceDtoToJson(CaseWorkspaceDto instance) =>
       'acceptedAt': ?instance.acceptedAt,
       'bidsCount': instance.bidsCount,
       'newUpdates': instance.newUpdates,
+      'canWrite': instance.canWrite,
     };

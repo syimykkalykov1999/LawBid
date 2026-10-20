@@ -777,69 +777,68 @@ class _CommentComposerState extends ConsumerState<CommentComposer> {
                 ),
                 child: Row(
                   children: [
+                    // Owner 2026-10-12: a live "n/1000" while typing;
+                    // 2026-10-19: inside the field, bottom right.
                     Expanded(
-                      child: TextField(
-                        onTapOutside: hideKeyboardOnTapOutside,
-                        controller: _text,
-                        focusNode: widget.focusNode,
-                        minLines: 1,
-                        maxLines: 4,
-                        maxLength: kCommentMaxChars,
-                        buildCounter: (
-                          _, {
-                          required currentLength,
-                          required isFocused,
-                          maxLength,
-                        }) =>
-                            null,
-                        textCapitalization: TextCapitalization.sentences,
-                        style: type.body.copyWith(color: colors.text),
-                        decoration: InputDecoration(
-                          // Owner 2026-10-15: under a case: «Ask a question…».
-                          hintText: _isCase
-                              ? t.t('cases.comments.ask')
-                              : t.t('comment.hint'),
-                          isDense: true,
-                          filled: true,
-                          fillColor: colors.bg,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(AppRadii.pill),
-                            borderSide: BorderSide(color: colors.border),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(AppRadii.pill),
-                            borderSide: BorderSide(color: colors.border),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(AppRadii.pill),
-                            borderSide: BorderSide(color: colors.gold),
+                      child: ListenableBuilder(
+                        listenable: _text,
+                        builder: (context, _) => InsideCounter(
+                          controller: _text,
+                          max: kCommentMaxChars,
+                          showFrom: 1,
+                          end: AppSpacing.lg,
+                          bottom: 5,
+                          child: TextField(
+                            onTapOutside: hideKeyboardOnTapOutside,
+                            controller: _text,
+                            focusNode: widget.focusNode,
+                            minLines: 1,
+                            maxLines: 4,
+                            maxLength: kCommentMaxChars,
+                            buildCounter: noFieldCounter,
+                            textCapitalization: TextCapitalization.sentences,
+                            style: type.body.copyWith(color: colors.text),
+                            decoration: InputDecoration(
+                              // Owner 2026-10-15: under a case: «Ask a
+                              // question…».
+                              hintText: _isCase
+                                  ? t.t('cases.comments.ask')
+                                  : t.t('comment.hint'),
+                              isDense: true,
+                              // M3 dense outline padding + room for the counter
+                              // once there is text.
+                              contentPadding: EdgeInsetsDirectional.fromSTEB(
+                                12,
+                                16,
+                                12,
+                                8 +
+                                    (_text.text.isEmpty
+                                        ? 0
+                                        : kInsideCounterRoom),
+                              ),
+                              filled: true,
+                              fillColor: colors.bg,
+                              border: OutlineInputBorder(
+                                borderRadius:
+                                    BorderRadius.circular(AppRadii.pill),
+                                borderSide: BorderSide(color: colors.border),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius:
+                                    BorderRadius.circular(AppRadii.pill),
+                                borderSide: BorderSide(color: colors.border),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius:
+                                    BorderRadius.circular(AppRadii.pill),
+                                borderSide: BorderSide(color: colors.gold),
+                              ),
+                            ),
                           ),
                         ),
                       ),
                     ),
                     const SizedBox(width: AppSpacing.xs),
-                    // Owner 2026-10-12: a live "n/1000" next to the send
-                    // button while typing.
-                    ValueListenableBuilder<TextEditingValue>(
-                      valueListenable: _text,
-                      builder: (context, v, _) {
-                        final n = v.text.characters.length;
-                        if (n == 0) return const SizedBox.shrink();
-                        return Padding(
-                          padding: const EdgeInsetsDirectional.only(
-                            end: AppSpacing.xs,
-                          ),
-                          child: Text(
-                            context.digits('$n/$kCommentMaxChars'),
-                            style: type.caption.copyWith(
-                              color: n > kCommentMaxChars * 0.9
-                                  ? colors.warning
-                                  : colors.textSecondary,
-                            ),
-                          ),
-                        );
-                      },
-                    ),
                     ValueListenableBuilder<TextEditingValue>(
                       valueListenable: _text,
                       builder: (context, v, _) {

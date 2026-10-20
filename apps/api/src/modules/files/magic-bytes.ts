@@ -34,7 +34,20 @@ export function detectMime(
   }
   if (isHeic(b)) return FILE_MIME.heic;
   if (isDocx(b)) return FILE_MIME.docx;
+  // Owner 2026-10-17: an MP4/MOV video shares the `ftyp` box (and brands)
+  // with an .m4a voice note — the declared video type picks it.
+  if (
+    (declared === FILE_MIME.mp4 || declared === FILE_MIME.mov) &&
+    isVideoFtyp(b)
+  ) {
+    return declared;
+  }
   if (isM4a(b)) return FILE_MIME.m4a;
+  // Owner 2026-10-19: a WebM video (declared so) — the same container as
+  // a browser voice note, with a VP8 / VP9 / AV1 picture track.
+  if (declared === FILE_MIME.webmVideo && isWebmVideo(b)) {
+    return FILE_MIME.webmVideo;
+  }
   if (isWebmOpus(b)) return FILE_MIME.webm;
   const family = detectFamily(b);
   if (family) {
@@ -172,20 +185,37 @@ function readVint(
  * MediaRecorder writes before the first cluster).
  */
 function isWebmOpus(b: Buffer): boolean {
-  if (b.length < 8 || !EBML_MAGIC.every((v, i) => b[i] === v)) return false;
+  const end = webmHeaderEnd(b);
+  if (end === null) return false;
+  const head = b.subarray(end, Math.min(b.length, 64 * 1024));
+  return head.includes('A_OPUS', 0, 'latin1');
+}
+
+/** A WebM file whose tracks carry a VP8, VP9 or AV1 picture. */
+function isWebmVideo(b: Buffer): boolean {
+  const end = webmHeaderEnd(b);
+  if (end === null) return false;
+  const head = b.subarray(end, Math.min(b.length, 256 * 1024));
+  return ['V_VP8', 'V_VP9', 'V_AV1'].some((c) => head.includes(c, 0, 'latin1'));
+}
+
+/** Where the EBML header of a file with DocType exactly "webm" ends, or
+ * null (not EBML, plain Matroska, broken header). */
+function webmHeaderEnd(b: Buffer): number | null {
+  if (b.length < 8 || !EBML_MAGIC.every((v, i) => b[i] === v)) return null;
   const size = readVint(b, 4, 8, false);
-  if (!size) return false;
+  if (!size) return null;
   const start = 4 + size.len;
   const end = start + size.value;
-  if (end > b.length) return false;
+  if (end > b.length) return null;
   let docType: string | null = null;
   for (let off = start; off < end;) {
     const id = readVint(b, off, 4, true);
-    if (!id) return false;
+    if (!id) return null;
     const len = readVint(b, off + id.len, 8, false);
-    if (!len) return false;
+    if (!len) return null;
     const data = off + id.len + len.len;
-    if (data + len.value > end) return false;
+    if (data + len.value > end) return null;
     if (id.value === EBML_DOCTYPE_ID) {
       docType = b
         .subarray(data, data + len.value)
@@ -194,9 +224,7 @@ function isWebmOpus(b: Buffer): boolean {
     }
     off = data + len.value;
   }
-  if (docType !== 'webm') return false;
-  const head = b.subarray(end, Math.min(b.length, 64 * 1024));
-  return head.includes('A_OPUS', 0, 'latin1');
+  return docType === 'webm' ? end : null;
 }
 
 /** An ISO-BMFF file with an audio brand (checked after HEIC, which shares
@@ -206,6 +234,32 @@ function isM4a(b: Buffer): boolean {
     return false;
   }
   return M4A_BRANDS.has(b.subarray(8, 12).toString('latin1'));
+}
+
+// Brands of MP4 / QuickTime videos the iOS and Android cameras and the
+// app's compressor write.
+const VIDEO_BRANDS = new Set([
+  'isom',
+  'iso2',
+  'iso4',
+  'iso5',
+  'iso6',
+  'mp41',
+  'mp42',
+  'avc1',
+  'M4V ',
+  'qt  ',
+  '3gp4',
+  '3gp5',
+  '3gp6',
+]);
+
+/** An ISO-BMFF / QuickTime file with a video brand. */
+function isVideoFtyp(b: Buffer): boolean {
+  if (b.length < 12 || b.subarray(4, 8).toString('latin1') !== 'ftyp') {
+    return false;
+  }
+  return VIDEO_BRANDS.has(b.subarray(8, 12).toString('latin1'));
 }
 
 /** OOXML Word document: a ZIP (local file header "PK\x03\x04") whose

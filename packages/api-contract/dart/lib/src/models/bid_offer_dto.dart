@@ -21,6 +21,7 @@ class BidOfferDto {
     required this.message,
     required this.status,
     required this.createdAt,
+    this.percentBps,
   });
 
   factory BidOfferDto.fromJson(Map<String, Object?> json) =>
@@ -31,6 +32,9 @@ class BidOfferDto {
   final PartyRole fromRole;
   final FeeType feeType;
   final int amountCents;
+
+  /// Owner 2026-10-17: contingency → basis points (3300 = 33 %).
+  final int? percentBps;
   final String? message;
   final OfferStatus status;
   final DateTime createdAt;

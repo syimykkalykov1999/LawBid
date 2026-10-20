@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
@@ -8,6 +9,7 @@ import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/active_case_card.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_stale_banner.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 
@@ -78,7 +80,10 @@ class ClientActiveCaseCard extends ConsumerWidget {
                         : c.status == CaseStatus.open
                             ? t.t('mine.next.waitingBids')
                             : t.t('mine.next.done');
-    return ActiveCaseCard(
+    // OQ-054: a paused case reads «На паузе»; the question and the pause
+    // note sit right under the card they are about.
+    final onPause = c.paused && c.status == CaseStatus.open;
+    final card = ActiveCaseCard(
       key: ValueKey('active-case-${c.id}'),
       title: c.title,
       practiceName: practice,
@@ -90,8 +95,8 @@ class ClientActiveCaseCard extends ConsumerWidget {
       categoryCode: c.practice.artCode,
       practiceCode: c.practice.code,
       badge: c.status == CaseStatus.open ? newBids : 0,
-      statusLabel: caseStatusLabel(t, c.status),
-      statusTone: caseTone(c.status),
+      statusLabel: caseStatusLabelOf(t, c.status, paused: c.paused),
+      statusTone: onPause ? StatusTone.neutral : caseTone(c.status),
       stage: scale ? stage : null,
       stageLabel: scale ? caseStageLabel(t, stage) : when,
       next: next,
@@ -99,6 +104,36 @@ class ClientActiveCaseCard extends ConsumerWidget {
       nextYours: choosing || pending || (noPrice && stage == 2),
       nextDanger: disputed,
       onTap: () => context.push(AppRoutes.myCase(c.id)),
+    );
+    if (c.status != CaseStatus.open ||
+        !CaseStaleBanner.needed(
+          paused: c.paused,
+          pending: c.stillNeededPending,
+        )) {
+      return card;
+    }
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        card,
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.md,
+            AppSpacing.xs,
+            AppSpacing.md,
+            AppSpacing.sm,
+          ),
+          child: CaseStaleBanner(
+            caseId: c.id,
+            paused: c.paused,
+            pending: c.stillNeededPending,
+            canMakeNotUrgent: c.canMakeNotUrgent,
+            hidesAt: c.hidesAt,
+            archivesAt: c.archivesAt,
+          ),
+        ),
+      ],
     );
   }
 }

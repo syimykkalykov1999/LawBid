@@ -8,10 +8,10 @@ import 'package:json_annotation/json_annotation.dart';
 enum UpdateContactPreferencesDtoContactMethod {
   @JsonValue('call')
   call('call'),
-  @JsonValue('email')
-  email('email'),
   @JsonValue('sms')
   sms('sms'),
+  @JsonValue('email')
+  email('email'),
   @JsonValue('in_app_chat')
   inAppChat('in_app_chat'),
 

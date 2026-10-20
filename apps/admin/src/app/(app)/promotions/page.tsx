@@ -725,7 +725,6 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
               ['more', 'Сайт (https)'],
               ['message', 'Сообщение'],
               ['profile', 'Профиль'],
-              ['download', 'Скачать'],
               ['call', 'Позвонить'],
             ] as const).map(([k, label]) => (
               <label key={k} className="flex items-center gap-2">

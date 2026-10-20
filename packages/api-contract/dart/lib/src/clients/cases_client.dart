@@ -30,10 +30,12 @@ import '../models/period.dart';
 import '../models/saved_item_dto.dart';
 import '../models/scope.dart';
 import '../models/sort.dart';
+import '../models/still_needed_answer_dto.dart';
 import '../models/task_done_dto.dart';
 import '../models/task_submission_dto.dart';
 import '../models/update_case_dto.dart';
 import '../models/update_case_urgency_dto.dart';
+import '../models/update_private_details_dto.dart';
 import '../models/workspace_file_list_envelope.dart';
 
 part 'cases_client.g.dart';
@@ -73,6 +75,10 @@ abstract class CasesClient {
   ///
   /// [budgetUnknown] - Only cases with "clarify later".
   ///
+  /// [budgetPercent] - Include cases with a percent (contingency) budget. Combined with a dollar range or "clarify later" the options are OR-ed.
+  ///
+  /// [percentMax] - With budgetPercent: only percent budgets up to this whole percent.
+  ///
   /// [noBids] - Only cases nobody has bid on yet.
   ///
   /// [minUrgency] - Owner 2026-10-05: only cases at least this urgent today (a dated case by its days left; past dates excluded).
@@ -93,6 +99,8 @@ abstract class CasesClient {
     @Query('budgetMin') num? budgetMin,
     @Query('budgetMax') num? budgetMax,
     @Query('budgetUnknown') bool? budgetUnknown,
+    @Query('budgetPercent') bool? budgetPercent,
+    @Query('percentMax') num? percentMax,
     @Query('noBids') bool? noBids,
     @Query('minUrgency') MinUrgency? minUrgency,
     @Query('hasDeadline') bool? hasDeadline,
@@ -118,6 +126,14 @@ abstract class CasesClient {
   @GET('/cases/{id}')
   Future<CaseDetailForAttorneyEnvelope> getCaseDetail({
     @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Change the private details («Подробности») — the client, while the case is open or in work (audit 2026-10-19)
+  @PATCH('/cases/{id}/private-details')
+  Future<CaseEnvelope> updateCasePrivateDetails({
+    @Path('id') required String id,
+    @Body() required UpdatePrivateDetailsDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 
@@ -150,9 +166,24 @@ abstract class CasesClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
+  /// Answer «Вам ещё нужен адвокат?» — still_needed / wait_better / not_needed (closes the case) / make_not_urgent (owner, OQ-054)
+  @POST('/cases/{id}/still-needed')
+  Future<CaseEnvelope> answerStillNeeded({
+    @Path('id') required String id,
+    @Body() required StillNeededAnswerDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Bring a paused case back into the attorneys' feed (owner, OQ-054)
+  @POST('/cases/{id}/resume')
+  Future<CaseEnvelope> resumeCase({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
   /// "My cases" tabs (client, docs/04 §11.1).
   ///
-  /// [q] - Words of the case title.
+  /// [q] - Words of the case: title, description, city, state, topic (any language).
   ///
   /// [cursor] - meta.nextCursor of the previous page.
   @GET('/users/me/cases')

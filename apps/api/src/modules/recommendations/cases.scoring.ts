@@ -1,4 +1,11 @@
-import { decay, HOUR_MS, logScale, saturate, weighted } from './ranking.math';
+import {
+  DAY_MS,
+  decay,
+  HOUR_MS,
+  logScale,
+  saturate,
+  weighted,
+} from './ranking.math';
 
 /**
  * Cases in an attorney's Search (owner 2026-10-13): which open cases to
@@ -7,21 +14,28 @@ import { decay, HOUR_MS, logScale, saturate, weighted } from './ranking.math';
  */
 export const CASE_WEIGHTS = {
   /** Case practice vs the attorney's practices and history. */
-  practice: 0.28,
+  practice: 0.2,
   /** The case is in a state the attorney is licensed in. */
-  state: 0.18,
+  state: 0.12,
   /** Newer is better (3-day scale). */
-  fresh: 0.16,
+  fresh: 0.1,
   /** A stated budget, log scale ($10k = full). */
-  budget: 0.1,
+  budget: 0.06,
   /** Fewer offers so far = better chance. */
-  competition: 0.1,
+  competition: 0.06,
   /** Urgency / deadline. */
-  urgency: 0.08,
+  urgency: 0.06,
   /** Client rating. */
-  client: 0.06,
+  client: 0.04,
   /** Views and comments: the case draws attention. */
-  demand: 0.04,
+  demand: 0.02,
+  /** OQ-054: the client was around lately (a silent client sinks the case). */
+  clientActive: 0.1,
+  /** OQ-054: urgent / very urgent with an active client go first; a silent
+   * urgent one drops fast. */
+  urgentActive: 0.17,
+  /** OQ-054: «по дате» cases rise as the date gets closer. */
+  dateNear: 0.07,
 } as const;
 
 /** The attorney already made an offer: shown last, not hidden. */
@@ -41,6 +55,8 @@ export interface CaseCandidate {
   commentCount: number;
   urgency: string | null;
   deadlineAt: Date | null;
+  /** OQ-054: the client's own last action on the case. */
+  clientActiveAt: Date;
   clientRatingAvg: number;
   clientRatingCount: number;
 }
@@ -78,6 +94,54 @@ export function urgencyScore(
   return urgency ? (URGENCY[urgency] ?? 0.3) : 0.3;
 }
 
+/** Client silent this long (days) still counts as active for an urgent case. */
+export const URGENT_ACTIVE_DAYS = 2;
+/** `clientActive` falls to 1/e after this many silent days. */
+export const CLIENT_ACTIVE_SCALE_DAYS = 7;
+/** `dateNear` falls to 1/e this many days before the date is the far end. */
+export const DATE_NEAR_SCALE_DAYS = 21;
+
+/** OQ-054: 1 while the client was around, fading with their silence. */
+export function clientActiveScore(clientActiveAt: Date, now: number): number {
+  return decay(
+    now - clientActiveAt.getTime(),
+    CLIENT_ACTIVE_SCALE_DAYS * DAY_MS,
+  );
+}
+
+/**
+ * OQ-054: urgent / very urgent cases with a client active within
+ * URGENT_ACTIVE_DAYS score 1 (very urgent) / 0.85 (urgent); past that they
+ * drop fast (half-life ~1 day). Other levels score 0.
+ */
+export function urgentActiveScore(
+  urgency: string | null,
+  clientActiveAt: Date,
+  now: number,
+): number {
+  const level = urgency === 'very_urgent' ? 1 : urgency === 'urgent' ? 0.85 : 0;
+  if (level === 0) return 0;
+  const silentDays = (now - clientActiveAt.getTime()) / DAY_MS;
+  if (silentDays <= URGENT_ACTIVE_DAYS) return level;
+  return level * Math.exp(-(silentDays - URGENT_ACTIVE_DAYS) * Math.LN2);
+}
+
+/**
+ * OQ-054: a «по дате» case rises more and more as the date nears (clients
+ * post early to find an attorney in time): 1 on the day, ~0.5 at 14 days,
+ * ~0.06 at 60. A passed date scores 0 (the stale rules take over).
+ */
+export function dateNearScore(
+  urgency: string | null,
+  deadlineAt: Date | null,
+  now: number,
+): number {
+  if (urgency !== 'by_date' || !deadlineAt) return 0;
+  const days = (deadlineAt.getTime() - now) / DAY_MS;
+  if (days < -1) return 0;
+  return Math.exp(-Math.max(0, days) / DATE_NEAR_SCALE_DAYS);
+}
+
 export function caseFeatures(
   c: CaseCandidate,
   v: CaseViewer,
@@ -101,6 +165,9 @@ export function caseFeatures(
         ? (c.clientRatingAvg / 5) * (0.5 + 0.5 * clientConf)
         : 0.5,
     demand: saturate(c.viewCount + 3 * c.commentCount, 40),
+    clientActive: clientActiveScore(c.clientActiveAt, now),
+    urgentActive: urgentActiveScore(c.urgency, c.clientActiveAt, now),
+    dateNear: dateNearScore(c.urgency, c.deadlineAt, now),
   };
 }
 

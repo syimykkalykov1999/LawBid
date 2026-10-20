@@ -1,5 +1,4 @@
 import 'package:drift/drift.dart';
-import 'package:drift_flutter/drift_flutter.dart';
 import 'package:lawbid/core/persistence/drift_web.dart';
 
 part 'l10n_database.g.dart';
@@ -123,9 +122,11 @@ class L10nDatabase extends _$L10nDatabase {
   Future<void> seedIfEmpty(String lang, Map<String, String> seed) async {
     final existingVersion = await getVersion(lang);
     if (existingVersion > 0) return;
-    final hasRows = await (select(
-      l10nTranslations,
-    )..where((row) => row.lang.equals(lang)))
+    // Owner 2026-10-18 (speed): one row is enough to know the language is
+    // not empty (not the whole bundle read into memory).
+    final hasRows = await (select(l10nTranslations)
+          ..where((row) => row.lang.equals(lang))
+          ..limit(1))
         .get();
     if (hasRows.isNotEmpty) return;
     await applyBundle(lang: lang, version: 0, translations: seed);
@@ -133,4 +134,4 @@ class L10nDatabase extends _$L10nDatabase {
 }
 
 QueryExecutor _openConnection() =>
-    driftDatabase(name: 'l10n_cache', web: appDriftWebOptions);
+    appDriftDatabase('l10n_cache');

@@ -11,8 +11,6 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/time/local_now.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
-import 'package:lawbid/features/team/presentation/task_editor_screen.dart'
-    show normalizeTaskPhone;
 import 'package:lawbid/features/team/presentation/task_links.dart';
 import 'package:lawbid/features/team/presentation/task_pickers.dart';
 import 'package:lawbid/features/team/presentation/task_widgets.dart';
@@ -1392,4 +1390,23 @@ class _OutcomeSheetState extends ConsumerState<_OutcomeSheet> {
       ),
     );
   }
+}
+
+/// Audit 2026-10-01: "312 555 0123" / "(312) 555-0123" / "1 312…" →
+/// +13125550123 (a US number); null when it isn't a phone number.
+String? normalizeTaskPhone(String input) {
+  final raw = input.trim();
+  if (raw.isEmpty) return '';
+  final digits = raw.replaceAll(RegExp('[^0-9]'), '');
+  final String e164;
+  if (raw.startsWith('+')) {
+    e164 = '+$digits';
+  } else if (digits.length == 10) {
+    e164 = '+1$digits';
+  } else if (digits.length == 11 && digits.startsWith('1')) {
+    e164 = '+$digits';
+  } else {
+    return null;
+  }
+  return RegExp(r'^\+[1-9][0-9]{7,14}$').hasMatch(e164) ? e164 : null;
 }

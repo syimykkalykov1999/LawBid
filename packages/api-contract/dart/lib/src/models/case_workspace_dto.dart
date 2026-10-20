@@ -19,6 +19,7 @@ class CaseWorkspaceDto {
     required this.publishedAt,
     required this.bidsCount,
     required this.newUpdates,
+    required this.canWrite,
     this.acceptedAt,
   });
 
@@ -35,6 +36,9 @@ class CaseWorkspaceDto {
 
   /// The other side's updates since this side last opened Updates.
   final int newUpdates;
+
+  /// Audit 2026-10-19: false once the case is closed — the workspace is then read-only (no new updates, files or tasks).
+  final bool canWrite;
 
   Map<String, Object?> toJson() => _$CaseWorkspaceDtoToJson(this);
 }

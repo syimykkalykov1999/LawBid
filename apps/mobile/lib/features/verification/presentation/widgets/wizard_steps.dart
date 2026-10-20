@@ -350,7 +350,9 @@ class _LicenseBlock extends StatelessWidget {
         ),
         // Owner 2026-10-04: no bar card photo unless the API asks for it
         // (or one is attached already, or the verifier asked for more).
+        // Owner 2026-10-18: a number sent for manual review needs its card.
         if (state.barDocumentRequired ||
+            license.manualReview ||
             !state.request.isDraft ||
             state.request.docsFor(slot).isNotEmpty ||
             state.tasksFor(slot).isNotEmpty) ...[

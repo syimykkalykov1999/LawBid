@@ -36,6 +36,8 @@ import { CaseWorkspaceController } from './workspace/case-workspace.controller';
 import { CaseWorkspaceService } from './workspace/case-workspace.service';
 import { CaseViewTrackingService } from './services/case-view-tracking.service';
 import { CasesFeedService } from './services/cases-feed.service';
+import { ClientActivityService } from './services/client-activity.service';
+import { PresenceModule } from '../presence/presence.module';
 
 /** docs/04_CASES_BIDS.md §3 (stage 4.2): case creation and management
  * (CasesService, CasesController) on top of the stage 4.1 case lifecycle
@@ -69,6 +71,8 @@ import { CasesFeedService } from './services/cases-feed.service';
     PromotionsCoreModule,
     // Owner 2026-10-13: "for you" ranking in Search.
     RecommendationsModule,
+    // Owner 2026-10-18 (OQ-054): «В сети / Был …» on the feed card.
+    PresenceModule,
   ],
   controllers: [
     CasesController,
@@ -92,6 +96,7 @@ import { CasesFeedService } from './services/cases-feed.service';
     CaseStateMachine,
     CaseAccessPolicy,
     CasesFeedService,
+    ClientActivityService,
     CaseViewTrackingService,
     CaseBidsService,
     CaseInvitesService,

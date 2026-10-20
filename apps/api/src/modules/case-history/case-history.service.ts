@@ -40,7 +40,12 @@ const CASE_SELECT = {
     select: { id: true, code: true, i18n_key: true, name_en: true },
   },
   accepted_bid: {
-    select: { amount_cents: true, fee_type: true, attorney_id: true },
+    select: {
+      amount_cents: true,
+      percent_bps: true,
+      fee_type: true,
+      attorney_id: true,
+    },
   },
 } satisfies Prisma.CaseSelect;
 
@@ -64,6 +69,7 @@ function toEvent(r: {
         ? role
         : 'system',
     amountCents: num(p.amountCents),
+    percentBps: num(p.percentBps),
     feeType: str(p.feeType) as FeeType | null,
     roundNo: num(p.roundNo),
     reason: str(p.reason),
@@ -263,7 +269,11 @@ export class CaseHistoryService {
       closedAt: c.closed_at?.toISOString() ?? null,
       archivedAt: c.archived_at?.toISOString() ?? null,
       acceptedBid: showBid
-        ? { amountCents: bid.amount_cents, feeType: bid.fee_type }
+        ? {
+            amountCents: bid.amount_cents,
+            percentBps: bid.percent_bps,
+            feeType: bid.fee_type,
+          }
         : null,
     };
   }

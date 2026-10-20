@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/core/text/bidi.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// A user I blocked (`GET /users/me/blocks`, OQ-028).
@@ -27,7 +28,7 @@ class BlockedUser {
   String get displayName {
     final name = [firstName, lastName].whereType<String>().join(' ').trim();
     if (name.isNotEmpty) return name;
-    return username == null ? '' : '@$username';
+    return username == null ? '' : atHandle(username);
   }
 }
 

@@ -31,7 +31,9 @@ class CreatePostDto {
   factory CreatePostDto.fromJson(Map<String, Object?> json) =>
       _$CreatePostDtoFromJson(json);
 
-  /// Owner 2026-09-30: the card's title.
+  /// Owner 2026-09-30: the card's title. Owner 2026-10-18: optional.
+  /// ('' is fine) — a post needs a title, a text, photos, a video or files.
+  /// (checked in PostsService.create).
   final String title;
 
   /// Owner 2026-09-30: the qualification — a practice category or.

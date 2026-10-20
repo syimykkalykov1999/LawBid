@@ -94,6 +94,10 @@ abstract class SearchClient {
   ///
   /// [budgetUnknown] - Only cases with "clarify later".
   ///
+  /// [budgetPercent] - Include cases with a percent (contingency) budget. Combined with a dollar range or "clarify later" the options are OR-ed.
+  ///
+  /// [percentMax] - With budgetPercent: only percent budgets up to this whole percent.
+  ///
   /// [noBids] - Only cases nobody has bid on yet.
   ///
   /// [minUrgency] - Owner 2026-10-05: only cases at least this urgent today (a dated case by its days left; past dates excluded).
@@ -110,6 +114,8 @@ abstract class SearchClient {
     @Query('budgetMin') num? budgetMin,
     @Query('budgetMax') num? budgetMax,
     @Query('budgetUnknown') bool? budgetUnknown,
+    @Query('budgetPercent') bool? budgetPercent,
+    @Query('percentMax') num? percentMax,
     @Query('noBids') bool? noBids,
     @Query('minUrgency') MinUrgency? minUrgency,
     @Query('hasDeadline') bool? hasDeadline,

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -17,13 +19,13 @@ import 'package:lawbid/features/onboarding/onboarding_routes.dart';
 import 'package:lawbid/features/onboarding/presentation/widgets/onboarding_scaffold.dart';
 import 'package:lawbid/features/onboarding/presentation/widgets/option_picker_sheet.dart';
 import 'package:lawbid/features/profile/application/avatar_upload_controller.dart';
+import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
+import 'package:lawbid/features/profile/presentation/screens/attorney_profile_edit_screen.dart'
+    show UsernameStatus, usernamePattern;
 import 'package:lawbid/features/profile/presentation/widgets/avatar_picker_field.dart';
+import 'package:lawbid/features/profile/presentation/widgets/username_suggestions.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
-
-/// Server limit for first/last name (apps/api UpdateProfileDto @Length(1, 80)).
-// docs/03 §4.1 limits (server enforces the same).
-const kNameMaxLength = 50;
 
 /// Max attorney bio length (docs/01_FOUNDATION_AUTH.md §11 Шаг 3B).
 int get kBioMaxLength => TextLimits.of(TextLimit.bio);
@@ -67,6 +69,15 @@ class _ProfileStepScreenState extends ConsumerState<ProfileStepScreen> {
   final _bio = TextEditingController();
   final _firm = TextEditingController();
   final _contactTime = TextEditingController();
+
+  /// Owner 2026-10-18 («как в инсте»): the @username, offered from the
+  /// name until the person types their own; free handles as chips.
+  final _username = TextEditingController();
+  bool _usernameTouched = false;
+  UsernameStatus _usernameStatus = UsernameStatus.unchanged;
+  List<String> _suggestions = const [];
+  Timer? _usernameDebounce;
+  int _usernameSeq = 0;
   Set<String> _states = {};
   Set<String> _languages = {};
   String? _contactMethod;
@@ -75,7 +86,16 @@ class _ProfileStepScreenState extends ConsumerState<ProfileStepScreen> {
 
   @override
   void dispose() {
-    for (final c in [_first, _last, _email, _bio, _firm, _contactTime]) {
+    _usernameDebounce?.cancel();
+    for (final c in [
+      _first,
+      _last,
+      _email,
+      _bio,
+      _firm,
+      _contactTime,
+      _username,
+    ]) {
       c.dispose();
     }
     super.dispose();
@@ -89,6 +109,14 @@ class _ProfileStepScreenState extends ConsumerState<ProfileStepScreen> {
     _email.text = user.email ?? '';
     final client = user.clientProfile;
     final attorney = user.attorneyProfile;
+    final handle = client?.username ?? attorney?.username;
+    if (handle != null && handle.isNotEmpty) {
+      _username.text = handle;
+      _usernameTouched = true;
+    } else {
+      // Ideas from the name already on the account (or none yet).
+      WidgetsBinding.instance.addPostFrameCallback((_) => _onNameChanged());
+    }
     if (client != null) {
       _states = {client.stateCode};
       _languages = client.languages.toSet();
@@ -119,6 +147,89 @@ class _ProfileStepScreenState extends ConsumerState<ProfileStepScreen> {
     }
   }
 
+  /// The name changed: until the person types a @username, offer the
+  /// first free one from the name and the rest as chips.
+  void _onNameChanged() {
+    if (_usernameTouched || !mounted) return;
+    _usernameDebounce?.cancel();
+    final seq = ++_usernameSeq;
+    _usernameDebounce = Timer(const Duration(milliseconds: 600), () async {
+      final first = _first.text.trim();
+      final last = _last.text.trim();
+      if (first.isEmpty && last.isEmpty) return;
+      try {
+        final list = await ref
+            .read(attorneyProfileRepositoryProvider)
+            .suggestUsernames(firstName: first, lastName: last);
+        if (!mounted || seq != _usernameSeq || _usernameTouched) return;
+        if (list.isEmpty) return;
+        setState(() {
+          _username.text = list.first;
+          _usernameStatus = UsernameStatus.available;
+          _suggestions = list.skip(1).toList();
+        });
+      } catch (_) {
+        // No ideas: the server derives a handle from the name on save.
+      }
+    });
+  }
+
+  void _onUsernameChanged(String value) {
+    _usernameTouched = true;
+    _usernameDebounce?.cancel();
+    final u = value.trim();
+    if (u.isEmpty) {
+      setState(() {
+        _usernameStatus = UsernameStatus.unchanged;
+        _suggestions = const [];
+      });
+      return;
+    }
+    if (!usernamePattern.hasMatch(u)) {
+      setState(() => _usernameStatus = UsernameStatus.invalid);
+      return;
+    }
+    setState(() => _usernameStatus = UsernameStatus.checking);
+    final seq = ++_usernameSeq;
+    _usernameDebounce = Timer(const Duration(milliseconds: 450), () async {
+      try {
+        final r =
+            await ref.read(attorneyProfileRepositoryProvider).checkUsername(
+                  u,
+                  firstName: _first.text,
+                  lastName: _last.text,
+                );
+        if (!mounted || seq != _usernameSeq) return;
+        setState(() {
+          _suggestions = r.suggestions;
+          _usernameStatus = r.available
+              ? UsernameStatus.available
+              : switch (r.issue) {
+                  UsernameIssue.reserved => UsernameStatus.reserved,
+                  UsernameIssue.taken => UsernameStatus.taken,
+                  _ => UsernameStatus.invalid,
+                };
+        });
+      } catch (_) {
+        if (mounted && seq == _usernameSeq) {
+          setState(() => _usernameStatus = UsernameStatus.error);
+        }
+      }
+    });
+  }
+
+  bool get _usernameBlocked => const {
+        UsernameStatus.invalid,
+        UsernameStatus.taken,
+        UsernameStatus.reserved,
+        UsernameStatus.checking,
+      }.contains(_usernameStatus);
+
+  /// The handle to send: what is on the form unless it is empty or was
+  /// never checked (the server keeps / derives one then).
+  String get _usernameToSend =>
+      _usernameStatus == UsernameStatus.available ? _username.text.trim() : '';
+
   /// Flag required fields after Continue, or when the server sent the
   /// user back here because something is missing (OnboardingBlocker).
   bool get _flagRequired =>
@@ -142,7 +253,7 @@ class _ProfileStepScreenState extends ConsumerState<ProfileStepScreen> {
   bool _ready(CurrentUser user) {
     if (_first.text.trim().isEmpty || _last.text.trim().isEmpty) return false;
     if (user.role == UserRole.assistant) return true;
-    if (!_emailOk) return false;
+    if (!_emailOk || _usernameBlocked) return false;
     return (user.isAttorney || _states.isNotEmpty) && !_photoMissing(user);
   }
 
@@ -171,6 +282,7 @@ class _ProfileStepScreenState extends ConsumerState<ProfileStepScreen> {
         _last.text.trim().isEmpty ||
         !statesOk ||
         !_emailOk ||
+        _usernameBlocked ||
         _photoMissing(user)) {
       return;
     }
@@ -179,6 +291,7 @@ class _ProfileStepScreenState extends ConsumerState<ProfileStepScreen> {
             firstName: _first.text,
             lastName: _last.text,
             email: _email.text,
+            username: _usernameToSend,
             bio: _bio.text,
             firmName: _firm.text,
             languages: _languages.toList(),
@@ -188,6 +301,7 @@ class _ProfileStepScreenState extends ConsumerState<ProfileStepScreen> {
             firstName: _first.text,
             lastName: _last.text,
             email: _email.text,
+            username: _usernameToSend,
             stateCode: _states.first,
             languages: _languages.toList(),
             contactMethod: contactMethodToWire(_contactMethod),
@@ -226,7 +340,12 @@ class _ProfileStepScreenState extends ConsumerState<ProfileStepScreen> {
 
     final stateOptions = [
       for (final s in kRegions)
-        PickerOption(value: s.code, label: s.name, sublabel: s.code),
+        PickerOption(
+          value: s.code,
+          label: s.name,
+          sublabel: s.code,
+          keywords: s.aliases,
+        ),
     ];
 
     Future<void> pickStates() async {
@@ -312,8 +431,13 @@ class _ProfileStepScreenState extends ConsumerState<ProfileStepScreen> {
           textCapitalization: TextCapitalization.words,
           textInputAction: TextInputAction.next,
           autofillHints: const [AutofillHints.givenName],
-          inputFormatters: [LengthLimitingTextInputFormatter(kNameMaxLength)],
-          onChanged: (_) => setState(() {}),
+          inputFormatters: [
+            LengthLimitingTextInputFormatter(TextLimits.of(TextLimit.name)),
+          ],
+          onChanged: (_) {
+            setState(() {});
+            _onNameChanged();
+          },
         ),
         const SizedBox(height: AppSpacing.lg),
         AppTextField(
@@ -323,8 +447,13 @@ class _ProfileStepScreenState extends ConsumerState<ProfileStepScreen> {
           textCapitalization: TextCapitalization.words,
           textInputAction: TextInputAction.next,
           autofillHints: const [AutofillHints.familyName],
-          inputFormatters: [LengthLimitingTextInputFormatter(kNameMaxLength)],
-          onChanged: (_) => setState(() {}),
+          inputFormatters: [
+            LengthLimitingTextInputFormatter(TextLimits.of(TextLimit.name)),
+          ],
+          onChanged: (_) {
+            setState(() {});
+            _onNameChanged();
+          },
         ),
         const SizedBox(height: AppSpacing.xs),
         Text(
@@ -344,6 +473,47 @@ class _ProfileStepScreenState extends ConsumerState<ProfileStepScreen> {
         ),
         const SizedBox(height: AppSpacing.lg),
         if (!assistant) ...[
+          AppTextField(
+            key: const ValueKey('onboarding-username'),
+            controller: _username,
+            label: t.t('profile.username.label'),
+            leading: Text(
+              '@',
+              style: Theme.of(context)
+                  .extension<AppTypographyTokens>()!
+                  .body
+                  .copyWith(
+                    color: Theme.of(context)
+                        .extension<AppColorTokens>()!
+                        .textSecondary,
+                  ),
+            ),
+            helperText: switch (_usernameStatus) {
+              UsernameStatus.checking => t.t('profile.username.checking'),
+              UsernameStatus.available => t.t('profile.username.available'),
+              UsernameStatus.error => t.t('profile.username.checkFailed'),
+              _ => null,
+            },
+            errorText: switch (_usernameStatus) {
+              UsernameStatus.taken => t.t('error.api.USERNAME_TAKEN'),
+              UsernameStatus.reserved => t.t('error.api.USERNAME_RESERVED'),
+              UsernameStatus.invalid => t.t('profile.username.invalid'),
+              _ => null,
+            },
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp('[A-Za-z0-9._]')),
+              LengthLimitingTextInputFormatter(30),
+            ],
+            onChanged: _onUsernameChanged,
+          ),
+          UsernameSuggestions(
+            suggestions: _suggestions,
+            onPick: (v) {
+              _username.text = v;
+              _onUsernameChanged(v);
+            },
+          ),
+          const SizedBox(height: AppSpacing.lg),
           AppTextField(
             controller: _email,
             label: t.t('onboarding.profile.email'),

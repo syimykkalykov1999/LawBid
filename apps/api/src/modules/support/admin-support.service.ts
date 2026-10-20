@@ -20,16 +20,21 @@ import {
   type AdminSupportTicketsQueryDto,
   type AdminSupportUserSummaryDto,
   type AdminUpdateSupportTicketDto,
+  type SupportAttachmentDto,
   type SupportCategory,
+  type SupportClientContextDto,
   type SupportPriority,
   type SupportStatus,
 } from './support.dto';
 import { SupportDeskService } from './support-desk.service';
+import { SupportFilesService } from './support-files.service';
 import {
   activityKeyset,
   activityPage,
   afterAdminReply,
+  assertHasContent,
   nameOf,
+  renderMacro,
   SUPPORT_TEAM_NAME,
   ticketNotFound,
   withResolvedAt,
@@ -58,6 +63,7 @@ export class AdminSupportService {
     private readonly notifications: NotificationsService,
     private readonly subscriptions: SubscriptionAccessService,
     private readonly desk: SupportDeskService,
+    private readonly attachments: SupportFilesService,
   ) {}
 
   async list(
@@ -69,6 +75,13 @@ export class AdminSupportService {
       // Owner 2026-10-05: support staff of one country see its tickets.
       ...(countries ? { country_code: { in: countries } } : {}),
       ...(q.status ? { status: q.status } : {}),
+      // Owner 2026-10-18: «Непрочитанные» — something new from the user.
+      ...(q.unread
+        ? {
+            unread_by_admin: true,
+            ...(q.status ? {} : { status: { not: 'closed' } }),
+          }
+        : {}),
       ...(q.category ? { category: q.category } : {}),
       ...(q.priority ? { priority: q.priority } : {}),
       ...(q.userId ? { user_id: q.userId } : {}),
@@ -188,15 +201,21 @@ export class AdminSupportService {
         data: { unread_by_admin: false },
       });
     }
-    const people = await this.people([
-      ticket.user_id,
-      ticket.assignee_id,
-      ...messages.flatMap((m) => [m.author_user_id, m.author_admin_id]),
+    const [people, files] = await Promise.all([
+      this.people([
+        ticket.user_id,
+        ticket.assignee_id,
+        ...messages.flatMap((m) => [m.author_user_id, m.author_admin_id]),
+      ]),
+      this.attachments.forMessages(messages.map((m) => m.id)),
     ]);
     return {
       ...this.row({ ...ticket, unread_by_admin: false }, people),
       userSummary: user,
-      messages: messages.map((m) => presentAdminMessage(m, people)),
+      clientContext: presentContext(ticket.client_context),
+      messages: messages.map((m) =>
+        presentAdminMessage(m, people, files.get(m.id)),
+      ),
     };
   }
 
@@ -206,17 +225,33 @@ export class AdminSupportService {
     dto: AdminSupportReplyDto,
   ): Promise<AdminSupportMessageDto> {
     const internal = dto.internal ?? false;
+    assertHasContent(dto.body, dto.attachments);
+    await this.attachments.assertAttachable(adminId, dto.attachments);
     const { message, ticket } = await withTxRetry(this.prisma, async (tx) => {
       const t = await tx.supportTicket.findUnique({ where: { id } });
       if (!t) throw ticketNotFound();
+      // Owner 2026-10-18 (OQ-055): `{name}` and `{ticket}` are filled here,
+      // on the server, so a ready answer can never go out raw.
+      const lang = await tx.user.findUnique({
+        where: { id: t.user_id },
+        select: { ui_language: true, first_name: true },
+      });
+      const body = internal
+        ? dto.body
+        : renderMacro(dto.body, {
+            firstName: lang?.first_name,
+            ticketId: t.id,
+            language: lang?.ui_language ?? 'en',
+          });
       const m = await tx.supportMessage.create({
         data: {
           ticket_id: id,
           author_admin_id: adminId,
           internal,
-          body: dto.body,
+          body,
         },
       });
+      await this.attachments.attach(tx, m.id, dto.attachments);
       if (internal) {
         // A note changes nothing the user can see (not even the order).
         return { message: m, ticket: t };
@@ -245,10 +280,6 @@ export class AdminSupportService {
           data: { uses: { increment: 1 } },
         });
       }
-      const lang = await tx.user.findUnique({
-        where: { id: t.user_id },
-        select: { ui_language: true },
-      });
       const ru = (lang?.ui_language ?? 'en').startsWith('ru');
       // `admin_broadcast` carries its own title/body (PushDispatcher) and
       // is the generic "message from the LawBid team" type; ticketId is
@@ -270,8 +301,11 @@ export class AdminSupportService {
       );
       return { message: m, ticket: updated };
     });
-    const people = await this.people([adminId, ticket.user_id]);
-    return presentAdminMessage(message, people);
+    const [people, files] = await Promise.all([
+      this.people([adminId, ticket.user_id]),
+      this.attachments.forMessages([message.id]),
+    ]);
+    return presentAdminMessage(message, people, files.get(message.id));
   }
 
   async update(
@@ -455,6 +489,7 @@ export class AdminSupportService {
 export function presentAdminMessage(
   m: SupportMessage,
   people: Map<string, Named>,
+  attachments: readonly SupportAttachmentDto[] = [],
 ): AdminSupportMessageDto {
   // Owner 2026-10-05: an automatic answer has no author.
   const isAdmin = m.author_admin_id !== null || m.auto;
@@ -467,8 +502,34 @@ export function presentAdminMessage(
     internal: m.internal,
     auto: m.auto,
     body: m.body,
+    attachments: [...attachments],
     createdAt: m.created_at.toISOString(),
   };
+}
+
+/** The stored JSON → the DTO (only known string keys; anything else, or a
+ * ticket without context, is null). */
+export function presentContext(raw: unknown): SupportClientContextDto | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const src = raw as Record<string, unknown>;
+  const out: Record<string, string> = {};
+  for (const k of [
+    'appVersion',
+    'buildNumber',
+    'platform',
+    'osVersion',
+    'deviceModel',
+    'language',
+    'theme',
+    'timezone',
+    'route',
+    'userId',
+    'role',
+  ]) {
+    const v = src[k];
+    if (typeof v === 'string') out[k] = v;
+  }
+  return out;
 }
 
 function clip(s: string, max = 60): string {

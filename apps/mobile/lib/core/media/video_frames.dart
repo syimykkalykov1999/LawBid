@@ -4,6 +4,9 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/painting.dart' show Size;
 import 'package:image_picker/image_picker.dart' show XFile;
+import 'package:lawbid/core/media/video_probe_stub.dart'
+    if (dart.library.js_interop) 'package:lawbid/core/media/video_probe_web.dart'
+    as web_probe;
 import 'package:video_compress/video_compress.dart';
 import 'package:video_player/video_player.dart';
 
@@ -13,9 +16,10 @@ import 'package:video_player/video_player.dart';
 typedef VideoInfo = ({int totalMs, Size size});
 
 Future<VideoInfo?> probeVideo(XFile file) async {
-  final c = kIsWeb
-      ? VideoPlayerController.networkUrl(Uri.parse(file.path))
-      : VideoPlayerController.file(File(file.path));
+  // In the browser the path is a blob: link; the player would wait for
+  // «can play», which iOS Safari never sends (video_probe_web.dart).
+  if (kIsWeb) return web_probe.probeVideoUrl(file.path);
+  final c = VideoPlayerController.file(File(file.path));
   try {
     await c.initialize();
     final ms = c.value.duration.inMilliseconds;
@@ -28,9 +32,10 @@ Future<VideoInfo?> probeVideo(XFile file) async {
   }
 }
 
-/// One JPEG frame at [ms]; null on the web or when the plugin fails.
+/// One JPEG frame at [ms]; null when it cannot be made (the browser draws
+/// it from the video, the phone asks the plugin).
 Future<Uint8List?> videoFrame(XFile file, int ms, {int quality = 45}) async {
-  if (kIsWeb) return null;
+  if (kIsWeb) return web_probe.videoFrameUrl(file.path, ms, quality: quality);
   try {
     return await VideoCompress.getByteThumbnail(
       file.path,

@@ -3,6 +3,7 @@
 import { NotePencil } from '@phosphor-icons/react';
 import { motion } from 'motion/react';
 import { cn, formatDateTime } from '@/lib/utils';
+import { AttachmentList } from './attachments';
 import { initials, relativeTime, type TicketMessage } from './support-labels';
 
 /**
@@ -48,6 +49,7 @@ export function MessageBubble({ m }: { m: TicketMessage }) {
             </div>
           ) : null}
           {m.body}
+          <AttachmentList items={m.attachments ?? []} mine={mine} />
         </div>
       </div>
     </motion.div>

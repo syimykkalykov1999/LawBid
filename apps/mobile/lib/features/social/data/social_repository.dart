@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/limits/text_limits.dart';
 import 'package:lawbid/core/network/api_error.dart';
@@ -13,6 +15,8 @@ import 'package:lawbid/features/social/data/social_local_database.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
+export 'package:lawbid/features/social/domain/post_text.dart'
+    show kPostTitleMaxChars;
 
 /// docs/05 §3.2: post photos up to 10 MB each; at most 9 per post (owner
 /// 2026-09-30, same as cases).
@@ -26,19 +30,12 @@ const kPostMaxChars = 2200;
 /// value is `post.max_chars_brief` from the admin panel).
 const kThreadMaxChars = 3000;
 
-/// Owner 2026-09-30: the card title limit (server-enforced too).
-const kPostTitleMaxChars = 120;
-
 /// Owner 2026-10-05: up to 9 documents (PDF, Word, text) per post, each
 /// ≤ `files.post_attachment_max_size_mb` (10 MB by default; the server
 /// enforces it and the total `posts.attachments_max_total_mb`).
 const kPostMaxDocuments = 9;
 const kPostDocumentDefaultMaxMb = 10;
 const kPostDocumentsDefaultTotalMb = 30;
-
-/// Extensions the document picker offers (same list as the server's
-/// `post_attachment` rule, apps/api files.policy.ts).
-const kPostDocumentExtensions = ['pdf', 'doc', 'docx', 'txt', 'rtf', 'odt'];
 
 /// MIME of a post document by its name, or null when not allowed.
 String? postDocumentMimeForName(String name) {
@@ -146,6 +143,11 @@ const Map<String, dynamic> _createsResource = {
 
 /// docs/05 §2–§6 for the app: feed, posts, likes, saves, comments,
 /// follows, suggestions, tag pages, reports. Throws [ApiException].
+/// Owner 2026-10-18: a profile's tabs Посты | Рилсы | Брифы и репосты —
+/// [video] video posts / reels, [visual] photo or file posts without a
+/// video, [text] text-only briefs.
+enum ProfileMedia { video, visual, text }
+
 /// Network access only through here (.cursorrules).
 abstract interface class SocialRepository {
   /// Owner 2026-10-13: whether the viewer may add files, documents, extra
@@ -159,10 +161,13 @@ abstract interface class SocialRepository {
   Future<Post> post(String id);
 
   /// [newsOnly]: the profile's News tab (owner 2026-09-30).
+  /// [media]: the profile's Posts / Reels tabs (owner 2026-10-18), filtered
+  /// by the server so every page is full.
   Future<CursorPage<Post>> attorneyPosts(
     String attorneyId, {
     String? cursor,
     bool newsOnly = false,
+    ProfileMedia? media,
   });
   Future<CursorPage<Post>> tagPosts(
     String tag,
@@ -170,6 +175,12 @@ abstract interface class SocialRepository {
     String? cursor,
     String? state,
   });
+
+  /// Owner 2026-10-18: the "Reposts" profile tab of any user.
+  Future<CursorPage<Post>> userReposts(String userId, {String? cursor});
+
+  /// Owner 2026-10-18: who reposted a post (avatar, name, follow).
+  Future<CursorPage<PersonRow>> postReposters(String postId, {String? cursor});
 
   /// OQ-034: newest posts (of attorneys licensed in [state] when given);
   /// owner 2026-09-30: of a qualification ([practice], a category with its
@@ -211,6 +222,16 @@ abstract interface class SocialRepository {
   Future<Post> pinPost(String id, int slot);
   Future<Post> unpinPost(String id);
 
+  /// Owner 2026-10-18 (Instagram): the author turns comments of an own post
+  /// on / off (off: no new comments, the existing ones hidden).
+  Future<Post> setPostCommentsEnabled(String id, {required bool enabled});
+
+  /// Owner 2026-10-18: «Архивировать» / «Показать в профиле».
+  Future<Post> setPostArchived(String id, {required bool archived});
+
+  /// Owner 2026-10-18: Settings → «Архив», newest archived first.
+  Future<CursorPage<Post>> archivedPosts({String? cursor});
+
   /// Owner 2026-10-05: the feed shows legal posts only (general, personal
   /// posts hidden in the feed, topics, search and recommendations).
   Future<String> feedContentMode();
@@ -238,11 +259,19 @@ abstract interface class SocialRepository {
   Future<void> setFollowing(String attorneyId, {required bool following});
 
   /// OQ-026: attorneys and clients who follow [attorneyId].
+  ///
+  /// Owner 2026-10-18: [q] — name (any alphabet, typos) or @username; the
+  /// server matches.
   Future<CursorPage<PersonRow>> followers(
     String attorneyId, {
     String? cursor,
+    String? q,
   });
-  Future<CursorPage<PersonRow>> following(String attorneyId, {String? cursor});
+  Future<CursorPage<PersonRow>> following(
+    String attorneyId, {
+    String? cursor,
+    String? q,
+  });
   Future<CursorPage<AttorneyRow>> suggestions({String? cursor});
 
   Future<void> report(
@@ -272,6 +301,11 @@ abstract interface class SocialRepository {
     required int maxBytes,
     void Function(double progress)? onProgress,
   });
+}
+
+String? _queryOrNull(String? q) {
+  final v = q?.trim();
+  return v == null || v.isEmpty ? null : v;
 }
 
 class ApiSocialRepository implements SocialRepository {
@@ -314,7 +348,14 @@ class ApiSocialRepository implements SocialRepository {
     final env = await guardApiCall(() => _feed.getFeed(cursor: cursor));
     final owner = _ownerId;
     if (cursor == null && owner != null) {
-      await _local.savePage('feed:$owner', jsonEncode(env.toJson()));
+      // Owner 2026-10-18 (speed): the offline copy is written in the
+      // background — the first page is on screen without waiting for the
+      // disk; a failed write only means no offline copy this time.
+      unawaited(
+        _local
+            .savePage('feed:$owner', jsonEncode(env.toJson()))
+            .catchError((Object e) => debugPrint('feed cache write: $e')),
+      );
     }
     return CursorPage(
       items: env.data.map(SocialMappers.post).toList(),
@@ -366,6 +407,7 @@ class ApiSocialRepository implements SocialRepository {
     String attorneyId, {
     String? cursor,
     bool newsOnly = false,
+    ProfileMedia? media,
   }) async {
     final env = await guardApiCall(
       () => _posts.listAttorneyPosts(
@@ -373,10 +415,41 @@ class ApiSocialRepository implements SocialRepository {
         cursor: cursor,
         // The Posts tab must not repeat the News tab's items.
         kind: newsOnly ? api.PostKind.news : api.PostKind.post,
+        media: switch (media) {
+          null => null,
+          ProfileMedia.video => api.PostMediaFilter.video,
+          ProfileMedia.visual => api.PostMediaFilter.visual,
+          ProfileMedia.text => api.PostMediaFilter.text,
+        },
       ),
     );
     return CursorPage(
       items: env.data.map(SocialMappers.post).toList(),
+      nextCursor: env.meta?.nextCursor,
+    );
+  }
+
+  @override
+  Future<CursorPage<Post>> userReposts(String userId, {String? cursor}) async {
+    final env = await guardApiCall(
+      () => _posts.listUserReposts(id: userId, cursor: cursor),
+    );
+    return CursorPage(
+      items: env.data.map(SocialMappers.post).toList(),
+      nextCursor: env.meta?.nextCursor,
+    );
+  }
+
+  @override
+  Future<CursorPage<PersonRow>> postReposters(
+    String postId, {
+    String? cursor,
+  }) async {
+    final env = await guardApiCall(
+      () => _posts.listReposters(id: postId, cursor: cursor),
+    );
+    return CursorPage(
+      items: env.data.map(SocialMappers.person).whereType<PersonRow>().toList(),
       nextCursor: env.meta?.nextCursor,
     );
   }
@@ -541,6 +614,42 @@ class ApiSocialRepository implements SocialRepository {
   Future<Post> unpinPost(String id) async => SocialMappers.post(
         (await guardApiCall(() => _posts.unpinPost(id: id))).data,
       );
+
+  @override
+  Future<Post> setPostCommentsEnabled(
+    String id, {
+    required bool enabled,
+  }) async =>
+      SocialMappers.post(
+        (await guardApiCall(
+          () => _posts.setPostComments(
+            id: id,
+            body: api.PostCommentsSettingDto(enabled: enabled),
+          ),
+        ))
+            .data,
+      );
+
+  @override
+  Future<Post> setPostArchived(String id, {required bool archived}) async =>
+      SocialMappers.post(
+        (await guardApiCall(
+          () => archived
+              ? _posts.archivePost(id: id)
+              : _posts.unarchivePost(id: id),
+        ))
+            .data,
+      );
+
+  @override
+  Future<CursorPage<Post>> archivedPosts({String? cursor}) async {
+    final env =
+        await guardApiCall(() => _posts.listArchivedPosts(cursor: cursor));
+    return CursorPage(
+      items: env.data.map(SocialMappers.post).toList(),
+      nextCursor: env.meta?.nextCursor,
+    );
+  }
 
   @override
   Future<void> recordPostShare(String postId) =>
@@ -721,9 +830,14 @@ class ApiSocialRepository implements SocialRepository {
   Future<CursorPage<PersonRow>> followers(
     String attorneyId, {
     String? cursor,
+    String? q,
   }) async {
     final env = await guardApiCall(
-      () => _follows.listFollowers(id: attorneyId, cursor: cursor),
+      () => _follows.listFollowers(
+        id: attorneyId,
+        cursor: cursor,
+        q: _queryOrNull(q),
+      ),
     );
     return CursorPage(
       items: env.data.map(SocialMappers.person).whereType<PersonRow>().toList(),
@@ -735,10 +849,15 @@ class ApiSocialRepository implements SocialRepository {
   Future<CursorPage<PersonRow>> following(
     String attorneyId, {
     String? cursor,
+    String? q,
   }) async {
     // OQ-038: attorneys and clients.
     final env = await guardApiCall(
-      () => _follows.listFollowing(id: attorneyId, cursor: cursor),
+      () => _follows.listFollowing(
+        id: attorneyId,
+        cursor: cursor,
+        q: _queryOrNull(q),
+      ),
     );
     return CursorPage(
       items: env.data.map(SocialMappers.person).whereType<PersonRow>().toList(),
@@ -857,16 +976,18 @@ class ApiSocialRepository implements SocialRepository {
     );
   }
 
-  static String _extOf(String mime) => switch (mime) {
-        kPdfMime => 'pdf',
-        'application/msword' => 'doc',
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document' =>
-          'docx',
-        'text/plain' => 'txt',
-        'application/rtf' => 'rtf',
-        'application/vnd.oasis.opendocument.text' => 'odt',
-        _ => '',
-      };
+  /// Owner 2026-10-19: every document format the admin may turn on for a
+  /// post (xls, pptx, csv, … too — not only PDF / Word / text).
+  static String _extOf(String mime) {
+    for (final e in kUploadFormatMime.entries) {
+      if (e.value == mime &&
+          !kPhotoFormats.contains(e.key) &&
+          !kVideoFormats.contains(e.key)) {
+        return e.key;
+      }
+    }
+    return '';
+  }
 
   /// Presign → S3 POST → confirm → wait for a clean scan.
   Future<String> _upload(
@@ -1003,12 +1124,17 @@ abstract final class SocialMappers {
         repostCount: d.repostCount,
         repostedByMe: d.repostedByMe,
         pinSlot: d.pinSlot,
+        archivedAt: d.archivedAt?.toLocal(),
         repostedBy: d.repostedBy == null
             ? null
             : PostReposter(
                 id: d.repostedBy!.id,
                 username: d.repostedBy!.username,
+                name: d.repostedBy!.name,
                 isClient: d.repostedBy!.role == api.PostReposterDtoRole.client,
+                repostedAt: d.repostedBy!.repostedAt == null
+                    ? null
+                    : DateTime.parse(d.repostedBy!.repostedAt!).toLocal(),
               ),
         likedByMe: d.likedByMe,
         savedByMe: d.savedByMe,

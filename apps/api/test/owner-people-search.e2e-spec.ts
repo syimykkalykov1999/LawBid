@@ -193,6 +193,75 @@ describe('People search + client usernames (e2e, OQ-026)', () => {
     ).toBe(true);
   });
 
+  it('people: a name in another alphabet, any word order, a typo (owner 2026-10-18)', async () => {
+    const att = await attorney(`${token}.emily`, ['Emily', 'Zvorykina']);
+    const cli = await client(['Rachel', 'Vanderbilt'], `${token}.rachel`);
+    const found = async (q: string) => {
+      const r = await api()
+        .get('/api/v1/search/people')
+        .query({ q })
+        .set(att.auth);
+      expect(r.status).toBe(200);
+      return (
+        r.body.data as {
+          attorney: { id: string } | null;
+          client: { id: string } | null;
+        }[]
+      ).map((i) => i.attorney?.id ?? i.client?.id);
+    };
+    for (const q of [
+      'Эмили Зворыкина',
+      'зворыкина эмили',
+      'Emly Zvorykina',
+      'zvorykina',
+    ]) {
+      expect(await found(q)).toContain(att.id);
+    }
+    for (const q of [
+      'Рэйчел Вандербилт',
+      'Рейчел Вандербильт',
+      'vanderbilt rachel',
+    ]) {
+      expect(await found(q)).toContain(cli.id);
+    }
+    expect(await found('Эмили Вандербилт')).not.toContain(att.id);
+  });
+
+  it('after sign-up the onboarding step cannot change the @username (cooldown path only)', async () => {
+    const u = await prisma.user.create({
+      data: { role: 'client', first_name: 'Late', last_name: token },
+    });
+    const a = auth(u.id, 'client');
+    const first = await api()
+      .patch('/api/v1/users/me/onboarding')
+      .set(a)
+      .send({
+        currentStep: 'push',
+        profile: { firstName: 'Late', lastName: token, stateCode: 'NY' },
+      });
+    expect(first.status).toBe(200);
+    const before = first.body.data.profile.username as string;
+    await prisma.onboardingState.upsert({
+      where: { user_id: u.id },
+      create: { user_id: u.id, current_step: 'done', completed_at: new Date() },
+      update: { completed_at: new Date() },
+    });
+    const again = await api()
+      .patch('/api/v1/users/me/onboarding')
+      .set(a)
+      .send({
+        currentStep: 'push',
+        profile: {
+          firstName: 'Late',
+          lastName: token,
+          stateCode: 'NY',
+          username: `${token}.sneaky`,
+        },
+      });
+    expect(again.status).toBe(200);
+    expect(again.body.data.profile.username).toBe(before);
+  });
+
   it('GET /clients/:username — mini-profile for anyone signed in; 404 for unknown/blocked', async () => {
     const cli = await client(['Mini', token], `${token}.mini`);
     const att = await attorney(`${token}.viewer`, ['View', 'Er']);

@@ -26,8 +26,7 @@ const _verifier = 'Vf_-0123456789abcdefghijABCDEFGHIJ012345678';
 
 /// `phoneStatus` stays pending until [status] completes, like a slow network.
 class _SlowStatusRepository extends RecordingAuthRepository {
-  final status =
-      Completer<({bool registered, bool hasPassword})?>();
+  final status = Completer<({bool registered, bool hasPassword})?>();
 
   @override
   Future<({bool registered, bool hasPassword})?> phoneStatus(String phone) =>

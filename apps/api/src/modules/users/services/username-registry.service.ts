@@ -7,6 +7,8 @@ import {
   pickUsernameFrom,
   randomSuffixCandidates,
   sequentialCandidates,
+  suggestionCandidates,
+  type UsernameSeeds,
   usernameBase,
 } from './username.util';
 
@@ -63,6 +65,36 @@ export class UsernameRegistry {
     exceptUserId?: string,
   ): Promise<boolean> {
     return (await this.taken(db, [lower], exceptUserId)).has(lower);
+  }
+
+  /**
+   * Owner 2026-10-18 ("как в инсте"): up to [count] free handles from the
+   * typed text and the name, in offer order. One indexed IN query per
+   * table over ~30 candidates; when the plain forms are all taken, one
+   * window of random 5-digit suffixes tops the list up.
+   */
+  async suggest(
+    db: Db,
+    seeds: UsernameSeeds,
+    exceptUserId?: string,
+    count = 5,
+    now: Date = new Date(),
+  ): Promise<string[]> {
+    const reserved = await this.reserved();
+    const candidates = suggestionCandidates(seeds, now.getFullYear()).filter(
+      (c) => !reserved.has(c),
+    );
+    if (candidates.length === 0) return [];
+    const taken = await this.taken(db, candidates, exceptUserId);
+    const free = candidates.filter((c) => !taken.has(c));
+    if (free.length < count) {
+      const extra = randomSuffixCandidates(candidates[0], 20).filter(
+        (c) => !reserved.has(c) && !free.includes(c),
+      );
+      const extraTaken = await this.taken(db, extra, exceptUserId);
+      free.push(...extra.filter((c) => !extraTaken.has(c)));
+    }
+    return free.slice(0, count);
   }
 
   /**

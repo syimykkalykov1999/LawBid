@@ -29,6 +29,9 @@ Future<SearchFilters?> showSearchFilters(
       builder: (_) => _FiltersSheet(initial: initial, kind: kind),
     );
 
+/// Owner 2026-10-18: «до N %» choices for percent budgets.
+const _percentCaps = <int>[10, 20, 33, 50];
+
 /// Budget ranges offered for cases (whole dollars; null = open end).
 const _budgets = <(int?, int?)>[
   (null, null),
@@ -70,6 +73,8 @@ class _FiltersSheetState extends ConsumerState<_FiltersSheet> {
     Object? budgetMin = _keep,
     Object? budgetMax = _keep,
     bool? budgetUnknown,
+    bool? budgetPercent,
+    Object? percentMax = _keep,
     bool? noBids,
     Object? minUrgency = _keep,
     bool? hasDeadline,
@@ -94,6 +99,8 @@ class _FiltersSheetState extends ConsumerState<_FiltersSheet> {
       budgetMin: pick(budgetMin, _f.budgetMin),
       budgetMax: pick(budgetMax, _f.budgetMax),
       budgetUnknown: budgetUnknown ?? _f.budgetUnknown,
+      budgetPercent: budgetPercent ?? _f.budgetPercent,
+      percentMax: pick(percentMax, _f.percentMax),
       noBids: noBids ?? _f.noBids,
       minUrgency: pick(minUrgency, _f.minUrgency),
       hasDeadline: hasDeadline ?? _f.hasDeadline,
@@ -134,6 +141,22 @@ class _FiltersSheetState extends ConsumerState<_FiltersSheet> {
         ],
       ],
       initial: {if (_f.practiceAreaId != null) _f.practiceAreaId!},
+      // Any language (the options are ids; the server names codes).
+      remoteSearch: (q) async {
+        final byCode = await practiceRemoteSearch(ref)(q);
+        final ids = <String, String?>{};
+        for (final c in tree) {
+          if (byCode.containsKey(practiceCodeOf(c.i18nKey))) {
+            ids[c.id] = byCode[practiceCodeOf(c.i18nKey)];
+          }
+          for (final l in c.children) {
+            if (byCode.containsKey(practiceCodeOf(l.i18nKey))) {
+              ids[l.id] = byCode[practiceCodeOf(l.i18nKey)];
+            }
+          }
+        }
+        return ids;
+      },
     );
     if (picked == null || !mounted) return;
     final id = picked.isEmpty ? null : picked.first;
@@ -147,6 +170,7 @@ class _FiltersSheetState extends ConsumerState<_FiltersSheet> {
       searchHint: ref.read(translatorProvider).t('practice.search.hint'),
       // Audit 2026-10-01: every category and subcategory.
       options: practiceOptions(ref),
+      remoteSearch: practiceRemoteSearch(ref),
       initial: {if (_f.practiceCategory != null) _f.practiceCategory!},
     );
     if (picked == null || !mounted) return;
@@ -386,6 +410,26 @@ class _FiltersSheetState extends ConsumerState<_FiltersSheet> {
             _f.budgetUnknown,
             (v) => _set((_) => _with(budgetUnknown: v)),
           ),
+          // Owner 2026-10-18: percent (contingency) budgets, optionally up
+          // to N percent; OR-ed with the range and «уточню позже».
+          toggle(
+            t.t('search.filter.budgetPercent'),
+            _f.budgetPercent,
+            (v) => _set((_) => _with(budgetPercent: v, percentMax: null)),
+          ),
+          if (_f.budgetPercent)
+            section(
+              t.t('search.filter.percentMax'),
+              choices<int?>(
+                [
+                  (null, any),
+                  for (final n in _percentCaps)
+                    (n, t.t('search.filter.percentUpTo', {'n': '$n'})),
+                ],
+                _f.percentMax,
+                (n) => _set((_) => _with(percentMax: n)),
+              ),
+            ),
           toggle(
             t.t('search.filter.noBids'),
             _f.noBids,

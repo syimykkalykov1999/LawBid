@@ -473,11 +473,13 @@ function isLawyer(user: RequestUser): boolean {
 
 function filters(q: TemplatesQueryDto): Prisma.DocumentTemplateWhereInput[] {
   const and: Prisma.DocumentTemplateWhereInput[] = [];
-  if (q.q) {
+  // Owner 2026-10-18: every typed word (any order) is in the title or the
+  // description, not the whole text as one literal piece.
+  for (const w of (q.q ?? '').split(/\s+/).filter(Boolean).slice(0, 8)) {
     and.push({
       OR: [
-        { title: { contains: q.q, mode: 'insensitive' } },
-        { description: { contains: q.q, mode: 'insensitive' } },
+        { title: { contains: w, mode: 'insensitive' } },
+        { description: { contains: w, mode: 'insensitive' } },
       ],
     });
   }

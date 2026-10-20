@@ -19,7 +19,7 @@ import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { AuditLogService } from '../admin-access/audit-log.service';
 import type { AdminActor } from '../admin-auth/admin-auth.decorators';
-import { APP_CONFIG_CACHE_KEY } from '../feature-flags/services/app-config.service';
+import { dropAppConfigCache } from '../feature-flags/services/app-config.service';
 import { BootstrapService } from '../feature-flags/services/bootstrap.service';
 import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
 import type {
@@ -283,7 +283,7 @@ export class AdminConfigService {
       );
       return updated;
     });
-    await this.redis.del(APP_CONFIG_CACHE_KEY);
+    await dropAppConfigCache(this.redis);
     return {
       key,
       type: schema.type,

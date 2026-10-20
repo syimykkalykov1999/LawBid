@@ -58,7 +58,7 @@ List<LanguageCatalogEntry> mergeLanguageCatalog(List<ServerLanguage>? server) {
       LanguageCatalogEntry(
         code: lang.code,
         nativeName: lang.nameNative,
-        englishName: lang.nameNative,
+        englishName: kLanguageEnglishNames[lang.code] ?? lang.nameNative,
         appLanguage: appLanguageFor(lang.code),
       ),
     );

@@ -34,6 +34,13 @@ export class VerificationLicenseDto {
 
   @ApiProperty({ type: String, nullable: true })
   rejectionNote!: string | null;
+
+  @ApiProperty({
+    description:
+      'Owner 2026-10-18: sent for manual review by the attorney (the number ' +
+      "does not fit the state's format); a bar card photo is required.",
+  })
+  manualReview!: boolean;
 }
 
 /** Metadata of an attached document. No link: after submission the app
@@ -127,6 +134,15 @@ export class VerificationOverviewDto {
       'A photo of the bar card is required per license (setting verification.require_bar_document, off by default).',
   })
   barDocumentRequired!: boolean;
+
+  @ApiProperty({
+    type: 'integer',
+    description:
+      'Owner 2026-10-18: seconds until a bar number can be added again after ' +
+      'too many failed attempts (0 = not locked). The manual-review path ' +
+      'stays open while locked.',
+  })
+  barAttemptsRetryAfterSeconds!: number;
 
   @ApiProperty({ type: 'integer' })
   submissionsLast30Days!: number;

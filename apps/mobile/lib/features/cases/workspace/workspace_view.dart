@@ -9,11 +9,15 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_parts.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
+import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/cases/workspace/compose_sheet.dart';
 import 'package:lawbid/features/cases/workspace/file_actions.dart';
 import 'package:lawbid/features/cases/workspace/tasks_tab.dart';
 import 'package:lawbid/features/cases/workspace/workspace_data.dart';
+import 'package:lawbid/features/profile/presentation/widgets/profile_tab_pages.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
+import 'package:lawbid/features/team/application/team_providers.dart';
+import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// Owner 2026-10-13: the body of an accepted case, for the client and the
@@ -111,13 +115,36 @@ class _CaseWorkspaceBodyState extends ConsumerState<CaseWorkspaceBody> {
           CaseTabItem(t.t('cases.tab.activity')),
         ];
         final shift = wide ? 1 : 0;
-        final main = RefreshIndicator(
-          color: colors.gold,
-          backgroundColor: colors.sheet,
+        // Owner 2026-10-19 (Instagram): the case header scrolls away, the
+        // tab row sticks, and the tabs are pages side by side — the next
+        // one slides in with the finger, a tap slides to it, each is kept.
+        final pages = [for (var i = shift; i < labels.length + shift; i++) i];
+        Widget pageFor(int tab) => switch (tab) {
+              0 => Column(children: widget.overview),
+              1 => FilesTab(
+                  caseId: widget.caseId,
+                  isAttorney: widget.isAttorney,
+                ),
+              2 => TasksTab(
+                  caseId: widget.caseId,
+                  isAttorney: widget.isAttorney,
+                ),
+              3 => UpdatesTab(
+                  caseId: widget.caseId,
+                  isAttorney: widget.isAttorney,
+                ),
+              _ => ActivityTab(caseId: widget.caseId),
+            };
+        final scale = MediaQuery.textScalerOf(context).scale(1);
+        final main = ProfileTabPages(
+          key: ValueKey('case-pages-$wide'),
+          initialPage: (tab - shift).clamp(0, labels.length - 1),
+          onPage: (i) => _select(i + shift),
           onRefresh: _refresh,
-          child: ListView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
+          tabBarHeight: 28 + 18 * scale,
+          pagePadding: (_) => const EdgeInsets.only(bottom: AppSpacing.xxl),
+          header: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               CaseHero(
                 t: t,
@@ -134,29 +161,38 @@ class _CaseWorkspaceBodyState extends ConsumerState<CaseWorkspaceBody> {
                 publishedAt: widget.publishedAt,
               ),
               const SizedBox(height: AppSpacing.md),
-              CaseTextTabs(
-                items: labels,
-                index: tab - shift,
-                onChanged: (i) => _select(i + shift),
-              ),
-              switch (tab) {
-                0 => Column(children: widget.overview),
-                1 => FilesTab(
-                    caseId: widget.caseId,
-                    isAttorney: widget.isAttorney,
-                  ),
-                2 => TasksTab(
-                    caseId: widget.caseId,
-                    isAttorney: widget.isAttorney,
-                  ),
-                3 => UpdatesTab(
-                    caseId: widget.caseId,
-                    isAttorney: widget.isAttorney,
-                  ),
-                _ => ActivityTab(caseId: widget.caseId),
-              },
             ],
           ),
+          tabBar: Builder(
+            builder: (context) => CaseTextTabs(
+              pages: ProfileTabPages.controllerOf(context),
+              items: labels,
+              index: tab - shift,
+              onChanged: (i) {
+                final c = ProfileTabPages.controllerOf(context);
+                if (c != null && c.hasClients) {
+                  c.animateToPage(
+                    i,
+                    duration: context.reduceMotion
+                        ? Duration.zero
+                        : const Duration(milliseconds: 250),
+                    curve: Curves.easeOutCubic,
+                  );
+                } else {
+                  _select(i + shift);
+                }
+              },
+            ),
+          ),
+          pages: [
+            for (final p in pages)
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: MediaQuery.sizeOf(context).height * 0.5,
+                ),
+                child: pageFor(p),
+              ),
+          ],
         );
         if (!wide) return main;
         return Center(
@@ -200,39 +236,21 @@ class FilterRow extends StatelessWidget {
   final int index;
   final ValueChanged<int> onChanged;
 
+  /// Owner 2026-10-19 («подумал, что это просто тексты»): the filters are
+  /// the app's chips — clearly something to tap, theme colours, the same
+  /// as every other filter row.
   @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.lg,
-        AppSpacing.md,
-        AppSpacing.lg,
-        AppSpacing.xs,
-      ),
-      child: Row(
-        children: [
-          for (final (i, l) in labels.indexed)
-            GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () => onChanged(i),
-              child: Padding(
-                padding: const EdgeInsetsDirectional.only(end: 20),
-                child: Text(
-                  l,
-                  style: type.bodySmall.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: i == index ? colors.text : colors.textSecondary,
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(
+          top: AppSpacing.md,
+          bottom: AppSpacing.xs,
+        ),
+        child: FilterChips<int>(
+          value: index,
+          options: [for (final (i, l) in labels.indexed) (i, l)],
+          onChanged: onChanged,
+        ),
+      );
 }
 
 // ---------------------------------------------------------------- Files
@@ -400,6 +418,60 @@ class _FileRow extends StatelessWidget {
   }
 }
 
+// ---------------------------------------------------------- read-only
+
+/// Audit 2026-10-19: why nothing can be added here — the case is closed,
+/// or (for task changes) the assistant has no «tasks» duty.
+String readOnlyReasonKey(WidgetRef ref, {bool tasks = false}) => tasks &&
+        ref.watch(isAssistantProvider) &&
+        !ref.watch(canDoProvider(AssistantDuty.tasks))
+    ? 'cases.workspace.noTasksDuty'
+    : 'cases.workspace.readOnly';
+
+/// A grey line with a lock: the workspace only shows.
+class WorkspaceReadOnlyNote extends StatelessWidget {
+  const WorkspaceReadOnlyNote({
+    required this.text,
+    this.padding = const EdgeInsets.fromLTRB(
+      AppSpacing.lg,
+      AppSpacing.sm,
+      AppSpacing.lg,
+      0,
+    ),
+    super.key,
+  });
+
+  final String text;
+  final EdgeInsetsGeometry padding;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    return Padding(
+      key: const ValueKey('workspace-read-only'),
+      padding: padding,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AppIcon(
+            AppIcons.lockOutlineRounded,
+            size: 16,
+            color: colors.textSecondary,
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Text(
+              text,
+              style: type.bodySmall.copyWith(color: colors.textSecondary),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 // -------------------------------------------------------------- Updates
 
 class UpdatesTab extends ConsumerWidget {
@@ -444,7 +516,11 @@ class UpdatesTab extends ConsumerWidget {
       data: (items) => Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _WriteRow(onTap: () => _add(context, ref), t: t),
+          // Audit 2026-10-19: a closed case takes no new updates.
+          if (ref.watch(caseWorkspaceProvider(caseId)).value?.canWrite ?? true)
+            _WriteRow(onTap: () => _add(context, ref), t: t)
+          else
+            WorkspaceReadOnlyNote(text: t.t(readOnlyReasonKey(ref))),
           for (final u in items) UpdateEntry(update: u, t: t, formats: formats),
           if (items.isEmpty)
             Padding(
@@ -500,7 +576,7 @@ class _WriteRow extends StatelessWidget {
 
 String roleLine(Translator t, api.CaseUpdateDto u) {
   if (u.authorRole == api.CaseUpdateDtoAuthorRole.client) {
-    return t.t('cases.role.client');
+    return '';
   }
   final label = t.t('cases.role.attorney');
   return u.authorStates.isEmpty
@@ -581,10 +657,11 @@ class UpdateEntry extends StatelessWidget {
                     ),
                   ],
                 ),
-                Text(
-                  roleLine(t, u),
-                  style: type.caption.copyWith(color: colors.textSecondary),
-                ),
+                if (roleLine(t, u).isNotEmpty)
+                  Text(
+                    roleLine(t, u),
+                    style: type.caption.copyWith(color: colors.textSecondary),
+                  ),
                 if (lead != null)
                   Padding(
                     padding: const EdgeInsets.only(top: 4),

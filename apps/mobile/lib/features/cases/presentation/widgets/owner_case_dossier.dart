@@ -4,12 +4,10 @@ import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
-import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
-import 'package:lawbid/core/media/photo_limits.dart';
+import 'package:lawbid/features/cases/application/case_media_picker.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_dossier.dart';
@@ -40,31 +38,42 @@ class _OwnerCaseDossierState extends ConsumerState<OwnerCaseDossier> {
   PlaceUploadLimits get _limits =>
       ref.read(uploadLimitsProvider)[UploadPlace.kase];
 
-  int get _left => _limits.maxFiles - widget.kase.photos.length;
+  // Owner 2026-10-19: photos and videos share one limit, documents have
+  // their own.
+  static bool _media(String mime) =>
+      mime.startsWith('image/') || mime.startsWith('video/');
+
+  int get _photosLeft =>
+      _limits.maxPhotos -
+      widget.kase.photos.where((p) => _media(p.mime)).length;
+
+  int get _filesLeft =>
+      _limits.maxFiles -
+      widget.kase.photos.where((p) => !_media(p.mime)).length;
 
   Future<void> _pickPhotos() async {
-    final limits = photoLimitsOf(ref.read(featureFlagsControllerProvider));
-    final picked = await ImagePicker().pickMultiImage(
-      maxWidth: limits.maxPx,
-      maxHeight: limits.maxPx,
-      imageQuality: limits.quality,
-      limit: _left > 1 ? _left : null,
+    await _add(
+      await pickCaseMedia(
+        ref,
+        left: _photosLeft,
+        videos: _limits.allowsVideo,
+      ),
     );
-    await _add([
-      for (final f in picked.take(_left))
-        (bytes: await f.readAsBytes(), name: null),
-    ]);
   }
 
   Future<void> _pickDocuments() async {
     final result = await FilePicker.pickFiles(
+      // Web: a big file from iCloud or a HEIC to convert arrives after the
+      // window gets focus back; don't drop it.
+      cancelUploadOnWindowBlur: false,
       type: FileType.custom,
       allowedExtensions: _limits.documentExtensions,
       allowMultiple: true,
       withData: true,
     );
     await _add([
-      for (final f in (result?.files ?? const <PlatformFile>[]).take(_left))
+      for (final f
+          in (result?.files ?? const <PlatformFile>[]).take(_filesLeft))
         if (f.bytes != null) (bytes: f.bytes!, name: f.name),
     ]);
   }
@@ -130,25 +139,29 @@ class _OwnerCaseDossierState extends ConsumerState<OwnerCaseDossier> {
 
   void _choose() {
     final t = ref.read(translatorProvider);
-    if (_left <= 0) {
+    if (_photosLeft <= 0 && _filesLeft <= 0) {
       showAppSnackBar(
         context,
-        t.t('cases.dossier.filesFull', {'max': '${_limits.maxFiles}'}),
+        t.t('cases.dossier.filesFull', {
+          'max': '${_limits.maxPhotos + _limits.maxFiles}',
+        }),
       );
       return;
     }
     showActionSheet(context, [
-      ActionSheetItem(
-        icon: AppIcons.addPhotoAlternateOutlined,
-        label: t.t('cases.photos.add'),
-        onTap: _pickPhotos,
-      ),
-      ActionSheetItem(
-        icon: AppIcons.noteAddOutlined,
-        label: t.t('cases.files.add'),
-        onTap: _pickDocuments,
-      ),
-      if (ref.read(templatesEnabledProvider))
+      if (_photosLeft > 0)
+        ActionSheetItem(
+          icon: AppIcons.addPhotoAlternateOutlined,
+          label: t.t('cases.photos.add'),
+          onTap: _pickPhotos,
+        ),
+      if (_filesLeft > 0)
+        ActionSheetItem(
+          icon: AppIcons.noteAddOutlined,
+          label: t.t('cases.files.add'),
+          onTap: _pickDocuments,
+        ),
+      if (_filesLeft > 0 && ref.read(templatesEnabledProvider))
         ActionSheetItem(
           icon: AppIcons.descriptionOutlined,
           label: t.t('cases.files.fromTemplate'),
@@ -167,7 +180,7 @@ class _OwnerCaseDossierState extends ConsumerState<OwnerCaseDossier> {
       status: c.status,
       t: t,
       rule: CaseDossierRule.owner,
-      action: open && _left > 0
+      action: open && (_photosLeft > 0 || _filesLeft > 0)
           ? AppButton(
               label: t.t('cases.dossier.addFiles'),
               icon: AppIcons.attachFileRounded,

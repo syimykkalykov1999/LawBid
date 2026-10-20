@@ -5,6 +5,139 @@ All notable changes to this project are documented here, per
 .cursorrules (each stage ends with a CHANGELOG update + commit on
 branch cursor/stage-X-Y-description).
 
+## Case cabinet: 5 audit fixes (2026-10-19)
+
+Audit «Кейс: кто что добавляет» (case_flow_ru.html): five problems of the case workspace.
+
+- Notifications: a new update, task, done mark, note / files on a task, and the client's changed «Подробности» now reach the other side — type `case_workspace_activity` (migration 20261019030000, category «Кейсы», important), push body per `payload.kind` (`notif.workspace.<kind>`), bell text «{name} добавил(а) задачу…», tap opens the case. Not for private tasks or one's own action.
+- «Подробности»: shown as text in the client's Overview (open and in work) and in the hired attorney's work card; the client changes them after hiring (`PATCH /cases/:id/private-details`, state-machine action `client_set_private_details`, journal without the text).
+- Tasks: a joint task opened as an endless skeleton (the sheet skipped the joint list) — fixed; a missing task says so; the attorney's «Общие» (shared) list is «Ход работы», only joint tasks are «Общие»; a joint task has «Отметить выполненной» in its sheet.
+- Assistant / closed case: the workspace checks the assistant's duties («cases» to open, «tasks» to change tasks); a closed / archived case is read-only (409 CASE_INVALID_STATE; `canWrite` / `canEdit` in the DTOs; the app hides the buttons and says why).
+- The hired attorney's Overview has «Вопросы по кейсу».
+- 25 keys in 85 languages; API contract regenerated. Tests: workspace unit spec, template spec, state machine, e2e owner-case-cabinet-audit; app task_sheet_test, private_details_card_test, case_workspace_notification_test.
+
+## Web and admin on an iPhone (2026-10-18)
+
+Owner: "the web and the admin on the phone: half the screen is missing, files/posts/videos do not upload".
+
+- Web (Flutter): `web/index.html` keeps `maximum-scale=1` (Flutter swapped in a 5x-zoom viewport and its hidden inputs are 14px, so iOS Safari zoomed in on every field tap and half the screen went off the edge); after the keyboard closes the page scrolls back.
+- Web videos: `core/media/video_probe_web.dart` reads length/size from the video metadata and draws cover/trim frames through a canvas (the player waited for «can play», which iOS never sends, so a picked video never showed). Checked: 5 s mp4 → cover frame, trim 0:00–0:05.
+- `tool/web_preview/serve.mjs` `PREVIEW_STORAGE=<s3>,<bunny>`: storage and video links in API answers go through the preview server (`/__storage0/…`), Host kept for signatures, TUS `Location` rewritten — a phone on https or another network can upload and see files. Checked: photo post published from a 390 px browser through the proxy.
+- Admin: phone-width search/filter boxes, stacked input grids (plans), wrapping section titles/tabs, long values wrap, content column clips stray overflow; dev CSP allows `http:` for local storage on the LAN.
+- Not web: video upload on the local server answers VIDEO_UNAVAILABLE «paused» (economy guard in the dev DB).
+
+## Search everywhere, files in the «ещё» sheet, all languages (2026-10-18)
+
+Owner: "search must find «Эмили» = Emily, by chats, followers, in every picker; long titles readable; files inside the sheet; every text in all languages".
+
+- People search: `f_name_skel` / `f_name_cons` (migration 20261018140000, trigram expression indexes) — any alphabet, spelling, word order, small typo, sounds-alike consonants; `nameMatchSql` shared by search, chats, follows, «В работе». App mirror `core/text/search_fold.dart` (`textMatches`) with shared vectors.
+- New search: `GET /conversations?q` (+ `matchedMessage` snippet), followers / following `?q`, «В работе» by client name / @username (subscribed attorneys), templates by every word; app search boxes in chats and follow lists; Russian state names in every state picker; language picker matches with typos.
+- Posts: title up to two lines; the post's files are in the «ещё» sheet (all card styles), «ещё» always shown on a post with files.
+- Gallery hint says «До N фото или 1 видео» (photos only while video is off).
+- 103 keys added to translations_seed.xlsx in 85 languages (`scripts/i18n-add.mjs`, `npm run seed:i18n`); i18n audit: 0 missing, 0 placeholder mismatches.
+- API boundaries: `cases/cases.public.ts`, `files/files.public.ts`; baseline refreshed.
+- Tests: e2e owner-people-search, owner-chat-search, owner-follows-search, owner-work-client-search, owner-templates-search; app search_fold_test, chat_search_test, follow_search_test, feed_caption_more_test.
+
+## Tech debt: topic pickers no longer depend on Search (2026-10-18)
+
+- `practiceMatchesProvider` moved from `features/search/application/search_providers.dart` to `features/practice/practice_matches.dart` (its own `SearchClient.practices` call); `SearchRepository.practices` removed. Practice options, the practices screen, the case wizard, the new-post screen and Search all read it from the practice feature.
+- Feature-boundary baseline lowered back: practice 5→4, profile 21→20.
+
+## Stale-case prompt explains itself (2026-10-18, OQ-054 follow-up)
+
+Owner: "I did not understand why «Вам ещё нужен адвокат?» appeared and when the case disappears".
+
+- The card now says WHY and WHEN: «Вы давно не заходили в этот кейс — он ещё актуален?», "we ask so attorneys do not waste time on outdated cases; if you do not answer by <date> the case is hidden from the attorneys' feed; nothing is deleted". Buttons «Да, ещё нужен» · «Жду предложений получше» · «Уже не нужен» with a line under them on what each does. Paused: «Кейс скрыт из ленты адвокатов — вы давно не отвечали», what that means, «Вернуть в ленту» and the archive date.
+- API: case DTOs carry `hidesAt` (when the unanswered question pauses the case — the admin's timers) and `archivesAt` (when a paused case is archived). Pure `pauseDueAt` / `archiveDueAt` in `case-staleness.ts` (shouldPause uses the first). Contract regenerated.
+- Push / in-app texts: «Ваш кейс ещё актуален?» — "you have not opened it in a while; answer in one tap, or it is hidden from the attorneys' feed".
+- Tests: `case-staleness.spec.ts` (dates), `stale_case_test.dart` (date lines, archive date, new texts).
+
+## Stale cases leave the attorney feed, without nagging clients (2026-10-18, OQ-054)
+
+Owner: "old and abandoned cases must stop cluttering the feed; do not pester the client".
+
+- Client activity: `cases.client_active_at` moves only on the client's own actions on that case — opening it (owner `GET /users/me/cases/:id`), viewing its bids (`GET /cases/:id/bids`), accept / decline / counter, editing it (also the urgency), writing in its chat, answering the question, restoring it. Attorney bids, comments and views never touch it (`last_activity_at` stays as it was, for the admin). A burst of requests writes the row at most once a minute. Backfilled from the creation date, the client's journal entries and their chat messages. `cases.paused_at` (null = visible).
+- Timers by the case's urgency (all admin settings, Russian help texts on the Config page): silent for `cases.stale_ask_days_*` → ONE «Вам ещё нужен адвокат?» (very urgent 2, urgent 4, this week 7, within a month 30, not urgent / none 30 days); no answer and no action for `cases.stale_pause_days_*` more (1 / 2 / 3 / 4 / 14) → the case is paused. «По дате»: asked once the date has passed, paused `cases.stale_pause_days_by_date` (3) days after the date (never sooner than a day after the question). Paused for `cases.stale_archive_after_pause_days` (30) → archived by the old auto-archive path (bids rejected, chats closed, the client told).
+- The question is a normal in-app notification + push (`case_still_needed`, «Ждут ответа: 2 кейса»), never SMS or e-mail. At most one per client per run, grouping their cases; only in the client's daytime (09:00–21:00 in the time zone of their quiet-hours setting, else US Eastern; otherwise the next hourly run); not for a case that got a new bid in the silent window (the bid's own push already reminds the client); never twice for the same silent period (any later action of the client starts a new one). The launch cleanup follows the same rules. The pause is silent. Jobs `cases.stale-ask` and `cases.stale-pause` (hourly) replace `cases.stale-prompt` / `cases.auto-archive`; the old constants `STALE_AFTER_DAYS` / `ARCHIVE_AFTER_PROMPT_DAYS` are gone (`stale_prompt_sent_at` now means "question sent at").
+- Answers (owner only): `POST /cases/:id/still-needed` `{answer}` — `still_needed` («Да, нужен») and `wait_better` («Жду предложений получше»): a fresh silent period, question and pause cleared; `not_needed` («Уже не нужен»): the client withdraws the case through the usual close path; `make_not_urgent` («Сменить на «Не срочно»»): only for urgent / very urgent cases older than 7 days (409 otherwise), urgency becomes flexible. `POST /cases/:id/resume` brings a paused case back. The old `POST /cases/:id/keep-alive` is the same as `still_needed`. Case DTOs carry `pausedAt`, `stillNeededPending`, `canMakeNotUrgent`.
+- Paused cases are hidden from the attorneys' feed and Search (`paused_at IS NULL` in the shared case queries, also in the Search result check); the status stays open. Attorneys who already bid keep the case and their bids.
+- Feed ranking: three new weights (`reco.case.clientActive` 0.10, `reco.case.urgentActive` 0.17, `reco.case.dateNear` 0.07; the old ones scaled down so the eight old + three new still add up to 1): a silent client lowers a case; urgent / very urgent with a client active in the last 2 days go first and a silent urgent one drops fast (half a day per day); a «по дате» case rises as the date nears (1 on the day, about 0.5 at two weeks, 0.06 at two months).
+- Card line: feed items carry `clientActivity` `{online, lastSeenDays, respondsWithinDay}` from the presence service — only when both sides show their activity status (reciprocal), else null. `respondsWithinDay` = median answer to bids / messages within 24 h over 30 days, at least 3 samples (an unanswered bid or message older than a day counts as slow), one query for the page, cached in Redis for an hour.
+- Migrations `20261018100000_case_still_needed_enum`, `20261018100100_stale_cases` (columns, backfill, two partial indexes). Contract regenerated.
+- App: «Вам ещё нужен адвокат?» card on the case screen and under the case in «Мои кейсы» (Да, нужен · Жду предложений получше · Уже не нужен · when offered «Сменить на «Не срочно»»); paused: «Кейс скрыт из ленты · Вернуть» and an «На паузе» status; the notification opens the case. Theme tokens only (surface / chip / border, gold as a small accent). The attorney card shows the approved activity line from the API (the temporary mockup test and its goldens are gone).
+- Budget filter «Проценты» (owner, same day): `budgetPercent=true` and optional `percentMax` (whole percent, compared with `budget_percent_bps`) on the attorneys' cases feed and Search → Cases; the chosen budget options are OR-ed (amount range OR percent OR «уточню позже»; one option alone behaves as before). Filter sheet: «Проценты» switch with «до 10 / 20 / 33 / 50 %» choices (chips instead of a free field), RU / EN. Tests: e2e `owner-percent-budget-filter`, app `percent_budget_filter_test.dart`.
+- Not changed: the existing «date passed» reminder (`case_deadline_passed`, owner 2026-10-05) still goes out the day after the date; it is a different message from this question.
+- Tests: `case-staleness.spec.ts` (every timer, by date, once per period, bid window, daytime, settings), scoring specs (silent client, urgent first, date nearer), state-machine spec, e2e `owner-stale-cases` (attorney bid never keeps a case alive, one grouped question, no question with new bids / at night / in another time zone, pause, resume, by date, answers, «Не срочно», archive after 30 paused days, hidden from the feed and Search, card line and privacy), app `stale_case_test.dart`.
+
+## Support: attachments, device info, ready answers per language (2026-10-18)
+
+Owner: "support must take photos and files both ways, show what phone the problem is on, and the ready answers must really work".
+
+- Files in support, both directions: new file purpose `support_attachment` (private documents bucket; photos, PDF / Office / text, MP4 / MOV — same safe formats as a chat) and upload place `support` in «Загрузки и файлы» (formats, MB per file — default 25, up to 5 files per message, ceiling 10 / 100 MB). Table `support_message_files` (message, file, name, position; one file on one message); the user attaches when opening a ticket and when replying, the admin in replies. Only the ticket's user and support staff get short signed links (a stranger's ticket is a 404, someone else's file cannot be attached, one file is sent once). The storage cleanup knows the new reference. Admin upload route: `POST /admin/support/uploads` + `/uploads/:fileId/confirm` (same presign → S3 → confirm → antivirus).
+- Device info: `support_tickets.client_context` (JSON) — app version and build, platform, OS, phone model, app language, theme, time zone, the screen the user came from; the user id and role are added from the session, never taken from the app. Shown to admins only («Устройство» card in the ticket); the app shows one line: "We'll attach the app version and your phone model…".
+- Ready answers: `{name}` (first name; "there" without one, nothing in Russian — «Здравствуйте, {name}!» → «Здравствуйте!») and `{ticket}` (`#` + 8 characters of the ticket id) are replaced by the API when a public reply is sent, so they can never go out raw (internal notes are kept as written). One answer per language: `support_macros.body_ru`; `GET /admin/support/macros?language=ru` returns `text` (Russian body for `ru`, else English). The composer inserts `text` and says which variables exist; the answers page edits both texts.
+- «Непрочитанные» filter in the support list (`unread=true`: unread by staff, closed excluded).
+- Migration `20261018120000_support_attachments_context`.
+- Admin: attachments in the conversation (photo thumbnails with a lightbox, video player, download rows), a paperclip in the composer with progress and remove, «Устройство» card, macros editor with EN / RU, «Поддержка» row on the uploads page.
+- App: paperclip in the new-request screen and the reply bar («Фото и видео» — one gallery, videos compressed like in chat, «Камера», files), thumbnails with remove and upload progress, photos / videos / files in the conversation (full-screen photo, the chat's video tile, document rows). The chat's picker and video tile are reused through `lib/shared/presentation/attachment_kit.dart` (no change inside the chat feature).
+- Not done: «Скриншот последнего экрана» (needs a screenshot boundary on every screen, not trivial).
+- Tests: `support.rules.spec.ts` (variables, per-language pick, context), `admin-support.service.spec.ts` (server-side `{name}` / `{ticket}`, files, unread filter), e2e `owner-support-attachments` (photo + PDF + context, admin sees both, admin reply with a file and a macro, user sees the text and the file, a stranger gets nothing, file count limit), app `support_attachments_test.dart`.
+
+## Chat videos: black iPhone videos, WhatsApp-like player (2026-10-18)
+
+- iPhone videos came out all black (checked: every frame Y = 16). `video_compress` on iOS builds its frame-rate video composition from the source asset but exports the trimmed composition; its Dart API always sends a frame rate. On iOS the app now calls the plugin's `compressVideo` channel method without one (preset only: 720p, picture and rotation kept). Also fixes the same problem for reels. Safety net: a black result of a non-black original keeps the original.
+- Full-screen player: video centred; the big play button only while paused / ended; bottom bar with play/pause, time and a seek bar that follows the thumb; controls fade out after 3 s of playing (tap brings them back); swipe down closes.
+
+## iPhone calls through PushKit (VoIP); one gallery for photos and videos (2026-10-17)
+
+Owner: "do the VoIP pushes now, not before the release"; "photos and videos in one button, like WhatsApp".
+
+- iOS background modes `audio`, `voip`, `remote-notification` (without them CallKit refused the call: error 1, unentitled — no ringtone on the iPhone).
+- `AppDelegate.swift`: PushKit registry; the token goes to the CallKit plugin (Dart sends it to the server); every VoIP push reports the call to CallKit at once (same id and fields as the Dart side, `silent` → no ringtone).
+- API: `voip_tokens` (migration `20261017120000_voip_tokens`), `POST/DELETE /push-tokens/voip` (token, bundle id → topic `<bundle>.voip`, sandbox|production). `ApnsVoipSender` sends `apns-push-type: voip` over HTTP/2 with an ES256 provider token; a wrong environment is retried once and remembered, dead tokens are removed. `dispatchCall` rings iPhones by VoIP first and skips their FCM call push (`PushMessage.skipTokens`) — no double ring.
+- Keys: admin «Интеграции → Apple Push» or `APNS_KEY_ID` / `APNS_TEAM_ID` / `APNS_PRIVATE_KEY` (docs/KEYS_SETUP.md step 14a). Without them nothing changes (the call rings while the app runs).
+- App: registers the PushKit token after sign-in on iOS and again on renewal; removes it on sign-out.
+- Chat paperclip: «Фото и видео» picks both in one gallery (`pickMultipleMedia`); videos are compressed as before. The separate «Видео» row is gone.
+- Tests: `apns-voip.sender.spec.ts` (no keys → nothing; ES256 token verifies; environment fallback; dead token removal).
+
+## Videos in a chat (2026-10-17)
+
+Owner: "everything like WhatsApp" — videos in chats, formats managed in the admin, only safe formats.
+
+- API: `video/mp4` and `video/quicktime` (`mp4`, `mov`) for `chat_attachment`; detected only when declared as video (`ftyp` with a video brand), otherwise the old checks apply. Chat place: safe formats + videos, default 50 MB per file (ceiling 100). `ANY_UPLOAD_FORMATS` for the admin DTO. Videos are stored as uploaded (never decoded on the server).
+- Admin «Загрузки и файлы» → Чат: a «Видео» row (MP4, MOV).
+- App: «Видео» in the paperclip menu (only when a video format is on); the video is re-encoded on the phone to at most 720p (`video_compress`; the original when it does not help). Bubble: first frame, play button, length; tap → full screen (play/pause, seek bar, time).
+- Tests: e2e `owner-chat-attachments` (MP4 and MOV sent and listed), magic-bytes and upload-limit specs, app limits test.
+
+## Voice notes like WhatsApp; no price hints (2026-10-17)
+
+Owner: "the chat exactly like WhatsApp — speed 1×/2×, avatars in voice notes"; "remove 600 and 33, I don't want to suggest prices".
+
+- Voice bubble: the sender's photo (initials without one) with a mic badge — gold until the recipient plays it, blue after (grey on my own unplayed note); while a note plays or is paused midway the photo turns into the speed button (1× → 1.5× → 2×); a round thumb on the waveform; a plain play/pause icon. Incoming: photo on the left, mine: on the right.
+- The chosen speed is remembered (`chat.voice_speed` in shared preferences). When a note ends, the other side's next voice notes in a row play by themselves and are marked played.
+- New golden `test/features/chat/voice_bubble_golden_test.dart` (light/dark, incoming/mine, idle/playing).
+- Case and bid forms no longer show example amounts or percents (`600`, `33`).
+
+## Percent budgets and bids (2026-10-17)
+
+Owner (OQ-053): clients can look for an attorney "for a percent of the recovery" and attorneys can offer one; LawBid takes nothing from it.
+
+- DB: `budget_mode` += `percent`, `fee_type` += `contingency` (own migration `20261017110000_contingency_enums`), `cases.budget_percent_bps`, `bids.percent_bps`, `bid_offers.percent_bps` with CHECKs (`20261017110100_contingency_fees`). Basis points: 3300 = 33 %.
+- API: `budgetPercentBps` on case create/update and in case, feed, invite responses (`budget.percentBps`); `percentBps` on bid create, counter-offer, bid/offer/work-item/history responses. `CONTINGENCY_NOT_ALLOWED` for blocked topics. Shared rules in `cases/domain/contingency.ts`.
+- Settings `fees.contingency_max_percent` (100) and `fees.contingency_blocked_practices` (criminal, DUI, traffic, family); exposed to the app through bootstrap (`fees.contingency_` prefix) and listed in admin Config with Russian help.
+- App: third budget tab «Проценты» (hidden for blocked topics), fee type «Процент» in the bid form, percent counter-offers, "33% of recovery" everywhere terms are shown. Strings in `contingency_strings.dart` (update the translations xlsx too). Case golden images regenerated.
+- Tests: e2e `owner-contingency` (percent case, percent bid, percent counter, blocked topic, admin cap); bid state-machine spec updated.
+
+## Chat for everyone (2026-10-17)
+
+Owner (OQ-052): "everyone writes to everyone, like Instagram".
+
+- `POST /conversations/direct` accepts any client/attorney pair except yourself; new `conversations.pair_kind` (`attorney_client` | `client_client` | `attorney_attorney`, migration `20261017100000_chat_for_everyone`). In same-role chats `attorney_id`/`client_id` hold the two members, smaller id first.
+- A recipient who follows the sender gets the chat accepted at once; otherwise it is a request (OQ-043). The 3-message cap while pending is gone (`MESSAGE_REQUEST_LIMIT` no longer thrown).
+- The subscription gate (messages and calls) applies only to attorney ↔ client chats.
+- App: "Написать" next to Follow on client and attorney profiles for everyone. Request note and `DIRECT_CHAT_NOT_ALLOWED` texts updated (`file06_strings.dart`; update the translations xlsx too).
+- e2e `owner-direct-chats` covers client ↔ client, attorney ↔ attorney without subscriptions, and follow → straight to the main list. Regenerated `packages/api-contract`.
+
 ## Stub cleanup (2026-10-16)
 
 Owner: no paid identity checks, nothing in the admin may read "not built".
@@ -62,7 +195,7 @@ Owner: recommendation algorithms "like Instagram, but ours". One server module (
 - Audit fixes: Stripe seat / yearly price ids never fall back to fake ids with a live provider; SES cache keyed by a secret hash; Sentry DSN from Integrations (API and worker); worker boots again; dashboard revenue uses the access-gate rule; audit rows for team assistant removal, review-appeal decisions and every export.
 - CI: Trivy step, CodeQL permissions and the deploy workflow validation fixed (deploys run only with the repository variable `DEPLOY_ENABLED=true`).
 - Referrals (additive): admin writes the program words per language (`texts` en/ru: title, summary, terms, share message with `{{code}}`/`{{url}}`), `maxInvitesPerReferrer` (0 = no limit; `REFERRAL_NOT_ALLOWED` reason `limit_reached`), and can give a user a vanity code (`PUT /admin/referrals/codes`, `GET /admin/referrals/codes`; 4-24 letters/digits). `GET /referrals/me` now returns `texts` + `textsLanguage` (from the user's UI language). Apply accepts any 4-24 letter/digit code.
-- App follow-ups (mobile, not done here): support screens, contract-grant and promo-code display in billing, referral and case-promotion screens, `promoted` badge, `ReportTargetType` for sticker packs, regenerate the Dart client.
+- App follow-ups (mobile, not done here): contract-grant and promo-code display in billing, referral and case-promotion screens, `promoted` badge, `ReportTargetType` for sticker packs, regenerate the Dart client. (The support screens were done afterwards: Settings → Help & support, with attachments and device info since 2026-10-18.)
 
 ## Owner pass 13 (2026-10-01) — OQ-051
 

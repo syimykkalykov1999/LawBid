@@ -117,7 +117,7 @@ const kPostGridDelegate = SliverGridDelegateWithFixedCrossAxisCount(
 /// Owner 2026-10-16 (web): a profile's grid like Instagram's: three 3:4
 /// tiles, a 1 px gap (measured: 311 x 414 in a 935 px container). Phones
 /// keep the square tiles.
-SliverGridDelegate profileGridDelegate() => adaptiveShellOn
+SliverGridDelegate profileGridDelegate() => webWideWindow
     ? const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 3,
         mainAxisSpacing: kWebGridGap,
@@ -170,7 +170,9 @@ class _AutoplayVideoState extends ConsumerState<_AutoplayVideo> {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          if (_on) ReelVideo(video: v, active: _on),
+          // Owner 2026-10-18: no black box over the tile — its cover stays
+          // until the video's first frame is drawn over it.
+          if (_on) ReelVideo(video: v, active: _on, backdrop: false),
           if (widget.post.viewCount > 0)
             Positioned(
               left: 6,
@@ -210,3 +212,92 @@ const kSearchPostGridDelegate = SliverGridDelegateWithFixedCrossAxisCount(
   crossAxisSpacing: 2,
   childAspectRatio: 0.75,
 );
+
+/// Owner 2026-10-18: the profile's «Рилсы» grid like Instagram's — three
+/// vertical 9:16 tiles a row.
+SliverGridDelegate reelsGridDelegate() =>
+    const SliverGridDelegateWithFixedCrossAxisCount(
+      crossAxisCount: 3,
+      mainAxisSpacing: 2,
+      crossAxisSpacing: 2,
+      childAspectRatio: 9 / 16,
+    );
+
+/// Owner 2026-10-18: one tile of the profile's «Рилсы» tab — the reel's
+/// cover (or its text cover while it has none) with the view count at the
+/// bottom left, as Instagram shows it. A count the author hid (0 from the
+/// server) shows nothing.
+class ReelGridTile extends ConsumerWidget {
+  const ReelGridTile({
+    required this.post,
+    required this.onTap,
+    required this.semanticLabel,
+    super.key,
+  });
+
+  final Post post;
+  final VoidCallback onTap;
+  final String semanticLabel;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final f = ref.watch(l10nFormatsProvider);
+    final thumb = post.video?.thumbnailUrl;
+    Widget cover() =>
+        PostTextCover(post: post, density: PostCoverDensity.compact);
+    return Semantics(
+      button: true,
+      label: semanticLabel,
+      child: AppPressable(
+        onTap: onTap,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            if (thumb == null)
+              cover()
+            else
+              CachedNetworkImage(
+                imageUrl: thumb,
+                cacheKey: thumb,
+                fit: BoxFit.cover,
+                memCacheWidth: 400,
+                placeholder: (_, __) => ColoredBox(color: colors.skeletonBase),
+                errorWidget: (_, __, ___) => cover(),
+              ),
+            if (post.viewCount > 0)
+              PositionedDirectional(
+                start: 6,
+                bottom: 5,
+                child: Row(
+                  key: ValueKey('reel-views-${post.id}'),
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const AppIcon(
+                      AppIcons.playArrowRounded,
+                      size: 16,
+                      color: Colors.white,
+                    ),
+                    const SizedBox(width: 2),
+                    Text(
+                      SocialFormat.count(f, post.viewCount),
+                      style: Theme.of(context)
+                          .extension<AppTypographyTokens>()!
+                          .caption
+                          .copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                        shadows: const [
+                          Shadow(blurRadius: 4, color: Colors.black54),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}

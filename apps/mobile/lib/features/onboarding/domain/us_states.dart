@@ -1,3 +1,4 @@
+import 'package:lawbid/core/text/search_fold.dart';
 import 'package:lawbid/features/onboarding/domain/region_catalog.dart';
 
 export 'package:lawbid/features/onboarding/domain/region_catalog.dart';
@@ -16,7 +17,76 @@ class UsState {
 
   final String code;
   final String name;
+
+  /// Owner 2026-10-18: other names people type for it («Нью-Йорк»,
+  /// «Калифорния») — matched by the pickers' search, never shown.
+  List<String> get aliases => kUsStateAliases[code] ?? const [];
+
+  /// Whether [query] finds this region (name, code, aliases — any
+  /// alphabet, small typos; see core/text/search_fold.dart).
+  bool matches(String query) =>
+      query.trim().isEmpty ||
+      code.toLowerCase() == query.trim().toLowerCase() ||
+      textMatches(query, [name, ...aliases]);
 }
+
+/// Russian names of the states (owner 2026-10-18: "Russian state names").
+const Map<String, List<String>> kUsStateAliases = {
+  'AL': ['Алабама'],
+  'AK': ['Аляска'],
+  'AZ': ['Аризона'],
+  'AR': ['Арканзас'],
+  'CA': ['Калифорния'],
+  'CO': ['Колорадо'],
+  'CT': ['Коннектикут'],
+  'DE': ['Делавэр', 'Делавер'],
+  'DC': ['Округ Колумбия', 'Вашингтон округ Колумбия'],
+  'FL': ['Флорида'],
+  'GA': ['Джорджия'],
+  'HI': ['Гавайи'],
+  'ID': ['Айдахо'],
+  'IL': ['Иллинойс'],
+  'IN': ['Индиана'],
+  'IA': ['Айова'],
+  'KS': ['Канзас'],
+  'KY': ['Кентукки'],
+  'LA': ['Луизиана'],
+  'ME': ['Мэн', 'Мейн'],
+  'MD': ['Мэриленд', 'Мериленд'],
+  'MA': ['Массачусетс'],
+  'MI': ['Мичиган'],
+  'MN': ['Миннесота'],
+  'MS': ['Миссисипи'],
+  'MO': ['Миссури'],
+  'MT': ['Монтана'],
+  'NE': ['Небраска'],
+  'NV': ['Невада'],
+  'NH': ['Нью-Гэмпшир', 'Нью-Хэмпшир'],
+  'NJ': ['Нью-Джерси'],
+  'NM': ['Нью-Мексико'],
+  'NY': ['Нью-Йорк'],
+  'NC': ['Северная Каролина'],
+  'ND': ['Северная Дакота'],
+  'OH': ['Огайо'],
+  'OK': ['Оклахома'],
+  'OR': ['Орегон'],
+  'PA': ['Пенсильвания'],
+  'RI': ['Род-Айленд'],
+  'SC': ['Южная Каролина'],
+  'SD': ['Южная Дакота'],
+  'TN': ['Теннесси'],
+  'TX': ['Техас'],
+  'UT': ['Юта'],
+  'VT': ['Вермонт'],
+  'VA': ['Виргиния', 'Вирджиния'],
+  'WA': ['Вашингтон'],
+  'WV': ['Западная Виргиния', 'Западная Вирджиния'],
+  'WI': ['Висконсин'],
+  'WY': ['Вайоминг'],
+  'PR': ['Пуэрто-Рико'],
+  'GU': ['Гуам'],
+  'VI': ['Виргинские острова'],
+};
 
 const List<UsState> kUsStates = [
   UsState('AL', 'Alabama'),

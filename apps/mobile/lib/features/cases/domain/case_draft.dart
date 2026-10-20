@@ -8,8 +8,10 @@ import 'package:lawbid/core/limits/text_limits.dart';
 abstract final class CaseLimits {
   static const titleMin = 10;
   static int get titleMax => TextLimits.of(TextLimit.caseTitle);
-  static const descriptionMin = 30;
+  static const descriptionMin = 20;
   static int get descriptionMax => TextLimits.of(TextLimit.caseDescription);
+  static int get privateDetailsMax =>
+      TextLimits.of(TextLimit.casePrivateDetails);
   static const cityMax = 80;
   static const maxAdditionalStates = 2;
   static const budgetMinDollars = 1;
@@ -77,11 +79,14 @@ class CaseDraft {
     this.practiceNameEn,
     this.title = '',
     this.description = '',
+    this.privateDetails = '',
     this.primaryStateCode,
     this.additionalStateCodes = const [],
     this.city = '',
     this.budgetIsAmount = false,
     this.budgetDollars,
+    this.budgetIsPercent = false,
+    this.budgetPercentBps,
     this.step = 0,
     this.files = const [],
     this.practiceCode,
@@ -118,11 +123,19 @@ class CaseDraft {
   final String? practiceNameEn;
   final String title;
   final String description;
+
+  /// Owner 2026-10-18: seen only by the attorney whose bid is accepted.
+  final String privateDetails;
   final String? primaryStateCode;
   final List<String> additionalStateCodes;
   final String city;
   final bool budgetIsAmount;
   final int? budgetDollars;
+
+  /// Owner 2026-10-17: «Проценты» — a share of the recovery, in basis
+  /// points (3300 = 33 %). Never together with [budgetIsAmount].
+  final bool budgetIsPercent;
+  final int? budgetPercentBps;
   final int step;
 
   /// Uploaded photos / documents (their file ids), in wizard order.
@@ -133,9 +146,11 @@ class CaseDraft {
       extraPractices.isEmpty &&
       title.trim().isEmpty &&
       description.trim().isEmpty &&
+      privateDetails.trim().isEmpty &&
       city.trim().isEmpty &&
       additionalStateCodes.isEmpty &&
       budgetDollars == null &&
+      budgetPercentBps == null &&
       files.isEmpty;
 
   bool get practiceValid => practiceAreaId != null;
@@ -144,6 +159,9 @@ class CaseDraft {
     final n = title.trim().length;
     return n >= CaseLimits.titleMin && n <= CaseLimits.titleMax;
   }
+
+  bool get privateDetailsValid =>
+      privateDetails.trim().length <= CaseLimits.privateDetailsMax;
 
   bool get descriptionValid {
     final n = description.trim().length;
@@ -156,11 +174,21 @@ class CaseDraft {
       additionalStateCodes.length <= CaseLimits.maxAdditionalStates &&
       !additionalStateCodes.contains(primaryStateCode);
 
-  bool get budgetValid =>
-      !budgetIsAmount ||
-      (budgetDollars != null &&
-          budgetDollars! >= CaseLimits.budgetMinDollars &&
-          budgetDollars! <= CaseLimits.budgetMaxDollars);
+  bool get budgetValid => budgetIsPercent
+      ? budgetPercentBps != null &&
+          budgetPercentBps! >= 1 &&
+          budgetPercentBps! <= 10000
+      : !budgetIsAmount ||
+          (budgetDollars != null &&
+              budgetDollars! >= CaseLimits.budgetMinDollars &&
+              budgetDollars! <= CaseLimits.budgetMaxDollars);
+
+  /// Codes of every topic the case names (the first and the extras).
+  List<String> get practiceCodes => [
+        if (practiceCode != null) practiceCode!,
+        for (final p in extraPractices)
+          if (p.code != null) p.code!,
+      ];
 
   CaseDraft copyWith({
     String? practiceAreaId,
@@ -168,12 +196,16 @@ class CaseDraft {
     String? practiceNameEn,
     String? title,
     String? description,
+    String? privateDetails,
     String? primaryStateCode,
     List<String>? additionalStateCodes,
     String? city,
     bool? budgetIsAmount,
     int? budgetDollars,
     bool clearBudgetDollars = false,
+    bool? budgetIsPercent,
+    int? budgetPercentBps,
+    bool clearBudgetPercent = false,
     int? step,
     List<CaseDraftFile>? files,
     String? practiceCode,
@@ -196,12 +228,17 @@ class CaseDraft {
         extraPractices: extraPractices ?? this.extraPractices,
         title: title ?? this.title,
         description: description ?? this.description,
+        privateDetails: privateDetails ?? this.privateDetails,
         primaryStateCode: primaryStateCode ?? this.primaryStateCode,
         additionalStateCodes: additionalStateCodes ?? this.additionalStateCodes,
         city: city ?? this.city,
         budgetIsAmount: budgetIsAmount ?? this.budgetIsAmount,
         budgetDollars:
             clearBudgetDollars ? null : (budgetDollars ?? this.budgetDollars),
+        budgetIsPercent: budgetIsPercent ?? this.budgetIsPercent,
+        budgetPercentBps: clearBudgetPercent
+            ? null
+            : (budgetPercentBps ?? this.budgetPercentBps),
         step: step ?? this.step,
         files: files ?? this.files,
         practiceCode:
@@ -219,11 +256,14 @@ class CaseDraft {
         'practiceNameEn': practiceNameEn,
         'title': title,
         'description': description,
+        'privateDetails': privateDetails,
         'primaryStateCode': primaryStateCode,
         'additionalStateCodes': additionalStateCodes,
         'city': city,
         'budgetIsAmount': budgetIsAmount,
         'budgetDollars': budgetDollars,
+        'budgetIsPercent': budgetIsPercent,
+        'budgetPercentBps': budgetPercentBps,
         'step': step,
         'files': [for (final f in files) f.toJson()],
         'practiceCode': practiceCode,
@@ -246,6 +286,7 @@ class CaseDraft {
         practiceNameEn: m['practiceNameEn'] as String?,
         title: (m['title'] as String?) ?? '',
         description: (m['description'] as String?) ?? '',
+        privateDetails: (m['privateDetails'] as String?) ?? '',
         primaryStateCode: m['primaryStateCode'] as String?,
         additionalStateCodes: [
           for (final s in (m['additionalStateCodes'] as List<dynamic>? ?? []))
@@ -254,6 +295,8 @@ class CaseDraft {
         city: (m['city'] as String?) ?? '',
         budgetIsAmount: (m['budgetIsAmount'] as bool?) ?? false,
         budgetDollars: m['budgetDollars'] as int?,
+        budgetIsPercent: (m['budgetIsPercent'] as bool?) ?? false,
+        budgetPercentBps: m['budgetPercentBps'] as int?,
         step: (m['step'] as int?) ?? 0,
         files: [
           for (final f in (m['files'] as List<dynamic>? ?? []))

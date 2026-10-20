@@ -8,6 +8,7 @@ import {
 } from '../domain/case-urgency';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { BudgetMode } from '@prisma/client';
+import { PERCENT_BPS_MAX, PERCENT_BPS_MIN } from '../domain/contingency';
 import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
@@ -33,7 +34,7 @@ import { MaxTextChars } from '../../../common/app-settings/max-text-chars.decora
 // docs/04_CASES_BIDS.md §3.2.
 export const TITLE_MIN = 10;
 export const TITLE_MAX = 120;
-export const DESCRIPTION_MIN = 30;
+export const DESCRIPTION_MIN = 20;
 export const DESCRIPTION_MAX = 5000;
 export const CITY_MAX = 80;
 export const BUDGET_MIN_DOLLARS = 1;
@@ -101,6 +102,17 @@ export class CreateCaseDto {
   @MaxTextChars('limits.case_description_chars')
   description!: string;
 
+  @ApiPropertyOptional({
+    maxLength: 50_000,
+    description:
+      'Owner 2026-10-18: private details; only the owner and the accepted attorney read them.',
+  })
+  @IsOptional()
+  @Transform(tidy)
+  @IsString()
+  @MaxTextChars('limits.case_private_details_chars')
+  privateDetails?: string;
+
   @ApiProperty({ pattern: '^[A-Z0-9]{2}$', example: 'NY' })
   @IsString()
   @Matches(STATE_CODE_RE)
@@ -154,6 +166,19 @@ export class CreateCaseDto {
   @Min(BUDGET_MIN_DOLLARS)
   @Max(BUDGET_MAX_DOLLARS)
   budgetAmountDollars?: number;
+
+  @ApiPropertyOptional({
+    type: 'integer',
+    minimum: PERCENT_BPS_MIN,
+    maximum: PERCENT_BPS_MAX,
+    description:
+      'Owner 2026-10-17: required when budgetMode = percent; basis points (3300 = 33 %). Capped by `fees.contingency_max_percent`.',
+  })
+  @ValidateIf((o: CreateCaseDto) => o.budgetMode === 'percent')
+  @IsInt()
+  @Min(PERCENT_BPS_MIN)
+  @Max(PERCENT_BPS_MAX)
+  budgetPercentBps?: number;
 
   @ApiPropertyOptional({
     description:
@@ -237,6 +262,16 @@ export class UpdateCaseDto {
   description?: string;
 
   @ApiPropertyOptional({
+    maxLength: 50_000,
+    description: 'Private details; an empty string clears them.',
+  })
+  @IsOptional()
+  @Transform(tidy)
+  @IsString()
+  @MaxTextChars('limits.case_private_details_chars')
+  privateDetails?: string;
+
+  @ApiPropertyOptional({
     format: 'uuid',
     description: 'A leaf (specialization).',
   })
@@ -292,6 +327,19 @@ export class UpdateCaseDto {
   @Min(BUDGET_MIN_DOLLARS)
   @Max(BUDGET_MAX_DOLLARS)
   budgetAmountDollars?: number;
+
+  @ApiPropertyOptional({
+    type: 'integer',
+    minimum: PERCENT_BPS_MIN,
+    maximum: PERCENT_BPS_MAX,
+    description:
+      'Owner 2026-10-17: required when budgetMode = percent; basis points (3300 = 33 %). Capped by `fees.contingency_max_percent`.',
+  })
+  @ValidateIf((o: UpdateCaseDto) => o.budgetMode === 'percent')
+  @IsInt()
+  @Min(PERCENT_BPS_MIN)
+  @Max(PERCENT_BPS_MAX)
+  budgetPercentBps?: number;
   /** Owner 2026-10-04: an app cover variant or icon avatar for the card
    * (never a personal photo). Null/absent = picked from the case id. */
   @ApiPropertyOptional({
@@ -398,6 +446,28 @@ export class ListMyCasesQueryDto extends MineFilterFields {
   limit?: number;
 }
 
+export const STILL_NEEDED_ANSWERS = [
+  'still_needed',
+  'wait_better',
+  'not_needed',
+  'make_not_urgent',
+] as const;
+export type StillNeededAnswer = (typeof STILL_NEEDED_ANSWERS)[number];
+
+/** POST /cases/:id/still-needed (OQ-054): the answer to «Вам ещё нужен
+ * адвокат?». `make_not_urgent` is only accepted for an urgent / very urgent
+ * case older than 7 days. */
+export class StillNeededAnswerDto {
+  @ApiProperty({
+    enum: STILL_NEEDED_ANSWERS,
+    enumName: 'StillNeededAnswer',
+    description:
+      '«Да, нужен» / «Жду предложений получше» / «Уже не нужен» (closes the case) / «Сменить на «Не срочно»».',
+  })
+  @IsIn(STILL_NEEDED_ANSWERS)
+  answer!: StillNeededAnswer;
+}
+
 /** PATCH /cases/:id/urgency (owner 2026-10-05): the urgency or the date
  * alone — also after an attorney is hired (a court date moves), by the
  * client or by the hired attorney; the other side is told. */
@@ -436,4 +506,18 @@ export class UpdateCaseUrgencyDto {
   @IsOptional()
   @IsIn(CASE_DEADLINE_KINDS)
   deadlineKind?: CaseDeadlineKind | null;
+}
+
+/** Audit 2026-10-19: «Подробности» (private details) can be changed after
+ * a bid is accepted too; an empty text clears them. */
+export class UpdatePrivateDetailsDto {
+  @ApiProperty({
+    maxLength: 50_000,
+    description:
+      'Only the owner and the accepted attorney read them; empty clears.',
+  })
+  @Transform(tidy)
+  @IsString()
+  @MaxTextChars('limits.case_private_details_chars')
+  privateDetails!: string;
 }

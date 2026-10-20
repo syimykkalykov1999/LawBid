@@ -23,6 +23,8 @@ import {
   Roles,
   type AdminActor,
 } from '../admin-auth/admin-auth.decorators';
+import { FileDto, PresignedFileDto } from '../files/files.public';
+import { FilesService } from '../files/files.service';
 import { AdminSupportService } from './admin-support.service';
 import { SupportDeskService } from './support-desk.service';
 import { SupportTeamService } from './support-team.service';
@@ -46,6 +48,8 @@ import {
   AdminSupportTicketDetailDto,
   AdminSupportTicketRowDto,
   AdminSupportTicketsQueryDto,
+  AdminSupportFileParamDto,
+  AdminSupportUploadDto,
   AdminUpdateSupportTicketDto,
   SupportTicketIdParamDto,
 } from './support.dto';
@@ -63,6 +67,7 @@ export class AdminSupportController {
     private readonly support: AdminSupportService,
     private readonly desk: SupportDeskService,
     private readonly team: SupportTeamService,
+    private readonly files: FilesService,
   ) {}
 
   @Get('tickets')
@@ -113,6 +118,53 @@ export class AdminSupportController {
     @Body() dto: AdminSupportReplyDto,
   ): Promise<AdminSupportMessageDto> {
     return this.support.reply(admin.id, p.id, dto);
+  }
+
+  /** Owner 2026-10-18 (OQ-055): step 1 of attaching a file to a reply —
+   * the same presign → S3 → confirm → antivirus pipeline as in the app. */
+  @Roles('super_admin', 'support')
+  @Post('uploads')
+  @ApiOperation({
+    summary:
+      'Step 1 of a file for a reply: presigned POST (then POST the file to S3)',
+  })
+  @ApiEnvelopeResponse(PresignedFileDto, { status: HttpStatus.CREATED })
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR, E.FILE_TYPE_NOT_ALLOWED, E.FILE_TOO_LARGE],
+    429: [E.RATE_LIMITED],
+    503: [E.FILE_STORAGE_UNAVAILABLE],
+  })
+  presignAdminSupportUpload(
+    @CurrentAdmin() admin: AdminActor,
+    @Body() dto: AdminSupportUploadDto,
+  ): Promise<PresignedFileDto> {
+    return this.files.presign(admin.id, {
+      purpose: 'support_attachment',
+      ...dto,
+    });
+  }
+
+  @Roles('super_admin', 'support')
+  @Post('uploads/:fileId/confirm')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Step 2: verify the uploaded file; usable once scanStatus = clean',
+  })
+  @ApiEnvelopeResponse(FileDto)
+  @ApiErrors({
+    400: [
+      E.VALIDATION_ERROR,
+      E.FILE_TYPE_NOT_ALLOWED,
+      E.FILE_CHECKSUM_MISMATCH,
+    ],
+    404: [E.NOT_FOUND],
+    409: [E.FILE_NOT_UPLOADED],
+  })
+  confirmAdminSupportUpload(
+    @CurrentAdmin() admin: AdminActor,
+    @Param() p: AdminSupportFileParamDto,
+  ): Promise<FileDto> {
+    return this.files.confirm(admin.id, p.fileId);
   }
 
   @Roles('super_admin', 'support')
@@ -169,7 +221,7 @@ export class AdminSupportController {
   listSupportMacros(
     @Query() q: SupportMacrosQueryDto,
   ): Promise<SupportMacroDto[]> {
-    return this.team.macros(!q.all);
+    return this.team.macros(!q.all, q.language);
   }
 
   @Roles('super_admin', 'support')

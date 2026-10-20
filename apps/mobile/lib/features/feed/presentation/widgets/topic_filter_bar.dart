@@ -91,6 +91,7 @@ class TopicFilterBar extends ConsumerWidget {
       multi: true,
       back: true,
       searchHint: t.t('practice.search.hint'),
+      remoteSearch: practiceRemoteSearch(ref),
       initial: {
         ...ref.read(feedTopicsProvider),
         if (showNews && scope == FeedLegalScope.mine)
@@ -173,7 +174,11 @@ class TopicFilterBar extends ConsumerWidget {
               label: t.t('cases.feed.allLicensedStates'),
             ),
           for (final s in kRegions)
-            PickerOption(value: s.code, label: s.name, sublabel: s.code),
+            PickerOption(
+                value: s.code,
+                label: s.name,
+                sublabel: s.code,
+                keywords: s.aliases,),
         ],
       );
       if (picked != null && identical(picked, OptionPickerSheet.backResult)) {
@@ -197,7 +202,11 @@ class TopicFilterBar extends ConsumerWidget {
             label: t.t('cases.feed.allLicensedStates'),
           ),
         for (final s in kRegions)
-          PickerOption(value: s.code, label: s.name, sublabel: s.code),
+          PickerOption(
+              value: s.code,
+              label: s.name,
+              sublabel: s.code,
+              keywords: s.aliases,),
       ],
     );
     if (picked == null) return false;

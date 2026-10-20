@@ -25,6 +25,7 @@ class _ChatClient implements ChatClient {
     String? cursor,
     String? updatedSince,
     ConversationFolder? folder,
+    String? q,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
@@ -33,6 +34,7 @@ class _ChatClient implements ChatClient {
       r'cursor': cursor,
       r'updatedSince': updatedSince,
       r'folder': folder?.toJson(),
+      r'q': q,
     };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};

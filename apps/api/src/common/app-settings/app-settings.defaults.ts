@@ -5,16 +5,17 @@
 // or has the wrong type.
 export const FILE_03_SETTINGS = {
   'verification.max_submissions_30d': 5,
-  /** Owner 2026-10-14: wrong bar numbers in a row before a cooldown. */
-  'verification.bar_fails_per_step': 3,
+  /** Owner 2026-10-14: wrong bar numbers in a row before a cooldown.
+   * Owner 2026-10-18: 5 tries, then the first lock is exactly 1 hour. */
+  'verification.bar_fails_per_step': 5,
   /** Cooldowns after each series of wrong numbers, hours, comma list; the
    * last one repeats. Never a permanent block. */
   'verification.bar_cooldown_hours': '1,12,24',
   /** Days without a wrong number after which the counter starts over. */
   'verification.bar_fail_reset_days': 7,
-  /** Bar number format per state (JSON: {"NY":{"pattern":"^\\d{4,7}$",
-   * "example":"1234567"}}); a state not listed only needs 4+ characters with
-   * at least 3 digits. */
+  /** Bar number format per state (JSON: {"NY":{"pattern":"^\\d{4,7}$"}});
+   * a state not listed only needs 4+ characters with at least 3 digits. The
+   * format is never shown to anyone (owner 2026-10-18). */
   'verification.bar_formats': '',
   'verification.signed_url_ttl_sec': 300,
   'verification.license_expiry_notify_days': [30, 7],
@@ -119,14 +120,20 @@ export const OWNER_MEDIA_SETTINGS = {
   // Owner 2026-10-15: the recommendation weights of Search (cases for
   // attorneys, people and «you may know», posts and reels) — editable in
   // the admin panel; the sum need not be 1.
-  'reco.case.practice': 0.28,
-  'reco.case.state': 0.18,
-  'reco.case.fresh': 0.16,
-  'reco.case.budget': 0.1,
-  'reco.case.competition': 0.1,
-  'reco.case.urgency': 0.08,
-  'reco.case.client': 0.06,
-  'reco.case.demand': 0.04,
+  'reco.case.practice': 0.2,
+  'reco.case.state': 0.12,
+  'reco.case.fresh': 0.1,
+  'reco.case.budget': 0.06,
+  'reco.case.competition': 0.06,
+  'reco.case.urgency': 0.06,
+  'reco.case.client': 0.04,
+  'reco.case.demand': 0.02,
+  // OQ-054: the client is around (opened / answered lately).
+  'reco.case.clientActive': 0.1,
+  // OQ-054: urgent + an active client first; a silent urgent one drops.
+  'reco.case.urgentActive': 0.17,
+  // OQ-054: «по дате» cases rise as the date gets closer.
+  'reco.case.dateNear': 0.07,
   'reco.people.contact': 0.2,
   'reco.people.state': 0.144,
   'reco.people.practice': 0.176,
@@ -154,14 +161,22 @@ export const OWNER_MEDIA_SETTINGS = {
   // JPEG quality — no visible loss, small files. Videos are re-encoded by
   // Bunny for viewers.
   // Owner 2026-10-15: lighter (Instagram stores 1080 px): 1440 px / 80 %.
+  // Owner 2026-10-19 (Instagram quality, «too compressed, avatars are
+  // blurry»): 1440 px keeps a 4:5 portrait 1080 px wide (Instagram's size)
+  // and quality 90 — the server re-encodes once more for its sizes, two
+  // passes at 80–85 were visibly soft.
   'media.photo_max_px': 1440,
-  'media.photo_quality': 80,
+  'media.photo_quality': 90,
   'media.avatar_max_px': 1024,
+  // Owner 2026-10-19: the profile photo is small and seen up close — its
+  // own, higher quality.
+  'media.avatar_quality': 95,
   // Owner 2026-10-05: reels are re-encoded on the phone before upload —
   // at most this height (1080 = Full HD, no visible loss on a phone),
   // 0 = upload as recorded. Frame rate cap keeps files small.
   // Owner 2026-10-15: 720 p — about half the size of 1080 p, same on a phone.
-  'media.video_max_height': 720,
+  // Owner 2026-10-19 (Instagram): 1080 p again — 720 p looked soft.
+  'media.video_max_height': 1080,
   'media.video_frame_rate': 30,
   // Owner 2026-10-05: document templates the admin uploads (PDF, Word).
   'files.document_template_max_size_mb': 10,
@@ -279,6 +294,18 @@ export const OWNER_SEAT_SETTINGS = {
   'billing.max_assistant_seats': 10,
 } as const;
 
+// Owner 2026-10-17: percent (contingency) budgets and bids — a deal between
+// client and attorney, LawBid takes nothing. `fees.contingency_max_percent`
+// caps the percent (100 = no cap); `fees.contingency_blocked_practices` is a
+// comma list of practice codes (a code covers its subtopics) where the
+// percent option is hidden — ethics rules forbid contingency fees in
+// criminal and domestic-relations matters in almost every state.
+export const OWNER_CONTINGENCY_SETTINGS = {
+  'fees.contingency_max_percent': 100,
+  'fees.contingency_blocked_practices':
+    'criminal_defense,dui_and_dwi,traffic_tickets,family_law',
+} as const;
+
 // Owner 2026-10-05: case urgency. A case with a date reads as "very
 // urgent" with at most `cases.urgency_days_very_urgent` days left, and so
 // on down. Client and hired attorney get reminders
@@ -292,6 +319,29 @@ export const OWNER_URGENCY_SETTINGS = {
   'cases.urgency_days_within_month': 31,
   'cases.deadline_reminder_days': [7, 3, 1, 0],
   'cases.deadline_reminders_auto': true,
+} as const;
+
+// Owner 2026-10-17/18 (OQ-054): stale cases in the attorney feed. A case's
+// client is "silent" for `now - client_active_at` (only the client's own
+// actions count, never attorney bids). Silent for `stale_ask_days_<urgency>`
+// → one «Вам ещё нужен адвокат?» (push + in-app, never SMS); unanswered for
+// `stale_pause_days_<urgency>` more → paused (hidden from the feed, one tap
+// brings it back); paused `stale_archive_after_pause_days` → archived.
+// «По дате»: asked once the date has passed, paused
+// `stale_pause_days_by_date` days after the date.
+export const OWNER_STALE_SETTINGS = {
+  'cases.stale_ask_days_very_urgent': 2,
+  'cases.stale_pause_days_very_urgent': 1,
+  'cases.stale_ask_days_urgent': 4,
+  'cases.stale_pause_days_urgent': 2,
+  'cases.stale_ask_days_soon': 7,
+  'cases.stale_pause_days_soon': 3,
+  'cases.stale_ask_days_within_month': 30,
+  'cases.stale_pause_days_within_month': 4,
+  'cases.stale_ask_days_flexible': 30,
+  'cases.stale_pause_days_flexible': 14,
+  'cases.stale_pause_days_by_date': 3,
+  'cases.stale_archive_after_pause_days': 30,
 } as const;
 
 // Owner 2026-10-05: attorney trust levels (docs/ATTORNEY_TRUST.md). The
@@ -593,6 +643,8 @@ export const APP_SETTINGS = {
   ...OWNER_INVITE_SETTINGS,
   ...OWNER_SEAT_SETTINGS,
   ...OWNER_URGENCY_SETTINGS,
+  ...OWNER_STALE_SETTINGS,
+  ...OWNER_CONTINGENCY_SETTINGS,
   ...OWNER_TRUST_SETTINGS,
   ...OWNER_TRIAL_SETTINGS,
   ...OWNER_REASON_SETTINGS,

@@ -114,6 +114,35 @@ final _usernamePattern = RegExp(r'^[A-Za-z0-9_.]{3,30}$');
 bool _isLoopback(String host) =>
     host == 'localhost' || host == '127.0.0.1' || host == '[::1]';
 
+/// The app screen for a Stripe return URL the server builds
+/// (`APP_LINK_BASE_URL/<kind>/success|cancel`, `/payout/return|refresh`).
+String? _paymentReturn(String kind, String step, Uri uri) {
+  final done = step == 'success' || step == 'cancel';
+  switch (kind) {
+    case 'payment' when done:
+      final String caseId;
+      try {
+        caseId = uri.queryParameters['case_id'] ?? '';
+      } catch (_) {
+        return '/payment/$step';
+      }
+      return _idPattern.hasMatch(caseId)
+          ? '/payment/$step?case_id=$caseId'
+          : '/payment/$step';
+    case 'payout' when step == 'return' || step == 'refresh':
+      return '/payout/$step';
+    case 'subscription' when done:
+      return '/profile/settings/subscription';
+    case 'plan' when done:
+      return '/profile/settings/client-plan';
+    case 'verification' when done:
+      return '/profile/settings/verify-account';
+    case 'bid-packs' when done:
+      return '/profile/settings/bid-packs';
+  }
+  return null;
+}
+
 /// Parses [uri] into a [DeepLink], or null when it isn't one of ours.
 ///
 /// Accepted forms (both route identically):
@@ -157,6 +186,13 @@ DeepLink? parseDeepLink(
 
   if (webTabs && parts.length == 1 && _webTabs.contains('/${parts[0]}')) {
     return TabDeepLink('/${parts[0]}');
+  }
+
+  // Owner 2026-10-19: on the web Stripe's page opens in this tab; its
+  // return URL lands on the screen that re-reads the purchase.
+  if (webTabs && parts.length == 2) {
+    final back = _paymentReturn(parts[0], parts[1], uri);
+    if (back != null) return TabDeepLink(back);
   }
 
   if (parts.length != 2) return null;

@@ -224,6 +224,12 @@ export class BidPacksService {
         cancelUrl: `${base}/bid-packs/cancel?purchase_id=${row.id}`,
         idempotencyKey: `bid-pack:${row.id}`,
       });
+      if (!session.url) {
+        throw new ServiceUnavailableException({
+          code: ErrorCode.PAYMENTS_NOT_CONFIGURED,
+          message: 'The checkout page is not available.',
+        });
+      }
       await this.prisma.bidPackPurchase.update({
         where: { id: row.id },
         data: { stripe_checkout_id: session.id },

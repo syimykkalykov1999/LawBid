@@ -12,7 +12,7 @@ PhotoLimits photoLimitsOf(FeatureFlagsState flags) => (
           .configInt('media.photo_max_px', 2048)
           .clamp(640, 4096)
           .toDouble(),
-      quality: flags.configInt('media.photo_quality', 85).clamp(50, 100),
+      quality: flags.configInt('media.photo_quality', 90).clamp(50, 100),
     );
 
 PhotoLimits avatarLimitsOf(FeatureFlagsState flags) => (
@@ -20,5 +20,11 @@ PhotoLimits avatarLimitsOf(FeatureFlagsState flags) => (
           .configInt('media.avatar_max_px', 1024)
           .clamp(256, 2048)
           .toDouble(),
-      quality: flags.configInt('media.photo_quality', 85).clamp(50, 100),
+      // Owner 2026-10-19: the profile photo's own quality (default 95).
+      quality: flags
+          .configInt(
+            'media.avatar_quality',
+            flags.configInt('media.photo_quality', 95),
+          )
+          .clamp(50, 100),
     );

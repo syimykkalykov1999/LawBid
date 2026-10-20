@@ -185,6 +185,10 @@ export class AdminPostRowDto {
   @ApiProperty({ type: 'integer' }) likes!: number;
   @ApiProperty({ type: 'integer' }) comments!: number;
   @ApiProperty() deleted!: boolean;
+  @ApiProperty({
+    description: 'Owner 2026-10-18: the author keeps it in «Архив»',
+  })
+  archived!: boolean;
   @ApiProperty({ description: 'The post carries a video' }) hasVideo!: boolean;
   @ApiProperty({ type: 'integer', description: 'Documents (PDF, Word…)' })
   attachments!: number;

@@ -24,11 +24,18 @@ const PLACE: Record<Place, { title: string; hint: string }> = {
   post: { title: 'Посты', hint: 'Фото и документы под постом.' },
   reel: { title: 'Рилсы', hint: 'Фото и документы внутри рилса. Видео — в «Рилсы и стикеры».' },
   case: { title: 'Кейсы', hint: 'Фото и документы, которые клиент прикладывает к делу.' },
-  chat: { title: 'Чат', hint: 'Один файл в сообщении. Сколько всего на чат — в карточке «Всего».' },
+  chat: {
+    title: 'Чат',
+    hint: 'Один файл в сообщении: фото, документ или видео (приложение сжимает видео до 720p). Сколько всего на чат — в карточке «Всего».',
+  },
   task: { title: 'Задачи', hint: 'Файлы в задаче помощника.' },
   review: { title: 'Отзывы', hint: 'Фото в отзывах об адвокатах и о клиентах.' },
   avatar: { title: 'Фото профиля', hint: 'Одно фото; приложение сжимает его до 1024 px.' },
   verification: { title: 'Проверка адвоката', hint: 'Файлы одного документа (лицензия, ID). Видят только проверяющие.' },
+  support: {
+    title: 'Поддержка',
+    hint: 'Файлы в обращении и в ответе поддержки: фото, документы, видео. Столько штук можно в одном сообщении.',
+  },
   client_badge: { title: 'Значок клиента', hint: 'Сколько файлов в заявке. Размер и форматы — как в «Проверке адвоката».' },
 };
 
@@ -51,8 +58,13 @@ const FORMAT_LABEL: Record<Format, string> = {
   rtf: 'RTF',
   txt: 'TXT',
   csv: 'CSV',
+  mp4: 'MP4',
+  mov: 'MOV',
+  webm: 'WebM',
 };
 const PHOTO: readonly Format[] = ['jpeg', 'png', 'heic', 'webp', 'gif'];
+/** Owner 2026-10-17: videos (chat and support; the app compresses them to 720p). */
+const VIDEO: readonly Format[] = ['mp4', 'mov'];
 
 type NumKey = 'maxPhotos' | 'maxFiles' | 'fileMb' | 'totalMb';
 
@@ -175,7 +187,8 @@ function PlaceCard({ info, disabled, onSave }: { info: PlaceInfo; disabled: bool
     </Field>
   );
   const photos = info.safeFormats.filter((f) => PHOTO.includes(f));
-  const docs = info.safeFormats.filter((f) => !PHOTO.includes(f));
+  const videos = info.safeFormats.filter((f) => VIDEO.includes(f));
+  const docs = info.safeFormats.filter((f) => !PHOTO.includes(f) && !VIDEO.includes(f));
   const toggle = (f: Format) =>
     setDraft((d) => ({
       ...d,
@@ -217,6 +230,9 @@ function PlaceCard({ info, disabled, onSave }: { info: PlaceInfo; disabled: bool
           <div className="space-y-2">
             <FormatRow label="Фото" formats={photos} on={draft.formats} disabled={disabled} onToggle={toggle} />
             <FormatRow label="Документы" formats={docs} on={draft.formats} disabled={disabled} onToggle={toggle} />
+            {videos.length > 0 ? (
+              <FormatRow label="Видео" formats={videos} on={draft.formats} disabled={disabled} onToggle={toggle} />
+            ) : null}
             {draft.formats.length === 0 ? (
               <p className="text-xs text-warning">Ни один формат не выбран: сюда ничего нельзя будет загрузить.</p>
             ) : null}

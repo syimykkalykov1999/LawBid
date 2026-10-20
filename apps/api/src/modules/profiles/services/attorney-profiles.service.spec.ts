@@ -82,6 +82,7 @@ describe('AttorneyProfilesService', () => {
       isTaken: jest.fn((_db: unknown, _lower: string, except?: string) =>
         Promise.resolve(holder !== null && holder.user_id !== except),
       ),
+      suggest: jest.fn(() => Promise.resolve(['anna.kim2026', 'anna_kim'])),
     };
     const svc = new AttorneyProfilesService(
       prisma as unknown as PrismaService,
@@ -97,7 +98,7 @@ describe('AttorneyProfilesService', () => {
     );
     // getOwn is covered by e2e; here only the write path matters.
     jest.spyOn(svc, 'getOwn').mockResolvedValue({} as never);
-    return { svc, tx, prisma };
+    return { svc, tx, prisma, usernames };
   }
 
   it('rejects a second username change within 30 days', async () => {
@@ -172,7 +173,27 @@ describe('AttorneyProfilesService', () => {
         username: u,
         available: false,
         reason,
+        suggestions: ['anna.kim2026', 'anna_kim'],
       });
+    });
+
+    it('suggests from the name on the form and what was typed', async () => {
+      const { svc, usernames } = setup({}, { user_id: 'other' });
+      await svc.availability('x.y.z', 'me', { first: 'Anna', last: 'Kim' });
+      expect(usernames.suggest).toHaveBeenCalledWith(
+        expect.anything(),
+        { firstName: 'Anna', lastName: 'Kim', typed: 'x.y.z' },
+        'me',
+      );
+    });
+
+    it('no suggestions when the handle is free', async () => {
+      const { svc, usernames } = setup({}, null);
+      await expect(svc.availability('x.y.z', 'me')).resolves.toMatchObject({
+        available: true,
+        suggestions: [],
+      });
+      expect(usernames.suggest).not.toHaveBeenCalled();
     });
 
     it('taken by someone else vs. own username', async () => {

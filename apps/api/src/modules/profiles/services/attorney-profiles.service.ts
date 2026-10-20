@@ -420,13 +420,19 @@ export class AttorneyProfilesService {
   async availability(
     username: string,
     viewerId: string,
+    name: { first?: string; last?: string } = {},
   ): Promise<UsernameAvailabilityDto> {
-    const result = (
+    const result = async (
       reason: UsernameAvailabilityDto['reason'],
-    ): UsernameAvailabilityDto => ({
+    ): Promise<UsernameAvailabilityDto> => ({
       username,
       available: reason === null,
       reason,
+      // Owner 2026-10-18 («как в инсте»): free handles to tap instead.
+      suggestions:
+        reason === null
+          ? []
+          : await this.suggestions(viewerId, { ...name, typed: username }),
     });
     if (!isValidUsername(username)) return result('invalid');
     const lower = username.toLowerCase();
@@ -440,6 +446,28 @@ export class AttorneyProfilesService {
     // reported available).
     const taken = await this.usernames.isTaken(this.prisma, lower, viewerId);
     return result(taken ? 'taken' : null);
+  }
+
+  /** GET /attorneys/username-suggestions — up to 5 free handles from the
+   * typed text and the name (the saved name when the form sends none). */
+  async suggestions(
+    viewerId: string,
+    seeds: { first?: string; last?: string; typed?: string },
+  ): Promise<string[]> {
+    let { first, last } = seeds;
+    if (!first && !last) {
+      const user = await this.prisma.user.findUnique({
+        where: { id: viewerId },
+        select: { first_name: true, last_name: true },
+      });
+      first = user?.first_name ?? undefined;
+      last = user?.last_name ?? undefined;
+    }
+    return this.usernames.suggest(
+      this.prisma,
+      { firstName: first, lastName: last, typed: seeds.typed },
+      viewerId,
+    );
   }
 }
 

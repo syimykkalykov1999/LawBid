@@ -22,9 +22,12 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { SubscriptionAccessService } from '../subscriptions/subscription-access.service';
 import { AttorneyTrustService } from '../attorney-trust/attorney-trust.service';
 import { EntitlementsService } from '../plans/entitlements.service';
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import { assertContingency, contingencyPolicy } from '../cases/cases.public';
 import { BidStateMachine, bidNotFound } from './domain/bid-state-machine';
 import type { BidDto } from './dto/bid-responses.dto';
 import type { CounterOfferDto, CreateBidDto } from './dto/bid-requests.dto';
+import { touchClientActive } from '../cases/cases.public';
 
 export type BidWithOffers = Bid & { offers: BidOffer[] };
 type BidWithCase = Bid & { case: { client_id: string; status: string } };
@@ -94,7 +97,27 @@ export class BidsService {
     @Optional() private readonly entitlements?: EntitlementsService,
     // Owner 2026-10-14: offers bought in packs, spent above the plan's limit.
     @Optional() private readonly packs?: BidPacksService,
+    // Owner 2026-10-17: the percent cap and where a percent is not allowed.
+    @Optional() private readonly settings?: AppSettingsService,
   ) {}
+
+  /** Codes of the case's topics (the first and the extras). */
+  private async casePracticeCodes(caseId: string): Promise<string[]> {
+    const kase = await this.prisma.case.findUnique({
+      where: { id: caseId },
+      select: {
+        practice_area: { select: { code: true } },
+        extra_practices: {
+          select: { practice_area: { select: { code: true } } },
+        },
+      },
+    });
+    if (!kase) return [];
+    return [
+      kase.practice_area.code,
+      ...kase.extra_practices.map((e) => e.practice_area.code),
+    ];
+  }
 
   /** One bought offer for a new offer above the plan's limit. */
   private async spendCredit(
@@ -147,6 +170,17 @@ export class BidsService {
           'You can send an offer only in states where you hold a verified licence.',
       });
     }
+    // Owner 2026-10-17: a percent bid — within the admin cap, never on a
+    // case whose topics forbid it (criminal, family by default).
+    const percentBps =
+      dto.feeType === 'contingency'
+        ? assertContingency(
+            await contingencyPolicy(this.settings),
+            await this.casePracticeCodes(caseId),
+            dto.percentBps,
+            'percentBps',
+          )
+        : null;
     // Owner 2026-09-30: bids outside the attorney's practices are allowed
     // and marked (the client is warned).
     const outsidePractice = access.kind !== 'owner' && !access.inPractice;
@@ -265,6 +299,7 @@ export class BidsService {
           status: 'active',
           fee_type: dto.feeType,
           amount_cents: amountCents,
+          percent_bps: percentBps,
           message: dto.message,
           start_availability: dto.startAvailability,
           start_date: dto.startDate ? new Date(dto.startDate) : null,
@@ -306,6 +341,7 @@ export class BidsService {
             from_role: 'attorney',
             fee_type: dto.feeType,
             amount_cents: amountCents,
+            percent_bps: percentBps,
             message: dto.message,
             status: 'pending',
             created_at: now,
@@ -334,6 +370,7 @@ export class BidsService {
             bidId: created.id,
             feeType: created.fee_type,
             amountCents: created.amount_cents,
+            percentBps: created.percent_bps,
           },
         });
         await this.notifications.emit(
@@ -370,6 +407,8 @@ export class BidsService {
   /** POST /bids/:id/decline (§6.3) — client only. */
   async decline(user: RequestUser, bidId: string): Promise<BidDto> {
     const bid = await this.loadForActor(bidId, user, 'client');
+    // OQ-054: declining is the client's own action on the case.
+    await touchClientActive(this.prisma, bid.case_id, user.sub);
     return this.applyAndRespond(bid.id, 'decline', 'client', {});
   }
 
@@ -381,6 +420,31 @@ export class BidsService {
     dto: CounterOfferDto,
   ): Promise<BidDto> {
     const { bid, by } = await this.loadForEitherParty(bidId, user);
+    // OQ-054: a counter from the client is their own action on the case.
+    if (by === 'client') {
+      await touchClientActive(this.prisma, bid.case_id, user.sub);
+    }
+    // Owner 2026-10-17: a contingency bid is negotiated in percent.
+    if (bid.fee_type === 'contingency') {
+      const policy = await contingencyPolicy(this.settings);
+      const bps = assertContingency(
+        { ...policy, blockedPractices: [] },
+        [],
+        dto.percentBps,
+        'percentBps',
+      );
+      return this.applyAndRespond(bid.id, 'counter', by, {
+        percentBps: bps,
+        message: dto.message ?? null,
+      });
+    }
+    if (dto.amountCents === undefined) {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_ERROR,
+        message: 'amountCents is required.',
+        details: { fields: ['amountCents'] },
+      });
+    }
     return this.applyAndRespond(bid.id, 'counter', by, {
       amountCents: dto.amountCents,
       message: dto.message ?? null,
@@ -469,7 +533,11 @@ export class BidsService {
     bidId: string,
     action: 'withdraw' | 'decline' | 'counter',
     by: PartyRole,
-    extra: { amountCents?: number; message?: string | null },
+    extra: {
+      amountCents?: number;
+      percentBps?: number;
+      message?: string | null;
+    },
   ): Promise<BidDto> {
     const chat: ChatChange[] = [];
     const result = await withTxRetry(this.prisma, async (tx) => {
@@ -488,6 +556,7 @@ export class BidsService {
         action,
         by,
         amountCents: extra.amountCents,
+        percentBps: extra.percentBps,
         message: extra.message,
       });
       await this.journal.append(tx, {
@@ -505,6 +574,9 @@ export class BidsService {
           to: plan.to,
           ...(extra.amountCents !== undefined
             ? { amountCents: extra.amountCents }
+            : {}),
+          ...(extra.percentBps !== undefined
+            ? { percentBps: extra.percentBps }
             : {}),
         },
       });
@@ -553,6 +625,32 @@ export class BidsService {
     tx: Prisma.TransactionClient;
   }): Promise<void> {
     const { caseId, attorneyId, clientId, bidId, action, by, plan, tx } = input;
+    // Owner 2026-10-19: a counter-offer puts the bid's chat in the other
+    // side's «Ожидают ответа» (and takes it out of the sender's); any other
+    // end of the round takes it out for both.
+    const actorId = by === 'client' ? clientId : attorneyId;
+    const otherId = by === 'client' ? attorneyId : clientId;
+    const chats = await tx.conversation.findMany({
+      where: { bid_id: bidId },
+      select: { id: true },
+    });
+    for (const { id } of chats) {
+      if (action === 'counter') {
+        await tx.conversationParticipant.updateMany({
+          where: { conversation_id: id, user_id: otherId, waiting_since: null },
+          data: { waiting_since: new Date() },
+        });
+        await tx.conversationParticipant.updateMany({
+          where: { conversation_id: id, user_id: actorId },
+          data: { waiting_since: null },
+        });
+      } else {
+        await tx.conversationParticipant.updateMany({
+          where: { conversation_id: id, user_id: { in: [actorId, otherId] } },
+          data: { waiting_since: null },
+        });
+      }
+    }
     if (plan.to === 'failed_negotiation') {
       // §6.2: both sides, "Стороны не договорились" (notif.bids.* text,
       // file 05 delivery).
@@ -645,6 +743,8 @@ export class BidsService {
 
 export function normalizeAmount(dto: CreateBidDto): number {
   if (dto.feeType === 'free_consultation') return 0;
+  // Owner 2026-10-17: a contingency bid is a percent (percent_bps).
+  if (dto.feeType === 'contingency') return 0;
   if (dto.amountCents === undefined || dto.amountCents <= 0) {
     throw new BadRequestException({
       code: ErrorCode.VALIDATION_ERROR,
@@ -692,6 +792,7 @@ export function toBidDto(bid: BidWithOffers): BidDto {
     status: bid.status,
     feeType: bid.fee_type,
     amountCents: bid.amount_cents,
+    percentBps: bid.percent_bps,
     message: bid.message,
     startAvailability: bid.start_availability,
     startDate: bid.start_date
@@ -713,6 +814,7 @@ export function toBidDto(bid: BidWithOffers): BidDto {
         fromRole: o.from_role,
         feeType: o.fee_type,
         amountCents: o.amount_cents,
+        percentBps: o.percent_bps,
         message: o.message,
         status: o.status,
         createdAt: o.created_at.toISOString(),

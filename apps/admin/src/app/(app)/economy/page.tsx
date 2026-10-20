@@ -231,7 +231,7 @@ export default function EconomyPage() {
             ).map(([title, c]) => (
               <Card key={title} className="p-4">
                 <div className="text-sm font-medium text-heading">{title}</div>
-                <div className="mt-2 grid grid-cols-3 gap-2 text-sm">
+                <div className="mt-2 grid grid-cols-1 gap-2 text-sm min-[420px]:grid-cols-3">
                   <div>
                     <div className="text-xs text-muted">Работает</div>
                     <div className="text-lg font-semibold text-heading">{c.running ?? '—'}</div>

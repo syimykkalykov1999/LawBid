@@ -7,6 +7,7 @@ import { ADMIN_ROLES_KEY } from '../admin-auth/admin-auth.decorators';
 import { AdminSupportController } from './admin-support.controller';
 import { AdminSupportService } from './admin-support.service';
 import type { SupportDeskService } from './support-desk.service';
+import type { SupportFilesService } from './support-files.service';
 
 const T0 = new Date('2026-10-01T10:00:00Z');
 const USER = '11111111-1111-4111-8111-111111111111';
@@ -35,6 +36,7 @@ function ticket(over: Partial<SupportTicket> = {}): SupportTicket {
     sla_due_at: null,
     sla_breached_at: null,
     country_code: 'US',
+    client_context: null,
     ...over,
   };
 }
@@ -77,6 +79,11 @@ function setup(found: SupportTicket | null = ticket()) {
   );
   const notifications = { emit: jest.fn().mockResolvedValue({ id: 'n' }) };
   const subs = { isActive: jest.fn().mockResolvedValue(true) };
+  const files = {
+    assertAttachable: jest.fn().mockResolvedValue(undefined),
+    attach: jest.fn().mockResolvedValue(undefined),
+    forMessages: jest.fn().mockResolvedValue(new Map()),
+  };
   const service = new AdminSupportService(
     prisma as unknown as PrismaService,
     notifications as unknown as NotificationsService,
@@ -84,8 +91,9 @@ function setup(found: SupportTicket | null = ticket()) {
     {
       info: jest.fn().mockResolvedValue({ open: true }),
     } as unknown as SupportDeskService,
+    files as unknown as SupportFilesService,
   );
-  return { service, prisma, notifications };
+  return { service, prisma, notifications, files };
 }
 
 describe('AdminSupportService', () => {
@@ -123,6 +131,67 @@ describe('AdminSupportService', () => {
     expect(JSON.stringify(emit)).not.toContain(ADMIN);
     expect(JSON.stringify(emit)).not.toContain('Fixed, try again');
     expect(emit.payload.body).toContain('Cannot pay');
+  });
+
+  it('fills {name} and {ticket} on the server when a public reply is sent', async () => {
+    const { service, prisma } = setup();
+    prisma.user.findUnique.mockResolvedValue({
+      ui_language: 'en',
+      first_name: 'Jo',
+    });
+    await service.reply(ADMIN, TICKET, { body: 'Hi {name}, ticket {ticket}.' });
+    expect(prisma.supportMessage.create.mock.calls[0][0].data.body).toBe(
+      'Hi Jo, ticket #33333333.',
+    );
+  });
+
+  it('{name} without a first name reads "there" (en) or vanishes (ru)', async () => {
+    const en = setup();
+    en.prisma.user.findUnique.mockResolvedValue({
+      ui_language: 'en',
+      first_name: null,
+    });
+    await en.service.reply(ADMIN, TICKET, { body: 'Hello {name}!' });
+    expect(en.prisma.supportMessage.create.mock.calls[0][0].data.body).toBe(
+      'Hello there!',
+    );
+    const ru = setup();
+    ru.prisma.user.findUnique.mockResolvedValue({
+      ui_language: 'ru',
+      first_name: null,
+    });
+    await ru.service.reply(ADMIN, TICKET, { body: 'Здравствуйте, {name}!' });
+    expect(ru.prisma.supportMessage.create.mock.calls[0][0].data.body).toBe(
+      'Здравствуйте!',
+    );
+  });
+
+  it('an internal note keeps its text as written', async () => {
+    const { service, prisma } = setup();
+    await service.reply(ADMIN, TICKET, { body: 'use {name}', internal: true });
+    expect(prisma.supportMessage.create.mock.calls[0][0].data.body).toBe(
+      'use {name}',
+    );
+  });
+
+  it('attaches files to the reply and refuses an empty message', async () => {
+    const { service, files } = setup();
+    const f = { fileId: '55555555-5555-4555-8555-555555555555', name: 'a.pdf' };
+    await service.reply(ADMIN, TICKET, { body: '', attachments: [f] });
+    expect(files.assertAttachable).toHaveBeenCalledWith(ADMIN, [f]);
+    expect(files.attach).toHaveBeenCalledTimes(1);
+    await expect(
+      service.reply(ADMIN, TICKET, { body: ' ' }),
+    ).rejects.toMatchObject({ response: { code: ErrorCode.VALIDATION_ERROR } });
+  });
+
+  it('the unread filter: unread for staff, closed ones left out', async () => {
+    const { service, prisma } = setup();
+    await service.list(ADMIN, { unread: true });
+    expect(prisma.supportTicket.findMany.mock.calls[0][0].where).toMatchObject({
+      unread_by_admin: true,
+      status: { not: 'closed' },
+    });
   });
 
   it('the admin can pick the status of a public reply', async () => {

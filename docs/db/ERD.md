@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-170 tables.
+173 tables.
 
 ```mermaid
 erDiagram
@@ -176,6 +176,7 @@ erDiagram
     String value
     Int version
     DateTime updated_at
+    Boolean admin_edited
   }
   i18n_bundle_versions {
     String lang PK,FK
@@ -338,6 +339,7 @@ erDiagram
     String client_id FK
     String title
     String description
+    String private_details "nullable"
     String practice_area_id FK
     String inferred_practice_id "nullable"
     DateTime topic_scanned_at "nullable"
@@ -345,6 +347,7 @@ erDiagram
     String city "nullable"
     enum_BudgetMode budget_mode
     Int budget_cents "nullable"
+    Int budget_percent_bps "nullable"
     String cover_key "nullable"
     String urgency "nullable"
     DateTime deadline_at "nullable"
@@ -357,6 +360,8 @@ erDiagram
     Int share_count
     DateTime last_activity_at
     DateTime stale_prompt_sent_at "nullable"
+    DateTime client_active_at
+    DateTime paused_at "nullable"
     DateTime archived_at "nullable"
     DateTime client_completed_at "nullable"
     DateTime attorney_confirmed_at "nullable"
@@ -380,6 +385,7 @@ erDiagram
     enum_BidStatus status
     enum_FeeType fee_type
     Int amount_cents
+    Int percent_bps "nullable"
     String message
     enum_StartAvailability start_availability
     DateTime start_date "nullable"
@@ -399,6 +405,7 @@ erDiagram
     enum_PartyRole from_role
     enum_FeeType fee_type
     Int amount_cents
+    Int percent_bps "nullable"
     String message "nullable"
     enum_OfferStatus status
     DateTime created_at
@@ -497,6 +504,7 @@ erDiagram
     Int pin_slot "nullable"
     String pin_group "nullable"
     DateTime edited_at "nullable"
+    DateTime archived_at "nullable"
     DateTime deleted_at "nullable"
     tsvector search_tsv "nullable"
     tsvector search_tsv_simple "nullable"
@@ -645,6 +653,7 @@ erDiagram
     Boolean contacts_unlocked
     enum_MessageRequestStatus request_status
     String requested_by FK "nullable"
+    enum_ChatPairKind pair_kind
     DateTime last_message_at "nullable"
     String last_message_id "nullable"
     DateTime created_at
@@ -728,6 +737,16 @@ erDiagram
     String session_id FK
     String fcm_token UK
     String platform
+    DateTime last_seen_at
+    DateTime created_at
+  }
+  voip_tokens {
+    String id PK
+    String user_id FK
+    String session_id FK
+    String token UK
+    String topic
+    String environment
     DateTime last_seen_at
     DateTime created_at
   }
@@ -940,6 +959,13 @@ erDiagram
     String id PK
     String post_id FK
     String user_id FK
+    DateTime created_at
+  }
+  post_view_events {
+    String id PK
+    String post_id FK
+    String viewer_id FK "nullable"
+    String kind
     DateTime created_at
   }
   case_shares {
@@ -1555,6 +1581,7 @@ erDiagram
     DateTime sla_due_at "nullable"
     DateTime sla_breached_at "nullable"
     String country_code
+    Json client_context "nullable"
   }
   support_messages {
     String id PK
@@ -1566,10 +1593,19 @@ erDiagram
     String body
     DateTime created_at
   }
+  support_message_files {
+    String id PK
+    String message_id FK
+    String file_id FK,UK
+    String name
+    Int position
+    DateTime created_at
+  }
   support_macros {
     String id PK
     String title
     String body
+    String body_ru "nullable"
     String category "nullable"
     Boolean active
     Int uses
@@ -2229,6 +2265,8 @@ erDiagram
   notification_quiet_hours |o--|| users : "user_id"
   push_tokens }o--|| users : "user_id"
   push_tokens }o--|| sessions : "session_id"
+  voip_tokens }o--|| users : "user_id"
+  voip_tokens }o--|| sessions : "session_id"
   stripe_customers |o--|| users : "user_id"
   subscriptions |o--|| users : "user_id"
   subscriptions }o--o| plans : "plan_id"
@@ -2256,6 +2294,8 @@ erDiagram
   post_shares }o--|| users : "user_id"
   post_views }o--|| posts : "post_id"
   post_views }o--|| users : "user_id"
+  post_view_events }o--|| posts : "post_id"
+  post_view_events }o--o| users : "viewer_id"
   case_shares }o--|| cases : "case_id"
   case_shares }o--|| users : "user_id"
   client_reviews }o--o| cases : "case_id"
@@ -2297,6 +2337,8 @@ erDiagram
   outreach_activities }o--|| outreach_leads : "lead_id"
   promotion_daily }o--|| case_promotions : "promotion_id"
   promotion_views }o--|| case_promotions : "promotion_id"
+  support_message_files }o--|| support_messages : "message_id"
+  support_message_files |o--|| files : "file_id"
   sticker_packs }o--o| users : "owner_user_id"
   stickers }o--|| sticker_packs : "pack_id"
   stickers |o--|| files : "file_id"

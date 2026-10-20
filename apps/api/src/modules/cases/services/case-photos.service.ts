@@ -31,24 +31,34 @@ export class CasePhotosService {
     const had = caseId
       ? await this.prisma.casePhoto.findMany({
           where: { case_id: caseId },
-          select: { file_id: true },
+          select: { file_id: true, file: { select: { mime: true } } },
         })
       : [];
     const kept = new Set(had.map((p) => p.file_id));
-    assertUploadCount(
-      await this.files.uploadLimits(),
-      'case',
-      'files',
-      fileIds.length,
-      had.length,
-    );
+    const files = [];
     for (const id of fileIds) {
       const file = await this.files.assertAttachable(userId, id, [
         'case_photo',
         'case_attachment',
       ]);
       if (!kept.has(id)) await this.files.assertFitsPlace('case', file);
+      files.push(file);
     }
+    // Owner 2026-10-19: photos and videos share one limit, documents
+    // have their own.
+    const isPhoto = (mime: string) =>
+      mime.startsWith('image/') || mime.startsWith('video/');
+    const limits = await this.files.uploadLimits();
+    const photos = files.filter((f) => isPhoto(f.mime)).length;
+    const hadPhotos = had.filter((p) => isPhoto(p.file.mime)).length;
+    assertUploadCount(limits, 'case', 'photos', photos, hadPhotos);
+    assertUploadCount(
+      limits,
+      'case',
+      'files',
+      files.length - photos,
+      had.length - hadPhotos,
+    );
   }
 
   async attach(tx: Tx, caseId: string, fileIds: string[]): Promise<void> {
@@ -123,16 +133,21 @@ export class CasePhotosService {
   async forViewer(
     caseId: string,
     viewerId: string,
-  ): Promise<{ photos: CasePhotoDto[]; photosCount: number }> {
+  ): Promise<{
+    photos: CasePhotoDto[];
+    photosCount: number;
+    privateDetails: string | null;
+  }> {
     const kase = await this.prisma.case.findUnique({
       where: { id: caseId },
       select: {
         client_id: true,
+        private_details: true,
         accepted_bid: { select: { attorney_id: true } },
         photos: { orderBy: { position: 'asc' }, select: { file_id: true } },
       },
     });
-    if (!kase) return { photos: [], photosCount: 0 };
+    if (!kase) return { photos: [], photosCount: 0, privateDetails: null };
     const allowed =
       kase.client_id === viewerId ||
       kase.accepted_bid?.attorney_id === viewerId;
@@ -140,6 +155,8 @@ export class CasePhotosService {
     return {
       photos: allowed ? await this.files.casePhotoUrls(ids) : [],
       photosCount: ids.length,
+      // Owner 2026-10-18: private details follow the same rule as the files.
+      privateDetails: allowed ? kase.private_details : null,
     };
   }
 }

@@ -1,7 +1,7 @@
 import { assertNoBlockBetween } from '../../blocks/block-check';
 import {
   hasMineFilter,
-  mineCaseWhere,
+  mineWhere,
   type MineFilterFields,
 } from './mine-filters';
 import { FilesService } from '../../files/files.service';
@@ -34,6 +34,7 @@ import {
   caseNotAvailable,
 } from '../policies/case-access.policy';
 import { CasesFeedService } from '../services/cases-feed.service';
+import { touchClientActive } from '../domain/client-activity';
 import {
   MINE_PAGE_DEFAULT,
   type CaseConversationDto,
@@ -99,6 +100,8 @@ export class MineService {
     if (user.role !== 'client') throw caseNotFound();
     const kase = await this.prisma.case.findUnique({ where: { id: caseId } });
     if (!kase || kase.client_id !== user.sub) throw caseNotFound();
+    // OQ-054: opening the case is the client's own action on it.
+    await touchClientActive(this.prisma, caseId, user.sub);
     const [dto, acceptedBid, conversation, media] = await Promise.all([
       this.cases.toFullDto(kase),
       this.caseBids.acceptedFor(kase.accepted_bid_id),
@@ -132,7 +135,9 @@ export class MineService {
       where: {
         attorney_id: user.sub,
         // Owner 2026-09-30: search and filters in "Mine".
-        ...(hasMineFilter(search) ? { case: mineCaseWhere(search) } : {}),
+        ...(hasMineFilter(search)
+          ? { case: await mineWhere(this.prisma, search) }
+          : {}),
         AND: [
           filter === 'completed'
             ? {
@@ -219,7 +224,14 @@ export class MineService {
           status: 'accepted',
           accepted_for_case: {
             status: { in: WORK_STATUSES[filter] },
-            ...mineCaseWhere(search),
+            // Owner 2026-10-18: also by the client's name / @username (when
+            // the attorney sees names) and accent-insensitively.
+            ...(await mineWhere(this.prisma, search, {
+              attorneyId: user.sub,
+              withClient: search.q
+                ? await this.subscriptions.isActive(user.sub)
+                : false,
+            })),
           },
           ...(c
             ? {
@@ -236,6 +248,7 @@ export class MineService {
           id: true,
           fee_type: true,
           amount_cents: true,
+          percent_bps: true,
           decided_at: true,
           updated_at: true,
           accepted_for_case: {
@@ -303,6 +316,7 @@ export class MineService {
               : null,
             feeType: b.fee_type,
             amountCents: b.amount_cents,
+            percentBps: b.percent_bps,
             autoCloseAt: k.auto_close_at?.toISOString() ?? null,
             acceptedAt: b.decided_at?.toISOString() ?? null,
             closedAt: k.closed_at?.toISOString() ?? null,
@@ -340,7 +354,7 @@ export class MineService {
                   })
                 ).map((s) => s.item_id),
               },
-              ...mineCaseWhere(search),
+              ...(await mineWhere(this.prisma, search)),
             },
             select: { id: true },
           })
@@ -494,6 +508,7 @@ function bidFields(b: Bid) {
     status: b.status,
     feeType: b.fee_type,
     amountCents: b.amount_cents,
+    percentBps: b.percent_bps,
     message: b.message,
     startAvailability: b.start_availability,
     startDate: b.start_date ? b.start_date.toISOString().slice(0, 10) : null,
@@ -515,6 +530,7 @@ function offerFields(o: Prisma.BidOfferGetPayload<object> | undefined, b: Bid) {
         fromRole: o.from_role,
         feeType: o.fee_type,
         amountCents: o.amount_cents,
+        percentBps: o.percent_bps,
         message: o.message,
         status: o.status,
         createdAt: o.created_at.toISOString(),
@@ -525,6 +541,7 @@ function offerFields(o: Prisma.BidOfferGetPayload<object> | undefined, b: Bid) {
         fromRole: 'attorney' as const,
         feeType: b.fee_type,
         amountCents: b.amount_cents,
+        percentBps: b.percent_bps,
         message: b.message,
         status: 'pending' as const,
         createdAt: b.created_at.toISOString(),

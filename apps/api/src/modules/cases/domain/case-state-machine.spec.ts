@@ -59,8 +59,20 @@ const ALLOWED: [CaseStatus, CaseAction, CaseStatus, string][] = [
   ['open', 'set_urgency', 'open', 'updated'],
   ['in_progress', 'set_urgency', 'in_progress', 'updated'],
   ['pending_completion', 'set_urgency', 'pending_completion', 'updated'],
+  // Audit 2026-10-19: the private details, also once hired.
+  ['open', 'client_set_private_details', 'open', 'updated'],
+  ['in_progress', 'client_set_private_details', 'in_progress', 'updated'],
+  [
+    'pending_completion',
+    'client_set_private_details',
+    'pending_completion',
+    'updated',
+  ],
+  ['disputed', 'client_set_private_details', 'disputed', 'updated'],
   ['open', 'client_keep_alive', 'open', 'updated'],
   ['open', 'system_stale_prompt', 'open', 'updated'],
+  ['open', 'system_stale_pause', 'open', 'updated'],
+  ['open', 'client_resume', 'open', 'updated'],
   ['open', 'client_delete', 'open', 'deleted'],
   ['archived', 'client_delete', 'archived', 'deleted'],
 ];
@@ -85,9 +97,9 @@ describe('CaseStateMachine (docs/04 §10.1)', () => {
     CASE_ACTIONS.map((a) => [s, a] as const),
   );
 
-  it('covers every status × action pair (6 × 22)', () => {
-    expect(CASE_ACTIONS).toHaveLength(22);
-    expect(pairs).toHaveLength(132);
+  it('covers every status × action pair (6 × 25)', () => {
+    expect(CASE_ACTIONS).toHaveLength(25);
+    expect(pairs).toHaveLength(150);
   });
 
   it.each(pairs)('%s + %s', (from, action) => {
@@ -175,6 +187,24 @@ describe('CaseStateMachine (docs/04 §10.1)', () => {
       archived_at: null,
       last_activity_at: now,
       stale_prompt_sent_at: null,
+      client_active_at: now,
+      paused_at: null,
+    });
+    // OQ-054: only the client's own actions move client_active_at.
+    expect(planCaseTransition('open', 'client_edit', ctx).data).toEqual({
+      last_activity_at: now,
+      client_active_at: now,
+    });
+    expect(planCaseTransition('open', 'client_resume', ctx).data).toEqual({
+      client_active_at: now,
+      stale_prompt_sent_at: null,
+      paused_at: null,
+    });
+    expect(planCaseTransition('open', 'system_stale_prompt', ctx).data).toEqual(
+      { stale_prompt_sent_at: now },
+    );
+    expect(planCaseTransition('open', 'system_stale_pause', ctx).data).toEqual({
+      paused_at: now,
     });
     expect(
       planCaseTransition('pending_completion', 'attorney_confirm', ctx).data,
@@ -249,7 +279,11 @@ describe('CaseStateMachine (docs/04 §10.1)', () => {
       });
       expect(tx.case.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: { title: 'New title', last_activity_at: now },
+          data: {
+            title: 'New title',
+            last_activity_at: now,
+            client_active_at: now,
+          },
         }),
       );
     });

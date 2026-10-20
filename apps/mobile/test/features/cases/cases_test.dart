@@ -150,10 +150,16 @@ class _StaleCaseRepo extends FakeCasesRepository {
         createdAt: DateTime(2026, 9, 2),
         lastActivityAt: DateTime(2026, 9, 2),
         stalePromptSentAt: kept.isEmpty ? DateTime(2026, 9, 25) : null,
+        stillNeededPending: kept.isEmpty,
       );
 
   @override
-  Future<void> keepAlive(String caseId) async => kept.add(caseId);
+  Future<void> answerStillNeeded(
+    String caseId,
+    StillNeededAnswer answer,
+  ) async {
+    if (answer == StillNeededAnswer.stillNeeded) kept.add(caseId);
+  }
 }
 
 class _FinishedBidsRepo extends FakeCasesRepository {
@@ -186,7 +192,7 @@ void main() {
       expect(d.practiceValid, isFalse);
       expect(d.copyWith(title: 'short').titleValid, isFalse);
       expect(d.copyWith(title: 'Speeding ticket NJ').titleValid, isTrue);
-      expect(d.copyWith(description: 'x' * 29).descriptionValid, isFalse);
+      expect(d.copyWith(description: 'x' * 19).descriptionValid, isFalse);
       expect(d.copyWith(description: 'x' * 30).descriptionValid, isTrue);
       expect(
         d.copyWith(
@@ -419,7 +425,8 @@ void main() {
   });
 
   group('Screens', () {
-    testWidgets('a stale open case asks "still relevant?" and keeps it alive',
+    testWidgets(
+        'a stale open case asks "still need an attorney?" and keeps it alive',
         (tester) async {
       final repo = _StaleCaseRepo();
       final wrap = await onboardingWrapper(
@@ -430,11 +437,11 @@ void main() {
       await tester.pumpWidget(wrap(const OwnerCaseScreen(caseId: 'case-1')));
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('stale-prompt')), findsOneWidget);
-      // Owner 2026-10-07: one thin line with a short «Да».
+      // OQ-054: «Кейс ещё актуален?» with «Да, ещё нужен» among the answers.
       await tester.tap(
         find.descendant(
           of: find.byKey(const ValueKey('stale-prompt')),
-          matching: find.text('Yes'),
+          matching: find.text('Yes, still needed'),
         ),
       );
       await tester.pumpAndSettle();

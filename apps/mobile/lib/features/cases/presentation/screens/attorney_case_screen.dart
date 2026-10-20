@@ -21,6 +21,7 @@ import 'package:lawbid/features/cases/presentation/widgets/case_wizard_steps.dar
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
+import 'package:lawbid/features/profile/presentation/widgets/profile_tab_pages.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/subscription/application/subscription_providers.dart';
 import 'package:lawbid/features/subscription/domain/subscription_models.dart';
@@ -242,27 +243,34 @@ class _BodyState extends ConsumerState<_Body> {
     );
     final leaf = CaseFormat.practice(t, c.practice.i18nKey, c.practice.nameEn);
     final filesCount = c.dossier.documentsCount + c.dossier.imagesCount;
-    return ListView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
-      children: [
-        CaseHero(
-          t: t,
-          formats: formats,
-          practiceName: [category, if (leaf != category) leaf].join(' · '),
-          categoryCode: c.practice.artCode,
-          statusLabel: c.ownBidId != null
-              ? t.t('cases.hero.bidSent')
-              : caseStatusLabel(t, c.status),
-          statusTone: c.ownBidId != null ? StatusTone.info : caseTone(c.status),
-          title: c.title,
-          states: [c.primaryStateCode, ...c.additionalStateCodes],
-          budget: c.budget,
-          urgency: c.urgencyInfo,
-          stage: caseStageOf(c.status, c.bidsCount),
-          publishedAt: c.createdAt,
-        ),
-        CaseTextTabs(
+    // Owner 2026-10-19 (Instagram): the case header scrolls away, the tab
+    // row sticks, and Overview | Files are pages side by side — the next one
+    // slides in with the finger, a tap slides to it.
+    final scale = MediaQuery.textScalerOf(context).scale(1);
+    return ProfileTabPages(
+      initialPage: _tab,
+      onPage: (i) => setState(() => _tab = i),
+      tabBarHeight: 28 + 18 * scale,
+      pagePadding: (_) => const EdgeInsets.only(bottom: AppSpacing.xxl),
+      header: CaseHero(
+        t: t,
+        formats: formats,
+        practiceName: [category, if (leaf != category) leaf].join(' · '),
+        categoryCode: c.practice.artCode,
+        statusLabel: c.ownBidId != null
+            ? t.t('cases.hero.bidSent')
+            : caseStatusLabel(t, c.status),
+        statusTone: c.ownBidId != null ? StatusTone.info : caseTone(c.status),
+        title: c.title,
+        states: [c.primaryStateCode, ...c.additionalStateCodes],
+        budget: c.budget,
+        urgency: c.urgencyInfo,
+        stage: caseStageOf(c.status, c.bidsCount),
+        publishedAt: c.createdAt,
+      ),
+      tabBar: Builder(
+        builder: (context) => CaseTextTabs(
+          pages: ProfileTabPages.controllerOf(context),
           items: [
             CaseTabItem(t.t('cases.tab.overview')),
             CaseTabItem(
@@ -272,12 +280,35 @@ class _BodyState extends ConsumerState<_Body> {
             ),
           ],
           index: _tab,
-          onChanged: (i) => setState(() => _tab = i),
+          onChanged: (i) {
+            final pages = ProfileTabPages.controllerOf(context);
+            if (pages != null && pages.hasClients) {
+              pages.animateToPage(
+                i,
+                duration: context.reduceMotion
+                    ? Duration.zero
+                    : const Duration(milliseconds: 250),
+                curve: Curves.easeOutCubic,
+              );
+            } else {
+              setState(() => _tab = i);
+            }
+          },
         ),
-        if (_tab == 0)
-          ..._overview(context, c, t, formats)
-        else
-          ..._files(context, c, t),
+      ),
+      pages: [
+        for (final i in [0, 1])
+          ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: MediaQuery.sizeOf(context).height * 0.5,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: i == 0
+                  ? _overview(context, c, t, formats)
+                  : _files(context, c, t),
+            ),
+          ),
       ],
     );
   }
@@ -421,7 +452,7 @@ class _BodyState extends ConsumerState<_Body> {
       // OQ-034: questions and answers under the case.
       AppListRow(
         icon: AppIcons.modeCommentOutlined,
-        label: t.t('cases.comments.title'),
+        label: t.t('cases.comments.button'),
         trailingText: c.commentCount > 0
             ? SocialFormat.count(formats, c.commentCount)
             : null,
@@ -546,6 +577,7 @@ class _OwnBidCard extends ConsumerWidget {
                         formats,
                         value.feeType,
                         value.amountCents,
+                        percentBps: value.percentBps,
                       ),
                     ),
                   ),

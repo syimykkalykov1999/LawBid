@@ -13,6 +13,7 @@ class UpdateSupportMacroDto {
   const UpdateSupportMacroDto({
     this.title,
     this.body,
+    this.bodyRu,
     this.category,
     this.active,
   });
@@ -22,6 +23,9 @@ class UpdateSupportMacroDto {
 
   final String? title;
   final String? body;
+
+  /// null or empty removes the Russian text.
+  final String? bodyRu;
   final UpdateSupportMacroDtoCategory? category;
   final bool? active;
 

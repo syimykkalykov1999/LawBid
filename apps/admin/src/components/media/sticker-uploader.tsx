@@ -9,7 +9,7 @@ import { useToast } from '@/components/ui/toast';
 import { growthError } from '@/components/growth/errors';
 import { api } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
-import { sha256Hex, sleep } from './media-utils';
+import { fileMime, sha256Hex, sleep } from './media-utils';
 
 type Pack = components['schemas']['AdminStickerPackDto'];
 type Mime = components['schemas']['AdminStickerUploadDto']['mime'];
@@ -90,7 +90,7 @@ export function StickerUploader({ packId, onAdded }: { packId: string; onAdded: 
       setPhase('presign');
       const presigned = (
         await api.POST('/admin/media/sticker-uploads', {
-          body: { mime: file.type as Mime, sizeBytes: file.size, sha256 },
+          body: { mime: fileMime(file) as Mime, sizeBytes: file.size, sha256 },
         })
       ).data!.data;
 
@@ -136,7 +136,7 @@ export function StickerUploader({ packId, onAdded }: { packId: string; onAdded: 
     }
   }
 
-  const badType = file && !MIMES.includes(file.type as Mime);
+  const badType = file && !MIMES.includes(fileMime(file) as Mime);
 
   return (
     <div className="rounded-xl border border-dashed border-line-strong bg-surface-2/40 p-4">

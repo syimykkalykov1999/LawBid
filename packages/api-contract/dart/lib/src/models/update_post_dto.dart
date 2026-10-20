@@ -21,6 +21,8 @@ class UpdatePostDto {
   factory UpdatePostDto.fromJson(Map<String, Object?> json) =>
       _$UpdatePostDtoFromJson(json);
 
+  /// Owner 2026-10-18: '' clears the title (the post keeps its text,.
+  /// photos, video or files).
   final String? title;
   final String? practiceCode;
 

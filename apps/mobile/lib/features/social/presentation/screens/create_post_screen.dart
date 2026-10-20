@@ -12,13 +12,13 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/media/video_frames.dart';
 import 'package:lawbid/core/text/bidi.dart';
-import 'package:lawbid/core/text/tidy_text.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
     show showConfirmSheet;
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
 import 'package:lawbid/features/feed/application/news_flag.dart';
 import 'package:lawbid/features/onboarding/presentation/widgets/option_picker_sheet.dart';
 import 'package:lawbid/features/plans/presentation/plan_offer.dart';
+import 'package:lawbid/features/practice/practice_matches.dart';
 import 'package:lawbid/features/practice/practice_options.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/reels/application/reel_publish_job.dart';
@@ -28,10 +28,11 @@ import 'package:lawbid/features/reels/domain/reel_cut.dart';
 import 'package:lawbid/features/reels/presentation/reel_video.dart'
     show formatReelDuration;
 import 'package:lawbid/features/reels/presentation/video_editor_screen.dart';
-import 'package:lawbid/features/search/application/search_providers.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/data/social_repository.dart';
+import 'package:lawbid/features/social/domain/post_text.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
+import 'package:lawbid/features/social/presentation/screens/photo_crop_screen.dart';
 import 'package:lawbid/features/social/presentation/widgets/mention_suggestions.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_documents.dart';
@@ -42,9 +43,16 @@ import 'package:lawbid/features/team/domain/team_models.dart';
 /// One photo in the composer: uploaded right after it is picked, so
 /// "Опубликовать" only waits for what is still in flight.
 class _Photo {
-  _Photo(this.bytes);
+  _Photo(this.bytes, {Uint8List? original, this.framing = const PhotoFraming()})
+      : original = original ?? bytes;
 
+  /// What is uploaded: the photo cut to its frame.
   final Uint8List bytes;
+
+  /// The photo as picked, and how it sits in its frame (owner 2026-10-19:
+  /// a tap on the tile frames it again).
+  final Uint8List original;
+  final PhotoFraming framing;
   final key = UniqueKey();
   double progress = 0;
   String? fileId;
@@ -99,42 +107,31 @@ const bool _showLegalSwitch = false;
 const bool _showDisclaimer = false;
 
 class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
-  /// Owner 2026-10-07: one field, like Threads: the first line is the
-  /// post's title (bold in the feed), the rest its text.
-  late final _text = TextEditingController(
-    text: widget.editing == null
-        ? ''
-        : [
-            widget.editing!.title ?? splitPostBody(widget.editing!.body).$1,
-            if (widget.editing!.title != null)
-              widget.editing!.body
-            else
-              splitPostBody(widget.editing!.body).$2,
-          ].where((s) => s.trim().isNotEmpty).join('\n'),
-  );
+  /// Owner 2026-10-19: one caption field, as in Instagram, for clients and
+  /// attorneys alike (it replaces the «Заголовок» + «Описание» pair).
+  /// Published with an empty title, so the card shows the caption only.
+  /// Editing a post that has a title puts it on the caption's first line;
+  /// posts nobody edits keep their title as it is.
+  late final String _initial = switch (widget.editing) {
+    null => '',
+    final Post p when (p.title ?? '').trim().isNotEmpty =>
+      p.body.trim().isEmpty ? p.title!.trim() : '${p.title!.trim()}\n${p.body}',
+    final Post p => p.body,
+  };
+  late final _body = TextEditingController(text: _initial);
+  final _bodyFocus = FocusNode();
 
-  /// The typed text as (title, body): the first line, cut at a word to
-  /// [kPostTitleMaxChars]; what is cut off starts the body.
-  (String, String) get _parts {
-    final s = tidyText(_text.text).trim();
-    final nl = s.indexOf('\n');
-    var title = (nl < 0 ? s : s.substring(0, nl)).trim();
-    var body = nl < 0 ? '' : s.substring(nl + 1).trim();
-    if (title.length > kPostTitleMaxChars) {
-      var cut = title.lastIndexOf(' ', kPostTitleMaxChars);
-      if (cut <= 0) cut = kPostTitleMaxChars;
-      final rest = title.substring(cut).trim();
-      title = title.substring(0, cut).trim();
-      body = [rest, body].where((x) => x.isNotEmpty).join('\n');
-    }
-    return (title, body);
-  }
+  /// The typed (title, caption) as they are published: never a title.
+  (String, String) get _parts => ('', postBodyOf(_body.text));
 
   late final _photos = <_Photo>[
     for (var i = 0; i < widget.debugPhotoCount; i++)
       _Photo(Uint8List(0))..fileId = 'debug-$i',
   ];
   _VideoPick? _video;
+
+  /// The shape of the post's photos (original or square, Instagram).
+  PhotoFrame _frame = PhotoFrame.original;
 
   /// Owner 2026-10-05: PDF / Word / text readers download.
   late final _docs = PostDocumentsController(
@@ -174,7 +171,8 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
   @override
   void dispose() {
     _docs.dispose();
-    _text.dispose();
+    _body.dispose();
+    _bodyFocus.dispose();
     super.dispose();
   }
 
@@ -208,7 +206,8 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
         maxWidth: limits.maxPx,
         maxHeight: limits.maxPx,
         imageQuality: limits.quality,
-        limit: left,
+        // image_picker refuses a limit under 2.
+        limit: left > 1 ? left : null,
       );
       final video = picked.where(_isVideo).firstOrNull;
       if (video != null) {
@@ -234,15 +233,76 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
         maxWidth: limits.maxPx,
         maxHeight: limits.maxPx,
         imageQuality: limits.quality,
-        limit: left,
+        // image_picker refuses a limit under 2.
+        limit: left > 1 ? left : null,
       );
     }
-    for (final file in picked.take(left)) {
-      final photo = _Photo(await file.readAsBytes());
-      if (!mounted) return;
-      setState(() => _photos.add(photo));
-      // ignore: unawaited_futures
-      _upload(photo);
+    final added = <Uint8List>[
+      for (final file in picked.take(left)) await file.readAsBytes(),
+    ];
+    if (!mounted) return;
+    await _frameAndAdd(added);
+  }
+
+  /// Owner 2026-10-19: the picked photos go through the framing (each one
+  /// moved and zoomed by hand, «original / square» for the set) before
+  /// they are added; closing it adds nothing.
+  Future<void> _frameAndAdd(List<Uint8List> added) async {
+    if (added.isEmpty) return;
+    final before = _photos.length;
+    final result = await PhotoCropScreen.open(
+      context,
+      photos: [for (final p in _photos) p.original, ...added],
+      framings: [for (final p in _photos) p.framing],
+      frame: _frame,
+      fresh: {for (var i = before; i < before + added.length; i++) i},
+      start: before,
+    );
+    if (result == null || !mounted) return;
+    _applyFraming(result, [for (final p in _photos) p.original, ...added]);
+  }
+
+  /// A tap on a photo: frame the set again, starting with that photo.
+  Future<void> _reframe(int index) async {
+    if (_photos.any((p) => p.original.isEmpty)) return;
+    final originals = [for (final p in _photos) p.original];
+    final result = await PhotoCropScreen.open(
+      context,
+      photos: originals,
+      framings: [for (final p in _photos) p.framing],
+      frame: _frame,
+      fresh: const {},
+      start: index,
+    );
+    if (result == null || !mounted) return;
+    _applyFraming(result, originals);
+  }
+
+  void _applyFraming(FramedPhotos result, List<Uint8List> originals) {
+    final next = <_Photo>[];
+    final toUpload = <_Photo>[];
+    for (var i = 0; i < originals.length; i++) {
+      final cut = result.photos[i];
+      if (cut == null && i < _photos.length) {
+        next.add(_photos[i]);
+        continue;
+      }
+      final p = _Photo(
+        cut ?? originals[i],
+        original: originals[i],
+        framing: result.framings[i],
+      );
+      next.add(p);
+      toUpload.add(p);
+    }
+    setState(() {
+      _frame = result.frame;
+      _photos
+        ..clear()
+        ..addAll(next);
+    });
+    for (final p in toUpload) {
+      unawaited(_upload(p));
     }
   }
 
@@ -364,10 +424,9 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
       );
       if (x == null || !mounted) return;
       setState(() => _video = null);
-      final p = _Photo(await x.readAsBytes());
+      final bytes = await x.readAsBytes();
       if (!mounted) return;
-      setState(() => _photos.add(p));
-      unawaited(_upload(p));
+      await _frameAndAdd([bytes]);
     } else {
       final x = await picker.pickVideo(
         source: ImageSource.camera,
@@ -388,6 +447,9 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
     try {
       final id = await ref.read(socialActionsProvider).uploadPhoto(
         photo.bytes,
+        // Owner 2026-10-19: the admin's MB and photo formats of a post.
+        maxBytes: _limits.fileBytes,
+        allowedMimes: _limits.photoMimes,
         onProgress: (p) {
           if (mounted) setState(() => photo.progress = p);
         },
@@ -422,7 +484,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
   }
 
   /// Owner 2026-10-12: no photos or documents = a thread (5000 characters),
-  /// with files a post (2200); the counter under the field follows.
+  /// with files a post (2200); the counter inside the field follows.
   bool get _hasFiles =>
       _photos.isNotEmpty || _docs.items.isNotEmpty || _video != null;
 
@@ -438,9 +500,23 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
           .configInt('post.max_chars_media', kPostMaxChars)
       : _briefMax;
 
+  /// Photos, a video or files — on the form, or already on the edited post.
+  bool get _hasMedia =>
+      _hasFiles ||
+      (widget.editing != null &&
+          (widget.editing!.media.isNotEmpty ||
+              widget.editing!.video != null ||
+              widget.editing!.attachments.isNotEmpty));
+
+  /// Owner 2026-10-18: no text is needed with photos, a video or files; an
+  /// empty post stays grey.
   bool get _ready =>
-      _text.text.characters.length <= _maxChars &&
-      _parts.$1.isNotEmpty &&
+      _body.text.characters.length <= _maxChars &&
+      postHasContent(
+        title: _parts.$1,
+        body: _parts.$2,
+        hasMedia: _hasMedia,
+      ) &&
       _photos.every((p) => p.fileId != null) &&
       _docs.ready;
 
@@ -531,6 +607,8 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
       ref
         ..invalidate(attorneyPostsProvider(post.author.id))
         ..invalidate(attorneyNewsProvider(post.author.id))
+        ..invalidate(attorneyPhotoPostsProvider(post.author.id))
+        ..invalidate(attorneyReelsProvider(post.author.id))
         ..invalidate(publicAttorneyProfileProvider)
         ..invalidate(publicClientProfileProvider);
       // ignore: unawaited_futures
@@ -640,92 +718,80 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                         onCover: () => _editVideo(1),
                         onRemove: () => setState(() => _video = null),
                       )
-                    else if (video && _photos.isEmpty)
+                    else ...[
+                      // Owner 2026-10-18: the photos strip scrolls on its own;
+                      // Gallery / Camera sit in a fixed row below it.
+                      if (_photos.isNotEmpty) ...[
+                        SizedBox(
+                          key: const ValueKey('post-photo-strip'),
+                          height: 112,
+                          child: ReorderableListView(
+                            scrollDirection: Axis.horizontal,
+                            buildDefaultDragHandles: false,
+                            proxyDecorator: (child, _, __) => Material(
+                              color: Colors.transparent,
+                              child: child,
+                            ),
+                            // ignore: deprecated_member_use
+                            onReorder: (from, to) => setState(() {
+                              final p = _photos.removeAt(from);
+                              _photos.insert(to > from ? to - 1 : to, p);
+                            }),
+                            children: [
+                              for (var i = 0; i < _photos.length; i++)
+                                ReorderableDelayedDragStartListener(
+                                  key: _photos[i].key,
+                                  index: i,
+                                  child: _PhotoTile(
+                                    photo: _photos[i],
+                                    index: i,
+                                    removeLabel: t.t('post.create.removePhoto'),
+                                    retryLabel: t.t('error.retry'),
+                                    onRemove: () =>
+                                        setState(() => _photos.removeAt(i)),
+                                    onRetry: () => _upload(_photos[i]),
+                                    onTap: () => _reframe(i),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+                      ],
                       Row(
                         children: [
                           Expanded(
                             child: _SourceButton(
+                              key: const ValueKey('post-add-gallery'),
                               icon: AppIcons.photoLibraryOutlined,
                               label: t.t('post.src.gallery'),
-                              hint: t.t('post.src.galleryHint'),
+                              // Owner 2026-10-18: say what the gallery takes —
+                              // photos only while video posts are off.
+                              hint: t.t(
+                                _videoAllowed
+                                    ? 'post.src.galleryHintMax'
+                                    : 'post.src.galleryHintPhotos',
+                                {'max': '$_maxMedia'},
+                              ),
                               tint: AppColorsFixed.sourceGalleryBlue,
-                              onTap: _pick,
+                              onTap: _photos.length < _maxMedia ? _pick : null,
                             ),
                           ),
                           const SizedBox(width: AppSpacing.md),
                           Expanded(
                             child: _SourceButton(
+                              key: const ValueKey('post-add-camera'),
                               icon: AppIcons.photoCameraOutlined,
                               label: t.t('post.src.camera'),
                               hint: t.t('post.src.cameraHint'),
                               tint: AppColorsFixed.sourceCameraTeal,
-                              onTap: _camera,
+                              onTap:
+                                  _photos.length < _maxMedia ? _camera : null,
                             ),
                           ),
                         ],
-                      )
-                    else
-                      SizedBox(
-                        height: 112,
-                        child: ReorderableListView(
-                          scrollDirection: Axis.horizontal,
-                          buildDefaultDragHandles: false,
-                          proxyDecorator: (child, _, __) => Material(
-                            color: Colors.transparent,
-                            child: child,
-                          ),
-                          // ignore: deprecated_member_use
-                          onReorder: (from, to) => setState(() {
-                            final p = _photos.removeAt(from);
-                            _photos.insert(to > from ? to - 1 : to, p);
-                          }),
-                          // Owner 2026-10-16: the same Gallery / Camera cards
-                          // as the empty state, compact, until the post
-                          // holds its photos.
-                          footer: _photos.length < _maxMedia
-                              ? Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    _SourceButton(
-                                      key: const ValueKey('post-add-gallery'),
-                                      compact: true,
-                                      icon: AppIcons.photoLibraryOutlined,
-                                      label: t.t('post.src.gallery'),
-                                      hint: t.t('post.src.galleryHint'),
-                                      tint: AppColorsFixed.sourceGalleryBlue,
-                                      onTap: _pick,
-                                    ),
-                                    const SizedBox(width: AppSpacing.sm),
-                                    _SourceButton(
-                                      key: const ValueKey('post-add-camera'),
-                                      compact: true,
-                                      icon: AppIcons.photoCameraOutlined,
-                                      label: t.t('post.src.camera'),
-                                      hint: t.t('post.src.cameraHint'),
-                                      tint: AppColorsFixed.sourceCameraTeal,
-                                      onTap: _camera,
-                                    ),
-                                  ],
-                                )
-                              : null,
-                          children: [
-                            for (var i = 0; i < _photos.length; i++)
-                              ReorderableDelayedDragStartListener(
-                                key: _photos[i].key,
-                                index: i,
-                                child: _PhotoTile(
-                                  photo: _photos[i],
-                                  index: i,
-                                  removeLabel: t.t('post.create.removePhoto'),
-                                  retryLabel: t.t('error.retry'),
-                                  onRemove: () =>
-                                      setState(() => _photos.removeAt(i)),
-                                  onRetry: () => _upload(_photos[i]),
-                                ),
-                              ),
-                          ],
-                        ),
                       ),
+                    ],
                     const SizedBox(height: AppSpacing.xs),
                     if (_video != null || _photos.isNotEmpty || !video)
                       Text(
@@ -772,6 +838,12 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                     error: false,
                     onTap: _pickPractice,
                   ),
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(
+                    t.t('post.create.topicHint'),
+                    key: const ValueKey('post-topic-hint'),
+                    style: type.caption.copyWith(color: colors.textSecondary),
+                  ),
                   // Owner 2026-10-05: no topic = a general (personal) post
                   // unless the author says it is about law.
                   // Owner 2026-10-15: no "about law" switch on the form.
@@ -809,24 +881,27 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                     ),
                   ],
                   const SizedBox(height: AppSpacing.lg),
+                  // Owner 2026-10-19: one caption, as in Instagram.
                   PostTextField(
-                    controller: _text,
+                    controller: _body,
+                    fieldKey: const ValueKey('post-body-field'),
+                    focusNode: _bodyFocus,
                     maxChars: _maxChars,
                     limitHint: _hasFiles ? t.t('post.create.limitHint') : null,
-                    hint: _video != null || _hasFiles
-                        ? t.t('post.create.hintCaption')
-                        : t.t(
-                            'post.create.hintBrief',
-                            {'max': '$_briefMax'},
-                          ),
+                    hint: t.t('post.create.hintCaption'),
                   ),
-                  ValueListenableBuilder<TextEditingValue>(
-                    valueListenable: _text,
-                    builder: (context, _, __) => missing && _parts.$1.isEmpty
+                  ListenableBuilder(
+                    listenable: _body,
+                    builder: (context, _) => missing &&
+                            !postHasContent(
+                              title: _parts.$1,
+                              body: _parts.$2,
+                              hasMedia: _hasMedia,
+                            )
                         ? Padding(
                             padding: const EdgeInsets.only(top: AppSpacing.xs),
                             child: Text(
-                              t.t('post.create.required'),
+                              t.t('post.create.empty'),
                               style:
                                   type.caption.copyWith(color: colors.danger),
                             ),
@@ -834,7 +909,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                         : const SizedBox.shrink(),
                   ),
                   // OQ-042: "@…" suggests people to mention.
-                  MentionSuggestions(controller: _text),
+                  MentionSuggestions(controller: _body),
                   const SizedBox(height: AppSpacing.lg),
                   const SizedBox(height: AppSpacing.xl),
                   if (_showDisclaimer) const PostDisclaimer(),
@@ -843,9 +918,9 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
             ),
             Padding(
               padding: const EdgeInsets.all(AppSpacing.screenSide),
-              child: ValueListenableBuilder<TextEditingValue>(
-                valueListenable: _text,
-                builder: (context, _, __) => AppButton(
+              child: ListenableBuilder(
+                listenable: _body,
+                builder: (context, _) => AppButton(
                   label: t.t(
                     _editing
                         ? 'common.save'
@@ -860,7 +935,8 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                   ),
                   icon: _editing ? AppIcons.checkRounded : AppIcons.sendRounded,
                   isLoading: _publishing,
-                  // Grey until there is text and the photos are uploaded.
+                  // Grey until there is a title, a text, photos, a video or
+                  // files, and the photos are uploaded.
                   isEnabled: !_publishing && _ready,
                   onPressed: _publish,
                 ),
@@ -1043,6 +1119,7 @@ class _PhotoTile extends StatelessWidget {
     required this.retryLabel,
     required this.onRemove,
     required this.onRetry,
+    required this.onTap,
   });
 
   final _Photo photo;
@@ -1052,88 +1129,96 @@ class _PhotoTile extends StatelessWidget {
   final VoidCallback onRemove;
   final VoidCallback onRetry;
 
+  /// Frames the photo again.
+  final VoidCallback onTap;
+
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    return Container(
-      width: 104,
-      margin: const EdgeInsetsDirectional.only(end: AppSpacing.sm),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(AppRadii.card),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            Image.memory(
-              photo.bytes,
-              fit: BoxFit.cover,
-              cacheWidth: 312,
-              // A format this browser cannot draw (HEIC outside Safari): the
-              // file is still uploaded and converted on the server.
-              errorBuilder: (_, __, ___) => ColoredBox(
-                color: colors.surface,
-                child: Center(
-                  child: AppIcon(
-                    AppIcons.photoLibraryOutlined,
-                    color: colors.textSecondary,
-                  ),
-                ),
-              ),
-            ),
-            if (photo.uploading)
-              ColoredBox(
-                color: colors.navy.withValues(alpha: 0.45),
-                child: Center(
-                  child: SizedBox.square(
-                    dimension: 36,
-                    child: CircularProgressIndicator(
-                      value: photo.progress > 0 ? photo.progress : null,
-                      strokeWidth: 3,
-                      color: colors.gold,
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 104,
+        margin: const EdgeInsetsDirectional.only(end: AppSpacing.sm),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(AppRadii.card),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Image.memory(
+                photo.bytes,
+                fit: BoxFit.cover,
+                cacheWidth: 312,
+                // A format this browser cannot draw (HEIC outside Safari): the
+                // file is still uploaded and converted on the server.
+                errorBuilder: (_, __, ___) => ColoredBox(
+                  color: colors.surface,
+                  child: Center(
+                    child: AppIcon(
+                      AppIcons.photoLibraryOutlined,
+                      color: colors.textSecondary,
                     ),
                   ),
                 ),
               ),
-            if (photo.error != null)
-              ColoredBox(
-                color: colors.navy.withValues(alpha: 0.6),
-                child: Center(
-                  child: AppIconButton(
-                    icon: const AppIcon(
-                      AppIcons.refreshRounded,
-                      color: Colors.white,
+              if (photo.uploading)
+                ColoredBox(
+                  color: colors.navy.withValues(alpha: 0.45),
+                  child: Center(
+                    child: SizedBox.square(
+                      dimension: 36,
+                      child: CircularProgressIndicator(
+                        value: photo.progress > 0 ? photo.progress : null,
+                        strokeWidth: 3,
+                        color: colors.gold,
+                      ),
                     ),
-                    semanticLabel: retryLabel,
-                    onPressed: onRetry,
+                  ),
+                ),
+              if (photo.error != null)
+                ColoredBox(
+                  color: colors.navy.withValues(alpha: 0.6),
+                  child: Center(
+                    child: AppIconButton(
+                      icon: const AppIcon(
+                        AppIcons.refreshRounded,
+                        color: Colors.white,
+                      ),
+                      semanticLabel: retryLabel,
+                      onPressed: onRetry,
+                    ),
+                  ),
+                ),
+              Positioned(
+                left: 6,
+                top: 6,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  decoration: BoxDecoration(
+                    color: colors.navy.withValues(alpha: 0.7),
+                    borderRadius: BorderRadius.circular(AppRadii.pill),
+                  ),
+                  child: Text(
+                    context.digits(index + 1),
+                    style: type.caption.copyWith(color: Colors.white),
                   ),
                 ),
               ),
-            Positioned(
-              left: 6,
-              top: 6,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6),
-                decoration: BoxDecoration(
-                  color: colors.navy.withValues(alpha: 0.7),
-                  borderRadius: BorderRadius.circular(AppRadii.pill),
-                ),
-                child: Text(
-                  context.digits(index + 1),
-                  style: type.caption.copyWith(color: Colors.white),
+              Positioned(
+                right: 0,
+                top: 0,
+                child: AppIconButton(
+                  icon: const AppIcon(
+                    AppIcons.cancelRounded,
+                    color: Colors.white,
+                  ),
+                  semanticLabel: removeLabel,
+                  onPressed: onRemove,
                 ),
               ),
-            ),
-            Positioned(
-              right: 0,
-              top: 0,
-              child: AppIconButton(
-                icon:
-                    const AppIcon(AppIcons.cancelRounded, color: Colors.white),
-                semanticLabel: removeLabel,
-                onPressed: onRemove,
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -1151,83 +1236,71 @@ class _SourceButton extends StatelessWidget {
     required this.tint,
     required this.onTap,
     super.key,
-    this.compact = false,
   });
 
   final IconData icon;
   final String label;
   final String hint;
   final Color tint;
-  final VoidCallback onTap;
 
-  /// Next to the thumbnails: the same card, narrower, without the hint.
-  final bool compact;
+  /// Null = disabled (the post already holds the maximum).
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    // On a light theme the same hue is darkened to stay readable.
     final dark = Theme.of(context).brightness == Brightness.dark;
-    final base = practiceCardBase(colors);
-    final tile = Color.alphaBlend(tint.withValues(alpha: 0.16), base);
-    // The icon keeps >= 3:1 against its soft square in every theme.
+    // The icon keeps >= 3:1 against the chip in every theme.
     final accent = readableOn(
       dark ? tint : Color.lerp(tint, Colors.black, 0.45)!,
-      tile,
+      colors.chip,
       min: 3,
     );
+    final enabled = onTap != null;
     return Semantics(
       button: true,
+      enabled: enabled,
       label: '$label. $hint',
       excludeSemantics: true,
-      child: AppPressable(
-        onTap: onTap,
-        child: Container(
-          height: compact ? 112 : 100,
-          width: compact ? 96 : null,
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Color.alphaBlend(
-                  accent.withValues(alpha: 0.12),
-                  colors.surface,
-                ),
-                colors.surface,
-              ],
+      child: Opacity(
+        opacity: enabled ? 1 : 0.4,
+        child: AppPressable(
+          onTap: onTap,
+          child: Container(
+            height: 100,
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+            decoration: BoxDecoration(
+              color: colors.chip,
+              borderRadius: BorderRadius.circular(AppRadii.roleCard),
+              border: Border.all(color: colors.border),
             ),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: accent.withValues(alpha: 0.22)),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: accent.withValues(alpha: 0.16),
-                  borderRadius: BorderRadius.circular(14),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: AppIcon(icon, color: accent, size: 24),
                 ),
-                child: AppIcon(icon, color: accent, size: 24),
-              ),
-              const SizedBox(height: 6),
-              FitText(
-                label,
-                style: type.body.copyWith(
-                  color: colors.text,
-                  fontWeight: FontWeight.w600,
+                const SizedBox(height: 6),
+                FitText(
+                  label,
+                  style: type.body.copyWith(
+                    color: colors.text,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-              ),
-              if (!compact)
                 FitText(
                   hint,
                   style: type.caption.copyWith(color: colors.textSecondary),
                 ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

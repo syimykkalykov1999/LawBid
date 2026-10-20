@@ -366,6 +366,8 @@ export class AdminCaseInviteDto {
 
 export class AdminCaseCardDto extends AdminCaseRowDto {
   @ApiProperty() description!: string;
+  @ApiProperty({ type: String, nullable: true })
+  privateDetails!: string | null;
   @ApiProperty({ type: String, nullable: true }) city!: string | null;
   @ApiProperty({ enum: ['amount', 'clarify_later'] }) budgetMode!: string;
   @ApiProperty({ type: 'integer', nullable: true }) budgetCents!: number | null;

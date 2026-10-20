@@ -114,7 +114,7 @@ export default function UsersPage() {
     <>
       <PageHeader eyebrow="Люди" title="Пользователи" subtitle="Поиск по имени, email, телефону, @username или id." />
       <div className="mb-4 flex flex-wrap items-end gap-3 rounded-[var(--radius-lg)] border border-line bg-surface p-4 shadow-card">
-        <div className="min-w-72 flex-1 space-y-1">
+        <div className="min-w-0 flex-1 space-y-1 sm:min-w-72">
           <Label htmlFor="q">Поиск</Label>
           <div className="relative">
             <MagnifyingGlass size={16} weight="light" className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-faint" />

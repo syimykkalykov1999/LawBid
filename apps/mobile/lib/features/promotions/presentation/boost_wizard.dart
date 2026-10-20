@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -26,7 +27,8 @@ import 'package:url_launcher/url_launcher.dart';
 const kBoostSteps = 5;
 
 /// The CTA types, in the order of the mockup.
-const kBoostCtaTypes = ['more', 'message', 'profile', 'download', 'call'];
+/// Owner 2026-10-19: no «Скачать» (a file link can carry a virus).
+const kBoostCtaTypes = ['more', 'message', 'profile', 'call'];
 
 final _phoneRe = RegExp(r'^\+[1-9]\d{6,14}$');
 
@@ -49,12 +51,18 @@ class PromoteSheet extends ConsumerStatefulWidget {
     required this.id,
     required this.state,
     this.extend = false,
+    this.resume,
     super.key,
   });
 
   final PromotionTarget target;
   final String id;
   final CasePromotionState state;
+
+  /// Owner 2026-10-19: «Завершить оплату» on an unpaid promotion — its
+  /// settings are kept, the sheet opens on the payment step and goes to the
+  /// payment at once (no new start from step 1).
+  final CasePromotion? resume;
 
   /// Owner 2026-10-15: add days to a running boost; they start when it ends.
   final bool extend;
@@ -65,6 +73,7 @@ class PromoteSheet extends ConsumerStatefulWidget {
     required String id,
     required CasePromotionState state,
     bool extend = false,
+    CasePromotion? resume,
   }) =>
       showAppBottomSheet<void>(
         context: context,
@@ -74,6 +83,7 @@ class PromoteSheet extends ConsumerStatefulWidget {
           id: id,
           state: state,
           extend: extend,
+          resume: resume,
         ),
       );
 
@@ -109,7 +119,32 @@ class _PromoteSheetState extends ConsumerState<PromoteSheet> {
   @override
   void initState() {
     super.initState();
+    final r = widget.resume;
+    if (r != null) {
+      _days = r.days.clamp(1, _quote.maxDays);
+      if (r.priceCentsPerDay > 0) {
+        _budget = r.priceCentsPerDay
+            .clamp(_quote.minDailyBudgetCents, _quote.maxDailyBudgetCents);
+      }
+      _goal = r.goal ?? _goal;
+      // A retired button («Download») is left out.
+      if (_isPost && r.ctaType != null && kBoostCtaTypes.contains(r.ctaType)) {
+        _cta = r.ctaType;
+        if (_cta == 'call') {
+          _phone.text = r.ctaValue ?? '';
+        } else {
+          _link.text = r.ctaValue ?? '';
+        }
+      }
+      _step = kBoostSteps - 1;
+    }
     _requote();
+    if (r != null) {
+      // Straight to the payment once the price is fresh.
+      Future<void>.delayed(const Duration(milliseconds: 400), () {
+        if (mounted && !_busy) _buy();
+      });
+    }
   }
 
   @override
@@ -158,7 +193,8 @@ class _PromoteSheetState extends ConsumerState<PromoteSheet> {
       multi: true,
       initial: _audience.states.toSet(),
       options: [
-        for (final s in kRegions) PickerOption(value: s.code, label: s.name),
+        for (final s in kRegions)
+          PickerOption(value: s.code, label: s.name, keywords: s.aliases),
       ],
     );
     if (picked != null && mounted) {
@@ -175,6 +211,7 @@ class _PromoteSheetState extends ConsumerState<PromoteSheet> {
       initial: _audience.topics.toSet(),
       // The server matches by category (a viewer's practice areas).
       options: practiceOptions(ref).where((o) => !o.nested).toList(),
+      remoteSearch: practiceRemoteSearch(ref),
     );
     if (picked != null && mounted) {
       setState(() => _audience = _audience.copyWith(topics: picked.toList()));
@@ -237,13 +274,29 @@ class _PromoteSheetState extends ConsumerState<PromoteSheet> {
         ..invalidate(promotionStateProvider(widget.target, widget.id))
         ..invalidate(myPromotionsProvider);
       final url = r.checkoutUrl;
-      Navigator.of(context).pop();
       if (url != null) {
+        // Owner 2026-10-19: the payment page opens, or the sheet says why
+        // not — never nothing.
         final uri = Uri.tryParse(url);
-        if (uri != null && uri.scheme == 'https') {
-          await launchUrl(uri, mode: LaunchMode.externalApplication);
+        final opened = uri != null &&
+            uri.scheme == 'https' &&
+            await launchUrl(
+              uri,
+              mode: kIsWeb
+                  ? LaunchMode.platformDefault
+                  : LaunchMode.externalApplication,
+            );
+        if (!mounted) return;
+        if (!opened) {
+          setState(() => _busy = false);
+          showAppSnackBar(
+            context,
+            t.t('error.api.PAYMENTS_NOT_CONFIGURED'),
+          );
+          return;
         }
       }
+      Navigator.of(context).pop();
     } on Object catch (e) {
       if (!mounted) return;
       setState(() => _busy = false);

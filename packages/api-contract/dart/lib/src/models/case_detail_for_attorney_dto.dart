@@ -13,45 +13,48 @@ import 'case_practice_area_dto.dart';
 import 'case_status.dart';
 import 'case_urgency.dart';
 import 'case_urgency_level.dart';
+import 'client_activity_dto.dart';
 
 part 'case_detail_for_attorney_dto.g.dart';
 
 @JsonSerializable()
 class CaseDetailForAttorneyDto {
   const CaseDetailForAttorneyDto({
-    required this.createdAt,
+    required this.isNew,
     required this.title,
     required this.excerpt,
     required this.practiceArea,
     required this.extraPracticeCount,
     required this.primaryStateCode,
     required this.additionalStateCodes,
-    required this.inMyLicensedStates,
     required this.status,
     required this.budget,
-    required this.inMyPractice,
     required this.id,
-    required this.photosCount,
-    required this.photos,
-    required this.description,
     required this.viewCount,
     required this.bidsCount,
-    required this.promoted,
-    required this.isNew,
+    required this.createdAt,
     required this.hasOwnBid,
     required this.commentCount,
     required this.shareCount,
     required this.isSaved,
+    required this.promoted,
     required this.bidAllowed,
-    required this.dossier,
     required this.priorityClient,
+    required this.dossier,
+    required this.inMyPractice,
+    required this.privateDetails,
+    required this.inMyLicensedStates,
     required this.acceptedBidIsMine,
-    this.deadlineKind,
+    required this.photosCount,
+    required this.description,
+    required this.photos,
+    this.clientActivity,
     this.ownBidId,
-    this.urgency,
-    this.completionRequestedBy,
-    this.deadlineAt,
     this.urgencyLevel,
+    this.completionRequestedBy,
+    this.deadlineKind,
+    this.deadlineAt,
+    this.urgency,
     this.coverKey,
     this.city,
     this.promotedUntil,
@@ -119,6 +122,9 @@ class CaseDetailForAttorneyDto {
   /// Owner 2026-10-05: the client's plan puts the case first in the feed (shown on top of the first page).
   final bool priorityClient;
 
+  /// Owner 2026-10-18 (OQ-054): the client's activity line.
+  final ClientActivityDto? clientActivity;
+
   /// Owner 2026-10-05: how complete the case is (counts only).
   final CaseDossierDto dossier;
   final String description;
@@ -137,6 +143,9 @@ class CaseDetailForAttorneyDto {
 
   /// OQ-031: how many photos the case has (shown to every attorney).
   final num photosCount;
+
+  /// Owner 2026-10-18: private details — only when THIS attorney's bid was accepted (null otherwise; the length is in dossier).
+  final String? privateDetails;
 
   /// Owner 2026-09-30: the case's practice is one of this attorney's —.
   /// otherwise "Bid" warns that the client will be told.

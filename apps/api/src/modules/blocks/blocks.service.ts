@@ -1,18 +1,22 @@
 import {
   ForbiddenException,
+  Inject,
   Injectable,
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
+import type Redis from 'ioredis';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
+import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import {
   CounterAggregator,
   profileEntity,
 } from '../counters/counter-aggregator.service';
 import { FilesService } from '../files/files.service';
+import { cachedBlockSet, dropBlockSets } from './block-set.cache';
 import type { BlockedUserDto } from './blocks.dto';
 
 type Db = PrismaService | Prisma.TransactionClient;
@@ -32,6 +36,7 @@ export class BlocksService {
     private readonly prisma: PrismaService,
     private readonly files: FilesService,
     private readonly counters: CounterAggregator,
+    @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {}
 
   async block(userId: string, targetId: string): Promise<void> {
@@ -75,6 +80,8 @@ export class BlocksService {
       await tx.follow.deleteMany({ where: between });
       return rows;
     });
+    // Owner 2026-10-18 (speed): both users' cached block sets are stale now.
+    await dropBlockSets(this.redis, userId, targetId);
     // Audit 2026-10-01: the removed follows leave both profiles' counters
     // (followers / following) — as an unfollow does.
     for (const f of removed) {
@@ -97,6 +104,7 @@ export class BlocksService {
     await this.prisma.userBlock.deleteMany({
       where: { blocker_id: userId, blocked_id: targetId },
     });
+    await dropBlockSets(this.redis, userId, targetId);
   }
 
   /** `{ isBlocked, hasBlockedMe }` between a viewer and a target. */
@@ -134,16 +142,7 @@ export class BlocksService {
   /** Every user id the viewer must not see / be seen by (both directions),
    * for filtering lists. Bounded by the viewer's own block activity. */
   async hiddenIds(viewerId: string): Promise<Set<string>> {
-    const rows = await this.prisma.userBlock.findMany({
-      where: { OR: [{ blocker_id: viewerId }, { blocked_id: viewerId }] },
-      select: { blocker_id: true, blocked_id: true },
-      take: 5000,
-    });
-    const out = new Set<string>();
-    for (const r of rows) {
-      out.add(r.blocker_id === viewerId ? r.blocked_id : r.blocker_id);
-    }
-    return out;
+    return new Set(await cachedBlockSet(this.prisma, this.redis, viewerId));
   }
 
   /** 403 USER_BLOCKED when the two users may not interact. */

@@ -11,11 +11,15 @@ describe('upload limits', () => {
   it('defaults are what the app allowed before', () => {
     const d = sanitizeUploadLimits(undefined);
     expect(d.post).toMatchObject({ maxPhotos: 9, maxFiles: 9, fileMb: 10 });
-    expect(d.case.maxFiles).toBe(9);
+    // Owner 2026-10-19: 9 photos and 3 documents, counted separately.
+    expect(d.case.maxPhotos).toBe(9);
+    expect(d.case.maxFiles).toBe(3);
     expect(d.task.maxFiles).toBe(10);
     expect(d.review.maxPhotos).toBe(10);
     expect(d.avatar.fileMb).toBe(5);
-    expect(d.chat.fileMb).toBe(25);
+    // Owner 2026-10-17: 50 MB for chat videos.
+    expect(d.chat.fileMb).toBe(50);
+    expect(d.chat.formats).toEqual(expect.arrayContaining(['mp4', 'mov']));
     expect(d.verification.maxFiles).toBe(3);
     expect(d.client_badge.maxFiles).toBe(5);
   });
@@ -54,5 +58,17 @@ describe('upload limits', () => {
     );
     expect(() => assertUploadCount(l, 'post', 'photos', 3, 4)).not.toThrow();
     expect(() => assertUploadCount(l, 'chat', 'files', 50)).not.toThrow();
+  });
+});
+
+describe('case limits saved while counted together (owner 2026-10-19)', () => {
+  it('read as the split defaults, formats and MB kept', () => {
+    const l = sanitizeUploadLimits({
+      case: { maxFiles: 9, fileMb: 20, formats: ['jpeg', 'pdf'] },
+    });
+    expect(l.case.maxPhotos).toBe(9);
+    expect(l.case.maxFiles).toBe(3);
+    expect(l.case.fileMb).toBe(20);
+    expect(l.case.formats).toEqual(['jpeg', 'pdf']);
   });
 });

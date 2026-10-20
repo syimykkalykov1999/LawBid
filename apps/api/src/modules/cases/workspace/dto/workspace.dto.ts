@@ -295,6 +295,12 @@ export class CaseTasksDto {
     description: 'Attorney only; empty for the client.',
   })
   private!: CaseTaskDto[];
+  @ApiProperty({
+    description:
+      'Audit 2026-10-19: false once the case is closed, or for an assistant ' +
+      'without the "tasks" duty — the tasks are then read-only.',
+  })
+  canEdit!: boolean;
 }
 
 /// Owner 2026-10-15: one case task on the «Tasks» board (Mine), with its
@@ -364,6 +370,12 @@ export class CaseWorkspaceDto {
       "The other side's updates since this side last opened Updates.",
   })
   newUpdates!: number;
+  @ApiProperty({
+    description:
+      'Audit 2026-10-19: false once the case is closed — the workspace is ' +
+      'then read-only (no new updates, files or tasks).',
+  })
+  canWrite!: boolean;
 }
 
 export class CaseActivityDto {

@@ -71,6 +71,13 @@ export class BidOfferDto {
   @ApiProperty({ type: 'integer' })
   amountCents!: number;
 
+  @ApiPropertyOptional({
+    type: 'integer',
+    nullable: true,
+    description: 'Owner 2026-10-17: contingency → basis points (3300 = 33 %).',
+  })
+  percentBps!: number | null;
+
   @ApiProperty({ type: String, nullable: true })
   message!: string | null;
 
@@ -103,6 +110,13 @@ export class BidDto {
 
   @ApiProperty({ type: 'integer' })
   amountCents!: number;
+
+  @ApiPropertyOptional({
+    type: 'integer',
+    nullable: true,
+    description: 'Owner 2026-10-17: contingency → basis points (3300 = 33 %).',
+  })
+  percentBps!: number | null;
 
   @ApiProperty()
   message!: string;

@@ -750,6 +750,7 @@ export class CasePaymentsService {
         cancelUrl: `${base}/payment/cancel?payment_id=${row.id}&case_id=${caseId}`,
         idempotencyKey: `case-payment:${row.id}`,
       });
+      if (!session.url) throw notConfigured();
     } catch (e) {
       await this.prisma.casePayment.updateMany({
         where: { id: row.id, status: 'pending_payment' },

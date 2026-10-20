@@ -11,9 +11,11 @@ SupportMacroDto _$SupportMacroDtoFromJson(Map<String, dynamic> json) =>
       id: json['id'] as String,
       title: json['title'] as String,
       body: json['body'] as String,
+      text: json['text'] as String,
       active: json['active'] as bool,
       uses: json['uses'] as num,
       updatedAt: DateTime.parse(json['updatedAt'] as String),
+      bodyRu: json['bodyRu'] as String?,
       category: json['category'] == null
           ? null
           : SupportMacroDtoCategory.fromJson(json['category'] as String),
@@ -24,6 +26,8 @@ Map<String, dynamic> _$SupportMacroDtoToJson(SupportMacroDto instance) =>
       'id': instance.id,
       'title': instance.title,
       'body': instance.body,
+      'bodyRu': ?instance.bodyRu,
+      'text': instance.text,
       'category': ?instance.category?.toJson(),
       'active': instance.active,
       'uses': instance.uses,

@@ -17,6 +17,7 @@ import '../models/read_notifications_dto.dart';
 import '../models/read_notifications_result_envelope.dart';
 import '../models/update_new_case_alerts_dto.dart';
 import '../models/update_notification_settings_dto.dart';
+import '../models/voip_token_dto.dart';
 
 part 'notifications_client.g.dart';
 
@@ -30,10 +31,13 @@ abstract class NotificationsClient {
   /// [cursor] - meta.nextCursor of the previous page.
   ///
   /// [group] - important: bids, cases, payments, account; other: likes, follows, comments, logins. Omit for all.
+  ///
+  /// [q] - Words from the stored text (a broadcast's title/body, a moderator's reason) or the name of the attorney in the notification, in any alphabet. Combines with `group`.
   @GET('/notifications')
   Future<NotificationListEnvelope> listNotifications({
     @Query('cursor') String? cursor,
     @Query('group') NotificationGroup? group,
+    @Query('q') String? q,
     @Extras() Map<String, dynamic>? extras,
   });
 
@@ -91,6 +95,20 @@ abstract class NotificationsClient {
   /// Unregister a device (sign-out) (§9.5)
   @DELETE('/push-tokens')
   Future<void> deletePushToken({
+    @Body() required DeletePushTokenDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Register this iPhone for call (VoIP) pushes
+  @POST('/push-tokens/voip')
+  Future<void> registerVoipToken({
+    @Body() required VoipTokenDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Stop call (VoIP) pushes to this iPhone
+  @DELETE('/push-tokens/voip')
+  Future<void> deleteVoipToken({
     @Body() required DeletePushTokenDto body,
     @Extras() Map<String, dynamic>? extras,
   });

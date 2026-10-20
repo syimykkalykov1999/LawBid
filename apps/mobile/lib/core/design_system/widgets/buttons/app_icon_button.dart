@@ -23,6 +23,7 @@ class AppIconButton extends StatefulWidget {
     this.onTapDown,
     this.isLoading = false,
     this.plain = true,
+    this.compact = false,
   });
 
   final Widget icon;
@@ -35,6 +36,12 @@ class AppIconButton extends StatefulWidget {
   /// no border) — the default. The pre-app welcome screen passes `false`
   /// to keep its framed squares (docs/07 §4, owner: pre-app unchanged).
   final bool plain;
+
+  /// Owner 2026-10-19: icons standing side by side in a row (the Cases
+  /// screen's «i», search and bookmark): a 34 px slot instead of 44, so a
+  /// small gap stays between them and the chips beside get the room. The
+  /// touch area stays 48 x 48 (it reaches a little over the neighbour).
+  final bool compact;
 
   @override
   State<AppIconButton> createState() => _AppIconButtonState();
@@ -73,7 +80,9 @@ class _AppIconButtonState extends State<AppIconButton> {
             duration: AppMotion.pressScale,
             child: Container(
               constraints: BoxConstraints(
-                minWidth: widget.plain ? 44 : 38,
+                minWidth: widget.compact
+                    ? _compactWidth
+                    : (widget.plain ? 44 : 38),
                 minHeight: widget.plain ? 44 : 38,
               ),
               decoration: widget.plain
@@ -104,3 +113,5 @@ class _AppIconButtonState extends State<AppIconButton> {
     );
   }
 }
+
+const double _compactWidth = 34;

@@ -80,6 +80,7 @@ class _NewCaseAlertsSectionState extends ConsumerState<NewCaseAlertsSection> {
       },
       multi: true,
       searchHint: t.t('notif.newCases.search'),
+      remoteSearch: practiceRemoteSearch(ref),
     );
     if (picked == null || !mounted) return;
     final ids = [

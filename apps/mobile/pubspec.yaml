@@ -62,6 +62,9 @@ dependencies:
   # dependency needed, drift_flutter pulls those in itself.
   drift: ^2.23.0
   drift_flutter: ^0.3.1
+  # The web build's in-tab fallback database (core/persistence/
+  # drift_memory_web.dart); the same version drift already uses.
+  sqlite3: ^3.5.2
 
   # CLDR plural rules + date/number/currency formatting per interface
   # language (file 01 §9.2/§9.4 — core/l10n/plural_rules.dart,
@@ -120,6 +123,12 @@ dependencies:
   device_info_plus: ^12.4.0
 dev_dependencies:
   flutter_test:
+    sdk: flutter
+  # 2026-10-18 (speed): on-device scroll measurements —
+  # integration_test/scroll_perf_test.dart + test_driver/perf_driver.dart.
+  integration_test:
+    sdk: flutter
+  flutter_driver:
     sdk: flutter
   riverpod_generator: ^4.0.9
   build_runner: ^2.16.1

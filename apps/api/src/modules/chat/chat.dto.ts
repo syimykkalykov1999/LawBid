@@ -100,6 +100,20 @@ export class ConversationsQueryDto {
   @IsOptional()
   @IsIn(CONVERSATION_FOLDERS)
   folder?: ConversationFolderName;
+
+  @ApiPropertyOptional({
+    maxLength: 100,
+    description:
+      "Owner 2026-10-18: search my chats — the other person's name (any alphabet, typos, word order) or @username, the case title, or the words of any message. Items then carry matchedMessage.",
+  })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
+  q?: string;
 }
 
 /** Owner 2026-10-01: my own organisation of a chat. */
@@ -425,6 +439,13 @@ export class ConversationCounterpartDto {
   @ApiPropertyOptional({ type: String, nullable: true })
   avatarUrl!: string | null;
 
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description: 'Owner 2026-10-18: the full-size photo (full-screen view).',
+  })
+  avatarFullUrl!: string | null;
+
   @ApiProperty()
   verifiedBadge!: boolean;
 
@@ -493,6 +514,14 @@ export class ConversationDto {
 
   @ApiProperty({ description: 'true = the folder is chosen automatically.' })
   folderAuto!: boolean;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description:
+      'Owner 2026-10-18: only with GET /chats?q=… — a ~80-char snippet around the first message hit; null when the name / @username / case title matched.',
+  })
+  matchedMessage?: string | null;
 
   @ApiPropertyOptional({ type: Date, nullable: true })
   waitingSince!: Date | null;

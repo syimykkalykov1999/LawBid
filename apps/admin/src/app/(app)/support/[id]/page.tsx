@@ -12,6 +12,7 @@ import { MessageBubble } from '@/components/support/message-bubble';
 import {
   canWriteSupport, CategoryBadge, PRIORITIES, PriorityBadge, SlaBadge, STATUSES, type TicketPriority, type TicketStatus,
 } from '@/components/support/support-labels';
+import { DeviceCard } from '@/components/support/device-card';
 import { UserSummaryCard } from '@/components/support/user-summary-card';
 import { Button } from '@/components/ui/button';
 import { Badge, Card } from '@/components/ui/card';
@@ -44,10 +45,13 @@ export default function SupportTicketPage() {
     queryFn: async () => (await api.GET('/admin/support/tickets/{id}', { params: { path: { id } } })).data!.data,
     refetchInterval: livePoll(),
   });
+  // Ready answers come in the ticket user's language (ru body, else English).
+  const userLanguage = tq.data?.userSummary.uiLanguage;
   const macros = useQuery({
-    queryKey: ['support-macros', 'active'],
-    queryFn: async () => (await api.GET('/admin/support/macros')).data!.data,
-    enabled: canWrite,
+    queryKey: ['support-macros', 'active', userLanguage ?? ''],
+    queryFn: async () =>
+      (await api.GET('/admin/support/macros', { params: { query: { language: userLanguage } } })).data!.data,
+    enabled: canWrite && !!userLanguage,
     staleTime: 60_000,
   });
   const admins = useQuery({
@@ -67,7 +71,13 @@ export default function SupportTicketPage() {
     mutationFn: async (v: ComposerSubmit) => {
       const r = await api.POST('/admin/support/tickets/{id}/messages', {
         params: { path: { id } },
-        body: { body: v.body, internal: v.internal, status: v.status, macroId: v.macroId },
+        body: {
+          body: v.body,
+          internal: v.internal,
+          status: v.status,
+          macroId: v.macroId,
+          attachments: v.attachments.length > 0 ? v.attachments : undefined,
+        },
       });
       return r.data!.data;
     },
@@ -222,6 +232,7 @@ export default function SupportTicketPage() {
         {/* Side column */}
         <div className="space-y-4">
           <UserSummaryCard u={t.userSummary} canOpenUser={!!me && canOpen(me, '/users')} />
+          {t.clientContext ? <DeviceCard c={t.clientContext} /> : null}
           <Card className="p-5">
             <h2 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-faint">Обращение</h2>
             <div className="space-y-3.5">

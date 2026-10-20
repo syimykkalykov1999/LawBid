@@ -1,10 +1,11 @@
 import 'package:flutter/widgets.dart';
+
 import 'package:go_router/go_router.dart';
 
 import 'package:lawbid/core/navigation/app_page_transitions.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/features/team/presentation/assistant_join_screen.dart';
-import 'package:lawbid/features/team/presentation/task_editor_screen.dart';
+import 'package:lawbid/features/team/presentation/planner_task_sheet.dart';
 import 'package:lawbid/features/team/presentation/tasks_tab.dart';
 import 'package:lawbid/features/team/presentation/team_screen.dart';
 
@@ -61,17 +62,13 @@ List<RouteBase> teamRoutes(GlobalKey<NavigatorState> root) => [
           final caseId = q['caseId'];
           final chatId = q['chatId'];
           final personName = q['personName'];
-          return AppPageTransitions.modal(
+          return _sheetPage(
             state,
-            TaskEditorScreen(
-              initialKind: q['kind'] == null ? null : TaskKind.parse(q['kind']),
-              initialCase: caseId == null
-                  ? null
-                  : (id: caseId, title: q['caseTitle'] ?? ''),
-              initialChat: chatId == null
-                  ? null
-                  : (id: chatId, title: q['chatTitle'] ?? ''),
-              initialPeople: [
+            PlannerTaskSheetLauncher(
+              caseId: caseId,
+              caseTitle: q['caseTitle'],
+              conversationId: chatId,
+              people: [
                 if (personName != null && personName.isNotEmpty)
                   TaskPerson(
                     name: personName,
@@ -92,9 +89,12 @@ List<RouteBase> teamRoutes(GlobalKey<NavigatorState> root) => [
       GoRoute(
         path: TeamRoutes.editTask,
         parentNavigatorKey: root,
-        pageBuilder: (context, state) => AppPageTransitions.modal(
+        pageBuilder: (context, state) => _sheetPage(
           state,
-          TaskEditorScreen(existing: state.extra as TaskItem?),
+          PlannerTaskSheetLauncher(
+            editing: true,
+            existing: state.extra is TaskItem ? state.extra! as TaskItem : null,
+          ),
         ),
       ),
       GoRoute(
@@ -104,3 +104,15 @@ List<RouteBase> teamRoutes(GlobalKey<NavigatorState> root) => [
             AppPageTransitions.push(state, const AssistantJoinScreen()),
       ),
     ];
+
+/// Owner 2026-10-19: a new / edited planner task is the «Новая задача»
+/// sheet: this page is see-through and only opens it over the page below.
+Page<bool> _sheetPage(GoRouterState state, Widget child) =>
+    CustomTransitionPage<bool>(
+      key: state.pageKey,
+      opaque: false,
+      transitionDuration: Duration.zero,
+      reverseTransitionDuration: Duration.zero,
+      transitionsBuilder: (_, __, ___, child) => child,
+      child: child,
+    );

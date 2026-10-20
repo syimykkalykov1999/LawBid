@@ -13,17 +13,16 @@ import 'package:lawbid/core/l10n/week_start.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/time/local_now.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
-import 'package:lawbid/features/cases/workspace/compose_sheet.dart';
 import 'package:lawbid/features/cases/workspace/workspace_data.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
+import 'package:lawbid/features/team/presentation/planner_task_sheet.dart';
 import 'package:lawbid/features/team/presentation/task_board_widgets.dart';
 import 'package:lawbid/features/team/presentation/task_pickers.dart';
 import 'package:lawbid/features/team/presentation/task_sheet.dart';
 import 'package:lawbid/features/team/presentation/task_widgets.dart';
 import 'package:lawbid/features/team/presentation/team_widgets.dart';
-import 'package:lawbid/features/team/team_routes.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 
 /// Owner 2026-10-05: «Сегодня» (by time of day), «Все» (by day),
@@ -205,48 +204,6 @@ List<TaskSection> groupTasksForBoard(
   ];
 }
 
-/// Owner 2026-10-05: «Сегодня» by time of day — overdue, morning,
-/// afternoon, evening.
-List<TaskSection> groupTasksForToday(
-  List<TaskItem> tasks,
-  Translator t, {
-  required DateTime now,
-}) {
-  final today = DateTime(now.year, now.month, now.day);
-  final out = <String, List<TaskItem>>{
-    'overdue': [],
-    'morning': [],
-    'afternoon': [],
-    'evening': [],
-  };
-  for (final task in tasks) {
-    final due = task.nextDueAt?.toLocal();
-    if (due == null) continue;
-    final day = DateTime(due.year, due.month, due.day);
-    if (task.isOverdue(now) && day.isBefore(today)) {
-      out['overdue']!.add(task);
-    } else if (day == today) {
-      out[due.hour < 12
-              ? 'morning'
-              : due.hour < 17
-                  ? 'afternoon'
-                  : 'evening']!
-          .add(task);
-    }
-  }
-  return [
-    for (final e in out.entries)
-      if (e.value.isNotEmpty)
-        (
-          key: e.key == 'overdue' ? '0overdue' : e.key,
-          title: t.t(
-            e.key == 'overdue' ? 'tasks.overdue' : 'tasks.today.${e.key}',
-          ),
-          items: e.value,
-        ),
-  ];
-}
-
 /// OQ-048 (owner 2026-09-30) — Mine → «Задачи»: the attorney's planner.
 /// Owner 2026-10-05: «Сегодня», «Все», «Архив»; filters; swipe right —
 /// done (or the next step), swipe left — later; a long press picks
@@ -273,6 +230,15 @@ class _TasksTabState extends ConsumerState<TasksTab> {
   TaskFilter _filter = const TaskFilter();
   final _search = TextEditingController();
 
+  /// Owner 2026-10-19: the search field opens from the magnifier by «+».
+  bool _searchOpen = false;
+
+  void _toggleSearch() => setState(() {
+        _searchOpen = !_searchOpen;
+        // Closed: the search no longer narrows the list.
+        if (!_searchOpen) _search.clear();
+      });
+
   /// Owner 2026-10-05: tasks picked for one action; empty = not choosing.
   final Set<String> _picked = {};
   bool _busy = false;
@@ -298,28 +264,9 @@ class _TasksTabState extends ConsumerState<TasksTab> {
   bool get _choosing => _picked.isNotEmpty;
 
   /// Owner 2026-10-13: the same compose sheet as a task of a case (title,
-  /// checklist, clip, calendar, bell); "All options" is the full editor.
-  Future<void> _add() async {
-    final t = ref.read(translatorProvider);
-    final r = await showComposeSheet(
-      context,
-      mode: ComposeMode.planner,
-      isAttorney: false,
-      moreLabel: t.t('tasks.f.notes'),
-    );
-    if (!mounted || r == null) return;
-    if (r.openFull) {
-      final created = await context.push<bool>(TeamRoutes.newTask);
-      if (created ?? false) invalidateAllTasks(ref);
-      return;
-    }
-    try {
-      await createPlannerTaskFrom(ref, r);
-      if (mounted) showAppSnackBar(context, t.t('tasks.saved'));
-    } on Object catch (e) {
-      if (mounted) showAppSnackBar(context, errorText(t, e));
-    }
-  }
+  /// checklist, clip, calendar, bell). Owner 2026-10-19: it is the only
+  /// way — the full editor with the kinds is gone.
+  Future<void> _add() => showPlannerTaskSheet(context, ref);
 
   /// Double tap / swipe right: the next step is checked off (or the whole
   /// task when it has no steps).
@@ -680,17 +627,27 @@ class _TasksTabState extends ConsumerState<TasksTab> {
                   }),
                 ),
               ),
+              if (_view != TasksView.results) ...[
+                const SizedBox(width: AppSpacing.xs),
+                _SearchButton(
+                  label: t.t(
+                    _view == TasksView.archive
+                        ? 'tasks.archive.search'
+                        : 'tasks.search',
+                  ),
+                  open: _searchOpen,
+                  onTap: _toggleSearch,
+                ),
+              ],
               if (canAdd &&
                   _view != TasksView.archive &&
-                  _view != TasksView.results) ...[
-                const SizedBox(width: AppSpacing.xs),
+                  _view != TasksView.results)
                 AddTaskButton(
                   key: const ValueKey('tasks-add'),
                   label: t.t('tasks.add'),
                   onTap: _add,
                   compact: true,
                 ),
-              ],
             ],
           );
     return Column(
@@ -704,23 +661,46 @@ class _TasksTabState extends ConsumerState<TasksTab> {
           ),
           child: header,
         ),
-        if (_view == TasksView.archive) ...[
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.screenSide,
-              AppSpacing.sm,
-              AppSpacing.screenSide,
-              0,
+        // Audit 2026-10-18: the search box of this screen looks only in the
+        // tasks of the view shown (today / all / archive): title, notes, case,
+        // place, person, step. Its label says so. Owner 2026-10-19: it opens
+        // from the magnifier (its cross closes it and clears the search).
+        if (_view != TasksView.results) ...[
+          if (_searchOpen)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.screenSide,
+                AppSpacing.sm,
+                AppSpacing.screenSide,
+                0,
+              ),
+              child: AppTextField(
+                key: ValueKey(
+                  _view == TasksView.archive
+                      ? 'tasks-archive-search'
+                      : 'tasks-search',
+                ),
+                controller: _search,
+                label: t.t(
+                  _view == TasksView.archive
+                      ? 'tasks.archive.search'
+                      : 'tasks.search',
+                ),
+                leading: const AppIcon(AppIcons.searchRounded),
+                autofocus: true,
+                trailing: IconButton(
+                  key: const ValueKey('tasks-search-close'),
+                  tooltip: t.t('common.close'),
+                  onPressed: _toggleSearch,
+                  icon: AppIcon(
+                    AppIcons.closeRounded,
+                    color: colors.textSecondary,
+                  ),
+                ),
+                onChanged: (_) => setState(() {}),
+              ),
             ),
-            child: AppTextField(
-              key: const ValueKey('tasks-archive-search'),
-              controller: _search,
-              label: t.t('tasks.archive.search'),
-              leading: const AppIcon(AppIcons.searchRounded),
-              onChanged: (_) => setState(() {}),
-            ),
-          ),
-          _ArchiveNote(t: t, tasks: all),
+          if (_view == TasksView.archive) _ArchiveNote(t: t, tasks: all),
         ],
         const SizedBox(height: AppSpacing.sm),
         Expanded(
@@ -741,7 +721,7 @@ class _TasksTabState extends ConsumerState<TasksTab> {
                     listKey: _key,
                     view: _view,
                     filter: _filter,
-                    query: _view == TasksView.archive ? _search.text : '',
+                    query: _search.text,
                     canAdd: canAdd,
                     onAdd: _add,
                     picked: _choosing ? _picked : null,
@@ -1638,6 +1618,52 @@ class TasksArchiveScreen extends ConsumerWidget {
       body: const TasksTab(
         initialView: TasksView.archive,
         showViews: false,
+      ),
+    );
+  }
+}
+
+/// Owner 2026-10-19: the magnifier by «+» — a 32 px circle in the theme's
+/// chip colour, a 44 px touch area; it opens and closes the search.
+class _SearchButton extends StatelessWidget {
+  const _SearchButton({
+    required this.label,
+    required this.open,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool open;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    return Semantics(
+      button: true,
+      selected: open,
+      label: label,
+      excludeSemantics: true,
+      child: AppPressable(
+        key: const ValueKey('tasks-search-open'),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(6),
+          child: Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: colors.chip,
+              shape: BoxShape.circle,
+              border: Border.all(color: open ? colors.text : colors.border),
+            ),
+            child: AppIcon(
+              AppIcons.searchRounded,
+              size: 18,
+              color: colors.text,
+            ),
+          ),
+        ),
       ),
     );
   }

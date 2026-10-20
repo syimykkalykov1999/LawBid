@@ -22,7 +22,7 @@ import {
 import {
   AttorneyIdParamDto,
   AttorneyListItemDto,
-  FollowsQueryDto,
+  PeopleListQueryDto,
   SuggestionsQueryDto,
   type AttorneyListPage,
   type PeoplePage,
@@ -73,9 +73,9 @@ export class FollowsController {
   listFollowers(
     @CurrentUser() user: RequestUser,
     @Param() p: AttorneyIdParamDto,
-    @Query() q: FollowsQueryDto,
+    @Query() q: PeopleListQueryDto,
   ): Promise<PeoplePage> {
-    return this.follows.followers(user.sub, p.id, q.cursor);
+    return this.follows.followers(user.sub, p.id, q.cursor, q.q);
   }
 
   @Get('attorneys/:id/following')
@@ -86,9 +86,9 @@ export class FollowsController {
   listFollowing(
     @CurrentUser() user: RequestUser,
     @Param() p: AttorneyIdParamDto,
-    @Query() q: FollowsQueryDto,
+    @Query() q: PeopleListQueryDto,
   ): Promise<PeoplePage> {
-    return this.follows.following(user.sub, p.id, q.cursor);
+    return this.follows.following(user.sub, p.id, q.cursor, q.q);
   }
 
   @Get('users/me/following')
@@ -96,9 +96,9 @@ export class FollowsController {
   @ApiEnvelopeResponse(AttorneyListItemDto, { isArray: true })
   listMyFollowing(
     @CurrentUser() user: RequestUser,
-    @Query() q: FollowsQueryDto,
+    @Query() q: PeopleListQueryDto,
   ): Promise<AttorneyListPage> {
-    return this.follows.mine(user.sub, q.cursor);
+    return this.follows.mine(user.sub, q.cursor, q.q);
   }
 
   @Get('suggestions/attorneys')

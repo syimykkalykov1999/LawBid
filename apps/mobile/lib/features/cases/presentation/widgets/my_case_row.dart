@@ -8,6 +8,7 @@ import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_stale_banner.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:lawbid/features/cases/presentation/widgets/compact_case_row.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
@@ -78,7 +79,7 @@ class MyCaseRow extends ConsumerWidget {
       key: ValueKey('my-case-${c.id}'),
       title: c.title,
       description: '$practice · ${c.primaryStateCode}',
-      status: CaseStatusPill(status: c.status, t: t),
+      status: CaseStatusPill(status: c.status, t: t, paused: c.paused),
       coverUrl: c.coverUrl,
       coverKey: c.coverKey,
       coverSeed: c.id,
@@ -86,7 +87,8 @@ class MyCaseRow extends ConsumerWidget {
       practiceCode: c.practice.code,
       bidsCount: c.bidsCount,
       newBids: newBids,
-      semanticLabel: '${c.title}, ${caseStatusLabel(t, c.status)}',
+      semanticLabel:
+          '${c.title}, ${caseStatusLabelOf(t, c.status, paused: c.paused)}',
       // Owner 2026-10-14: Boost sits top right, where Follow sits on a post.
       topTrailing: open
           ? BoostButton(postId: c.id, target: PromotionTarget.case_)
@@ -94,7 +96,35 @@ class MyCaseRow extends ConsumerWidget {
       onTap: () => context.push(AppRoutes.myCase(c.id)),
     );
     final canDelete = open || c.status == CaseStatus.archived;
-    if (!swipe || !canDelete) return row;
+    // OQ-054: the question / the pause, right under the case it is about.
+    final stale = open &&
+        CaseStaleBanner.needed(paused: c.paused, pending: c.stillNeededPending);
+    final shown = stale
+        ? Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              row,
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.lg,
+                  AppSpacing.xs,
+                  AppSpacing.lg,
+                  AppSpacing.sm,
+                ),
+                child: CaseStaleBanner(
+                  caseId: c.id,
+                  paused: c.paused,
+                  pending: c.stillNeededPending,
+                  canMakeNotUrgent: c.canMakeNotUrgent,
+                  hidesAt: c.hidesAt,
+                  archivesAt: c.archivesAt,
+                ),
+              ),
+            ],
+          )
+        : row;
+    if (!swipe || !canDelete) return shown;
     final actions = ref.read(caseActionsProvider);
     return SwipeActions(
       key: ValueKey('my-case-swipe-${c.id}'),
@@ -135,7 +165,7 @@ class MyCaseRow extends ConsumerWidget {
             ),
           ),
       ],
-      child: row,
+      child: shown,
     );
   }
 }

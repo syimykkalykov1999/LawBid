@@ -69,6 +69,10 @@ function anyStateOf(codes: string[]): Prisma.Sql {
 }
 
 /**
+ * OQ-054: every query below also leaves out PAUSED cases (`paused_at IS NOT
+ * NULL`: the client stayed silent past «Вам ещё нужен адвокат?»). They stay
+ * `open`; attorneys who already bid keep seeing their bids elsewhere.
+ *
  * docs/04_CASES_BIDS.md §4.1 / docs/02_DATABASE.md §5.4 — the attorney
  * case feed. This MUST stay the same shape as the canonical query in
  * test/db-roles-indexes.e2e-spec.ts (`visibleQuery`, docs/04 stage 4.3
@@ -189,7 +193,7 @@ export function buildVisibleCasesSql(
     const anyState = anyStateOf(codes);
     return Prisma.sql`
       SELECT c.id, c.created_at FROM cases c
-      WHERE c.status = 'open' AND c.deleted_at IS NULL
+      WHERE c.status = 'open' AND c.deleted_at IS NULL AND c.paused_at IS NULL
         ${anyState}
         ${primaryPracticeFilter}
         ${categoryFilter}
@@ -203,7 +207,7 @@ export function buildVisibleCasesSql(
   return Prisma.sql`
     SELECT id, created_at FROM (
       SELECT c.id, c.created_at FROM cases c
-      WHERE c.status = 'open' AND c.deleted_at IS NULL
+      WHERE c.status = 'open' AND c.deleted_at IS NULL AND c.paused_at IS NULL
         AND ((c.primary_state_code, c.practice_area_id) IN (${stateTopics})
           OR EXISTS (
             SELECT 1 FROM case_extra_practices x
@@ -221,7 +225,7 @@ export function buildVisibleCasesSql(
         AND cs.state_code IN (
           SELECT state_code FROM attorney_licenses
           WHERE attorney_id = ${attorneyId}::UUID AND license_status = 'verified')
-        AND c.status = 'open' AND c.deleted_at IS NULL
+        AND c.status = 'open' AND c.deleted_at IS NULL AND c.paused_at IS NULL
         AND (c.practice_area_id IN (${attorneyTopics})
           OR EXISTS (
             SELECT 1 FROM case_extra_practices x
@@ -296,7 +300,7 @@ export function buildPracticeCasesSql(
     : Prisma.empty;
   return Prisma.sql`
     SELECT c.id, c.created_at FROM cases c
-    WHERE c.status = 'open' AND c.deleted_at IS NULL
+    WHERE c.status = 'open' AND c.deleted_at IS NULL AND c.paused_at IS NULL
       AND c.practice_area_id IN (
         SELECT pa.id FROM practice_areas pa
         WHERE pa.code = ${practice} OR pa.code LIKE ${`${practice}.%`})

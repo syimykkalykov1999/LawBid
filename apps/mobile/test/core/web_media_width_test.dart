@@ -90,4 +90,17 @@ void main() {
     adaptiveShellOverride = false;
     expect(profileGridDelegate(), same(kPostGridDelegate));
   });
+
+  // Owner 2026-10-18: in a phone's browser the web looks like the app.
+  testWidgets("a phone's browser keeps the app's square grid", (tester) async {
+    adaptiveShellOverride = true;
+    tester.view
+      ..physicalSize = const Size(390, 844)
+      ..devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    expect(webWideWindow, isFalse);
+    expect(profileGridDelegate(), same(kPostGridDelegate));
+    tester.view.physicalSize = const Size(1280, 800);
+    expect(webWideWindow, isTrue);
+  });
 }

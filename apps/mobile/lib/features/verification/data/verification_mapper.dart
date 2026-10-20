@@ -15,6 +15,7 @@ abstract final class VerificationMapper {
         request: dto.request == null ? null : request(dto.request!),
         identityRequired: dto.identityRequired,
         barDocumentRequired: dto.barDocumentRequired,
+        barAttemptsRetryAfterSeconds: dto.barAttemptsRetryAfterSeconds,
         submissionsLast30Days: dto.submissionsLast30Days,
         maxSubmissions30Days: dto.maxSubmissions30Days,
       );
@@ -54,6 +55,7 @@ abstract final class VerificationMapper {
               expiresAt: l.expiresAt,
               rejectionCode: l.rejectionCode,
               rejectionNote: l.rejectionNote,
+              manualReview: l.manualReview,
             ),
         ],
         documents: [

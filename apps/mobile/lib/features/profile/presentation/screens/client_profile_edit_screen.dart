@@ -9,6 +9,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/language_catalog.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/limits/text_limits.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/onboarding/domain/us_states.dart';
 import 'package:lawbid/features/onboarding/presentation/widgets/option_picker_sheet.dart';
@@ -16,6 +17,7 @@ import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/features/profile/presentation/screens/attorney_profile_edit_screen.dart';
 import 'package:lawbid/features/profile/presentation/widgets/avatar_picker_field.dart';
+import 'package:lawbid/features/profile/presentation/widgets/username_suggestions.dart';
 
 /// `/profile/edit` — the role decides which editor opens.
 class ProfileEditScreen extends ConsumerWidget {
@@ -95,6 +97,10 @@ class _ClientEditFormState extends ConsumerState<_ClientEditForm> {
       TextEditingController(text: widget.profile.contactNote ?? '');
   late final _username = TextEditingController(text: widget.profile.username);
   UsernameStatus _usernameStatus = UsernameStatus.unchanged;
+
+  /// Owner 2026-10-18 («как в инсте»): free handles when the typed one
+  /// is not.
+  List<String> _suggestions = const [];
   Timer? _debounce;
   int _checkSeq = 0;
   late String _state = widget.profile.state.code;
@@ -118,11 +124,17 @@ class _ClientEditFormState extends ConsumerState<_ClientEditForm> {
     _debounce?.cancel();
     final u = value.trim();
     if (u.toLowerCase() == widget.profile.username.toLowerCase()) {
-      setState(() => _usernameStatus = UsernameStatus.unchanged);
+      setState(() {
+        _usernameStatus = UsernameStatus.unchanged;
+        _suggestions = const [];
+      });
       return;
     }
     if (!usernamePattern.hasMatch(u)) {
-      setState(() => _usernameStatus = UsernameStatus.invalid);
+      setState(() {
+        _usernameStatus = UsernameStatus.invalid;
+        _suggestions = const [];
+      });
       return;
     }
     setState(() => _usernameStatus = UsernameStatus.checking);
@@ -130,9 +142,14 @@ class _ClientEditFormState extends ConsumerState<_ClientEditForm> {
     _debounce = Timer(const Duration(milliseconds: 450), () async {
       try {
         final r =
-            await ref.read(attorneyProfileRepositoryProvider).checkUsername(u);
+            await ref.read(attorneyProfileRepositoryProvider).checkUsername(
+                  u,
+                  firstName: _first.text,
+                  lastName: _last.text,
+                );
         if (!mounted || seq != _checkSeq) return;
         setState(() {
+          _suggestions = r.suggestions;
           _usernameStatus = r.available
               ? UsernameStatus.available
               : switch (r.issue) {
@@ -224,33 +241,49 @@ class _ClientEditFormState extends ConsumerState<_ClientEditForm> {
               initialsOf(widget.profile.firstName, widget.profile.lastName),
         ),
       ),
-      AppTextField(
-        controller: _username,
-        label: t.t('profile.username.label'),
-        enabled: nextChange == null || !nextChange.isAfter(DateTime.now()),
-        leading: Text(
-          '@',
-          style:
-              Theme.of(context).extension<AppTypographyTokens>()!.body.copyWith(
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          AppTextField(
+            controller: _username,
+            label: t.t('profile.username.label'),
+            enabled: nextChange == null || !nextChange.isAfter(DateTime.now()),
+            leading: Text(
+              '@',
+              style: Theme.of(context)
+                  .extension<AppTypographyTokens>()!
+                  .body
+                  .copyWith(
                     color: Theme.of(context)
                         .extension<AppColorTokens>()!
                         .textSecondary,
                   ),
-        ),
-        helperText: usernameHelper,
-        errorText: usernameError,
-        inputFormatters: [
-          FilteringTextInputFormatter.allow(RegExp('[A-Za-z0-9._]')),
-          LengthLimitingTextInputFormatter(30),
+            ),
+            helperText: usernameHelper,
+            errorText: usernameError,
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp('[A-Za-z0-9._]')),
+              LengthLimitingTextInputFormatter(30),
+            ],
+            onChanged: _onUsernameChanged,
+          ),
+          UsernameSuggestions(
+            suggestions: _suggestions,
+            onPick: (v) {
+              _username.text = v;
+              _onUsernameChanged(v);
+            },
+          ),
         ],
-        onChanged: _onUsernameChanged,
       ),
       AppTextField(
         controller: _first,
         label: t.t('onboarding.profile.firstName'),
         errorText: required(_first),
         textCapitalization: TextCapitalization.words,
-        inputFormatters: [LengthLimitingTextInputFormatter(kAttorneyNameMax)],
+        inputFormatters: [
+          LengthLimitingTextInputFormatter(TextLimits.of(TextLimit.name)),
+        ],
         onChanged: (_) => setState(() {}),
       ),
       AppTextField(
@@ -258,7 +291,9 @@ class _ClientEditFormState extends ConsumerState<_ClientEditForm> {
         label: t.t('onboarding.profile.lastName'),
         errorText: required(_last),
         textCapitalization: TextCapitalization.words,
-        inputFormatters: [LengthLimitingTextInputFormatter(kAttorneyNameMax)],
+        inputFormatters: [
+          LengthLimitingTextInputFormatter(TextLimits.of(TextLimit.name)),
+        ],
         onChanged: (_) => setState(() {}),
       ),
       PickerField(
@@ -271,7 +306,12 @@ class _ClientEditFormState extends ConsumerState<_ClientEditForm> {
             title: t.t('onboarding.profile.state'),
             options: [
               for (final s in kRegions)
-                PickerOption(value: s.code, label: s.name, sublabel: s.code),
+                PickerOption(
+                  value: s.code,
+                  label: s.name,
+                  sublabel: s.code,
+                  keywords: s.aliases,
+                ),
             ],
             initial: {_state},
           );

@@ -133,6 +133,11 @@ class FeedNotifier extends PagedNotifier<FeedCase> {
 
   final FeedFilter filter;
 
+  // Owner 2026-10-18 (speed): kept for 5 minutes after the screen leaves
+  // (see PagedNotifier.keepAliveFor).
+  @override
+  Duration? get keepAliveFor => const Duration(minutes: 5);
+
   @override
   Future<CursorPage<FeedCase>> fetch(String? cursor) =>
       ref.read(casesRepositoryProvider).feed(
@@ -416,6 +421,19 @@ class CaseActions {
     _clientCase(id);
   }
 
+  /// OQ-054: «Да, нужен» / «Жду предложений получше» / «Уже не нужен» /
+  /// «Сменить на «Не срочно»».
+  Future<void> answerStillNeeded(String id, StillNeededAnswer answer) async {
+    await _repo.answerStillNeeded(id, answer);
+    _clientCase(id);
+  }
+
+  /// OQ-054: «Вернуть» — a paused case is visible to attorneys again.
+  Future<void> resume(String id) async {
+    await _repo.resumeCase(id);
+    _clientCase(id);
+  }
+
   Future<void> complete(String id) async {
     await _repo.completeCase(id);
     _clientCase(id);
@@ -427,9 +445,11 @@ class CaseActions {
     return result;
   }
 
-  Future<CaseBid> counter(CaseBid bid, int amountCents, String? message) async {
-    final result =
-        await _repo.counter(bid.id, amountCents: amountCents, message: message);
+  /// [value]: cents, or basis points for a contingency bid.
+  Future<CaseBid> counter(CaseBid bid, int value, String? message) async {
+    final result = bid.feeType == FeeType.contingency
+        ? await _repo.counter(bid.id, percentBps: value, message: message)
+        : await _repo.counter(bid.id, amountCents: value, message: message);
     _afterBidChange(bid);
     return result;
   }

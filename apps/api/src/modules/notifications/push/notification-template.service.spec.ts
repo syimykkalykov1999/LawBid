@@ -50,4 +50,24 @@ describe('NotificationTemplateService.renderFor', () => {
     );
     expect(odd.body).toBe('Your verification status has changed.');
   });
+
+  // Audit 2026-10-19: «Новое в кейсе» says what the other side added.
+  it('a case workspace push names what was added', async () => {
+    const t = await service.renderFor(
+      'case_workspace_activity',
+      { kind: 'task_done', caseId: 'k' },
+      'ru',
+    );
+    expect(t).toEqual({
+      title: 'Новое в кейсе',
+      body: 'Задача в кейсе выполнена.',
+    });
+    const other = await service.renderFor(
+      'case_workspace_activity',
+      { kind: 'nope' },
+      'en',
+    );
+    expect(other.title).toBe('New in your case');
+    expect(other.body).toContain('added something');
+  });
 });

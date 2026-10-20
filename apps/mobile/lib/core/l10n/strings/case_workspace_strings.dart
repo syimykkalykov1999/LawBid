@@ -55,6 +55,8 @@ const caseWorkspaceRu = <String, String>{
   'cases.tasks.forClient': 'Для клиента',
   'cases.tasks.shared': 'Общие',
   'cases.tasks.private': 'Личные',
+  'cases.tasks.progressMine': 'Ход работы',
+  'cases.tasks.notFound': 'Эта задача больше недоступна',
   'cases.tasks.yours': 'Ваши задачи',
   'cases.tasks.lawyerProgress': 'Работа юриста',
   'cases.tasks.forClientHint': 'Клиент видит, отвечает и прикладывает файлы',
@@ -95,6 +97,44 @@ const caseWorkspaceRu = <String, String>{
   'cases.compose.file': 'Файл',
   'cases.compose.samplePhoto': 'Образец (фото)',
   'cases.compose.sampleFile': 'Образец (файл)',
+  // Audit 2026-10-19: a closed case only looks; an assistant without tasks.
+  'cases.workspace.readOnly':
+      'Кейс закрыт: здесь можно только смотреть. Всё, что было добавлено, сохранено.',
+  'cases.workspace.noTasksDuty':
+      'Менять задачи может адвокат. Чтобы это могли вы, адвокат должен включить вам доступ «Задачи».',
+  // Audit 2026-10-19: «Подробности» once a bid is accepted.
+  'cases.details.title': 'Подробности',
+  'cases.details.add': 'Добавить',
+  'cases.details.edit': 'Изменить',
+  'cases.details.save': 'Сохранить',
+  'cases.details.saved': 'Подробности сохранены',
+  'cases.details.empty':
+      'Пока пусто. Сюда можно написать имена сторон, номер дела, адреса — то, что нельзя показывать всем.',
+  'cases.details.ownerHint':
+      'Видите только вы и адвокат, которого вы выбрали. Остальные адвокаты видят лишь, что подробности есть.',
+  'cases.details.attorneyHint':
+      'Клиент открыл это только вам, как выбранному адвокату.',
+  'cases.details.hiredNote':
+      'Ваш адвокат сразу увидит изменения и получит уведомление.',
+  // Audit 2026-10-19: the other side added something in a case in work.
+  'notif.cases.case_workspace_activity.title': 'Новое в кейсе',
+  'notif.cases.case_workspace_activity.body':
+      'Другая сторона добавила что-то в кейс. Откройте, чтобы посмотреть.',
+  'notif.workspace.update': 'В кейсе новое обновление.',
+  'notif.workspace.task_added': 'В кейсе новая задача.',
+  'notif.workspace.task_done': 'Задача в кейсе выполнена.',
+  'notif.workspace.task_files': 'К задаче добавили заметку или файлы.',
+  'notif.workspace.details': 'Клиент изменил подробности кейса.',
+  'notif.list.case_workspace_activity.update':
+      '{name}: новое обновление в кейсе',
+  'notif.list.case_workspace_activity.task_added':
+      '{name} добавил(а) задачу в кейс',
+  'notif.list.case_workspace_activity.task_done':
+      '{name} выполнил(а) задачу в кейсе',
+  'notif.list.case_workspace_activity.task_files':
+      '{name} добавил(а) заметку или файлы к задаче',
+  'notif.list.case_workspace_activity.details':
+      '{name} изменил(а) подробности кейса',
 };
 
 const caseWorkspaceEn = <String, String>{
@@ -148,6 +188,8 @@ const caseWorkspaceEn = <String, String>{
   'cases.tasks.forClient': 'For client',
   'cases.tasks.shared': 'Shared',
   'cases.tasks.private': 'Private',
+  'cases.tasks.progressMine': 'Progress',
+  'cases.tasks.notFound': 'This task is no longer available',
   'cases.tasks.yours': 'Your tasks',
   'cases.tasks.lawyerProgress': "Lawyer's progress",
   'cases.tasks.forClientHint': 'The client sees it, answers and attaches files',
@@ -188,4 +230,42 @@ const caseWorkspaceEn = <String, String>{
   'cases.compose.file': 'File',
   'cases.compose.samplePhoto': 'Sample (photo)',
   'cases.compose.sampleFile': 'Sample (file)',
+  // Audit 2026-10-19: a closed case only looks; an assistant without tasks.
+  'cases.workspace.readOnly':
+      'The case is closed: you can only look here. Everything added is kept.',
+  'cases.workspace.noTasksDuty':
+      'Only the attorney changes tasks. To let you do it, the attorney turns on your «Tasks» access.',
+  // Audit 2026-10-19: «Подробности» once a bid is accepted.
+  'cases.details.title': 'Details',
+  'cases.details.add': 'Add',
+  'cases.details.edit': 'Edit',
+  'cases.details.save': 'Save',
+  'cases.details.saved': 'Details saved',
+  'cases.details.empty':
+      'Nothing here yet. Write the names of the parties, the case number, addresses — what should not be shown to everyone.',
+  'cases.details.ownerHint':
+      'Only you and the attorney you chose see this. Other attorneys only see that details exist.',
+  'cases.details.attorneyHint':
+      'The client shared this only with you, as the chosen attorney.',
+  'cases.details.hiredNote':
+      'Your attorney sees the change right away and gets a notification.',
+  // Audit 2026-10-19: the other side added something in a case in work.
+  'notif.cases.case_workspace_activity.title': 'New in your case',
+  'notif.cases.case_workspace_activity.body':
+      'The other side added something to the case. Open it to see.',
+  'notif.workspace.update': 'A new update in the case.',
+  'notif.workspace.task_added': 'A new task in the case.',
+  'notif.workspace.task_done': 'A task in the case is done.',
+  'notif.workspace.task_files': 'A note or files were added to a task.',
+  'notif.workspace.details': 'The client changed the case details.',
+  'notif.list.case_workspace_activity.update':
+      '{name} posted an update in the case',
+  'notif.list.case_workspace_activity.task_added':
+      '{name} added a task to the case',
+  'notif.list.case_workspace_activity.task_done':
+      '{name} completed a task in the case',
+  'notif.list.case_workspace_activity.task_files':
+      '{name} added a note or files to a task',
+  'notif.list.case_workspace_activity.details':
+      '{name} changed the case details',
 };

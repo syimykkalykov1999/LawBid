@@ -2,7 +2,7 @@ import { plainToInstance } from 'class-transformer';
 import { validateSync } from 'class-validator';
 import { CreatePostDto, UpdatePostDto } from './posts.dto';
 
-// Owner 2026-10-07: a post needs a title; the description is optional.
+// Owner 2026-10-07: the description is optional; 2026-10-18: the title too.
 describe('post description is optional', () => {
   const errorsOn = (
     cls: typeof CreatePostDto | typeof UpdatePostDto,
@@ -19,7 +19,10 @@ describe('post description is optional', () => {
     expect(errorsOn(UpdatePostDto, { body: '' })).toEqual([]);
   });
 
-  it('still requires the title', () => {
-    expect(errorsOn(CreatePostDto, { title: '', body: '' })).toContain('title');
+  // Owner 2026-10-18: the title is optional too (a photo / video post);
+  // PostsService refuses a post with nothing at all.
+  it('accepts an empty title on create and edit', () => {
+    expect(errorsOn(CreatePostDto, { title: '', body: '' })).toEqual([]);
+    expect(errorsOn(UpdatePostDto, { title: '', body: '' })).toEqual([]);
   });
 });

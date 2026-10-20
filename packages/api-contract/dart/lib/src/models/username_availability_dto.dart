@@ -14,6 +14,7 @@ class UsernameAvailabilityDto {
     required this.username,
     required this.available,
     required this.reason,
+    required this.suggestions,
   });
 
   factory UsernameAvailabilityDto.fromJson(Map<String, Object?> json) =>
@@ -24,6 +25,9 @@ class UsernameAvailabilityDto {
 
   /// Why it is not available; null when available.
   final UsernameUnavailableReason? reason;
+
+  /// Free handles to offer instead (owner 2026-10-18); empty when available.
+  final List<String> suggestions;
 
   Map<String, Object?> toJson() => _$UsernameAvailabilityDtoToJson(this);
 }

@@ -39,8 +39,10 @@ import {
   CaseIdParamDto,
   CreateCaseDto,
   ListMyCasesQueryDto,
+  StillNeededAnswerDto,
   UpdateCaseDto,
   UpdateCaseUrgencyDto,
+  UpdatePrivateDetailsDto,
 } from './dto/case-requests.dto';
 import {
   CaseDeletedDto,
@@ -118,6 +120,26 @@ export class CasesController {
     @Body() dto: UpdateCaseDto,
   ): Promise<CaseDto> {
     return this.cases.update(user, params.id, dto);
+  }
+
+  @Patch('cases/:id/private-details')
+  @ApiOperation({
+    summary:
+      'Change the private details («Подробности») — the client, while the case is open or in work (audit 2026-10-19)',
+  })
+  @ApiEnvelopeResponse(CaseDto)
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    403: [E.FORBIDDEN],
+    404: [E.CASE_NOT_FOUND],
+    409: [E.CASE_INVALID_STATE],
+  })
+  updateCasePrivateDetails(
+    @CurrentUser() user: RequestUser,
+    @Param() params: CaseIdParamDto,
+    @Body() dto: UpdatePrivateDetailsDto,
+  ): Promise<CaseDto> {
+    return this.cases.updatePrivateDetails(user, params.id, dto);
   }
 
   @Patch('cases/:id/urgency')
@@ -209,6 +231,46 @@ export class CasesController {
     @Param() params: CaseIdParamDto,
   ): Promise<CaseDto> {
     return this.cases.keepAlive(user, params.id);
+  }
+
+  @Post('cases/:id/still-needed')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Answer «Вам ещё нужен адвокат?» — still_needed / wait_better / not_needed (closes the case) / make_not_urgent (owner, OQ-054)',
+  })
+  @ApiEnvelopeResponse(CaseDto)
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    403: [E.FORBIDDEN],
+    404: [E.CASE_NOT_FOUND],
+    409: [E.CASE_INVALID_STATE],
+  })
+  answerStillNeeded(
+    @CurrentUser() user: RequestUser,
+    @Param() params: CaseIdParamDto,
+    @Body() dto: StillNeededAnswerDto,
+  ): Promise<CaseDto> {
+    return this.cases.answerStillNeeded(user, params.id, dto.answer);
+  }
+
+  @Post('cases/:id/resume')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      "Bring a paused case back into the attorneys' feed (owner, OQ-054)",
+  })
+  @ApiEnvelopeResponse(CaseDto)
+  @ApiErrors({
+    403: [E.FORBIDDEN],
+    404: [E.CASE_NOT_FOUND],
+    409: [E.CASE_INVALID_STATE],
+  })
+  resumeCase(
+    @CurrentUser() user: RequestUser,
+    @Param() params: CaseIdParamDto,
+  ): Promise<CaseDto> {
+    return this.cases.resume(user, params.id);
   }
 
   @Get('users/me/cases')

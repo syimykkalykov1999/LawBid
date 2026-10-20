@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:lawbid/core/text/bidi.dart';
 
 /// OQ-041: server-side life of an in-app audio call.
 enum CallStatus {
@@ -29,7 +30,8 @@ class CallPeer {
   final String? username;
   final String? avatarUrl;
 
-  String get name => displayName ?? (username == null ? '' : '@$username');
+  String get name =>
+      displayName ?? (username == null ? '' : atHandle(username));
 }
 
 @immutable

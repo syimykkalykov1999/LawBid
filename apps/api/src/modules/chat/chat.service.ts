@@ -13,13 +13,24 @@ import {
   Optional,
 } from '@nestjs/common';
 import { ClientFraudService } from '../client-fraud/client-fraud.service';
-import { Prisma, type Conversation, type Message } from '@prisma/client';
+import {
+  Prisma,
+  type ChatPairKind,
+  type Conversation,
+  type Message,
+} from '@prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
   decodeCursor,
   encodeCursor,
 } from '../../common/pagination/cursor.util';
 import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
+import {
+  allWordsSql,
+  escapeLike,
+  nameMatchSql,
+  typedWords,
+} from '../../common/search/name-match.sql';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
@@ -47,12 +58,26 @@ import {
   OrganizeConversationDto,
 } from './chat.dto';
 import { MessageBodyCipher } from '../../common/secrets/message-body-cipher';
+import { touchClientActive } from '../cases/cases.public';
 
 const CONVERSATIONS_PAGE = 20;
 const MESSAGES_PAGE = 30;
 const CATCH_UP_MAX = 100;
-/** OQ-043: messages a requester may send before acceptance. */
-export const DIRECT_REQUEST_MAX_MESSAGES = 3;
+
+/** ~80 characters of [text] around the first typed word. */
+function snippetAround(text: string, words: string[]): string {
+  const flat = text.replace(/\s+/g, ' ').trim();
+  const low = flat.toLowerCase().replace(/ё/g, 'е');
+  const at = Math.min(
+    ...words.map((w) => {
+      const i = low.indexOf(w);
+      return i < 0 ? Infinity : i;
+    }),
+  );
+  const start = Number.isFinite(at) ? Math.max(0, at - 25) : 0;
+  const cut = flat.slice(start, start + 80);
+  return `${start > 0 ? '…' : ''}${cut}${start + 80 < flat.length ? '…' : ''}`;
+}
 
 function notFound(): NotFoundException {
   return new NotFoundException({
@@ -182,10 +207,14 @@ export class ChatService {
     cursor?: string,
     updatedSince?: string,
     folder: ConversationFolderName = 'all',
+    q?: string,
   ): Promise<ConversationPage> {
     if (!this.sideOf(user)) return { items: [], nextCursor: null };
     const c = cursor ? decodeCursor(cursor) : undefined;
     const filters = this.folderWhere(user.sub, folder);
+    // Owner 2026-10-18: search — only the chats the typed text found.
+    const found = q ? await this.searchHits(user.sub, q) : null;
+    if (found) filters.push({ id: { in: [...found.keys()] } });
     // Pinned chats lead the first page; the paged list skips them.
     const firstPage = !c && !updatedSince;
     const pinnedFilter: Prisma.ConversationWhereInput = {
@@ -244,13 +273,72 @@ export class ChatService {
     });
     const page = rows.slice(0, CONVERSATIONS_PAGE);
     const last = page[page.length - 1];
+    const items = await this.present([...pinned, ...page], user.sub);
+    if (found) {
+      for (const it of items) it.matchedMessage = found.get(it.id) ?? null;
+    }
     return {
-      items: await this.present([...pinned, ...page], user.sub),
+      items,
       nextCursor:
         rows.length > CONVERSATIONS_PAGE && last?.last_message_at
           ? encodeCursor({ createdAt: last.last_message_at, id: last.id })
           : null,
     };
+  }
+
+  /**
+   * Owner 2026-10-18: chat search. The chats of [me] where the OTHER person's
+   * name (any alphabet / typo / word order) or @username, the case title, or
+   * a (not deleted) message contains the typed words. Id → snippet of the
+   * newest message hit, null when the name / title matched. A client whose
+   * identity the attorney does not see yet («Клиент по кейсу») cannot be
+   * found by name.
+   */
+  private async searchHits(
+    me: string,
+    q: string,
+  ): Promise<Map<string, string | null>> {
+    const words = typedWords(q);
+    if (!words.length) return new Map();
+    const handle = `${escapeLike(q.trim().replace(/^@+/, '').toLowerCase())}%`;
+    const rows = await this.prisma.$queryRaw<
+      { id: string; body: string | null; by_meta: boolean }[]
+    >`
+      SELECT * FROM (SELECT c.id::TEXT AS id, msg.body AS body,
+             ((NOT hidden.v AND (${nameMatchSql(q, Prisma.sql`o.full_name_lower`)}
+                 OR coalesce(ap.username_lower, cp.username_lower) LIKE ${handle}))
+              OR (cs.title IS NOT NULL AND ${allWordsSql(Prisma.sql`cs.title`, words)})) AS by_meta
+      FROM conversations c
+      JOIN users o ON o.id = CASE WHEN c.client_id = ${me}::UUID
+                                  THEN c.attorney_id ELSE c.client_id END
+      LEFT JOIN attorney_profiles ap ON ap.user_id = o.id
+      LEFT JOIN client_profiles cp ON cp.user_id = o.id
+      LEFT JOIN cases cs ON cs.id = c.case_id
+      CROSS JOIN LATERAL (SELECT (o.role::TEXT <> 'attorney'
+                                  AND NOT c.contacts_unlocked
+                                  AND c.case_id IS NOT NULL) AS v) hidden
+      LEFT JOIN LATERAL (
+        SELECT m.body_display AS body FROM messages m
+        WHERE m.conversation_id = c.id
+          AND m.deleted_at IS NULL
+          AND m.type IN ('text', 'attachment')
+          AND ${allWordsSql(Prisma.sql`m.body_display`, words)}
+        ORDER BY m.created_at DESC LIMIT 1) msg ON TRUE
+      WHERE (c.client_id = ${me}::UUID OR c.attorney_id = ${me}::UUID)
+        AND c.last_message_at IS NOT NULL) t
+      WHERE t.by_meta OR t.body IS NOT NULL
+      LIMIT 2000`;
+    const out = new Map<string, string | null>();
+    for (const r of rows) {
+      if (r.by_meta) out.set(r.id, null);
+      else if (r.body !== null) {
+        out.set(
+          r.id,
+          snippetAround(this.cipher?.open(r.body) ?? r.body, words),
+        );
+      }
+    }
+    return out;
   }
 
   /** Owner 2026-10-01: folder, "waiting for my answer", note, pin. */
@@ -498,9 +586,9 @@ export class ChatService {
 
     await this.limits.consume('message', user.sub);
     if (conv.status === 'closed') throw closed();
-    // OQ-043: a message request — the recipient's reply accepts it; the
-    // requester may send up to 3 messages until then; a declined request
-    // takes no more.
+    // OQ-043: a message request — the recipient's reply accepts it; a
+    // declined request takes no more. Owner 2026-10-17: no cap on how many
+    // messages the requester sends meanwhile.
     let requestFirst = false;
     let acceptRequest = false;
     if (conv.request_status === 'pending') {
@@ -508,12 +596,6 @@ export class ChatService {
         const sent = await this.prisma.message.count({
           where: { conversation_id: id, sender_id: user.sub, deleted_at: null },
         });
-        if (sent >= DIRECT_REQUEST_MAX_MESSAGES) {
-          throw new ConflictException({
-            code: ErrorCode.MESSAGE_REQUEST_LIMIT,
-            message: 'Wait until your message request is accepted.',
-          });
-        }
         requestFirst = sent === 0;
       } else {
         acceptRequest = true;
@@ -535,7 +617,9 @@ export class ChatService {
         user.sub === conv.attorney_id ? conv.client_id : conv.attorney_id,
       );
     }
+    // Only an attorney writing to a client pays (owner 2026-10-17).
     if (
+      conv.pair_kind === 'attorney_client' &&
       user.sub === conv.attorney_id &&
       !(await this.subscriptions.isActive(user.sub))
     ) {
@@ -686,6 +770,11 @@ export class ChatService {
       throw error;
     }
 
+    // OQ-054: the client writing in their case's chat is their own action
+    // on that case (the attorney writing never is).
+    if (conv.case_id && user.sub === conv.client_id) {
+      await touchClientActive(this.prisma, conv.case_id, user.sub);
+    }
     const other =
       user.sub === conv.client_id ? conv.attorney_id : conv.client_id;
     const urls = await this.mediaLinks([message]);
@@ -771,9 +860,10 @@ export class ChatService {
 
   /**
    * POST /conversations/direct (OQ-043): the "Message" button on a
-   * profile — the one direct chat of this attorney/client pair, created
-   * as a request of the caller if new. Hidden from lists until its first
-   * message.
+   * profile — the one direct chat of a pair, created if new. Owner
+   * 2026-10-17: anyone writes to anyone, like Instagram — straight to the
+   * main list when the recipient follows the caller, otherwise a request.
+   * Hidden from lists until its first message.
    */
   async startDirect(
     user: RequestUser,
@@ -789,16 +879,11 @@ export class ChatService {
         message: 'User not found.',
       });
     }
-    const pair =
-      user.role === 'attorney' && other.role === 'client'
-        ? { attorney_id: user.sub, client_id: other.id }
-        : user.role === 'client' && other.role === 'attorney'
-          ? { attorney_id: other.id, client_id: user.sub }
-          : null;
+    const pair = directPair(user.sub, user.role, other.id, other.role);
     if (!pair) {
       throw new ConflictException({
         code: ErrorCode.DIRECT_CHAT_NOT_ALLOWED,
-        message: 'Direct chats are between an attorney and a client.',
+        message: 'Direct chats are between clients and attorneys.',
       });
     }
     await this.blocks.assertNotBlocked(user.sub, other.id);
@@ -806,14 +891,23 @@ export class ChatService {
       where: { ...pair, case_id: null },
     });
     if (existing) return this.get(user, existing.id);
+    const followsMe = await this.prisma.follow.findUnique({
+      where: {
+        follower_id_followee_id: {
+          follower_id: other.id,
+          followee_id: user.sub,
+        },
+      },
+      select: { follower_id: true },
+    });
     let conv: Conversation;
     try {
       conv = await this.prisma.conversation.create({
         data: {
           ...pair,
           status: 'active',
-          contacts_unlocked: false,
-          request_status: 'pending',
+          contacts_unlocked: followsMe !== null,
+          request_status: followsMe ? 'accepted' : 'pending',
           requested_by: user.sub,
           participants: {
             create: [
@@ -1213,6 +1307,12 @@ export class ChatService {
               : other.avatar_file_id
                 ? (avatars.get(other.avatar_file_id)?.url256 ?? null)
                 : null,
+          // Owner 2026-10-18: the full-size photo for the full-screen view
+          // (the 256 px one looked blurry there).
+          avatarFullUrl:
+            hidden || !other || !other.avatar_file_id
+              ? null
+              : (avatars.get(other.avatar_file_id)?.url ?? null),
           verifiedBadge: other?.attorney_profile?.trust_badge ?? false,
           ...(() => {
             const p = hidden || seenHidden ? undefined : presence.get(otherId);
@@ -1263,4 +1363,34 @@ function cleanFileName(raw: string): string {
   // eslint-disable-next-line no-control-regex
   const clean = base.replace(/[\u0000-\u001f\u007f]/g, '').trim();
   return (clean || 'file').slice(0, 200);
+}
+
+/** The two slots of a direct chat between [me] and [other], or null when
+ * that pair cannot have one (self, or a role without chats). */
+function directPair(
+  me: string,
+  myRole: string | null | undefined,
+  other: string,
+  otherRole: string | null | undefined,
+): {
+  attorney_id: string;
+  client_id: string;
+  pair_kind: ChatPairKind;
+} | null {
+  if (me === other) return null;
+  const roles = ['client', 'attorney'];
+  if (!roles.includes(myRole ?? '') || !roles.includes(otherRole ?? '')) {
+    return null;
+  }
+  if (myRole !== otherRole) {
+    return myRole === 'attorney'
+      ? { attorney_id: me, client_id: other, pair_kind: 'attorney_client' }
+      : { attorney_id: other, client_id: me, pair_kind: 'attorney_client' };
+  }
+  const [a, b] = me < other ? [me, other] : [other, me];
+  return {
+    attorney_id: a,
+    client_id: b,
+    pair_kind: myRole === 'client' ? 'client_client' : 'attorney_attorney',
+  };
 }

@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
@@ -9,7 +9,6 @@ import {
   IsISO8601,
   Max,
   Min,
-  IsNotEmpty,
   IsOptional,
   IsString,
   IsUUID,
@@ -18,7 +17,9 @@ import {
   MaxLength,
   MinLength,
   ValidateIf,
+  ValidateNested,
 } from 'class-validator';
+import { ALL_FILE_MIMES } from '../files/files.policy';
 import { MaxTextChars } from '../../common/app-settings/max-text-chars.decorator';
 
 const trim = ({ value }: { value: unknown }) =>
@@ -50,6 +51,92 @@ export const SUPPORT_BODY_MAX = 5000;
 
 // --- requests (app) -----------------------------------------------------------
 
+/** Owner 2026-10-18 (OQ-055): most files in one message (the admin's
+ * `support` place in «Загрузки и файлы» lowers it; this is the ceiling). */
+export const SUPPORT_FILES_MAX = 10;
+
+export class SupportAttachmentInputDto {
+  @ApiProperty({
+    format: 'uuid',
+    description:
+      'A clean file of purpose support_attachment owned by the sender (presign → upload → confirm).',
+  })
+  @IsUUID('all')
+  fileId!: string;
+
+  @ApiProperty({ minLength: 1, maxLength: 200, description: 'File name.' })
+  @Transform(trim)
+  @IsString()
+  @Length(1, 200)
+  name!: string;
+}
+
+/** What the app attaches to a new ticket so support can reproduce a
+ * problem. Shown to admins only. The user id and role are added by the
+ * server, never taken from here. */
+export class SupportClientContextInputDto {
+  @ApiPropertyOptional({ example: '1.4.2' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  appVersion?: string;
+
+  @ApiPropertyOptional({ example: '57' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  buildNumber?: string;
+
+  @ApiPropertyOptional({ enum: ['ios', 'android', 'web', 'other'] })
+  @IsOptional()
+  @IsIn(['ios', 'android', 'web', 'other'])
+  platform?: 'ios' | 'android' | 'web' | 'other';
+
+  @ApiPropertyOptional({ example: 'iOS 18.2' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  osVersion?: string;
+
+  @ApiPropertyOptional({ example: 'Apple iPhone15,2' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  deviceModel?: string;
+
+  @ApiPropertyOptional({ example: 'ru' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  language?: string;
+
+  @ApiPropertyOptional({ example: 'navy' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  theme?: string;
+
+  @ApiPropertyOptional({ example: 'America/Chicago' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  timezone?: string;
+
+  @ApiPropertyOptional({
+    example: '/cases/123',
+    description: 'The screen the user came from.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  route?: string;
+}
+
+export class SupportClientContextDto extends SupportClientContextInputDto {
+  @ApiPropertyOptional({ format: 'uuid' }) userId?: string;
+  @ApiPropertyOptional() role?: string;
+}
+
 export class CreateSupportTicketDto {
   @ApiProperty({ minLength: 3, maxLength: 200 })
   @Transform(trim)
@@ -61,21 +148,47 @@ export class CreateSupportTicketDto {
   @IsIn(SUPPORT_CATEGORIES)
   category!: SupportCategory;
 
-  @ApiProperty({ minLength: 1, maxLength: SUPPORT_BODY_MAX })
+  @ApiProperty({
+    maxLength: SUPPORT_BODY_MAX,
+    description: 'May be empty when files are attached.',
+  })
   @Transform(trim)
   @IsString()
-  @IsNotEmpty()
   @MaxTextChars('limits.support_message_chars')
   body!: string;
+
+  @ApiPropertyOptional({ type: SupportAttachmentInputDto, isArray: true })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(SUPPORT_FILES_MAX)
+  @ValidateNested({ each: true })
+  @Type(() => SupportAttachmentInputDto)
+  attachments?: SupportAttachmentInputDto[];
+
+  @ApiPropertyOptional({ type: SupportClientContextInputDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => SupportClientContextInputDto)
+  context?: SupportClientContextInputDto;
 }
 
 export class SupportMessageBodyDto {
-  @ApiProperty({ minLength: 1, maxLength: SUPPORT_BODY_MAX })
+  @ApiProperty({
+    maxLength: SUPPORT_BODY_MAX,
+    description: 'May be empty when files are attached.',
+  })
   @Transform(trim)
   @IsString()
-  @IsNotEmpty()
   @MaxTextChars('limits.support_message_chars')
   body!: string;
+
+  @ApiPropertyOptional({ type: SupportAttachmentInputDto, isArray: true })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(SUPPORT_FILES_MAX)
+  @ValidateNested({ each: true })
+  @Type(() => SupportAttachmentInputDto)
+  attachments?: SupportAttachmentInputDto[];
 }
 
 export class SupportCursorQueryDto {
@@ -111,6 +224,24 @@ export class SupportTicketDto {
   canReply!: boolean;
 }
 
+export class SupportAttachmentDto {
+  @ApiProperty({ format: 'uuid', description: 'The file id.' }) id!: string;
+  @ApiProperty() name!: string;
+  @ApiProperty() mime!: string;
+  @ApiProperty() sizeBytes!: number;
+  @ApiProperty() isImage!: boolean;
+  @ApiProperty() isVideo!: boolean;
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'Short-lived signed link; null while the file is not clean.',
+  })
+  url!: string | null;
+  @ApiPropertyOptional({ nullable: true, description: '320 px, photos only.' })
+  previewUrl!: string | null;
+  @ApiPropertyOptional({ nullable: true }) width!: number | null;
+  @ApiPropertyOptional({ nullable: true }) height!: number | null;
+}
+
 export class SupportMessageDto {
   @ApiProperty({ format: 'uuid' }) id!: string;
   @ApiProperty({ enum: ['me', 'support'] }) author!: 'me' | 'support';
@@ -121,6 +252,8 @@ export class SupportMessageDto {
   })
   authorName!: string | null;
   @ApiProperty() body!: string;
+  @ApiProperty({ type: SupportAttachmentDto, isArray: true })
+  attachments!: SupportAttachmentDto[];
   @ApiProperty({ format: 'date-time' }) createdAt!: string;
 }
 
@@ -168,6 +301,15 @@ export class AdminSupportTicketsQueryDto extends SupportCursorQueryDto {
   @IsOptional()
   @IsUUID('all')
   userId?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Owner 2026-10-18: only tickets with something new from the user (unread by staff), closed ones excluded unless `status` is set.',
+  })
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean()
+  unread?: boolean;
 
   @ApiPropertyOptional({
     enum: ['breached', 'waiting'],
@@ -278,6 +420,8 @@ export class AdminSupportMessageDto {
   })
   auto?: boolean;
   @ApiProperty() body!: string;
+  @ApiProperty({ type: SupportAttachmentDto, isArray: true })
+  attachments!: SupportAttachmentDto[];
   @ApiProperty({ format: 'date-time' }) createdAt!: string;
 }
 
@@ -306,6 +450,13 @@ export class AdminSupportUserSummaryDto {
 export class AdminSupportTicketDetailDto extends AdminSupportTicketRowDto {
   @ApiProperty({ type: AdminSupportUserSummaryDto })
   userSummary!: AdminSupportUserSummaryDto;
+  @ApiPropertyOptional({
+    type: SupportClientContextDto,
+    nullable: true,
+    description:
+      'Owner 2026-10-18: device and app info the app attached to the ticket (admins only).',
+  })
+  clientContext!: SupportClientContextDto | null;
   @ApiProperty({ type: AdminSupportMessageDto, isArray: true })
   messages!: AdminSupportMessageDto[];
 }
@@ -456,8 +607,21 @@ export class UpdateSupportDeskSettingsDto {
 export class SupportMacroDto {
   @ApiProperty({ format: 'uuid' }) id!: string;
   @ApiProperty() title!: string;
-  @ApiProperty({ description: '`{name}` becomes the user first name.' })
+  @ApiProperty({
+    description:
+      'English text. `{name}` becomes the user first name, `{ticket}` the ticket number (replaced by the API when the reply is sent).',
+  })
   body!: string;
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'Russian text; the composer uses it for ru users.',
+  })
+  bodyRu!: string | null;
+  @ApiProperty({
+    description:
+      'The text to insert: the Russian body for `language=ru` (when there is one), else the English body.',
+  })
+  text!: string;
   @ApiPropertyOptional({ enum: SUPPORT_CATEGORIES, nullable: true })
   category!: SupportCategory | null;
   @ApiProperty() active!: boolean;
@@ -478,6 +642,13 @@ export class CreateSupportMacroDto {
   @MinLength(1)
   @MaxTextChars('limits.support_message_chars')
   body!: string;
+
+  @ApiPropertyOptional({ nullable: true, maxLength: SUPPORT_BODY_MAX })
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(SUPPORT_BODY_MAX)
+  bodyRu?: string | null;
 
   @ApiPropertyOptional({ enum: SUPPORT_CATEGORIES, nullable: true })
   @IsOptional()
@@ -506,6 +677,18 @@ export class UpdateSupportMacroDto {
   @MinLength(1)
   @MaxTextChars('limits.support_message_chars')
   body?: string;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    maxLength: SUPPORT_BODY_MAX,
+    description: 'null or empty removes the Russian text.',
+  })
+  @IsOptional()
+  @ValidateIf((_o, v) => v !== null)
+  @Transform(trim)
+  @IsString()
+  @MaxLength(SUPPORT_BODY_MAX)
+  bodyRu?: string | null;
 
   @ApiPropertyOptional({ enum: SUPPORT_CATEGORIES, nullable: true })
   @IsOptional()
@@ -595,10 +778,43 @@ export class SupportNextTicketDto {
 
 export class SupportMacrosQueryDto {
   @ApiPropertyOptional({
+    example: 'ru',
+    description: "The ticket user's ui_language; picks `text` (default en).",
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  language?: string;
+
+  @ApiPropertyOptional({
     description: 'Include switched-off answers (management).',
   })
   @IsOptional()
   @Transform(({ value }) => value === true || value === 'true')
   @IsBoolean()
   all?: boolean;
+}
+
+/** Owner 2026-10-18 (OQ-055): step 1 of an admin's file upload for a
+ * support reply (same presign → S3 → confirm pipeline as for the app). */
+export class AdminSupportUploadDto {
+  @ApiProperty({ type: String, example: 'image/jpeg' })
+  @IsIn(ALL_FILE_MIMES as readonly string[])
+  mime!: string;
+
+  @ApiProperty({ minimum: 1 })
+  @IsInt()
+  @Min(1)
+  @Max(1024 * 1024 * 1024)
+  sizeBytes!: number;
+
+  @ApiProperty({ description: 'Lowercase hex SHA-256 of the file.' })
+  @Matches(/^[0-9a-f]{64}$/)
+  sha256!: string;
+}
+
+export class AdminSupportFileParamDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID('all')
+  fileId!: string;
 }

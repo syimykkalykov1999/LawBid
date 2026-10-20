@@ -26,10 +26,10 @@ import { VerificationModule } from '../modules/verification/verification.module'
 import { BidSubscriptionLapseJob } from './handlers/bid-subscription-lapse.job';
 import { VerificationLossBillingJob } from './handlers/verification-loss-billing.job';
 import {
-  CaseAutoArchiveJob,
+  CaseStalePauseJob,
   CaseAutoCloseJob,
   CaseCompletionReminderJob,
-  CaseStalePromptJob,
+  CaseStaleAskJob,
 } from './handlers/case-lifecycle.jobs';
 import { CaseDeadlineReminderJob } from './handlers/case-deadline-reminder.job';
 import { CountersReconcileJob } from './handlers/counters-reconcile.job';
@@ -113,8 +113,8 @@ export class JobsModule {
         LicenseRegistryRecheckJob,
         BidSubscriptionLapseJob,
         VerificationLossBillingJob,
-        CaseStalePromptJob,
-        CaseAutoArchiveJob,
+        CaseStaleAskJob,
+        CaseStalePauseJob,
         CaseAutoCloseJob,
         CaseCompletionReminderJob,
         CaseDeadlineReminderJob,

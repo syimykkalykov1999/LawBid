@@ -90,13 +90,32 @@ Future<void> showLawbidIncoming({
   }
 }
 
-/// FCM in the background / killed app (Android data-only push): ring.
+/// Push 2026-10-19 (`call_ended` push): the caller hung up, the call was
+/// missed or answered elsewhere — the system ringing screen goes away,
+/// unless this phone is the one that answered it.
+Future<void> stopLawbidIncoming(String callId) async {
+  try {
+    final calls = await FlutterCallkitIncoming.activeCalls();
+    final mine = calls.where((c) => c.id == callId);
+    if (mine.isEmpty || mine.any((c) => c.isAccepted)) return;
+    await FlutterCallkitIncoming.endCall(callId);
+  } on Object catch (e) {
+    debugPrint('callkit unavailable: $e');
+  }
+}
+
+/// FCM in the background / killed app (Android data-only push): ring, or
+/// stop ringing when the call is over.
 @pragma('vm:entry-point')
 Future<void> lawbidBackgroundMessage(RemoteMessage message) async {
   final d = message.data;
-  if (d['type'] != 'incoming_call') return;
   final callId = d['callId'];
   if (callId is! String) return;
+  if (d['type'] == 'call_ended') {
+    await stopLawbidIncoming(callId);
+    return;
+  }
+  if (d['type'] != 'incoming_call') return;
   await showLawbidIncoming(
     callId: callId,
     callerName: '${d['callerName'] ?? d['title'] ?? 'LawBid'}',

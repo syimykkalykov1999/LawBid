@@ -1,6 +1,9 @@
 /**
- * Owner 2026-10-14: a bar number is checked for its STATE'S shape the
- * moment it is typed, so "just some digits" never reaches a reviewer.
+ * Owner 2026-10-14: a bar number is checked for its STATE'S shape, so
+ * "just some digits" never reaches a reviewer. Owner 2026-10-18: the shape
+ * is never revealed — a number that does not fit is refused with a generic
+ * «not found for this state» and counts as a failed attempt; a real
+ * attorney sends it to a person with the bar card instead.
  * The table below is the default; the owner overrides states (or all of
  * them) in the admin setting `verification.bar_formats` (JSON). A state
  * that is not listed only needs 4+ characters with at least 3 digits.
@@ -9,7 +12,9 @@ export interface BarFormat {
   /** Regular expression of the normalized number (upper case, no spaces,
    * dots, dashes or slashes). */
   pattern: string;
-  /** Shown to the person when the number does not fit. */
+  /** Internal test vector only (the rule must accept it). Owner
+   * 2026-10-18: NEVER shown to anyone — not in API errors, the app or the
+   * admin's user-facing texts. */
   example: string;
 }
 
@@ -77,7 +82,6 @@ export interface BarCheck {
   ok: boolean;
   /** The number as it is stored when the state has a format. */
   normalized: string;
-  example: string | null;
 }
 
 /** Defaults overlaid with the admin's JSON; a broken JSON changes nothing. */
@@ -112,14 +116,12 @@ export function checkBarNumber(
     return {
       ok: upper.length >= 4 && digits >= 3,
       normalized: upper,
-      example: null,
     };
   }
   const normalized = upper.replace(/[\s./-]/g, '');
   return {
     ok: new RegExp(format.pattern).test(normalized),
     normalized,
-    example: format.example || null,
   };
 }
 
@@ -137,5 +139,7 @@ export function barShape(raw: string): string {
 }
 
 /** `attorney_licenses.registry_flag` of a number whose shape this state's
- * rule did not recognise: it waits for a person and a document. */
+ * rule did not recognise and that the attorney sent for manual review
+ * («Мой номер верный — отправить на проверку»): it waits for a person and
+ * the bar card photo. */
 export const FORMAT_UNUSUAL_FLAG = 'format_unusual';

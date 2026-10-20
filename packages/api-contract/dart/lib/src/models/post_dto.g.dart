@@ -7,63 +7,67 @@ part of 'post_dto.dart';
 // **************************************************************************
 
 PostDto _$PostDtoFromJson(Map<String, dynamic> json) => PostDto(
-  id: json['id'] as String,
+  mentions: (json['mentions'] as List<dynamic>)
+      .map((e) => MentionDto.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  createdAt: json['createdAt'] as String,
+  savedByMe: json['savedByMe'] as bool,
+  repostedByMe: json['repostedByMe'] as bool,
+  likedByMe: json['likedByMe'] as bool,
+  body: json['body'] as String,
+  repostCount: (json['repostCount'] as num).toInt(),
   kind: PostKind.fromJson(json['kind'] as String),
+  viewCount: (json['viewCount'] as num).toInt(),
   contentClass: PostContentClass.fromJson(json['contentClass'] as String),
   author: PostAuthorDto.fromJson(json['author'] as Map<String, dynamic>),
-  body: json['body'] as String,
+  id: json['id'] as String,
   media: (json['media'] as List<dynamic>)
       .map((e) => PostMediaDto.fromJson(e as Map<String, dynamic>))
       .toList(),
   attachments: (json['attachments'] as List<dynamic>)
       .map((e) => PostAttachmentDto.fromJson(e as Map<String, dynamic>))
       .toList(),
+  saveCount: (json['saveCount'] as num).toInt(),
   tags: (json['tags'] as List<dynamic>).map((e) => e as String).toList(),
-  mentions: (json['mentions'] as List<dynamic>)
-      .map((e) => MentionDto.fromJson(e as Map<String, dynamic>))
-      .toList(),
+  shareCount: (json['shareCount'] as num).toInt(),
   status: ContentStatus.fromJson(json['status'] as String),
   likeCount: (json['likeCount'] as num).toInt(),
   commentCount: (json['commentCount'] as num).toInt(),
-  saveCount: (json['saveCount'] as num).toInt(),
-  shareCount: (json['shareCount'] as num).toInt(),
-  viewCount: (json['viewCount'] as num).toInt(),
-  repostCount: (json['repostCount'] as num).toInt(),
-  likedByMe: json['likedByMe'] as bool,
-  repostedByMe: json['repostedByMe'] as bool,
-  savedByMe: json['savedByMe'] as bool,
   isMine: json['isMine'] as bool,
-  createdAt: json['createdAt'] as String,
-  commentsEnabled: json['commentsEnabled'] as bool? ?? true,
   likesHidden: json['likesHidden'] as bool? ?? false,
+  commentsEnabled: json['commentsEnabled'] as bool? ?? true,
   viewsHidden: json['viewsHidden'] as bool? ?? false,
-  location: json['location'] == null
-      ? null
-      : PostLocationDto.fromJson(json['location'] as Map<String, dynamic>),
-  title: json['title'] as String?,
-  practice: json['practice'] == null
-      ? null
-      : PostPracticeDto.fromJson(json['practice'] as Map<String, dynamic>),
-  video: json['video'] == null
-      ? null
-      : PostVideoDto.fromJson(json['video'] as Map<String, dynamic>),
-  repostedBy: json['repostedBy'] == null
-      ? null
-      : PostReposterDto.fromJson(json['repostedBy'] as Map<String, dynamic>),
-  editedAt: json['editedAt'] as String?,
-  pinSlot: (json['pinSlot'] as num?)?.toInt(),
-  promotionId: json['promotionId'] as String?,
   promotionCta: json['promotionCta'] == null
       ? null
       : PostPromotionCtaDto.fromJson(
           json['promotionCta'] as Map<String, dynamic>,
         ),
+  practice: json['practice'] == null
+      ? null
+      : PostPracticeDto.fromJson(json['practice'] as Map<String, dynamic>),
+  title: json['title'] as String?,
+  archivedAt: json['archivedAt'] == null
+      ? null
+      : DateTime.parse(json['archivedAt'] as String),
+  repostedBy: json['repostedBy'] == null
+      ? null
+      : PostReposterDto.fromJson(json['repostedBy'] as Map<String, dynamic>),
+  location: json['location'] == null
+      ? null
+      : PostLocationDto.fromJson(json['location'] as Map<String, dynamic>),
+  editedAt: json['editedAt'] as String?,
+  pinSlot: (json['pinSlot'] as num?)?.toInt(),
+  promotionId: json['promotionId'] as String?,
+  video: json['video'] == null
+      ? null
+      : PostVideoDto.fromJson(json['video'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$PostDtoToJson(PostDto instance) => <String, dynamic>{
   'id': instance.id,
   'location': ?instance.location?.toJson(),
   'commentsEnabled': instance.commentsEnabled,
+  'archivedAt': ?instance.archivedAt?.toIso8601String(),
   'likesHidden': instance.likesHidden,
   'viewsHidden': instance.viewsHidden,
   'title': ?instance.title,

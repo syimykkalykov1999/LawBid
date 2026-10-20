@@ -25,6 +25,7 @@ import 'package:lawbid/features/settings/account/account_routes.dart';
 import 'package:lawbid/features/subscription/subscription_routes.dart';
 import 'package:lawbid/features/support/application/support_providers.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
+import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/features/team/team_routes.dart';
 import 'package:lawbid/features/trust/trust_routes.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
@@ -237,6 +238,16 @@ class SettingsScreen extends ConsumerWidget {
               icon: AppIcons.bookmarkBorderRounded,
               label: t.t('mine.tab.saved'),
               onTap: () => context.push(AppRoutes.saved),
+            ),
+          // Owner 2026-10-18 (Instagram): every author's archived posts (an
+          // assistant with "publish" sees the attorney's).
+          if (ref.watch(canDoProvider(AssistantDuty.publish)))
+            AppListRow(
+              key: const ValueKey('settings-archive'),
+              icon: AppIcons.inventory2Outlined,
+              label: t.t('settings.archive'),
+              subtitle: t.t('settings.archive.hint'),
+              onTap: () => context.push(AppRoutes.postArchive),
             ),
           AppListRow(
             icon: AppIcons.historyRounded,

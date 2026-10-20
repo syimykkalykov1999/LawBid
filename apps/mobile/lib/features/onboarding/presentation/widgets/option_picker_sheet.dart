@@ -6,6 +6,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/text/search_fold.dart';
 
 /// One selectable option.
 class PickerOption {
@@ -16,11 +17,16 @@ class PickerOption {
     this.group,
     this.nested = false,
     this.exclusive = false,
+    this.keywords = const [],
   });
 
   final String value;
   final String label;
   final String? sublabel;
+
+  /// Owner 2026-10-18: other names the search finds it by (a state's
+  /// Russian name), never shown.
+  final List<String> keywords;
 
   /// Owner 2026-09-30: the parent's name (a subcategory's category) —
   /// shown under the label in suggestions and matched by the search.
@@ -58,25 +64,24 @@ List<PickerGroup> groupOptions(List<PickerOption> options) {
 /// starts with the query (or a word of it) first, then the rest that
 /// contain it; each word of the query must match.
 List<PickerOption> suggestOptions(List<PickerOption> options, String query) {
-  final words = query
-      .trim()
-      .toLowerCase()
-      .split(RegExp(r'\s+'))
-      .where((w) => w.isNotEmpty)
-      .toList();
+  final words = searchWords(query);
   if (words.isEmpty) return options;
+  final first = words.first;
   int? score(PickerOption o) {
-    final label = o.label.toLowerCase();
-    final hay = '$label ${o.group?.toLowerCase() ?? ''} '
-        '${o.value.toLowerCase()} ${o.sublabel?.toLowerCase() ?? ''}';
-    if (!words.every(hay.contains)) return null;
-    if (label.startsWith(words.first)) return 0;
-    if (label
-        .split(RegExp(r'[\s,/-]+'))
-        .any((w) => w.startsWith(words.first))) {
+    // Owner 2026-10-18: any case / accents / alphabet, a small typo
+    // (core/text/search_fold.dart); the hidden keywords count too.
+    if (!textMatches(
+      query,
+      [o.label, o.group, o.value, o.sublabel, ...o.keywords],
+    )) {
+      return null;
+    }
+    final label = searchFold(o.label);
+    if (label.startsWith(first)) return 0;
+    if (label.split(RegExp(r'[\s,/-]+')).any((w) => w.startsWith(first))) {
       return 1;
     }
-    return label.contains(words.first) ? 2 : 3;
+    return label.contains(first) ? 2 : 3;
   }
 
   final scored = <(int, int, PickerOption)>[];

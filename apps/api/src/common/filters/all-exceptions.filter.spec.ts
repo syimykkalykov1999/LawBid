@@ -88,4 +88,22 @@ describe('AllExceptionsFilter (docs/01 §7 error envelope)', () => {
       },
     });
   });
+
+  it('turns a failed Stripe call into 503 PAYMENTS_NOT_CONFIGURED', () => {
+    const err = Object.assign(new Error('Invalid API Key provided'), {
+      type: 'StripeAuthenticationError',
+    });
+    const { status, body } = run(err);
+    expect(status).toBe(503);
+    expect(body).toMatchObject({
+      error: { code: ErrorCode.PAYMENTS_NOT_CONFIGURED },
+    });
+  });
+
+  it('keeps a declined card behind INTERNAL_ERROR', () => {
+    const err = Object.assign(new Error('declined'), {
+      type: 'StripeCardError',
+    });
+    expect(run(err).status).toBe(500);
+  });
 });

@@ -44,6 +44,8 @@ class SearchFilters {
     this.budgetMin,
     this.budgetMax,
     this.budgetUnknown = false,
+    this.budgetPercent = false,
+    this.percentMax,
     this.noBids = false,
     this.minUrgency,
     this.hasDeadline = false,
@@ -75,6 +77,12 @@ class SearchFilters {
   final int? budgetMin;
   final int? budgetMax;
   final bool budgetUnknown;
+
+  /// Owner 2026-10-18: also cases with a percent (contingency) budget, up
+  /// to [percentMax] whole percent when set; OR-ed with the other budget
+  /// options.
+  final bool budgetPercent;
+  final int? percentMax;
   final bool noBids;
 
   /// Owner 2026-10-05: at least this urgent (`soon` · `urgent` ·
@@ -110,6 +118,8 @@ class SearchFilters {
         budgetMin: budgetMin,
         budgetMax: budgetMax,
         budgetUnknown: budgetUnknown,
+        budgetPercent: budgetPercent,
+        percentMax: percentMax,
         noBids: noBids,
         minUrgency: minUrgency,
         hasDeadline: hasDeadline,
@@ -132,6 +142,7 @@ class SearchFilters {
         practiceCategory,
         if (budgetMin != null || budgetMax != null) true,
         if (budgetUnknown) true,
+        if (budgetPercent) true,
         if (noBids) true,
         minUrgency,
         if (hasDeadline) true,
@@ -155,6 +166,8 @@ class SearchFilters {
         budgetMin,
         budgetMax,
         budgetUnknown,
+        budgetPercent,
+        percentMax,
         noBids,
         minUrgency,
         hasDeadline,
@@ -208,10 +221,6 @@ abstract interface class SearchRepository {
   /// names starting with [q].
   Future<List<SearchSuggestion>> suggest(String q);
 
-  /// Owner 2026-10-15: practices whose name in ANY language starts with
-  /// [q] (code → the word that matched, when not the English name).
-  Future<Map<String, String?>> practices(String q);
-
   /// Owner 2026-10-15: the person opened a result of [q] — the search
   /// learns "query → topic" from it. Never throws and never waits.
   void opened(String q, SearchOpened type, String id);
@@ -230,12 +239,6 @@ class SearchSuggestion {
 
 class ApiSearchRepository implements SearchRepository {
   ApiSearchRepository(Dio dio) : _search = api.SearchClient(dio);
-
-  @override
-  Future<Map<String, String?>> practices(String q) async {
-    final env = await guardApiCall(() => _search.practices(q: q));
-    return {for (final m in env.data) m.code: m.hit};
-  }
 
   @override
   Future<List<SearchSuggestion>> suggest(String q) async {
@@ -350,6 +353,8 @@ class ApiSearchRepository implements SearchRepository {
         budgetMin: f.budgetMin,
         budgetMax: f.budgetMax,
         budgetUnknown: f.budgetUnknown ? true : null,
+        budgetPercent: f.budgetPercent ? true : null,
+        percentMax: f.budgetPercent ? f.percentMax : null,
         noBids: f.noBids ? true : null,
         minUrgency: f.minUrgency == null
             ? null

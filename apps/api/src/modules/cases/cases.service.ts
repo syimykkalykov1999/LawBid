@@ -7,10 +7,10 @@ import {
   Injectable,
   Optional,
 } from '@nestjs/common';
-import { mineCaseWhere } from './mine/mine-filters';
+import { mineWhere } from './mine/mine-filters';
 import { ClientFraudService } from '../client-fraud/client-fraud.service';
 import { SubscriptionAlertsService } from '../notifications/subscription-alerts.service';
-import type { Case, CaseState, Prisma } from '@prisma/client';
+import type { BudgetMode, Case, CaseState, Prisma } from '@prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
   decodeCursor,
@@ -24,6 +24,14 @@ import { BidStateMachine } from '../bids/domain/bid-state-machine';
 import { NotificationsService } from '../notifications/notifications.service';
 import { OnboardingService } from '../users/services/onboarding.service';
 import { CaseStateMachine, caseNotFound } from './domain/case-state-machine';
+import {
+  DEFAULT_STALE_TIMERS,
+  archiveDueAt,
+  canMakeNotUrgent,
+  loadStaleTimers,
+  pauseDueAt,
+  type StaleTimers,
+} from './domain/case-staleness';
 import {
   DEFAULT_URGENCY_THRESHOLDS,
   hasUrgencyInput,
@@ -39,6 +47,7 @@ import {
   type CaseStateInput,
 } from './domain/case-states.rule';
 import { assertNoContactInfo } from './domain/contact-detector';
+import { assertContingency, contingencyPolicy } from './domain/contingency';
 import {
   ChatSystemMessages,
   type ChatChange,
@@ -52,7 +61,9 @@ import {
   type CreateCaseDto,
   type ListMyCasesQueryDto,
   type MyCasesFilter,
+  type StillNeededAnswer,
   type UpdateCaseDto,
+  type UpdatePrivateDetailsDto,
 } from './dto/case-requests.dto';
 import type {
   CaseDto,
@@ -145,10 +156,10 @@ function statesLocked(): ConflictException {
  * already keeps the two in sync on the wire, this is the one place the
  * dollars -> cents conversion (and its defense-in-depth check) happens. */
 export function budgetCentsOf(
-  mode: 'amount' | 'clarify_later',
+  mode: BudgetMode,
   amountDollars: number | undefined,
 ): number | null {
-  if (mode === 'clarify_later') return null;
+  if (mode !== 'amount') return null;
   if (!Number.isInteger(amountDollars) || (amountDollars as number) <= 0) {
     throw validationError('budgetAmountDollars is required for "amount".', {
       field: 'budgetAmountDollars',
@@ -210,11 +221,15 @@ export function urgencyDiff(
 function toCaseDto(
   kase: CaseWithDetails,
   t: UrgencyThresholds = DEFAULT_URGENCY_THRESHOLDS,
+  stale: StaleTimers = DEFAULT_STALE_TIMERS,
 ): CaseDto {
   return {
     id: kase.id,
     title: kase.title,
     description: kase.description,
+    // Owner 2026-10-18: only ever built for the owner, the accepted
+    // attorney or an admin (never for the feed / search).
+    privateDetails: kase.private_details ?? null,
     practiceArea: {
       id: kase.practice_area.id,
       code: kase.practice_area.code,
@@ -235,6 +250,7 @@ function toCaseDto(
     city: kase.city,
     budgetMode: kase.budget_mode,
     budgetCents: kase.budget_cents,
+    budgetPercentBps: kase.budget_percent_bps,
     coverKey: kase.cover_key,
     ...urgencyFields(kase, new Date(), t),
     status: kase.status,
@@ -249,12 +265,58 @@ function toCaseDto(
     closedAt: kase.closed_at?.toISOString() ?? null,
     deletedAt: kase.deleted_at?.toISOString() ?? null,
     stalePromptSentAt: kase.stale_prompt_sent_at?.toISOString() ?? null,
+    ...stillNeededFields(kase, stale),
+  };
+}
+
+/** OQ-054: what the client's screens need to draw the question / pause —
+ * including the dates: when an unanswered question hides the case, and
+ * when a paused case goes to the archive. */
+function stillNeededFields(
+  kase: Case,
+  timers: StaleTimers,
+): {
+  pausedAt: string | null;
+  stillNeededPending: boolean;
+  canMakeNotUrgent: boolean;
+  hidesAt: string | null;
+  archivesAt: string | null;
+} {
+  const open = kase.status === 'open';
+  // The question waits for an answer (a paused case shows «Вернуть»).
+  const pending = open && !kase.paused_at && kase.stale_prompt_sent_at !== null;
+  const facts = {
+    urgency: kase.urgency,
+    deadlineAt: kase.deadline_at,
+    clientActiveAt: kase.client_active_at,
+    promptSentAt: kase.stale_prompt_sent_at,
+    pausedAt: kase.paused_at,
+  };
+  return {
+    pausedAt: kase.paused_at?.toISOString() ?? null,
+    stillNeededPending: pending,
+    canMakeNotUrgent:
+      open && canMakeNotUrgent(kase.urgency, kase.created_at, new Date()),
+    // The prompt is shown even when the client acted after it (the flag
+    // above); the date then counts from the question itself.
+    hidesAt:
+      pending && kase.stale_prompt_sent_at
+        ? (pauseDueAt(
+            { ...facts, clientActiveAt: kase.stale_prompt_sent_at },
+            timers,
+          )?.toISOString() ?? null)
+        : null,
+    archivesAt:
+      open && kase.paused_at
+        ? (archiveDueAt(facts, timers)?.toISOString() ?? null)
+        : null,
   };
 }
 
 function toSummaryDto(
   kase: CaseWithPracticeAndStates,
   t: UrgencyThresholds = DEFAULT_URGENCY_THRESHOLDS,
+  stale: StaleTimers = DEFAULT_STALE_TIMERS,
 ): CaseSummaryDto {
   return {
     id: kase.id,
@@ -272,11 +334,13 @@ function toSummaryDto(
     status: kase.status,
     budgetMode: kase.budget_mode,
     budgetCents: kase.budget_cents,
+    budgetPercentBps: kase.budget_percent_bps,
     coverKey: kase.cover_key,
     ...urgencyFields(kase, new Date(), t),
     bidsCount: kase.bids_count,
     createdAt: kase.created_at.toISOString(),
     lastActivityAt: kase.last_activity_at.toISOString(),
+    ...stillNeededFields(kase, stale),
   };
 }
 
@@ -340,6 +404,15 @@ export class CasesService {
       dto.extraPracticeAreaIds ?? [],
     );
     const budgetCents = budgetCentsOf(dto.budgetMode, dto.budgetAmountDollars);
+    const budgetPercentBps =
+      dto.budgetMode === 'percent'
+        ? assertContingency(
+            await contingencyPolicy(this.settings),
+            [practiceArea.code, ...extraAreas.map((a) => a.code)],
+            dto.budgetPercentBps,
+            'budgetPercentBps',
+          )
+        : null;
     const urgency = urgencyColumnsOf(dto, null);
 
     // OQ-031: the author's own clean case photos (count: admin, bug 17).
@@ -362,11 +435,14 @@ export class CasesService {
           client_id: user.sub,
           title: dto.title,
           description: dto.description,
+          // Owner 2026-10-18: private; empty means none.
+          private_details: dto.privateDetails?.trim() || null,
           practice_area_id: dto.practiceAreaId,
           primary_state_code: dto.primaryStateCode,
           city: dto.city ?? null,
           budget_mode: dto.budgetMode,
           budget_cents: budgetCents,
+          budget_percent_bps: budgetPercentBps,
           cover_key: dto.coverKey ?? null,
           ...urgency,
           status: 'open',
@@ -401,6 +477,7 @@ export class CasesService {
           states: states as unknown as Prisma.InputJsonArray,
           budgetMode: kase.budget_mode,
           budgetCents: kase.budget_cents,
+          budgetPercentBps: kase.budget_percent_bps,
         },
       });
       if (!consentGranted) {
@@ -438,6 +515,7 @@ export class CasesService {
         states: statesRows(states),
       },
       await this.thresholds(),
+      await this.staleTimers(),
     );
   }
 
@@ -538,24 +616,77 @@ export class CasesService {
         extra.description = dto.description;
         diff.description = { old: current.description, new: dto.description };
       }
+      // Owner 2026-10-18: private details; the journal never gets the text.
+      if (dto.privateDetails !== undefined) {
+        const next = dto.privateDetails.trim() || null;
+        if (next !== current.private_details) {
+          extra.private_details = next;
+          diff.privateDetailsChanged = {
+            old: current.private_details !== null,
+            new: next !== null,
+          };
+        }
+      }
       if (dto.city !== undefined && dto.city !== current.city) {
         extra.city = dto.city;
         diff.city = { old: current.city, new: dto.city };
+      }
+      // Owner 2026-10-17: a percent budget is checked against the topics
+      // the case will have after this update.
+      const nextMode = dto.budgetMode ?? current.budget_mode;
+      if (
+        nextMode === 'percent' &&
+        (dto.budgetMode !== undefined || hasPracticeChange)
+      ) {
+        const extraIds =
+          extraAreas?.map((a) => a.id) ??
+          (
+            await tx.caseExtraPractice.findMany({
+              where: { case_id: caseId },
+              select: { practice_area_id: true },
+            })
+          ).map((e) => e.practice_area_id);
+        const codes = (
+          await tx.practiceArea.findMany({
+            where: { id: { in: [nextPrimary, ...extraIds] } },
+            select: { code: true },
+          })
+        ).map((a) => a.code);
+        assertContingency(
+          await contingencyPolicy(this.settings),
+          codes,
+          dto.budgetMode === undefined
+            ? (current.budget_percent_bps ?? undefined)
+            : dto.budgetPercentBps,
+          'budgetPercentBps',
+        );
       }
       if (dto.budgetMode !== undefined) {
         const budgetCents = budgetCentsOf(
           dto.budgetMode,
           dto.budgetAmountDollars,
         );
+        const budgetPercentBps =
+          dto.budgetMode === 'percent' ? (dto.budgetPercentBps ?? null) : null;
         if (
           dto.budgetMode !== current.budget_mode ||
-          budgetCents !== current.budget_cents
+          budgetCents !== current.budget_cents ||
+          budgetPercentBps !== current.budget_percent_bps
         ) {
           extra.budget_mode = dto.budgetMode;
           extra.budget_cents = budgetCents;
+          extra.budget_percent_bps = budgetPercentBps;
           diff.budget = {
-            old: { mode: current.budget_mode, cents: current.budget_cents },
-            new: { mode: dto.budgetMode, cents: budgetCents },
+            old: {
+              mode: current.budget_mode,
+              cents: current.budget_cents,
+              percentBps: current.budget_percent_bps,
+            },
+            new: {
+              mode: dto.budgetMode,
+              cents: budgetCents,
+              percentBps: budgetPercentBps,
+            },
           };
         }
       }
@@ -682,6 +813,7 @@ export class CasesService {
         states: finalStates,
       },
       await this.thresholds(),
+      await this.staleTimers(),
     );
   }
 
@@ -722,7 +854,8 @@ export class CasesService {
       const { case: afterCase, plan } = await this.caseMachine.apply(tx, {
         caseId,
         action: 'set_urgency',
-        extra,
+        // OQ-054: only the client's own change counts as their activity.
+        extra: isClient ? { ...extra, client_active_at: new Date() } : extra,
       });
       if (Object.keys(diff).length === 0) return afterCase;
       await this.journal.append(tx, {
@@ -763,6 +896,67 @@ export class CasesService {
             tx,
           );
         }
+      }
+      return afterCase;
+    });
+    return this.toFullDto(updated);
+  }
+
+  /** PATCH /cases/:id/private-details — audit 2026-10-19: the client's
+   * «Подробности» were write-once (the case edit is for open cases only).
+   * Now the client changes them while the case is open or in work; the
+   * hired attorney is told, the journal never gets the text. */
+  async updatePrivateDetails(
+    user: RequestUser,
+    caseId: string,
+    dto: UpdatePrivateDetailsDto,
+  ): Promise<CaseDto> {
+    this.assertClientRole(user);
+    const updated = await withTxRetry(this.prisma, async (tx) => {
+      const current = await tx.case.findUnique({
+        where: { id: caseId },
+        select: {
+          client_id: true,
+          deleted_at: true,
+          status: true,
+          private_details: true,
+          accepted_bid: { select: { attorney_id: true } },
+        },
+      });
+      if (!current || current.deleted_at || current.client_id !== user.sub) {
+        throw caseNotFound();
+      }
+      const next = dto.privateDetails.trim() || null;
+      const { case: afterCase, plan } = await this.caseMachine.apply(tx, {
+        caseId,
+        action: 'client_set_private_details',
+        extra:
+          next !== current.private_details ? { private_details: next } : {},
+      });
+      if (next === current.private_details) return afterCase;
+      await this.journal.append(tx, {
+        caseId,
+        clientId: user.sub,
+        actor: { userId: user.sub, role: 'client' },
+        event: plan.event,
+        payload: {
+          privateDetailsChanged: {
+            old: current.private_details !== null,
+            new: next !== null,
+          },
+        },
+      });
+      // Audit 2026-10-19: the hired attorney is told (ids only).
+      const attorney = current.accepted_bid?.attorney_id ?? null;
+      if (attorney && current.status !== 'open') {
+        await this.notifications.emit(
+          {
+            type: 'case_workspace_activity',
+            recipientId: attorney,
+            payload: { caseId, actorId: user.sub, kind: 'details' },
+          },
+          tx,
+        );
       }
       return afterCase;
     });
@@ -815,8 +1009,47 @@ export class CasesService {
     return this.toFullDto(updated);
   }
 
-  /** POST /cases/:id/keep-alive (§10.2 "Да, актуален"). */
+  /** POST /cases/:id/keep-alive (§10.2 "Да, актуален") — same as the
+   * OQ-054 answer `still_needed`. */
   async keepAlive(user: RequestUser, caseId: string): Promise<CaseDto> {
+    return this.resetSilence(user, caseId, { keepAlive: true });
+  }
+
+  /**
+   * POST /cases/:id/still-needed (OQ-054, owner only): the client's answer
+   * to «Вам ещё нужен адвокат?».
+   * - `still_needed` («Да, нужен») and `wait_better` («Жду предложений
+   *   получше»): a fresh silent period; the question and a pause are
+   *   cleared.
+   * - `not_needed` («Уже не нужен»): the client withdraws the case — the
+   *   normal close path (bids rejected, chats closed).
+   * - `make_not_urgent` («Сменить на «Не срочно»»): urgent / very urgent
+   *   cases older than 7 days only; urgency becomes flexible, same reset.
+   */
+  async answerStillNeeded(
+    user: RequestUser,
+    caseId: string,
+    answer: StillNeededAnswer,
+  ): Promise<CaseDto> {
+    this.assertClientRole(user);
+    switch (answer) {
+      case 'not_needed':
+        return this.close(user, caseId);
+      case 'make_not_urgent':
+        return this.resetSilence(
+          user,
+          caseId,
+          { stillNeeded: answer },
+          { toFlexible: true },
+        );
+      default:
+        return this.resetSilence(user, caseId, { stillNeeded: answer });
+    }
+  }
+
+  /** POST /cases/:id/resume (OQ-054, owner only): bring a paused case back
+   * into the feed; the silent period starts over. */
+  async resume(user: RequestUser, caseId: string): Promise<CaseDto> {
     this.assertClientRole(user);
     const updated = await withTxRetry(this.prisma, async (tx) => {
       const current = await tx.case.findUnique({
@@ -826,14 +1059,69 @@ export class CasesService {
       if (!current || current.client_id !== user.sub) throw caseNotFound();
       const { case: afterCase, plan } = await this.caseMachine.apply(tx, {
         caseId,
-        action: 'client_keep_alive',
+        action: 'client_resume',
       });
       await this.journal.append(tx, {
         caseId,
         clientId: user.sub,
         actor: { userId: user.sub, role: 'client' },
         event: plan.event,
-        payload: { keepAlive: true },
+        payload: { resumed: true },
+      });
+      return afterCase;
+    });
+    return this.toFullDto(updated);
+  }
+
+  /** The shared body of «Да, нужен» / «Жду…» / «Сменить на «Не срочно»»:
+   * client_keep_alive, optionally with urgency → flexible. */
+  private async resetSilence(
+    user: RequestUser,
+    caseId: string,
+    payload: Prisma.InputJsonObject,
+    opts: { toFlexible?: boolean } = {},
+  ): Promise<CaseDto> {
+    this.assertClientRole(user);
+    const updated = await withTxRetry(this.prisma, async (tx) => {
+      const current = await tx.case.findUnique({
+        where: { id: caseId },
+        select: {
+          client_id: true,
+          urgency: true,
+          deadline_at: true,
+          deadline_kind: true,
+          created_at: true,
+          status: true,
+        },
+      });
+      if (!current || current.client_id !== user.sub) throw caseNotFound();
+      const diff: Record<string, { old: unknown; new: unknown }> = {};
+      let extra: Partial<ReturnType<typeof resolveUrgencyInput>> = {};
+      if (opts.toFlexible) {
+        if (
+          current.status === 'open' &&
+          !canMakeNotUrgent(current.urgency, current.created_at, new Date())
+        ) {
+          throw new ConflictException({
+            code: ErrorCode.CASE_INVALID_STATE,
+            message:
+              'Only an urgent case older than a week can be changed to not urgent.',
+            details: { reason: 'not_offered' },
+          });
+        }
+        extra = urgencyDiff({ urgency: 'flexible' }, current, diff);
+      }
+      const { case: afterCase, plan } = await this.caseMachine.apply(tx, {
+        caseId,
+        action: 'client_keep_alive',
+        extra,
+      });
+      await this.journal.append(tx, {
+        caseId,
+        clientId: user.sub,
+        actor: { userId: user.sub, role: 'client' },
+        event: plan.event,
+        payload: { ...payload, ...(diff as unknown as Prisma.InputJsonObject) },
       });
       return afterCase;
     });
@@ -854,7 +1142,7 @@ export class CasesService {
         client_id: user.sub,
         status: FILTER_STATUSES[filter],
         // Owner 2026-09-30: search and filters in "Mine".
-        ...mineCaseWhere(query),
+        ...(await mineWhere(this.prisma, query)),
         ...(cursor
           ? {
               OR: [
@@ -875,9 +1163,10 @@ export class CasesService {
       user.sub,
     );
     const t = await this.thresholds();
+    const stale = await this.staleTimers();
     return {
       items: page.map((k) => ({
-        ...toSummaryDto(k, t),
+        ...toSummaryDto(k, t, stale),
         coverUrl: covers.get(k.id) ?? null,
       })),
       nextCursor:
@@ -1064,12 +1353,18 @@ export class CasesService {
         states,
       },
       await this.thresholds(),
+      await this.staleTimers(),
     );
   }
 
   /** Owner 2026-10-05: the admin's urgency thresholds (days left). */
   thresholds(): Promise<UrgencyThresholds> {
     return loadUrgencyThresholds(this.settings);
+  }
+
+  /** OQ-054: the admin's stale-case timers (for the dates on the prompt). */
+  staleTimers(): Promise<StaleTimers> {
+    return loadStaleTimers(this.settings);
   }
 
   /** Shared body of close/delete: the state transition plus auto-rejecting

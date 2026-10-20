@@ -164,6 +164,7 @@ export class VerificationRequestsService {
   async overview(
     userId: string,
     now = new Date(),
+    ip?: string,
   ): Promise<VerificationOverviewDto> {
     const { verificationStatus } = await requireOwnAttorney(
       this.prisma,
@@ -185,6 +186,9 @@ export class VerificationRequestsService {
       request: latest ? toDto(latest) : null,
       identityRequired: await this.identityRequired(userId, verificationStatus),
       barDocumentRequired: await this.barDocumentNeeded(latest),
+      barAttemptsRetryAfterSeconds: this.attempts
+        ? Math.max(0, await this.attempts.remainingSeconds(userId, ip))
+        : 0,
       submissionsLast30Days: used,
       maxSubmissions30Days: max,
     };
@@ -266,9 +270,13 @@ export class VerificationRequestsService {
     ip?: string,
   ): Promise<VerificationRequestDto> {
     await this.requireActiveAttorney(userId);
+    // Owner 2026-10-18: «Мой номер верный — отправить на проверку» — the
+    // attorney sends a number that does not fit for a person to check with
+    // the bar card. It is open while the attempts lock is on.
+    const manual = dto.manualReview === true;
     // Owner 2026-10-14: cooling down after wrong numbers, then the state's
     // own shape — a number that does not fit never reaches a reviewer.
-    if (this.attempts) {
+    if (this.attempts && !manual) {
       const wait = await this.attempts.remainingSeconds(userId, ip);
       if (wait > 0) {
         throw httpError(
@@ -279,23 +287,25 @@ export class VerificationRequestsService {
         );
       }
     }
-    // Owner 2026-10-16: a number that does not look like this state's usual
-    // one is never a dead end: a soft hint, the license goes to a person
-    // with a document, and the shape is logged for the admin.
     const shape = checkBarNumber(
       dto.stateCode,
       dto.barNumber,
       resolveFormats(await this.settings.string('verification.bar_formats')),
     );
-    // Only what no bar can issue is refused: 3–32 letters / digits with at
-    // least one digit.
-    if (
+    // Owner 2026-10-18: the format is never revealed. Junk (not 3–32 letters
+    // / digits with a digit) and a number that does not fit the state's rule
+    // are refused with the same generic «not found for this state», no
+    // example, and count as a failed attempt (5 → locked for an hour). The
+    // shape of a non-fitting number is logged so the admin can widen a rule.
+    const junk =
       !/^[A-Z0-9]{3,32}$/.test(shape.normalized) ||
-      !/\d/.test(shape.normalized)
-    ) {
-      const cooldown = this.attempts
-        ? await this.attempts.recordFailure(userId, ip)
-        : 0;
+      !/\d/.test(shape.normalized);
+    if (junk || (!shape.ok && !manual)) {
+      if (!junk) await this.logFormatMiss(dto.stateCode, dto.barNumber);
+      const cooldown =
+        this.attempts && !manual
+          ? await this.attempts.recordFailure(userId, ip)
+          : 0;
       throw httpError(
         cooldown > 0 ? HttpStatus.TOO_MANY_REQUESTS : HttpStatus.BAD_REQUEST,
         cooldown > 0
@@ -309,8 +319,8 @@ export class VerificationRequestsService {
           : { stateCode: dto.stateCode },
       );
     }
+    // Only a number the attorney insisted on reaches here without fitting.
     const unusual = !shape.ok;
-    if (unusual) await this.logFormatMiss(dto.stateCode, dto.barNumber);
     dto = { ...dto, barNumber: shape.normalized };
     const state = await this.prisma.state.findUnique({
       where: { code: dto.stateCode },
@@ -530,6 +540,8 @@ export class VerificationRequestsService {
           file_id: dto.fileId,
           state_code: shape.stateCode,
           side: shape.side,
+          // Owner 2026-10-18: the attorney's note to the reviewer.
+          notes: dto.note?.trim() ? dto.note.trim() : null,
         },
       });
     });
@@ -681,11 +693,12 @@ export class VerificationRequestsService {
         // Owner 2026-10-16: the bar card is required where nobody checks the
         // number for us (no registry for the state) and for a number whose
         // shape no rule recognised.
+        // Owner 2026-10-18: a number the attorney sent for manual review
+        // always needs the card, whatever the setting.
         const needsDoc =
           barDocRequired ||
-          (manualDoc &&
-            (l.registry_flag === FORMAT_UNUSUAL_FLAG ||
-              !(await this.checks.registryEnabled(l.state_code))));
+          l.registry_flag === FORMAT_UNUSUAL_FLAG ||
+          (manualDoc && !(await this.checks.registryEnabled(l.state_code)));
         if (needsDoc) {
           const has = req.documents.some(
             (d) =>
@@ -867,6 +880,9 @@ export function toDto(row: RequestRow): VerificationRequestDto {
       expiresAt: isoDay(l.expires_at),
       rejectionCode: l.rejection_code,
       rejectionNote: l.rejection_note,
+      manualReview:
+        l.license_status === 'pending' &&
+        l.registry_flag === FORMAT_UNUSUAL_FLAG,
     })),
     documents: row.documents.map((d) => ({
       id: d.id,

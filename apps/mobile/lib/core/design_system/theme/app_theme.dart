@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
 import 'package:lawbid/core/design_system/theme/app_theme_id.dart';
 import 'package:lawbid/core/design_system/theme/app_typography_tokens.dart';
+import 'package:lawbid/core/design_system/theme/chat_colors.dart';
 import 'package:lawbid/core/design_system/tokens/app_fonts.dart';
 import 'package:lawbid/core/design_system/tokens/app_radii.dart';
 
@@ -59,7 +60,11 @@ abstract final class AppTheme {
         surface: colors.isGlass ? colors.sheet : colors.surface,
         onSurface: colors.text,
       ),
-      extensions: <ThemeExtension<dynamic>>[colors, typography],
+      extensions: <ThemeExtension<dynamic>>[
+        colors,
+        typography,
+        ChatColors.forTokens(colors, brightness),
+      ],
       textTheme: TextTheme(
         titleLarge: typography.titleLarge.copyWith(color: colors.text),
         titleMedium: typography.titleMedium.copyWith(color: colors.text),

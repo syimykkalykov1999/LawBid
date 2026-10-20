@@ -10,6 +10,7 @@ UpdateCaseDto _$UpdateCaseDtoFromJson(Map<String, dynamic> json) =>
     UpdateCaseDto(
       title: json['title'] as String?,
       description: json['description'] as String?,
+      privateDetails: json['privateDetails'] as String?,
       practiceAreaId: json['practiceAreaId'] as String?,
       extraPracticeAreaIds: (json['extraPracticeAreaIds'] as List<dynamic>?)
           ?.map((e) => e as String)
@@ -23,6 +24,7 @@ UpdateCaseDto _$UpdateCaseDtoFromJson(Map<String, dynamic> json) =>
           ? null
           : BudgetMode.fromJson(json['budgetMode'] as String),
       budgetAmountDollars: (json['budgetAmountDollars'] as num?)?.toInt(),
+      budgetPercentBps: (json['budgetPercentBps'] as num?)?.toInt(),
       coverKey: json['coverKey'] as String?,
       urgency: json['urgency'] == null
           ? null
@@ -42,6 +44,7 @@ Map<String, dynamic> _$UpdateCaseDtoToJson(UpdateCaseDto instance) =>
     <String, dynamic>{
       'title': ?instance.title,
       'description': ?instance.description,
+      'privateDetails': ?instance.privateDetails,
       'practiceAreaId': ?instance.practiceAreaId,
       'extraPracticeAreaIds': ?instance.extraPracticeAreaIds,
       'primaryStateCode': ?instance.primaryStateCode,
@@ -49,6 +52,7 @@ Map<String, dynamic> _$UpdateCaseDtoToJson(UpdateCaseDto instance) =>
       'city': ?instance.city,
       'budgetMode': ?instance.budgetMode?.toJson(),
       'budgetAmountDollars': ?instance.budgetAmountDollars,
+      'budgetPercentBps': ?instance.budgetPercentBps,
       'coverKey': ?instance.coverKey,
       'urgency': ?instance.urgency?.toJson(),
       'deadlineAt': ?instance.deadlineAt?.toIso8601String(),

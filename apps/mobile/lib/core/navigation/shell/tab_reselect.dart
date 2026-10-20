@@ -4,6 +4,9 @@ import 'package:lawbid/core/design_system/tokens/app_motion.dart';
 
 /// Owner 2026-10-06 (Instagram-style): tapping the bottom-nav tab that is
 /// already selected scrolls that tab back to the top and refreshes it.
+/// Owner 2026-10-19 (Instagram): away from the top the tap only scrolls
+/// back up; a tap with the tab already at the top refreshes it (so a
+/// second tap after the scroll refreshes).
 ///
 /// Works for every tab and every list inside it without each screen
 /// opting in: [scrollToTopAndRefresh] walks the visible part of the tab
@@ -15,6 +18,21 @@ import 'package:lawbid/core/design_system/tokens/app_motion.dart';
 Future<void> scrollToTopAndRefresh(
   BuildContext root, {
   bool reduceMotion = false,
+}) =>
+    _scrollUp(root, reduceMotion: reduceMotion, refresh: true);
+
+/// Owner 2026-10-19: only the scroll back to the top (the feed's «New
+/// posts» pill refreshes on its own).
+Future<void> scrollVisibleToTop(
+  BuildContext root, {
+  bool reduceMotion = false,
+}) =>
+    _scrollUp(root, reduceMotion: reduceMotion, refresh: false);
+
+Future<void> _scrollUp(
+  BuildContext root, {
+  required bool reduceMotion,
+  required bool refresh,
 }) async {
   final rootBox = root.findRenderObject();
   if (rootBox is! RenderBox || !rootBox.hasSize) return;
@@ -53,12 +71,21 @@ Future<void> scrollToTopAndRefresh(
 
   root.visitChildElements(visit);
 
+  final away = scrollables.any(_awayFromTop);
   await Future.wait([
     for (final s in scrollables) _toTop(s.position, reduceMotion),
   ]);
-  if (refreshers.isEmpty) return;
+  if (!refresh || away || refreshers.isEmpty) return;
   final refresher = refreshers.first;
   if (refresher.mounted) await refresher.show();
+}
+
+bool _awayFromTop(ScrollableState s) {
+  final p = s.position;
+  // A few pixels of a bounce do not count.
+  return p.hasContentDimensions &&
+      p.hasPixels &&
+      p.pixels > p.minScrollExtent + 4;
 }
 
 Rect _globalRect(RenderBox box) => MatrixUtils.transformRect(

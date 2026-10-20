@@ -63,6 +63,8 @@ const QUOTA_FREE_PURPOSES: readonly FilePurpose[] = [
   'verification_selfie',
   'data_export',
   'document_template',
+  // Owner 2026-10-18: a user at their quota can still write to support.
+  'support_attachment',
 ];
 
 interface UploadIntent {
@@ -92,6 +94,15 @@ const intentKey = (fileId: string): string => `files:upload:${fileId}`;
 import { SecretsService } from '../../common/secrets/secrets.service';
 import { demoContext } from '../../common/demo/demo-context';
 import { DEMO_SETTINGS_KEY, parseDemoSettings } from '../demo/demo.settings';
+export interface SignedAttachment {
+  url: string;
+  previewUrl: string | null;
+  mime: string;
+  sizeBytes: number;
+  width: number | null;
+  height: number | null;
+}
+
 @Injectable()
 export class FilesService {
   constructor(
@@ -585,35 +596,39 @@ export class FilesService {
    * bucket), with a 320 px preview for photos. The caller has checked
    * chat membership.
    */
-  async attachmentUrls(fileIds: string[]): Promise<
-    Map<
-      string,
-      {
-        url: string;
-        previewUrl: string | null;
-        mime: string;
-        sizeBytes: number;
-        width: number | null;
-        height: number | null;
-      }
-    >
-  > {
-    const out = new Map<
-      string,
-      {
-        url: string;
-        previewUrl: string | null;
-        mime: string;
-        sizeBytes: number;
-        width: number | null;
-        height: number | null;
-      }
-    >();
+  async attachmentUrls(
+    fileIds: string[],
+  ): Promise<Map<string, SignedAttachment>> {
+    return this.signedAttachments('chat_attachment', fileIds);
+  }
+
+  /**
+   * Owner 2026-10-18 (OQ-055): short signed links to clean support
+   * attachments (documents bucket), a 320 px preview for photos; documents
+   * are saved under the sender's file name. The caller has checked that
+   * the viewer is the ticket's user or support staff.
+   */
+  async supportAttachmentUrls(
+    files: { fileId: string; name: string }[],
+  ): Promise<Map<string, SignedAttachment>> {
+    return this.signedAttachments(
+      'support_attachment',
+      files.map((f) => f.fileId),
+      new Map(files.map((f) => [f.fileId, f.name])),
+    );
+  }
+
+  private async signedAttachments(
+    purpose: FilePurpose,
+    fileIds: string[],
+    names?: ReadonlyMap<string, string>,
+  ): Promise<Map<string, SignedAttachment>> {
+    const out = new Map<string, SignedAttachment>();
     if (fileIds.length === 0 || !this.storage.configured) return out;
     const files = await this.prisma.file.findMany({
       where: {
         id: { in: fileIds },
-        purpose: 'chat_attachment',
+        purpose,
         scan_status: 'clean',
         deleted_at: null,
       },
@@ -624,6 +639,10 @@ export class FilesService {
           f.s3_bucket,
           f.s3_key,
           MEDIA_SIGNED_URL_TTL_SEC,
+          // Photos and videos play inline; documents save under the name.
+          isImageMime(f.mime) || f.mime.startsWith('video/')
+            ? undefined
+            : names?.get(f.id),
         ),
         previewUrl: isImageMime(f.mime)
           ? await this.storage.signedGetUrl(

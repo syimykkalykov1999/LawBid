@@ -16,7 +16,7 @@ import type {
   UpdateSupportMacroDto,
 } from './support.dto';
 import { AdminSupportService } from './admin-support.service';
-import { nameOf, ticketNotFound } from './support.rules';
+import { nameOf, pickMacroBody, ticketNotFound } from './support.rules';
 
 const MAX_MACROS = 500;
 const DEFAULT_STATS_DAYS = 30;
@@ -36,13 +36,16 @@ export class SupportTeamService {
 
   // --- ready answers ---------------------------------------------------------
 
-  async macros(activeOnly: boolean): Promise<SupportMacroDto[]> {
+  async macros(
+    activeOnly: boolean,
+    language?: string,
+  ): Promise<SupportMacroDto[]> {
     const rows = await this.prisma.supportMacro.findMany({
       where: activeOnly ? { active: true } : {},
       orderBy: [{ active: 'desc' }, { uses: 'desc' }, { title: 'asc' }],
       take: MAX_MACROS,
     });
-    return rows.map(presentMacro);
+    return rows.map((m) => presentMacro(m, language));
   }
 
   async createMacro(
@@ -54,6 +57,7 @@ export class SupportTeamService {
         data: {
           title: dto.title,
           body: dto.body,
+          body_ru: dto.bodyRu?.trim() || null,
           category: dto.category ?? null,
           active: dto.active ?? true,
           created_by: adminId,
@@ -87,6 +91,9 @@ export class SupportTeamService {
         data: {
           ...(dto.title !== undefined ? { title: dto.title } : {}),
           ...(dto.body !== undefined ? { body: dto.body } : {}),
+          ...(dto.bodyRu !== undefined
+            ? { body_ru: dto.bodyRu?.trim() || null }
+            : {}),
           ...(dto.category !== undefined ? { category: dto.category } : {}),
           ...(dto.active !== undefined ? { active: dto.active } : {}),
         },
@@ -357,11 +364,13 @@ export class SupportTeamService {
   }
 }
 
-function presentMacro(m: SupportMacro): SupportMacroDto {
+function presentMacro(m: SupportMacro, language?: string): SupportMacroDto {
   return {
     id: m.id,
     title: m.title,
     body: m.body,
+    bodyRu: m.body_ru,
+    text: pickMacroBody(m, language),
     category: (m.category as SupportCategory | null) ?? null,
     active: m.active,
     uses: m.uses,

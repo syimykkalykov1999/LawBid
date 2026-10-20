@@ -9,6 +9,7 @@ import 'package:image_picker/image_picker.dart'
     show ImagePicker, ImageSource, XFile;
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/media/playback_visibility.dart';
 import 'package:lawbid/core/media/video_frames.dart';
 import 'package:lawbid/features/reels/domain/reel_cut.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
@@ -62,7 +63,8 @@ const _kStripHeight = 56.0;
 const _kHandleWidth = 14.0;
 const _kCoverWidth = 30.0;
 
-class _VideoEditorScreenState extends ConsumerState<VideoEditorScreen> {
+class _VideoEditorScreenState extends ConsumerState<VideoEditorScreen>
+    with PlaybackVisibility {
   late ReelCut _cut = widget.cut;
   late int _tab = widget.initialTab;
   VideoPlayerController? _player;
@@ -96,7 +98,11 @@ class _VideoEditorScreenState extends ConsumerState<VideoEditorScreen> {
         ? VideoPlayerController.networkUrl(Uri.parse(widget.file.path))
         : VideoPlayerController.file(File(widget.file.path));
     try {
-      await c.initialize();
+      // iOS Safari may never say a picked video can play: after 10 s the
+      // editor works from the frames alone instead of waiting forever.
+      await (kIsWeb
+          ? c.initialize().timeout(const Duration(seconds: 10))
+          : c.initialize());
       await c.setLooping(true);
       await c.setVolume(0);
     } on Object {
@@ -111,6 +117,12 @@ class _VideoEditorScreenState extends ConsumerState<VideoEditorScreen> {
     setState(() => _player = c);
     await _showTab();
   }
+
+  /// Owner 2026-10-18: the preview stops while the app is in the
+  /// background or a screen is over the editor, and plays on when back.
+  @override
+  void didChangePlaybackVisibility({required bool visible}) =>
+      holdPlayback(_player, visible: visible);
 
   Future<void> _loadFrames() async {
     for (var i = 0; i < _kStripFrames; i++) {
@@ -144,7 +156,7 @@ class _VideoEditorScreenState extends ConsumerState<VideoEditorScreen> {
     if (c == null) return;
     if (_tab == 0) {
       await c.seekTo(Duration(milliseconds: _cut.startMs));
-      await c.play();
+      await playWhenVisible(c);
     } else {
       await c.pause();
       await c.seekTo(Duration(milliseconds: _cut.coverMs));

@@ -7,8 +7,11 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { RateLimitService } from '../auth/services/rate-limit.service';
 import { SupportDeskService } from './support-desk.service';
+import { SupportFilesService } from './support-files.service';
 import type {
   CreateSupportTicketDto,
+  SupportAttachmentDto,
+  SupportAttachmentInputDto,
   SupportInfoDto,
   SupportCategory,
   SupportMessageDto,
@@ -20,6 +23,8 @@ import {
   activityKeyset,
   activityPage,
   afterUserMessage,
+  assertHasContent,
+  buildClientContext,
   supportAuthorName,
   ticketNotFound,
   withResolvedAt,
@@ -49,6 +54,7 @@ export function presentTicket(t: SupportTicket): SupportTicketDto {
 export function presentUserMessage(
   m: SupportMessage,
   adminFirstNames: ReadonlyMap<string, string | null>,
+  attachments: readonly SupportAttachmentDto[] = [],
 ): SupportMessageDto {
   // Owner 2026-10-05: an automatic answer has no author and reads as
   // the team.
@@ -62,6 +68,7 @@ export function presentUserMessage(
         )
       : null,
     body: m.body,
+    attachments: [...attachments],
     createdAt: m.created_at.toISOString(),
   };
 }
@@ -78,6 +85,7 @@ export class SupportService {
     private readonly rateLimit: RateLimitService,
     private readonly settings: AppSettingsService,
     private readonly desk: SupportDeskService,
+    private readonly attachments: SupportFilesService,
   ) {}
 
   /** Owner 2026-10-05: hours and the usual answer time, for the app. */
@@ -89,18 +97,20 @@ export class SupportService {
     userId: string,
     dto: CreateSupportTicketDto,
   ): Promise<SupportTicketDetailDto> {
+    assertHasContent(dto.body, dto.attachments);
     await this.limit(
       userId,
       'support-ticket',
       'rate_limit.support_ticket_per_hour',
     );
+    await this.attachments.assertAttachable(userId, dto.attachments);
     const now = new Date();
     const { ticket, messages } = await withTxRetry(this.prisma, async (tx) => {
       // Owner 2026-10-05: the ticket belongs to the asker's country, so
       // staff assigned to that country see it.
       const asker = await tx.user.findUnique({
         where: { id: userId },
-        select: { country_code: true },
+        select: { country_code: true, role: true },
       });
       const t = await tx.supportTicket.create({
         data: {
@@ -112,11 +122,17 @@ export class SupportService {
           unread_by_admin: true,
           unread_by_user: false,
           last_message_at: now,
+          client_context:
+            buildClientContext(dto.context, {
+              id: userId,
+              role: asker?.role ?? null,
+            }) ?? undefined,
         },
       });
       const m = await tx.supportMessage.create({
         data: { ticket_id: t.id, author_user_id: userId, body: dto.body },
       });
+      await this.attachments.attach(tx, m.id, dto.attachments);
       // Owner 2026-10-05: SLA clock, an agent on shift, after-hours answer.
       const lang = await tx.user.findUnique({
         where: { id: userId },
@@ -133,9 +149,12 @@ export class SupportService {
         : null;
       return { ticket: t, messages: auto ? [m, auto] : [m] };
     });
+    const files = await this.attachments.forMessages(messages.map((m) => m.id));
     return {
       ...presentTicket(ticket),
-      messages: messages.map((m) => presentUserMessage(m, new Map())),
+      messages: messages.map((m) =>
+        presentUserMessage(m, new Map(), files.get(m.id)),
+      ),
     };
   }
 
@@ -161,10 +180,15 @@ export class SupportService {
         data: { unread_by_user: false },
       });
     }
-    const names = await this.adminFirstNames(messages);
+    const [names, files] = await Promise.all([
+      this.adminFirstNames(messages),
+      this.attachments.forMessages(messages.map((m) => m.id)),
+    ]);
     return {
       ...presentTicket({ ...ticket, unread_by_user: false }),
-      messages: messages.map((m) => presentUserMessage(m, names)),
+      messages: messages.map((m) =>
+        presentUserMessage(m, names, files.get(m.id)),
+      ),
     };
   }
 
@@ -172,7 +196,9 @@ export class SupportService {
     userId: string,
     id: string,
     body: string,
+    attachments?: readonly SupportAttachmentInputDto[],
   ): Promise<SupportMessageDto> {
+    assertHasContent(body, attachments);
     const ticket = await this.own(userId, id);
     // Checked before the rate limit so a closed ticket says so first.
     afterUserMessage(ticket.status, ticket.resolved_at, new Date());
@@ -181,6 +207,7 @@ export class SupportService {
       'support-message',
       'rate_limit.support_message_per_hour',
     );
+    await this.attachments.assertAttachable(userId, attachments);
     const message = await withTxRetry(this.prisma, async (tx) => {
       const t = await tx.supportTicket.findFirst({
         where: { id, user_id: userId },
@@ -191,6 +218,7 @@ export class SupportService {
       const m = await tx.supportMessage.create({
         data: { ticket_id: id, author_user_id: userId, body },
       });
+      await this.attachments.attach(tx, m.id, attachments);
       await this.desk.onUserMessage(tx, t, now);
       await tx.supportTicket.update({
         where: { id },
@@ -203,7 +231,8 @@ export class SupportService {
       });
       return m;
     });
-    return presentUserMessage(message, new Map());
+    const files = await this.attachments.forMessages([message.id]);
+    return presentUserMessage(message, new Map(), files.get(message.id));
   }
 
   async close(userId: string, id: string): Promise<SupportTicketDto> {

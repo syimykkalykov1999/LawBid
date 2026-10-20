@@ -121,9 +121,13 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                 semanticLabel: t.t('auth.forgot.code.hint'),
                 keyboardType: TextInputType.number,
                 autofocus: true,
-                maxLength: 6,
+                // Owner 2026-10-19: the code field stays a plain box, no
+                // character counter in it; six digits at most.
                 autofillHints: const [AutofillHints.oneTimeCode],
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(6),
+                ],
                 textInputAction: TextInputAction.next,
                 onChanged: (_) => setState(() => _error = null),
               ),

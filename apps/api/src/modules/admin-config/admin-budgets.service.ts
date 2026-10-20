@@ -21,7 +21,7 @@ import { withTxRetry } from '../../prisma/tx-retry.util';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { AuditLogService } from '../admin-access/audit-log.service';
 import type { AdminActor } from '../admin-auth/admin-auth.decorators';
-import { APP_CONFIG_CACHE_KEY } from '../feature-flags/services/app-config.service';
+import { dropAppConfigCache } from '../feature-flags/services/app-config.service';
 import type { BudgetLimitDto, UpdateBudgetLimitDto } from './admin-config.dto';
 import { CONFIG_AUDIT } from './admin-config.service';
 
@@ -74,7 +74,7 @@ export class AdminBudgetsService {
     window: CostWindow,
     dto: UpdateBudgetLimitDto,
   ): Promise<BudgetLimitDto> {
-    await this.redis.del(APP_CONFIG_CACHE_KEY);
+    await dropAppConfigCache(this.redis);
     const { settings, stored } = await this.autoscale.readSettings();
     const current = settings[provider][window];
     const next: WindowSetting = {
@@ -146,7 +146,7 @@ export class AdminBudgetsService {
         );
       }
     });
-    await this.redis.del(APP_CONFIG_CACHE_KEY);
+    await dropAppConfigCache(this.redis);
     if (dto.mode === 'auto') {
       await this.autoscale.recomputeProvider(provider);
     }

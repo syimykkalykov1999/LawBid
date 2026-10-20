@@ -1,3 +1,4 @@
+import { MaxTextChars } from '../../../common/app-settings/max-text-chars.decorator';
 import { PERSON_NAME_MAX_LENGTH } from './onboarding-profile.dto';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import {
@@ -29,11 +30,13 @@ export class UpdateProfileDto {
   @IsOptional()
   @IsString()
   @Length(1, PERSON_NAME_MAX_LENGTH)
+  @MaxTextChars('limits.name_chars')
   firstName?: string;
 
   @IsOptional()
   @IsString()
   @Length(1, PERSON_NAME_MAX_LENGTH)
+  @MaxTextChars('limits.name_chars')
   lastName?: string;
 
   @IsOptional()

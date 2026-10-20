@@ -66,7 +66,9 @@ class _CasePaymentsCardState extends ConsumerState<CasePaymentsCard>
       final start =
           await ref.read(casePaymentsRepositoryProvider).payRequest(r);
       _refresh();
-      await openExternal(start.checkoutUrl);
+      if (!await openCheckout(start.checkoutUrl) && mounted) {
+        showAppSnackBar(context, t.t('plans.cantOpen'));
+      }
     } on Object catch (e) {
       if (mounted) showAppSnackBar(context, errorText(t, e));
     }
@@ -535,8 +537,15 @@ class _PaySheetState extends ConsumerState<PaySheet> {
           );
       if (!mounted) return;
       widget.onStarted();
+      // Opened before the sheet closes, so a failure is said here.
+      final opened = await openCheckout(r.checkoutUrl);
+      if (!mounted) return;
+      if (!opened) {
+        setState(() => _busy = false);
+        showAppSnackBar(context, t.t('plans.cantOpen'));
+        return;
+      }
       Navigator.of(context).pop();
-      await openExternal(r.checkoutUrl);
     } on Object catch (e) {
       if (!mounted) return;
       setState(() => _busy = false);

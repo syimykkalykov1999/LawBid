@@ -196,6 +196,7 @@ export class AdminContentService {
       likes: p.like_count,
       comments: p.comment_count,
       deleted: p.deleted_at !== null,
+      archived: p.archived_at !== null,
       hasVideo: p.video_asset_id !== null,
       attachments: p._count.attachments,
       photos: p._count.media,

@@ -2,9 +2,9 @@ import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
+import 'package:lawbid/core/files/file_types.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/dio_client.dart';
-import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/features/cases/application/paged_notifier.dart';
 import 'package:lawbid/features/feed/application/feed_topics.dart'
@@ -96,6 +96,9 @@ class PostOverrides extends Notifier<Map<String, Post>> {
 final postOverridesProvider =
     NotifierProvider<PostOverrides, Map<String, Post>>(PostOverrides.new);
 
+/// Posts gone from every public list in this session: deleted, or (owner
+/// 2026-10-18) archived — an archived one comes back with [remove] when the
+/// author shows it in the profile again.
 class DeletedPosts extends Notifier<Set<String>> {
   @override
   Set<String> build() {
@@ -104,6 +107,8 @@ class DeletedPosts extends Notifier<Set<String>> {
   }
 
   void add(String id) => state = {...state, id};
+
+  void remove(String id) => state = {...state}..remove(id);
 }
 
 final deletedPostsProvider =
@@ -130,6 +135,11 @@ final followOverridesProvider =
 class FeedNotifier extends PagedNotifier<Post> {
   /// The page on screen came from the offline cache (§2.3 "Нет сети").
   bool fromCache = false;
+
+  // Owner 2026-10-18 (speed): kept for 5 minutes after the screen leaves
+  // (see PagedNotifier.keepAliveFor).
+  @override
+  Duration? get keepAliveFor => const Duration(minutes: 5);
 
   @override
   Future<CursorPage<Post>> fetch(String? cursor) async {
@@ -195,6 +205,23 @@ final attorneyPostsProvider = AsyncNotifierProvider.autoDispose
   retry: _noRetry,
 );
 
+/// Owner 2026-10-18: Settings → «Архив» — the viewer's own archived posts,
+/// newest archived first.
+class ArchivedPostsNotifier extends PagedNotifier<Post> {
+  @override
+  Future<CursorPage<Post>> fetch(String? cursor) =>
+      ref.read(socialRepositoryProvider).archivedPosts(cursor: cursor);
+
+  @override
+  Object idOf(Post item) => item.id;
+}
+
+final archivedPostsProvider = AsyncNotifierProvider.autoDispose<
+    ArchivedPostsNotifier, PaginatedList<Post>>(
+  ArchivedPostsNotifier.new,
+  retry: _noRetry,
+);
+
 /// Owner 2026-09-30: the profile's News tab.
 class AttorneyNewsNotifier extends AttorneyPostsNotifier {
   AttorneyNewsNotifier(super.attorneyId);
@@ -208,6 +235,86 @@ class AttorneyNewsNotifier extends AttorneyPostsNotifier {
 final attorneyNewsProvider = AsyncNotifierProvider.autoDispose
     .family<AttorneyPostsNotifier, PaginatedList<Post>, String>(
   AttorneyNewsNotifier.new,
+  retry: _noRetry,
+);
+
+/// Owner 2026-10-18: the profile's «Посты» grid — photo / file posts only
+/// (reels have their own tab, briefs theirs).
+class AttorneyPhotoPostsNotifier extends AttorneyPostsNotifier {
+  AttorneyPhotoPostsNotifier(super.attorneyId);
+
+  @override
+  Future<CursorPage<Post>> fetch(String? cursor) =>
+      ref.read(socialRepositoryProvider).attorneyPosts(
+            attorneyId,
+            cursor: cursor,
+            media: ProfileMedia.visual,
+          );
+}
+
+final attorneyPhotoPostsProvider = AsyncNotifierProvider.autoDispose
+    .family<AttorneyPostsNotifier, PaginatedList<Post>, String>(
+  AttorneyPhotoPostsNotifier.new,
+  retry: _noRetry,
+);
+
+/// Owner 2026-10-18: the profile's «Рилсы» tab — video posts / reels,
+/// newest first.
+class AttorneyReelsNotifier extends AttorneyPostsNotifier {
+  AttorneyReelsNotifier(super.attorneyId);
+
+  @override
+  Future<CursorPage<Post>> fetch(String? cursor) =>
+      ref.read(socialRepositoryProvider).attorneyPosts(
+            attorneyId,
+            cursor: cursor,
+            media: ProfileMedia.video,
+          );
+}
+
+final attorneyReelsProvider = AsyncNotifierProvider.autoDispose
+    .family<AttorneyPostsNotifier, PaginatedList<Post>, String>(
+  AttorneyReelsNotifier.new,
+  retry: _noRetry,
+);
+
+/// Owner 2026-10-18: the profile's "Reposts" tab (any role).
+class UserRepostsNotifier extends PagedNotifier<Post> {
+  UserRepostsNotifier(this.userId);
+
+  final String userId;
+
+  @override
+  Future<CursorPage<Post>> fetch(String? cursor) =>
+      ref.read(socialRepositoryProvider).userReposts(userId, cursor: cursor);
+
+  @override
+  Object idOf(Post item) => item.id;
+}
+
+final userRepostsProvider = AsyncNotifierProvider.autoDispose
+    .family<UserRepostsNotifier, PaginatedList<Post>, String>(
+  UserRepostsNotifier.new,
+  retry: _noRetry,
+);
+
+/// Owner 2026-10-18: people who reposted a post.
+class PostRepostersNotifier extends PagedNotifier<PersonRow> {
+  PostRepostersNotifier(this.postId);
+
+  final String postId;
+
+  @override
+  Future<CursorPage<PersonRow>> fetch(String? cursor) =>
+      ref.read(socialRepositoryProvider).postReposters(postId, cursor: cursor);
+
+  @override
+  Object idOf(PersonRow item) => item.id;
+}
+
+final postRepostersProvider = AsyncNotifierProvider.autoDispose
+    .family<PostRepostersNotifier, PaginatedList<PersonRow>, String>(
+  PostRepostersNotifier.new,
   retry: _noRetry,
 );
 
@@ -285,6 +392,11 @@ class FilteredPostsNotifier extends PagedNotifier<Post> {
   FilteredPostsNotifier(this.key);
 
   final FilteredPostsKey key;
+
+  // Owner 2026-10-18 (speed): kept for 5 minutes after the screen leaves
+  // (see PagedNotifier.keepAliveFor).
+  @override
+  Duration? get keepAliveFor => const Duration(minutes: 5);
 
   @override
   Future<CursorPage<Post>> fetch(String? cursor) {
@@ -468,7 +580,8 @@ final repliesProvider = AsyncNotifierProvider.autoDispose
 
 enum FollowListKind { followers, following }
 
-typedef FollowListKey = ({String attorneyId, FollowListKind kind});
+/// [q]: Owner 2026-10-18 — the search box above the list ('' = everyone).
+typedef FollowListKey = ({String attorneyId, FollowListKind kind, String q});
 
 class FollowListNotifier extends PagedNotifier<PersonRow> {
   FollowListNotifier(this.key);
@@ -479,9 +592,9 @@ class FollowListNotifier extends PagedNotifier<PersonRow> {
   Future<CursorPage<PersonRow>> fetch(String? cursor) async {
     final repo = ref.read(socialRepositoryProvider);
     if (key.kind == FollowListKind.followers) {
-      return repo.followers(key.attorneyId, cursor: cursor);
+      return repo.followers(key.attorneyId, cursor: cursor, q: key.q);
     }
-    return repo.following(key.attorneyId, cursor: cursor);
+    return repo.following(key.attorneyId, cursor: cursor, q: key.q);
   }
 
   @override
@@ -564,6 +677,10 @@ class SocialActions {
           );
       try {
         await _repo.setReposted(post.id, reposted: reposted);
+        // The "Reposts" tab and the reposters list follow at once.
+        final me = _ref.read(currentUserIdProvider);
+        if (me != null) _ref.invalidate(userRepostsProvider(me));
+        _ref.invalidate(postRepostersProvider(post.id));
       } on Object {
         _ref.read(postOverridesProvider.notifier).put(before);
         rethrow;
@@ -626,8 +743,11 @@ class SocialActions {
         _ref.read(deletedPostsProvider.notifier).add(post.id);
         // The author's profile grids and post counters follow at once.
         _ref
+          ..invalidate(archivedPostsProvider)
           ..invalidate(attorneyPostsProvider(post.author.id))
           ..invalidate(attorneyNewsProvider(post.author.id))
+          ..invalidate(attorneyPhotoPostsProvider(post.author.id))
+          ..invalidate(attorneyReelsProvider(post.author.id))
           ..invalidate(publicAttorneyProfileProvider)
           ..invalidate(publicClientProfileProvider);
       });
@@ -663,10 +783,44 @@ class SocialActions {
         _refreshProfileLists(post);
       });
 
+  /// Owner 2026-10-18 (Instagram): the author turns comments on / off; the
+  /// open comments reload (hidden while off, back when on).
+  Future<Object?> setCommentsEnabled(Post post, {required bool enabled}) =>
+      _guard('comments-setting:${post.id}', () async {
+        final updated =
+            await _repo.setPostCommentsEnabled(post.id, enabled: enabled);
+        _ref
+          ..read(postOverridesProvider.notifier).put(updated)
+          ..invalidate(commentsProvider(post.id));
+      });
+
+  /// Owner 2026-10-18: «Архивировать» — the post leaves every list at once
+  /// (the server hides it from everyone but the author); «Показать в
+  /// профиле» brings it back to its place by publish date.
+  Future<Object?> setArchived(Post post, {required bool archived}) =>
+      _guard('archive:${post.id}', () async {
+        final updated =
+            await _repo.setPostArchived(post.id, archived: archived);
+        final hidden = _ref.read(deletedPostsProvider.notifier);
+        if (archived) {
+          hidden.add(post.id);
+        } else {
+          hidden.remove(post.id);
+        }
+        _ref
+          ..read(postOverridesProvider.notifier).put(updated)
+          ..invalidate(archivedPostsProvider)
+          ..invalidate(publicAttorneyProfileProvider)
+          ..invalidate(publicClientProfileProvider);
+        _refreshProfileLists(post);
+      });
+
   void _refreshProfileLists(Post post) {
     _ref
       ..invalidate(attorneyPostsProvider(post.author.id))
-      ..invalidate(attorneyNewsProvider(post.author.id));
+      ..invalidate(attorneyNewsProvider(post.author.id))
+      ..invalidate(attorneyPhotoPostsProvider(post.author.id))
+      ..invalidate(attorneyReelsProvider(post.author.id));
   }
 
   /// Owner 2026-09-30: title, text and qualification.
@@ -740,15 +894,28 @@ class SocialActions {
     bool reviewPhoto = false,
     String? fileName,
     int? maxBytes,
-  }) =>
-      _repo.uploadPostPhoto(
-        bytes,
-        onProgress: onProgress,
-        casePhoto: casePhoto,
-        reviewPhoto: reviewPhoto,
-        fileName: fileName,
-        maxBytes: maxBytes,
+    // Owner 2026-10-19: the photo types the place allows (admin «Загрузки и
+    // файлы»); another type is refused at once, before any upload.
+    Set<String>? allowedMimes,
+  }) async {
+    final image = sniffImageMime(bytes);
+    if (allowedMimes != null &&
+        image != null &&
+        !allowedMimes.contains(image)) {
+      throw const ApiException(
+        code: ApiErrorCodes.fileTypeNotAllowed,
+        message: 'type',
       );
+    }
+    return _repo.uploadPostPhoto(
+      bytes,
+      onProgress: onProgress,
+      casePhoto: casePhoto,
+      reviewPhoto: reviewPhoto,
+      fileName: fileName,
+      maxBytes: maxBytes,
+    );
+  }
 
   /// Owner 2026-10-05: a post / reel document.
   Future<String> uploadDocument(
@@ -766,23 +933,6 @@ class SocialActions {
 }
 
 final socialActionsProvider = Provider<SocialActions>(SocialActions.new);
-
-/// Owner 2026-10-15 (Instagram): a viewer can hide like counters under other
-/// people's posts; kept on the phone.
-class HideLikeCounts extends Notifier<bool> {
-  static const _key = 'social.hide_like_counts';
-
-  @override
-  bool build() => ref.read(localKvStoreProvider).getString(_key) == '1';
-
-  Future<void> set({required bool hide}) async {
-    state = hide;
-    await ref.read(localKvStoreProvider).setString(_key, hide ? '1' : '0');
-  }
-}
-
-final hideLikeCountsProvider =
-    NotifierProvider<HideLikeCounts, bool>(HideLikeCounts.new);
 
 /// Whether to draw [post]'s like counter for this viewer: the author always
 /// sees it; others unless the author hid it or the viewer hides them all

@@ -126,7 +126,7 @@ function WordsPanel() {
           }}
         >
           <MagnifyingGlass size={16} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-faint" />
-          <Input className="w-72 pl-9" placeholder="Слово или название группы, Enter" value={draft} onChange={(e) => setDraft(e.target.value)} />
+          <Input className="w-full pl-9 sm:w-72" placeholder="Слово или название группы, Enter" value={draft} onChange={(e) => setDraft(e.target.value)} />
         </form>
         <Input className="w-28" placeholder="Язык: ru" value={lang} onChange={(e) => setLang(e.target.value.trim().toLowerCase())} />
         <span className="text-sm text-muted">
@@ -366,7 +366,7 @@ function QueriesPanel({ kind }: { kind: 'no-results' | 'top' }) {
   const rows = q.data ?? [];
   return (
     <>
-      <div className="mb-4 flex items-center gap-3">
+      <div className="mb-4 flex flex-wrap items-center gap-3">
         <Tabs
           size="sm"
           value={days}

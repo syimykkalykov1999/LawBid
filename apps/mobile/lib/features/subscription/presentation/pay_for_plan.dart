@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -24,7 +25,9 @@ Future<SubscribeOutcome> payForPlan(
   String? planCode,
 }) {
   final controller = ref.read(subscribeControllerProvider.notifier);
-  if (AppConfig.stripePublishableKey.isEmpty) {
+  // The web build has no Stripe sheet (flutter_stripe has no web plugin
+  // here): it pays on the hosted page like a build without the key.
+  if (kIsWeb || AppConfig.stripePublishableKey.isEmpty) {
     return controller.subscribeWeb(
       plan: plan,
       assistantSeats: assistantSeats,

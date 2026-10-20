@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:lawbid/core/network/dio_client.dart';
+import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/features/chat/data/voice_files.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 
@@ -65,6 +66,18 @@ class VoicePlayer extends Notifier<VoicePlayback> {
             unawaited(p.pause());
             unawaited(p.seek(Duration.zero));
             state = state.copyWith(playing: false, position: Duration.zero);
+            // Owner 2026-10-17 (WhatsApp): the next voice note in a row
+            // plays by itself.
+            if (_next.isNotEmpty) {
+              final next = _next.first;
+              final rest = _next.sublist(1);
+              final started = _onAutoPlay;
+              unawaited(
+                toggle(next, then: rest, onAutoPlay: started).then((_) {
+                  started?.call(next);
+                }),
+              );
+            }
             return;
           }
           state = state.copyWith(
@@ -85,8 +98,24 @@ class VoicePlayer extends Notifier<VoicePlayback> {
       }
       _player?.dispose();
     });
-    return const VoicePlayback();
+    return VoicePlayback(speed: _savedSpeed());
   }
+
+  static const _speedKey = 'chat.voice_speed';
+
+  /// Owner 2026-10-17 (WhatsApp): the chosen speed stays for next notes.
+  double _savedSpeed() {
+    try {
+      final v = ref.read(sharedPreferencesProvider).getDouble(_speedKey);
+      return v == 1.5 || v == 2.0 ? v! : 1;
+    } on Object {
+      return 1; // no preferences (tests)
+    }
+  }
+
+  /// Notes to play after the current one, oldest first.
+  List<ChatMessage> _next = const [];
+  void Function(ChatMessage)? _onAutoPlay;
 
   final _prefetching = <String>{};
 
@@ -107,8 +136,14 @@ class VoicePlayer extends Notifier<VoicePlayback> {
     );
   }
 
-  /// Play/pause [m]; another note stops the current one.
-  Future<void> toggle(ChatMessage m) async {
+  /// Play/pause [m]; another note stops the current one. [then]: the
+  /// notes right after it, played in turn when it ends; [onAutoPlay] runs
+  /// for each of them as it starts.
+  Future<void> toggle(
+    ChatMessage m, {
+    List<ChatMessage> then = const [],
+    void Function(ChatMessage)? onAutoPlay,
+  }) async {
     final v = m.voice;
     if (v == null) return;
     final p = _p;
@@ -121,6 +156,8 @@ class VoicePlayer extends Notifier<VoicePlayback> {
       return;
     }
     if (p.playing || state.messageId != null) await p.stop();
+    _next = then;
+    _onAutoPlay = onAutoPlay;
     state = VoicePlayback(messageId: m.id, speed: state.speed, loading: true);
     try {
       // Web: no file system — stream the signed link (or the unsent blob).
@@ -186,9 +223,15 @@ class VoicePlayer extends Notifier<VoicePlayback> {
     final next = switch (state.speed) { 1.0 => 1.5, 1.5 => 2.0, _ => 1.0 };
     state = state.copyWith(speed: next);
     await _player?.setSpeed(next);
+    try {
+      await ref.read(sharedPreferencesProvider).setDouble(_speedKey, next);
+    } on Object {
+      // No preferences (tests): the speed lasts for this run only.
+    }
   }
 
   Future<void> stop() async {
+    _next = const [];
     await _player?.stop();
     if (ref.mounted) state = VoicePlayback(speed: state.speed);
   }

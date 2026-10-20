@@ -35,6 +35,19 @@ class FakeCasesRepository implements CasesRepository {
   }
 
   @override
+  Future<void> answerStillNeeded(
+    String caseId,
+    StillNeededAnswer answer,
+  ) async {
+    calls.add('answer:${answer.name}');
+  }
+
+  @override
+  Future<void> resumeCase(String caseId) async {
+    calls.add('resume');
+  }
+
+  @override
   Future<CursorPage<CaseBid>> caseBids(
     String caseId,
     BidsSort sort, {

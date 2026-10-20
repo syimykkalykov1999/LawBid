@@ -21,6 +21,7 @@ Post fakePost(
   PostPractice? practice,
   bool news = false,
   int comments = 0,
+  bool mine = false,
 }) =>
     Post(
       id: id,
@@ -49,7 +50,7 @@ Post fakePost(
       commentCount: comments,
       likedByMe: liked,
       savedByMe: false,
-      isMine: false,
+      isMine: mine,
       practice: practice,
       isNews: news,
       createdAt: DateTime(2026, 9, 28, 10),
@@ -124,10 +125,68 @@ class FakeSocialRepository implements SocialRepository {
     String attorneyId, {
     String? cursor,
     bool newsOnly = false,
+    ProfileMedia? media,
   }) async {
     attorneyPostsCalls++;
-    return CursorPage(items: posts);
+    attorneyPostsMedia.add(media);
+    // Like the server's `media` filter (owner 2026-10-18).
+    bool text(Post p) =>
+        p.video == null && p.media.isEmpty && p.attachments.isEmpty;
+    final kept = switch (media) {
+      null => posts,
+      ProfileMedia.video => [
+          for (final p in posts)
+            if (p.video != null) p,
+        ],
+      ProfileMedia.visual => [
+          for (final p in posts)
+            if (p.video == null && !text(p)) p,
+        ],
+      ProfileMedia.text => [
+          for (final p in posts)
+            if (text(p)) p,
+        ],
+    };
+    return _page(kept, cursor);
   }
+
+  /// The media filter of every [attorneyPosts] call.
+  final attorneyPostsMedia = <ProfileMedia?>[];
+
+  List<Post> reposts = const [];
+  List<PersonRow> reposters = const [];
+
+  /// Set: [attorneyPosts] and [userReposts] page by this many items (the
+  /// cursor is the next index); null = everything on one page.
+  int? pageSize;
+  final userRepostsCursors = <String?>[];
+
+  CursorPage<Post> _page(List<Post> all, String? cursor) {
+    final size = pageSize;
+    if (size == null) return CursorPage(items: all);
+    final from = cursor == null ? 0 : int.parse(cursor);
+    final to = (from + size).clamp(0, all.length);
+    return CursorPage(
+      items: all.sublist(from, to),
+      nextCursor: to < all.length ? '$to' : null,
+    );
+  }
+
+  @override
+  Future<CursorPage<Post>> userReposts(
+    String userId, {
+    String? cursor,
+  }) async {
+    userRepostsCursors.add(cursor);
+    return _page(reposts, cursor);
+  }
+
+  @override
+  Future<CursorPage<PersonRow>> postReposters(
+    String postId, {
+    String? cursor,
+  }) async =>
+      CursorPage(items: reposters);
 
   @override
   Future<CursorPage<SavedPost>> savedPosts({String? cursor}) async =>
@@ -165,9 +224,6 @@ class FakeSocialRepository implements SocialRepository {
 
 /// In-memory [SearchRepository]: records every query it is asked.
 class FakeSearchRepository implements SearchRepository {
-  @override
-  Future<Map<String, String?>> practices(String q) async => const {};
-
   @override
   Future<List<SearchSuggestion>> suggest(String q) async => const [];
 

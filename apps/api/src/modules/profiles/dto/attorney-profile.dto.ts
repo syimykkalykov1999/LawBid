@@ -46,12 +46,14 @@ export class UpdateAttorneyProfileDto {
   @Transform(trim)
   @IsString()
   @Length(1, ATTORNEY_NAME_MAX)
+  @MaxTextChars('limits.name_chars')
   firstName?: string;
 
   @IsOptional()
   @Transform(trim)
   @IsString()
   @Length(1, ATTORNEY_NAME_MAX)
+  @MaxTextChars('limits.name_chars')
   lastName?: string;
 
   @IsOptional()
@@ -103,6 +105,46 @@ export class UsernameAvailableQueryDto {
   @IsString()
   @Length(1, 64)
   u!: string;
+
+  /** The name as typed on the form (suggestions); the saved one if absent. */
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(80)
+  first?: string;
+
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(80)
+  last?: string;
+}
+
+/** GET /attorneys/username-suggestions?u=&first=&last= (owner
+ * 2026-10-18, «как в инсте»): free handles for the sign-up form. */
+export class UsernameSuggestionsQueryDto {
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(64)
+  u?: string;
+
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(80)
+  first?: string;
+
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(80)
+  last?: string;
+}
+
+export class UsernameSuggestionsDto {
+  @ApiProperty({ type: [String] })
+  suggestions!: string[];
 }
 
 export const USERNAME_UNAVAILABLE_REASONS = [
@@ -127,6 +169,13 @@ export class UsernameAvailabilityDto {
     description: 'Why it is not available; null when available.',
   })
   reason!: UsernameUnavailableReason | null;
+
+  @ApiProperty({
+    type: [String],
+    description:
+      'Free handles to offer instead (owner 2026-10-18); empty when available.',
+  })
+  suggestions!: string[];
 }
 
 export class StateRefDto {

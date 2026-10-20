@@ -1,5 +1,4 @@
 import 'package:drift/drift.dart';
-import 'package:drift_flutter/drift_flutter.dart';
 import 'package:lawbid/core/persistence/drift_web.dart';
 
 part 'social_local_database.g.dart';
@@ -35,6 +34,11 @@ class ChatOutbox extends Table {
 }
 
 /// docs/05 §7.2: recent searches, local only, can be cleared.
+///
+/// Owner 2026-10-18: every Search tab has its OWN history. [ownerId] holds
+/// `<userId>` for rows saved before that (legacy: dropped, see
+/// `dropLegacyRecent`) or `<userId>#<tab>` for a tab's history, so no schema
+/// migration is needed and the primary key stays unique per tab.
 @DataClassName('RecentSearchRow')
 class RecentSearches extends Table {
   TextColumn get ownerId => text()();
@@ -49,8 +53,7 @@ class RecentSearches extends Table {
 class SocialLocalDatabase extends _$SocialLocalDatabase {
   SocialLocalDatabase([QueryExecutor? executor])
       : super(
-          executor ??
-              driftDatabase(name: 'lawbid_social', web: appDriftWebOptions),
+          executor ?? appDriftDatabase('lawbid_social'),
         );
 
   @override
@@ -131,34 +134,53 @@ class SocialLocalDatabase extends _$SocialLocalDatabase {
 
   // --- recent searches ------------------------------------------------
 
-  Future<List<String>> recent(String ownerId) async => [
-        for (final r in await (select(recentSearches)
-              ..where((r) => r.ownerId.equals(ownerId))
-              ..orderBy([(r) => OrderingTerm.desc(r.usedAt)])
-              ..limit(_recentMax))
-            .get())
-          r.query,
-      ];
+  /// The storage key of one tab's history of one account.
+  static String recentKey(String ownerId, String tab) => '$ownerId#$tab';
 
-  Future<void> remember(String ownerId, String query) async {
+  /// [tab] = the Search tab ('attorneys', 'cases', 'posts', 'tags').
+  Future<List<String>> recent(String ownerId, String tab) async {
+    final key = recentKey(ownerId, tab);
+    return [
+      for (final r in await (select(recentSearches)
+            ..where((r) => r.ownerId.equals(key))
+            ..orderBy([(r) => OrderingTerm.desc(r.usedAt)])
+            ..limit(_recentMax))
+          .get())
+        r.query,
+    ];
+  }
+
+  Future<void> remember(String ownerId, String tab, String query) async {
+    final key = recentKey(ownerId, tab);
     await into(recentSearches).insertOnConflictUpdate(
       RecentSearchesCompanion.insert(
-        ownerId: ownerId,
+        ownerId: key,
         query: query,
         usedAt: DateTime.now(),
       ),
     );
-    final keep = await recent(ownerId);
+    final keep = await recent(ownerId, tab);
     await (delete(recentSearches)
-          ..where((r) => r.ownerId.equals(ownerId) & r.query.isNotIn(keep)))
+          ..where((r) => r.ownerId.equals(key) & r.query.isNotIn(keep)))
         .go();
   }
 
-  Future<void> forgetRecent(String ownerId, String query) => (delete(
-        recentSearches,
-      )..where((r) => r.ownerId.equals(ownerId) & r.query.equals(query)))
+  Future<void> forgetRecent(String ownerId, String tab, String query) =>
+      (delete(recentSearches)
+            ..where(
+              (r) =>
+                  r.ownerId.equals(recentKey(ownerId, tab)) &
+                  r.query.equals(query),
+            ))
           .go();
 
-  Future<void> clearRecent(String ownerId) =>
+  Future<void> clearRecent(String ownerId, String tab) => (delete(
+        recentSearches,
+      )..where((r) => r.ownerId.equals(recentKey(ownerId, tab))))
+          .go();
+
+  /// History saved before the tabs had their own: one list for everything,
+  /// so there is no telling which tab a line belonged to. Dropped.
+  Future<void> dropLegacyRecent(String ownerId) =>
       (delete(recentSearches)..where((r) => r.ownerId.equals(ownerId))).go();
 }

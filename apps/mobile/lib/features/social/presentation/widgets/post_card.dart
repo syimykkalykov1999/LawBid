@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/widgets/display/pinch_to_zoom.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -28,12 +29,15 @@ import 'package:lawbid/features/promotions/presentation/promotion_cta_button.dar
 import 'package:lawbid/features/reels/presentation/reel_video.dart';
 import 'package:lawbid/features/reels/presentation/reels_screen.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
+import 'package:lawbid/features/social/domain/post_text.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart'
     show PracticePostsScreen;
 import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart';
+import 'package:lawbid/features/social/presentation/widgets/caption_fit.dart';
 import 'package:lawbid/features/social/presentation/widgets/comments_sheet.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_attachments_sheet.dart';
+import 'package:lawbid/features/social/presentation/widgets/post_promo_row.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_text_sheet.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
@@ -76,6 +80,9 @@ class PostVideoCaption extends ConsumerWidget {
     required this.onMore,
   });
 
+  /// Owner 2026-10-18: «ещё» even for a short line when the post has files.
+  bool get _force => post.attachments.isNotEmpty;
+
   final Post post;
   final String line;
   final VoidCallback onMore;
@@ -109,32 +116,53 @@ class PostVideoCaption extends ConsumerWidget {
           child: LayoutBuilder(
             builder: (context, box) {
               final textScaler = MediaQuery.textScalerOf(context);
-              TextPainter painter(String s) => TextPainter(
-                    text: TextSpan(text: s, style: base),
-                    textDirection: Directionality.of(context),
-                    textScaler: textScaler,
-                    maxLines: 2,
-                  )..layout(maxWidth: box.maxWidth);
-              // The whole text fits two lines: no «ещё», no cut.
-              var shown = oneLine;
-              final fitsWhole = !painter(oneLine).didExceedMaxLines;
-              if (fitsWhole) {
+              final direction = Directionality.of(context);
+              final width = box.maxWidth;
+              // Owner 2026-10-18 (speed): measured once per text, width,
+              // scale and style (cached), each layout only as long as it
+              // has to be — the same «ещё» place as before.
+              final shownOrNull = cachedCaptionFit<String?>(
+                (
+                  'video',
+                  oneLine,
+                  more,
+                  base,
+                  width,
+                  direction,
+                  textScaler,
+                  _force,
+                ),
+                () {
+                  bool overflows(String s) => captionOverflows(
+                        s,
+                        base,
+                        width,
+                        2,
+                        direction,
+                        textScaler,
+                      );
+                  // The whole text fits two lines: no «ещё», no cut.
+                  final fitsWhole = !overflows(oneLine);
+                  if (fitsWhole && !_force) return null;
+                  if (!overflows('$oneLine  $more')) return oneLine;
+                  final lo = captionCut(
+                    oneLine.length,
+                    (mid) => captionFits(
+                      '${oneLine.substring(0, mid).trimRight()}…  $more',
+                      base,
+                      width,
+                      2,
+                      direction,
+                      textScaler,
+                    ),
+                  );
+                  return '${oneLine.substring(0, lo).trimRight()}…';
+                },
+              );
+              if (shownOrNull == null) {
                 return Text(oneLine, maxLines: 2, style: base);
               }
-              if (painter('$shown  $more').didExceedMaxLines) {
-                var lo = 0;
-                var hi = oneLine.length;
-                while (lo < hi) {
-                  final mid = (lo + hi + 1) ~/ 2;
-                  final cut = oneLine.substring(0, mid).trimRight();
-                  if (painter('$cut…  $more').didExceedMaxLines) {
-                    hi = mid - 1;
-                  } else {
-                    lo = mid;
-                  }
-                }
-                shown = '${oneLine.substring(0, lo).trimRight()}…';
-              }
+              final shown = shownOrNull;
               return Text.rich(
                 TextSpan(
                   children: [
@@ -201,7 +229,7 @@ class PostCard extends ConsumerWidget {
   /// window height.
   double? get _feedH => feedHeight == null
       ? null
-      : adaptiveShellOn
+      : webWideWindow
           ? math.min(feedHeight!, kWebPostMaxWidth / 0.9 + _kVideoCardChrome)
           : feedHeight;
 
@@ -529,6 +557,8 @@ class PostCard extends ConsumerWidget {
           else if (fromProfile)
             _OwnMenuRow(post: p),
           photoFor(fill: fill, onShort: onExpand),
+          // Owner 2026-10-18: only in the profile's post list (Instagram).
+          if (fromProfile) PostPromoRow(post: p),
           PostActionsBar(post: p, run: run, showTime: true),
           // Owner 2026-10-15: the advertiser's button under a promoted post.
           if (post.promotionId != null && post.promotionCta != null)
@@ -561,7 +591,7 @@ class PostCard extends ConsumerWidget {
             PostPracticeChips(post: p),
           if (p.video == null &&
               (title.isNotEmpty || text.isNotEmpty || hashtags.isNotEmpty))
-            _FeedCaption(
+            FeedCaption(
               // A new text (translation) starts collapsed again.
               key: ValueKey('${p.id}:${title.hashCode}:${text.hashCode}'),
               title: title,
@@ -573,8 +603,15 @@ class PostCard extends ConsumerWidget {
               // inner card opens from the attached files.
               inPlaceOnly: true,
               onMore: () => showPostTextSheet(context, p),
+              // Owner 2026-10-18: the files are inside the «ещё» sheet.
+              forceMore: p.attachments.isNotEmpty,
             ),
-          if (p.video == null && p.attachments.isNotEmpty)
+          // Files without any text to hang «ещё» on keep their chips.
+          if (p.video == null &&
+              p.attachments.isNotEmpty &&
+              title.isEmpty &&
+              text.isEmpty &&
+              hashtags.isEmpty)
             _DocChips(documents: p.attachments, onOpen: openFiles),
           const SizedBox(height: AppSpacing.md),
         ],
@@ -608,28 +645,16 @@ class PostCard extends ConsumerWidget {
   /// [titleAndRest] with [body] in place of the post's (a translation).
   static (String, String) _titleAndBody(Post p, String body) {
     final title = p.title;
-    if (title != null && title.trim().isNotEmpty) {
-      return (title.trim(), body.trim());
-    }
+    // Owner 2026-10-18: '' = the author chose no title (separate fields):
+    // the text is the description only. NULL = an older post, split.
+    if (title != null) return (title.trim(), body.trim());
     return _split(body);
   }
 
   /// "Title" = the first line (or sentence) of the post, the rest below.
-  static (String, String) _split(String body) {
-    final text = tidyText(body);
-    final nl = text.indexOf('\n');
-    if (nl > 0 && nl <= 120) {
-      return (text.substring(0, nl).trim(), text.substring(nl + 1).trim());
-    }
-    final dot = text.indexOf(RegExp(r'[.!?](\s|$)'));
-    if (dot > 0 && dot <= 100) {
-      return (
-        text.substring(0, dot + 1).trim(),
-        text.substring(dot + 1).trim(),
-      );
-    }
-    return (text, '');
-  }
+  // Owner 2026-10-18: the same rule as publishing (domain/post_text.dart):
+  // the first line is the title, the rest the text.
+  static (String, String) _split(String body) => splitPostText(body);
 
   /// Owner 2026-09-30 design, open post: author, topics, title, full text,
   /// photos, then the actions.
@@ -753,6 +778,7 @@ class PostCard extends ConsumerWidget {
             ),
           ),
         // Owner 2026-10-07: the comment button opens the comments sheet.
+        if (fromProfile) PostPromoRow(post: p),
         PostActionsBar(post: p, run: run, boost: false, reactions: false),
         if (p.likeCount > 0 && showLikeCount(ref, p))
           Padding(
@@ -898,12 +924,13 @@ class _InstagramPost extends ConsumerWidget {
           // A new text (translation) starts collapsed again.
           key: ValueKey(text.hashCode),
           body: text,
-          leading: hasMedia ? p.author.username : null,
+          leading: hasMedia ? p.author.displayName : null,
           onLeadingTap: () => openAuthorProfile(context, ref, p.author),
           expanded: inDetail,
           // Owner 2026-10-07: two lines in the feed, the rest inside.
           collapsedLines: 2,
           onMore: inDetail ? null : open,
+          forceMore: !inDetail && p.attachments.isNotEmpty,
           mentions: p.mentions,
           large: !hasMedia,
         );
@@ -956,6 +983,7 @@ class _InstagramPost extends ConsumerWidget {
                   )
                 : captionText(caption),
           ),
+        if (fromProfile) PostPromoRow(post: p),
         PostActionsBar(
           post: p,
           run: run,
@@ -1000,7 +1028,8 @@ class _InstagramPost extends ConsumerWidget {
           ),
         // Owner 2026-10-07 (bug 13): one small «Посмотреть · N» button;
         // the photos and files open in a sheet.
-        if (p.attachments.isNotEmpty)
+        // Owner 2026-10-18: in a list the files are in the «ещё» sheet.
+        if (p.attachments.isNotEmpty && (inDetail || caption.isEmpty))
           Padding(
             padding: const EdgeInsets.fromLTRB(
               AppSpacing.lg,
@@ -1121,22 +1150,27 @@ class _ThreadsPost extends ConsumerWidget {
           // to six lines with «ещё».
           collapsedLines: inDetail ? 1000 : 6,
           onMore: inDetail ? null : open,
+          forceMore: !inDetail && p.attachments.isNotEmpty,
           mentions: p.mentions,
           large: inDetail,
         );
 
-    Widget action(Widget icon, int count) => Row(
+    Widget action(Widget icon, int count, {VoidCallback? onCountTap}) => Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             icon,
             if (count > 0)
-              Padding(
-                padding: const EdgeInsetsDirectional.only(end: AppSpacing.sm),
-                child: Text(
-                  SocialFormat.count(f, count),
-                  style: type.bodySmall.copyWith(
-                    color: colors.textSecondary,
-                    fontSize: 13,
+              GestureDetector(
+                onTap: onCountTap,
+                behavior: HitTestBehavior.opaque,
+                child: Padding(
+                  padding: const EdgeInsetsDirectional.only(end: AppSpacing.sm),
+                  child: Text(
+                    SocialFormat.count(f, count),
+                    style: type.bodySmall.copyWith(
+                      color: colors.textSecondary,
+                      fontSize: 13,
+                    ),
                   ),
                 ),
               ),
@@ -1188,18 +1222,17 @@ class _ThreadsPost extends ConsumerWidget {
                       ],
                     ],
                   ),
-                  Text(
-                    promotionId != null
-                        ? t.t('promote.sponsored')
-                        : a.isClient
-                            ? '@${a.username} · ${t.t('person.client')}'
-                            : a.verified
-                                ? t.t('post.licensedAttorney')
-                                : '@${a.username}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: type.caption.copyWith(color: colors.textSecondary),
-                  ),
+                  // Owner 2026-10-18 (final): in content no «Клиент» and no
+                  // @username (they stay in profiles and search).
+                  if (promotionId != null || (!a.isClient && a.verified))
+                    Text(
+                      promotionId != null
+                          ? t.t('promote.sponsored')
+                          : t.t('post.licensedAttorney'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: type.caption.copyWith(color: colors.textSecondary),
+                    ),
                 ],
               ),
             ),
@@ -1254,11 +1287,26 @@ class _ThreadsPost extends ConsumerWidget {
               username: who.username,
               isClient: who.isClient,
             ),
-            child: Text(
-              t.t('post.repostedBy', {'username': who.username}),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: type.caption.copyWith(color: colors.textSecondary),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AppIcon(
+                  AppIcons.autoModeRounded,
+                  size: 12,
+                  color: colors.textSecondary,
+                ),
+                const SizedBox(width: AppSpacing.xs),
+                Flexible(
+                  child: Text(
+                    who.id == ref.read(currentUserIdProvider)
+                        ? t.t('post.repostedByMe')
+                        : t.t('post.repostedBy', {'username': who.label}),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: type.caption.copyWith(color: colors.textSecondary),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -1344,9 +1392,11 @@ class _ThreadsPost extends ConsumerWidget {
                       extent: 34,
                       label:
                           t.t(p.repostedByMe ? 'post.unrepost' : 'post.repost'),
-                      onTap: () => run(() => actions.toggleRepost(p)),
+                      onTap: () => showRepostSheet(context, ref, p),
                     ),
                     p.repostCount,
+                    // Owner 2026-10-18: the counter opens who reposted.
+                    onCountTap: () => showRepostersList(context, p.id),
                   ),
                   action(
                     BounceIcon(
@@ -1738,11 +1788,9 @@ class _AuthorRow extends ConsumerWidget {
         subtitle: sponsored
             ? t.t('promote.sponsored')
             : post.locationName ??
-                (a.isClient
-                    ? '@${a.username} · ${t.t('person.client')}'
-                    : a.verified
-                        ? t.t('post.licensedAttorney')
-                        : '@${a.username}'),
+                // Owner 2026-10-18 (final): in content no «Клиент» and no
+                // @username (they stay in profiles and search).
+                (!a.isClient && a.verified ? t.t('post.licensedAttorney') : ''),
         trailing: AppIconButton(
           icon: AppIcon(
             AppIcons.moreHorizRounded,
@@ -1791,7 +1839,7 @@ class _OwnMenuRow extends ConsumerWidget {
           const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Text(
-              post.author.username,
+              post.author.displayName,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: type.body.copyWith(
@@ -1905,7 +1953,7 @@ class AuthorHeader extends ConsumerWidget {
                                 : colors.textSecondary,
                             shadows: shadows,
                           )
-                        else
+                        else if (subtitle.isNotEmpty)
                           Text(
                             subtitle,
                             maxLines: 1,
@@ -2125,8 +2173,13 @@ class PostBodyText extends ConsumerStatefulWidget {
     this.onLeadingTap,
     this.collapsedLines = 3,
     this.onMore,
+    this.forceMore = false,
     super.key,
   });
+
+  /// Owner 2026-10-18: «ещё» even when the text fits — the post has files,
+  /// and they live in the sheet «ещё» opens.
+  final bool forceMore;
 
   /// Owner 2026-10-07: in the feed the text never grows in place; "more"
   /// (or a tap on the text) opens the post with the whole text instead.
@@ -2279,46 +2332,66 @@ class _PostBodyTextState extends ConsumerState<PostBodyText> {
     return LayoutBuilder(
       builder: (context, box) {
         final measured = DefaultTextStyle.of(context).style.merge(style);
-        final painter = TextPainter(
-          text: TextSpan(
-            text: widget.leading == null ? _body : '${widget.leading} $_body',
-            style: measured,
-          ),
-          maxLines: widget.collapsedLines,
-          textDirection: Directionality.of(context),
-          textScaler: MediaQuery.textScalerOf(context),
-        )..layout(maxWidth: box.maxWidth);
-        if (!painter.didExceedMaxLines) return text;
-        final more = widget.onMore ?? () => setState(() => _expanded = true);
+        final direction = Directionality.of(context);
+        final scaler = MediaQuery.textScalerOf(context);
+        final width = box.maxWidth;
+        final lines = widget.collapsedLines;
         // "… more" ends the last allowed line (Instagram-like), never a
         // line of its own.
         final moreLabel = t.t('post.more');
         final lead = widget.leading == null ? '' : '${widget.leading} ';
         final bodyText = _body;
-        bool fits(int n) {
-          final shown = n >= bodyText.length
-              ? bodyText
-              : '${bodyText.substring(0, n).trimRight()}…';
-          final p = TextPainter(
-            text: TextSpan(text: '$lead$shown $moreLabel', style: measured),
-            maxLines: widget.collapsedLines,
-            textDirection: Directionality.of(context),
-            textScaler: MediaQuery.textScalerOf(context),
-          )..layout(maxWidth: box.maxWidth);
-          return !p.didExceedMaxLines;
-        }
+        // Owner 2026-10-18 (speed): measured once per text, width, scale
+        // and style (cached), each layout only as long as it has to be —
+        // the same cut as before. Null = the text fits, no «ещё».
+        final lo = cachedCaptionFit<int?>(
+          (
+            'body',
+            lead,
+            bodyText,
+            moreLabel,
+            measured,
+            width,
+            lines,
+            direction,
+            scaler,
+            widget.forceMore,
+          ),
+          () {
+            final overflows = captionOverflows(
+              widget.leading == null ? _body : '${widget.leading} $_body',
+              measured,
+              width,
+              lines,
+              direction,
+              scaler,
+            );
+            if (!overflows && !widget.forceMore) return null;
+            bool fits(int n) {
+              final shown = n >= bodyText.length
+                  ? bodyText
+                  : '${bodyText.substring(0, n).trimRight()}…';
+              return captionFits(
+                '$lead$shown $moreLabel',
+                measured,
+                width,
+                lines,
+                direction,
+                scaler,
+              );
+            }
 
-        var lo = 0;
-        var hi = bodyText.length;
-        while (lo < hi) {
-          final mid = (lo + hi + 1) ~/ 2;
-          if (fits(mid)) {
-            lo = mid;
-          } else {
-            hi = mid - 1;
-          }
-        }
-        final cutText = '${bodyText.substring(0, lo).trimRight()}…';
+            return captionCut(bodyText.length, fits);
+          },
+        );
+        if (lo == null) return text;
+        final more = widget.onMore ?? () => setState(() => _expanded = true);
+        final cutText = lo >= bodyText.length
+            ? bodyText
+            : '${bodyText.substring(0, lo).trimRight()}…';
+        // Owner 2026-10-18 (bug): the spans first — _spans() disposes the
+        // recognizers it made before, and «ещё»'s own must outlive it.
+        final cutSpans = _spans(colors, cutText);
         final moreRecognizer = TapGestureRecognizer()..onTap = more;
         _recognizers.add(moreRecognizer);
         return GestureDetector(
@@ -2327,7 +2400,7 @@ class _PostBodyTextState extends ConsumerState<PostBodyText> {
             TextSpan(
               style: style,
               children: [
-                ..._spans(colors, cutText),
+                ...cutSpans,
                 const TextSpan(text: ' '),
                 TextSpan(
                   text: moreLabel,
@@ -2342,6 +2415,11 @@ class _PostBodyTextState extends ConsumerState<PostBodyText> {
     );
   }
 }
+
+/// Owner 2026-10-19 (smooth scroll): a post photo's blurred backdrop is
+/// drawn (only around a "contain" photo); the prefetch warms it only then.
+const bool kPostPhotoBackdrop =
+    _PostMediaCarouselState._frontFit != BoxFit.cover;
 
 /// Photos of a post: swipe between them, a gold pill page indicator, and
 /// double tap = like with a heart that blooms and fades (§2.4).
@@ -2390,6 +2468,9 @@ class PostMediaCarousel extends StatefulWidget {
 
 class _PostMediaCarouselState extends State<PostMediaCarousel>
     with SingleTickerProviderStateMixin {
+  /// How the main photo fills its frame.
+  static const BoxFit _frontFit = BoxFit.cover;
+
   late final AnimationController _heart = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 820),
@@ -2430,12 +2511,16 @@ class _PostMediaCarouselState extends State<PostMediaCarousel>
             // screen gallery.
             itemBuilder: (context, i) {
               final m = media[i];
-              Widget img(BoxFit fit, String url, String key) =>
+              // Owner 2026-10-18 (speed): the decode width follows which
+              // picture it is — the tiny blurred backdrop 96 px, the main
+              // photo 1080 px (the same size post_prefetch.dart warms, so
+              // the prefetched decode is found in the memory cache).
+              Widget img(BoxFit fit, String url, String key, int decodeWidth) =>
                   CachedNetworkImage(
                     imageUrl: url,
                     cacheKey: key,
                     // Screen width is enough; never decode the original.
-                    memCacheWidth: fit == BoxFit.cover ? 96 : 1080,
+                    memCacheWidth: decodeWidth,
                     fit: fit,
                     fadeInDuration: context.reduceMotion
                         ? Duration.zero
@@ -2450,18 +2535,33 @@ class _PostMediaCarouselState extends State<PostMediaCarousel>
                       ),
                     ),
                   );
+              // Owner 2026-10-19 (Instagram): pinch lifts the photo over
+              // the screen, letting go glides it back.
               return GestureDetector(
                 onTap: widget.onTap == null ? null : () => widget.onTap!(i),
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    ImageFiltered(
-                      imageFilter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-                      child: img(BoxFit.cover, m.previewUrl, '${m.fileId}:320'),
-                    ),
-                    ColoredBox(color: Colors.black.withValues(alpha: 0.18)),
-                    img(BoxFit.cover, m.mediumUrl, '${m.fileId}:1080'),
-                  ],
+                child: PinchToZoom(
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      // Owner 2026-10-18 (speed): the sigma-24 blurred
+                      // backdrop only shows around a "contain" photo; a
+                      // "cover" front photo hides it completely, so it is not
+                      // built (no blur pass, no second decode).
+                      if (_frontFit != BoxFit.cover) ...[
+                        ImageFiltered(
+                          imageFilter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+                          child: img(
+                            BoxFit.cover,
+                            m.previewUrl,
+                            '${m.fileId}:320',
+                            96,
+                          ),
+                        ),
+                        ColoredBox(color: Colors.black.withValues(alpha: 0.18)),
+                      ],
+                      img(_frontFit, m.mediumUrl, '${m.fileId}:1080', 1080),
+                    ],
+                  ),
                 ),
               );
             },
@@ -2554,37 +2654,41 @@ class _HeartBurst extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
-    return AnimatedBuilder(
-      animation: animation,
-      builder: (context, _) {
-        final v = animation.value;
-        if (v == 0 || v == 1) return const SizedBox.shrink();
-        // Bloom (0–35%), hold, fade (70–100%).
-        final scale = v < 0.35
-            ? Curves.easeOutBack.transform(v / 0.35) * 1.1
-            : 1.1 - 0.1 * ((v - 0.35) / 0.65).clamp(0, 1);
-        final opacity = v < 0.7 ? 1.0 : 1 - (v - 0.7) / 0.3;
-        return Center(
-          child: Opacity(
-            opacity: opacity.clamp(0, 1),
-            child: Transform.scale(
-              scale: scale,
-              child: AppIcon(
-                AppIcons.favoriteRounded,
-                size: 108,
-                color: Colors.white,
-                shadows: [
-                  Shadow(
-                    color: colors.gold.withValues(alpha: 0.6),
-                    blurRadius: 28,
-                  ),
-                  Shadow(color: colors.shadow, blurRadius: 12),
-                ],
+    // Owner 2026-10-19 (smooth): the heart's frames repaint only the heart,
+    // not the photo and the card under it.
+    return RepaintBoundary(
+      child: AnimatedBuilder(
+        animation: animation,
+        builder: (context, _) {
+          final v = animation.value;
+          if (v == 0 || v == 1) return const SizedBox.shrink();
+          // Bloom (0–35%), hold, fade (70–100%).
+          final scale = v < 0.35
+              ? Curves.easeOutBack.transform(v / 0.35) * 1.1
+              : 1.1 - 0.1 * ((v - 0.35) / 0.65).clamp(0, 1);
+          final opacity = v < 0.7 ? 1.0 : 1 - (v - 0.7) / 0.3;
+          return Center(
+            child: Opacity(
+              opacity: opacity.clamp(0, 1),
+              child: Transform.scale(
+                scale: scale,
+                child: AppIcon(
+                  AppIcons.favoriteRounded,
+                  size: 108,
+                  color: Colors.white,
+                  shadows: [
+                    Shadow(
+                      color: colors.gold.withValues(alpha: 0.6),
+                      blurRadius: 28,
+                    ),
+                    Shadow(color: colors.shadow, blurRadius: 12),
+                  ],
+                ),
               ),
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 }
@@ -3163,8 +3267,9 @@ class PostPracticeChips extends ConsumerWidget {
 /// Owner 2026-10-12: the title (one line) and two lines of text with a
 /// grey "more" at the end of the second line. A short text (up to 4 lines)
 /// opens in place and then shows the hashtags; a longer one opens the post.
-class _FeedCaption extends ConsumerStatefulWidget {
-  const _FeedCaption({
+@visibleForTesting
+class FeedCaption extends ConsumerStatefulWidget {
+  const FeedCaption({
     required this.title,
     required this.text,
     required this.hashtags,
@@ -3172,8 +3277,13 @@ class _FeedCaption extends ConsumerStatefulWidget {
     this.onExpand,
     this.inPlaceOnly = false,
     this.onMore,
+    this.forceMore = false,
     super.key,
   });
+
+  /// Owner 2026-10-18: «ещё» even when nothing is cut — the post's files
+  /// are in the sheet it opens.
+  final bool forceMore;
 
   /// With [inPlaceOnly]: opens the description sheet.
   final VoidCallback? onMore;
@@ -3191,10 +3301,14 @@ class _FeedCaption extends ConsumerStatefulWidget {
   final VoidCallback? onExpand;
 
   @override
-  ConsumerState<_FeedCaption> createState() => _FeedCaptionState();
+  ConsumerState<FeedCaption> createState() => FeedCaptionState();
 }
 
-class _FeedCaptionState extends ConsumerState<_FeedCaption> {
+class FeedCaptionState extends ConsumerState<FeedCaption> {
+  /// The title is ONE line (owner 2026-10-18, final): a longer one is cut
+  /// and the single «ещё» opens it whole.
+  static const _titleLines = 1;
+
   bool _expanded = false;
   final _more = TapGestureRecognizer();
   final _tagTaps = <TapGestureRecognizer>[];
@@ -3209,40 +3323,89 @@ class _FeedCaptionState extends ConsumerState<_FeedCaption> {
   }
 
   /// The longest start of [text] that, followed by [tail], fits two lines.
+  /// Owner 2026-10-18 (speed): cached per text, width, scale and style,
+  /// each layout only as long as it has to be — the same answer as before.
   int _fit(
     String text,
     String tail,
     TextStyle style,
     double width,
-    BuildContext context,
-  ) {
-    bool fits(int n) {
-      final p = TextPainter(
-        text: TextSpan(
-          text: n >= text.length
-              ? '$text $tail'
-              : '${text.substring(0, n).trimRight()}$tail',
-          style: DefaultTextStyle.of(context).style.merge(style),
-        ),
-        maxLines: 2,
-        textDirection: Directionality.of(context),
-        textScaler: MediaQuery.textScalerOf(context),
-      )..layout(maxWidth: width);
-      return !p.didExceedMaxLines;
-    }
+    BuildContext context, {
+    int maxLines = 2,
+  }) {
+    final measured = DefaultTextStyle.of(context).style.merge(style);
+    final direction = Directionality.of(context);
+    final scaler = MediaQuery.textScalerOf(context);
+    return cachedCaptionFit<int>(
+      ('feedFit', text, tail, measured, width, maxLines, direction, scaler),
+      () {
+        bool fits(int n) => captionFits(
+              n >= text.length
+                  ? '$text $tail'
+                  : '${text.substring(0, n).trimRight()}$tail',
+              measured,
+              width,
+              maxLines,
+              direction,
+              scaler,
+            );
 
-    if (fits(text.length)) return text.length;
-    var lo = 0;
-    var hi = text.length;
-    while (lo < hi) {
-      final mid = (lo + hi + 1) ~/ 2;
-      if (fits(mid)) {
-        lo = mid;
-      } else {
-        hi = mid - 1;
-      }
-    }
-    return lo;
+        if (!captionOverflows(
+          '$text $tail',
+          measured,
+          width,
+          maxLines,
+          direction,
+          scaler,
+        )) {
+          return text.length;
+        }
+        return captionCut(text.length, fits);
+      },
+    );
+  }
+
+  /// Whether [text] in [style] needs more than [maxLines] lines (cached).
+  bool _overflows(
+    String text,
+    TextStyle style,
+    double width,
+    BuildContext context,
+    int maxLines,
+  ) {
+    final measured = DefaultTextStyle.of(context).style.merge(style);
+    final direction = Directionality.of(context);
+    final scaler = MediaQuery.textScalerOf(context);
+    return cachedCaptionFit<bool>(
+      ('feedOver', text, measured, width, maxLines, direction, scaler),
+      () => captionOverflows(
+        text,
+        measured,
+        width,
+        maxLines,
+        direction,
+        scaler,
+      ),
+    );
+  }
+
+  /// Lines of [text] in [style], counted up to 5 (cached) — the caption
+  /// only asks "more than 2" and "more than 4".
+  int _lines(String text, TextStyle style, double width, BuildContext context) {
+    final measured = DefaultTextStyle.of(context).style.merge(style);
+    final direction = Directionality.of(context);
+    final scaler = MediaQuery.textScalerOf(context);
+    return cachedCaptionFit<int>(
+      ('feedLines', text, measured, width, direction, scaler),
+      () => captionLineCount(
+        text,
+        measured,
+        width,
+        direction,
+        scaler,
+        cap: 5,
+      ),
+    );
   }
 
   @override
@@ -3296,92 +3459,155 @@ class _FeedCaptionState extends ConsumerState<_FeedCaption> {
             ),
           )
         : const SizedBox.shrink();
+    final moreLabel = t.t('post.more');
     return Padding(
       padding: const EdgeInsets.fromLTRB(AppSpacing.md, 8, AppSpacing.md, 0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (widget.title.isNotEmpty)
-            AppPressable(
+      child: LayoutBuilder(
+        builder: (context, outer) {
+          // Owner 2026-10-18 (final rule): the title is one line, the text
+          // at most two, and ONE «ещё» opens the sheet with everything:
+          // at the end of the text whenever there is text and anything is
+          // cut (the title or the text); at the end of the title's line
+          // when there is no text; none when everything fits.
+          final titleCut = widget.title.isNotEmpty &&
+              !_expanded &&
+              _overflows(
+                widget.title,
+                titleStyle,
+                outer.maxWidth,
+                context,
+                _titleLines,
+              );
+          final force = widget.forceMore && !_expanded;
+          final titleMore = (titleCut || force) && !hasText;
+          void openMore() {
+            if (widget.inPlaceOnly) {
+              widget.onMore?.call();
+            } else {
+              widget.onExpand?.call();
+              setState(() => _expanded = true);
+            }
+          }
+
+          Widget titleWidget() {
+            if (titleMore) {
+              // No text: «ещё» ends the title's own line.
+              _more.onTap = openMore;
+              final cut = _fit(
+                widget.title,
+                '… $moreLabel',
+                titleStyle,
+                outer.maxWidth - 4,
+                context,
+              );
+              return AppPressable(
+                onTap: widget.onOpen,
+                child: Text.rich(
+                  TextSpan(
+                    style: titleStyle,
+                    children: [
+                      TextSpan(
+                        text: cut >= widget.title.length
+                            ? '${widget.title} '
+                            : '${widget.title.substring(0, cut).trimRight()}… ',
+                      ),
+                      TextSpan(
+                        text: moreLabel,
+                        style: moreStyle,
+                        recognizer: _more,
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+            return AppPressable(
               onTap: widget.onOpen,
               child: Text(
                 widget.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+                maxLines: _expanded ? null : _titleLines,
+                overflow:
+                    _expanded ? TextOverflow.visible : TextOverflow.ellipsis,
                 style: titleStyle,
               ),
-            ),
-          if (hasText)
-            LayoutBuilder(
-              builder: (context, box) {
-                final painter = TextPainter(
-                  text: TextSpan(
-                    text: widget.text,
-                    style: DefaultTextStyle.of(context).style.merge(bodyStyle),
-                  ),
-                  textDirection: Directionality.of(context),
-                  textScaler: MediaQuery.textScalerOf(context),
-                )..layout(maxWidth: box.maxWidth);
-                final lines = painter.computeLineMetrics().length;
-                final collapsed = (lines > 2 || hasTags) && !_expanded;
-                _more.onTap = () {
-                  if (widget.inPlaceOnly) {
-                    // Owner 2026-10-13: no inner card — «ещё» always opens
-                    // the text sheet; the card keeps its height.
-                    widget.onMore?.call();
-                  } else if (lines > 4) {
-                    widget.onOpen();
-                  } else {
-                    widget.onExpand?.call();
-                    setState(() => _expanded = true);
-                  }
-                };
-                final moreLabel = t.t('post.more');
-                final cut = collapsed
-                    ? _fit(
-                        widget.text,
-                        '… $moreLabel',
-                        bodyStyle,
-                        box.maxWidth - 4,
-                        context,
-                      )
-                    : widget.text.length;
-                final shown = !collapsed
-                    ? widget.text
-                    : cut < widget.text.length
-                        ? '${widget.text.substring(0, cut).trimRight()}… '
-                        : '${widget.text} ';
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(top: 3),
-                      child: GestureDetector(
-                        onTap: widget.onOpen,
-                        child: Text.rich(
-                          TextSpan(
-                            style: bodyStyle,
-                            children: [
-                              TextSpan(text: shown),
-                              if (collapsed)
-                                TextSpan(
-                                  text: moreLabel,
-                                  style: moreStyle,
-                                  recognizer: _more,
-                                ),
-                            ],
+            );
+          }
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (widget.title.isNotEmpty) titleWidget(),
+              if (hasText)
+                LayoutBuilder(
+                  builder: (context, box) {
+                    // Owner 2026-10-18 (speed): counted up to 5 lines and
+                    // cached (only "> 2" and "> 4" are asked below).
+                    final lines =
+                        _lines(widget.text, bodyStyle, box.maxWidth, context);
+                    final collapsed = (lines > 2 ||
+                            hasTags ||
+                            widget.forceMore ||
+                            titleCut) &&
+                        !_expanded;
+                    _more.onTap = () {
+                      if (widget.inPlaceOnly) {
+                        // Owner 2026-10-13: no inner card — «ещё» always opens
+                        // the text sheet; the card keeps its height.
+                        widget.onMore?.call();
+                      } else if (lines > 4) {
+                        widget.onOpen();
+                      } else {
+                        widget.onExpand?.call();
+                        setState(() => _expanded = true);
+                      }
+                    };
+                    final cut = collapsed
+                        ? _fit(
+                            widget.text,
+                            '… $moreLabel',
+                            bodyStyle,
+                            box.maxWidth - 4,
+                            context,
+                          )
+                        : widget.text.length;
+                    final shown = !collapsed
+                        ? widget.text
+                        : cut < widget.text.length
+                            ? '${widget.text.substring(0, cut).trimRight()}… '
+                            : '${widget.text} ';
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(top: 3),
+                          child: GestureDetector(
+                            onTap: widget.onOpen,
+                            child: Text.rich(
+                              TextSpan(
+                                style: bodyStyle,
+                                children: [
+                                  TextSpan(text: shown),
+                                  if (collapsed)
+                                    TextSpan(
+                                      text: moreLabel,
+                                      style: moreStyle,
+                                      recognizer: _more,
+                                    ),
+                                ],
+                              ),
+                            ),
                           ),
                         ),
-                      ),
-                    ),
-                    if (_expanded) tags,
-                  ],
-                );
-              },
-            )
-          else
-            tags,
-        ],
+                        if (_expanded) tags,
+                      ],
+                    );
+                  },
+                )
+              else
+                tags,
+            ],
+          );
+        },
       ),
     );
   }

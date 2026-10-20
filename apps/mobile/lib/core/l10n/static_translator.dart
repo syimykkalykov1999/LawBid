@@ -12,13 +12,18 @@ import 'package:lawbid/core/l10n/strings/case_dossier_strings.dart';
 import 'package:lawbid/core/l10n/strings/case_payments_strings.dart';
 import 'package:lawbid/core/l10n/strings/case_urgency_strings.dart';
 import 'package:lawbid/core/l10n/strings/case_workspace_strings.dart';
+import 'package:lawbid/core/l10n/strings/chat_note_strings.dart';
 import 'package:lawbid/core/l10n/strings/client_fraud_strings.dart';
+import 'package:lawbid/core/l10n/strings/contact_info_strings.dart';
+import 'package:lawbid/core/l10n/strings/contingency_strings.dart';
 import 'package:lawbid/core/l10n/strings/demo_strings.dart';
 import 'package:lawbid/core/l10n/strings/email_flows_strings.dart';
 import 'package:lawbid/core/l10n/strings/feed_content_strings.dart';
+import 'package:lawbid/core/l10n/strings/feed_fresh_strings.dart';
 import 'package:lawbid/core/l10n/strings/file05_strings.dart';
 import 'package:lawbid/core/l10n/strings/file06_strings.dart';
 import 'package:lawbid/core/l10n/strings/file07_strings.dart';
+import 'package:lawbid/core/l10n/strings/guide_strings.dart';
 import 'package:lawbid/core/l10n/strings/invite_strings.dart';
 import 'package:lawbid/core/l10n/strings/legal_docs_strings.dart';
 import 'package:lawbid/core/l10n/strings/legal_strings.dart';
@@ -29,11 +34,14 @@ import 'package:lawbid/core/l10n/strings/plan_strings.dart';
 import 'package:lawbid/core/l10n/strings/post_inner_strings.dart';
 import 'package:lawbid/core/l10n/strings/reels_docs_strings.dart';
 import 'package:lawbid/core/l10n/strings/reels_strings.dart';
+import 'package:lawbid/core/l10n/strings/stale_case_strings.dart';
 import 'package:lawbid/core/l10n/strings/storage_strings.dart';
+import 'package:lawbid/core/l10n/strings/support_strings.dart';
 import 'package:lawbid/core/l10n/strings/tasks_planner_strings.dart';
 import 'package:lawbid/core/l10n/strings/templates_strings.dart';
 import 'package:lawbid/core/l10n/strings/theme_strings.dart';
 import 'package:lawbid/core/l10n/strings/trust_strings.dart';
+import 'package:lawbid/core/l10n/strings/username_strings.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 
 /// Stage-1.5-originated stopgap [Translator], now bilingual (owner request,
@@ -722,8 +730,6 @@ class StaticTranslatorRu extends _MapTranslator {
         'verification.license.barNumber.hint': 'Номер лицензии',
         'verification.license.barNumber.helper':
             'Буквы и цифры, как в лицензии.',
-        'verification.license.barNumber.soft':
-            'Необычный номер для этого штата. Его всё равно можно добавить: мы проверим его вручную по фото вашей карточки адвоката.',
         'verification.license.barNumber.invalid':
             'Введите номер лицензии: буквы и цифры, до 32 символов.',
         'verification.license.expires': 'Срок действия (если указан)',
@@ -1142,6 +1148,11 @@ class StaticTranslatorRu extends _MapTranslator {
         'error.default.title': 'Что-то пошло не так',
         ...file05Ru,
         ...file06Ru,
+        ...contingencyRu,
+        ...staleCaseRu,
+        ...guideRu,
+        ...usernameRu,
+        ...contactInfoRu,
         ...file07Ru,
         ...reelsRu,
         ...auditCasesRu,
@@ -1152,6 +1163,7 @@ class StaticTranslatorRu extends _MapTranslator {
         ...reelsDocsRu,
         ...templatesRu,
         ...storageRu,
+        ...supportRu,
         ...caseCoverRu,
         ...caseUrgencyRu,
         ...tasksPlannerRu,
@@ -1169,6 +1181,8 @@ class StaticTranslatorRu extends _MapTranslator {
         ...boostRu,
         ...feedContentRu,
         ...newsOffRu,
+        ...feedFreshRu,
+        ...chatNoteRu,
         ...caseWorkspaceRu,
         ...themeRu,
         ...postInnerRu,
@@ -1734,8 +1748,6 @@ class StaticTranslatorEn extends _MapTranslator {
         'cases.field.descriptionHint':
             "What happened, when, and what you'd like to achieve",
         'cases.field.descriptionError': 'At least {min} characters',
-        'cases.field.noContacts':
-            "Don't add contacts: they're shared automatically with the attorney you choose.",
         'cases.field.place': 'Location',
         'cases.field.primaryState': 'Main state',
         'cases.field.state': 'State',
@@ -2144,8 +2156,6 @@ class StaticTranslatorEn extends _MapTranslator {
         'verification.license.barNumber.hint': 'License number',
         'verification.license.barNumber.helper':
             'Letters and digits as on your license.',
-        'verification.license.barNumber.soft':
-            'This number looks unusual for this state. You can still add it: we will check it by hand with a photo of your bar card.',
         'verification.license.barNumber.invalid':
             'Enter the bar number: letters and digits, up to 32 characters.',
         'verification.license.expires': 'Expiry date (if any)',
@@ -2560,6 +2570,11 @@ class StaticTranslatorEn extends _MapTranslator {
         'error.default.title': 'Something went wrong',
         ...file05En,
         ...file06En,
+        ...contingencyEn,
+        ...staleCaseEn,
+        ...guideEn,
+        ...usernameEn,
+        ...contactInfoEn,
         ...file07En,
         ...reelsEn,
         ...auditCasesEn,
@@ -2570,6 +2585,7 @@ class StaticTranslatorEn extends _MapTranslator {
         ...reelsDocsEn,
         ...templatesEn,
         ...storageEn,
+        ...supportEn,
         ...caseCoverEn,
         ...caseUrgencyEn,
         ...tasksPlannerEn,
@@ -2587,6 +2603,8 @@ class StaticTranslatorEn extends _MapTranslator {
         ...boostEn,
         ...feedContentEn,
         ...newsOffEn,
+        ...feedFreshEn,
+        ...chatNoteEn,
         ...caseWorkspaceEn,
         ...themeEn,
         ...postInnerEn,

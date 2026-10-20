@@ -353,7 +353,13 @@ class CallController extends Notifier<CallSession> {
     try {
       if (state.call?.id != callId) {
         final call = await _repo.get(callId);
-        if (call.status != CallStatus.ringing || call.outgoing) return;
+        if (call.status != CallStatus.ringing || call.outgoing) {
+          // Push 2026-10-19: the call ended while the phone was asleep — a
+          // system call screen answered (or still ringing) for it must go,
+          // or CallKit keeps a call that never connects.
+          unawaited(ref.read(systemCallUiProvider).dismiss(callId));
+          return;
+        }
         _ring(call, showSystemUi: false);
       }
       if (accept) await this.accept();

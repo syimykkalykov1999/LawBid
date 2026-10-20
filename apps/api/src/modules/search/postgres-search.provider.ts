@@ -1,6 +1,10 @@
 import { Injectable, Optional } from '@nestjs/common';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
-import { HIDDEN_TAG_PREFIX, hiddenTagOf } from '../posts/hidden-tags';
+import {
+  HIDDEN_TAG_PREFIX,
+  legacyTopicTags,
+  postPracticeSql,
+} from '../posts/hidden-tags';
 import { attorneysWithEntitlementSql } from '../plans/entitlements.service';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -12,8 +16,10 @@ import {
   typoMatch,
 } from '../../common/search/fts-sql';
 import { parseSearchQuery } from '../../common/search/search-query';
+import { escapeLike, nameMatchSql } from '../../common/search/name-match.sql';
 import { SearchSynonymsService } from './search-synonyms.service';
 import { urgencyFilterSql } from '../cases/domain/case-urgency';
+import { budgetFilterSql } from '../cases/cases.public';
 import {
   buildPracticeCasesSql,
   buildVisibleCasesSql,
@@ -54,8 +60,20 @@ function practiceWordsMatch(norm: string): Prisma.Sql {
   return conds.length ? Prisma.join(conds, ' AND ') : Prisma.sql`FALSE`;
 }
 
-export function escapeLike(s: string): string {
-  return s.replace(/[\\%_]/g, (c) => `\\${c}`);
+/**
+ * Audit 2026-10-18: SQL condition "the case is in the state/city [norm]
+ * names": a state code (2 letters), a state name or a city word starting
+ * with the query. Cases only (alias `c`).
+ */
+export function casePlaceMatch(norm: string): Prisma.Sql {
+  if (norm.length < 2) return Prisma.sql`FALSE`;
+  const like = `${escapeLike(norm)}%`;
+  return Prisma.sql`(
+    ${norm.length === 2 ? Prisma.sql`c.primary_state_code = ${norm.toUpperCase()} OR` : Prisma.empty}
+    EXISTS (SELECT 1 FROM states s WHERE s.code = c.primary_state_code
+               AND lower(s.name) LIKE ${like})
+    OR lower(c.city) LIKE ${like}
+    OR lower(c.city) LIKE ${`% ${escapeLike(norm)}%`})`;
 }
 
 /**
@@ -72,6 +90,39 @@ export class PostgresSearchProvider implements SearchProvider {
     // Owner 2026-10-15: everyday words and phrases → topics.
     @Optional() private readonly synonyms?: SearchSynonymsService,
   ) {}
+
+  /** Owner 2026-10-18 (speed): practice area id → its name in every
+   * language, lower-cased, kept in memory for 10 minutes. The "practice by
+   * its name in ANY language" branch of People search used to join all
+   * i18n translations on every query (~16 ms); now it is a JS substring
+   * test and the SQL only reads the matching areas' attorneys. Off under
+   * jest, where specs import translations and search straight away. */
+  private practiceNames: { at: number; byArea: Map<string, string[]> } | null =
+    null;
+
+  private async practiceAreaNames(): Promise<Map<string, string[]>> {
+    const cached = this.practiceNames;
+    if (
+      process.env.NODE_ENV !== 'test' &&
+      cached &&
+      Date.now() - cached.at < 10 * 60_000
+    ) {
+      return cached.byArea;
+    }
+    const rows = await this.prisma.$queryRaw<{ id: string; v: string }[]>`
+      SELECT pa.id::TEXT AS id, lower(tr.value) AS v
+      FROM practice_areas pa
+      JOIN i18n_keys k ON k.key = pa.i18n_key
+      JOIN i18n_translations tr ON tr.key_id = k.id`;
+    const byArea = new Map<string, string[]>();
+    for (const r of rows) {
+      const list = byArea.get(r.id);
+      if (list) list.push(r.v);
+      else byArea.set(r.id, [r.v]);
+    }
+    this.practiceNames = { at: Date.now(), byArea };
+    return byArea;
+  }
 
   /** The admin's ranking weights (defaults when unset). */
   private async weights() {
@@ -133,12 +184,26 @@ export class PostgresSearchProvider implements SearchProvider {
     const w = await this.weights();
     const prefix = `${escapeLike(q)}%`;
     const contains = `%${escapeLike(q)}%`;
+    const byName = nameMatchSql(q);
     // Owner 2026-10-15: "развод" / "муж бьёт" → attorneys of that topic.
     const synPractices = (await this.synonyms?.resolve(q))?.practiceIds ?? [];
     const bySynonym = synPractices.length
       ? Prisma.sql`UNION
         (SELECT ap.attorney_id FROM attorney_practice_areas ap
           WHERE ap.practice_area_id = ANY(${synPractices}::UUID[])
+          LIMIT ${BRANCH_CAP})`
+      : Prisma.empty;
+    // Owner 2026-10-13: a practice by its name in ANY language ("развод",
+    // "तलाक"): the translations of its i18n key (matched in memory).
+    const needle = q;
+    const namedPractices: string[] = [];
+    for (const [id, names] of await this.practiceAreaNames()) {
+      if (names.some((n) => n.includes(needle))) namedPractices.push(id);
+    }
+    const byTranslation = namedPractices.length
+      ? Prisma.sql`UNION
+        (SELECT ap.attorney_id FROM attorney_practice_areas ap
+          WHERE ap.practice_area_id = ANY(${namedPractices}::UUID[])
           LIMIT ${BRANCH_CAP})`
       : Prisma.empty;
     const filters = Prisma.sql`
@@ -183,6 +248,10 @@ export class PostgresSearchProvider implements SearchProvider {
             WHERE full_name_lower IS NOT NULL AND role = 'client'
               AND (full_name_lower % ${q} OR full_name_lower LIKE ${contains})
             LIMIT ${BRANCH_CAP})
+          UNION
+          (SELECT id AS user_id FROM users
+            WHERE full_name_lower IS NOT NULL AND role = 'client' AND ${byName}
+            LIMIT ${BRANCH_CAP})
         ) cc
         JOIN users u ON u.id = cc.user_id AND u.role = 'client'
           AND u.status = 'active' AND u.deleted_at IS NULL
@@ -204,19 +273,15 @@ export class PostgresSearchProvider implements SearchProvider {
             AND (full_name_lower % ${q} OR full_name_lower LIKE ${contains})
           LIMIT ${BRANCH_CAP})
         UNION
+        (SELECT id FROM users
+          WHERE full_name_lower IS NOT NULL AND role = 'attorney' AND ${byName}
+          LIMIT ${BRANCH_CAP})
+        UNION
         (SELECT ap.attorney_id FROM practice_areas pa
           JOIN attorney_practice_areas ap ON ap.practice_area_id = pa.id
           WHERE lower(pa.name_en) LIKE ${contains}
           LIMIT ${BRANCH_CAP})
-        UNION
-        -- Owner 2026-10-13: a practice by its name in ANY language
-        -- ("развод", "तलाक"): the translations of its i18n key.
-        (SELECT ap.attorney_id FROM practice_areas pa
-          JOIN i18n_keys k ON k.key = pa.i18n_key
-          JOIN i18n_translations tr ON tr.key_id = k.id
-          JOIN attorney_practice_areas ap ON ap.practice_area_id = pa.id
-          WHERE lower(tr.value) LIKE ${contains}
-          LIMIT ${BRANCH_CAP})
+        ${byTranslation}
         UNION
         (SELECT l.attorney_id FROM states s
           JOIN attorney_licenses l ON l.state_code = s.code
@@ -248,7 +313,9 @@ export class PostgresSearchProvider implements SearchProvider {
         (uname = ${q}) DESC,
         (uname LIKE ${prefix}) DESC,
         GREATEST(similarity(uname, ${q}),
-                 similarity(COALESCE(fname, ''), ${q})) DESC,
+                 similarity(COALESCE(fname, ''), ${q}),
+                 word_similarity(public.f_name_skel(${q}),
+                                 public.f_name_skel(COALESCE(fname, '')))) DESC,
         (role = 'attorney') DESC,
         (priority::INT * ${w.priority}::FLOAT8 + verified::INT * ${w.verified}::FLOAT8
           + rating::FLOAT8 * ${w.rating}::FLOAT8) DESC,
@@ -269,9 +336,13 @@ export class PostgresSearchProvider implements SearchProvider {
     // query, which the time budget runs inside a transaction.
     const textPractices = p.textPractices ?? [];
     const extra = Prisma.sql`
-          ${p.budgetMinCents !== undefined ? Prisma.sql`AND c.budget_cents >= ${p.budgetMinCents}` : Prisma.empty}
-          ${p.budgetMaxCents !== undefined ? Prisma.sql`AND c.budget_cents <= ${p.budgetMaxCents}` : Prisma.empty}
-          ${p.budgetUnknown ? Prisma.sql`AND c.budget_mode = 'clarify_later'` : Prisma.empty}
+          ${budgetFilterSql({
+            minCents: p.budgetMinCents,
+            maxCents: p.budgetMaxCents,
+            unknown: p.budgetUnknown,
+            percent: p.budgetPercent,
+            percentMax: p.percentMax,
+          })}
           ${p.noBids ? Prisma.sql`AND c.bids_count = 0` : Prisma.empty}
           ${urgencyFilterSql(p.minUrgency, p.hasDeadline, p.urgencyThresholds)}
           ${p.extraSql ?? Prisma.empty}`;
@@ -321,11 +392,10 @@ export class PostgresSearchProvider implements SearchProvider {
         // Audit 2026-10-01: a qualification matches posts of it (and its
         // subcategories) — older posts without one by the topic hashtag.
         f.practice
-          ? Prisma.sql`AND (EXISTS (SELECT 1 FROM post_tags pt JOIN tags t ON t.id = pt.tag_id WHERE pt.post_id = p.id AND t.tag_lower = ${hiddenTagOf(f.practice)})${
-              f.tag
-                ? Prisma.sql` OR (p.practice_area_id IS NULL AND EXISTS (SELECT 1 FROM post_tags pt JOIN tags t ON t.id = pt.tag_id WHERE pt.post_id = p.id AND t.tag_lower = ${f.tag}))`
-                : Prisma.empty
-            })`
+          ? Prisma.sql`AND ${postPracticeSql(f.practice, [
+              ...(f.tag ? [f.tag] : []),
+              ...legacyTopicTags(f.practice),
+            ])}`
           : f.tag
             ? Prisma.sql`AND EXISTS (SELECT 1 FROM post_tags pt JOIN tags t ON t.id = pt.tag_id WHERE pt.post_id = p.id AND t.tag_lower = ${f.tag})`
             : Prisma.empty
@@ -345,7 +415,7 @@ export class PostgresSearchProvider implements SearchProvider {
       WITH m AS (
         SELECT p.id, p.created_at, p.search_tsv, p.search_tsv_simple FROM posts p
         WHERE ${match}
-          AND p.status = 'published' AND p.deleted_at IS NULL
+          AND p.status = 'published' AND p.deleted_at IS NULL AND p.archived_at IS NULL
           ${where}
         ORDER BY p.created_at DESC
         LIMIT ${POST_CANDIDATES}
@@ -521,6 +591,17 @@ export class PostgresSearchProvider implements SearchProvider {
       );
       rows = [...new Map([...exact, ...more].map((r) => [r.id, r])).values()];
     }
+    // Audit 2026-10-18: "new york", "NY" or "brooklyn" name WHERE a case is,
+    // which is not in its title/description: the whole query as a state
+    // code/name or a city word also finds the cases there.
+    const place = await this.budget(SEARCH_BUDGET_MS, () =>
+      this.searchCases('', {
+        ...p,
+        limit: CASE_CANDIDATES,
+        extraSql: Prisma.sql`${p.extraSql ?? Prisma.empty} AND ${casePlaceMatch(parsed.plain)}`,
+      }),
+    );
+    rows = [...new Map([...rows, ...place].map((r) => [r.id, r])).values()];
     const ids = rows.map((r) => r.id);
     if (ids.length > 0) {
       const ranked = await this.prisma.$queryRaw<{ id: string }[]>`
@@ -585,3 +666,5 @@ export class PostgresSearchProvider implements SearchProvider {
     return rows.map((r) => r.tag_lower);
   }
 }
+
+export { escapeLike, nameMatchSql };

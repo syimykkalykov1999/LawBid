@@ -17,7 +17,10 @@ import {
 } from '@aws-sdk/client-s3';
 import type { Prisma, PrismaClient } from '@prisma/client';
 import { DEMO_EMAIL_DOMAIN } from '../../src/modules/demo/demo-seed';
-import { renderDemoAvatarPng } from '../../src/modules/demo/demo-avatar';
+import {
+  DEMO_AVATAR_SIZE,
+  renderDemoAvatarPng,
+} from '../../src/modules/demo/demo-avatar';
 import { samplePdf, scenePng } from './media';
 import {
   COMMENT_BODIES,
@@ -269,8 +272,8 @@ export async function seedDemoContent(
         s3Key: `demo/avatar/${p.id}/${det(`file:avatar:${p.id}`)}`,
         mime: 'image/png',
         body: png,
-        width: 128,
-        height: 128,
+        width: DEMO_AVATAR_SIZE,
+        height: DEMO_AVATAR_SIZE,
         createdAt: p.createdAt,
       });
       // The files must exist before the user row points at them.

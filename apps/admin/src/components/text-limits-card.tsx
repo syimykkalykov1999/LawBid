@@ -17,6 +17,7 @@ const LIMITS: { key: string; label: string }[] = [
   { key: 'limits.post_title_chars', label: 'Заголовок поста или рилса' },
   { key: 'limits.case_title_chars', label: 'Заголовок кейса' },
   { key: 'limits.case_description_chars', label: 'Описание кейса' },
+  { key: 'limits.case_private_details_chars', label: 'Закрытые подробности кейса' },
   { key: 'limits.bid_message_chars', label: 'Текст отклика адвоката' },
   { key: 'limits.counter_message_chars', label: 'Текст встречного предложения' },
   { key: 'limits.review_chars', label: 'Текст отзыва' },
@@ -25,6 +26,7 @@ const LIMITS: { key: string; label: string }[] = [
   { key: 'limits.workspace_update_chars', label: 'Обновление по кейсу в рабочем пространстве' },
   { key: 'limits.support_message_chars', label: 'Сообщение в поддержку' },
   { key: 'limits.bio_chars', label: 'О себе (адвокат)' },
+  { key: 'limits.name_chars', label: 'Имя и фамилия (каждое поле)' },
 ];
 
 export const isTextLimitKey = (key: string) => LIMITS.some((l) => l.key === key);

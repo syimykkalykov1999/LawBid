@@ -2,12 +2,14 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_cover.dart';
@@ -18,8 +20,8 @@ import 'package:lawbid/features/feed/presentation/widgets/feed_chrome.dart';
 import 'package:lawbid/features/onboarding/domain/us_states.dart';
 import 'package:lawbid/features/onboarding/presentation/widgets/option_picker_sheet.dart';
 import 'package:lawbid/features/practice/practice_options.dart';
-import 'package:lawbid/features/search/presentation/widgets/flip_search_bar.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
+import 'package:lawbid/shared/presentation/flip_search_bar.dart';
 
 /// Owner 2026-09-30: one square of the "Mine" grid — the case's first photo
 /// (or our art of its qualification), a short title and its status.
@@ -342,7 +344,9 @@ class MinePagedGrid<T> extends ConsumerWidget {
         ),
     };
     return AnimatedSwitcher(
-      duration: context.reduceMotion ? Duration.zero : AppMotion.stateChange,
+      // Owner 2026-10-19 («мигание»): loading, data and tab bodies
+      // swap at once (Instagram), no cross-fade.
+      duration: Duration.zero,
       child: KeyedSubtree(key: ValueKey(value.runtimeType), child: body),
     );
   }
@@ -358,8 +362,13 @@ class MineSearchBar extends ConsumerStatefulWidget {
     this.action,
     this.onClose,
     this.padded = true,
+    this.hintKey = 'mine.search.hint',
     super.key,
   });
+
+  /// Audit 2026-10-18: the placeholder says what this box searches (my
+  /// cases / my bids / saved cases) — the screen picks the key.
+  final String hintKey;
 
   final MineSearch search;
   final ValueChanged<MineSearch> onChanged;
@@ -472,6 +481,7 @@ class _MineSearchBarState extends ConsumerState<MineSearchBar> {
         context,
         title: t.t('mine.search.practice'),
         searchHint: t.t('practice.search.hint'),
+        remoteSearch: practiceRemoteSearch(ref),
         initial: {if (s.practice != null) s.practice!},
         options: [
           PickerOption(value: '', label: t.t('mine.search.any')),
@@ -491,7 +501,12 @@ class _MineSearchBarState extends ConsumerState<MineSearchBar> {
       options: [
         PickerOption(value: '', label: t.t('mine.search.any')),
         for (final st in kRegions)
-          PickerOption(value: st.code, label: st.name, sublabel: st.code),
+          PickerOption(
+            value: st.code,
+            label: st.name,
+            sublabel: st.code,
+            keywords: st.aliases,
+          ),
       ],
     );
     if (picked == null) return;
@@ -522,11 +537,11 @@ class _MineSearchBarState extends ConsumerState<MineSearchBar> {
               key: const ValueKey('mine-search'),
               controller: _text,
               focusNode: _focus,
-              semanticLabel: t.t('mine.search.hint'),
+              semanticLabel: t.t(widget.hintKey),
               cancelLabel: t.t('common.cancel'),
               clearLabel: t.t('search.clear'),
               showCancel: false,
-              hints: [t.t('mine.search.hint')],
+              hints: [t.t(widget.hintKey)],
               leading: Badge(
                 isLabelVisible: count > 0,
                 label: Text(ref.watch(l10nFormatsProvider).number(count)),
@@ -551,15 +566,13 @@ class _MineSearchBarState extends ConsumerState<MineSearchBar> {
                         AppIcons.searchRounded,
                         color: colors.goldDark,
                       ),
-                      semanticLabel: t.t('mine.search.hint'),
+                      semanticLabel: t.t(widget.hintKey),
                       onPressed: _focus.requestFocus,
                     ),
             ),
           ),
-          if (widget.action != null) ...[
-            const SizedBox(width: AppSpacing.sm),
-            widget.action!,
-          ],
+          // Owner 2026-10-19: a small even gap, the chips get the room.
+          if (widget.action != null) widget.action!,
         ],
       ),
     );
@@ -579,8 +592,12 @@ class MineChipsSearchRow extends ConsumerStatefulWidget {
     required this.onChanged,
     this.chips,
     this.action,
+    this.hintKey = 'mine.search.hint',
     super.key,
   });
+
+  /// What this row's search box searches (placeholder key).
+  final String hintKey;
 
   /// The chips, built without their own outer padding.
   final Widget? chips;
@@ -619,20 +636,31 @@ class _MineChipsSearchRowState extends ConsumerState<MineChipsSearchRow> {
                         ? null
                         : () => setState(() => _open = false),
                     padded: false,
+                    hintKey: widget.hintKey,
                   )
                 : chips,
           ),
+          // Owner 2026-10-18: «Справочник» in the empty space before the
+          // search.
+          if (!open)
+            AppIconButton(
+              key: const ValueKey('mine-guide-open'),
+              compact: true,
+              icon:
+                  AppIcon(AppIcons.infoOutlineRounded, color: colors.goldDark),
+              semanticLabel: t.t('guide.title'),
+              onPressed: () => context.push(AppRoutes.guide),
+            ),
           if (!open)
             AppIconButton(
               key: const ValueKey('mine-search-open'),
+              compact: true,
               icon: AppIcon(AppIcons.searchRounded, color: colors.goldDark),
-              semanticLabel: t.t('mine.search.hint'),
+              semanticLabel: t.t(widget.hintKey),
               onPressed: () => setState(() => _open = true),
             ),
-          if (widget.action != null) ...[
-            const SizedBox(width: AppSpacing.sm),
-            widget.action!,
-          ],
+          // Owner 2026-10-19: a small even gap, the chips get the room.
+          if (widget.action != null) widget.action!,
         ],
       ),
     );

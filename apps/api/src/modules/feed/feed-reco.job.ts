@@ -39,7 +39,7 @@ export class FeedRecoJob {
         -- OQ-038: clients post too; suspended attorneys never show.
         AND NOT EXISTS (SELECT 1 FROM attorney_profiles sa
           WHERE sa.user_id = p.author_id AND sa.verification_status = 'suspended')
-      WHERE p.status = 'published' AND p.deleted_at IS NULL
+      WHERE p.status = 'published' AND p.deleted_at IS NULL AND p.archived_at IS NULL
         AND p.created_at > ${since}
       ORDER BY score DESC, p.created_at DESC
       LIMIT ${RECO_TOP_N}`;

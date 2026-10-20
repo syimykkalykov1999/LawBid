@@ -22,39 +22,40 @@ part 'post_dto.g.dart';
 @JsonSerializable()
 class PostDto {
   const PostDto({
-    required this.id,
+    required this.mentions,
+    required this.createdAt,
+    required this.savedByMe,
+    required this.repostedByMe,
+    required this.likedByMe,
+    required this.body,
+    required this.repostCount,
     required this.kind,
+    required this.viewCount,
     required this.contentClass,
     required this.author,
-    required this.body,
+    required this.id,
     required this.media,
     required this.attachments,
+    required this.saveCount,
     required this.tags,
-    required this.mentions,
+    required this.shareCount,
     required this.status,
     required this.likeCount,
     required this.commentCount,
-    required this.saveCount,
-    required this.shareCount,
-    required this.viewCount,
-    required this.repostCount,
-    required this.likedByMe,
-    required this.repostedByMe,
-    required this.savedByMe,
     required this.isMine,
-    required this.createdAt,
-    this.commentsEnabled = true,
     this.likesHidden = false,
+    this.commentsEnabled = true,
     this.viewsHidden = false,
-    this.location,
-    this.title,
+    this.promotionCta,
     this.practice,
-    this.video,
+    this.title,
+    this.archivedAt,
     this.repostedBy,
+    this.location,
     this.editedAt,
     this.pinSlot,
     this.promotionId,
-    this.promotionCta,
+    this.video,
   });
 
   factory PostDto.fromJson(Map<String, Object?> json) =>
@@ -63,6 +64,10 @@ class PostDto {
   final String id;
   final PostLocationDto? location;
   final bool commentsEnabled;
+
+  /// Owner 2026-10-18: set while the author keeps the post in «Архив».
+  /// (nobody else gets an archived post).
+  final DateTime? archivedAt;
 
   /// Owner 2026-10-15: the author hid this counter (counts are 0 for others).
   final bool likesHidden;

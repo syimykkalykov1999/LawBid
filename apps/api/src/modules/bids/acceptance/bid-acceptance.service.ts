@@ -28,6 +28,7 @@ import {
 import { toBidDto } from '../bids.service';
 import type { BidDto } from '../dto/bid-responses.dto';
 import { disclosedFieldsOf } from './contact-disclosure.util';
+import { touchClientActive } from '../../cases/cases.public';
 
 /** docs/04 §7 step 8: why the losing bids were rejected. */
 export const REJECT_REASON_ANOTHER_BID = 'another_bid_accepted';
@@ -92,6 +93,10 @@ export class BidAcceptanceService {
         return this.acceptInTx(tx, bidId, by, user.sub, meta, chat);
       });
       this.chat.publish(chat);
+      // OQ-054: accepting is the client's own action on the case.
+      if (by === 'client') {
+        await touchClientActive(this.prisma, result.case_id, user.sub);
+      }
       // Owner 2026-10-05: the client hired someone — a qualifying event of
       // the partner program (idempotent; never throws).
       const hired = await this.prisma.case.findUnique({

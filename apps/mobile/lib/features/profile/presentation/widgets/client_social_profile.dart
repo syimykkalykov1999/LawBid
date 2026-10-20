@@ -8,15 +8,16 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/text/bidi.dart';
 import 'package:lawbid/features/cases/presentation/widgets/client_review_sheet.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
     show showConfirmSheet;
-import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/chat/presentation/open_direct_chat.dart';
 import 'package:lawbid/features/profile/data/client_reviews_repository.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/features/profile/presentation/widgets/profile_avatar.dart';
 import 'package:lawbid/features/profile/presentation/widgets/profile_quiet_button.dart';
+import 'package:lawbid/features/profile/presentation/widgets/profile_tab_pages.dart';
 import 'package:lawbid/features/profile/presentation/widgets/review_widgets.dart'
     show
         MapsReviewTile,
@@ -27,7 +28,7 @@ import 'package:lawbid/features/profile/presentation/widgets/review_widgets.dart
 import 'package:lawbid/features/social/application/social_providers.dart'
     show currentUserIdProvider;
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart'
-    show ProfilePostsGrid;
+    show ProfileBriefsAndReposts, ProfilePostsGrid;
 import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart'
     show FollowButton, TrustAvatarBadge;
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
@@ -36,7 +37,10 @@ import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/shared/presentation/share_sheet.dart';
 
-enum _Tab { posts, reviews }
+// Owner 2026-10-18: Instagram's tabs, as on an attorney's profile — Посты
+// (photo posts) | Рилсы (video posts / reels) | Брифы и репосты | Отзывы
+// (reviews about the client, only for those who may read them).
+enum _Tab { posts, reels, reposts, reviews }
 
 /// Owner 2026-09-30 (OQ-038): the client profile like Instagram, for the
 /// client and for anyone opening it — avatar with posts / followers /
@@ -62,6 +66,28 @@ class ClientSocialProfile extends ConsumerStatefulWidget {
 class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
   _Tab _tab = _Tab.posts;
 
+  /// The tab pages (set by the tab row): a tap glides to its page.
+  PageController? _pages;
+
+  void _open(_Tab value) {
+    final tabs = p.canSeeReviews
+        ? _Tab.values
+        : const [_Tab.posts, _Tab.reels, _Tab.reposts];
+    final i = tabs.indexOf(value);
+    final pages = _pages;
+    if (pages != null && pages.hasClients && i >= 0) {
+      pages.animateToPage(
+        i,
+        duration: context.reduceMotion
+            ? Duration.zero
+            : const Duration(milliseconds: 250),
+        curve: Curves.easeOutCubic,
+      );
+    } else {
+      setState(() => _tab = value);
+    }
+  }
+
   PublicClientProfile get p => widget.profile;
 
   Future<void> _share(Translator t) async {
@@ -70,7 +96,7 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
       context,
       t: t,
       link: 'https://$host/client/${p.username}',
-      text: '@${p.username}',
+      text: atHandle(p.username),
     );
   }
 
@@ -80,8 +106,8 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
     final f = ref.watch(l10nFormatsProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    final name = p.fullName.isEmpty ? '@${p.username}' : p.fullName;
-    final tab = p.canSeeReviews ? _tab : _Tab.posts;
+    final name = p.fullName.isEmpty ? atHandle(p.username) : p.fullName;
+    final tab = p.canSeeReviews || _tab != _Tab.reviews ? _tab : _Tab.posts;
     final blocked = p.isBlocked || p.hasBlockedMe;
 
     Widget counter(String value, String label, {VoidCallback? onTap}) =>
@@ -131,7 +157,10 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
           label: label,
           excludeSemantics: true,
           child: AppPressable(
-            onTap: () => setState(() => _tab = value),
+            key: ValueKey('client-tab-${value.name}'),
+            onTap: () => _open(value),
+            // Owner 2026-10-18: four tabs — icons only, as on an attorney's
+            // profile and Instagram (the label stays for screen readers).
             child: Container(
               height: AppSizes.touchTarget,
               decoration: BoxDecoration(
@@ -142,27 +171,12 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
                   ),
                 ),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  AppIcon(
-                    icon,
-                    size: 20,
-                    color: selected ? colors.text : colors.textSecondary,
-                  ),
-                  const SizedBox(width: AppSpacing.xs),
-                  Flexible(
-                    child: Text(
-                      label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: type.bodySmall.copyWith(
-                        color: selected ? colors.text : colors.textSecondary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
+              child: Center(
+                child: AppIcon(
+                  icon,
+                  size: AppSizes.iconMd,
+                  color: selected ? colors.text : colors.textSecondary,
+                ),
               ),
             ),
           ),
@@ -273,10 +287,11 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
                     expanded: true,
                   ),
                 ),
-                // OQ-043: an attorney can write to a client directly (a
-                // message request until the client accepts).
-                // Audit 2026-10-02: assistants need the "chats" duty.
-                if (ref.watch(actsAsAttorneyProvider) &&
+                // OQ-043: "Написать" opens the direct chat (a message
+                // request until accepted). Owner 2026-10-17: clients too,
+                // like Instagram. Audit 2026-10-02: assistants need the
+                // "chats" duty.
+                if (!ref.watch(actsAsAttorneyProvider) ||
                     ref.watch(canDoProvider(AssistantDuty.chats))) ...[
                   const SizedBox(width: AppSpacing.sm),
                   Expanded(
@@ -289,53 +304,101 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
               ],
             ),
           const SizedBox(height: AppSpacing.md),
-          Row(
-            children: [
-              tabButton(
-                _Tab.posts,
-                AppIcons.gridOnRounded,
-                t.t('client.tab.posts'),
-              ),
-              if (p.canSeeReviews)
-                tabButton(
-                  _Tab.reviews,
-                  AppIcons.starOutlineRounded,
-                  t.t('client.tab.reviews'),
-                ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.sm),
         ],
       ),
     );
 
-    return TabSwipe<_Tab>(
-      value: tab,
-      values: p.canSeeReviews ? _Tab.values : const [_Tab.posts],
-      onChanged: (v) => setState(() => _tab = v),
-      child: RefreshIndicator(
-        color: colors.gold,
-        onRefresh: () async {
-          ref
-            ..invalidate(clientReviewsProvider)
-            ..invalidate(clientReviewSummaryProvider(p.id));
-          await widget.onRefresh();
+    final tabs = p.canSeeReviews
+        ? _Tab.values
+        : const [_Tab.posts, _Tab.reels, _Tab.reposts];
+    Widget pageOf(_Tab value) => switch (value) {
+          _Tab.posts => ProfilePostsGrid(
+              attorneyId: p.id,
+              emptyTitle: t.t('client.posts.empty'),
+              emptyMessage: '',
+            ),
+          _Tab.reels => ProfilePostsGrid(
+              key: const ValueKey('reels'),
+              attorneyId: p.id,
+              reelsOnly: true,
+              emptyTitle: t.t('profile.reels.empty.title'),
+              emptyMessage: t.t(
+                p.isSelf
+                    ? 'profile.reels.empty.self'
+                    : 'profile.reels.empty.other',
+              ),
+            ),
+          _Tab.reposts => ProfileBriefsAndReposts(
+              attorneyId: p.id,
+              isSelf: p.isSelf,
+              emptyOtherKey: 'profile.briefsReposts.empty.otherUser',
+            ),
+          _Tab.reviews => _ReviewsList(clientId: p.id),
+        };
+
+    // Owner 2026-10-19 (Instagram): the header scrolls away, the tabs stick
+    // and are pages side by side (swipe / tap glide), each kept alive — no
+    // blink, no jump when a tab changes.
+    return ProfileTabPages(
+      initialPage: tabs.indexOf(tab).clamp(0, tabs.length - 1),
+      onPage: (i) => setState(() => _tab = tabs[i]),
+      header: header,
+      tabBar: Builder(
+        builder: (context) {
+          _pages = ProfileTabPages.controllerOf(context);
+          return Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.screenSide,
+            ),
+            child: Row(
+              children: [
+                tabButton(
+                  _Tab.posts,
+                  AppIcons.gridOnRounded,
+                  t.t('client.tab.posts'),
+                ),
+                tabButton(
+                  _Tab.reels,
+                  AppIcons.playCircleOutlined,
+                  t.t('profile.tab.reels'),
+                ),
+                // Owner 2026-10-18: the same «Брифы и репосты» tab as an
+                // attorney's (a client's text posts had no tab before).
+                tabButton(
+                  _Tab.reposts,
+                  AppIcons.autoModeRounded,
+                  t.t('profile.tab.briefsReposts'),
+                ),
+                if (p.canSeeReviews)
+                  tabButton(
+                    _Tab.reviews,
+                    AppIcons.starOutlineRounded,
+                    t.t('client.tab.reviews'),
+                  ),
+              ],
+            ),
+          );
         },
-        child: ListView(
-          padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
-          children: [
-            header,
-            if (tab == _Tab.posts)
-              ProfilePostsGrid(
-                attorneyId: p.id,
-                emptyTitle: t.t('client.posts.empty'),
-                emptyMessage: '',
-              )
-            else
-              _ReviewsList(clientId: p.id),
-          ],
-        ),
       ),
+      pagePadding: (_) => const EdgeInsets.only(
+        top: AppSpacing.sm,
+        bottom: AppSpacing.xxl,
+      ),
+      onRefresh: () async {
+        ref
+          ..invalidate(clientReviewsProvider)
+          ..invalidate(clientReviewSummaryProvider(p.id));
+        await widget.onRefresh();
+      },
+      pages: [
+        for (final value in tabs)
+          ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: MediaQuery.sizeOf(context).height * 0.5,
+            ),
+            child: pageOf(value),
+          ),
+      ],
     );
   }
 }

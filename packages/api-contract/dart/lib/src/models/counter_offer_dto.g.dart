@@ -8,12 +8,14 @@ part of 'counter_offer_dto.dart';
 
 CounterOfferDto _$CounterOfferDtoFromJson(Map<String, dynamic> json) =>
     CounterOfferDto(
-      amountCents: (json['amountCents'] as num).toInt(),
+      amountCents: (json['amountCents'] as num?)?.toInt(),
+      percentBps: (json['percentBps'] as num?)?.toInt(),
       message: json['message'] as String?,
     );
 
 Map<String, dynamic> _$CounterOfferDtoToJson(CounterOfferDto instance) =>
     <String, dynamic>{
-      'amountCents': instance.amountCents,
+      'amountCents': ?instance.amountCents,
+      'percentBps': ?instance.percentBps,
       'message': ?instance.message,
     };

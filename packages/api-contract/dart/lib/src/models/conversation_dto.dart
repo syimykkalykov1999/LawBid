@@ -34,6 +34,7 @@ class ConversationDto {
     this.lastMessageAt,
     this.mutedUntil,
     this.counterpartLastReadMessageId,
+    this.matchedMessage,
     this.waitingSince,
     this.note,
     this.pinnedAt,
@@ -62,6 +63,9 @@ class ConversationDto {
 
   /// true = the folder is chosen automatically.
   final bool folderAuto;
+
+  /// Owner 2026-10-18: only with GET /chats?q=… — a ~80-char snippet around the first message hit; null when the name / @username / case title matched.
+  final String? matchedMessage;
   final DateTime? waitingSince;
   final String? note;
   final DateTime? pinnedAt;

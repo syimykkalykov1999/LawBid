@@ -17,6 +17,9 @@ AdminSupportMessageDto _$AdminSupportMessageDtoFromJson(
   authorName: json['authorName'] as String,
   internal: json['internal'] as bool,
   body: json['body'] as String,
+  attachments: (json['attachments'] as List<dynamic>)
+      .map((e) => SupportAttachmentDto.fromJson(e as Map<String, dynamic>))
+      .toList(),
   createdAt: DateTime.parse(json['createdAt'] as String),
   auto: json['auto'] as bool?,
 );
@@ -31,5 +34,6 @@ Map<String, dynamic> _$AdminSupportMessageDtoToJson(
   'internal': instance.internal,
   'auto': ?instance.auto,
   'body': instance.body,
+  'attachments': instance.attachments.map((e) => e.toJson()).toList(),
   'createdAt': instance.createdAt.toIso8601String(),
 };

@@ -21,9 +21,12 @@ CaseSummaryDto _$CaseSummaryDtoFromJson(Map<String, dynamic> json) =>
       bidsCount: (json['bidsCount'] as num).toInt(),
       createdAt: json['createdAt'] as String,
       lastActivityAt: json['lastActivityAt'] as String,
+      stillNeededPending: json['stillNeededPending'] as bool,
+      canMakeNotUrgent: json['canMakeNotUrgent'] as bool,
       coverUrl: json['coverUrl'] as String?,
       city: json['city'] as String?,
       budgetCents: (json['budgetCents'] as num?)?.toInt(),
+      budgetPercentBps: (json['budgetPercentBps'] as num?)?.toInt(),
       coverKey: json['coverKey'] as String?,
       urgency: json['urgency'] == null
           ? null
@@ -37,6 +40,9 @@ CaseSummaryDto _$CaseSummaryDtoFromJson(Map<String, dynamic> json) =>
       deadlineKind: json['deadlineKind'] == null
           ? null
           : CaseDeadlineKind.fromJson(json['deadlineKind'] as String),
+      pausedAt: json['pausedAt'] as String?,
+      hidesAt: json['hidesAt'] as String?,
+      archivesAt: json['archivesAt'] as String?,
     );
 
 Map<String, dynamic> _$CaseSummaryDtoToJson(CaseSummaryDto instance) =>
@@ -52,6 +58,7 @@ Map<String, dynamic> _$CaseSummaryDtoToJson(CaseSummaryDto instance) =>
       'status': instance.status.toJson(),
       'budgetMode': instance.budgetMode.toJson(),
       'budgetCents': ?instance.budgetCents,
+      'budgetPercentBps': ?instance.budgetPercentBps,
       'coverKey': ?instance.coverKey,
       'urgency': ?instance.urgency?.toJson(),
       'urgencyLevel': ?instance.urgencyLevel?.toJson(),
@@ -60,4 +67,9 @@ Map<String, dynamic> _$CaseSummaryDtoToJson(CaseSummaryDto instance) =>
       'bidsCount': instance.bidsCount,
       'createdAt': instance.createdAt,
       'lastActivityAt': instance.lastActivityAt,
+      'pausedAt': ?instance.pausedAt,
+      'stillNeededPending': instance.stillNeededPending,
+      'canMakeNotUrgent': instance.canMakeNotUrgent,
+      'hidesAt': ?instance.hidesAt,
+      'archivesAt': ?instance.archivesAt,
     };

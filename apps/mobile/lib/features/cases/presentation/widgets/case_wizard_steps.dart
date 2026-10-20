@@ -3,23 +3,21 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/cases/domain/case_draft.dart';
+import 'package:lawbid/features/cases/domain/contingency.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_urgency_picker.dart';
-import 'package:lawbid/features/legal/application/legal_providers.dart';
 import 'package:lawbid/features/onboarding/domain/us_states.dart';
+import 'package:lawbid/features/practice/practice_matches.dart';
 import 'package:lawbid/features/practice/practice_options.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
-import 'package:lawbid/features/search/application/search_providers.dart';
-import 'package:lawbid/features/verification/presentation/widgets/inline_notice.dart';
 
 typedef DraftChange = void Function(CaseDraft Function(CaseDraft d) change);
 
@@ -249,12 +247,35 @@ class _PracticeStepState extends ConsumerState<PracticeStep> {
               ),
               const SizedBox(height: AppSpacing.lg),
             ],
+            // Owner 2026-10-19: the icon above the text, both centred (the
+            // full-screen empty state overlapped them inside this list).
             if (q.isNotEmpty && matches.isEmpty)
               Padding(
+                key: const ValueKey('practice-no-match'),
                 padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl),
-                child: AppEmptyState(
-                  icon: AppIcons.searchOffRounded,
-                  message: t.t('cases.create.practice.noMatch'),
+                child: Column(
+                  children: [
+                    AppIcon(
+                      AppIcons.searchOffRounded,
+                      size: 40,
+                      color: Theme.of(context)
+                          .extension<AppColorTokens>()!
+                          .textSecondary,
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    Text(
+                      t.t('cases.create.practice.noMatch'),
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context)
+                          .extension<AppTypographyTokens>()!
+                          .body
+                          .copyWith(
+                            color: Theme.of(context)
+                                .extension<AppColorTokens>()!
+                                .textSecondary,
+                          ),
+                    ),
+                  ],
                 ),
               ),
             if (q.isNotEmpty)
@@ -522,6 +543,8 @@ class _EssenceStepState extends ConsumerState<EssenceStep> {
   late final _title = TextEditingController(text: widget.draft.title);
   late final _description =
       TextEditingController(text: widget.draft.description);
+  late final _details =
+      TextEditingController(text: widget.draft.privateDetails);
   bool _touchedTitle = false;
   bool _touchedDescription = false;
 
@@ -529,6 +552,7 @@ class _EssenceStepState extends ConsumerState<EssenceStep> {
   void dispose() {
     _title.dispose();
     _description.dispose();
+    _details.dispose();
     super.dispose();
   }
 
@@ -548,58 +572,177 @@ class _EssenceStepState extends ConsumerState<EssenceStep> {
           title: t.t('cases.create.essence.title'),
           subtitle: t.t('cases.create.essence.subtitle'),
         ),
-        AppTextField(
-          controller: _title,
-          label: t.t('cases.field.title'),
-          hintText: t.t('cases.field.titleHint'),
-          maxLength: CaseLimits.titleMax,
-          textCapitalization: TextCapitalization.sentences,
-          textInputAction: TextInputAction.next,
-          errorText: _touchedTitle && !d.titleValid
-              ? t.t('cases.field.titleError', {
-                  'min': '${CaseLimits.titleMin}',
-                  'max': '${CaseLimits.titleMax}',
-                })
-              : null,
-          onChanged: (v) {
-            _touchedTitle = true;
-            widget.onChange((x) => x.copyWith(title: v));
-          },
+        // Owner 2026-10-18: two blocks — what every attorney sees, and what
+        // only the accepted attorney sees.
+        _StepBlock(
+          key: const ValueKey('case-public-block'),
+          icon: AppIcons.visibilityOutlined,
+          title: t.t('cases.block.public.title'),
+          note: t.t('cases.block.public.note'),
+          children: [
+            AppTextField(
+              controller: _title,
+              label: t.t('cases.field.title'),
+              hintText: t.t('cases.field.titleHint'),
+              maxLength: CaseLimits.titleMax,
+              textCapitalization: TextCapitalization.sentences,
+              textInputAction: TextInputAction.next,
+              errorText: _touchedTitle && !d.titleValid
+                  ? t.t('cases.field.titleError', {
+                      'min': '${CaseLimits.titleMin}',
+                      'max': '${CaseLimits.titleMax}',
+                    })
+                  : null,
+              onChanged: (v) {
+                _touchedTitle = true;
+                widget.onChange((x) => x.copyWith(title: v));
+              },
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            AppTextField(
+              controller: _description,
+              label: t.t('cases.field.brief'),
+              hintText: t.t('cases.field.briefHint'),
+              helperText: t.t('cases.field.noContacts'),
+              maxLines: 6,
+              maxLength: CaseLimits.descriptionMax,
+              textCapitalization: TextCapitalization.sentences,
+              errorText: widget.contactError ??
+                  (_touchedDescription && !d.descriptionValid
+                      ? t.t('cases.field.descriptionError', {
+                          'min': '${CaseLimits.descriptionMin}',
+                        })
+                      : null),
+              onChanged: (v) {
+                _touchedDescription = true;
+                widget.onChange((x) => x.copyWith(description: v));
+              },
+            ),
+          ],
         ),
         const SizedBox(height: AppSpacing.lg),
-        AppTextField(
-          controller: _description,
-          label: t.t('cases.field.description'),
-          hintText: t.t('cases.field.descriptionHint'),
-          helperText: t.t('cases.field.noContacts'),
-          maxLines: 8,
-          maxLength: CaseLimits.descriptionMax,
-          textCapitalization: TextCapitalization.sentences,
-          errorText: widget.contactError ??
-              (_touchedDescription && !d.descriptionValid
-                  ? t.t('cases.field.descriptionError', {
-                      'min': '${CaseLimits.descriptionMin}',
-                    })
-                  : null),
-          onChanged: (v) {
-            _touchedDescription = true;
-            widget.onChange((x) => x.copyWith(description: v));
-          },
+        _StepBlock(
+          key: const ValueKey('case-private-block'),
+          icon: AppIcons.lockOutlineRounded,
+          title: t.t('cases.block.private.title'),
+          children: [
+            AppTextField(
+              controller: _details,
+              label: t.t('cases.field.privateDetails'),
+              hintText: t.t('cases.field.privateDetailsHint'),
+              maxLines: 6,
+              maxLength: CaseLimits.privateDetailsMax,
+              textCapitalization: TextCapitalization.sentences,
+              onChanged: (v) =>
+                  widget.onChange((x) => x.copyWith(privateDetails: v)),
+            ),
+            if (widget.footer != null) ...[
+              const SizedBox(height: AppSpacing.lg),
+              widget.footer!,
+            ],
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              t.t('cases.block.private.footer'),
+              style: Theme.of(context)
+                  .extension<AppTypographyTokens>()!
+                  .caption
+                  .copyWith(
+                    color: Theme.of(context)
+                        .extension<AppColorTokens>()!
+                        .textSecondary,
+                  ),
+            ),
+          ],
         ),
-        // Owner 2026-10-05 (legal): LawBid is not a law firm; nothing
-        // confidential in a public case (text from /legal/settings).
-        const SizedBox(height: AppSpacing.md),
-        InlineNotice(
+        const SizedBox(height: AppSpacing.lg),
+        Text(
+          t.t('cases.visibility.legal'),
           key: const ValueKey('case-legal-notice'),
-          tone: NoticeTone.info,
-          icon: AppIcons.infoOutlineRounded,
-          message: ref.watch(legalTextsProvider).caseCreate,
+          textAlign: TextAlign.center,
+          style: Theme.of(context)
+              .extension<AppTypographyTokens>()!
+              .caption
+              .copyWith(
+                color: Theme.of(context)
+                    .extension<AppColorTokens>()!
+                    .textSecondary,
+              ),
         ),
-        if (widget.footer != null) ...[
-          const SizedBox(height: AppSpacing.lg),
-          widget.footer!,
-        ],
       ],
+    );
+  }
+}
+
+/// A theme-coloured card with a header (icon + title [+ muted note]).
+class _StepBlock extends StatelessWidget {
+  const _StepBlock({
+    required this.icon,
+    required this.title,
+    required this.children,
+    this.note,
+    super.key,
+  });
+
+  final IconData icon;
+  final String title;
+  final String? note;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(AppRadii.card),
+        border: Border.all(color: colors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Semantics(
+            header: true,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ExcludeSemantics(
+                  child: AppIcon(
+                    icon,
+                    size: AppSizes.iconSm,
+                    color: colors.goldAccent,
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Text.rich(
+                    TextSpan(
+                      text: title,
+                      style: type.body.copyWith(
+                        color: colors.text,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      children: [
+                        if (note != null)
+                          TextSpan(
+                            text: ' $note',
+                            style: type.body.copyWith(
+                              color: colors.textSecondary,
+                              fontWeight: FontWeight.w400,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          ...children,
+        ],
+      ),
     );
   }
 }
@@ -639,14 +782,10 @@ class _StatePickerSheetState extends State<_StatePickerSheet> {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    final q = _q.trim().toLowerCase();
+    // Owner 2026-10-18: «Нью-Йорк», "new yrok", "NY" — any alphabet.
     final list = [
       for (final s in kRegions)
-        if (!widget.exclude.contains(s.code) &&
-            (q.isEmpty ||
-                s.name.toLowerCase().contains(q) ||
-                s.code.toLowerCase() == q))
-          s,
+        if (!widget.exclude.contains(s.code) && s.matches(_q)) s,
     ];
     return SafeArea(
       child: SizedBox(
@@ -944,14 +1083,29 @@ class BudgetStep extends ConsumerStatefulWidget {
   ConsumerState<BudgetStep> createState() => _BudgetStepState();
 }
 
+/// Owner 2026-10-17: «Сумма», «Проценты», «Уточню позже».
+enum _BudgetKind { amount, percent, later }
+
 class _BudgetStepState extends ConsumerState<BudgetStep> {
   late final _amount = TextEditingController(
     text: widget.draft.budgetDollars?.toString() ?? '',
   );
+  late final _percent = TextEditingController(
+    text: widget.draft.budgetPercentBps == null
+        ? ''
+        : ContingencyRules.plain(widget.draft.budgetPercentBps!),
+  );
+
+  _BudgetKind _kindOf(CaseDraft d) => d.budgetIsPercent
+      ? _BudgetKind.percent
+      : d.budgetIsAmount
+          ? _BudgetKind.amount
+          : _BudgetKind.later;
 
   @override
   void dispose() {
     _amount.dispose();
+    _percent.dispose();
     super.dispose();
   }
 
@@ -961,6 +1115,20 @@ class _BudgetStepState extends ConsumerState<BudgetStep> {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final d = widget.draft;
+    final rules =
+        ContingencyRules.of(ref.watch(featureFlagsControllerProvider));
+    // Ethics rules forbid a percent for some topics (admin list).
+    final percentAllowed = !rules.blockedFor(d.practiceCodes);
+    if (!percentAllowed && d.budgetIsPercent) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          widget.onChange(
+            (x) => x.copyWith(budgetIsPercent: false, clearBudgetPercent: true),
+          );
+        }
+      });
+    }
+    final kind = _kindOf(d);
     return ListView(
       padding: const EdgeInsets.fromLTRB(
         AppSpacing.screenSide,
@@ -973,73 +1141,122 @@ class _BudgetStepState extends ConsumerState<BudgetStep> {
           title: t.t('cases.create.budget.title'),
           subtitle: t.t('cases.create.budget.subtitle'),
         ),
-        SegmentedChoice<bool>(
-          value: d.budgetIsAmount,
+        SegmentedChoice<_BudgetKind>(
+          value: kind,
           options: [
-            (true, t.t('cases.budget.specify')),
-            (false, t.t('cases.budget.clarifyLater')),
+            (_BudgetKind.amount, t.t('cases.budget.specify')),
+            (_BudgetKind.percent, t.t('cases.budget.percent')),
+            (_BudgetKind.later, t.t('cases.budget.clarifyLater')),
           ],
-          onChanged: (v) =>
-              widget.onChange((x) => x.copyWith(budgetIsAmount: v)),
+          // Owner 2026-10-19: shown greyed with a note, not hidden.
+          disabled: {if (!percentAllowed) _BudgetKind.percent},
+          onChanged: (v) => widget.onChange(
+            (x) => x.copyWith(
+              budgetIsAmount: v == _BudgetKind.amount,
+              budgetIsPercent: v == _BudgetKind.percent,
+            ),
+          ),
         ),
+        if (!percentAllowed) ...[
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            t.t('cases.budget.percentForbidden'),
+            key: const ValueKey('budget-percent-forbidden'),
+            style: typography.caption.copyWith(color: colors.textSecondary),
+          ),
+        ],
         const SizedBox(height: AppSpacing.xl),
-        AnimatedSwitcher(
-          duration:
-              context.reduceMotion ? Duration.zero : AppMotion.stateChange,
-          child: d.budgetIsAmount
-              ? AppTextField(
-                  key: const ValueKey('amount'),
-                  controller: _amount,
-                  label: t.t('cases.field.budgetAmount'),
-                  hintText: '600',
-                  leading: Text(
-                    r'$',
-                    style:
-                        typography.titleMedium.copyWith(color: colors.goldDark),
-                  ),
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [
-                    FilteringTextInputFormatter.digitsOnly,
-                    LengthLimitingTextInputFormatter(8),
-                  ],
-                  errorText: _amount.text.isNotEmpty && !d.budgetValid
-                      ? t.t('cases.field.budgetError', {
-                          'max': CaseFormat.money(
-                            ref.watch(l10nFormatsProvider),
-                            CaseLimits.budgetMaxDollars * 100,
-                          ),
+        // Owner 2026-10-18: the three choices share one box as tall as the
+        // tallest, so nothing below jumps when switching (they cross-fade).
+        _SameHeightSwitch(
+          index: kind.index,
+          children: [
+            AppTextField(
+              key: const ValueKey('amount-field'),
+              controller: _amount,
+              label: t.t('cases.field.budgetAmount'),
+              leading: Text(
+                r'$',
+                style: typography.titleMedium.copyWith(color: colors.goldDark),
+              ),
+              keyboardType: TextInputType.number,
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                LengthLimitingTextInputFormatter(8),
+              ],
+              errorText: _amount.text.isNotEmpty && !d.budgetValid
+                  ? t.t('cases.field.budgetError', {
+                      'max': CaseFormat.money(
+                        ref.watch(l10nFormatsProvider),
+                        CaseLimits.budgetMaxDollars * 100,
+                      ),
+                    })
+                  : null,
+              onChanged: (v) {
+                final n = int.tryParse(v);
+                widget.onChange(
+                  (x) => n == null
+                      ? x.copyWith(clearBudgetDollars: true)
+                      : x.copyWith(budgetDollars: n),
+                );
+              },
+            ),
+            AppTextField(
+              key: const ValueKey('percent'),
+              controller: _percent,
+              label: t.t('cases.field.budgetPercent'),
+              helperText: t.t('cases.create.budget.percentHint'),
+              leading: Text(
+                '%',
+                style: typography.titleMedium.copyWith(color: colors.goldDark),
+              ),
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp('[0-9.,]')),
+                LengthLimitingTextInputFormatter(6),
+              ],
+              errorText:
+                  _percent.text.isNotEmpty && rules.parse(_percent.text) == null
+                      ? t.t('cases.field.budgetPercentError', {
+                          'max': ContingencyRules.plain(rules.maxBps),
                         })
                       : null,
-                  onChanged: (v) {
-                    final n = int.tryParse(v);
-                    widget.onChange(
-                      (x) => n == null
-                          ? x.copyWith(clearBudgetDollars: true)
-                          : x.copyWith(budgetDollars: n),
-                    );
-                  },
-                )
-              : Container(
-                  key: const ValueKey('later'),
-                  padding: const EdgeInsets.all(AppSpacing.lg),
-                  decoration: BoxDecoration(
-                    color: colors.goldTint,
-                    borderRadius: BorderRadius.circular(AppRadii.card),
+              onChanged: (v) {
+                final bps = rules.parse(v);
+                widget.onChange(
+                  (x) => bps == null
+                      ? x.copyWith(clearBudgetPercent: true)
+                      : x.copyWith(budgetPercentBps: bps),
+                );
+              },
+            ),
+            Container(
+              key: const ValueKey('later'),
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              // Owner 2026-10-18: the theme's own surface.
+              decoration: BoxDecoration(
+                color: colors.chip,
+                borderRadius: BorderRadius.circular(AppRadii.card),
+                border: Border.all(color: colors.border),
+              ),
+              child: Row(
+                children: [
+                  AppIcon(
+                    AppIcons.forumOutlined,
+                    color: colors.goldAccent,
                   ),
-                  child: Row(
-                    children: [
-                      AppIcon(AppIcons.forumOutlined, color: colors.goldDark),
-                      const SizedBox(width: AppSpacing.md),
-                      Expanded(
-                        child: Text(
-                          t.t('cases.create.budget.laterHint'),
-                          style:
-                              typography.bodySmall.copyWith(color: colors.text),
-                        ),
-                      ),
-                    ],
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: Text(
+                      t.t('cases.create.budget.laterHint'),
+                      style: typography.bodySmall.copyWith(color: colors.text),
+                    ),
                   ),
-                ),
+                ],
+              ),
+            ),
+          ],
         ),
         // Owner 2026-10-04: shown large on the attorney's card.
         const SizedBox(height: AppSpacing.xl),
@@ -1067,12 +1284,16 @@ class SegmentedChoice<T> extends StatelessWidget {
     required this.value,
     required this.options,
     required this.onChanged,
+    this.disabled = const {},
     super.key,
   });
 
   final T value;
   final List<(T, String)> options;
   final ValueChanged<T> onChanged;
+
+  /// Options shown greyed that cannot be picked.
+  final Set<T> disabled;
 
   @override
   Widget build(BuildContext context) {
@@ -1114,11 +1335,14 @@ class SegmentedChoice<T> extends StatelessWidget {
                       child: Semantics(
                         button: true,
                         selected: i == index,
+                        enabled: !disabled.contains(options[i].$1),
                         label: options[i].$2,
                         excludeSemantics: true,
                         child: GestureDetector(
                           behavior: HitTestBehavior.opaque,
-                          onTap: () => onChanged(options[i].$1),
+                          onTap: disabled.contains(options[i].$1)
+                              ? null
+                              : () => onChanged(options[i].$1),
                           child: ConstrainedBox(
                             constraints: const BoxConstraints(
                               minHeight: AppSizes.touchTarget,
@@ -1133,7 +1357,10 @@ class SegmentedChoice<T> extends StatelessWidget {
                                   style: typography.button.copyWith(
                                     color: i == index
                                         ? colors.onAccent
-                                        : colors.textSecondary,
+                                        : disabled.contains(options[i].$1)
+                                            ? colors.textSecondary
+                                                .withValues(alpha: 0.4)
+                                            : colors.textSecondary,
                                   ),
                                   child: Text(
                                     options[i].$2,
@@ -1154,6 +1381,41 @@ class SegmentedChoice<T> extends StatelessWidget {
           );
         },
       ),
+    );
+  }
+}
+
+/// Owner 2026-10-18: shows [children] one at a time in a box as tall as
+/// the tallest of them (a Stack sizes to its largest child), cross-fading
+/// between them — the content below never moves. Hidden ones take no
+/// taps, focus or screen-reader time.
+class _SameHeightSwitch extends StatelessWidget {
+  const _SameHeightSwitch({required this.index, required this.children});
+
+  final int index;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final fade = context.reduceMotion ? Duration.zero : AppMotion.stateChange;
+    return Stack(
+      children: [
+        for (var i = 0; i < children.length; i++)
+          IgnorePointer(
+            ignoring: i != index,
+            child: ExcludeFocus(
+              excluding: i != index,
+              child: ExcludeSemantics(
+                excluding: i != index,
+                child: AnimatedOpacity(
+                  opacity: i == index ? 1 : 0,
+                  duration: fade,
+                  child: children[i],
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

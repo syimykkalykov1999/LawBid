@@ -5,6 +5,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'admin_support_message_dto_author_type.dart';
+import 'support_attachment_dto.dart';
 
 part 'admin_support_message_dto.g.dart';
 
@@ -17,6 +18,7 @@ class AdminSupportMessageDto {
     required this.authorName,
     required this.internal,
     required this.body,
+    required this.attachments,
     required this.createdAt,
     this.auto,
   });
@@ -33,6 +35,7 @@ class AdminSupportMessageDto {
   /// Owner 2026-10-05: an automatic answer (after hours).
   final bool? auto;
   final String body;
+  final List<SupportAttachmentDto> attachments;
   final DateTime createdAt;
 
   Map<String, Object?> toJson() => _$AdminSupportMessageDtoToJson(this);

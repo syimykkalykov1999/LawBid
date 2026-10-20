@@ -39,6 +39,11 @@ final chatRepositoryProvider = Provider<ChatRepository>(
 class ConversationsNotifier extends PagedNotifier<Conversation> {
   Timer? _debounce;
 
+  // Owner 2026-10-18 (speed): kept for 5 minutes after the screen leaves
+  // (see PagedNotifier.keepAliveFor).
+  @override
+  Duration? get keepAliveFor => const Duration(minutes: 5);
+
   @override
   Future<PaginatedList<Conversation>> build() {
     // New messages, closed chats, a reconnect: re-read the first page
@@ -111,6 +116,31 @@ class FolderConversationsNotifier extends ConversationsNotifier {
 final folderConversationsProvider = AsyncNotifierProvider.autoDispose.family<
     FolderConversationsNotifier, PaginatedList<Conversation>, ChatListFolder>(
   FolderConversationsNotifier.new,
+  retry: _noRetry,
+);
+
+/// Owner 2026-10-18: the chats of a folder matching a search (`q` is sent
+/// to the server: names, @username, case title, message text).
+typedef ChatSearchKey = ({ChatListFolder folder, String q});
+
+class SearchConversationsNotifier extends ConversationsNotifier {
+  SearchConversationsNotifier(this.key);
+
+  final ChatSearchKey key;
+
+  @override
+  Future<CursorPage<Conversation>> fetch(String? cursor) =>
+      ref.read(chatRepositoryProvider).conversations(
+            cursor: cursor,
+            folder: key.folder,
+            requests: key.folder == ChatListFolder.requests,
+            q: key.q,
+          );
+}
+
+final searchConversationsProvider = AsyncNotifierProvider.autoDispose.family<
+    SearchConversationsNotifier, PaginatedList<Conversation>, ChatSearchKey>(
+  SearchConversationsNotifier.new,
   retry: _noRetry,
 );
 
@@ -500,6 +530,12 @@ class ChatThread extends Notifier<ChatThreadState> {
     required String name,
     required String mime,
     String? caption,
+
+    /// Owner 2026-10-19 (albums): files picked together upload at once but
+    /// are sent in the picked order — this one waits for `after` (the
+    /// previous file's send) so the album keeps its order and the caption
+    /// stays on the last.
+    Future<void>? after,
   }) async {
     final owner = ref.read(currentUserIdProvider);
     if (owner == null) return;
@@ -523,7 +559,7 @@ class ChatThread extends Notifier<ChatThreadState> {
       ),
     );
     state = state.copyWith(voiceOutbox: [...state.voiceOutbox, local]);
-    await _uploadAttachment(local);
+    await _uploadAttachment(local, after: after);
   }
 
   /// Owner 2026-10-05: a document template — a local bubble, then the
@@ -637,7 +673,10 @@ class ChatThread extends Notifier<ChatThreadState> {
     }
   }
 
-  Future<void> _uploadAttachment(ChatMessage local) async {
+  Future<void> _uploadAttachment(
+    ChatMessage local, {
+    Future<void>? after,
+  }) async {
     final a = local.attachment!;
     try {
       final fileId = await _repo.uploadAttachment(
@@ -645,6 +684,7 @@ class ChatThread extends Notifier<ChatThreadState> {
         a.mime!,
         onProgress: (p) => _setProgress(local, p),
       );
+      if (after != null) await after;
       final sent = await _repo.sendAttachment(
         id,
         local.clientMessageId!,

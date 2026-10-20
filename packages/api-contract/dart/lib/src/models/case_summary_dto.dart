@@ -27,14 +27,20 @@ class CaseSummaryDto {
     required this.bidsCount,
     required this.createdAt,
     required this.lastActivityAt,
+    required this.stillNeededPending,
+    required this.canMakeNotUrgent,
     this.coverUrl,
     this.city,
     this.budgetCents,
+    this.budgetPercentBps,
     this.coverKey,
     this.urgency,
     this.urgencyLevel,
     this.deadlineAt,
     this.deadlineKind,
+    this.pausedAt,
+    this.hidesAt,
+    this.archivesAt,
   });
 
   factory CaseSummaryDto.fromJson(Map<String, Object?> json) =>
@@ -58,6 +64,9 @@ class CaseSummaryDto {
   final BudgetMode budgetMode;
   final int? budgetCents;
 
+  /// Owner 2026-10-17: budgetMode = percent → basis points.
+  final int? budgetPercentBps;
+
   /// Owner 2026-10-04: `art:0..3` / `icon:<name>`; null = from the id.
   final String? coverKey;
 
@@ -77,6 +86,18 @@ class CaseSummaryDto {
   final int bidsCount;
   final String createdAt;
   final String lastActivityAt;
+
+  /// OQ-054: paused = hidden from the attorneys' feed («На паузе»).
+  final String? pausedAt;
+  final bool stillNeededPending;
+  final bool canMakeNotUrgent;
+
+  /// OQ-054: when the unanswered question hides the case from the.
+  /// attorneys' feed (null = no question waiting).
+  final String? hidesAt;
+
+  /// OQ-054: when a paused case moves to the archive (null = not paused).
+  final String? archivesAt;
 
   Map<String, Object?> toJson() => _$CaseSummaryDtoToJson(this);
 }

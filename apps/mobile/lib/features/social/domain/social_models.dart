@@ -1,5 +1,6 @@
 // ignore_for_file: lines_longer_than_80_chars
 import 'package:flutter/foundation.dart';
+import 'package:lawbid/core/text/bidi.dart';
 import 'package:lawbid/features/promotions/domain/promotion_models.dart';
 
 /// docs/05 §2.4 post author: an attorney's public identity.
@@ -47,7 +48,7 @@ class PostAuthor {
 
   String get displayName {
     final name = [firstName, lastName].whereType<String>().join(' ').trim();
-    return name.isEmpty ? '@$username' : name;
+    return name.isEmpty ? atHandle(username) : name;
   }
 
   String get initials {
@@ -88,10 +89,10 @@ class PostMedia {
     return (w / h).clamp(0.8, 1.91);
   }
 
-  /// Owner 2026-10-15: in any list a photo is at most square (1:1) and at
-  /// most 1.91:1 wide; taller ones are cropped to the centre and shown
-  /// whole when opened.
-  double get listAspectRatio => aspectRatio.clamp(1.0, 1.91);
+  /// Owner 2026-10-19 (as in Instagram, with the framing screen): a list
+  /// shows the photo in the shape its author framed it, 4:5 tall to 1.91:1
+  /// wide (it was at most square, cut to the centre, before).
+  double get listAspectRatio => aspectRatio;
 }
 
 /// OQ-042: a real person @mentioned in a post or comment.
@@ -206,12 +207,25 @@ class PostReposter {
   const PostReposter({
     required this.id,
     required this.username,
+    this.name = '',
     this.isClient = false,
+    this.repostedAt,
   });
 
   final String id;
   final String username;
+
+  /// Owner 2026-10-18: when this person made the repost — the profile's
+  /// «Брифы и репосты» tab orders a repost by it. Null while the API does
+  /// not send it (the tab then estimates it, see ProfileBriefsAndReposts).
+  final DateTime? repostedAt;
+
+  /// Display name ("First Last"); empty when the person has none.
+  final String name;
   final bool isClient;
+
+  /// What the header shows: the name, else the @username.
+  String get label => name.isEmpty ? username : name;
 }
 
 class Post {
@@ -248,7 +262,14 @@ class Post {
     this.repostedByMe = false,
     this.repostedBy,
     this.pinSlot,
+    this.archivedAt,
   });
+
+  /// Owner 2026-10-18: set while the author keeps the post in «Архив»
+  /// (only the author ever gets an archived post).
+  final DateTime? archivedAt;
+
+  bool get isArchived => archivedAt != null;
 
   /// Owner 2026-10-07: Threads-style reposts — how many people reposted
   /// the post, and whether the viewer did.
@@ -382,6 +403,7 @@ class Post {
         repostedByMe: repostedByMe ?? this.repostedByMe,
         repostedBy: repostedBy,
         pinSlot: unpin ? null : (pinSlot ?? this.pinSlot),
+        archivedAt: archivedAt,
       );
 }
 
@@ -501,7 +523,7 @@ class AttorneyRow {
 
   String get displayName {
     final name = [firstName, lastName].whereType<String>().join(' ').trim();
-    return name.isEmpty ? '@$username' : name;
+    return name.isEmpty ? atHandle(username) : name;
   }
 
   AttorneyRow copyWith({bool? isFollowing}) => AttorneyRow(
@@ -596,7 +618,7 @@ class ClientRow {
 
   String get displayName {
     final name = [firstName, lastName].whereType<String>().join(' ').trim();
-    return name.isEmpty ? '@$username' : name;
+    return name.isEmpty ? atHandle(username) : name;
   }
 }
 

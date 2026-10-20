@@ -68,7 +68,7 @@ export class ChatController {
     @CurrentUser() user: RequestUser,
     @Query() q: ConversationsQueryDto,
   ): Promise<ConversationPage> {
-    return this.chat.list(user, q.cursor, q.updatedSince, q.folder);
+    return this.chat.list(user, q.cursor, q.updatedSince, q.folder, q.q);
   }
 
   @Get('folders/counts')
@@ -179,7 +179,7 @@ export class ChatController {
     ],
     403: [ErrorCode.SUBSCRIPTION_REQUIRED, ErrorCode.MESSAGE_REQUEST_DECLINED],
     404: [ErrorCode.CONVERSATION_NOT_FOUND],
-    409: [ErrorCode.CONVERSATION_CLOSED, ErrorCode.MESSAGE_REQUEST_LIMIT],
+    409: [ErrorCode.CONVERSATION_CLOSED],
     429: [ErrorCode.RATE_LIMITED],
   })
   sendMessage(

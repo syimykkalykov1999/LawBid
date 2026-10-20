@@ -6,6 +6,21 @@
 // apps/api/prisma/seed/translations_seed.xlsx.
 
 const planRu = <String, String>{
+  // Owner 2026-10-18: bar number lock and manual review.
+  'verification.license.locked':
+      'Слишком много попыток. Попробуйте через {minutes} мин.',
+  'verification.license.manual.open':
+      'Мой номер верный — отправить на проверку',
+  'verification.license.manual.title': 'Проверка номера вручную',
+  'verification.license.manual.body':
+      'Пришлите фото карточки адвоката: сотрудник сверит номер и штат.',
+  'verification.license.manual.card': 'Фото карточки адвоката',
+  'verification.license.manual.cardRequired':
+      'Добавьте фото карточки адвоката.',
+  'verification.license.manual.cardRemove': 'Убрать фото карточки',
+  'verification.license.manual.note':
+      'Комментарий для проверяющего (необязательно)',
+  'verification.license.manual.send': 'Отправить на проверку',
   'error.api.BAR_NUMBER_FORMAT_INVALID': 'Номер не найден для этого штата.',
   'error.api.BAR_ATTEMPTS_COOLDOWN':
       'Слишком много неверных номеров. Попробуйте позже.',
@@ -186,6 +201,7 @@ const planRu = <String, String>{
   'mine.bids.title': 'Ставки',
   'cases.create.practice.upTo': 'Можно выбрать до {n}',
   'mine.bidNext.yourTurn': 'Ваш ход: ответьте клиенту',
+  'bids.card.view': 'Посмотреть бид',
   'mine.bidNext.waitingClient': 'Клиент ещё не выбрал. Бид можно изменить',
   'mine.bidNext.done': 'Вы выбраны, работа завершена',
   'mine.bidNext.rejected': 'Клиент выбрал другого адвоката',
@@ -194,10 +210,17 @@ const planRu = <String, String>{
   'mine.bidNext.failed': 'Договориться не удалось',
   'mine.price.negotiable': 'Договорная',
   'post.create.hintBrief':
-      'Первая строка станет заголовком брифа. Пишите подробно — до {max} знаков',
+      'Первая строка станет заголовком поста, остальное — описанием. До {max} знаков',
   'post.create.hintCaption': 'Подпись к посту…',
+  'post.crop.fit': 'Оригинал или квадрат',
+  // Owner 2026-10-18: two fields on every post form.
+  'post.create.hintTitle': 'Заголовок',
+  'post.create.hintDescription': 'Описание',
+  'post.create.empty': 'Добавьте заголовок, описание, фото или видео',
   'post.create.noTopic': 'Без темы',
   'post.src.galleryHint': 'Фото и видео',
+  'post.src.galleryHintMax': 'До {max} фото или 1 видео',
+  'post.src.galleryHintPhotos': 'До {max} фото',
   'post.src.cameraHint': 'Снять сейчас',
   'video.edit.uploadCover': 'Загрузить из галереи',
   'cases.create.exitTitle': 'Выйти без сохранения?',
@@ -229,6 +252,19 @@ const planRu = <String, String>{
 };
 
 const planEn = <String, String>{
+  // Owner 2026-10-18: bar number lock and manual review.
+  'verification.license.locked':
+      'Too many attempts. Try again in {minutes} min.',
+  'verification.license.manual.open':
+      'My number is correct — send it for review',
+  'verification.license.manual.title': 'Manual number check',
+  'verification.license.manual.body':
+      'Send a photo of your bar card: our team will check the number and the state.',
+  'verification.license.manual.card': 'Photo of your bar card',
+  'verification.license.manual.cardRequired': 'Add a photo of your bar card.',
+  'verification.license.manual.cardRemove': 'Remove the bar card photo',
+  'verification.license.manual.note': 'Note for the reviewer (optional)',
+  'verification.license.manual.send': 'Send for review',
   'error.api.BAR_NUMBER_FORMAT_INVALID': 'Bar number not found for this state.',
   'error.api.BAR_ATTEMPTS_COOLDOWN':
       'Too many wrong bar numbers. Try again later.',
@@ -408,6 +444,7 @@ const planEn = <String, String>{
   'mine.bids.title': 'Bids',
   'cases.create.practice.upTo': 'You can choose up to {n}',
   'mine.bidNext.yourTurn': 'Your move: reply to the client',
+  'bids.card.view': 'View bid',
   'mine.bidNext.waitingClient':
       'The client has not chosen yet. You can edit the bid',
   'mine.bidNext.done': 'You were chosen, the work is done',
@@ -417,10 +454,17 @@ const planEn = <String, String>{
   'mine.bidNext.failed': 'No agreement was reached',
   'mine.price.negotiable': 'Negotiable',
   'post.create.hintBrief':
-      "The first line becomes the brief's title. Write in detail, up to {max} characters",
+      'The first line becomes the post title, the rest its text. Up to {max} characters',
   'post.create.hintCaption': 'Write a caption for your post…',
+  'post.crop.fit': 'Original or square',
+  // Owner 2026-10-18: two fields on every post form.
+  'post.create.hintTitle': 'Title',
+  'post.create.hintDescription': 'Description',
+  'post.create.empty': 'Add a title, a description, a photo or a video',
   'post.create.noTopic': 'No topic',
   'post.src.galleryHint': 'Photos and video',
+  'post.src.galleryHintMax': 'Up to {max} photos or 1 video',
+  'post.src.galleryHintPhotos': 'Up to {max} photos',
   'post.src.cameraHint': 'Take it now',
   'video.edit.uploadCover': 'Upload from gallery',
   'cases.create.exitTitle': 'Exit without saving?',

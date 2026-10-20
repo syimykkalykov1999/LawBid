@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
@@ -50,6 +50,21 @@ export class NotificationsQueryDto {
   @IsOptional()
   @IsIn(NOTIFICATION_GROUPS)
   group?: NotificationGroup;
+
+  /** Owner 2026-10-18: the search box above the bell's list. */
+  @ApiPropertyOptional({
+    description:
+      "Words from the stored text (a broadcast's title/body, a moderator's reason) or the name of the attorney in the notification, in any alphabet. Combines with `group`.",
+    maxLength: 100,
+  })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
+  q?: string;
 }
 
 export class NotificationActorDto {
@@ -204,6 +219,24 @@ export class PushTokenDto {
   @ApiProperty({ enum: ['ios', 'android', 'web'] })
   @IsIn(['ios', 'android', 'web'])
   platform!: 'ios' | 'android' | 'web';
+}
+
+/** Owner 2026-10-17: an iPhone's PushKit (VoIP) token for calls. */
+export class VoipTokenDto {
+  @ApiProperty({ description: 'PushKit token, hex.' })
+  @Matches(/^[0-9a-f]{64,200}$/)
+  token!: string;
+
+  @ApiProperty({
+    description: "The app's bundle id (the VoIP topic is it + '.voip').",
+    example: 'com.lawbid.lawbid',
+  })
+  @Matches(/^com\.lawbid\.lawbid(\.[a-z]{2,12})?$/)
+  bundleId!: string;
+
+  @ApiProperty({ enum: ['sandbox', 'production'] })
+  @IsIn(['sandbox', 'production'])
+  environment!: 'sandbox' | 'production';
 }
 
 export class DeletePushTokenDto {

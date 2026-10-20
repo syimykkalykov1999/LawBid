@@ -60,7 +60,18 @@ export interface CallJobData {
   deferred?: boolean;
 }
 
-export type PushJobData = NotificationJobData | MessageJobData | CallJobData;
+/** Push 2026-10-19: the call stopped ringing (hung up, missed, declined
+ * or answered on another device) — phones still showing the system call
+ * screen (app asleep / closed, no socket) take it down. */
+export interface CallEndJobData {
+  kind: 'call_end';
+  recipientId: string;
+  callId: string;
+  deferred?: boolean;
+}
+
+export type PushJobData =
+  NotificationJobData | MessageJobData | CallJobData | CallEndJobData;
 
 export interface PushMessage {
   userId: string;
@@ -74,10 +85,16 @@ export interface PushMessage {
    * message (the app shows the full-screen ringing UI itself); iOS a
    * time-sensitive alert. */
   call?: boolean;
+  /** Push 2026-10-19: a silent data-only "stop ringing" for [data.callId]
+   * (no alert on any platform). */
+  callEnd?: boolean;
   /** `message` for chats, `notification` for everything else (calls ring
    * on their own). Owner 2026-10-07: both play the phone's own default
    * sound — LawBid ships no sounds of its own. */
   sound?: PushSoundKind;
+  /** Owner 2026-10-17: FCM tokens not to send to (iPhones already rung by
+   * a VoIP push — no double ring). */
+  skipTokens?: string[];
 }
 
 export type PushSoundKind = 'message' | 'notification';

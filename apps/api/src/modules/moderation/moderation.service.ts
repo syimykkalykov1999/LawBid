@@ -332,15 +332,22 @@ export class ModerationService {
     switch (target.type) {
       case 'post': {
         if (target.status === 'removed' && action !== 'restore') return null;
-        await tx.post.update({
+        const row = await tx.post.update({
           where: { id: target.id },
           data: {
             status: next,
             ...(action === 'restore' ? { deleted_at: null } : {}),
           },
+          select: { archived_at: true },
         });
-        const delta =
-          target.status === 'published' ? -1 : next === 'published' ? 1 : 0;
+        // Owner 2026-10-18: an archived post is out of the count already.
+        const delta = row.archived_at
+          ? 0
+          : target.status === 'published'
+            ? -1
+            : next === 'published'
+              ? 1
+              : 0;
         if (delta && target.authorId) {
           const authorId = target.authorId;
           after.push(() =>

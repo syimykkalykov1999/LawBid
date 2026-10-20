@@ -1,8 +1,9 @@
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
-
 import 'package:lawbid/core/navigation/app_page_transitions.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
+import 'package:lawbid/features/social/domain/social_models.dart';
+import 'package:lawbid/features/social/presentation/screens/post_insights_screen.dart';
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart';
 
 /// docs/05 feed routes. `/post/:id` is also the published deep link
@@ -20,12 +21,33 @@ abstract final class SocialRoutes {
   static String followers(String id) =>
       '/attorney/${Uri.encodeComponent(id)}/followers';
 
+  /// Owner 2026-10-18: an own post's statistics; `extra` is the [Post]
+  /// when the caller has it (the screen then shows nothing for a post that
+  /// is not the viewer's, before any request; the server checks too).
+  static const insightsPattern = '/post/:id/insights';
+  static String insights(String id) =>
+      '/post/${Uri.encodeComponent(id)}/insights';
+
   static const followingPattern = '/attorney/:id/following';
   static String following(String id) =>
       '/attorney/${Uri.encodeComponent(id)}/following';
 }
 
 List<RouteBase> socialRoutes(GlobalKey<NavigatorState> root) => [
+      GoRoute(
+        path: SocialRoutes.insightsPattern,
+        parentNavigatorKey: root,
+        pageBuilder: (context, state) {
+          final extra = state.extra;
+          return AppPageTransitions.push(
+            state,
+            PostInsightsScreen(
+              postId: state.pathParameters['id'] ?? '',
+              post: extra is Post ? extra : null,
+            ),
+          );
+        },
+      ),
       GoRoute(
         path: SocialRoutes.tagPattern,
         parentNavigatorKey: root,

@@ -168,39 +168,44 @@ class AppBottomNav extends StatelessWidget {
                     children: [
                       buildTab(left[0], 0),
                       buildTab(left[1], 1),
-                      AppTapTarget(
-                        child: Semantics(
-                          button: true,
-                          label: createSemanticLabel,
-                          excludeSemantics: true,
-                          child: AppPressable(
-                            onTap: onCreatePressed,
-                            child: Container(
-                              width: 38,
-                              height: 38,
-                              margin: const EdgeInsets.symmetric(
-                                horizontal: AppSpacing.xs,
-                              ),
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                  colors: [colors.goldLight, colors.gold],
-                                ),
-                                shape: BoxShape.circle,
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: colors.gold.withValues(alpha: 0.35),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, 3),
+                      // Owner 2026-10-19 («кнопки прилипают к плюсу»): the
+                      // "+" takes one fifth of the bar like every tab, so
+                      // the five icons stand at equal distances.
+                      Expanded(
+                        child: Center(
+                          child: AppTapTarget(
+                            child: Semantics(
+                              button: true,
+                              label: createSemanticLabel,
+                              excludeSemantics: true,
+                              child: AppPressable(
+                                onTap: onCreatePressed,
+                                child: Container(
+                                  width: 38,
+                                  height: 38,
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                      colors: [colors.goldLight, colors.gold],
+                                    ),
+                                    shape: BoxShape.circle,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color:
+                                            colors.gold.withValues(alpha: 0.35),
+                                        blurRadius: 10,
+                                        offset: const Offset(0, 3),
+                                      ),
+                                    ],
                                   ),
-                                ],
-                              ),
-                              alignment: Alignment.center,
-                              child: AppIcon(
-                                AppIcons.addRounded,
-                                color: colors.navy,
-                                size: 22,
+                                  alignment: Alignment.center,
+                                  child: AppIcon(
+                                    AppIcons.addRounded,
+                                    color: colors.navy,
+                                    size: 22,
+                                  ),
+                                ),
                               ),
                             ),
                           ),

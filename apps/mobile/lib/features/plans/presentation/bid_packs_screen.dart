@@ -5,8 +5,8 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/dio_client.dart';
+import 'package:lawbid/shared/domain/payment_page_launch_mode.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
-import 'package:url_launcher/url_launcher.dart';
 
 /// Owner 2026-10-14: offers bought on top of the plan's monthly limit.
 final bidPacksProvider = FutureProvider.autoDispose<api.BidPacksDto>(
@@ -69,10 +69,10 @@ class _BidPacksScreenState extends ConsumerState<BidPacksScreen>
       ))
           .data;
       _purchaseId = r.purchaseId;
-      await launchUrl(
-        Uri.parse(r.checkoutUrl),
-        mode: LaunchMode.externalApplication,
-      );
+      final url = Uri.tryParse(r.checkoutUrl);
+      if ((url == null || !await openPaymentPage(url)) && mounted) {
+        showAppSnackBar(context, t.t('plans.cantOpen'));
+      }
     } on Object catch (e) {
       if (mounted) showAppSnackBar(context, errorText(t, e));
     } finally {

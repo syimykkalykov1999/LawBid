@@ -5,20 +5,22 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/text/bidi.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/data/cases_repository.dart'
     show CaseFeedExtras;
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/contacts_sync/presentation/contacts_section.dart';
 import 'package:lawbid/features/feed/application/feed_topics.dart';
 import 'package:lawbid/features/feed/presentation/widgets/feed_chrome.dart';
 import 'package:lawbid/features/feed/presentation/widgets/topic_filter_bar.dart'
     show topicName;
+import 'package:lawbid/features/practice/practice_matches.dart';
 import 'package:lawbid/features/search/application/search_providers.dart';
 import 'package:lawbid/features/search/data/search_repository.dart';
-import 'package:lawbid/features/search/presentation/widgets/flip_search_bar.dart';
 import 'package:lawbid/features/search/presentation/widgets/search_filters_sheet.dart';
 import 'package:lawbid/features/search/presentation/widgets/search_tiles.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
@@ -28,10 +30,12 @@ import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_grid_tile.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
+import 'package:lawbid/shared/presentation/flip_search_bar.dart';
 
 enum SearchTab { attorneys, cases, posts, tags }
 
-/// docs/05 §7 Search tab: one query for all result tabs (clients:
+/// docs/05 §7 Search tab: every result tab has its own query, filters and
+/// history (owner 2026-10-18) (clients:
 /// Attorneys / Posts / Topics; attorneys: People / Cases / Posts /
 /// Topics), 2+ characters, 300 ms debounce, filters in a sheet, and
 /// before typing: recent searches, popular topics, suggested attorneys.
@@ -63,6 +67,48 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   /// OQ-036: every tab keeps its own filters.
   final Map<SearchTab, SearchFilters> _filters = {};
 
+  SearchFilters _filtersOf(SearchTab tab) =>
+      _filters[tab] ?? const SearchFilters();
+
+  /// Owner 2026-10-19: every tab is a page — the one on screen shows what
+  /// is typed now, the others their own last search (never this one).
+  String _queryOf(SearchTab tab) =>
+      tab == _tab ? _query : (_queries[tab] ?? '');
+
+  /// Owner 2026-10-18: every tab also keeps its own typed text and applied
+  /// query (the other tabs' are saved here while one is shown).
+  final Map<SearchTab, String> _texts = {};
+  final Map<SearchTab, String> _queries = {};
+
+  /// True while a tab switch rewrites the field (so it is not "typing").
+  bool _restoring = false;
+
+  RecentSearches _recentOf(SearchTab tab) =>
+      ref.read(recentSearchesProvider(tab.name).notifier);
+
+  /// Switches the section: saves this tab's text/query, restores the new
+  /// tab's own (or empty) — nothing leaks between tabs.
+  void _selectTab(SearchTab next) {
+    if (next == _tab) return;
+    _timer?.cancel();
+    _suggestTimer?.cancel();
+    _texts[_tab] = _controller.text;
+    _queries[_tab] = _query;
+    final text = _texts[next] ?? '';
+    _restoring = true;
+    _controller.value = TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
+    );
+    _restoring = false;
+    setState(() {
+      _tab = next;
+      _query = _queries[next] ?? '';
+      _suggestQ = '';
+      _focused = false;
+    });
+  }
+
   @override
   void initState() {
     super.initState();
@@ -84,9 +130,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   void _onMagnifier() {
     _timer?.cancel();
     final next = normalizeSearch(_controller.text);
-    if (next.length >= kSearchMinChars) {
+    if (isSearchable(next, tagPrefix: _tab == SearchTab.tags)) {
       setState(() => _query = next);
-      ref.read(recentSearchesProvider.notifier).remember(next);
+      _recentOf(_tab).remember(next);
     }
     if (_focused) setState(() => _focused = false);
     _focus.unfocus();
@@ -94,6 +140,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   /// One request per pause in typing, never per keystroke (§7.1).
   void _onText() {
+    if (_restoring) return;
     _timer?.cancel();
     final next = normalizeSearch(_controller.text);
     // Owner 2026-10-15: type-ahead suggestions after a 150 ms pause.
@@ -101,7 +148,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     _suggestTimer = Timer(const Duration(milliseconds: 150), () {
       if (mounted && next != _suggestQ) setState(() => _suggestQ = next);
     });
-    if (next.length < kSearchMinChars) {
+    if (!isSearchable(next, tagPrefix: _tab == SearchTab.tags)) {
       if (_query.isNotEmpty) setState(() => _query = '');
       return;
     }
@@ -117,7 +164,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     if (_focus.hasFocus && !_focused) setState(() => _focused = true);
     if (_focus.hasFocus) _chrome.show();
     if (!_focus.hasFocus && _query.isNotEmpty) {
-      ref.read(recentSearchesProvider.notifier).remember(_query);
+      _recentOf(_tab).remember(_query);
     }
   }
 
@@ -169,10 +216,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final tabsRow = PillTabs<SearchTab>(
       value: _tab,
       tabs: tabs,
-      onChanged: (v) => setState(() {
-        _tab = v;
-        _focused = false;
-      }),
+      onChanged: _selectTab,
     );
 
     // Filters button inside the field at the left edge (owner
@@ -233,7 +277,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         SearchTab.posts => [t.t('search.hint.posts')],
         SearchTab.tags => [t.t('search.hint.tag')],
       },
-      onSubmitted: (v) => ref.read(recentSearchesProvider.notifier).remember(v),
+      onSubmitted: (v) => _recentOf(_tab).remember(v),
     );
 
     return PopScope(
@@ -274,45 +318,47 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 Expanded(
                   child: NotificationListener<ScrollNotification>(
                     onNotification: _chrome.onScroll,
-                    child: TabSwipe<SearchTab>(
+                    // Owner 2026-10-19 (Instagram): People | Posts | Topics
+                    // are pages — the next one slides in with the finger, a
+                    // tap slides to it.
+                    child: SwipePages<SearchTab>(
                       value: _tab,
                       values: [for (final (v, _) in tabs) v],
-                      onChanged: (v) => setState(() => _tab = v),
-                      child: AnimatedSwitcher(
-                        duration: context.reduceMotion
-                            ? Duration.zero
-                            : AppMotion.stateChange,
-                        child: _query.isEmpty && _focused
-                            // Instagram: tapping the field shows the history
-                            // right under it, each line with a × and "Clear".
-                            ? _RecentHistory(
-                                key: const ValueKey('history'),
-                                onPick: _useRecent,
-                              )
-                            : _query.isEmpty
-                                ? _BeforeTyping(
-                                    key: ValueKey(
-                                      'idle:$_tab:${filters.hashCode}',
-                                    ),
-                                    tab: _tab,
-                                    filters: filters,
-                                    onFilters: (f) =>
-                                        setState(() => _filters[_tab] = f),
-                                    onRecent: _useRecent,
-                                  )
-                                : KeyedSubtree(
-                                    key: ValueKey(
-                                      '$_tab:$_query:${filters.hashCode}',
-                                    ),
-                                    child: _Results(
-                                      tab: _tab,
-                                      query: _query,
-                                      filters: filters,
+                      onChanged: _selectTab,
+                      pageBuilder: (_, tab) =>
+                          _queryOf(tab).isEmpty && _focused && tab == _tab
+                              // Instagram: tapping the field shows the
+                              // history right under it, each line with a ×
+                              // and "Clear".
+                              ? _RecentHistory(
+                                  key: ValueKey('history:${tab.name}'),
+                                  tab: tab,
+                                  onPick: _useRecent,
+                                )
+                              : _queryOf(tab).isEmpty
+                                  ? _BeforeTyping(
+                                      key: ValueKey(
+                                        'idle:$tab:${_filtersOf(tab).hashCode}',
+                                      ),
+                                      tab: tab,
+                                      filters: _filtersOf(tab),
                                       onFilters: (f) =>
-                                          setState(() => _filters[_tab] = f),
+                                          setState(() => _filters[tab] = f),
+                                      onRecent: _useRecent,
+                                    )
+                                  : KeyedSubtree(
+                                      key: ValueKey(
+                                        '$tab:${_queryOf(tab)}:'
+                                        '${_filtersOf(tab).hashCode}',
+                                      ),
+                                      child: _Results(
+                                        tab: tab,
+                                        query: _queryOf(tab),
+                                        filters: _filtersOf(tab),
+                                        onFilters: (f) =>
+                                            setState(() => _filters[tab] = f),
+                                      ),
                                     ),
-                                  ),
-                      ),
                     ),
                   ),
                 ),
@@ -404,33 +450,59 @@ class _Results extends ConsumerWidget {
         );
       case SearchTab.tags:
         // Practices whose name matches come first, then hashtags.
-        final lower = query.toLowerCase().replaceAll('#', '');
+        final lower = query.toLowerCase().replaceAll('#', '').trim();
+        // Audit 2026-10-18: any language and subtopic names (the server).
+        final remote = filters.topicKind == TopicKind.hashtags ||
+                lower.length < kSearchMinChars
+            ? const <String, String?>{}
+            : (ref.watch(practiceMatchesProvider(lower)).value ??
+                const <String, String?>{});
         final practices = filters.topicKind == TopicKind.hashtags
             ? const <String>[]
-            : _sortedPractices(ref, filters, [
-                for (final c in kPracticeCategoryCodes)
-                  if ((kPracticeCategoryNamesEn[c] ?? c)
-                          .toLowerCase()
-                          .contains(lower) ||
-                      topicTagFor(c).contains(lower))
-                    c,
-              ]);
+            : _sortedPractices(
+                ref,
+                filters,
+                matchingPracticeCategories(
+                  codes: kPracticeCategoryCodes,
+                  query: lower,
+                  localName: (c) => topicName(ref, c),
+                  englishName: (c) => kPracticeCategoryNamesEn[c] ?? c,
+                  tag: topicTagFor,
+                  remoteCategories: {
+                    for (final k in remote.keys) k.split('.').first,
+                  },
+                ),
+              );
         return AsyncDetailBody<List<TagInfo>>(
           value: ref.watch(tagSearchProvider(query)),
           t: t,
           onRetry: () => ref.invalidate(tagSearchProvider(query)),
           builder: (tags) => tags.isEmpty && practices.isEmpty
               ? nothing
-              : ListView(
-                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-                  children: [
-                    for (final c in practices)
-                      _PracticeTopicRow(code: c, query: query),
-                    if (filters.topicKind != TopicKind.practices)
-                      for (final tag in _sortedTags(filters, tags))
-                        if (!practices.contains(categoryForTopicTag(tag.tag)))
-                          _TagTopicRow(tag: tag),
-                  ],
+              : Builder(
+                  builder: (context) {
+                    // Owner 2026-10-19: one topic per area of law — a
+                    // hashtag of an area (#greencard, #immigration) is not
+                    // a topic of its own; its area is shown once.
+                    final split = _splitTags(_sortedTags(filters, tags));
+                    final areas = filters.topicKind == TopicKind.hashtags
+                        ? const <String>[]
+                        : <String>{...practices, ...split.areas}.toList();
+                    return ListView(
+                      padding:
+                          const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                      children: [
+                        for (final c in areas)
+                          _PracticeTopicRow(code: c, query: query),
+                        if (filters.topicKind != TopicKind.practices)
+                          for (final tag
+                              in filters.topicKind == TopicKind.hashtags
+                                  ? split.onePerArea
+                                  : split.free)
+                            _TagTopicRow(tag: tag),
+                      ],
+                    );
+                  },
                 ),
         );
     }
@@ -517,7 +589,7 @@ class _BeforeTyping extends ConsumerWidget {
     final postsTab = tab == SearchTab.posts;
     final recent = postsTab
         ? const <String>[]
-        : ref.watch(recentSearchesProvider).value ?? const [];
+        : ref.watch(recentSearchesProvider(tab.name)).value ?? const [];
     final last = recent.isEmpty ? null : recent.first;
     final attorney = ref.watch(actsAsAttorneyProvider);
 
@@ -699,21 +771,46 @@ class _BeforeTyping extends ConsumerWidget {
         ],
       SearchTab.tags => [
           // Owner 2026-10-15: no explanation line under the field.
-          if (filters.topicKind != TopicKind.practices)
-            ...switch (ref.watch(trendingTagsProvider)) {
-              AsyncData(:final value) when value.isNotEmpty => [
-                  SliverToBoxAdapter(child: title(t.t('search.trending'))),
-                  for (final tag in _sortedTags(filters, value).take(8))
-                    SliverToBoxAdapter(child: _TagTopicRow(tag: tag)),
-                ],
-              _ => const <Widget>[],
-            },
-          if (filters.topicKind != TopicKind.hashtags) ...[
-            SliverToBoxAdapter(child: title(t.t('search.topics.practices'))),
-            for (final c
-                in _sortedPractices(ref, filters, kPracticeCategoryCodes))
-              SliverToBoxAdapter(child: _PracticeTopicRow(code: c)),
-          ],
+          // Owner 2026-10-19: one topic per area of law, never repeated —
+          // a trending hashtag of an area shows that area once (in
+          // «Trending»), and the areas below leave it out.
+          ...() {
+            final trending = switch (ref.watch(trendingTagsProvider)) {
+              AsyncData(:final value) =>
+                _splitTags(_sortedTags(filters, value)),
+              _ => _splitTags(const []),
+            };
+            final hotAreas = filters.topicKind == TopicKind.practices
+                ? const <String>[]
+                : trending.areas;
+            final rows = <Widget>[
+              if (filters.topicKind == TopicKind.hashtags)
+                for (final tag in trending.onePerArea) _TagTopicRow(tag: tag)
+              else ...[
+                for (final c in hotAreas) _PracticeTopicRow(code: c),
+                if (filters.topicKind != TopicKind.practices)
+                  for (final tag in trending.free) _TagTopicRow(tag: tag),
+              ],
+            ].take(8).toList();
+            final shownAreas = filters.topicKind == TopicKind.hashtags
+                ? const <String>{}
+                : hotAreas.take(8).toSet();
+            return [
+              if (rows.isNotEmpty) ...[
+                SliverToBoxAdapter(child: title(t.t('search.trending'))),
+                for (final r in rows) SliverToBoxAdapter(child: r),
+              ],
+              if (filters.topicKind != TopicKind.hashtags) ...[
+                SliverToBoxAdapter(
+                  child: title(t.t('search.topics.practices')),
+                ),
+                for (final c
+                    in _sortedPractices(ref, filters, kPracticeCategoryCodes))
+                  if (!shownAreas.contains(c))
+                    SliverToBoxAdapter(child: _PracticeTopicRow(code: c)),
+              ],
+            ];
+          }(),
         ],
     };
 
@@ -765,7 +862,7 @@ class _BeforeTyping extends ConsumerWidget {
 /// A client's own cases matching [query] (title or practice) and the
 /// "My cases" filters (status, practice area); '' = all.
 List<CaseSummary> _myCases(WidgetRef ref, String query, SearchFilters f) {
-  final q = query.toLowerCase();
+  final t = ref.read(translatorProvider);
   final statuses = f.caseStatus == null
       ? const [
           MyCasesFilter.active,
@@ -778,10 +875,22 @@ List<CaseSummary> _myCases(WidgetRef ref, String query, SearchFilters f) {
   ];
   return [
     for (final c in all)
-      if ((q.isEmpty ||
-              c.title.toLowerCase().contains(q) ||
-              c.practice.nameEn.toLowerCase().contains(q) ||
-              (c.practice.categoryNameEn ?? '').toLowerCase().contains(q)) &&
+      if (myCaseMatches(
+            c.title,
+            [
+              CaseFormat.practice(t, c.practice.i18nKey, c.practice.nameEn),
+              c.practice.nameEn,
+              if (c.practice.categoryNameEn != null) ...[
+                CaseFormat.practice(
+                  t,
+                  c.practice.categoryI18nKey ?? '',
+                  c.practice.categoryNameEn!,
+                ),
+                c.practice.categoryNameEn!,
+              ],
+            ],
+            query,
+          ) &&
           (f.practiceCategory == null ||
               c.practice.artCode == f.practiceCategory))
         c,
@@ -804,6 +913,8 @@ ExploreCasesKey _casesKey(SearchFilters f) => (
         budgetMin: f.budgetMin,
         budgetMax: f.budgetMax,
         budgetUnknown: f.budgetUnknown,
+        budgetPercent: f.budgetPercent,
+        percentMax: f.percentMax,
         noBids: f.noBids,
         minUrgency: f.minUrgency,
         hasDeadline: f.hasDeadline,
@@ -833,6 +944,36 @@ List<String> _sortedPractices(
   if (f.topicSort != TopicSort.az) return codes;
   return [...codes]
     ..sort((a, b) => topicName(ref, a).compareTo(topicName(ref, b)));
+}
+
+/// Owner 2026-10-19: the area of law a hashtag belongs to (by its name,
+/// else by its posts), or null for a hashtag of no area.
+String? _tagArea(TagInfo t) => topicCategory(t.tag) ?? t.categoryCode;
+
+/// Hashtags split by area, keeping their order: the areas they point to
+/// (each once), the hashtags of no area, and one hashtag per area (for the
+/// «hashtags only» view).
+typedef _TagSplit = ({
+  List<String> areas,
+  List<TagInfo> free,
+  List<TagInfo> onePerArea,
+});
+
+_TagSplit _splitTags(List<TagInfo> tags) {
+  final areas = <String>[];
+  final free = <TagInfo>[];
+  final onePerArea = <TagInfo>[];
+  for (final t in tags) {
+    final a = _tagArea(t);
+    if (a == null) {
+      free.add(t);
+      onePerArea.add(t);
+    } else if (!areas.contains(a)) {
+      areas.add(a);
+      onePerArea.add(t);
+    }
+  }
+  return (areas: areas, free: free, onePerArea: onePerArea);
 }
 
 List<TagInfo> _sortedTags(SearchFilters f, List<TagInfo> tags) {
@@ -867,8 +1008,9 @@ class _MyCasesGrid extends ConsumerWidget {
 /// The search history inside the field's own list (shown while the field
 /// has focus and is empty): "Recent" with "Clear", and a × on every line.
 class _RecentHistory extends ConsumerWidget {
-  const _RecentHistory({required this.onPick, super.key});
+  const _RecentHistory({required this.tab, required this.onPick, super.key});
 
+  final SearchTab tab;
   final ValueChanged<String> onPick;
 
   @override
@@ -876,7 +1018,8 @@ class _RecentHistory extends ConsumerWidget {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    final recent = ref.watch(recentSearchesProvider).value ?? const <String>[];
+    final history = recentSearchesProvider(tab.name);
+    final recent = ref.watch(history).value ?? const <String>[];
     if (recent.isEmpty) return const SizedBox.shrink();
     return ListView(
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
@@ -902,7 +1045,7 @@ class _RecentHistory extends ConsumerWidget {
                 ),
               ),
               GestureDetector(
-                onTap: () => ref.read(recentSearchesProvider.notifier).clear(),
+                onTap: () => ref.read(history.notifier).clear(),
                 behavior: HitTestBehavior.opaque,
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
@@ -949,8 +1092,7 @@ class _RecentHistory extends ConsumerWidget {
                   IconButton(
                     tooltip: t.t('search.recent.clear'),
                     visualDensity: VisualDensity.compact,
-                    onPressed: () =>
-                        ref.read(recentSearchesProvider.notifier).forget(q),
+                    onPressed: () => ref.read(history.notifier).forget(q),
                     icon: AppIcon(
                       AppIcons.closeRounded,
                       size: 18,
@@ -993,7 +1135,7 @@ class _SuggestionRow extends ConsumerWidget {
           final s = items[i];
           final label = switch (s.kind) {
             SuggestionKind.tag => '#${s.text}',
-            SuggestionKind.person => '@${s.text}',
+            SuggestionKind.person => atHandle(s.text),
             SuggestionKind.practice => s.text,
           };
           return Center(

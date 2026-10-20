@@ -1,4 +1,9 @@
+import 'dart:convert' show jsonDecode;
+import 'dart:io' show Platform;
+import 'dart:ui' as ui;
+
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show MethodChannel;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart' show XFile;
 import 'package:lawbid/core/feature_flags/feature_flags_state.dart';
@@ -71,15 +76,22 @@ class PluginVideoCompressor implements VideoCompressor {
       (p) => onProgress?.call((p / 100).clamp(0, 1)),
     );
     try {
-      final info = await VideoCompress.compressVideo(
-        source.path,
-        quality: videoQualityFor(limits.maxHeight),
-        includeAudio: true,
-        frameRate: limits.frameRate,
-      );
+      final info = !kIsWeb && Platform.isIOS
+          ? await _compressIos(source.path, limits)
+          : await VideoCompress.compressVideo(
+              source.path,
+              quality: videoQualityFor(limits.maxHeight),
+              includeAudio: true,
+              frameRate: limits.frameRate,
+            );
       final out = info?.file;
       if (out == null || (info!.isCancel ?? false)) return null;
       if (await out.length() >= await source.length()) return null;
+      // Safety net: a black result of a picture that isn't black → keep
+      // the original.
+      if (await _isBlack(out.path) && !await _isBlack(source.path)) {
+        return null;
+      }
       return XFile(out.path, mimeType: 'video/mp4');
     } on Object {
       return null;
@@ -91,6 +103,56 @@ class PluginVideoCompressor implements VideoCompressor {
   @override
   Future<void> cancel() async {
     if (!kIsWeb) await VideoCompress.cancelCompression();
+  }
+
+  static const _channel = MethodChannel('video_compress');
+
+  /// Owner 2026-10-17: on iOS the plugin's frame-rate path builds its video
+  /// composition from the source asset but exports a different one (the
+  /// trimmed composition), so every frame comes out black. Its Dart API
+  /// always sends a frame rate; called directly without one, iOS exports
+  /// with the 720p/1080p preset only (picture and rotation kept).
+  static Future<MediaInfo?> _compressIos(
+    String path,
+    VideoLimits limits,
+  ) async {
+    final json = await _channel.invokeMethod<String>('compressVideo', {
+      'path': path,
+      'quality': videoQualityFor(limits.maxHeight).index,
+      'deleteOrigin': false,
+      'startTime': null,
+      'duration': null,
+      'includeAudio': true,
+    });
+    if (json == null) return null;
+    return MediaInfo.fromJson(jsonDecode(json) as Map<String, dynamic>);
+  }
+
+  /// A frame near the start is (almost) pure black.
+  static Future<bool> _isBlack(String path) async {
+    try {
+      final jpg = await VideoCompress.getByteThumbnail(
+        path,
+        quality: 30,
+        position: 500,
+      );
+      if (jpg == null || jpg.isEmpty) return false;
+      final codec = await ui.instantiateImageCodec(jpg, targetWidth: 32);
+      final frame = await codec.getNextFrame();
+      final data = await frame.image.toByteData();
+      frame.image.dispose();
+      if (data == null) return false;
+      var sum = 0;
+      final n = data.lengthInBytes ~/ 4;
+      for (var i = 0; i < n; i++) {
+        sum += data.getUint8(i * 4) +
+            data.getUint8(i * 4 + 1) +
+            data.getUint8(i * 4 + 2);
+      }
+      return sum / (n * 3) < 12;
+    } on Object {
+      return false;
+    }
   }
 }
 

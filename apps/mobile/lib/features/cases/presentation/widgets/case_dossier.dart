@@ -76,6 +76,7 @@ class CaseDossierScore {
         imagesCount: images,
         documentsCount: c.photos.length - images,
         descriptionLength: c.description.length,
+        privateDetailsLength: c.privateDetails?.length ?? 0,
       ),
       city: c.city,
       urgency: c.urgency,
@@ -146,85 +147,6 @@ class _DossierBar extends StatelessWidget {
                 borderRadius: BorderRadius.circular(height),
               ),
             ),
-          ),
-        ],
-      ],
-    );
-  }
-}
-
-/// Owner 2026-10-05: the dossier line on a feed card — "Case file 4 of 6",
-/// a bar, what is attached, and the rule that the files and contacts open
-/// once the client accepts the bid. Texts ellipsize, never push.
-class CaseDossierStrip extends StatelessWidget {
-  const CaseDossierStrip({required this.kase, required this.t, super.key});
-
-  final FeedCase kase;
-  final Translator t;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    final light = Theme.of(context).brightness == Brightness.light;
-    final s = CaseDossierScore.of(kase);
-    final tone = _levelColor(colors, light, s.done);
-    final caption = typography.caption.copyWith(color: colors.textSecondary);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Row(
-          children: [
-            AppIcon(AppIcons.folderOutlined, size: 16, color: tone),
-            const SizedBox(width: AppSpacing.xs + 2),
-            Flexible(
-              child: Text(
-                '${t.t('cases.dossier.title')} ${s.score(t)}',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: typography.caption.copyWith(
-                  color: tone,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            SizedBox(
-              width: 54,
-              child: _DossierBar(done: s.done, total: s.total, color: tone),
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            Expanded(
-              child: Text(
-                s.files(t),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: caption.copyWith(color: colors.text),
-              ),
-            ),
-          ],
-        ),
-        if (kase.status == CaseStatus.open) ...[
-          const SizedBox(height: AppSpacing.xs),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              AppIcon(
-                AppIcons.lockOutlineRounded,
-                size: 13,
-                color: colors.textSecondary,
-              ),
-              const SizedBox(width: AppSpacing.xs + 2),
-              Expanded(
-                child: Text(
-                  t.t('cases.dossier.ruleShort'),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: caption.copyWith(fontSize: 11),
-                ),
-              ),
-            ],
           ),
         ],
       ],

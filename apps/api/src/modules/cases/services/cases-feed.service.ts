@@ -33,7 +33,12 @@ import {
   buildPracticeCasesSql,
   buildVisibleCasesSql,
 } from '../queries/cases-visible.sql';
+import { budgetFilterSql } from '../queries/budget-filter.sql';
 import { CaseViewTrackingService } from './case-view-tracking.service';
+import {
+  ClientActivityService,
+  type ClientActivityView,
+} from './client-activity.service';
 import { PromotionDeliveryService } from '../../promotions/promotion-delivery.service';
 import { RecommendationsService } from '../../recommendations/recommendations.service';
 import {
@@ -94,6 +99,8 @@ export class CasesFeedService {
     @Optional() private readonly promoDelivery?: PromotionDeliveryService,
     // Owner 2026-10-13: "for you" ranking of the Search Cases grid.
     @Optional() private readonly recommendations?: RecommendationsService,
+    // Owner 2026-10-18 (OQ-054): the activity line on the card.
+    @Optional() private readonly clientActivity?: ClientActivityService,
   ) {}
 
   /** GET /cases (docs/04 §4.2). Empty page, not an error, for a caller
@@ -132,9 +139,15 @@ export class CasesFeedService {
     const thresholds = await loadUrgencyThresholds(this.settings);
     const extra = Prisma.sql`
       ${urgencyFilterSql(query.minUrgency, query.hasDeadline, thresholds)}
-      ${query.budgetMin !== undefined ? Prisma.sql`AND c.budget_cents >= ${query.budgetMin * 100}` : Prisma.empty}
-      ${query.budgetMax !== undefined ? Prisma.sql`AND c.budget_cents <= ${query.budgetMax * 100}` : Prisma.empty}
-      ${query.budgetUnknown ? Prisma.sql`AND c.budget_mode = 'clarify_later'` : Prisma.empty}
+      ${budgetFilterSql({
+        minCents:
+          query.budgetMin === undefined ? undefined : query.budgetMin * 100,
+        maxCents:
+          query.budgetMax === undefined ? undefined : query.budgetMax * 100,
+        unknown: query.budgetUnknown,
+        percent: query.budgetPercent,
+        percentMax: query.percentMax,
+      })}
       ${query.noBids ? Prisma.sql`AND c.bids_count = 0` : Prisma.empty}
       AND NOT EXISTS (SELECT 1 FROM user_blocks ub
         WHERE (ub.blocker_id = ${viewer.userId}::UUID AND ub.blocked_id = c.client_id)
@@ -318,7 +331,7 @@ export class CasesFeedService {
     ]);
     const media = this.photos
       ? await this.photos.forViewer(caseId, attorneyId)
-      : { photos: [], photosCount: 0 };
+      : { photos: [], photosCount: 0, privateDetails: null };
     return {
       ...item,
       description: row.description,
@@ -443,14 +456,20 @@ export class CasesFeedService {
       ]);
     const bidCaseIds = new Set(ownBids.map((b) => b.case_id));
     const savedIds = new Set(saved.map((s) => s.item_id));
-    const promotedEnds = await this.activePromotedEnds(ids);
+    // Owner 2026-10-18 (speed): these four reads do not depend on each other.
+    const [promotedEnds, priorityClients, activity, thresholds] =
+      await Promise.all([
+        this.activePromotedEnds(ids),
+        this.priorityClientIds(rows.map((r) => r.client_id)),
+        this.activityOf(
+          attorneyId,
+          rows.map((r) => r.client_id),
+        ),
+        loadUrgencyThresholds(this.settings),
+      ]);
     const promoted = new Set(promotedEnds.keys());
-    const priorityClients = await this.priorityClientIds(
-      rows.map((r) => r.client_id),
-    );
     const byId = new Map(rows.map((r) => [r.id, r]));
     const now = Date.now();
-    const thresholds = await loadUrgencyThresholds(this.settings);
     const items: CaseFeedItemDto[] = [];
     for (const id of ids) {
       const c = byId.get(id);
@@ -482,7 +501,11 @@ export class CasesFeedService {
           .map((s) => s.state_code),
         city: c.city,
         status: c.status,
-        budget: { mode: c.budget_mode, amountCents: c.budget_cents },
+        budget: {
+          mode: c.budget_mode,
+          amountCents: c.budget_cents,
+          percentBps: c.budget_percent_bps,
+        },
         coverKey: c.cover_key,
         ...urgencyFields(c, new Date(now), thresholds),
         viewCount: c.view_count,
@@ -500,14 +523,31 @@ export class CasesFeedService {
         promoted: promoted.has(c.id),
         promotedUntil: promotedEnds.get(c.id)?.toISOString() ?? null,
         priorityClient: priorityClients.has(c.client_id),
+        clientActivity: activity.get(c.client_id) ?? null,
         dossier: {
           imagesCount: files.get(c.id)?.images ?? 0,
           documentsCount: files.get(c.id)?.documents ?? 0,
           descriptionLength: c.description.length,
+          privateDetailsLength: c.private_details?.length ?? 0,
         },
       });
     }
     return items;
+  }
+
+  /** Owner 2026-10-18 (OQ-054): the card's «В сети / Был …» data, only for
+   * clients whose activity status is shown to this attorney. Best effort:
+   * none on any error. */
+  private async activityOf(
+    attorneyId: string,
+    clientIds: string[],
+  ): Promise<Map<string, ClientActivityView>> {
+    if (!this.clientActivity) return new Map();
+    try {
+      return await this.clientActivity.forClients(attorneyId, clientIds);
+    } catch {
+      return new Map();
+    }
   }
 
   /** Owner 2026-10-05: which of these clients are on a plan with "cases

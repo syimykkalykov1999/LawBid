@@ -72,7 +72,11 @@ export function renderCaseHistoryPdf(input: {
     for (const c of input.cases) {
       doc.moveDown(1).fillColor(NAVY).fontSize(13).text(c.title);
       const bid = c.acceptedBid
-        ? ` · Accepted bid: ${money(c.acceptedBid.amountCents)} (${c.acceptedBid.feeType})`
+        ? ` · Accepted bid: ${
+            c.acceptedBid.percentBps !== null
+              ? `${c.acceptedBid.percentBps / 100}%`
+              : money(c.acceptedBid.amountCents)
+          } (${c.acceptedBid.feeType})`
         : '';
       doc
         .fillColor(MUTED)

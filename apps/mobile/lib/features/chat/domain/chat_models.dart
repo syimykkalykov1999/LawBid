@@ -21,6 +21,7 @@ class Counterpart {
     this.displayName,
     this.username,
     this.avatarUrl,
+    this.avatarFullUrl,
     this.online,
     this.lastSeenAt,
   });
@@ -30,6 +31,9 @@ class Counterpart {
   final String? displayName;
   final String? username;
   final String? avatarUrl;
+
+  /// Owner 2026-10-18: the full-size photo (full-screen view).
+  final String? avatarFullUrl;
   final bool verified;
 
   /// Owner 2026-10-01: online now; null = not shown (hidden activity
@@ -65,7 +69,12 @@ class Conversation {
     this.note,
     this.pinnedAt,
     this.blocked = false,
+    this.matchedMessage,
   });
+
+  /// Owner 2026-10-18: in a search by text, the message that matched —
+  /// shown instead of the last-message preview.
+  final String? matchedMessage;
 
   /// Audit 2026-10-04: either side blocked the other. An accepted case
   /// chat that is not closed keeps working (see [blockedHere]).
@@ -216,6 +225,12 @@ class ChatAttachment {
   final double progress;
 
   /// Lowercase extension of [name] ("pdf", "xlsx"…), '' when none.
+  /// Owner 2026-10-17: a video (MP4 / MOV).
+  bool get isVideo =>
+      (mime?.startsWith('video/') ?? false) ||
+      extension == 'mp4' ||
+      extension == 'mov';
+
   String get extension {
     final dot = name.lastIndexOf('.');
     return dot < 0 || dot == name.length - 1

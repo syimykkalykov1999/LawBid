@@ -15,6 +15,8 @@ const SCOPE = 'https://www.googleapis.com/auth/firebase.messaging';
 /** Devices already served for a logical push, kept for the retry window. */
 const SENT_TTL_SEC = 24 * 3600;
 const FCM_TIMEOUT_MS = 10_000;
+/** A ring is useless once the call stopped ringing (server: 40 s). */
+const CALL_TTL_SEC = 45;
 
 /** A temporary FCM failure: BullMQ retries the job (§9.5: 3 attempts,
  * exponential backoff). */
@@ -59,7 +61,12 @@ export class FcmPushSender implements PushSender {
     const sentKey = `push:sent:${dedupeKey}`;
     const { token: access } = await this.jwt.getAccessToken();
     let temporary = 0;
+    const skip = new Set(message.skipTokens ?? []);
+    if (message.callEnd) {
+      for (const t of await this.tokens.webTokens(message.userId)) skip.add(t);
+    }
     for (const device of devices) {
+      if (skip.has(device)) continue;
       // Claim the device before the call: a crash between FCM's 200 and
       // the mark can at most skip a push, never double it (load review).
       const claimed = await this.redis.set(
@@ -80,61 +87,90 @@ export class FcmPushSender implements PushSender {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            message: {
-              token: device,
-              // OQ-041: Android rings from a data-only message (the app
-              // draws the full-screen call UI); iOS gets a time-sensitive
-              // alert.
-              ...(message.call
-                ? {}
-                : {
-                    notification: { title: message.title, body: message.body },
-                  }),
-              data: message.call
-                ? { ...message.data, title: message.title, body: message.body }
-                : message.data,
-              android: message.call
-                ? { priority: 'high', ttl: '45s' }
-                : {
-                    priority: 'high',
-                    ...(message.sound
-                      ? {
-                          notification: {
-                            channel_id: PUSH_SOUNDS[message.sound].channelId,
-                            sound: PUSH_SOUNDS[message.sound].android,
-                          },
-                        }
-                      : {}),
-                  },
-              apns: {
-                ...(message.call ? { headers: { 'apns-priority': '10' } } : {}),
-                payload: {
-                  aps: {
-                    // Owner 2026-10-02: a call the user switched off in
-                    // Settings arrives without sound (data.silent = '1').
-                    ...(message.call && message.data?.silent === '1'
-                      ? {}
-                      : {
-                          sound: message.sound
-                            ? PUSH_SOUNDS[message.sound].ios
-                            : 'default',
-                        }),
-                    ...(message.call
-                      ? {
-                          alert: { title: message.title, body: message.body },
-                          'interruption-level':
-                            message.data?.silent === '1'
-                              ? 'active'
-                              : 'time-sensitive',
-                        }
-                      : {}),
-                    ...(message.badge !== undefined
-                      ? { badge: message.badge }
-                      : {}),
+            message: message.callEnd
+              ? callEndMessage(device, message)
+              : {
+                  token: device,
+                  // OQ-041: Android rings from a data-only message (the app
+                  // draws the full-screen call UI); iOS gets a time-sensitive
+                  // alert.
+                  ...(message.call
+                    ? {}
+                    : {
+                        notification: {
+                          title: message.title,
+                          body: message.body,
+                        },
+                      }),
+                  data: message.call
+                    ? {
+                        ...message.data,
+                        title: message.title,
+                        body: message.body,
+                      }
+                    : message.data,
+                  android: message.call
+                    ? { priority: 'high', ttl: `${CALL_TTL_SEC}s` }
+                    : {
+                        priority: 'high',
+                        ...(message.sound
+                          ? {
+                              notification: {
+                                channel_id:
+                                  PUSH_SOUNDS[message.sound].channelId,
+                                sound: PUSH_SOUNDS[message.sound].android,
+                              },
+                            }
+                          : {}),
+                      },
+                  apns: {
+                    // Push 2026-10-19: delivered at once (screen off / Low Power
+                    // mode too) as a visible alert; a call is useless after it
+                    // stops ringing, so it expires with the ring.
+                    headers: {
+                      'apns-priority': '10',
+                      'apns-push-type': 'alert',
+                      ...(message.call
+                        ? {
+                            'apns-expiration': String(
+                              Math.floor(Date.now() / 1000) + CALL_TTL_SEC,
+                            ),
+                          }
+                        : {}),
+                    },
+                    payload: {
+                      aps: {
+                        // Owner 2026-10-02: a call the user switched off in
+                        // Settings arrives without sound (data.silent = '1').
+                        ...(message.call && message.data?.silent === '1'
+                          ? {}
+                          : {
+                              sound: message.sound
+                                ? PUSH_SOUNDS[message.sound].ios
+                                : 'default',
+                            }),
+                        ...(message.call
+                          ? {
+                              alert: {
+                                title: message.title,
+                                body: message.body,
+                              },
+                              'interruption-level':
+                                message.data?.silent === '1'
+                                  ? 'active'
+                                  : 'time-sensitive',
+                            }
+                          : {}),
+                        ...(message.badge !== undefined
+                          ? { badge: message.badge }
+                          : {}),
+                        // Lets a notification service extension (if one is
+                        // added) enrich the alert; ignored without one.
+                        'mutable-content': 1,
+                      },
+                    },
                   },
                 },
-              },
-            },
           }),
         });
       } catch (error) {
@@ -222,4 +258,24 @@ export class DynamicPushSender implements PushSender {
       (e) => e instanceof FcmTemporaryError,
     );
   }
+}
+
+/** Push 2026-10-19: "stop ringing" — data-only on both platforms: Android
+ * wakes the background handler (high priority, short ttl), iOS gets a
+ * silent background push (content-available, which Apple requires to be
+ * priority 5). Nothing is shown. */
+function callEndMessage(device: string, message: PushMessage) {
+  return {
+    token: device,
+    data: message.data,
+    android: { priority: 'high', ttl: `${CALL_TTL_SEC}s` },
+    apns: {
+      headers: {
+        'apns-priority': '5',
+        'apns-push-type': 'background',
+        'apns-expiration': String(Math.floor(Date.now() / 1000) + CALL_TTL_SEC),
+      },
+      payload: { aps: { 'content-available': 1 } },
+    },
+  };
 }

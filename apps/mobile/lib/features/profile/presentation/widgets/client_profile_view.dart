@@ -29,7 +29,9 @@ class ClientProfileView extends ConsumerWidget {
     void retry() => ref.invalidate(clientProfileProvider);
 
     return AnimatedSwitcher(
-      duration: context.reduceMotion ? Duration.zero : AppMotion.stateChange,
+      // Owner 2026-10-19 («мигание»): loading, data and tab bodies
+      // swap at once (Instagram), no cross-fade.
+      duration: Duration.zero,
       child: profile.when(
         skipLoadingOnReload: true,
         loading: () => const _ClientSkeleton(key: ValueKey('loading')),

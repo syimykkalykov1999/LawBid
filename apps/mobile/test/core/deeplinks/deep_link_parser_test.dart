@@ -90,6 +90,48 @@ void main() {
         isNull,
       );
     });
+
+    test('Stripe return pages land on the screen that re-reads it', () {
+      DeepLink? web(String path) => parseDeepLink(
+            Uri.parse('https://lawbid.dev$path'),
+            host: 'lawbid.dev',
+            webTabs: true,
+          );
+      const id = '3f0c9a8e-1b2d-4c5e-9f00-112233445566';
+      expect(
+        web('/payment/success?payment_id=p1&case_id=$id'),
+        const TabDeepLink('/payment/success?case_id=$id'),
+      );
+      expect(
+        web('/payment/cancel?case_id=bad%20id'),
+        const TabDeepLink('/payment/cancel'),
+      );
+      expect(
+        web('/subscription/success?session_id=cs_1'),
+        const TabDeepLink('/profile/settings/subscription'),
+      );
+      expect(
+        web('/plan/cancel'),
+        const TabDeepLink('/profile/settings/client-plan'),
+      );
+      expect(
+        web('/verification/success'),
+        const TabDeepLink('/profile/settings/verify-account'),
+      );
+      expect(
+        web('/bid-packs/success?purchase_id=x'),
+        const TabDeepLink('/profile/settings/bid-packs'),
+      );
+      expect(web('/payout/return'), const TabDeepLink('/payout/return'));
+      expect(web('/plan/other'), isNull);
+      expect(
+        parseDeepLink(
+          Uri.parse('https://lawbid.dev/plan/success'),
+          host: 'lawbid.dev',
+        ),
+        isNull,
+      );
+    });
   });
 
   group('content links (docs/01 §12)', () {

@@ -145,7 +145,7 @@ function More({ q }: { q: { hasNextPage: boolean; isFetchingNextPage: boolean; f
 
 function SearchBox({ id, value, onChange, placeholder }: { id: string; value: string; onChange: (v: string) => void; placeholder: string }) {
   return (
-    <div className="w-80 space-y-1">
+    <div className="w-full space-y-1 sm:w-80">
       <Label htmlFor={id}>Поиск</Label>
       <div className="relative">
         <MagnifyingGlass size={16} weight="light" className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-faint" />
@@ -332,6 +332,7 @@ function Posts({ ask }: { ask: Ask }) {
                   {p.contentClassLocked ? ' · закреплено' : ''}
                 </Badge>
                 {p.hasVideo ? <Badge tone="info">видео</Badge> : null}
+                {p.archived ? <Badge tone="neutral">В архиве у автора</Badge> : null}
                 {p.attachments > 0 ? (
                   <Badge tone="info">файлы: {p.attachments}</Badge>
                 ) : null}

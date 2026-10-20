@@ -172,10 +172,12 @@ class NewCaseAlerts {
 enum NotifGroup { important, other }
 
 abstract interface class NotificationsRepository {
-  /// [group] null = every notification.
+  /// [group] null = every notification; [query] null/empty = no search
+  /// (Owner 2026-10-18: matches the text and the attorney's name).
   Future<CursorPage<AppNotification>> list({
     String? cursor,
     NotifGroup? group,
+    String? query,
   });
   Future<void> markRead({List<String>? ids, bool all = false});
   Future<Badges> badges();
@@ -197,6 +199,14 @@ abstract interface class NotificationsRepository {
     bool web = false,
   });
   Future<void> deletePushToken(String token);
+
+  /// Owner 2026-10-17: an iPhone's PushKit token for incoming calls.
+  Future<void> registerVoipToken(
+    String token, {
+    required String bundleId,
+    required bool production,
+  });
+  Future<void> deleteVoipToken(String token);
 }
 
 class ApiNotificationsRepository implements NotificationsRepository {
@@ -240,10 +250,12 @@ class ApiNotificationsRepository implements NotificationsRepository {
   Future<CursorPage<AppNotification>> list({
     String? cursor,
     NotifGroup? group,
+    String? query,
   }) async {
     final env = await guardApiCall(
       () => _api.listNotifications(
         cursor: cursor,
+        q: (query == null || query.trim().isEmpty) ? null : query.trim(),
         group: switch (group) {
           NotifGroup.important => api.NotificationGroup.important,
           NotifGroup.other => api.NotificationGroup.other,
@@ -390,5 +402,28 @@ class ApiNotificationsRepository implements NotificationsRepository {
   @override
   Future<void> deletePushToken(String token) => guardApiCall(
         () => _api.deletePushToken(body: api.DeletePushTokenDto(token: token)),
+      );
+
+  @override
+  Future<void> registerVoipToken(
+    String token, {
+    required String bundleId,
+    required bool production,
+  }) =>
+      guardApiCall(
+        () => _api.registerVoipToken(
+          body: api.VoipTokenDto(
+            token: token,
+            bundleId: bundleId,
+            environment: production
+                ? api.VoipTokenDtoEnvironment.production
+                : api.VoipTokenDtoEnvironment.sandbox,
+          ),
+        ),
+      );
+
+  @override
+  Future<void> deleteVoipToken(String token) => guardApiCall(
+        () => _api.deleteVoipToken(body: api.DeletePushTokenDto(token: token)),
       );
 }

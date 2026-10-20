@@ -272,10 +272,30 @@ export class UserProfilesService {
           preferred_contact_note: dto.contactNote || null,
         }),
       };
+      // Owner 2026-10-18: a chosen @username only during sign-up (after
+      // onboarding the profile edit and its cooldown apply).
+      const signedUp =
+        existing &&
+        (
+          await tx.onboardingState.findUnique({
+            where: { user_id: userId },
+            select: { completed_at: true },
+          })
+        )?.completed_at;
+      const chosen =
+        dto.username === undefined || signedUp
+          ? null
+          : await this.chosenUsername(tx, userId, dto.username);
       if (existing) {
         await tx.clientProfile.update({
           where: { user_id: userId },
-          data: fields,
+          data: {
+            ...fields,
+            ...(chosen && {
+              username: chosen,
+              username_lower: chosen.toLowerCase(),
+            }),
+          },
         });
       } else {
         if (!dto.stateCode) {
@@ -288,12 +308,14 @@ export class UserProfilesService {
           where: { id: userId },
           select: { first_name: true, last_name: true },
         });
-        const username = await this.usernames.allocate(
-          tx,
-          user.first_name,
-          user.last_name,
-          CLIENT_USERNAME_FALLBACK,
-        );
+        const username =
+          chosen ??
+          (await this.usernames.allocate(
+            tx,
+            user.first_name,
+            user.last_name,
+            CLIENT_USERNAME_FALLBACK,
+          ));
         await tx.clientProfile.create({
           data: {
             preferred_languages: [],
@@ -367,19 +389,42 @@ export class UserProfilesService {
             }),
             ...(dto.languages !== undefined && { languages: dto.languages }),
           };
+          // Owner 2026-10-18: a chosen @username is taken during sign-up
+          // only; after onboarding a change goes through the profile edit
+          // (with its cooldown), never through this step.
+          const signedUp =
+            existing &&
+            (
+              await tx.onboardingState.findUnique({
+                where: { user_id: userId },
+                select: { completed_at: true },
+              })
+            )?.completed_at;
+          const chosen =
+            dto.username === undefined || signedUp
+              ? null
+              : await this.chosenUsername(tx, userId, dto.username, reserved);
           if (existing) {
             await tx.attorneyProfile.update({
               where: { user_id: userId },
-              data: fields,
+              data: {
+                ...fields,
+                ...(chosen && {
+                  username: chosen,
+                  username_lower: chosen.toLowerCase(),
+                }),
+              },
             });
           } else {
-            const username = await this.usernames.allocate(
-              tx,
-              user.first_name,
-              user.last_name,
-              USERNAME_FALLBACK,
-              reserved,
-            );
+            const username =
+              chosen ??
+              (await this.usernames.allocate(
+                tx,
+                user.first_name,
+                user.last_name,
+                USERNAME_FALLBACK,
+                reserved,
+              ));
             await tx.attorneyProfile.create({
               data: {
                 languages: [],
@@ -400,6 +445,41 @@ export class UserProfilesService {
         throw error;
       }
     }
+  }
+
+  /**
+   * Owner 2026-10-18 («как в инсте»): the handle picked on the sign-up
+   * form — refused like an edit when reserved or held by anyone else of
+   * either role (OQ-026). Not an edit: no cooldown is stamped.
+   */
+  private async chosenUsername(
+    tx: Tx,
+    userId: string,
+    username: string,
+    reserved?: ReadonlySet<string>,
+  ): Promise<string> {
+    const lower = username.toLowerCase();
+    if ((reserved ?? (await this.usernames.reserved())).has(lower)) {
+      throw new HttpException(
+        {
+          code: ErrorCode.USERNAME_RESERVED,
+          message: 'This username is reserved.',
+          details: { field: 'username' },
+        },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+    if (await this.usernames.isTaken(tx, lower, userId)) {
+      throw new HttpException(
+        {
+          code: ErrorCode.USERNAME_TAKEN,
+          message: 'This username is already taken.',
+          details: { field: 'username' },
+        },
+        HttpStatus.CONFLICT,
+      );
+    }
+    return username;
   }
 
   private async updateNames(

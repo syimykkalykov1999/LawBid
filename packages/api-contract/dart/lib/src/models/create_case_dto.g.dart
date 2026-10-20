@@ -16,6 +16,7 @@ CreateCaseDto _$CreateCaseDtoFromJson(Map<String, dynamic> json) =>
       extraPracticeAreaIds: (json['extraPracticeAreaIds'] as List<dynamic>?)
           ?.map((e) => e as String)
           .toList(),
+      privateDetails: json['privateDetails'] as String?,
       additionalStateCodes: (json['additionalStateCodes'] as List<dynamic>?)
           ?.map((e) => e as String)
           .toList(),
@@ -24,6 +25,7 @@ CreateCaseDto _$CreateCaseDtoFromJson(Map<String, dynamic> json) =>
           ?.map((e) => e as String)
           .toList(),
       budgetAmountDollars: (json['budgetAmountDollars'] as num?)?.toInt(),
+      budgetPercentBps: (json['budgetPercentBps'] as num?)?.toInt(),
       clientContactSharingConsent: json['clientContactSharingConsent'] as bool?,
       coverKey: json['coverKey'] as String?,
       urgency: json['urgency'] == null
@@ -43,12 +45,14 @@ Map<String, dynamic> _$CreateCaseDtoToJson(CreateCaseDto instance) =>
       'extraPracticeAreaIds': ?instance.extraPracticeAreaIds,
       'title': instance.title,
       'description': instance.description,
+      'privateDetails': ?instance.privateDetails,
       'primaryStateCode': instance.primaryStateCode,
       'additionalStateCodes': ?instance.additionalStateCodes,
       'city': ?instance.city,
       'budgetMode': instance.budgetMode.toJson(),
       'photoFileIds': ?instance.photoFileIds,
       'budgetAmountDollars': ?instance.budgetAmountDollars,
+      'budgetPercentBps': ?instance.budgetPercentBps,
       'clientContactSharingConsent': ?instance.clientContactSharingConsent,
       'coverKey': ?instance.coverKey,
       'urgency': ?instance.urgency?.toJson(),

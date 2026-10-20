@@ -118,6 +118,7 @@ class ApiInvitesRepository implements InvitesRepository {
         caseBudget: CaseBudget(
           mode: d.caseBudget.mode,
           amountCents: d.caseBudget.amountCents,
+          percentBps: d.caseBudget.percentBps,
         ),
         caseDossier: CasesMappers.dossier(d.caseDossier),
       );

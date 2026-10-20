@@ -10,7 +10,7 @@ import { ErrorNote, PageHeader, SectionTitle } from '@/components/page-header';
 import { useReason } from '@/components/reason-dialog';
 import { TrustPanel } from '@/components/trust/trust-panel';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge, Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/empty';
 import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { useToast } from '@/components/ui/toast';
@@ -329,6 +329,7 @@ export default function VerificationCardPage() {
                       {d.mime} · {(d.sizeBytes / 1024).toFixed(0)} KB · {formatDateTime(d.createdAt)}
                       {d.scanStatus !== 'clean' ? ` · антивирус: ${label(SCAN_STATUS, d.scanStatus)}` : ''}
                     </div>
+                    {d.notes ? <div className="mt-1 text-xs text-ink">Комментарий адвоката: {d.notes}</div> : null}
                     </div>
                   </div>
                   <Button size="sm" variant="outline" disabled={openDocument.isPending || d.scanStatus !== 'clean'} onClick={() => openDocument.mutate(d.id)}>
@@ -366,6 +367,12 @@ export default function VerificationCardPage() {
                 <Td>{l.stateCode} <span className="text-xs text-muted">{l.stateName}</span></Td>
                 <Td className="font-mono text-xs">
                   {l.barNumber}
+                  {/* Owner 2026-10-18: the attorney insisted on a number that does not fit the state's format. */}
+                  {l.registryFlag === 'format_unusual' ? (
+                    <div className="mt-1 font-sans">
+                      <Badge tone="warning">Номер не по формату штата — проверить вручную</Badge>
+                    </div>
+                  ) : null}
                   {l.lookupUrl ? (
                     <a href={l.lookupUrl} target="_blank" rel="noreferrer" className="mt-1 block font-sans text-primary underline">
                       Открыть в коллегии штата

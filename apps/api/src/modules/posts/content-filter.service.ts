@@ -1,7 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
+import type Redis from 'ioredis';
 import type { Prisma } from '@prisma/client';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { REDIS_CLIENT } from '../../redis/redis.constants';
 
 /**
  * Owner 2026-10-05: every post is 'legal' (a law topic, News, or marked by
@@ -53,11 +55,19 @@ export function contentModeWhere(mode: FeedContentMode): Prisma.PostWhereInput {
   return {};
 }
 
+/** Owner 2026-10-18 (speed): a viewer's own mode is read on every feed,
+ * search and recommendation call; it is kept in Redis for a minute and
+ * dropped in setMode. '-' means "never picked" (the admin default applies,
+ * read fresh through AppSettingsService). */
+const MODE_CACHE_TTL_SECONDS = 60;
+const modeCacheKey = (userId: string) => `feed:content_mode:${userId}`;
+
 @Injectable()
 export class ContentFilterService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly settings: AppSettingsService,
+    @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {}
 
   /** The admin default for people who never picked a mode. */
@@ -68,11 +78,23 @@ export class ContentFilterService {
 
   /** The viewer's mode: their own choice, else the admin default. */
   async modeOf(userId: string): Promise<FeedContentMode> {
+    const cached = await this.redis.get(modeCacheKey(userId)).catch(() => null);
+    if (cached !== null) {
+      return isFeedContentMode(cached) ? cached : this.defaultMode();
+    }
     const row = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { feed_content_mode: true },
     });
     const own = row?.feed_content_mode;
+    await this.redis
+      .set(
+        modeCacheKey(userId),
+        isFeedContentMode(own) ? own : '-',
+        'EX',
+        MODE_CACHE_TTL_SECONDS,
+      )
+      .catch(() => undefined);
     return isFeedContentMode(own) ? own : this.defaultMode();
   }
 
@@ -84,6 +106,7 @@ export class ContentFilterService {
       where: { id: userId },
       data: { feed_content_mode: mode },
     });
+    await this.redis.del(modeCacheKey(userId)).catch(() => undefined);
     return mode;
   }
 }

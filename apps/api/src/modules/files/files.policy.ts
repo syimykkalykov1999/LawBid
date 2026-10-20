@@ -31,6 +31,13 @@ export const FILE_MIME = {
   rtf: 'application/rtf',
   txt: 'text/plain',
   csv: 'text/csv',
+  // Owner 2026-10-17: videos in a chat (WhatsApp-like), compressed on the
+  // phone. Stored as uploaded — never decoded on the server.
+  mp4: 'video/mp4',
+  mov: 'video/quicktime',
+  // Owner 2026-10-19: a WebM video from a computer (the browser sends it
+  // as it is; phones can play it only in the web version).
+  webmVideo: 'video/webm',
 } as const;
 export type FileMime = (typeof FILE_MIME)[keyof typeof FILE_MIME];
 export const ALL_FILE_MIMES: readonly FileMime[] = Object.values(FILE_MIME);
@@ -84,12 +91,13 @@ const DOCS: readonly FileMime[] = [
  * - verification_selfie: camera photo.
  */
 export const PURPOSE_RULES: Record<FilePurpose, PurposeRule> = {
+  // Owner 2026-10-19: a GIF too (its first frame, like any photo).
   avatar: {
-    mimes: IMAGES,
+    mimes: [...IMAGES, FILE_MIME.gif],
     bucket: 'media',
   },
   post_image: {
-    mimes: IMAGES,
+    mimes: [...IMAGES, FILE_MIME.gif],
     bucket: 'media',
   },
   // Owner 2026-10-01: sticker images — PNG/WebP with transparency, kept
@@ -101,7 +109,7 @@ export const PURPOSE_RULES: Record<FilePurpose, PurposeRule> = {
   },
   // Owner 2026-10-01: photos in reviews — public like post photos.
   review_photo: {
-    mimes: IMAGES,
+    mimes: [...IMAGES, FILE_MIME.gif],
     bucket: 'media',
   },
   // OQ-031: private (documents bucket, short signed links, never the CDN).
@@ -112,13 +120,35 @@ export const PURPOSE_RULES: Record<FilePurpose, PurposeRule> = {
   // OQ-034: case documents — photos, PDF, Word; private like case photos
   // (only the owner and the attorney whose bid was accepted open them).
   case_attachment: {
-    mimes: [...IMAGES, ...DOCS],
+    // Owner 2026-10-19: and videos (from the phone's gallery or a computer).
+    mimes: [...IMAGES, ...DOCS, FILE_MIME.mp4, FILE_MIME.mov],
     bucket: 'documents',
   },
   // OQ-047: photos and documents in a chat once the bid is accepted;
-  // private.
+  // private. Owner 2026-10-17: and videos.
   chat_attachment: {
-    mimes: [...IMAGES, FILE_MIME.gif, ...DOCS],
+    mimes: [
+      ...IMAGES,
+      FILE_MIME.gif,
+      ...DOCS,
+      FILE_MIME.mp4,
+      FILE_MIME.mov,
+      FILE_MIME.webmVideo,
+    ],
+    bucket: 'documents',
+  },
+  // Owner 2026-10-18 (OQ-055): files in a support ticket, both ways —
+  // photos, documents and videos like a chat; private, opened only by the
+  // ticket's user and the support staff.
+  support_attachment: {
+    mimes: [
+      ...IMAGES,
+      FILE_MIME.gif,
+      ...DOCS,
+      FILE_MIME.mp4,
+      FILE_MIME.mov,
+      FILE_MIME.webmVideo,
+    ],
     bucket: 'documents',
   },
   // OQ-048: documents an assistant attaches to a task (same formats).
@@ -245,6 +275,7 @@ export const DEDUP_PROFILE: Partial<Record<FilePurpose, DedupProfile>> = {
   case_photo: 'fitted',
   case_attachment: 'fitted',
   chat_attachment: 'fitted',
+  support_attachment: 'fitted',
   sticker: 'raw',
   post_attachment: 'raw',
   document_template: 'raw',

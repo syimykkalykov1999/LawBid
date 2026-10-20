@@ -24,8 +24,11 @@ import 'package:lawbid/features/cases/presentation/widgets/case_parts.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:lawbid/features/cases/presentation/widgets/client_review_sheet.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
+import 'package:lawbid/features/cases/presentation/widgets/private_details_card.dart';
 import 'package:lawbid/features/cases/workspace/workspace_view.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
+import 'package:lawbid/features/profile/domain/profile_models.dart'
+    show initialsOf;
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -245,6 +248,13 @@ class _WorkCaseScreenState extends ConsumerState<WorkCaseScreen> {
           text: c.description ?? '',
           moreLabel: t.t('post.more'),
         ),
+        // Audit 2026-10-19: the client's «Подробности» for the hired
+        // attorney, as text.
+        PrivateDetailsCard(
+          caseId: c.id,
+          text: c.privateDetails,
+          isOwner: false,
+        ),
         if (c.ownBidId != null)
           Padding(
             padding: side(AppSpacing.lg),
@@ -274,6 +284,13 @@ class _WorkCaseScreenState extends ConsumerState<WorkCaseScreen> {
                 .caption
                 .copyWith(color: colors.textSecondary),
           ),
+        ),
+        // Audit 2026-10-19: the client's Overview had the case questions,
+        // the hired attorney's had no way to them.
+        AppListRow(
+          icon: AppIcons.modeCommentOutlined,
+          label: t.t('cases.comments.button'),
+          onTap: () => context.push(AppRoutes.caseComments(c.id)),
         ),
       ],
     );
@@ -391,7 +408,13 @@ class _TermsLine extends ConsumerWidget {
         children: [
           Expanded(
             child: MoneyText(
-              CaseFormat.terms(t, formats, bid.feeType, bid.amountCents),
+              CaseFormat.terms(
+                t,
+                formats,
+                bid.feeType,
+                bid.amountCents,
+                percentBps: bid.percentBps,
+              ),
             ),
           ),
           AppIcon(
@@ -438,7 +461,11 @@ class _ContactsBlock extends ConsumerWidget {
               Row(
                 children: [
                   AppAvatar(
-                    initials: initialsOf(value.firstName, value.lastName),
+                    initials: initialsOf(
+                      value.firstName,
+                      value.lastName,
+                      fallback: '·',
+                    ),
                   ),
                   const SizedBox(width: AppSpacing.md),
                   Expanded(

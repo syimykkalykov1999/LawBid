@@ -64,6 +64,13 @@ export class HistoryAcceptedBidDto {
   @ApiProperty({ type: 'integer', description: 'Final amount in cents.' })
   amountCents!: number;
 
+  @ApiPropertyOptional({
+    type: 'integer',
+    nullable: true,
+    description: 'Owner 2026-10-17: contingency → basis points.',
+  })
+  percentBps!: number | null;
+
   @ApiProperty({ enum: FeeType, enumName: 'FeeType' })
   feeType!: FeeType;
 }
@@ -126,6 +133,13 @@ export class CaseHistoryEventDto {
 
   @ApiPropertyOptional({ type: 'integer', nullable: true })
   amountCents!: number | null;
+
+  @ApiPropertyOptional({
+    type: 'integer',
+    nullable: true,
+    description: 'Owner 2026-10-17: contingency → basis points.',
+  })
+  percentBps!: number | null;
 
   @ApiPropertyOptional({
     enum: FeeType,

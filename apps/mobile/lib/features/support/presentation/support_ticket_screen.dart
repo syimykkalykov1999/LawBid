@@ -7,6 +7,8 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/limits/text_limits.dart';
 import 'package:lawbid/features/support/application/support_providers.dart';
 import 'package:lawbid/features/support/domain/support_models.dart';
+import 'package:lawbid/features/support/presentation/support_attach_controller.dart';
+import 'package:lawbid/features/support/presentation/support_attachment_widgets.dart';
 
 /// Owner 2026-10-02 — one request: the conversation with the team, a reply
 /// box while it is open, "Close request".
@@ -22,13 +24,36 @@ class SupportTicketScreen extends ConsumerStatefulWidget {
 
 class _SupportTicketScreenState extends ConsumerState<SupportTicketScreen> {
   final _text = TextEditingController();
+  late final SupportAttachController _files = SupportAttachController(ref);
   bool _busy = false;
 
   @override
+  void initState() {
+    super.initState();
+    _files.addListener(_changed);
+    _text.addListener(_changed);
+  }
+
+  void _changed() {
+    if (mounted) setState(() {});
+  }
+
+  @override
   void dispose() {
-    _text.dispose();
+    _files
+      ..removeListener(_changed)
+      ..dispose();
+    _text
+      ..removeListener(_changed)
+      ..dispose();
     super.dispose();
   }
+
+  /// Words or at least one file, and every file finished uploading.
+  bool get _canSend =>
+      !_busy &&
+      _files.settled &&
+      (_text.text.trim().isNotEmpty || _files.attachments.isNotEmpty);
 
   Future<void> _run(Future<void> Function() action) async {
     final t = ref.read(translatorProvider);
@@ -45,10 +70,15 @@ class _SupportTicketScreenState extends ConsumerState<SupportTicketScreen> {
 
   Future<void> _send() async {
     final body = _text.text.trim();
-    if (body.isEmpty || _busy) return;
+    if (!_canSend) return;
     await _run(() async {
-      await ref.read(supportRepositoryProvider).reply(widget.ticketId, body);
+      await ref.read(supportRepositoryProvider).reply(
+            widget.ticketId,
+            body,
+            attachments: _files.attachments,
+          );
       _text.clear();
+      _files.clear();
     });
   }
 
@@ -116,13 +146,15 @@ class _SupportTicketScreenState extends ConsumerState<SupportTicketScreen> {
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-              Text(
-                m.body,
-                style: type.body.copyWith(
-                  color: team ? colors.text : colors.onAccent,
-                  height: 1.35,
+              if (m.body.isNotEmpty)
+                Text(
+                  m.body,
+                  style: type.body.copyWith(
+                    color: team ? colors.text : colors.onAccent,
+                    height: 1.35,
+                  ),
                 ),
-              ),
+              SupportMessageFiles(attachments: m.attachments),
               const SizedBox(height: 2),
               Text(
                 f.dateTime(m.createdAt),
@@ -198,56 +230,97 @@ class _SupportTicketScreenState extends ConsumerState<SupportTicketScreen> {
                 Container(
                   color: colors.surface,
                   padding: const EdgeInsetsDirectional.fromSTEB(
-                    AppSpacing.md,
+                    AppSpacing.xs,
                     AppSpacing.sm,
                     AppSpacing.sm,
                     AppSpacing.sm,
                   ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _text,
-                          minLines: 1,
-                          maxLines: 5,
-                          maxLength: TextLimits.of(TextLimit.supportMessage),
-                          buildCounter: (
-                            _, {
-                            required currentLength,
-                            required isFocused,
-                            maxLength,
-                          }) =>
-                              null,
-                          textCapitalization: TextCapitalization.sentences,
-                          style: type.body.copyWith(color: colors.text),
-                          decoration: InputDecoration(
-                            hintText: t.t('support.reply'),
-                            filled: true,
-                            fillColor: colors.bg,
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(24),
-                              borderSide: BorderSide(color: colors.border),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(24),
-                              borderSide: BorderSide(color: colors.border),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(24),
-                              borderSide: BorderSide(color: colors.gold),
+                      Padding(
+                        padding: const EdgeInsetsDirectional.only(
+                          start: AppSpacing.sm,
+                        ),
+                        child: SupportDraftStrip(controller: _files),
+                      ),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          SupportAttachButton(
+                            controller: _files,
+                            enabled: !_busy,
+                          ),
+                          // Owner 2026-10-19: like the chat, the counter
+                          // shows near the limit, inside the field.
+                          Expanded(
+                            child: ListenableBuilder(
+                              listenable: _text,
+                              builder: (context, _) {
+                                final max =
+                                    TextLimits.of(TextLimit.supportMessage);
+                                final from = (max * 0.9).ceil();
+                                final near =
+                                    _text.text.characters.length >= from;
+                                return InsideCounter(
+                                  controller: _text,
+                                  max: max,
+                                  showFrom: from,
+                                  child: TextField(
+                                    controller: _text,
+                                    minLines: 1,
+                                    maxLines: 5,
+                                    maxLength: max,
+                                    buildCounter: noFieldCounter,
+                                    textCapitalization:
+                                        TextCapitalization.sentences,
+                                    style:
+                                        type.body.copyWith(color: colors.text),
+                                    decoration: InputDecoration(
+                                      hintText: t.t('support.reply'),
+                                      // M3 outline padding + counter room.
+                                      contentPadding:
+                                          EdgeInsetsDirectional.fromSTEB(
+                                        12,
+                                        20,
+                                        12,
+                                        12 + (near ? kInsideCounterRoom : 0),
+                                      ),
+                                      filled: true,
+                                      fillColor: colors.bg,
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(24),
+                                        borderSide:
+                                            BorderSide(color: colors.border),
+                                      ),
+                                      enabledBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(24),
+                                        borderSide:
+                                            BorderSide(color: colors.border),
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(24),
+                                        borderSide:
+                                            BorderSide(color: colors.gold),
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
                             ),
                           ),
-                        ),
-                      ),
-                      const SizedBox(width: AppSpacing.xs),
-                      AppIconButton(
-                        icon: AppIcon(
-                          AppIcons.arrowUpwardRounded,
-                          color: colors.gold,
-                        ),
-                        semanticLabel: t.t('support.send'),
-                        onPressed: _busy ? null : _send,
+                          const SizedBox(width: AppSpacing.xs),
+                          AppIconButton(
+                            icon: AppIcon(
+                              AppIcons.arrowUpwardRounded,
+                              color:
+                                  _canSend ? colors.gold : colors.textSecondary,
+                            ),
+                            semanticLabel: t.t('support.send'),
+                            onPressed: _canSend ? _send : null,
+                          ),
+                        ],
                       ),
                     ],
                   ),

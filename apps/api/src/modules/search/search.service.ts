@@ -5,7 +5,7 @@ import {
   Injectable,
   Optional,
 } from '@nestjs/common';
-import { hiddenTagOf } from '../posts/hidden-tags';
+import { legacyTopicTags, postPracticeWhere } from '../posts/hidden-tags';
 import type { Prisma } from '@prisma/client';
 import { createHash } from 'node:crypto';
 import type Redis from 'ioredis';
@@ -302,6 +302,8 @@ export class SearchService {
       budgetMaxCents:
         dto.budgetMax === undefined ? undefined : dto.budgetMax * 100,
       budgetUnknown: dto.budgetUnknown,
+      budgetPercent: dto.budgetPercent,
+      percentMax: dto.percentMax,
       noBids: dto.noBids,
       minUrgency: dto.minUrgency,
       hasDeadline: dto.hasDeadline,
@@ -325,7 +327,12 @@ export class SearchService {
     );
     const { slice, next } = this.pageOf(ids, dto.cursor);
     // §7.6: the provider's rows still pass the single access check.
-    const visible = await this.access.visibleCaseIds(user.sub, slice);
+    const visible = await this.access.visibleCaseIds(
+      user.sub,
+      slice,
+      undefined,
+      { hidePaused: true },
+    );
     if (!dto.cursor) {
       this.queryLog?.logQuery(user.sub, 'cases', q, visible.size);
     }
@@ -419,7 +426,7 @@ export class SearchService {
       FROM tags t
       LEFT JOIN post_tags pt ON pt.tag_id = t.id
       LEFT JOIN posts p ON p.id = pt.post_id
-        AND p.status = 'published' AND p.deleted_at IS NULL
+        AND p.status = 'published' AND p.deleted_at IS NULL AND p.archived_at IS NULL
         -- Only posts anyone can see (active, not deleted authors).
         AND EXISTS (SELECT 1 FROM users u WHERE u.id = p.author_id
                     AND u.status = 'active' AND u.deleted_at IS NULL)
@@ -492,17 +499,10 @@ export class SearchService {
       // qualifications, each with its subcategories.
       ...(filter.practices?.length
         ? [
-            {
-              tags: {
-                some: {
-                  tag: {
-                    tag_lower: {
-                      in: filter.practices.map((p) => hiddenTagOf(p)),
-                    },
-                  },
-                },
-              },
-            },
+            postPracticeWhere(
+              filter.practices,
+              filter.practices.flatMap((p) => legacyTopicTags(p)),
+            ),
           ]
         : []),
       // Audit 2026-10-01: nothing of people blocked either way.
@@ -520,23 +520,10 @@ export class SearchService {
       // qualification) by their topic hashtag.
       ...(practice
         ? [
-            {
-              OR: [
-                {
-                  tags: {
-                    some: { tag: { tag_lower: hiddenTagOf(practice) } },
-                  },
-                },
-                ...(tag
-                  ? [
-                      {
-                        practice_area_id: null,
-                        tags: { some: { tag: { tag_lower: tag } } },
-                      },
-                    ]
-                  : []),
-              ],
-            },
+            postPracticeWhere(
+              [practice],
+              [...(tag ? [tag] : []), ...legacyTopicTags(practice)],
+            ),
           ]
         : []),
     ];
@@ -704,7 +691,7 @@ export class SearchService {
         SELECT p.id FROM post_tags pt
         JOIN posts p ON p.id = pt.post_id
         WHERE pt.tag_id = ${tagId}::UUID
-          AND p.status = 'published' AND p.deleted_at IS NULL
+          AND p.status = 'published' AND p.deleted_at IS NULL AND p.archived_at IS NULL
         ORDER BY p.created_at DESC
         LIMIT ${TAG_TOP_CANDIDATES}
       )

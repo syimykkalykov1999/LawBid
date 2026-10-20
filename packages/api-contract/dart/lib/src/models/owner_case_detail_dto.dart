@@ -19,36 +19,43 @@ part 'owner_case_detail_dto.g.dart';
 @JsonSerializable()
 class OwnerCaseDetailDto {
   const OwnerCaseDetailDto({
-    required this.id,
+    required this.viewCount,
     required this.title,
     required this.description,
+    required this.privateDetails,
     required this.practiceArea,
     required this.extraPracticeAreas,
     required this.primaryStateCode,
     required this.states,
     required this.budgetMode,
-    required this.status,
-    required this.viewCount,
-    required this.bidsCount,
-    required this.createdAt,
-    required this.lastActivityAt,
+    required this.id,
     required this.photos,
-    this.city,
-    this.budgetCents,
-    this.coverKey,
-    this.urgency,
-    this.urgencyLevel,
-    this.deadlineAt,
+    required this.lastActivityAt,
+    required this.canMakeNotUrgent,
+    required this.createdAt,
+    required this.bidsCount,
+    required this.stillNeededPending,
+    required this.status,
     this.deadlineKind,
+    this.deadlineAt,
+    this.urgencyLevel,
+    this.urgency,
+    this.budgetPercentBps,
     this.archivedAt,
     this.clientCompletedAt,
-    this.attorneyConfirmedAt,
+    this.budgetCents,
     this.autoCloseAt,
     this.closedAt,
     this.deletedAt,
     this.stalePromptSentAt,
+    this.pausedAt,
+    this.attorneyConfirmedAt,
+    this.city,
+    this.hidesAt,
+    this.archivesAt,
     this.acceptedBid,
     this.conversationId,
+    this.coverKey,
   });
 
   factory OwnerCaseDetailDto.fromJson(Map<String, Object?> json) =>
@@ -57,6 +64,9 @@ class OwnerCaseDetailDto {
   final String id;
   final String title;
   final String description;
+
+  /// Owner 2026-10-18: the private details — only for the owner and the accepted attorney.
+  final String? privateDetails;
   final PracticeAreaRefDto practiceArea;
 
   /// Topics 2..N of the case (owner 2026-10-15).
@@ -66,6 +76,9 @@ class OwnerCaseDetailDto {
   final String? city;
   final BudgetMode budgetMode;
   final int? budgetCents;
+
+  /// Owner 2026-10-17: budgetMode = percent → basis points.
+  final int? budgetPercentBps;
 
   /// Owner 2026-10-04: `art:0..3` / `icon:<name>`; null = from the id.
   final String? coverKey;
@@ -98,6 +111,24 @@ class OwnerCaseDetailDto {
   /// §10.2 "Is this case still relevant?" prompt time, else null. Set while.
   /// the prompt is pending; POST /cases/:id/keep-alive clears it.
   final String? stalePromptSentAt;
+
+  /// OQ-054: set when the case was paused (hidden from the attorneys' feed.
+  /// and search): the client's screens show «Кейс скрыт · Вернуть».
+  final String? pausedAt;
+
+  /// OQ-054: «Вам ещё нужен адвокат?» is waiting for an answer.
+  final bool stillNeededPending;
+
+  /// OQ-054: «Сменить на «Не срочно»» is offered (urgent / very urgent.
+  /// and older than 7 days).
+  final bool canMakeNotUrgent;
+
+  /// OQ-054: when the unanswered question hides the case from the.
+  /// attorneys' feed (null = no question waiting).
+  final String? hidesAt;
+
+  /// OQ-054: when a paused case moves to the archive (null = not paused).
+  final String? archivesAt;
   final CaseBidItemDto? acceptedBid;
 
   /// Chat with the accepted attorney (docs/05).

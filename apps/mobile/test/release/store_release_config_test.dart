@@ -106,6 +106,32 @@ void main() {
     );
   });
 
+  test('Android: plain http only in the dev flavor (every build type)', () {
+    // Owner 2026-10-18: a dev `--release` APK on a phone played no reel —
+    // the native video player refused the LAN http stream. The dev flavor
+    // allows cleartext in debug, profile and release; prod/staging never.
+    expect(
+      read('android/app/src/dev/AndroidManifest.xml'),
+      contains('android:usesCleartextTraffic="true"'),
+    );
+    for (final path in [
+      'android/app/src/main/AndroidManifest.xml',
+      'android/app/src/profile/AndroidManifest.xml',
+    ]) {
+      expect(read(path), isNot(contains('usesCleartextTraffic')), reason: path);
+    }
+    for (final flavor in ['prod', 'staging']) {
+      final f = File('android/app/src/$flavor/AndroidManifest.xml');
+      if (f.existsSync()) {
+        expect(
+          f.readAsStringSync(),
+          isNot(contains('usesCleartextTraffic="true"')),
+          reason: flavor,
+        );
+      }
+    }
+  });
+
   test('payment pages open in Safari on iOS, in-app tab on Android', () {
     expect(
       paymentPageLaunchMode(TargetPlatform.iOS),

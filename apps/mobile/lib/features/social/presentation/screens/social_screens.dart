@@ -11,15 +11,20 @@ import 'package:lawbid/features/feed/presentation/widgets/feed_chrome.dart';
 import 'package:lawbid/features/practice/practice_options.dart'
     as practice_options;
 import 'package:lawbid/features/practice/practice_options.dart' as practices;
+import 'package:lawbid/features/reels/presentation/reels_screen.dart';
+import 'package:lawbid/features/social/application/merged_paging.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/screens/posts_feed_screen.dart';
 import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart';
 import 'package:lawbid/features/social/presentation/widgets/comment_widgets.dart';
+import 'package:lawbid/features/social/presentation/widgets/fresh_posts_pill.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_grid_tile.dart';
+import 'package:lawbid/features/social/presentation/widgets/post_impression_tracker.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_prefetch.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
+import 'package:lawbid/shared/presentation/list_search_field.dart';
 
 /// Post skeletons for list loading states.
 class PostListSkeleton extends StatelessWidget {
@@ -62,32 +67,39 @@ class PostsFeedView extends ConsumerWidget {
       builder: (context, box) {
         final height =
             feedChromeCardHeight(context) ?? feedCardHeight(box.maxHeight);
-        return PagedListBody<Post>(
-          value: value,
-          t: t,
-          edgeToEdge: true,
-          skeleton: const PostListSkeleton(),
-          itemKey: (p) => p.id,
-          prefetch: prefetchPost,
-          itemBuilder: (context, p, _) => PostCard(post: p, feedHeight: height),
-          // §2.3: "Пока в ленте пусто" + recommended attorneys to follow.
-          empty: ListView(
-            padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
-            children: [
-              SizedBox(
-                height: 340,
-                child: AppEmptyState(
-                  icon: AppIcons.dynamicFeedRounded,
-                  title: t.t('feed.empty.title'),
-                  message: t.t('feed.empty.message'),
+        // Owner 2026-10-19 (Instagram): new posts wait in the «New posts»
+        // pill on top; the list never jumps.
+        return FreshPostsOverlay(
+          child: PagedListBody<Post>(
+            value: value,
+            t: t,
+            edgeToEdge: true,
+            skeleton: const PostListSkeleton(),
+            itemKey: (p) => p.id,
+            prefetch: prefetchPost,
+            itemBuilder: (context, p, _) => PostImpressionTracker(
+              post: p,
+              child: PostCard(post: p, feedHeight: height),
+            ),
+            // §2.3: "Пока в ленте пусто" + recommended attorneys to follow.
+            empty: ListView(
+              padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
+              children: [
+                SizedBox(
+                  height: 340,
+                  child: AppEmptyState(
+                    icon: AppIcons.dynamicFeedRounded,
+                    title: t.t('feed.empty.title'),
+                    message: t.t('feed.empty.message'),
+                  ),
                 ),
-              ),
-              const SuggestedAttorneys(),
-            ],
+                const SuggestedAttorneys(),
+              ],
+            ),
+            onRefresh: notifier.refresh,
+            onLoadMore: notifier.loadMore,
+            onRetryMore: notifier.retryLoadMore,
           ),
-          onRefresh: notifier.refresh,
-          onLoadMore: notifier.loadMore,
-          onRetryMore: notifier.retryLoadMore,
         );
       },
     );
@@ -120,7 +132,10 @@ class LatestPostsView extends ConsumerWidget {
           skeleton: const PostListSkeleton(),
           itemKey: (p) => p.id,
           prefetch: prefetchPost,
-          itemBuilder: (context, p, _) => PostCard(post: p, feedHeight: height),
+          itemBuilder: (context, p, _) => PostImpressionTracker(
+            post: p,
+            child: PostCard(post: p, feedHeight: height),
+          ),
           empty: AppEmptyState(
             icon: AppIcons.mapOutlined,
             message: t.t('feed.state.empty'),
@@ -184,7 +199,10 @@ class FilteredPostsView extends ConsumerWidget {
           skeleton: const PostListSkeleton(),
           itemKey: (p) => p.id,
           prefetch: prefetchPost,
-          itemBuilder: (context, p, _) => PostCard(post: p, feedHeight: height),
+          itemBuilder: (context, p, _) => PostImpressionTracker(
+            post: p,
+            child: PostCard(post: p, feedHeight: height),
+          ),
           empty: AppEmptyState(
             icon: newsOnly ? AppIcons.newspaperRounded : AppIcons.tagRounded,
             message: t.t(
@@ -224,49 +242,6 @@ class PracticePostsScreen extends ConsumerWidget {
         title: Text(practices.practiceLabel(ref, practice)),
       ),
       body: FilteredPostsView(practice: practice),
-    );
-  }
-}
-
-/// Owner 2026-09-30: the feed filtered by one topic (hashtag), newest
-/// first — what a topic in the clients' slider shows.
-class TopicPostsView extends ConsumerWidget {
-  const TopicPostsView({required this.tag, this.stateCode, super.key});
-
-  final String tag;
-
-  /// OQ-034: only attorneys licensed in this state.
-  final String? stateCode;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final t = ref.watch(translatorProvider);
-    final key = (tag: tag, sort: TagSort.fresh, state: stateCode);
-    final notifier = ref.read(tagPostsProvider(key).notifier);
-    return LayoutBuilder(
-      builder: (context, box) {
-        final height =
-            feedChromeCardHeight(context) ?? feedCardHeight(box.maxHeight);
-        return PagedListBody<Post>(
-          value: _withoutDeleted(
-            ref.watch(tagPostsProvider(key)),
-            ref.watch(deletedPostsProvider),
-          ),
-          t: t,
-          edgeToEdge: true,
-          skeleton: const PostListSkeleton(),
-          itemKey: (p) => p.id,
-          prefetch: prefetchPost,
-          itemBuilder: (context, p, _) => PostCard(post: p, feedHeight: height),
-          empty: AppEmptyState(
-            icon: AppIcons.tagRounded,
-            message: t.t('tag.empty'),
-          ),
-          onRefresh: notifier.refresh,
-          onLoadMore: notifier.loadMore,
-          onRetryMore: notifier.retryLoadMore,
-        );
-      },
     );
   }
 }
@@ -332,10 +307,13 @@ class PostScreen extends ConsumerWidget {
                               AppSpacing.xl,
                         ),
                         children: [
-                          PostCard(
+                          PostImpressionTracker(
                             post: p,
-                            inDetail: true,
-                            fromProfile: fromProfile,
+                            child: PostCard(
+                              post: p,
+                              inDetail: true,
+                              fromProfile: fromProfile,
+                            ),
                           ),
                           const Padding(
                             padding: EdgeInsets.symmetric(
@@ -478,12 +456,6 @@ class _TagScreenState extends ConsumerState<TagScreen> {
         ),
       );
     }
-    final key = (tag: widget.tag, sort: _sort, state: null);
-    final value = _withoutDeleted(
-      ref.watch(tagPostsProvider(key)),
-      ref.watch(deletedPostsProvider),
-    );
-    final notifier = ref.read(tagPostsProvider(key).notifier);
     return Scaffold(
       backgroundColor: colors.bg,
       appBar: AppTopBar(
@@ -504,21 +476,18 @@ class _TagScreenState extends ConsumerState<TagScreen> {
             ],
             onChanged: (v) => setState(() => _sort = v),
           ),
+          // Owner 2026-10-19: the sections slide with the finger and on a
+          // tap (Instagram); each keeps its list and scroll once built.
           Expanded(
-            child: PagedListBody<Post>(
-              key: ValueKey(_sort),
-              value: value,
-              t: t,
-              skeleton: const PostListSkeleton(),
-              itemKey: (p) => p.id,
-              itemBuilder: (context, p, _) => PostCard(post: p),
-              empty: AppEmptyState(
-                icon: AppIcons.tagRounded,
-                message: t.t('tag.empty'),
+            child: SwipePages<TagSort>(
+              value: _sort,
+              values: const [TagSort.top, TagSort.fresh, TagSort.video],
+              onChanged: (v) => setState(() => _sort = v),
+              pageBuilder: (_, sort) => _TagSortPage(
+                key: ValueKey(sort),
+                tag: widget.tag,
+                sort: sort,
               ),
-              onRefresh: notifier.refresh,
-              onLoadMore: notifier.loadMore,
-              onRetryMore: notifier.retryLoadMore,
             ),
           ),
         ],
@@ -527,8 +496,46 @@ class _TagScreenState extends ConsumerState<TagScreen> {
   }
 }
 
-/// docs/05 §6.2 followers / following of a person.
-class FollowListScreen extends ConsumerWidget {
+/// One section of [TagScreen] (Top, New or Video).
+class _TagSortPage extends ConsumerWidget {
+  const _TagSortPage({required this.tag, required this.sort, super.key});
+
+  final String tag;
+  final TagSort sort;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    final key = (tag: tag, sort: sort, state: null);
+    final value = _withoutDeleted(
+      ref.watch(tagPostsProvider(key)),
+      ref.watch(deletedPostsProvider),
+    );
+    final notifier = ref.read(tagPostsProvider(key).notifier);
+    return PagedListBody<Post>(
+      value: value,
+      t: t,
+      skeleton: const PostListSkeleton(),
+      itemKey: (p) => p.id,
+      itemBuilder: (context, p, _) => PostImpressionTracker(
+        post: p,
+        child: PostCard(post: p),
+      ),
+      empty: AppEmptyState(
+        icon: AppIcons.tagRounded,
+        message: t.t('tag.empty'),
+      ),
+      onRefresh: notifier.refresh,
+      onLoadMore: notifier.loadMore,
+      onRetryMore: notifier.retryLoadMore,
+    );
+  }
+}
+
+/// docs/05 §6.2 followers / following of a person. Owner 2026-10-18: a
+/// search box above the list (name in any alphabet, @username) — the server
+/// matches.
+class FollowListScreen extends ConsumerStatefulWidget {
   const FollowListScreen({
     required this.kind,
     required this.attorneyId,
@@ -539,10 +546,18 @@ class FollowListScreen extends ConsumerWidget {
   final FollowListKind kind;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<FollowListScreen> createState() => _FollowListScreenState();
+}
+
+class _FollowListScreenState extends ConsumerState<FollowListScreen> {
+  String _q = '';
+
+  @override
+  Widget build(BuildContext context) {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final key = (attorneyId: attorneyId, kind: kind);
+    final kind = widget.kind;
+    final key = (attorneyId: widget.attorneyId, kind: kind, q: _q);
     final value = ref.watch(followListProvider(key));
     final n = ref.read(followListProvider(key).notifier);
     return Scaffold(
@@ -560,23 +575,255 @@ class FollowListScreen extends ConsumerWidget {
           ),
         ),
       ),
+      body: Column(
+        children: [
+          ListSearchField(
+            fieldKey: const ValueKey('follow-search'),
+            hintKey: 'follow.search.hint',
+            onChanged: (q) => setState(() => _q = q),
+          ),
+          Expanded(
+            child: PagedListBody<PersonRow>(
+              value: value,
+              t: t,
+              itemKey: (r) => r.id,
+              itemBuilder: (context, r, _) => PersonTile(row: r),
+              empty: _q.isNotEmpty
+                  ? AppEmptyState(
+                      icon: AppIcons.searchRounded,
+                      title: t.t('follow.search.empty.title'),
+                      message: t.t('follow.search.empty.hint'),
+                    )
+                  : AppEmptyState(
+                      icon: AppIcons.peopleOutlineRounded,
+                      message: t.t(
+                        kind == FollowListKind.followers
+                            ? 'follow.followers.empty'
+                            : 'follow.following.empty',
+                      ),
+                    ),
+              onRefresh: n.refresh,
+              onLoadMore: n.loadMore,
+              onRetryMore: n.retryLoadMore,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Owner 2026-10-18: people who reposted a post (avatar, name, follow).
+class RepostersScreen extends ConsumerWidget {
+  const RepostersScreen({required this.postId, super.key});
+
+  final String postId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final value = ref.watch(postRepostersProvider(postId));
+    final n = ref.read(postRepostersProvider(postId).notifier);
+    return Scaffold(
+      backgroundColor: colors.bg,
+      appBar: AppTopBar(
+        leading: AppBackButton(
+          semanticLabel: t.t('common.back'),
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
+        title: Text(t.t('post.reposters.title')),
+      ),
       body: PagedListBody<PersonRow>(
         value: value,
         t: t,
         itemKey: (r) => r.id,
         itemBuilder: (context, r, _) => PersonTile(row: r),
         empty: AppEmptyState(
-          icon: AppIcons.peopleOutlineRounded,
-          message: t.t(
-            kind == FollowListKind.followers
-                ? 'follow.followers.empty'
-                : 'follow.following.empty',
-          ),
+          icon: AppIcons.autoModeRounded,
+          message: t.t('post.reposters.empty'),
         ),
         onRefresh: n.refresh,
         onLoadMore: n.loadMore,
         onRetryMore: n.retryLoadMore,
       ),
+    );
+  }
+}
+
+/// Owner 2026-10-18: the attorney profile's «Брифы и репосты» tab — their
+/// briefs (text posts, as in the old «Текст» tab: pinned ones first, with
+/// the pin) and their reposts (each with its «↻ … репост» header) in one list,
+/// newest first: a brief by its publish time, a repost by its repost time.
+/// Both sources page on their own; [mergeNewestFirst] only shows what no
+/// unloaded page could precede, so «ещё» never skips or repeats a card.
+class ProfileBriefsAndReposts extends ConsumerWidget {
+  const ProfileBriefsAndReposts({
+    required this.attorneyId,
+    required this.isSelf,
+    this.emptyOtherKey = 'profile.briefsReposts.empty.other',
+    super.key,
+  });
+
+  final String attorneyId;
+  final bool isSelf;
+
+  /// Owner 2026-10-18: a client's profile has the same tab; its empty
+  /// text names a user, not an attorney.
+  final String emptyOtherKey;
+
+  static const _briefs = 0;
+  static const _reposts = 1;
+
+  /// A repost's time: the API's repost time when it sends one; otherwise
+  /// the post's own time, never newer than the repost above it (a repost
+  /// always comes after the post was published, and the list is newest
+  /// repost first).
+  static List<DateTime> repostTimes(List<Post> reposts) => monotoneTimes(
+        reposts,
+        exact: (p) => p.repostedBy?.repostedAt,
+        estimate: (p) => p.createdAt,
+      );
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    final deleted = ref.watch(deletedPostsProvider);
+    final overrides = ref.watch(postOverridesProvider);
+    final postsValue = ref.watch(attorneyPostsProvider(attorneyId));
+    final repostsValue = ref.watch(userRepostsProvider(attorneyId));
+    final posts = postsValue.value;
+    final reposts = repostsValue.value;
+
+    if (posts == null || reposts == null) {
+      final failed = (posts == null && postsValue.hasError) ||
+          (reposts == null && repostsValue.hasError);
+      if (failed && !postsValue.isLoading && !repostsValue.isLoading) {
+        return Center(
+          child: TextButton(
+            onPressed: () {
+              if (posts == null) {
+                ref.invalidate(attorneyPostsProvider(attorneyId));
+              }
+              if (reposts == null) {
+                ref.invalidate(userRepostsProvider(attorneyId));
+              }
+            },
+            child: Text(t.t('error.retry')),
+          ),
+        );
+      }
+      return Column(
+        children: List.generate(
+          2,
+          (_) => const Padding(
+            padding: EdgeInsets.all(AppSpacing.lg),
+            child: AppSkeleton(height: 96, borderRadius: AppRadii.card),
+          ),
+        ),
+      );
+    }
+
+    // Pinned posts lead the API's first page out of date order; pinned
+    // briefs stay on top here too.
+    final dated = [
+      for (final p in posts.items)
+        if (p.pinSlot == null) p,
+    ];
+    final pinned = [
+      for (final p in posts.items)
+        if (p.pinSlot != null && PostCard.isThreadsStyle(p)) p,
+    ];
+    final times = repostTimes(reposts.items);
+    final merged = mergeNewestFirst<Post>(
+      [
+        MergeSource(
+          items: [
+            for (final p in dated)
+              if (PostCard.isThreadsStyle(p)) (p, p.createdAt),
+          ],
+          hasMore: posts.hasMore,
+          boundary: dated.isEmpty ? null : dated.last.createdAt,
+        ),
+        MergeSource(
+          items: [
+            for (var i = 0; i < reposts.items.length; i++)
+              (reposts.items[i], times[i]),
+          ],
+          hasMore: reposts.hasMore,
+          boundary: times.isEmpty ? null : times.last,
+        ),
+      ],
+      idOf: (p) => p.id,
+    );
+
+    bool visible(Post p, int source) =>
+        !deleted.contains(p.id) &&
+        // Undone from here (or from the post's own ↻): gone at once.
+        !(source == _reposts &&
+            isSelf &&
+            overrides[p.id]?.repostedByMe == false);
+    final pinnedShown = [
+      for (final p in pinned)
+        if (visible(p, _briefs)) p,
+    ];
+    final shown = [
+      for (final e in merged.entries)
+        if (!pinned.any((p) => p.id == e.item.id) && visible(e.item, e.source))
+          e,
+    ];
+
+    if (pinnedShown.isEmpty && shown.isEmpty && !merged.hasMore) {
+      return SizedBox(
+        height: 280,
+        child: AppEmptyState(
+          icon: AppIcons.autoModeRounded,
+          title: t.t('profile.briefsReposts.empty.title'),
+          message: t.t(
+            isSelf ? 'profile.briefsReposts.empty.self' : emptyOtherKey,
+          ),
+        ),
+      );
+    }
+
+    void loadMore() {
+      final next = merged.nextSource;
+      if (next == null) return;
+      if (next == _briefs) {
+        final n = ref.read(attorneyPostsProvider(attorneyId).notifier);
+        posts.loadMoreError != null ? n.retryLoadMore() : n.loadMore();
+      } else {
+        final n = ref.read(userRepostsProvider(attorneyId).notifier);
+        reposts.loadMoreError != null ? n.retryLoadMore() : n.loadMore();
+      }
+    }
+
+    return Column(
+      children: [
+        for (final p in pinnedShown)
+          PostImpressionTracker(
+            key: ValueKey('imp-${p.id}'),
+            post: p,
+            child: PostCard(key: ValueKey(p.id), post: p, showPin: true),
+          ),
+        for (final e in shown)
+          PostImpressionTracker(
+            key: ValueKey('imp-${e.item.id}'),
+            post: e.item,
+            child: PostCard(
+              key: ValueKey(e.item.id),
+              post: e.item,
+              // As in the old «Текст» tab; a repost keeps its own look.
+              showPin: e.source == _briefs,
+            ),
+          ),
+        if (merged.hasMore)
+          TextButton(
+            key: const ValueKey('briefs-reposts-more'),
+            onPressed: loadMore,
+            child: Text(t.t('pagination.loadingMore')),
+          ),
+      ],
     );
   }
 }
@@ -627,7 +874,10 @@ class SavedPostsList extends ConsumerWidget {
                 ],
               ),
             )
-          : PostCard(post: s.post!),
+          : PostImpressionTracker(
+              post: s.post!,
+              child: PostCard(post: s.post!),
+            ),
       empty: AppEmptyState(
         icon: AppIcons.bookmarkBorderRounded,
         message: t.t('mine.savedPosts.empty'),
@@ -648,11 +898,18 @@ class ProfilePostsGrid extends ConsumerWidget {
     required this.emptyMessage,
     this.newsOnly = false,
     this.threadsOnly = false,
+    this.reelsOnly = false,
     super.key,
   });
 
   /// Owner 2026-09-30: the profile's News tab.
   final bool newsOnly;
+
+  /// Owner 2026-10-18: the profile's «Рилсы» tab — video posts / reels as
+  /// vertical 9:16 tiles with their view count; a tap opens the reels
+  /// player at that reel. The «Посты» grid (neither flag) keeps the photo
+  /// and file posts only.
+  final bool reelsOnly;
 
   /// Owner 2026-10-12 (Threads): the profile's threads tab — text posts as
   /// cards in a list; the grid tab keeps the posts with a photo or video.
@@ -665,7 +922,20 @@ class ProfilePostsGrid extends ConsumerWidget {
   AsyncNotifierProvider<AttorneyPostsNotifier, PaginatedList<Post>>
       get _provider => newsOnly
           ? attorneyNewsProvider(attorneyId)
-          : attorneyPostsProvider(attorneyId);
+          : reelsOnly
+              ? attorneyReelsProvider(attorneyId)
+              : threadsOnly
+                  ? attorneyPostsProvider(attorneyId)
+                  : attorneyPhotoPostsProvider(attorneyId);
+
+  /// What the tab shows; the server already filters by media, this keeps a
+  /// post edited since (or an old server's page) in its own tab.
+  bool _keeps(Post p) {
+    if (newsOnly) return true;
+    if (reelsOnly) return p.video != null;
+    if (threadsOnly) return PostCard.isThreadsStyle(p);
+    return !PostCard.isThreadsStyle(p) && p.video == null;
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -694,9 +964,7 @@ class ProfilePostsGrid extends ConsumerWidget {
       data: (page) {
         final posts = page.items
             .where(
-              (p) =>
-                  !deleted.contains(p.id) &&
-                  (newsOnly || PostCard.isThreadsStyle(p) == threadsOnly),
+              (p) => !deleted.contains(p.id) && _keeps(p),
             )
             .toList();
         if (posts.isEmpty) {
@@ -704,7 +972,9 @@ class ProfilePostsGrid extends ConsumerWidget {
           return SizedBox(
             height: 280,
             child: AppEmptyState(
-              icon: AppIcons.articleOutlined,
+              icon: reelsOnly
+                  ? AppIcons.playCircleOutlined
+                  : AppIcons.articleOutlined,
               title: emptyTitle,
               message: emptyMessage,
             ),
@@ -714,7 +984,41 @@ class ProfilePostsGrid extends ConsumerWidget {
           return Column(
             children: [
               for (final p in posts)
-                PostCard(key: ValueKey(p.id), post: p, showPin: true),
+                PostImpressionTracker(
+                  key: ValueKey('imp-${p.id}'),
+                  post: p,
+                  child: PostCard(key: ValueKey(p.id), post: p, showPin: true),
+                ),
+              if (page.canLoadMore)
+                TextButton(
+                  onPressed: () => ref.read(_provider.notifier).loadMore(),
+                  child: Text(t.t('pagination.loadingMore')),
+                ),
+            ],
+          );
+        }
+        if (reelsOnly) {
+          return Column(
+            children: [
+              GridView.builder(
+                key: const ValueKey('profile-reels-grid'),
+                padding: EdgeInsets.zero,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: reelsGridDelegate(),
+                itemCount: posts.length,
+                itemBuilder: (context, i) => ReelGridTile(
+                  key: ValueKey('reel-tile-${posts[i].id}'),
+                  post: posts[i],
+                  semanticLabel: t.t('post.open'),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) =>
+                          ReelsScreen(initial: posts, initialIndex: i),
+                    ),
+                  ),
+                ),
+              ),
               if (page.canLoadMore)
                 TextButton(
                   onPressed: () => ref.read(_provider.notifier).loadMore(),
@@ -808,11 +1112,14 @@ class _ThreadDetailState extends ConsumerState<_ThreadDetail> {
             child: CustomScrollView(
               slivers: [
                 SliverToBoxAdapter(
-                  child: PostCard(
+                  child: PostImpressionTracker(
                     post: p,
-                    inDetail: true,
-                    fromProfile: widget.fromProfile,
-                    onReply: _focus.requestFocus,
+                    child: PostCard(
+                      post: p,
+                      inDetail: true,
+                      fromProfile: widget.fromProfile,
+                      onReply: _focus.requestFocus,
+                    ),
                   ),
                 ),
                 SliverToBoxAdapter(
@@ -851,7 +1158,7 @@ class _ThreadDetailState extends ConsumerState<_ThreadDetail> {
             child: Padding(
               padding: const EdgeInsets.all(AppSpacing.lg),
               child: Text(
-                t.t('reels.commentsOff'),
+                t.t('post.comments.off'),
                 textAlign: TextAlign.center,
                 style: type.bodySmall.copyWith(color: colors.textSecondary),
               ),

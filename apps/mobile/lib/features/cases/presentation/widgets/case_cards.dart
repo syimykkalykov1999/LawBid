@@ -3,6 +3,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/text/bidi.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_actions_bar.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_cover.dart';
@@ -10,6 +11,8 @@ import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_parts.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
+import 'package:lawbid/features/profile/domain/profile_models.dart'
+    show initialsOf;
 import 'package:lawbid/features/social/data/social_repository.dart'
     show caseThreadId;
 import 'package:lawbid/features/social/presentation/widgets/comments_sheet.dart';
@@ -60,81 +63,6 @@ class _CaseCardShell extends StatelessWidget {
   }
 }
 
-/// docs/04 §4.2 "цветная шапка с названием категории": a navy band with a
-/// gold hairline underneath — the case card's one memorable detail.
-class CategoryBand extends StatelessWidget {
-  const CategoryBand({
-    required this.label,
-    this.isNew = false,
-    this.newLabel,
-    super.key,
-  });
-
-  final String label;
-  final bool isNew;
-  final String? newLabel;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [colors.navy, Color.lerp(colors.navy, colors.gold, 0.18)!],
-        ),
-        border: Border(bottom: BorderSide(color: colors.gold)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.lg,
-          vertical: AppSpacing.sm,
-        ),
-        child: Row(
-          children: [
-            AppIcon(
-              AppIcons.balanceRounded,
-              size: AppSpacing.lg,
-              color: colors.goldLight,
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            Expanded(
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: typography.bodySmall.copyWith(
-                  color: colors.goldLight,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            if (isNew && newLabel != null)
-              AppTrailingCap(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.sm,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: colors.gold,
-                    borderRadius: BorderRadius.circular(AppRadii.proBadge),
-                  ),
-                  child: Text(
-                    newLabel!,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: typography.badge.copyWith(color: colors.navy),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 /// Money in the brand serif — the number the user scans for.
 class MoneyText extends StatelessWidget {
   const MoneyText(this.text, {this.large = false, super.key});
@@ -172,8 +100,13 @@ class FeedCaseCard extends StatelessWidget {
     required this.formats,
     required this.onTap,
     this.feedHeight,
+    this.activity,
     super.key,
   });
+
+  /// OQ-054: how active the client is; null = [FeedCase.clientActivity]
+  /// (the API sends it only when the client's activity status is shown).
+  final ClientActivity? activity;
 
   final FeedCase item;
 
@@ -321,6 +254,17 @@ class FeedCaseCard extends StatelessWidget {
                       ),
                     ),
                   ),
+                  if ((activity ?? item.clientActivity) != null)
+                    ClientActivityLine(
+                      activity: (activity ?? item.clientActivity)!,
+                      t: t,
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.lg,
+                        AppSpacing.xs,
+                        AppSpacing.lg,
+                        0,
+                      ),
+                    ),
                   CaseFigures(
                     t: t,
                     formats: formats,
@@ -366,6 +310,73 @@ class FeedCaseCard extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// One thin line under the title: a dot and «В сети» / «Был 2 дня назад»,
+/// then «· Отвечает за день». Always one line — when space runs out the
+/// end is cut with "…", so it never pushes into other parts of the card.
+class ClientActivityLine extends StatelessWidget {
+  const ClientActivityLine({
+    required this.activity,
+    required this.t,
+    this.padding = EdgeInsets.zero,
+    super.key,
+  });
+
+  final ClientActivity activity;
+  final Translator t;
+  final EdgeInsetsGeometry padding;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
+    final a = activity;
+    final status = a.online
+        ? t.t('cases.activity.online')
+        : a.lastSeenDays == null || a.lastSeenDays == 0
+            ? t.t('cases.activity.today')
+            : t.plural(
+                'cases.activity.lastSeen',
+                a.lastSeenDays!,
+                {'n': '${a.lastSeenDays}'},
+              );
+    final dot = a.online ? colors.success : colors.textSecondary;
+    return Padding(
+      padding: padding,
+      child: Row(
+        children: [
+          Container(
+            width: 7,
+            height: 7,
+            decoration: BoxDecoration(color: dot, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(
+                    text: status,
+                    style: TextStyle(
+                      color:
+                          a.online ? colors.successText : colors.textSecondary,
+                      fontWeight: a.online ? FontWeight.w600 : null,
+                    ),
+                  ),
+                  if (a.respondsWithinDay)
+                    TextSpan(text: ' · ${t.t('cases.activity.responds')}'),
+                ],
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: typography.caption.copyWith(color: colors.textSecondary),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -492,89 +503,6 @@ class _CaseCardRow extends StatelessWidget {
   }
 }
 
-/// Client "Мои кейсы" card (docs/04 §11.1). Owner 2026-09-30: styled like
-/// the feed — practice photo banner with the practice chip and status,
-/// title, place and date, then bids (+ new) in the footer.
-class ClientCaseCard extends StatelessWidget {
-  const ClientCaseCard({
-    required this.item,
-    required this.unseenBids,
-    required this.t,
-    required this.formats,
-    required this.onTap,
-    super.key,
-  });
-
-  final CaseSummary item;
-  final int unseenBids;
-  final Translator t;
-  final L10nFormats formats;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final practice = CaseFormat.withMore(
-      CaseFormat.practice(t, item.practice.i18nKey, item.practice.nameEn),
-      item.extraPracticeCount,
-    );
-    final place = CaseFormat.place(
-      item.city,
-      item.primaryStateCode,
-      item.additionalStateCount,
-    );
-    final bids = t.t(
-      'cases.card.bidsCount',
-      {'count': SocialFormat.count(formats, item.bidsCount)},
-    );
-    final fresh = unseenBids > 0
-        ? t.t('cases.card.newBids', {'count': '$unseenBids'})
-        : null;
-    return _MineCardFrame(
-      onTap: onTap,
-      semanticLabel: [
-        practice,
-        item.title,
-        place,
-        caseStatusLabel(t, item.status),
-        bids,
-        if (fresh != null) fresh,
-        formats.date(item.createdAt),
-      ].join(', '),
-      artCode: item.practice.artCode,
-      practiceCode: item.practice.code,
-      coverKey: item.coverKey,
-      coverSeed: item.id,
-      practiceLabel: practice,
-      status: CaseStatusPill(status: item.status, t: t),
-      title: item.title,
-      meta: [
-        _MineMeta(icon: AppIcons.placeOutlined, label: place),
-        _MineMeta(
-          icon: AppIcons.eventOutlined,
-          label: formats.date(item.createdAt),
-        ),
-      ],
-      footer: Row(
-        children: [
-          AppIcon(
-            AppIcons.gavelRounded,
-            size: AppSizes.iconSm,
-            color: colors.goldDark,
-          ),
-          const SizedBox(width: AppSpacing.xs),
-          Expanded(child: _FooterText(bids)),
-          if (fresh != null) ...[
-            const SizedBox(width: AppSpacing.sm),
-            Flexible(child: StatusPill(label: fresh, tone: StatusTone.gold)),
-          ],
-          AppIcon(AppIcons.chevronRightRounded, color: colors.textSecondary),
-        ],
-      ),
-    );
-  }
-}
-
 /// Owner 2026-09-30 ("карточки раздела mine … по красивее и по
 /// грамотнее"): one frame for every "Mine" card — the practice photo as a
 /// banner (practice chip bottom-left, status top-right), a bold title, a
@@ -590,15 +518,7 @@ class _MineCardFrame extends StatelessWidget {
     required this.title,
     required this.meta,
     required this.footer,
-    this.note,
-    this.coverKey,
-    this.coverSeed,
   });
-
-  /// Owner 2026-10-04: the case's cover, as attorneys see it (client
-  /// cards); without a seed the practice photo.
-  final String? coverKey;
-  final String? coverSeed;
 
   final VoidCallback onTap;
   final String semanticLabel;
@@ -609,9 +529,6 @@ class _MineCardFrame extends StatelessWidget {
   final String title;
   final List<_MineMeta> meta;
   final Widget footer;
-
-  /// An optional quiet line under the meta (e.g. the last bid message).
-  final String? note;
 
   @override
   Widget build(BuildContext context) {
@@ -625,8 +542,6 @@ class _MineCardFrame extends StatelessWidget {
           CaseCover(
             categoryCode: artCode,
             practiceCode: practiceCode,
-            coverKey: coverKey,
-            seed: coverSeed,
           ),
           DecoratedBox(
             decoration: BoxDecoration(
@@ -733,18 +648,6 @@ class _MineCardFrame extends StatelessWidget {
               children: meta,
             ),
           ],
-          if (note != null && note!.isNotEmpty) ...[
-            const SizedBox(height: AppSpacing.sm),
-            Text(
-              note!,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: typography.bodySmall.copyWith(
-                color: colors.textSecondary,
-                fontStyle: FontStyle.italic,
-              ),
-            ),
-          ],
           const SizedBox(height: AppSpacing.md),
           Container(height: 1, color: colors.border),
           const SizedBox(height: AppSpacing.md),
@@ -784,38 +687,10 @@ class _MineMeta extends StatelessWidget {
   }
 }
 
-/// Semi-bold footer text of a "Mine" card.
-class _FooterText extends StatelessWidget {
-  const _FooterText(this.text);
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    return Text(
-      text,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      style: typography.bodySmall
-          .copyWith(color: colors.text, fontWeight: FontWeight.w600),
-    );
-  }
-}
-
 String? _artOf(String? practiceCode) =>
     practiceCode == null || practiceCode.isEmpty
         ? null
         : practiceCode.split('.').first;
-
-/// Initials for an avatar without a photo.
-String initialsOf(String? first, String? last) {
-  final a = (first ?? '').trim();
-  final b = (last ?? '').trim();
-  final s = '${a.isNotEmpty ? a[0] : ''}${b.isNotEmpty ? b[0] : ''}';
-  return s.isEmpty ? '·' : s.toUpperCase();
-}
 
 /// Attorney line: photo, name, blue check, rating (docs/04 §5.2).
 class AttorneyLine extends StatelessWidget {
@@ -836,8 +711,9 @@ class AttorneyLine extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    final name =
-        attorney.fullName.isEmpty ? '@${attorney.username}' : attorney.fullName;
+    final name = attorney.fullName.isEmpty
+        ? atHandle(attorney.username)
+        : attorney.fullName;
     final rating = attorney.ratingCount == 0
         ? t.t('cases.attorney.noReviews')
         : t.t('cases.attorney.rating', {
@@ -850,7 +726,8 @@ class AttorneyLine extends StatelessWidget {
           imageProvider: attorney.avatarUrl == null
               ? null
               : appNetworkImage(attorney.avatarUrl!, 160),
-          initials: initialsOf(attorney.firstName, attorney.lastName),
+          initials:
+              initialsOf(attorney.firstName, attorney.lastName, fallback: '·'),
         ),
         const SizedBox(width: AppSpacing.md),
         Expanded(
@@ -1031,7 +908,13 @@ class BidCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    final terms = CaseFormat.terms(t, formats, bid.feeType, bid.amountCents);
+    final terms = CaseFormat.terms(
+      t,
+      formats,
+      bid.feeType,
+      bid.amountCents,
+      percentBps: bid.percentBps,
+    );
     final start =
         CaseFormat.startLabel(t, formats, bid.startAvailability, bid.startDate);
     final highlighted = bid.isTurnOf(PartyRole.client);
@@ -1097,72 +980,16 @@ class BidCard extends StatelessWidget {
             const SizedBox(height: AppSpacing.md),
             Container(height: 1, color: colors.gold.withValues(alpha: 0.4)),
           ],
-        ],
-      ),
-    );
-  }
-}
-
-/// "Мои биды" card (docs/04 §11.2): the case ("Re: …") on the practice
-/// banner with the bid status, terms, round counter, last message.
-class MyBidCard extends StatelessWidget {
-  const MyBidCard({
-    required this.item,
-    required this.t,
-    required this.formats,
-    required this.onTap,
-    super.key,
-  });
-
-  final MyBid item;
-  final Translator t;
-  final L10nFormats formats;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final bid = item.bid;
-    final terms = CaseFormat.terms(t, formats, bid.feeType, bid.amountCents);
-    final re = t.t('cases.myBids.re', {'title': item.caseTitle});
-    final practice = CaseFormat.practice(
-      t,
-      item.casePracticeI18nKey,
-      item.casePracticeNameEn,
-    );
-    final lastMessage = item.lastOffer.message;
-    final practiceCode = item.casePracticeCode ??
-        item.casePracticeI18nKey.replaceFirst('practice.', '');
-    return _MineCardFrame(
-      onTap: onTap,
-      semanticLabel: [re, practice, terms, if (lastMessage != null) lastMessage]
-          .join(', '),
-      artCode: _artOf(practiceCode),
-      practiceCode: practiceCode,
-      practiceLabel: practice,
-      status: BidStatusPill(bid: bid, viewer: PartyRole.attorney, t: t),
-      title: re,
-      meta: [
-        _MineMeta(icon: AppIcons.placeOutlined, label: item.primaryStateCode),
-        _MineMeta(
-          icon: AppIcons.scheduleRounded,
-          label: formats.date(bid.createdAt),
-        ),
-      ],
-      note: lastMessage,
-      footer: Row(
-        children: [
-          AppIcon(
-            AppIcons.paymentsOutlined,
-            size: AppSizes.iconSm,
-            color: colors.goldDark,
+          // Owner 2026-10-19: say what comes next — the bid's screen, where
+          // it is accepted, answered with a counter-offer or declined.
+          const SizedBox(height: AppSpacing.md),
+          AppButton(
+            key: ValueKey('bid-card-view-${bid.id}'),
+            label: t.t('bids.card.view'),
+            icon: AppIcons.chevronRightRounded,
+            variant: AppButtonVariant.secondary,
+            onPressed: onTap,
           ),
-          const SizedBox(width: AppSpacing.xs),
-          Expanded(child: MoneyText(terms)),
-          if (!bid.isFreeConsultation) ...[
-            const SizedBox(width: AppSpacing.sm),
-            Flexible(child: RoundCounter(used: bid.roundCount, t: t)),
-          ],
         ],
       ),
     );
@@ -1188,7 +1015,13 @@ class WorkCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final terms = CaseFormat.terms(t, formats, item.feeType, item.amountCents);
+    final terms = CaseFormat.terms(
+      t,
+      formats,
+      item.feeType,
+      item.amountCents,
+      percentBps: item.percentBps,
+    );
     final client = item.clientName ?? t.t('cases.work.clientLocked');
     final practice = item.practiceI18nKey == null
         ? ''
@@ -1239,76 +1072,6 @@ class WorkCard extends StatelessWidget {
           Expanded(child: MoneyText(terms)),
           AppIcon(AppIcons.chevronRightRounded, color: colors.textSecondary),
         ],
-      ),
-    );
-  }
-}
-
-/// A saved case that is closed or no longer visible (docs/04 §11.2).
-class UnavailableCaseCard extends StatelessWidget {
-  const UnavailableCaseCard({
-    required this.title,
-    required this.t,
-    required this.onRemove,
-    super.key,
-  });
-
-  final String? title;
-  final Translator t;
-  final VoidCallback onRemove;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    return Opacity(
-      opacity: 0.72,
-      child: AppCard(
-        child: Row(
-          children: [
-            const AppIconMedallion(
-              icon: AppIcons.blockRounded,
-              tone: AppMedallionTone.neutral,
-            ),
-            const SizedBox(width: AppSpacing.md),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (title != null)
-                    Text(
-                      title!,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: typography.body.copyWith(color: colors.text),
-                    ),
-                  Text(
-                    t.t('cases.saved.unavailable'),
-                    style: typography.caption
-                        .copyWith(color: colors.textSecondary),
-                  ),
-                ],
-              ),
-            ),
-            AppTapTarget(
-              child: Semantics(
-                button: true,
-                label: t.t('cases.saved.remove'),
-                excludeSemantics: true,
-                child: AppPressable(
-                  onTap: onRemove,
-                  child: SizedBox.square(
-                    dimension: AppSizes.touchTarget,
-                    child: AppIcon(
-                      AppIcons.bookmarkRemoveOutlined,
-                      color: colors.textSecondary,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

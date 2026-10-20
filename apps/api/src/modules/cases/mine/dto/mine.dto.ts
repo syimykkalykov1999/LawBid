@@ -166,6 +166,13 @@ export class WorkItemDto {
   @ApiProperty({ type: 'integer' })
   amountCents!: number;
 
+  @ApiPropertyOptional({
+    type: 'integer',
+    nullable: true,
+    description: 'Owner 2026-10-17: contingency → basis points.',
+  })
+  percentBps!: number | null;
+
   @ApiPropertyOptional({ type: String, nullable: true })
   autoCloseAt!: string | null;
 

@@ -82,7 +82,7 @@ export class CommentsService {
     if (!post.comments_enabled) {
       throw new ForbiddenException({
         code: ErrorCode.COMMENTS_DISABLED,
-        message: 'Comments are turned off for this post.',
+        message: 'The author turned comments off for this post.',
       });
     }
     await assertNoBlock(this.prisma, userId, post.author_id);
@@ -168,11 +168,19 @@ export class CommentsService {
     postId: string,
     cursor?: string,
   ): Promise<CommentPage> {
+    // Owner 2026-10-18: the author also reads the comments of an own
+    // archived post (Settings → «Архив»).
     const post = await this.prisma.post.findFirst({
-      where: { ...VISIBLE_POST_WHERE, id: postId },
-      select: { author_id: true },
+      where: {
+        id: postId,
+        OR: [VISIBLE_POST_WHERE, { author_id: userId, deleted_at: null }],
+      },
+      select: { author_id: true, comments_enabled: true },
     });
     if (!post) throw postNotFound();
+    // Owner 2026-10-18: comments turned off are hidden, not deleted
+    // (Instagram) — they come back when the author turns them on.
+    if (!post.comments_enabled) return { items: [], nextCursor: null };
     return this.page(
       userId,
       post.author_id,
@@ -189,9 +197,13 @@ export class CommentsService {
   ): Promise<CommentPage> {
     const parent = await this.prisma.comment.findFirst({
       where: { id: commentId, ...LIVE, post: VISIBLE_POST_WHERE },
-      select: { id: true, post: { select: { author_id: true } } },
+      select: {
+        id: true,
+        post: { select: { author_id: true, comments_enabled: true } },
+      },
     });
     if (!parent) throw commentNotFound();
+    if (!parent.post.comments_enabled) return { items: [], nextCursor: null };
     return this.page(
       userId,
       parent.post.author_id,

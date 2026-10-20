@@ -21,6 +21,7 @@ class UploadTask {
     this.progress = 0,
     this.fileId,
     this.error,
+    this.note,
   });
 
   final String localId;
@@ -30,6 +31,10 @@ class UploadTask {
   final double progress;
   final String? fileId;
   final Object? error;
+
+  /// Owner 2026-10-18: the attorney's note to the reviewer, sent with the
+  /// bar card of a number for manual review.
+  final String? note;
 
   bool get isActive =>
       phase == UploadPhase.uploading ||
@@ -50,6 +55,7 @@ class UploadTask {
         progress: progress ?? this.progress,
         fileId: fileId ?? this.fileId,
         error: error,
+        note: note,
       );
 }
 
@@ -71,7 +77,20 @@ class WizardState {
     this.missing = const [],
     this.barDocumentRequired = true,
     this.maxFilesPerDocument = DocSlot.maxFiles,
+    this.barLockedUntil,
   });
+
+  /// Owner 2026-10-18: after 5 failed bar numbers the server locks adding a
+  /// number for an hour; until then «Добавить» is off (manual review stays
+  /// open). Null when not locked.
+  final DateTime? barLockedUntil;
+
+  /// Time left of the lock at [now], or null when there is none.
+  Duration? barLockLeft(DateTime now) {
+    final until = barLockedUntil;
+    if (until == null || !until.isAfter(now)) return null;
+    return until.difference(now);
+  }
 
   /// Owner 2026-10-07 (bug 17): files per document — the admin's
   /// «Проверка адвоката» limit (the server checks it too).
@@ -137,8 +156,9 @@ class WizardState {
     final out = <MissingItem>[];
     final pending = request.pendingLicenses;
     if (pending.isEmpty) out.add(const MissingLicense());
-    if (barDocumentRequired) {
-      for (final l in pending) {
+    for (final l in pending) {
+      // A license sent for manual review always needs its card.
+      if (barDocumentRequired || l.manualReview) {
         if (request.docsFor(DocSlot.barLicense(l.stateCode)).isEmpty) {
           out.add(MissingBarDocument(l.stateCode));
         }
@@ -161,12 +181,16 @@ class WizardState {
     IdDocumentType? idType,
     List<UploadTask>? uploads,
     List<MissingItem>? missing,
+    DateTime? barLockedUntil,
+    bool clearBarLock = false,
   }) =>
       WizardState(
         request: request ?? this.request,
         identityRequired: identityRequired,
         barDocumentRequired: barDocumentRequired,
         maxFilesPerDocument: maxFilesPerDocument,
+        barLockedUntil:
+            clearBarLock ? null : barLockedUntil ?? this.barLockedUntil,
         step: step ?? this.step,
         idType: idType ?? this.idType,
         uploads: uploads ?? this.uploads,
@@ -238,6 +262,10 @@ class VerificationWizardController extends AsyncNotifier<WizardState> {
         barDocumentRequired: overview.barDocumentRequired,
       ),
       idType: request.identityType ?? IdDocumentType.driversLicense,
+      barLockedUntil: overview.barAttemptsRetryAfterSeconds > 0
+          ? DateTime.now()
+              .add(Duration(seconds: overview.barAttemptsRetryAfterSeconds))
+          : null,
     );
   }
 
@@ -279,6 +307,7 @@ class VerificationWizardController extends AsyncNotifier<WizardState> {
     required String stateCode,
     required String barNumber,
     DateTime? expiresAt,
+    bool manualReview = false,
   }) async {
     final s = _s;
     if (s == null) return;
@@ -287,17 +316,83 @@ class VerificationWizardController extends AsyncNotifier<WizardState> {
           stateCode: stateCode,
           barNumber: barNumber,
           expiresAt: expiresAt,
+          manualReview: manualReview,
         );
     try {
-      _setRequest(await add(s.request.id));
+      try {
+        _setRequest(await add(s.request.id));
+      } on ApiException catch (e) {
+        if (e.code != ApiErrorCodes.verificationInvalidStatus) rethrow;
+        // The request was sent or decided meanwhile: continue on a new draft
+        // (the same number is put back to review there) instead of failing.
+        final fresh = await _repo.create();
+        _setRequest(fresh);
+        _setRequest(await add(fresh.id));
+      }
+      if (!manualReview) {
+        final latest = _s;
+        if (latest != null) _emit(latest.copyWith(clearBarLock: true));
+      }
     } on ApiException catch (e) {
-      if (e.code != ApiErrorCodes.verificationInvalidStatus) rethrow;
-      // The request was sent or decided meanwhile: continue on a new draft
-      // (the same number is put back to review there) instead of failing.
-      final fresh = await _repo.create();
-      _setRequest(fresh);
-      _setRequest(await add(fresh.id));
+      // Owner 2026-10-18: too many failed numbers — the server locks adding
+      // one; the sheet shows how long until it unlocks.
+      if (e.code == ApiErrorCodes.barAttemptsCooldown) {
+        final raw = e.details?['retryAfterSeconds'];
+        final seconds = raw is num ? raw.toInt() : 3600;
+        final latest = _s;
+        if (latest != null) {
+          _emit(
+            latest.copyWith(
+              barLockedUntil: DateTime.now().add(Duration(seconds: seconds)),
+            ),
+          );
+        }
+      }
+      rethrow;
     }
+  }
+
+  /// Owner 2026-10-18 («Мой номер верный — отправить на проверку»): the
+  /// number goes to a person with the bar card photo and an optional note.
+  /// Open while adding a number is locked. Too large a photo → throws
+  /// `FILE_TOO_LARGE` before anything is sent.
+  Future<void> addLicenseForManualReview({
+    required String stateCode,
+    required String barNumber,
+    required PickedDocument barCard,
+    DateTime? expiresAt,
+    String? note,
+  }) async {
+    final limit =
+        ref.read(uploadLimitsProvider)[UploadPlace.verification].fileBytes;
+    if (barCard.sizeBytes > limit) {
+      throw const ApiException(
+        code: ApiErrorCodes.fileTooLarge,
+        message: 'File too large.',
+      );
+    }
+    // Owner 2026-10-19: a format the admin has off is refused at once.
+    if (!ref
+        .read(uploadLimitsProvider)[UploadPlace.verification]
+        .allowsMime(barCard.mime)) {
+      throw const ApiException(
+        code: ApiErrorCodes.fileTypeNotAllowed,
+        message: 'File type not allowed.',
+      );
+    }
+    await addLicense(
+      stateCode: stateCode,
+      barNumber: barNumber,
+      expiresAt: expiresAt,
+      manualReview: true,
+    );
+    final trimmed = note?.trim();
+    upload(
+      DocSlot.barLicense(stateCode),
+      barCard,
+      maxBytes: limit,
+      note: trimmed == null || trimmed.isEmpty ? null : trimmed,
+    );
   }
 
   Future<void> removeLicense(VerificationLicense license) async {
@@ -339,6 +434,7 @@ class VerificationWizardController extends AsyncNotifier<WizardState> {
     DocSlot slot,
     PickedDocument document, {
     int? maxBytes,
+    String? note,
   }) {
     final s = _s;
     if (s == null) return;
@@ -350,11 +446,21 @@ class VerificationWizardController extends AsyncNotifier<WizardState> {
         message: 'File too large.',
       );
     }
+    // Owner 2026-10-19: a format the admin has off is refused at once.
+    if (!ref
+        .read(uploadLimitsProvider)[UploadPlace.verification]
+        .allowsMime(document.mime)) {
+      throw const ApiException(
+        code: ApiErrorCodes.fileTypeNotAllowed,
+        message: 'File type not allowed.',
+      );
+    }
     final task = UploadTask(
       localId: 'u${_seq++}',
       slot: slot,
       document: document,
       phase: UploadPhase.uploading,
+      note: note,
     );
     _emit(s.copyWith(uploads: [...s.uploads, task], missing: const []));
     _run(task);
@@ -450,8 +556,12 @@ class VerificationWizardController extends AsyncNotifier<WizardState> {
       _patch(id, (t) => t.copyWith(phase: UploadPhase.attaching));
       final s = _s;
       if (s == null) return;
-      final r =
-          await _repo.attach(s.request.id, fileId: fileId, slot: initial.slot);
+      final r = await _repo.attach(
+        s.request.id,
+        fileId: fileId,
+        slot: initial.slot,
+        note: initial.note,
+      );
       if (cancellation.isCancelled) return;
       _setRequest(r, dropTask: id);
     } on UploadCancelledException {

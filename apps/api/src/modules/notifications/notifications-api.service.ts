@@ -3,7 +3,12 @@ import {
   ForbiddenException,
   Injectable,
 } from '@nestjs/common';
-import type { Notification } from '@prisma/client';
+import { Prisma, type Notification } from '@prisma/client';
+import {
+  allWordsSql,
+  nameMatchSql,
+  typedWords,
+} from '../../common/search/name-match.sql';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
   decodeCursor,
@@ -58,11 +63,14 @@ export class NotificationsApiService {
     userId: string,
     cursor?: string,
     group?: NotificationGroup,
+    q?: string,
   ): Promise<{ items: NotificationDto[]; nextCursor: string | null }> {
     const c = cursor ? decodeCursor(cursor) : undefined;
+    const matching = q ? await this.matchingIds(userId, q) : undefined;
     const rows = await this.prisma.notification.findMany({
       where: {
         user_id: userId,
+        ...(matching ? { id: { in: matching } } : {}),
         // new_message is never stored; guard old rows anyway (§9.2).
         type: group
           ? {
@@ -92,6 +100,35 @@ export class NotificationsApiService {
           ? encodeCursor({ createdAt: last.created_at, id: last.id })
           : null,
     };
+  }
+
+  /**
+   * Owner 2026-10-18: the user's notifications whose stored text (title,
+   * body, reason, note) has every typed word, or whose actor — an attorney;
+   * a client stays anonymous (§5.2) — matches the typed name.
+   * Owner 2026-10-18 (speed): the actor is joined as a uuid (guarded by a
+   * uuid-shape check) so the users primary key is used, not a text cast
+   * of every user id.
+   */
+  private async matchingIds(userId: string, q: string): Promise<string[]> {
+    const words = typedWords(q);
+    if (!words.length) return [];
+    const text = Prisma.sql`concat_ws(' ', n.payload->>'title', n.payload->>'body', n.payload->>'reason', n.payload->>'note')`;
+    const rows = await this.prisma.$queryRaw<{ id: string }[]>`
+      SELECT n.id::TEXT AS id
+      FROM notifications n
+      LEFT JOIN users a
+        ON a.role::TEXT = 'attorney'
+       AND a.id = CASE
+             WHEN lower(n.payload->>'actorId') ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+             THEN lower(n.payload->>'actorId')::UUID
+           END
+      WHERE n.user_id = ${userId}::UUID
+        AND (${allWordsSql(text, words)}
+             OR (a.id IS NOT NULL
+                 AND ${nameMatchSql(q, Prisma.sql`a.full_name_lower`)}))
+      LIMIT 2000`;
+    return rows.map((r) => r.id);
   }
 
   async read(

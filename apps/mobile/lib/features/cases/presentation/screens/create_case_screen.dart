@@ -12,7 +12,7 @@ import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/cases/application/create_case_controller.dart';
 import 'package:lawbid/features/cases/domain/case_draft.dart';
 import 'package:lawbid/features/cases/domain/case_urgency.dart';
-import 'package:lawbid/features/cases/presentation/widgets/case_cover_picker.dart';
+import 'package:lawbid/features/cases/presentation/widgets/attorney_view_preview.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_photos.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_urgency_picker.dart';
@@ -482,9 +482,11 @@ class _ReviewStep extends ConsumerWidget {
               Divider(height: 1, color: colors.border),
               row(
                 t.t('cases.card.budget'),
-                d.budgetIsAmount && d.budgetDollars != null
-                    ? CaseFormat.money(formats, d.budgetDollars! * 100)
-                    : t.t('cases.budget.clarifyLater'),
+                d.budgetIsPercent && d.budgetPercentBps != null
+                    ? CaseFormat.percent(t, formats, d.budgetPercentBps!)
+                    : d.budgetIsAmount && d.budgetDollars != null
+                        ? CaseFormat.money(formats, d.budgetDollars! * 100)
+                        : t.t('cases.budget.clarifyLater'),
                 3,
                 AppIcons.paymentsOutlined,
               ),
@@ -498,19 +500,9 @@ class _ReviewStep extends ConsumerWidget {
             ],
           ),
         ),
-        // Owner 2026-10-04: what attorneys see instead of the client.
+        // Owner 2026-10-17: no cover choice — covers are not shown on the
+        // attorneys' cards; "Мои кейсы" keeps the automatic one.
         const SizedBox(height: AppSpacing.xl),
-        CaseCoverPicker(
-          t: t,
-          practiceCode: d.practiceCode,
-          selected: d.coverKey,
-          onChanged: (key) => c.update(
-            (x) => key == null
-                ? x.copyWith(clearCoverKey: true)
-                : x.copyWith(coverKey: key),
-          ),
-        ),
-        const SizedBox(height: AppSpacing.lg),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -527,6 +519,21 @@ class _ReviewStep extends ConsumerWidget {
               ),
             ),
           ],
+        ),
+        // Owner 2026-10-19: the case as attorneys will see it, before
+        // publishing (the same sheet as in «Мой кейс»).
+        const SizedBox(height: AppSpacing.lg),
+        AppButton(
+          key: const ValueKey('case-wizard-preview'),
+          label: t.t('cases.preview.button'),
+          icon: AppIcons.visibilityOutlined,
+          variant: AppButtonVariant.secondary,
+          onPressed: () => showAttorneyViewPreview(
+            context,
+            item: AttorneyViewPreview.feedViewOfDraft(d, state.photos),
+            t: t,
+            formats: formats,
+          ),
         ),
         // Owner 2026-09-30 (OQ-039): what happens to the case and who sees
         // what, right above Publish.

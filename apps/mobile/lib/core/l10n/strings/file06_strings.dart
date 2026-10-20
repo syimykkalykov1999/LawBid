@@ -11,7 +11,7 @@ const file06Ru = <String, String>{
   'chat.attach.photo': 'Фото',
   'chat.attach.label': 'Файл',
   'chat.attach.skipped':
-      'Не добавлено файлов: {count} — неподдерживаемый формат или больше 25 МБ',
+      'Не добавлено файлов: {count} — неподдерживаемый формат или больше {max} МБ',
   'chat.files.title': 'Файлы и фото',
   'chat.files.photos': 'Фото',
   'chat.files.documents': 'Документы',
@@ -20,7 +20,9 @@ const file06Ru = <String, String>{
       'Файлы можно отправлять после принятия ставки.',
   // --- Owner 2026-09-30 (OQ-046) ---
   'post.create.practice': 'Квалификация',
-  'post.create.practicePick': 'Тема (необязательно)',
+  'post.create.practicePick': 'Тема поста (необязательно)',
+  'post.create.topicHint':
+      'Это публичный пост, не кейс. Тема — чтобы пост увидели те, кому она интересна.',
   'practice.search.hint': 'Начните вводить: арбитраж, виза, развод…',
   'state.search.hint': 'Начните вводить штат',
   'post.create.titleField': 'Заголовок',
@@ -87,7 +89,9 @@ const file06Ru = <String, String>{
   'mine.tab.open': 'Открытые',
   'mine.tab.completed': 'Завершённые',
   'mine.filter.open': 'Открытые',
-  'mine.search.hint': 'Поиск по названию',
+  'mine.search.hint': 'Поиск по моим делам',
+  'mine.search.bids': 'Поиск по моим ставкам',
+  'mine.search.saved': 'Поиск по сохранённым делам',
   'mine.search.filters': 'Фильтры',
   'mine.search.practice': 'Квалификация',
   'mine.search.state': 'Штат',
@@ -100,6 +104,12 @@ const file06Ru = <String, String>{
   'call.notAllowedRequest':
       'Звонок откроется, когда запрос на переписку примут.',
   // --- OQ-043: личные чаты и запросы на переписку ---
+  // Owner 2026-10-17: videos in a chat.
+  'chat.attach.video': 'Видео',
+  'chat.attach.gallery': 'Фото и видео',
+  'chat.avatar.open': 'Открыть фото',
+  'chat.attach.videoPreparing': 'Готовим видео к отправке…',
+  'chat.attach.videoPlay': 'Смотреть видео',
   'chat.requests.title': 'Запросы на переписку',
   'chat.requests.subtitle': 'Сообщения от людей, с которыми вы не общались',
   'chat.requests.explain':
@@ -113,10 +123,10 @@ const file06Ru = <String, String>{
   'chat.requests.delete': 'Удалить',
   'chat.requests.block': 'Блок',
   'chat.requests.sentNote':
-      'Запрос отправлен. До ответа можно отправить до 3 сообщений.',
+      'Запрос отправлен. Сообщения появятся у человека в «Запросах», пока он не ответит.',
   'chat.requests.declinedForYou': 'Этот человек не принимает ваши сообщения.',
   'error.api.DIRECT_CHAT_NOT_ALLOWED':
-      'Личная переписка доступна между адвокатом и клиентом.',
+      'С этим аккаунтом нельзя переписываться.',
   'error.api.MESSAGE_REQUEST_DECLINED':
       'Этот человек не принимает ваши сообщения.',
   'error.api.MESSAGE_REQUEST_LIMIT':
@@ -338,8 +348,36 @@ const file06Ru = <String, String>{
   'profile.nameMismatch.action': 'Подтвердить новое имя',
   // OQ-031 case photos.
   'cases.photos.title': 'Фото и файлы',
-  'cases.photos.privacy':
-      'Необязательно: до 9 фото или файлов (PDF, Word). Их увидит только адвокат, чей бид вы примете.',
+  'cases.photos.privacy': 'До {max} фото или файлов (PDF, Word).',
+  'cases.photos.optional': '· необязательно',
+  'cases.photos.tilePhoto': 'Фото',
+  'cases.photos.tileFile': 'Файл',
+  'cases.photos.limitReached': 'Достигнут лимит: {max}',
+  'cases.photos.privacyMedia':
+      'До {photos} фото и видео и до {files} документов (PDF, Word).',
+  'cases.photos.tileMedia': 'Фото и видео',
+  'cases.files.video': 'Видео',
+  'cases.photos.privacySplit':
+      'До {photos} фото и до {files} файлов (PDF, Word).',
+  'cases.field.noContacts':
+      'Без паспорта, SSN, номеров счетов, имён и адресов.',
+  'cases.field.brief': 'Кратко о деле',
+  'cases.field.briefHint': 'Суть в 2–3 предложениях: что случилось и что нужно',
+  'cases.field.privateDetails': 'Подробности (необязательно)',
+  'cases.field.privateDetailsHint':
+      'Полная история, имена сторон, номер дела, адреса, даты — всё, что нельзя показывать всем',
+  'cases.block.public.title': 'Видят все адвокаты',
+  'cases.block.public.note': '· без вашего имени',
+  'cases.block.private.title': 'Увидит только адвокат, чей бид вы примете',
+  'cases.block.private.footer':
+      'Откроется только после того, как вы примете бид.',
+  'cases.visibility.legal':
+      'LawBid не юридическая фирма и не даёт консультаций.',
+  'cases.review.privateDetails':
+      'Подробности: {n} знаков (видит только принятый адвокат)',
+  'cases.dossier.privateLine': 'Закрытые детали: {items}',
+  'cases.dossier.privateText': 'подробное описание',
+  'cases.private.title': 'Подробности от клиента',
   'cases.photos.add': 'Добавить фото',
   'cases.photos.remove': 'Убрать фото',
   'cases.photos.locked':
@@ -390,6 +428,9 @@ const file06Ru = <String, String>{
   'search.filter.verifiedOnly': 'Только с галочкой',
   'search.filter.budget': 'Бюджет',
   'search.filter.budgetUnknown': 'Бюджет не указан («уточнить позже»)',
+  'search.filter.budgetPercent': 'Проценты',
+  'search.filter.percentMax': 'Процент от компенсации',
+  'search.filter.percentUpTo': 'до {n}%',
   'search.filter.noBids': 'Ещё без бидов',
   'search.filter.status': 'Статус',
   'search.filter.status.active': 'Активные',
@@ -422,6 +463,7 @@ const file06Ru = <String, String>{
   'feed.state.empty': 'В этом штате пока нет публикаций',
   'feed.filters': 'Фильтры',
   'cases.comments.title': 'Вопросы по кейсу',
+  'cases.comments.button': 'Вопросы',
   'cases.comments.owner': 'Автор кейса',
   'cases.comments.hint':
       'Видят автор кейса и адвокаты, которым он доступен. Контакты передаются только после принятия бида.',
@@ -439,7 +481,7 @@ const file06En = <String, String>{
   'chat.attach.files': 'Documents (PDF, Word, Excel…)',
   'chat.attach.photo': 'Photo',
   'chat.attach.label': 'File',
-  'chat.attach.skipped': '{count} not added — unsupported format or over 25 MB',
+  'chat.attach.skipped': '{count} not added — unsupported format or over {max} MB',
   'chat.files.title': 'Files and photos',
   'chat.files.photos': 'Photos',
   'chat.files.documents': 'Documents',
@@ -448,7 +490,9 @@ const file06En = <String, String>{
       'Files can be sent once the bid is accepted.',
   // --- Owner 2026-09-30 (OQ-046) ---
   'post.create.practice': 'Qualification',
-  'post.create.practicePick': 'Topic (optional)',
+  'post.create.practicePick': 'Post topic (optional)',
+  'post.create.topicHint':
+      'This is a public post, not a case. The topic helps people who follow it find your post.',
   'practice.search.hint': 'Start typing: arbitration, visa, divorce…',
   'state.search.hint': 'Start typing a state',
   'post.create.titleField': 'Title',
@@ -515,7 +559,9 @@ const file06En = <String, String>{
   'mine.tab.open': 'Open',
   'mine.tab.completed': 'Completed',
   'mine.filter.open': 'Open',
-  'mine.search.hint': 'Search by title',
+  'mine.search.hint': 'Search my cases',
+  'mine.search.bids': 'Search my bids',
+  'mine.search.saved': 'Search saved cases',
   'mine.search.filters': 'Filters',
   'mine.search.practice': 'Qualification',
   'mine.search.state': 'State',
@@ -539,12 +585,16 @@ const file06En = <String, String>{
   'chat.requests.accept': 'Accept',
   'chat.requests.sent': 'Request sent',
   'chat.requests.delete': 'Delete',
+  'chat.attach.video': 'Video',
+  'chat.attach.gallery': 'Photos and videos',
+  'chat.avatar.open': 'Open photo',
+  'chat.attach.videoPreparing': 'Preparing the video…',
+  'chat.attach.videoPlay': 'Watch the video',
   'chat.requests.block': 'Block',
   'chat.requests.sentNote':
-      'Request sent. You can send up to 3 messages until they accept.',
+      'Request sent. Your messages wait in their Requests until they reply.',
   'chat.requests.declinedForYou': "This person isn't accepting your messages.",
-  'error.api.DIRECT_CHAT_NOT_ALLOWED':
-      'Direct messages are between an attorney and a client.',
+  'error.api.DIRECT_CHAT_NOT_ALLOWED': "You can't message this account.",
   'error.api.MESSAGE_REQUEST_DECLINED':
       "This person isn't accepting your messages.",
   'error.api.MESSAGE_REQUEST_LIMIT':
@@ -766,8 +816,37 @@ const file06En = <String, String>{
   'profile.nameMismatch.action': 'Confirm new name',
   // OQ-031 case photos.
   'cases.photos.title': 'Photos and files',
-  'cases.photos.privacy':
-      'Optional: up to 9 photos or files (PDF, Word). Only the attorney whose bid you accept will see them.',
+  'cases.photos.privacy': 'Up to {max} photos or files (PDF, Word).',
+  'cases.photos.optional': '· optional',
+  'cases.photos.tilePhoto': 'Photo',
+  'cases.photos.tileFile': 'File',
+  'cases.photos.limitReached': 'Limit reached: {max}',
+  'cases.photos.privacyMedia':
+      'Up to {photos} photos and videos and up to {files} documents (PDF, Word).',
+  'cases.photos.tileMedia': 'Photo & video',
+  'cases.files.video': 'Video',
+  'cases.photos.privacySplit':
+      'Up to {photos} photos and up to {files} files (PDF, Word).',
+  'cases.field.noContacts':
+      'No passport, SSN, account numbers, names or addresses.',
+  'cases.field.brief': 'Case in brief',
+  'cases.field.briefHint':
+      'The point in 2–3 sentences: what happened and what you need',
+  'cases.field.privateDetails': 'Details (optional)',
+  'cases.field.privateDetailsHint':
+      "The full story, names of the parties, case number, addresses, dates — anything you don't want everyone to see",
+  'cases.block.public.title': 'Every attorney sees this',
+  'cases.block.public.note': '· without your name',
+  'cases.block.private.title':
+      'Only the attorney whose bid you accept sees this',
+  'cases.block.private.footer': 'Opens only after you accept a bid.',
+  'cases.visibility.legal':
+      'LawBid is not a law firm and gives no legal advice.',
+  'cases.review.privateDetails':
+      'Details: {n} characters (only the accepted attorney sees them)',
+  'cases.dossier.privateLine': 'Private details: {items}',
+  'cases.dossier.privateText': 'full description',
+  'cases.private.title': 'Details from the client',
   'cases.photos.add': 'Add photo',
   'cases.photos.remove': 'Remove photo',
   'cases.photos.locked':
@@ -819,6 +898,9 @@ const file06En = <String, String>{
   'search.filter.verifiedOnly': 'Verified only',
   'search.filter.budget': 'Budget',
   'search.filter.budgetUnknown': 'No budget ("clarify later")',
+  'search.filter.budgetPercent': 'Percent',
+  'search.filter.percentMax': 'Percent of the recovery',
+  'search.filter.percentUpTo': 'up to {n}%',
   'search.filter.noBids': 'No bids yet',
   'search.filter.status': 'Status',
   'search.filter.status.active': 'Active',
@@ -851,6 +933,7 @@ const file06En = <String, String>{
   'feed.state.empty': 'No posts from this state yet',
   'feed.filters': 'Filters',
   'cases.comments.title': 'Case questions',
+  'cases.comments.button': 'Questions',
   'cases.comments.owner': 'Case owner',
   'cases.comments.hint':
       'Visible to the case owner and attorneys who can see the case. Contacts are shared only after a bid is accepted.',

@@ -133,12 +133,38 @@ export class TranslationService {
     return out;
   }
 
+  /**
+   * Owner 2026-10-18 (admin «Справочник» → «Перевести на все языки»): an
+   * admin's own text, so no user quota, plan or zone switch — only the
+   * Google key and the global spend guard. Not cached (texts are edited).
+   */
+  async translateForAdmin(
+    text: string,
+    target: string,
+    source: string,
+  ): Promise<string> {
+    const key = (await this.secrets.get('google_translate'))?.fields.apiKey;
+    if (!key) throw translationUnavailable();
+    await this.costGuard?.consume('translate');
+    const hash = createHash('sha256').update(text).digest('hex').slice(0, 12);
+    const out = await this.callGoogle(
+      key,
+      text,
+      target,
+      'profiles',
+      hash,
+      source,
+    );
+    return out.text;
+  }
+
   private async callGoogle(
     key: string,
     text: string,
     target: string,
     zone: TranslateZone,
     textHash: string,
+    source?: string,
   ): Promise<TextTranslation> {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
@@ -148,7 +174,12 @@ export class TranslationService {
         {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ q: text, target, format: 'text' }),
+          body: JSON.stringify({
+            q: text,
+            target,
+            format: 'text',
+            ...(source && { source }),
+          }),
           signal: ctrl.signal,
         },
       );

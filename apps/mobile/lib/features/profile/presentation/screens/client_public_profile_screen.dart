@@ -6,6 +6,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/core/text/bidi.dart';
 import 'package:lawbid/features/blocks/presentation/block_actions.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
@@ -50,7 +51,8 @@ class ClientPublicProfileScreen extends ConsumerWidget {
             const AppSheetHandle(),
             BlockListRow(
               userId: p.id,
-              displayName: p.fullName.isEmpty ? '@${p.username}' : p.fullName,
+              displayName:
+                  p.fullName.isEmpty ? atHandle(p.username) : p.fullName,
               currentlyBlocked: p.isBlocked,
               onChanged: () =>
                   ref.invalidate(publicClientProfileProvider(username)),
@@ -98,8 +100,9 @@ class ClientPublicProfileScreen extends ConsumerWidget {
       body: SafeArea(
         top: false,
         child: AnimatedSwitcher(
-          duration:
-              context.reduceMotion ? Duration.zero : AppMotion.stateChange,
+          // Owner 2026-10-19 («мигание»): loading, data and tab bodies
+          // swap at once (Instagram), no cross-fade.
+          duration: Duration.zero,
           child: profile.when(
             skipLoadingOnReload: true,
             loading: () => const _Skeleton(key: ValueKey('loading')),

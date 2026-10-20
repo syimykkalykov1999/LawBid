@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,15 +12,18 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/navigation/shell/web_page_frame.dart';
-import 'package:lawbid/core/text/bidi.dart';
 import 'package:lawbid/features/blocks/presentation/block_actions.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
     show showConfirmSheet;
 import 'package:lawbid/features/promotions/presentation/promote_case_card.dart';
+import 'package:lawbid/features/social/application/post_insights_providers.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/data/social_repository.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/screens/create_post_screen.dart';
+import 'package:lawbid/features/social/presentation/screens/social_screens.dart'
+    show RepostersScreen;
+import 'package:lawbid/features/social/presentation/widgets/post_impression_tracker.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
@@ -42,6 +47,67 @@ Future<void> sharePost(BuildContext context, WidgetRef ref, Post post) async {
   if (shared) await ref.read(socialActionsProvider).recordShare(post);
 }
 
+/// Owner 2026-10-18: the ↻ button. Not reposted yet → a sheet with
+/// «Репост» (quote posts do not exist in the app, so there is only the
+/// plain repost); already reposted → a sheet with «Отменить репост».
+/// Haptic, optimistic counter, rolled back (with a message) on an error.
+Future<void> showRepostSheet(
+  BuildContext context,
+  WidgetRef ref,
+  Post post,
+) async {
+  final t = ref.read(translatorProvider);
+  final current = ref.read(postOverridesProvider)[post.id] ?? post;
+  if (current.isMine) {
+    // One's own post is never reposted (server rule REPOST_OWN_POST): the
+    // button shows who reposted it, or says why there is nothing to do.
+    if (current.repostCount > 0) {
+      await showRepostersList(context, current.id);
+      return;
+    }
+    final error = await ref.read(socialActionsProvider).toggleRepost(current);
+    if (error != null && context.mounted) {
+      showAppSnackBar(context, errorText(t, error));
+    }
+    return;
+  }
+  final undo = current.repostedByMe;
+  final go = await showAppBottomSheet<bool>(
+    context: context,
+    builder: (sheet) => SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: AppSpacing.md),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const AppSheetHandle(),
+            AppListRow(
+              key: ValueKey(undo ? 'repost-sheet-undo' : 'repost-sheet-do'),
+              icon: AppIcons.autoModeRounded,
+              label: t.t(undo ? 'post.unrepost' : 'post.repost.action'),
+              destructive: undo,
+              showChevron: false,
+              onTap: () => Navigator.of(sheet).pop(true),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+  if (go != true) return;
+  unawaited(HapticFeedback.mediumImpact());
+  final error = await ref.read(socialActionsProvider).toggleRepost(current);
+  if (error != null && context.mounted) {
+    showAppSnackBar(context, errorText(t, error));
+  }
+}
+
+/// The list of people who reposted a post (the counter's tap).
+Future<void> showRepostersList(BuildContext context, String postId) =>
+    Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(builder: (_) => RepostersScreen(postId: postId)),
+    );
+
 /// Opens a person's public profile; your own goes to the Profile tab
 /// instead of a second copy of it on the stack.
 void openProfile(
@@ -60,15 +126,27 @@ void openProfile(
   );
 }
 
-/// [openProfile] for a post's author.
-void openAuthorProfile(BuildContext context, WidgetRef ref, PostAuthor a) =>
-    openProfile(
-      context,
-      ref,
-      id: a.id,
-      username: a.username,
-      isClient: a.isClient,
-    );
+/// [openProfile] for a post's author. Owner 2026-10-18: opened from a post
+/// ([fromPostId], else the [PostSourceScope] around [context]) it counts as
+/// a profile visit in that post's statistics (never one's own).
+void openAuthorProfile(
+  BuildContext context,
+  WidgetRef ref,
+  PostAuthor a, {
+  String? fromPostId,
+}) {
+  final from = fromPostId ?? PostSourceScope.maybeOf(context);
+  if (from != null && a.id != ref.read(currentUserIdProvider)) {
+    ref.read(postEventsQueueProvider).profileVisit(from);
+  }
+  openProfile(
+    context,
+    ref,
+    id: a.id,
+    username: a.username,
+    isClient: a.isClient,
+  );
+}
 
 /// Reloads every post list after a block (the blocked person's posts go).
 void refreshPostLists(WidgetRef ref) {
@@ -79,7 +157,9 @@ void refreshPostLists(WidgetRef ref) {
     ..invalidate(filteredPostsProvider)
     ..invalidate(tagPostsProvider)
     ..invalidate(attorneyPostsProvider)
-    ..invalidate(attorneyNewsProvider);
+    ..invalidate(attorneyNewsProvider)
+    ..invalidate(attorneyPhotoPostsProvider)
+    ..invalidate(attorneyReelsProvider);
 }
 
 /// Owner 2026-10-12: a small sheet with three numbers — the slot the post
@@ -205,6 +285,7 @@ Future<void> showPostMenu(BuildContext context, WidgetRef ref, Post post) {
                         ),
                       // Owner 2026-10-12: pin to the profile top (1..3).
                       if (!post.isNews &&
+                          !post.isArchived &&
                           post.status == 'published' &&
                           ref.read(canDoProvider(AssistantDuty.publish)))
                         AppListRow(
@@ -234,6 +315,72 @@ Future<void> showPostMenu(BuildContext context, WidgetRef ref, Post post) {
                             }
                           },
                         ),
+                      // Owner 2026-10-18 (Instagram): comments on / off and
+                      // the archive — every author; an assistant with
+                      // "publish" for the attorney.
+                      if (ref.read(canDoProvider(AssistantDuty.publish))) ...[
+                        AppListRow(
+                          key: const ValueKey('post-menu-comments'),
+                          icon: AppIcons.modeCommentOutlined,
+                          label: t.t(
+                            post.commentsEnabled
+                                ? 'post.menu.commentsOff'
+                                : 'post.menu.commentsOn',
+                          ),
+                          showChevron: false,
+                          onTap: () async {
+                            Navigator.of(sheet).pop();
+                            final enabled = !post.commentsEnabled;
+                            final error = await ref
+                                .read(socialActionsProvider)
+                                .setCommentsEnabled(post, enabled: enabled);
+                            if (context.mounted) {
+                              showAppSnackBar(
+                                context,
+                                error == null
+                                    ? t.t(
+                                        enabled
+                                            ? 'post.comments.turnedOn'
+                                            : 'post.comments.turnedOff',
+                                      )
+                                    : errorText(t, error),
+                              );
+                            }
+                          },
+                        ),
+                        if (post.status != 'processing')
+                          AppListRow(
+                            key: const ValueKey('post-menu-archive'),
+                            icon: post.isArchived
+                                ? AppIcons.unarchiveOutlined
+                                : AppIcons.inventory2Outlined,
+                            label: t.t(
+                              post.isArchived
+                                  ? 'post.menu.unarchive'
+                                  : 'post.menu.archive',
+                            ),
+                            showChevron: false,
+                            onTap: () async {
+                              Navigator.of(sheet).pop();
+                              final archived = !post.isArchived;
+                              final error = await ref
+                                  .read(socialActionsProvider)
+                                  .setArchived(post, archived: archived);
+                              if (context.mounted) {
+                                showAppSnackBar(
+                                  context,
+                                  error == null
+                                      ? t.t(
+                                          archived
+                                              ? 'post.archived'
+                                              : 'post.unarchived',
+                                        )
+                                      : errorText(t, error),
+                                );
+                              }
+                            },
+                          ),
+                      ],
                       // Owner 2026-10-15 (Instagram): hide the like / view counters.
                       if (ref
                           .read(featureFlagsControllerProvider)
@@ -279,8 +426,8 @@ Future<void> showPostMenu(BuildContext context, WidgetRef ref, Post post) {
                           ),
                       ],
                       // Owner 2026-10-05: Instagram-style "Promote" (money: the
-                      // account owner, never an assistant).
-                      if (!ref.read(isAssistantProvider))
+                      // account owner, never an assistant); not while archived.
+                      if (!ref.read(isAssistantProvider) && !post.isArchived)
                         AppListRow(
                           icon: AppIcons.campaignOutlined,
                           label: t.t('promote.menu'),
@@ -497,7 +644,8 @@ Future<void> showEditPostSheet(BuildContext context, WidgetRef ref, Post post) {
   );
 }
 
-/// Multi-line post text with a live "n / 2200" counter.
+/// Multi-line post text with a live "n/2200" counter inside the field. Owner 2026-10-18:
+/// [singleLine] = the post's title (one line, cut at [maxChars]).
 class PostTextField extends ConsumerWidget {
   const PostTextField({
     required this.controller,
@@ -505,8 +653,22 @@ class PostTextField extends ConsumerWidget {
     this.hint,
     this.maxChars = kPostMaxChars,
     this.limitHint,
+    this.singleLine = false,
+    this.textInputAction,
+    this.onSubmitted,
+    this.focusNode,
+    this.fieldKey,
     super.key,
   });
+
+  /// One line, no more than [maxChars] (the title field).
+  final bool singleLine;
+  final TextInputAction? textInputAction;
+  final ValueChanged<String>? onSubmitted;
+  final FocusNode? focusNode;
+
+  /// Key of the inner [TextField] (tests).
+  final Key? fieldKey;
 
   /// Shown small and red under the counter once the text is over the limit
   /// of a post with files (Owner 2026-10-12).
@@ -523,73 +685,71 @@ class PostTextField extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    // Owner 2026-10-19: the «n/max» counter inside the field, bottom right.
     return Column(
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        TextField(
-          onTapOutside: hideKeyboardOnTapOutside,
+        InsideCounter(
           controller: controller,
-          autofocus: autofocus,
-          minLines: 4,
-          maxLines: 10,
-          maxLength: maxChars,
-          maxLengthEnforcement: MaxLengthEnforcement.none,
-          buildCounter: (
-            _, {
-            required currentLength,
-            required isFocused,
-            maxLength,
-          }) =>
-              null,
-          style: type.body.copyWith(color: colors.text),
-          decoration: InputDecoration(
-            hintText: hint,
-            filled: true,
-            fillColor: colors.bg,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(AppRadii.field),
-              borderSide: BorderSide(color: colors.border),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(AppRadii.field),
-              borderSide: BorderSide(color: colors.border),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(AppRadii.field),
-              borderSide: BorderSide(color: colors.gold, width: 1.5),
+          max: maxChars,
+          child: TextField(
+            key: fieldKey,
+            onTapOutside: hideKeyboardOnTapOutside,
+            controller: controller,
+            focusNode: focusNode,
+            autofocus: autofocus,
+            minLines: singleLine ? 1 : 4,
+            maxLines: singleLine ? 1 : 10,
+            maxLength: maxChars,
+            maxLengthEnforcement: singleLine
+                ? MaxLengthEnforcement.enforced
+                : MaxLengthEnforcement.none,
+            textInputAction: textInputAction,
+            onSubmitted: onSubmitted,
+            buildCounter: noFieldCounter,
+            style: type.body.copyWith(color: colors.text),
+            decoration: InputDecoration(
+              hintText: hint,
+              // M3 outline padding + room for the counter.
+              contentPadding: const EdgeInsetsDirectional.fromSTEB(
+                12,
+                20,
+                12,
+                12 + kInsideCounterRoom,
+              ),
+              filled: true,
+              fillColor: colors.bg,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppRadii.field),
+                borderSide: BorderSide(color: colors.border),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppRadii.field),
+                borderSide: BorderSide(color: colors.border),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppRadii.field),
+                borderSide: BorderSide(color: colors.gold, width: 1.5),
+              ),
             ),
           ),
         ),
-        const SizedBox(height: AppSpacing.xs),
-        ValueListenableBuilder<TextEditingValue>(
-          valueListenable: controller,
-          builder: (context, v, _) {
-            final n = v.text.characters.length;
-            final near = n > maxChars * 0.9;
-            final over = n > maxChars;
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  ltrIsolate('$n / $maxChars'),
-                  style: type.caption.copyWith(
-                    color: over
-                        ? colors.danger
-                        : (near ? colors.warning : colors.textSecondary),
-                  ),
-                ),
-                if (over && limitHint != null)
-                  Text(
-                    limitHint!,
-                    style: type.caption.copyWith(
-                      color: colors.danger,
-                      fontSize: 11,
+        if (limitHint != null)
+          ValueListenableBuilder<TextEditingValue>(
+            valueListenable: controller,
+            builder: (context, v, _) => v.text.characters.length > maxChars
+                ? Padding(
+                    padding: const EdgeInsets.only(top: AppSpacing.xs),
+                    child: Text(
+                      limitHint!,
+                      style: type.caption.copyWith(
+                        color: colors.danger,
+                        fontSize: 11,
+                      ),
                     ),
-                  ),
-              ],
-            );
-          },
-        ),
+                  )
+                : const SizedBox.shrink(),
+          ),
       ],
     );
   }

@@ -33,6 +33,7 @@ CaseBidItemDto _$CaseBidItemDtoFromJson(Map<String, dynamic> json) =>
       attorney: BidAttorneySummaryDto.fromJson(
         json['attorney'] as Map<String, dynamic>,
       ),
+      percentBps: (json['percentBps'] as num?)?.toInt(),
     );
 
 Map<String, dynamic> _$CaseBidItemDtoToJson(CaseBidItemDto instance) =>
@@ -43,6 +44,7 @@ Map<String, dynamic> _$CaseBidItemDtoToJson(CaseBidItemDto instance) =>
       'status': instance.status.toJson(),
       'feeType': instance.feeType.toJson(),
       'amountCents': instance.amountCents,
+      'percentBps': ?instance.percentBps,
       'message': instance.message,
       'startAvailability': instance.startAvailability.toJson(),
       'startDate': ?instance.startDate?.toIso8601String(),

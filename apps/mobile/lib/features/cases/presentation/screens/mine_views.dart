@@ -62,54 +62,55 @@ class _ClientMineViewState extends ConsumerState<ClientMineView> {
   Widget build(BuildContext context) {
     final t = ref.watch(translatorProvider);
     final active = _section == _CaseSection.active;
-    final body = switch (_tab) {
-      // Owner 2026-10-01: clients keep a planner too (own tasks + steps).
-      _ClientTab.planner => const TasksTab(key: ValueKey('planner')),
-      _ClientTab.cases => Column(
-          key: const ValueKey('cases'),
-          children: [
-            // Owner 2026-10-15: search and chips go away on scroll down and
-            // come back on scroll up.
-            ChromeCollapse(
-              child: Column(
-                children: [
-                  // Owner 2026-10-16: the chips and the search share a row.
-                  MineChipsSearchRow(
-                    search: _search,
-                    onChanged: (v) => setState(() => _search = v),
-                    chips: FilterChips<_CaseSection>(
-                      key: const ValueKey('case-sections'),
-                      padding: EdgeInsets.zero,
-                      value: _section,
-                      options: [
-                        (_CaseSection.active, t.t('mine.filter.active')),
-                        (_CaseSection.completed, t.t('mine.tab.completed')),
-                      ],
-                      onChanged: (v) => setState(() => _section = v),
-                    ),
+    Widget pageFor(_ClientTab tab) => switch (tab) {
+          // Owner 2026-10-01: clients keep a planner too (own tasks + steps).
+          _ClientTab.planner => const TasksTab(key: ValueKey('planner')),
+          _ClientTab.cases => Column(
+              key: const ValueKey('cases'),
+              children: [
+                // Owner 2026-10-15: search and chips go away on scroll down and
+                // come back on scroll up.
+                ChromeCollapse(
+                  child: Column(
+                    children: [
+                      // Owner 2026-10-16: the chips and the search share a row.
+                      MineChipsSearchRow(
+                        search: _search,
+                        onChanged: (v) => setState(() => _search = v),
+                        chips: FilterChips<_CaseSection>(
+                          key: const ValueKey('case-sections'),
+                          padding: EdgeInsets.zero,
+                          value: _section,
+                          options: [
+                            (_CaseSection.active, t.t('mine.filter.active')),
+                            (_CaseSection.completed, t.t('mine.tab.completed')),
+                          ],
+                          onChanged: (v) => setState(() => _section = v),
+                        ),
+                      ),
+                      MineActiveFilters(
+                        search: _search,
+                        onChanged: (v) => setState(() => _search = v),
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                    ],
                   ),
-                  MineActiveFilters(
+                ),
+                Expanded(
+                  child: _ClientCasesGrid(
+                    key: ValueKey(_section),
+                    // Owner 2026-10-15: «Active» = open and in work (the stage
+                    // scale); «Completed» = closed and archived.
+                    filter:
+                        active ? MyCasesFilter.active : MyCasesFilter.completed,
                     search: _search,
-                    onChanged: (v) => setState(() => _search = v),
+                    cards: true,
+                    scale: active,
                   ),
-                  const SizedBox(height: AppSpacing.sm),
-                ],
-              ),
+                ),
+              ],
             ),
-            Expanded(
-              child: _ClientCasesGrid(
-                key: ValueKey(_section),
-                // Owner 2026-10-15: «Active» = open and in work (the stage
-                // scale); «Completed» = closed and archived.
-                filter: active ? MyCasesFilter.active : MyCasesFilter.completed,
-                search: _search,
-                cards: true,
-                scale: active,
-              ),
-            ),
-          ],
-        ),
-    };
+        };
     return FeedChrome(
       controller: _chrome,
       child: Column(
@@ -123,16 +124,13 @@ class _ClientMineViewState extends ConsumerState<ClientMineView> {
             onChanged: (v) => setState(() => _tab = v),
           ),
           Expanded(
-            child: TabSwipe<_ClientTab>(
+            // Owner 2026-10-19 (Instagram): the sections are pages — the
+            // next one slides in with the finger, a tap slides to it.
+            child: SwipePages<_ClientTab>(
               value: _tab,
               values: _ClientTab.values,
               onChanged: (v) => setState(() => _tab = v),
-              child: AnimatedSwitcher(
-                duration: context.reduceMotion
-                    ? Duration.zero
-                    : AppMotion.stateChange,
-                child: body,
-              ),
+              pageBuilder: (_, tab) => pageFor(tab),
             ),
           ),
         ],
@@ -241,6 +239,7 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
     // Owner 2026-10-15: «Saved» is a bookmark right of the search.
     final saved = AppIconButton(
       key: const ValueKey('mine-saved-toggle'),
+      compact: true,
       icon: AppIcon(
         _saved ? AppIcons.bookmarkRounded : AppIcons.bookmarkBorderRounded,
         color: _saved ? colors.goldDark : colors.text,
@@ -254,6 +253,11 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
       search: _search,
       onChanged: (v) => setState(() => _search = v),
       action: saved,
+      hintKey: _saved
+          ? 'mine.search.saved'
+          : _section == _BidsSection.active
+              ? 'mine.search.hint'
+              : 'mine.search.bids',
       chips: _saved
           ? null
           : FilterChips<_BidsSection>(
@@ -313,34 +317,34 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
                 search: _search,
               ),
           };
-    final body = switch (_tab) {
-      _AttorneyTab.cases => Column(
-          key: const ValueKey('cases'),
-          children: [
-            // Owner 2026-10-15: the filter chips hide on scroll down and
-            // return on scroll up.
-            ChromeCollapse(
-              child: Column(
-                children: [
-                  topRow,
-                  filters,
-                  kinds,
-                  const SizedBox(height: AppSpacing.sm),
-                ],
-              ),
+    Widget pageFor(_AttorneyTab tab) => switch (tab) {
+          _AttorneyTab.cases => Column(
+              key: const ValueKey('cases'),
+              children: [
+                // Owner 2026-10-15: the filter chips hide on scroll down and
+                // return on scroll up.
+                ChromeCollapse(
+                  child: Column(
+                    children: [
+                      topRow,
+                      filters,
+                      kinds,
+                      const SizedBox(height: AppSpacing.sm),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: AnimatedSwitcher(
+                    // Owner 2026-10-19 («мигание»): loading, data and
+                    // tab bodies swap at once (Instagram), no cross-fade.
+                    duration: Duration.zero,
+                    child: grid,
+                  ),
+                ),
+              ],
             ),
-            Expanded(
-              child: AnimatedSwitcher(
-                duration: context.reduceMotion
-                    ? Duration.zero
-                    : AppMotion.stateChange,
-                child: grid,
-              ),
-            ),
-          ],
-        ),
-      _AttorneyTab.planner => const TasksTab(key: ValueKey('planner')),
-    };
+          _AttorneyTab.planner => const TasksTab(key: ValueKey('planner')),
+        };
     return FeedChrome(
       controller: _chrome,
       child: Column(
@@ -354,16 +358,13 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
             onChanged: (v) => setState(() => _tab = v),
           ),
           Expanded(
-            child: TabSwipe<_AttorneyTab>(
+            // Owner 2026-10-19 (Instagram): the sections are pages — the
+            // next one slides in with the finger, a tap slides to it.
+            child: SwipePages<_AttorneyTab>(
               value: _tab,
               values: _AttorneyTab.values,
               onChanged: (v) => setState(() => _tab = v),
-              child: AnimatedSwitcher(
-                duration: context.reduceMotion
-                    ? Duration.zero
-                    : AppMotion.stateChange,
-                child: body,
-              ),
+              pageBuilder: (_, tab) => pageFor(tab),
             ),
           ),
         ],
@@ -502,10 +503,17 @@ class _AttorneySavedState extends ConsumerState<_AttorneySaved> {
           onChanged: (v) => setState(() => _kind = v),
         ),
         const SizedBox(height: AppSpacing.sm),
+        // Owner 2026-10-19 (Instagram): cases and posts slide side by side.
         Expanded(
-          child: _kind == _SavedKind.cases
-              ? _SavedGrid(search: widget.search)
-              : const SavedPostsList(),
+          child: SwipePages<_SavedKind>(
+            value: _kind,
+            values: _SavedKind.values,
+            onChanged: (v) => setState(() => _kind = v),
+            pageBuilder: (_, kind) => switch (kind) {
+              _SavedKind.cases => _SavedGrid(search: widget.search),
+              _SavedKind.posts => const SavedPostsList(),
+            },
+          ),
         ),
       ],
     );

@@ -41,6 +41,10 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
   _FeedTab _tab = _FeedTab.posts;
   final _chrome = FeedChromeController();
 
+  // Owner 2026-10-18 (speed): the attorney's Cases tab is built the first
+  // time it is opened (SwipePages builds a page when it comes into view),
+  // then kept.
+
   @override
   void dispose() {
     _chrome.dispose();
@@ -109,44 +113,66 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
           ],
         );
 
-    // Owner 2026-10-12: the Reels tab is the player over the whole screen;
-    // the same header and the filters lie over the video.
-    if (_tab == _FeedTab.reels) {
-      return FeedChrome(
-        controller: _chrome,
-        child: _ReelsTab(
-          header: buildHeader(onDark: !_webReelsLayout(context)),
-        ),
-      );
-    }
+    final tabs = [
+      _FeedTab.posts,
+      _FeedTab.reels,
+      if (attorney) _FeedTab.cases,
+    ];
     final topInset = MediaQuery.paddingOf(context).top;
     final bottomInset = MediaQuery.paddingOf(context).bottom;
-    // Owner 2026-10-12: Posts | Reels | Cases for attorneys and their
-    // assistants; Posts | Reels for clients.
-    final content = attorney
-        ? TabSwipe<_FeedTab>(
-            value: _tab,
-            values: _FeedTab.values,
-            onChanged: (v) => setState(() {
-              _tab = v;
-              _chrome.show();
-            }),
-            child: IndexedStack(
-              index: _tab.index,
-              children: const [
-                // Owner 2026-09-30: the topic slider for every role.
-                _TopicFeed(),
-                // Built only while open, so hidden reels never play.
-                // The Reels tab is its own full-screen layout (see build).
-                SizedBox.shrink(),
-                AttorneyCasesTab(),
-              ],
+
+    // Owner 2026-10-19 (Instagram): Posts | Reels (| Cases) are pages side by
+    // side — the next one slides in with the finger (its real content), a
+    // tap on the header's tab slides to it; each page is kept. A page off
+    // screen has its tickers off, so a reel there never plays.
+    Widget pageFor(_FeedTab tab) {
+      final page = switch (tab) {
+        // Owner 2026-10-12: the Reels tab is the player over the whole
+        // screen; the same header and the filters lie over the video.
+        _FeedTab.reels => FeedChrome(
+            controller: _chrome,
+            child: _ReelsTab(
+              header: buildHeader(onDark: !_webReelsLayout(context)),
             ),
-          )
-        : IndexedStack(
-            index: _tab == _FeedTab.reels ? 1 : 0,
-            children: const [_TopicFeed(), SizedBox.shrink()],
-          );
+          ),
+        _FeedTab.posts => _postsLayout(
+            context,
+            const _TopicFeed(),
+            header: buildHeader(onDark: false),
+            topInset: topInset,
+            bottomInset: bottomInset,
+          ),
+        _FeedTab.cases => _postsLayout(
+            context,
+            const AttorneyCasesTab(),
+            header: buildHeader(onDark: false),
+            topInset: topInset,
+            bottomInset: bottomInset,
+          ),
+      };
+      return TickerMode(enabled: tab == _tab, child: page);
+    }
+
+    return SwipePages<_FeedTab>(
+      value: _tab,
+      values: tabs,
+      onChanged: (v) => setState(() {
+        _tab = v;
+        _chrome.show();
+      }),
+      pageBuilder: (_, tab) => pageFor(tab),
+    );
+  }
+
+  /// Posts / Cases: the list under the fixed header (and the filters).
+  Widget _postsLayout(
+    BuildContext context,
+    Widget content, {
+    required Widget header,
+    required double topInset,
+    required double bottomInset,
+  }) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
     return Scaffold(
       backgroundColor: colors.bg,
       body: FeedChrome(
@@ -196,7 +222,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
                         top: 0,
                         left: 0,
                         right: 0,
-                        child: buildHeader(onDark: false),
+                        child: header,
                       ),
                     ],
                   );
@@ -300,51 +326,6 @@ class _TopicFeedState extends ConsumerState<_TopicFeed> {
   }
 }
 
-/// Two content-card silhouettes, the back one smaller and fading into
-/// the background — a calm "deck" hinting at posts to come. Static
-/// (no shimmer): it is an illustration, not a loading indicator.
-class FeedPreviewIllustration extends StatelessWidget {
-  const FeedPreviewIllustration({super.key});
-
-  static const double _width = 280;
-  static const double _backScale = 0.9;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    return SizedBox(
-      width: _width,
-      child: Stack(
-        clipBehavior: Clip.none,
-        alignment: Alignment.topCenter,
-        children: [
-          Transform.scale(
-            scale: _backScale,
-            alignment: Alignment.topCenter,
-            child: const Opacity(
-              opacity: 0.5,
-              child: AppContentCardSkeleton(shimmer: false),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.only(top: AppSpacing.xl),
-            child: ShaderMask(
-              blendMode: BlendMode.dstIn,
-              shaderCallback: (rect) => LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [colors.bg, colors.bg.withValues(alpha: 0)],
-                stops: const [0.55, 1],
-              ).createShader(rect),
-              child: const AppContentCardSkeleton(shimmer: false),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 /// The Reels tab (owner 2026-10-12): the vertical player over the whole
 /// screen; the app header (same as in Posts) and the topic filters lie over
 /// the video in white, no bar or fill; the nav bar floats over it.
@@ -368,7 +349,9 @@ class _ReelsTabState extends ConsumerState<_ReelsTab> {
 
   bool _accepts(Post p, {required bool legalOnly}) {
     // The topic itself is filtered by the server (one tag algorithm).
-    return !(legalOnly && p.isGeneral);
+    // Owner 2026-10-19 («мои рилсы пропали»): «Legal posts only» hides
+    // other people's general reels, never my own.
+    return !(legalOnly && p.isGeneral && !p.isMine);
   }
 
   @override

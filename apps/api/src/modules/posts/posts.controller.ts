@@ -24,6 +24,7 @@ import {
   AUTHENTICATED_ERRORS,
 } from '../../common/dto/api-docs.decorators';
 import { ErrorCode } from '../../common/errors/error-code.enum';
+import { PersonItemDto, type PeoplePage } from '../follows/follows.dto';
 import { IdempotencyInterceptor } from '../../idempotency/idempotency.interceptor';
 import { RequireIdempotencyKeyGuard } from '../../idempotency/require-idempotency-key.guard';
 import {
@@ -37,13 +38,21 @@ import {
   PinPostDto,
   PostIdParamDto,
   PostsPageQueryDto,
+  RepostsQueryDto,
   SavedPostItemDto,
   SavedPostsQueryDto,
   UpdatePostDto,
   PostCountersDto,
+  PostCommentsSettingDto,
   type PostPage,
 } from './dto/posts.dto';
 import { PostEngagementService } from './post-engagement.service';
+import { PostInsightsService } from './post-insights.service';
+import {
+  PostInsightsDto,
+  PostInsightsQueryDto,
+  RecordPostEventsDto,
+} from './dto/post-insights.dto';
 import { PostAttachmentsPolicy } from './post-attachments.policy';
 import { PostsService } from './posts.service';
 import { PostAttachmentsAllowedDto } from './dto/posts.dto';
@@ -61,6 +70,7 @@ export class PostsController {
     private readonly posts: PostsService,
     private readonly engagement: PostEngagementService,
     private readonly attachmentsPolicy: PostAttachmentsPolicy,
+    private readonly insightsService: PostInsightsService,
   ) {}
 
   @Get('posts/attachments-allowed')
@@ -146,6 +156,65 @@ export class PostsController {
     @Body() dto: PostCountersDto,
   ): Promise<PostDto> {
     return this.posts.setCounters(user, p.id, dto);
+  }
+
+  // Owner 2026-10-18: every author (attorney, client; an assistant with the
+  // "publish" duty for the attorney) turns comments of an own post on / off.
+  @AttorneyOnly('publish')
+  @Patch('posts/:id/comments-setting')
+  @ApiOperation({
+    summary:
+      'Turn comments of an own post on / off (off: no new comments or replies, the existing ones are hidden)',
+  })
+  @ApiEnvelopeResponse(PostDto)
+  @ApiErrors({ 400: [E.VALIDATION_ERROR], 404: [E.POST_NOT_FOUND] })
+  setPostComments(
+    @CurrentUser() user: RequestUser,
+    @Param() p: PostIdParamDto,
+    @Body() dto: PostCommentsSettingDto,
+  ): Promise<PostDto> {
+    return this.posts.setCommentsEnabled(user, p.id, dto.enabled);
+  }
+
+  // Owner 2026-10-18: «Архивировать» — hidden from everyone but the author.
+  @AttorneyOnly('publish')
+  @Post('posts/:id/archive')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Archive an own post (idempotent)' })
+  @ApiEnvelopeResponse(PostDto)
+  @ApiErrors({ 404: [E.POST_NOT_FOUND], 409: [E.VIDEO_NOT_READY] })
+  archivePost(
+    @CurrentUser() user: RequestUser,
+    @Param() p: PostIdParamDto,
+  ): Promise<PostDto> {
+    return this.posts.archive(user, p.id);
+  }
+
+  // Owner 2026-10-18: «Показать в профиле» — back by its publish date.
+  @AttorneyOnly('publish')
+  @Delete('posts/:id/archive')
+  @ApiOperation({ summary: 'Show an archived own post in the profile again' })
+  @ApiEnvelopeResponse(PostDto)
+  @ApiErrors({ 404: [E.POST_NOT_FOUND] })
+  unarchivePost(
+    @CurrentUser() user: RequestUser,
+    @Param() p: PostIdParamDto,
+  ): Promise<PostDto> {
+    return this.posts.unarchive(user, p.id);
+  }
+
+  @AttorneyOnly('publish')
+  @Get('me/archived-posts')
+  @ApiOperation({
+    summary: 'My archived posts, newest archived first (Settings → «Архив»)',
+  })
+  @ApiEnvelopeResponse(PostDto, { isArray: true })
+  @ApiErrors({ 400: [E.VALIDATION_ERROR] })
+  listArchivedPosts(
+    @CurrentUser() user: RequestUser,
+    @Query() q: RepostsQueryDto,
+  ): Promise<PostPage> {
+    return this.posts.listArchived(user, q);
   }
 
   // OQ-048: publications are the attorney's — an assistant never deletes.
@@ -234,6 +303,41 @@ export class PostsController {
     return this.engagement.view(user.sub, p.id);
   }
 
+  // Owner 2026-10-18: impressions of cards the viewer saw in a list (≥ 50 %
+  // on screen for about a second) and profile visits made from a post, in
+  // batches; one per viewer + post + kind per 24 h, never the author's own.
+  @Post('posts/events')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Record post impressions / profile visits from a post (batch)',
+  })
+  @ApiErrors({ 400: [E.VALIDATION_ERROR] })
+  recordPostEvents(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: RecordPostEventsDto,
+  ): Promise<void> {
+    return this.insightsService.record(user, dto.events);
+  }
+
+  // Owner 2026-10-18 (Instagram Insights): the author only — an assistant
+  // with the "posts" duty for the attorney; anyone else 404 (403 for an
+  // assistant without the duty).
+  @AttorneyOnly('posts')
+  @Get('posts/:id/insights')
+  @ApiOperation({
+    summary:
+      'Statistics of an own post: totals and the last 30 days by day (author only)',
+  })
+  @ApiEnvelopeResponse(PostInsightsDto)
+  @ApiErrors({ 403: [E.ASSISTANT_NOT_ALLOWED], 404: [E.POST_NOT_FOUND] })
+  postInsights(
+    @CurrentUser() user: RequestUser,
+    @Param() p: PostIdParamDto,
+    @Query() q: PostInsightsQueryDto,
+  ): Promise<PostInsightsDto> {
+    return this.insightsService.insights(user, p.id, q.tzOffset ?? 0);
+  }
+
   @Delete('posts/:id/like')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Remove a like (idempotent, docs/05 §4)' })
@@ -270,6 +374,34 @@ export class PostsController {
     @Param() p: PostIdParamDto,
   ): Promise<void> {
     return this.engagement.unrepost(user.sub, p.id);
+  }
+
+  @Get('posts/:id/reposts')
+  @ApiOperation({
+    summary: 'Who reposted a post, newest first (owner 2026-10-18)',
+  })
+  @ApiEnvelopeResponse(PersonItemDto, { isArray: true })
+  @ApiErrors({ 403: [E.USER_BLOCKED], 404: [E.POST_NOT_FOUND] })
+  listReposters(
+    @CurrentUser() user: RequestUser,
+    @Param() p: PostIdParamDto,
+    @Query() q: RepostsQueryDto,
+  ): Promise<PeoplePage> {
+    return this.engagement.listReposters(user.sub, p.id, q.cursor);
+  }
+
+  @Get('users/:id/reposts')
+  @ApiOperation({
+    summary: "A user's Reposts profile tab, newest first (owner 2026-10-18)",
+  })
+  @ApiEnvelopeResponse(PostDto, { isArray: true })
+  @ApiErrors({ 403: [E.USER_BLOCKED], 404: [E.NOT_FOUND] })
+  listUserReposts(
+    @CurrentUser() user: RequestUser,
+    @Param() p: PostIdParamDto,
+    @Query() q: RepostsQueryDto,
+  ): Promise<PostPage> {
+    return this.engagement.listUserReposts(user.sub, p.id, q.cursor);
   }
 
   @Get('saved-items/posts')

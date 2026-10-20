@@ -53,3 +53,43 @@ void useNarrowPhone(WidgetTester tester) {
     ..physicalSize = narrowPhone * 3;
   addTearDown(tester.view.reset);
 }
+
+/// One shipped language's real text (test/l10n/lang_<code>.json, written by
+/// scripts/gen-longest-strings.mjs): Nepali and Arabic, the owner's longest
+/// languages, in their own scripts. The test fonts have no Devanagari or
+/// Arabic glyphs, so every letter is drawn as a full-width box: wider than
+/// on a phone, which makes the check stricter, never looser.
+class ShippedTranslator implements Translator {
+  factory ShippedTranslator(String code) =>
+      _cache[code] ??= ShippedTranslator._(
+        code,
+        (jsonDecode(
+          File('test/l10n/lang_$code.json').readAsStringSync(),
+        ) as Map<String, dynamic>)
+            .cast<String, String>(),
+      );
+
+  ShippedTranslator._(this.code, this._strings);
+
+  static final _cache = <String, ShippedTranslator>{};
+
+  final String code;
+  final Map<String, String> _strings;
+  static const _en = StaticTranslatorEn();
+
+  String? _lookup(String key) => _strings[key] ?? _en.seedEntries[key];
+
+  @override
+  String t(String key, [Map<String, String>? params]) =>
+      interpolate(_lookup(key) ?? key, params);
+
+  @override
+  String plural(String key, num count, [Map<String, String>? params]) =>
+      pluralize(
+        languageCode: code,
+        key: key,
+        count: count,
+        lookup: _lookup,
+        params: params,
+      );
+}

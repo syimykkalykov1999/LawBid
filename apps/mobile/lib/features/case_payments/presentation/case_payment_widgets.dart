@@ -9,6 +9,7 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/platform/web_download.dart';
 import 'package:lawbid/features/case_payments/domain/case_payment_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
+import 'package:lawbid/shared/domain/payment_page_launch_mode.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -64,11 +65,24 @@ Future<void> shareBytes(
   );
 }
 
-Future<void> openExternal(String url) async {
+/// Opens a link outside the app (receipts); false when nothing opened it.
+Future<bool> openExternal(String url) async {
   final uri = Uri.tryParse(url);
-  if (uri != null && (uri.scheme == 'https' || uri.scheme == 'http')) {
-    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  if (uri == null || (uri.scheme != 'https' && uri.scheme != 'http')) {
+    return false;
   }
+  try {
+    return await launchUrl(uri, mode: LaunchMode.externalApplication);
+  } on Object {
+    return false;
+  }
+}
+
+/// Opens Stripe's page (checkout, payout onboarding) from the server; false
+/// when it could not be opened — the caller says so (owner 2026-10-19).
+Future<bool> openCheckout(String url) {
+  final uri = Uri.tryParse(url);
+  return uri == null ? Future.value(false) : openPaymentPage(uri);
 }
 
 /// The server's legal text (editable in the admin): LawBid only provides

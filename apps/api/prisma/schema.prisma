@@ -143,6 +143,9 @@ enum FilePurpose {
   post_attachment
   // Owner 2026-10-05: a document template the admin publishes (PDF/Word).
   document_template
+  // Owner 2026-10-18 (OQ-055): photos, documents and videos in a support
+  // ticket, both directions; private bucket.
+  support_attachment
 
   @@map("file_purpose")
 }
@@ -245,6 +248,9 @@ enum CaseStatus {
 enum BudgetMode {
   amount
   clarify_later
+  /// Owner 2026-10-17: a share of the recovery (client ↔ attorney deal;
+  /// LawBid takes nothing from it).
+  percent
 
   @@map("budget_mode")
 }
@@ -264,6 +270,8 @@ enum FeeType {
   fixed
   hourly
   free_consultation
+  /// Owner 2026-10-17: contingency — a percent of the recovery.
+  contingency
 
   @@map("fee_type")
 }
@@ -381,6 +389,18 @@ enum ConversationStatus {
   @@map("conversation_status")
 }
 
+/// Owner 2026-10-17: who talks in a chat. Anyone may write to anyone; only
+/// attorney ↔ client keeps the attorney's subscription gate. In same-role
+/// chats `attorney_id` / `client_id` are just the two members (the smaller
+/// id in `attorney_id`).
+enum ChatPairKind {
+  attorney_client
+  client_client
+  attorney_attorney
+
+  @@map("chat_pair_kind")
+}
+
 /// OQ-043: a direct chat started from a profile waits in the recipient's
 /// "Requests" until accepted (case chats: none).
 enum MessageRequestStatus {
@@ -429,6 +449,7 @@ enum NotificationType {
   bid_rejected
   negotiation_failed
   case_stale_prompt
+  case_still_needed
   case_archived
   completion_requested
   completion_reminder
@@ -519,6 +540,9 @@ enum NotificationType {
   new_urgent_case
   // Owner 2026-10-07: someone reposted your post (Threads-style).
   post_repost
+  // Audit 2026-10-19: the other side added something in a case in work
+  // (payload.kind: update, task_added, task_done, task_files, details).
+  case_workspace_activity
 
   @@map("notification_type")
 }
@@ -770,6 +794,7 @@ model User {
   notification_settings       NotificationSetting[]
   quiet_hours                 NotificationQuietHours?
   push_tokens                 PushToken[]
+  voip_tokens                 VoipToken[]
   stripe_customer             StripeCustomer?
   subscription                Subscription?
   payments                    Payment[]
@@ -786,6 +811,7 @@ model User {
   case_comment_likes          CaseCommentLike[]              @relation("CaseCommentLiker")
   post_shares                 PostShare[]                    @relation("PostSharer")
   post_views                  PostView[]                     @relation("PostViewer")
+  post_view_events            PostViewEvent[]                @relation("PostEventViewer")
   case_shares                 CaseShare[]                    @relation("CaseSharer")
   client_reviews_given        ClientReview[]                 @relation("ClientReviewAttorney")
   client_reviews_received     ClientReview[]                 @relation("ClientReviewClient")
@@ -875,6 +901,7 @@ model File {
   voice_messages    Message[]         @relation("MessageVoice")
   sticker           Sticker?
   document_template DocumentTemplate?
+  support_message_files SupportMessageFile[]
 
   @@index([owner_user_id])
   @@index([s3_bucket, s3_key])
@@ -938,6 +965,7 @@ model Session {
   // stage 2.6 (docs/02_DATABASE.md §5.2). This plain index covers lookups
   // until then.
   push_tokens PushToken[]
+  voip_tokens VoipToken[]
 
   // (user_id) WHERE revoked_at IS NULL: partial index, raw SQL (2.6).
   @@index([session_chain_id])
@@ -1113,13 +1141,16 @@ model I18nKey {
 }
 
 model I18nTranslation {
-  key_id     String       @db.Uuid
-  i18n_key   I18nKey      @relation(fields: [key_id], references: [id], onDelete: Restrict)
-  lang       String
-  language   I18nLanguage @relation(fields: [lang], references: [code], onDelete: Restrict)
-  value      String
-  version    Int
-  updated_at DateTime     @updatedAt @db.Timestamptz
+  key_id       String       @db.Uuid
+  i18n_key     I18nKey      @relation(fields: [key_id], references: [id], onDelete: Restrict)
+  lang         String
+  language     I18nLanguage @relation(fields: [lang], references: [code], onDelete: Restrict)
+  value        String
+  version      Int
+  updated_at   DateTime     @updatedAt @db.Timestamptz
+  /// Owner 2026-10-18: changed in the admin (Справочник) — the deploy's
+  /// seed import leaves it as it is.
+  admin_edited Boolean      @default(false)
 
   // No created_at — docs/02_DATABASE.md §4.B lists only key_id/lang/value/
   // version/updated_at for this table.
@@ -1492,6 +1523,10 @@ model Case {
   // ≤120 / ≤5000 chars (§6.1), CHECK in the migration.
   title                 String
   description           String
+  // Owner 2026-10-18: the client's private details (names, addresses, case
+  // number…): only the owner and the accepted attorney read it. CHECK in
+  // the migration.
+  private_details       String?
   // Leaf specialization only (enforced in the case service, file 04).
   practice_area_id      String                   @db.Uuid
   practice_area         PracticeArea             @relation(fields: [practice_area_id], references: [id], onDelete: Restrict)
@@ -1505,6 +1540,9 @@ model Case {
   city                  String?
   budget_mode           BudgetMode
   budget_cents          Int?
+  // Owner 2026-10-17: budget_mode = percent → the client's percent in
+  // basis points (3300 = 33 %). CHECK in the migration.
+  budget_percent_bps    Int?
   // Owner 2026-10-04: the client's card cover (`art:0..3` / `icon:<name>`,
   // never a personal photo; null = picked from the id) and urgency
   // (flexible | within_month | soon | urgent | very_urgent | by_date —
@@ -1527,7 +1565,15 @@ model Case {
   shares                CaseShare[]
   comments              CaseComment[]
   last_activity_at      DateTime                 @default(now()) @db.Timestamptz
+  // OQ-054: «stale_prompt_sent_at» = when «Вам ещё нужен адвокат?» was sent.
   stale_prompt_sent_at  DateTime?                @db.Timestamptz
+  // OQ-054: the client's own last action on the case (opening it, viewing
+  // bids, answering, editing, writing in its chat). Attorney bids and
+  // comments never touch it — unlike last_activity_at.
+  client_active_at      DateTime                 @default(now()) @db.Timestamptz
+  // OQ-054: set silently when the question went unanswered; the case is
+  // then hidden from the attorneys' feed and search (status stays open).
+  paused_at             DateTime?                @db.Timestamptz
   archived_at           DateTime?                @db.Timestamptz
   client_completed_at   DateTime?                @db.Timestamptz
   attorney_confirmed_at DateTime?                @db.Timestamptz
@@ -1597,6 +1643,9 @@ model Bid {
   status                  BidStatus         @default(active)
   fee_type                FeeType
   amount_cents            Int
+  // Owner 2026-10-17: fee_type = contingency → percent in basis points
+  // (amount_cents is then 0). CHECK in the migration.
+  percent_bps             Int?
   // ≤2000 chars (§6.1), CHECK in the migration.
   message                 String
   start_availability      StartAvailability
@@ -1640,6 +1689,7 @@ model BidOffer {
   from_role    PartyRole
   fee_type     FeeType
   amount_cents Int
+  percent_bps  Int?
   message      String?
   status       OfferStatus
   created_at   DateTime    @default(now()) @db.Timestamptz
@@ -1824,9 +1874,11 @@ model Post {
   // Owner 2026-09-30 (OQ-037): times shared (share sheet completed).
   share_count          Int                      @default(0)
   shares               PostShare[]
-  // Owner 2026-10-12: views of a video post / reel (one per viewer).
+  // Owner 2026-10-12: views of a video post / reel. 2026-10-18: one per
+  // viewer per 24 h = count of post_view_events kind 'view'.
   view_count           Int                      @default(0)
   views                PostView[]
+  view_events          PostViewEvent[]
   // Owner 2026-10-12: pinned to the top of the author's profile list, slot
   // 1..3 inside pin_group 'grid' (posts) or 'brief' (text-only). A partial
   // unique index (author, group, slot) is in the migration.
@@ -1834,6 +1886,9 @@ model Post {
   pin_group            String?
   // docs/05 §3.3, §14 (stage 5.1): "Изменено" after a text edit.
   edited_at            DateTime?                @db.Timestamptz
+  /// Owner 2026-10-18: «Архивировать» — seen by the author only (Settings →
+  /// «Архив»); likes, comments and saves are kept. NULL = in the profile.
+  archived_at          DateTime?                @db.Timestamptz
   deleted_at           DateTime?                @db.Timestamptz
   // STORED computed column (§5.3): to_tsvector('english', body). Read-only.
   search_tsv           Unsupported("tsvector")? @default(dbgenerated("(setweight(to_tsvector('english'::regconfig, f_unaccent(COALESCE(title, ''::text))), 'A'::\"char\") || setweight(to_tsvector('english'::regconfig, f_unaccent(body)), 'C'::\"char\"))"))
@@ -2141,6 +2196,8 @@ model SavedItem {
 
   @@id([user_id, item_type, item_id])
   @@index([user_id, item_type, created_at(sort: Desc)])
+  // Owner 2026-10-18: a post's saves by day (post statistics).
+  @@index([item_type, item_id, created_at])
   @@map("saved_items")
 }
 
@@ -2162,6 +2219,7 @@ model Conversation {
   // OQ-043: direct chats (case_id NULL) start as a request of `requested_by`.
   request_status    MessageRequestStatus @default(none)
   requested_by      String?              @db.Uuid
+  pair_kind         ChatPairKind         @default(attorney_client)
   requester         User?                @relation("ConversationRequester", fields: [requested_by], references: [id], onDelete: Restrict, onUpdate: NoAction)
   last_message_at   DateTime?            @db.Timestamptz
   // Bare uuid: an FK here would make conversations <-> messages a cycle
@@ -2339,6 +2397,27 @@ model PushToken {
 
   @@index([user_id])
   @@map("push_tokens")
+}
+
+/// Owner 2026-10-17: an iPhone's PushKit (VoIP) token — incoming calls go
+/// to Apple directly as VoIP pushes (FCM can't send them), so iOS shows the
+/// call screen and rings even when the app is closed. Bound to the session
+/// chain like push_tokens; `topic` is the app's bundle id + ".voip".
+model VoipToken {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id      String   @db.Uuid
+  user         User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  session_id   String   @db.Uuid
+  session      Session  @relation(fields: [session_id], references: [id], onDelete: Cascade)
+  token        String   @unique
+  topic        String
+  /// sandbox (development-signed builds) | production (TestFlight, store).
+  environment  String
+  last_seen_at DateTime @default(now()) @db.Timestamptz
+  created_at   DateTime @default(now()) @db.Timestamptz
+
+  @@index([user_id])
+  @@map("voip_tokens")
 }
 
 model StripeCustomer {
@@ -2733,6 +2812,27 @@ model PostView {
   @@unique([user_id, post_id])
   @@index([post_id])
   @@map("post_views")
+}
+
+// Owner 2026-10-18: per-post events for the author's statistics (Instagram
+// Insights, author only) — 'view' (a reel / video watched ~2 s+),
+// 'impression' (shown on screen), 'profile_visit' (the author's profile
+// opened from the post). One row per viewer + post + kind per 24 h
+// (PostEventsService.record); viewer_id null = an anonymous event, never
+// deduped. posts.view_count = count(kind = 'view'). CHECK on kind in the
+// migration.
+model PostViewEvent {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  post_id    String   @db.Uuid
+  post       Post     @relation(fields: [post_id], references: [id], onDelete: Cascade)
+  viewer_id  String?  @db.Uuid
+  viewer     User?    @relation("PostEventViewer", fields: [viewer_id], references: [id], onDelete: SetNull)
+  kind       String   @db.VarChar(16)
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  @@index([post_id, viewer_id, kind, created_at(sort: Desc)])
+  @@index([post_id, kind, created_at(sort: Desc)])
+  @@map("post_view_events")
 }
 
 model CaseShare {
@@ -3957,6 +4057,9 @@ model SupportTicket {
   // Owner 2026-10-05: the asker's country, copied at creation, so support
   // staff assigned to a country see only its tickets.
   country_code      String    @default("US") @db.Char(2)
+  /// Owner 2026-10-18 (OQ-055): app version, device, OS, language, theme,
+  /// timezone, screen, user id/role — attached by the app, admins only.
+  client_context    Json?
 
   @@index([status, last_message_at(sort: Desc)])
   @@index([country_code, status])
@@ -3979,17 +4082,39 @@ model SupportMessage {
   auto            Boolean  @default(false)
   body            String   @db.VarChar(20000)
   created_at      DateTime @default(now()) @db.Timestamptz
+  files           SupportMessageFile[]
 
   @@index([ticket_id, created_at])
   @@map("support_messages")
 }
 
+/// Owner 2026-10-18 (OQ-055): a file attached to a support message
+/// (purpose support_attachment, private bucket). A file is on one message.
+model SupportMessageFile {
+  id         String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  message_id String         @db.Uuid
+  message    SupportMessage @relation(fields: [message_id], references: [id], onDelete: Cascade)
+  file_id    String         @unique @db.Uuid
+  file       File           @relation(fields: [file_id], references: [id], onDelete: Restrict)
+  /// The name the sender gave it (shown and used for the download).
+  name       String         @db.VarChar(200)
+  position   Int            @default(0) @db.SmallInt
+  created_at DateTime       @default(now()) @db.Timestamptz
+
+  @@index([message_id, position])
+  @@map("support_message_files")
+}
+
 /// Owner 2026-10-05: ready answers for support («Шаблоны ответов»).
-/// `{name}` in the body becomes the user's first name.
+/// `{name}` becomes the user's first name, `{ticket}` the ticket number
+/// (substituted by the API when an admin reply is sent).
 model SupportMacro {
   id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   title      String   @db.VarChar(120)
   body       String   @db.VarChar(5000)
+  /// Owner 2026-10-18 (OQ-055): the Russian text; `body` is English. The
+  /// composer picks by the user's ui_language (fallback body).
+  body_ru    String?  @db.VarChar(5000)
   /// null = any category.
   category   String?  @db.VarChar(20)
   active     Boolean  @default(true)

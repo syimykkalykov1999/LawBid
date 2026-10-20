@@ -222,6 +222,13 @@ export class VerificationQueueItemDto {
   })
   stateCodes!: string[];
 
+  @ApiProperty({
+    description:
+      "Owner 2026-10-18: a license of this request does not fit its state's " +
+      'format and the attorney sent it for manual review (bar card attached).',
+  })
+  formatReview!: boolean;
+
   @ApiProperty({ type: String, format: 'uuid', nullable: true })
   reviewerId!: string | null;
 
@@ -345,6 +352,13 @@ export class AdminDocumentDto {
 
   @ApiProperty({ enum: ScanStatus, enumName: 'ScanStatus' })
   scanStatus!: ScanStatus;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: "The attorney's note sent with this document.",
+  })
+  notes!: string | null;
 
   @ApiProperty({ format: 'date-time' })
   createdAt!: string;

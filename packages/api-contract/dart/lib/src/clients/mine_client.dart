@@ -22,7 +22,7 @@ abstract class MineClient {
 
   /// Saved cases (docs/04 §11.2 "Сохранённое").
   ///
-  /// [q] - Words of the case title.
+  /// [q] - Words of the case: title, description, city, state, topic (any language).
   ///
   /// [cursor] - meta.nextCursor of the previous page.
   ///
@@ -47,7 +47,7 @@ abstract class MineClient {
 
   /// "My bids" (attorney, docs/04 §11.2).
   ///
-  /// [q] - Words of the case title.
+  /// [q] - Words of the case: title, description, city, state, topic (any language).
   ///
   /// [cursor] - meta.nextCursor of the previous page.
   @GET('/users/me/bids')
@@ -63,7 +63,7 @@ abstract class MineClient {
 
   /// "In progress" / "Completed" (attorney, §11.2).
   ///
-  /// [q] - Words of the case title.
+  /// [q] - Words of the case: title, description, city, state, topic (any language).
   ///
   /// [cursor] - meta.nextCursor of the previous page.
   @GET('/users/me/work')

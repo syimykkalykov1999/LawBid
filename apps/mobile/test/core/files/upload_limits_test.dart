@@ -6,10 +6,15 @@ void main() {
   test('no value keeps the defaults', () {
     final l = UploadLimits.parse(null);
     expect(l[UploadPlace.post].maxPhotos, 9);
-    expect(l[UploadPlace.kase].maxFiles, 9);
+    // Owner 2026-10-19: a case takes 9 photos and 3 documents.
+    expect(l[UploadPlace.kase].maxPhotos, 9);
+    expect(l[UploadPlace.kase].maxFiles, 3);
     expect(l[UploadPlace.task].maxFiles, 10);
     expect(l[UploadPlace.avatar].fileMb, 5);
-    expect(l[UploadPlace.chat].fileBytes, 25 * 1024 * 1024);
+    // Owner 2026-10-17: 50 MB and videos in a chat.
+    expect(l[UploadPlace.chat].fileBytes, 50 * 1024 * 1024);
+    expect(l[UploadPlace.chat].allowsVideo, isTrue);
+    expect(l[UploadPlace.task].allowsVideo, isFalse);
   });
 
   test('admin values and formats apply; unknown formats are dropped', () {
@@ -26,7 +31,7 @@ void main() {
     expect(post.documentExtensions, isNot(contains('jpg')));
     expect(post.mimeForName('Table.XLSX'), startsWith('application/vnd.'));
     expect(post.mimeForName('setup.apk'), isNull);
-    expect(l[UploadPlace.kase].maxFiles, 9);
+    expect(l[UploadPlace.kase].maxFiles, 3);
   });
 
   test('broken JSON keeps the defaults', () {
