@@ -166,6 +166,7 @@ export const WIPE_TABLES: Readonly<Record<string, string>> = {
   conversation_participants: 'chat members',
   messages: 'messages',
   calls: 'calls',
+  call_participants: 'group call members',
   // notifications
   notifications: 'in-app notifications',
   notification_settings: 'notification settings',
