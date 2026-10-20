@@ -7,6 +7,7 @@ import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { S3StorageService } from '../src/modules/files/storage/s3-storage.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
+import { StarsService } from '../src/modules/stars/stars.service';
 
 /**
  * Owner 2026-10-20 (WhatsApp / Telegram): edit within a window (edited
@@ -429,5 +430,47 @@ describe('Chat message actions (e2e, owner 2026-10-20)', () => {
     expect(Date.now() - Date.parse(seen.counterpartLastReadAt)).toBeLessThan(
       60_000,
     );
+  });
+  it('a premium reaction costs stars once; without stars it is refused and nothing is saved', async () => {
+    const stars = app.get(StarsService);
+    await prisma.featureFlag.upsert({
+      where: { key: 'stars' },
+      create: { key: 'stars', enabled: true },
+      update: { enabled: true },
+    });
+    const c = await chat();
+    const q = await send(c, 'attorney', 'worth a premium reaction');
+    const prem = (await stars.adminSettings()).premiumReactions[0];
+    const put = (emoji: string) =>
+      api()
+        .put(url(c, q.id, '/reaction'))
+        .set(c.client.auth)
+        .send({ emoji });
+
+    // free emoji: no stars needed
+    await put('👍').expect(200);
+    // premium without stars: 402, the old reaction stays
+    await put(prem).expect(402);
+    const mineEmoji = async () =>
+      (
+        await prisma.messageReaction.findFirst({
+          where: { message_id: q.id, user_id: c.client.id },
+        })
+      )?.emoji;
+    expect(await mineEmoji()).toBe('👍');
+
+    await prisma.$transaction((tx) =>
+      stars.credit(tx, c.client.id, 100, 'admin_grant', `t:${randomUUID()}`),
+    );
+    await put(prem).expect(200);
+    await put('👍').expect(200);
+    await put(prem).expect(200); // paid before: free again
+    expect(await mineEmoji()).toBe(prem);
+    expect(
+      await prisma.starLedger.count({
+        where: { user_id: c.client.id, kind: 'reaction' },
+      }),
+    ).toBe(1);
+    await prisma.featureFlag.deleteMany({ where: { key: 'stars' } });
   });
 });
