@@ -7,10 +7,12 @@ import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/chat/data/chat_repository.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart';
+import 'package:lawbid/features/groups/application/group_providers.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 
 import '../../helpers/ux_harness.dart';
+import '../groups/fake_group_repository.dart';
 
 Conversation _conv(String id, String name, {String? matched}) => Conversation(
       id: id,
@@ -100,6 +102,7 @@ void main() {
         overrides: uxOverrides(
           extra: [
             chatRepositoryProvider.overrideWithValue(repo),
+            groupRepositoryProvider.overrideWithValue(FakeGroupRepository()),
             currentUserIdProvider.overrideWithValue('me'),
             realtimeClientProvider.overrideWithValue(null),
           ],
@@ -125,8 +128,7 @@ void main() {
     expect(find.text('Anna Petrova'), findsNothing);
     expect(find.text('Boris Ivanov'), findsOneWidget);
     // The matched message replaces the preview, the typed word in bold.
-    final match =
-        tester.widget<Text>(
+    final match = tester.widget<Text>(
       find.byKey(const ValueKey('chat-match-b')),
     );
     final spans = (match.textSpan! as TextSpan).children!.cast<TextSpan>();

@@ -17,7 +17,7 @@ void main() {
     expect(manifest, contains('<data android:scheme="lawbid" />'));
     expect(manifest, contains('android:autoVerify="true"'));
     expect(manifest, contains(r'<data android:host="${deepLinkHost}" />'));
-    for (final p in ['/case/', '/lawyer/', '/post/']) {
+    for (final p in ['/case/', '/lawyer/', '/post/', '/g/']) {
       expect(manifest, contains('<data android:pathPrefix="$p" />'));
     }
     expect(manifest, contains('<data android:path="/auth/email-code" />'));
@@ -71,7 +71,14 @@ void main() {
         .toSet();
     expect(
       paths,
-      {'/r/*', '/case/*', '/lawyer/*', '/post/*', '/auth/email-code'},
+      {
+        '/r/*',
+        '/case/*',
+        '/lawyer/*',
+        '/post/*',
+        '/g/*',
+        '/auth/email-code',
+      },
     );
 
     final assetlinks =

@@ -12,6 +12,7 @@
           { "/": "/case/*", "comment": "Case (docs/04)" },
           { "/": "/lawyer/*", "comment": "Attorney profile by @username (docs/03)" },
           { "/": "/post/*", "comment": "Post (docs/05)" },
+          { "/": "/g/*", "comment": "Group invite link or @username (lawbid.dev/g/<code>)" },
           { "/": "/auth/email-code", "comment": "Email magic sign-in link (docs/01 §10.2 E/F)" }
         ]
       }

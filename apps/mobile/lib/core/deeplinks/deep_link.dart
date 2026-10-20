@@ -51,9 +51,10 @@ final class ReferralDeepLink extends DeepLink {
   int get hashCode => code.hashCode;
 }
 
-enum ContentKind { caseItem, lawyer, post }
+enum ContentKind { caseItem, lawyer, post, group }
 
-/// `/case/:id`, `/lawyer/:username`, `/post/:id` — content that lives in
+/// `/case/:id`, `/lawyer/:username`, `/post/:id`, `/g/<code or @username>`
+/// (a group invite) — content that lives in
 /// files 03–05 (opened by the router).
 final class ContentDeepLink extends DeepLink {
   const ContentDeepLink(this.kind, this.id);
@@ -66,6 +67,7 @@ final class ContentDeepLink extends DeepLink {
         ContentKind.caseItem => '/case/${Uri.encodeComponent(id)}',
         ContentKind.lawyer => '/lawyer/${Uri.encodeComponent(id)}',
         ContentKind.post => '/post/${Uri.encodeComponent(id)}',
+        ContentKind.group => '/g/${Uri.encodeComponent(id)}',
       };
 
   @override
@@ -109,6 +111,10 @@ final _idPattern = RegExp(r'^[A-Za-z0-9-]{1,64}$');
 
 /// docs/01_FOUNDATION_AUTH.md §12: "3-30 символов, латиница, цифры, `_` и `.`".
 final _usernamePattern = RegExp(r'^[A-Za-z0-9_.]{3,30}$');
+
+/// A group invite: the 16-char base64url code of the link, or the public
+/// group's @username (5-32 chars, GROUP_USERNAME_RE on the server).
+final _groupCodePattern = RegExp(r'^@?[A-Za-z0-9_-]{4,64}$');
 
 /// A dev web server (http://localhost:…) — the only plain http link taken.
 bool _isLoopback(String host) =>
@@ -205,6 +211,8 @@ DeepLink? parseDeepLink(
       ContentDeepLink(ContentKind.caseItem, id),
     'post' when _idPattern.hasMatch(id) =>
       ContentDeepLink(ContentKind.post, id),
+    'g' when _groupCodePattern.hasMatch(id) =>
+      ContentDeepLink(ContentKind.group, id),
     'lawyer'
         when _usernamePattern
             .hasMatch(id.startsWith('@') ? id.substring(1) : id) =>
