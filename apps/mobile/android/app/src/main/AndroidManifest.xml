@@ -108,7 +108,6 @@
                 <data android:pathPrefix="/r/" />
                 <data android:pathPrefix="/u/" />
                 <data android:pathPrefix="/q/" />
-                <data android:pathPrefix="/g/" />
                 <data android:path="/auth/email-code" />
             </intent-filter>
         </activity>
