@@ -15,6 +15,7 @@ import 'package:lawbid/core/navigation/shell/shell_layout.dart';
 import 'package:lawbid/core/navigation/shell/tab_reselect.dart';
 import 'package:lawbid/core/navigation/shell/web_page_frame.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
+import 'package:lawbid/features/contacts_sync/application/contacts_background_sync.dart';
 import 'package:lawbid/features/create/presentation/create_sheet.dart';
 import 'package:lawbid/features/demo/presentation/demo_banner.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
@@ -83,6 +84,8 @@ class _MainShellState extends ConsumerState<MainShell> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       unawaited(ref.read(referralOnboardingHookProvider).run(context));
+      // Owner 2026-10-20: contacts re-sync at start and daily (if allowed).
+      ref.read(contactsBackgroundSyncProvider).start();
     });
   }
 
