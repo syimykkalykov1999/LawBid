@@ -37,8 +37,8 @@ import {
   type VideoCallProvider,
 } from './video-call-provider';
 
-/** Unanswered after this → missed (the app gives up at 30 s). */
-export const CALL_RING_TIMEOUT_MS = 40_000;
+/** Unanswered after this → missed (the app gives up at 60 s, like WhatsApp). */
+export const CALL_RING_TIMEOUT_MS = 65_000;
 /** A call nobody ended (both apps died) is closed after this. */
 export const CALL_MAX_ACTIVE_MS = 4 * 60 * 60 * 1000;
 const LIVE: CallStatus[] = ['ringing', 'active'];
@@ -190,6 +190,16 @@ export class CallsService {
         },
       });
       await this.logCall(busy, 'busy');
+      // The busy person sees it in their missed calls too.
+      await this.notifications.emit({
+        type: 'missed_call',
+        recipientId: callee,
+        payload: {
+          callId: busy.id,
+          conversationId: conv.id,
+          actorId: user.sub,
+        },
+      });
       return this.toDto(busy, user.sub);
     }
 
@@ -263,6 +273,20 @@ export class CallsService {
     ];
     for (const recipientId of ringing) {
       await this.push.enqueueCallEnded({ recipientId, callId: call.id });
+    }
+  }
+
+  /** Owner 2026-10-20: a minimised phone has no socket to hear `call:ended`
+   * (the other side hung up, the call failed, the sweep closed it) — a
+   * silent push tells both phones the answered call is over, so the app
+   * closes the screen, the notification and the CallKit call at once. */
+  private async endedActivePush(call: Call): Promise<void> {
+    for (const recipientId of [call.caller_id, call.callee_id]) {
+      await this.push.enqueueCallEnded({
+        recipientId,
+        callId: call.id,
+        ended: true,
+      });
     }
   }
 
@@ -397,7 +421,11 @@ export class CallsService {
       where: { id: call.id },
     });
     if (count > 0) {
-      if (call.status === 'ringing') await this.stopRingingPush(call);
+      if (call.status === 'ringing') {
+        await this.stopRingingPush(call);
+      } else {
+        await this.endedActivePush(call);
+      }
       await this.logCall(fresh, outcome);
       for (const uid of [call.caller_id, call.callee_id]) {
         this.realtime.toUsers([uid], 'call:ended', {
@@ -517,7 +545,9 @@ export class CallsService {
           peer?.client_profile?.username ??
           null,
         avatarUrl: peer?.avatar_file_id
-          ? (avatars.get(peer.avatar_file_id)?.url256 ?? null)
+          ? (avatars.get(peer.avatar_file_id)?.url ??
+            avatars.get(peer.avatar_file_id)?.url256 ??
+            null)
           : null,
         kind: peer?.role === 'attorney' ? 'attorney' : 'client',
       },

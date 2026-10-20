@@ -57,9 +57,10 @@ class ContactsSyncActions {
     await markAsked();
     final numbers = await _ref.read(phoneBookReaderProvider)();
     if (numbers == null) return false;
+    final status = await _ref.read(contactsSyncStatusProvider.future);
     await _ref
         .read(contactsSyncRepositoryProvider)
-        .upload(contactHashes(numbers));
+        .upload(contactHashes(numbers, region: status.phoneRegion));
     _ref
       ..invalidate(contactsSyncStatusProvider)
       ..invalidate(suggestionsProvider);
