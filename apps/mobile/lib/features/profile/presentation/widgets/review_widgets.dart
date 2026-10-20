@@ -16,7 +16,7 @@ import 'package:lawbid/features/translation/presentation/translatable_text.dart'
 String ratingNumber(L10nFormats f, Translator t, double? average) =>
     average == null
         ? t.t('profile.rating.none')
-        : f.number(double.parse(average.toStringAsFixed(1)));
+        : f.number1(double.parse(average.toStringAsFixed(1)));
 
 /// One review (docs/03 §7.4): "Anna K.", stars, date, text, "Edited".
 /// No reviewer avatar — a neutral quote seal instead (client privacy).
@@ -206,30 +206,39 @@ class ReviewSummaryPanel extends ConsumerWidget {
                 excludeSemantics: true,
                 child: Text(
                   ratingNumber(formats, t, summary.average),
-                  style: typography.titleLarge
-                      .copyWith(color: colors.text, height: 1),
+                  style: typography.titleWelcome.copyWith(
+                    color: colors.text,
+                    fontSize: 34,
+                    height: 1,
+                  ),
                 ),
               ),
-              const SizedBox(width: AppSpacing.sm),
-              StarRatingDisplay(
-                value: summary.average ?? 0,
-                size: AppSpacing.md + 2,
-              ),
-              const SizedBox(width: AppSpacing.sm),
+              const SizedBox(width: AppSpacing.md),
               Expanded(
-                child: Text(
-                  summary.isNew
-                      ? t.t('profile.rating.new')
-                      : SocialFormat.plural(
-                          t,
-                          formats,
-                          'profile.rating.count',
-                          total,
-                        ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style:
-                      typography.caption.copyWith(color: colors.textSecondary),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    StarRatingDisplay(
+                      value: summary.average ?? 0,
+                      size: AppSpacing.md + 2,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      summary.isNew
+                          ? t.t('profile.rating.new')
+                          : SocialFormat.plural(
+                              t,
+                              formats,
+                              'profile.rating.count',
+                              total,
+                            ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: typography.caption
+                          .copyWith(color: colors.textSecondary),
+                    ),
+                  ],
                 ),
               ),
               if (onSort != null)
@@ -1013,31 +1022,25 @@ class _StarChip extends ConsumerWidget {
                 color: selected ? colors.gold : colors.border,
               ),
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    AppIcon(
-                      AppIcons.starRounded,
-                      size: AppSpacing.md,
-                      color: colors.gold,
-                    ),
-                    Text(
-                      context.digits(stars),
-                      textScaler: TextScaler.noScaling,
-                      style: typography.caption.copyWith(color: colors.text),
-                    ),
-                  ],
+                AppIcon(
+                  AppIcons.starRounded,
+                  size: AppSpacing.md,
+                  color: colors.gold,
                 ),
-                Text(
-                  SocialFormat.count(formats, count),
-                  maxLines: 1,
-                  textScaler: TextScaler.noScaling,
-                  style: typography.caption.copyWith(
-                    color: selected ? colors.text : colors.textSecondary,
-                    fontWeight: selected ? FontWeight.w700 : null,
+                Flexible(
+                  child: Text(
+                    '${context.digits(stars)} · '
+                    '${SocialFormat.count(formats, count)}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textScaler: TextScaler.noScaling,
+                    style: typography.caption.copyWith(
+                      color: selected ? colors.text : colors.textSecondary,
+                      fontWeight: selected ? FontWeight.w700 : null,
+                    ),
                   ),
                 ),
               ],

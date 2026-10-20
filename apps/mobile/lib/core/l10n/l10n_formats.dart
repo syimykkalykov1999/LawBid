@@ -89,6 +89,14 @@ class L10nFormats {
   String number(num value) =>
       _n(NumberFormat.decimalPattern(locale).format(value));
 
+  /// One fixed decimal (`5.0` / `5,0` / `4.3`) — the average rating.
+  String number1(num value) => _n(
+        NumberFormat.decimalPatternDigits(
+          locale: locale,
+          decimalDigits: 1,
+        ).format(value),
+      );
+
   /// Money is stored in integer cents (`.cursorrules`): `$1,234.50` /
   /// `1 234,50 $`.
   String currencyFromCents(int cents, {String currencyCode = 'USD'}) => _n(
