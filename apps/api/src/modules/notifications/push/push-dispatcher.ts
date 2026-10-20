@@ -132,10 +132,14 @@ export class PushDispatcher
           userId: data.recipientId,
           title: '',
           body: '',
-          data: { type: 'call_ended', callId: data.callId },
+          data: {
+            type: 'call_ended',
+            callId: data.callId,
+            ...(data.ended ? { ended: '1' } : {}),
+          },
           callEnd: true,
         },
-        `ce:${data.callId}`,
+        `ce:${data.callId}${data.ended ? ':end' : ''}`,
       );
       return 'sent';
     }

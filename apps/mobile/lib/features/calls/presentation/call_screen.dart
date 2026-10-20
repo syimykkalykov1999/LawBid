@@ -101,8 +101,9 @@ class _CallScreenState extends ConsumerState<CallScreen>
       child: AnnotatedRegion<SystemUiOverlayStyle>(
         value: SystemUiOverlayStyle.light,
         child: PopScope(
-          // Back never drops a live call by accident.
-          canPop: !s.busy,
+          // Back minimises a live call (it goes on; the app shows the green
+          // "Return to call" bar) — it never drops it. A ringing call stays.
+          canPop: s.phase != CallPhase.incoming,
           child: Scaffold(
             backgroundColor: colors.navy,
             body: DecoratedBox(
@@ -131,52 +132,38 @@ class _CallScreenState extends ConsumerState<CallScreen>
                   SafeArea(
                     child: Column(
                       children: [
-                        const SizedBox(height: AppSpacing.lg),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            AppIcon(
-                              AppIcons.lockOutlineRounded,
-                              size: 14,
-                              color: colors.goldLight,
-                            ),
-                            const SizedBox(width: AppSpacing.xs),
-                            Flexible(
-                              child: Text(
-                                t.t(
-                                  s.video
-                                      ? 'call.videoLabel'
-                                      : 'call.audioOnly',
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: type.caption
-                                    .copyWith(color: colors.goldLight),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const Spacer(flex: 2),
-                        // A live video call: the picture is the background.
-                        if (!(s.video && s.phase == CallPhase.active))
-                          SizedBox(
-                            width: 220,
-                            height: 220,
-                            child: AnimatedBuilder(
-                              animation: _pulse,
-                              builder: (context, child) => CustomPaint(
-                                painter: _RingsPainter(
-                                  progress: _pulse.value,
-                                  on: ringing && !context.reduceMotion,
-                                  color: colors.gold,
-                                ),
-                                child: child,
-                              ),
-                              child:
-                                  Center(child: _Avatar(peer: peer, size: 132)),
-                            ),
+                        // Owner 2026-10-20 (like WhatsApp): minimise on the
+                        // left, add a person on the right.
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.md,
+                            vertical: AppSpacing.sm,
                           ),
-                        const SizedBox(height: AppSpacing.xl),
+                          child: Row(
+                            children: [
+                              if (s.phase != CallPhase.incoming)
+                                _TopButton(
+                                  icon: AppIcons.expandMoreRounded,
+                                  label: t.t('call.minimize'),
+                                  onTap: () => unawaited(Navigator.of(context).maybePop()),
+                                )
+                              else
+                                const SizedBox(width: 44, height: 44),
+                              const Spacer(),
+                              _TopButton(
+                                icon: AppIcons.personAddAlt1Rounded,
+                                label: t.t('call.addParticipant'),
+                                dimmed: true,
+                                onTap: () =>
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(t.t('call.addParticipantSoon')),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                         Padding(
                           padding: const EdgeInsets.symmetric(
                             horizontal: AppSpacing.screenSide,
@@ -211,7 +198,52 @@ class _CallScreenState extends ConsumerState<CallScreen>
                             ),
                           ),
                         ),
-                        const Spacer(flex: 3),
+                        const SizedBox(height: AppSpacing.xs),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            AppIcon(
+                              AppIcons.lockOutlineRounded,
+                              size: 14,
+                              color: colors.goldLight,
+                            ),
+                            const SizedBox(width: AppSpacing.xs),
+                            Flexible(
+                              child: Text(
+                                t.t(
+                                  s.video
+                                      ? 'call.videoLabel'
+                                      : 'call.audioOnly',
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: type.caption
+                                    .copyWith(color: colors.goldLight),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const Spacer(),
+                        // A live video call: the picture is the background.
+                        if (!(s.video && s.phase == CallPhase.active))
+                          SizedBox(
+                            width: 220,
+                            height: 220,
+                            child: AnimatedBuilder(
+                              animation: _pulse,
+                              builder: (context, child) => CustomPaint(
+                                painter: _RingsPainter(
+                                  progress: _pulse.value,
+                                  on: ringing && !context.reduceMotion,
+                                  color: colors.gold,
+                                ),
+                                child: child,
+                              ),
+                              child:
+                                  Center(child: _Avatar(peer: peer, size: 132)),
+                            ),
+                          ),
+                        const Spacer(),
                         Padding(
                           padding: const EdgeInsets.fromLTRB(
                             AppSpacing.xl,
@@ -327,6 +359,48 @@ class _CallScreenState extends ConsumerState<CallScreen>
                             ),
                     ),
                 ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A small round button in the call screen's top corners.
+class _TopButton extends StatelessWidget {
+  const _TopButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.dimmed = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool dimmed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: label,
+      child: Material(
+        color: Colors.white.withValues(alpha: 0.14),
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onTap,
+          child: SizedBox(
+            width: 44,
+            height: 44,
+            child: Center(
+              child: AppIcon(
+                icon,
+                size: 24,
+                color: Colors.white.withValues(alpha: dimmed ? 0.55 : 1),
               ),
             ),
           ),

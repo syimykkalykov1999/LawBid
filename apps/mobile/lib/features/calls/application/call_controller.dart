@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/audio/app_sounds.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/features/calls/application/call_foreground.dart';
 import 'package:lawbid/features/calls/application/call_media.dart';
 import 'package:lawbid/features/calls/data/calls_repository.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
@@ -216,14 +217,68 @@ class CallController extends Notifier<CallSession> {
 
   @override
   CallSession build() {
-    _events?.cancel();
-    _events = ref.watch(realtimeEventsProvider).listen(_onEvent);
+    // Owner 2026-10-20: `listen`, not `watch` — when the realtime provider
+    // rebuilt (the socket came back after the app was minimised) a watch
+    // rebuilt this controller too: the live call state became "idle" while
+    // the audio went on, so the screen showed "?" and "You're already in a
+    // call", and the call could be neither found nor ended.
+    ref.listen<Stream<RealtimeEvent>>(
+      realtimeEventsProvider,
+      (_, stream) {
+        _events?.cancel();
+        _events = stream.listen(_onEvent);
+      },
+      fireImmediately: true,
+    );
+    // The ongoing-call notification follows the call; its buttons come back.
+    ref.listenSelf((prev, next) => _syncForeground(prev, next));
+    final fg = ref.read(callForegroundProvider);
+    final actions = fg.actions.listen(_onNotificationAction);
+    unawaited(
+      fg.pendingAction().then<void>((a) {
+        if (a != null) _onNotificationAction(a);
+      }),
+    );
     ref.onDispose(() {
+      unawaited(actions.cancel());
       _events?.cancel();
       _clearTimers();
       unawaited(_media?.close());
     });
     return const CallSession();
+  }
+
+  // Android ongoing-call notification (owner 2026-10-20).
+  String? _fgKey;
+
+  void _syncForeground(CallSession? prev, CallSession next) {
+    final fg = ref.read(callForegroundProvider);
+    final live = next.phase == CallPhase.outgoing ||
+        next.phase == CallPhase.connecting ||
+        next.phase == CallPhase.active;
+    if (!live) {
+      if (_fgKey != null) {
+        _fgKey = null;
+        unawaited(fg.stop());
+      }
+      return;
+    }
+    final name = (next.peer ?? next.call?.peer)?.name ?? '';
+    final since = next.phase == CallPhase.active
+        ? (next.connectedAt ?? DateTime.now()).millisecondsSinceEpoch
+        : 0;
+    final key = '$name|$since';
+    if (key == _fgKey) return;
+    _fgKey = key;
+    unawaited(fg.start(name: name, since: since));
+  }
+
+  void _onNotificationAction(String action) {
+    if (action == 'hangup') {
+      if (state.busy) unawaited(hangUp());
+    } else if (state.busy) {
+      ref.read(callOpenRequestProvider.notifier).bump();
+    }
   }
 
   // --- Outgoing ------------------------------------------------------------
@@ -235,7 +290,11 @@ class CallController extends Notifier<CallSession> {
     CallPeer? peer,
     bool video = false,
   }) async {
-    if (state.busy) return;
+    if (state.busy) {
+      // Already talking: the call button takes you back to that call.
+      ref.read(callOpenRequestProvider.notifier).bump();
+      return;
+    }
     _reset();
     state = CallSession(
       phase: CallPhase.outgoing,
@@ -546,6 +605,17 @@ class CallController extends Notifier<CallSession> {
       if (!ok) throw StateError('signal refused');
     } on Object {
       if (state.busy) unawaited(hangUp(reason: CallEndReason.failed));
+    }
+  }
+
+  /// A "call over" push (the socket may be asleep): the server decides.
+  /// Also closes the system call (CallKit) that outlived it.
+  Future<void> remoteEnded(String callId) async {
+    if (state.busy && state.call?.id == callId) {
+      await _resync(callId);
+    }
+    if (!state.busy || state.call?.id != callId) {
+      unawaited(ref.read(systemCallUiProvider).dismiss(callId));
     }
   }
 

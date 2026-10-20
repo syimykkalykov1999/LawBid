@@ -8,6 +8,7 @@ import 'package:flutter_webrtc/flutter_webrtc.dart' show MediaStream;
 import 'package:lawbid/core/audio/app_sounds.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
+import 'package:lawbid/features/calls/application/call_foreground.dart';
 import 'package:lawbid/features/calls/application/call_media.dart';
 import 'package:lawbid/features/calls/data/calls_repository.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
@@ -186,6 +187,25 @@ class _Sounds implements AppSounds {
   Future<void> messageOut() async => played.add('out');
 }
 
+class _FakeForeground implements CallForeground {
+  final started = <String>[];
+  var stops = 0;
+  final _actions = StreamController<String>.broadcast();
+
+  @override
+  Stream<String> get actions => _actions.stream;
+
+  @override
+  Future<String?> pendingAction() async => null;
+
+  @override
+  Future<void> start({required String name, int since = 0}) async =>
+      started.add('$name|${since > 0}');
+
+  @override
+  Future<void> stop() async => stops++;
+}
+
 class _Harness {
   _Harness() {
     container = ProviderContainer(
@@ -194,6 +214,7 @@ class _Harness {
         callMediaFactoryProvider.overrideWithValue(() => media),
         realtimeEventsProvider.overrideWithValue(events.stream),
         appSoundsProvider.overrideWithValue(sounds),
+        callForegroundProvider.overrideWithValue(foreground),
         callSignalSenderProvider.overrideWithValue((id, data) async {
           signals.add(data);
           return true;
@@ -205,6 +226,7 @@ class _Harness {
 
   final repo = _FakeRepo();
   final sounds = _Sounds();
+  final foreground = _FakeForeground();
   final media = _FakeMedia();
   final events = StreamController<RealtimeEvent>.broadcast();
   final signals = <Map<String, Object?>>[];
@@ -423,5 +445,29 @@ void main() {
     await h.c.accept();
     expect(h.media.openedVideo, isTrue);
     await h.c.hangUp();
+  });
+
+  test('the ongoing-call notification follows the call (owner 2026-10-20)',
+      () async {
+    final h = _Harness();
+    addTearDown(h.dispose);
+
+    await h.c.call('conv', peer: _peer);
+    expect(h.foreground.started, ['Paul Phone|false']);
+
+    await h.c.hangUp();
+    expect(h.foreground.stops, 1);
+  });
+
+  test('a second tap on the call button asks for the call screen, not a new call',
+      () async {
+    final h = _Harness();
+    addTearDown(h.dispose);
+
+    await h.c.call('conv', peer: _peer);
+    final before = h.container.read(callOpenRequestProvider);
+    await h.c.call('conv', peer: _peer);
+    expect(h.container.read(callOpenRequestProvider), before + 1);
+    expect(h.repo.startedVideo, hasLength(1));
   });
 }

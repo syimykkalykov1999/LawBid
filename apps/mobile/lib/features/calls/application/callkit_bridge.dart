@@ -7,6 +7,8 @@ import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:lawbid/features/calls/application/call_controller.dart';
+import 'package:lawbid/features/calls/application/call_end_port_stub.dart'
+    if (dart.library.io) 'package:lawbid/features/calls/application/call_end_port_io.dart';
 import 'package:lawbid/features/calls/data/calls_repository.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
 
@@ -43,39 +45,47 @@ class CallkitSystemUi implements SystemCallUi {
       try {
         final calls = await FlutterCallkitIncoming.activeCalls();
         if (calls.any((c) => c.id == call.id && c.isAccepted)) return;
+        if (calls.any((c) => c.id == call.id)) {
+          // A ringing one: replace it with a connected call.
+          _ignoreEnded(call.id);
+          await dismiss(call.id);
+        }
       } on Object {
         // No plugin: fall through.
       }
+      await showOngoing(call);
+      return;
     }
+    // Android: the ringing screen goes; the app's own ongoing-call
+    // notification (CallForegroundService) is started by the controller.
     await dismiss(call.id);
-    await showOngoing(call);
   }
 
   @override
   Future<void> showOngoing(AppCall call) async {
-    // Android only: iOS keeps the call alive through its own audio session
-    // and CallKit, and the plugin's startCall would add a second CallKit call.
-    if (defaultTargetPlatform != TargetPlatform.android) return;
+    // Owner 2026-10-20: an in-app answer / outgoing call is registered with
+    // CallKit too — the system's green call pill, tap → the app.
+    // (Android has its own foreground-service notification instead.)
+    if (defaultTargetPlatform != TargetPlatform.iOS) return;
     try {
+      final calls = await FlutterCallkitIncoming.activeCalls();
+      if (calls.any((c) => c.id == call.id)) return;
       await FlutterCallkitIncoming.startCall(
         CallKitParams(
           id: call.id,
           nameCaller: call.peer.name,
           appName: 'LawBid',
           avatar: call.peer.avatarUrl,
-          handle: 'LawBid',
+          handle: call.peer.name.isEmpty ? 'LawBid' : call.peer.name,
           type: 0,
           extra: {'callId': call.id},
-          callingNotification: const NotificationParams(
-            showNotification: true,
-            subtitle: 'Ongoing call',
-          ),
-          android: const AndroidParams(
-            isCustomNotification: true,
-            isShowLogo: false,
-            backgroundColor: '#0A1A3F',
-            actionColor: '#C9A24A',
-            textColor: '#ffffff',
+          ios: const IOSParams(
+            handleType: 'generic',
+            supportsVideo: false,
+            maximumCallGroups: 1,
+            maximumCallsPerCallGroup: 1,
+            supportsDTMF: false,
+            supportsHolding: false,
           ),
         ),
       );
@@ -83,6 +93,19 @@ class CallkitSystemUi implements SystemCallUi {
       debugPrint('callkit ongoing unavailable: $e');
     }
   }
+}
+
+/// CallKit ids we ended ourselves a moment ago: their "ended" event is not
+/// the user hanging up.
+final _ignoredEnded = <String, DateTime>{};
+
+void _ignoreEnded(String id) {
+  _ignoredEnded[id] = DateTime.now().add(const Duration(seconds: 4));
+}
+
+bool _endedByUs(String id) {
+  final until = _ignoredEnded[id];
+  return until != null && DateTime.now().isBefore(until);
 }
 
 /// Shows the system ringing UI for [callId] (also from the push
@@ -144,11 +167,14 @@ Future<void> showLawbidIncoming({
 /// Push 2026-10-19 (`call_ended` push): the caller hung up, the call was
 /// missed or answered elsewhere — the system ringing screen goes away,
 /// unless this phone is the one that answered it.
-Future<void> stopLawbidIncoming(String callId) async {
+///
+/// [over] (owner 2026-10-20): the ANSWERED call is over too — end the
+/// system call even if this phone had accepted it.
+Future<void> stopLawbidIncoming(String callId, {bool over = false}) async {
   try {
     final calls = await FlutterCallkitIncoming.activeCalls();
     final mine = calls.where((c) => c.id == callId);
-    if (mine.isEmpty || mine.any((c) => c.isAccepted)) return;
+    if (mine.isEmpty || (!over && mine.any((c) => c.isAccepted))) return;
     await FlutterCallkitIncoming.endCall(callId);
   } on Object catch (e) {
     debugPrint('callkit unavailable: $e');
@@ -163,7 +189,11 @@ Future<void> lawbidBackgroundMessage(RemoteMessage message) async {
   final callId = d['callId'];
   if (callId is! String) return;
   if (d['type'] == 'call_ended') {
-    await stopLawbidIncoming(callId);
+    final over = d['ended'] == '1';
+    // The app's own isolate (alive in the background while a call runs)
+    // holds the call: tell it to re-read the call from the server now.
+    if (over && sendCallEnded(callId)) return;
+    await stopLawbidIncoming(callId, over: over);
     return;
   }
   if (d['type'] != 'incoming_call') return;
@@ -191,6 +221,17 @@ final callkitEventsProvider = Provider<void>((ref) {
         switch (event) {
           case CallEventActionCallAccept(:final callKitParams):
             await controller.ringFromPush(callKitParams.id, accept: true);
+          case CallEventActionCallEnded(:final callKitParams):
+            // iOS: "End" on the system call UI (the green pill / lock
+            // screen) hangs up. Our own endCall() also reports it — the
+            // call is already over then.
+            final s = ref.read(callControllerProvider);
+            if (!_endedByUs(callKitParams.id) &&
+                s.busy &&
+                s.call?.id == callKitParams.id &&
+                s.phase != CallPhase.incoming) {
+              await controller.hangUp();
+            }
           case CallEventActionCallDecline(:final callKitParams):
             final s = ref.read(callControllerProvider);
             if (s.call?.id == callKitParams.id) {
@@ -228,5 +269,13 @@ final callkitEventsProvider = Provider<void>((ref) {
       // No plugin.
     }
   }());
-  ref.onDispose(() => sub?.cancel());
+  // "Call over" pushes caught by the background isolate (Android, app
+  // minimised): the controller asks the server and closes everything.
+  final stopEnded = listenCallEnded((id) {
+    unawaited(ref.read(callControllerProvider.notifier).remoteEnded(id));
+  });
+  ref.onDispose(() {
+    sub?.cancel();
+    stopEnded();
+  });
 });

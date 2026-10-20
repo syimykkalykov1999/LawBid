@@ -36,6 +36,8 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : FlutterFragmentActivity() {
     private var ringtone: Ringtone? = null
     private var pendingPermission: MethodChannel.Result? = null
+    private var callChannel: MethodChannel? = null
+    private var pendingCallAction: String? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -137,6 +139,47 @@ class MainActivity : FlutterFragmentActivity() {
                 else -> result.notImplemented()
             }
         }
+        // Owner 2026-10-20: the ongoing-call notification / foreground
+        // service (CallForegroundService); its "Hang up" and tap come back
+        // here as `action` events.
+        callChannel = MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "lawbid/call_service",
+        ).also { ch ->
+            ch.setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "start" -> {
+                        val intent = Intent(this, CallForegroundService::class.java)
+                            .putExtra(
+                                CallForegroundService.EXTRA_NAME,
+                                call.argument<String>("name") ?: "",
+                            )
+                            .putExtra(
+                                CallForegroundService.EXTRA_SINCE,
+                                (call.argument<Number>("since") ?: 0L).toLong(),
+                            )
+                        try {
+                            if (Build.VERSION.SDK_INT >= 26) startForegroundService(intent)
+                            else startService(intent)
+                            result.success(true)
+                        } catch (e: Exception) {
+                            result.success(false)
+                        }
+                    }
+                    "stop" -> {
+                        stopService(Intent(this, CallForegroundService::class.java))
+                        result.success(null)
+                    }
+                    "pendingAction" -> {
+                        result.success(pendingCallAction)
+                        pendingCallAction = null
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+        }
+        // A cold start from the notification: Dart asks for it (pendingAction).
+        callActionOf(intent)?.let { pendingCallAction = it }
         // Owner 2026-10-05 (docs/CLIENT_FRAUD.md): ANDROID_ID for the
         // X-Device-Key header (lib/core/network/device_key.dart). Stable for
         // this app on this phone until a factory reset; the server keeps
@@ -152,6 +195,23 @@ class MainActivity : FlutterFragmentActivity() {
                 else -> result.notImplemented()
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleCallIntent(intent)
+    }
+
+    private fun callActionOf(intent: Intent?): String? = when (intent?.action) {
+        CallForegroundService.ACTION_HANGUP -> "hangup"
+        CallForegroundService.ACTION_OPEN -> "open"
+        else -> null
+    }
+
+    private fun handleCallIntent(intent: Intent?) {
+        val action = callActionOf(intent) ?: return
+        intent?.action = null
+        callChannel?.invokeMethod("action", action)
     }
 
     private fun notificationsAllowed(): Boolean {

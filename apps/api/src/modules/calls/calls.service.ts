@@ -266,6 +266,20 @@ export class CallsService {
     }
   }
 
+  /** Owner 2026-10-20: a minimised phone has no socket to hear `call:ended`
+   * (the other side hung up, the call failed, the sweep closed it) — a
+   * silent push tells both phones the answered call is over, so the app
+   * closes the screen, the notification and the CallKit call at once. */
+  private async endedActivePush(call: Call): Promise<void> {
+    for (const recipientId of [call.caller_id, call.callee_id]) {
+      await this.push.enqueueCallEnded({
+        recipientId,
+        callId: call.id,
+        ended: true,
+      });
+    }
+  }
+
   /** POST /calls/:id/decline — the callee rejects a ringing call. */
   async decline(user: RequestUser, id: string): Promise<CallDto> {
     const call = await this.load(user, id);
@@ -397,7 +411,11 @@ export class CallsService {
       where: { id: call.id },
     });
     if (count > 0) {
-      if (call.status === 'ringing') await this.stopRingingPush(call);
+      if (call.status === 'ringing') {
+        await this.stopRingingPush(call);
+      } else {
+        await this.endedActivePush(call);
+      }
       await this.logCall(fresh, outcome);
       for (const uid of [call.caller_id, call.callee_id]) {
         this.realtime.toUsers([uid], 'call:ended', {
