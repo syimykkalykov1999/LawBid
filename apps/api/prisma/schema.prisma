@@ -2355,6 +2355,8 @@ model ConversationParticipant {
   user_id              String       @db.Uuid
   user                 User         @relation(fields: [user_id], references: [id], onDelete: Cascade)
   last_read_message_id String?      @db.Uuid
+  /// When last_read_message_id last moved ("read at HH:MM", WhatsApp style).
+  last_read_at         DateTime?    @db.Timestamptz
   muted_until          DateTime?    @db.Timestamptz
   /// Owner 2026-10-01: my folder for this chat; null = automatic (a case
   /// chat is Primary, a direct chat General).
@@ -2465,6 +2467,21 @@ model Message {
   gift_send             GiftSend?          @relation(fields: [gift_send_id], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "messages_gift_send_fkey")
   saved_by              SavedChatMessage[]
   deleted_at            DateTime?          @db.Timestamptz
+  // Owner 2026-10-20 (WhatsApp/Telegram): edited within chat.edit_window_min;
+  // "deleted for everyone" within chat.delete_for_all_hours (the bubble
+  // stays as "Message deleted"; the texts are scrubbed from the display
+  // column, the original is kept for moderation/legal); a reply quotes
+  // reply_to_id; forwarded = shown as "Forwarded".
+  edited_at             DateTime?          @db.Timestamptz
+  revoked_at            DateTime?          @db.Timestamptz
+  reply_to_id           String?            @db.Uuid
+  reply_to              Message?           @relation("MessageReply", fields: [reply_to_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  replies               Message[]          @relation("MessageReply")
+  forwarded             Boolean            @default(false)
+  hidden_for            MessageHidden[]
+  reactions             MessageReaction[]
+  edits                 MessageEdit[]
+  pin                   MessagePin?
   created_at            DateTime           @default(now()) @db.Timestamptz
   updated_at            DateTime           @updatedAt @db.Timestamptz
 
@@ -2472,10 +2489,59 @@ model Message {
   @@index([file_id])
   @@index([sticker_id])
   @@index([gift_send_id])
+  @@index([reply_to_id])
   @@index([conversation_id, created_at(sort: Desc)])
   // docs/06 §5.1: anonymization scrubs a user's messages by sender.
   @@index([sender_id])
   @@map("messages")
+}
+
+/// "Delete for me": the message stays for the other side.
+model MessageHidden {
+  message_id String   @db.Uuid
+  message    Message  @relation(fields: [message_id], references: [id], onDelete: Cascade)
+  user_id    String   @db.Uuid
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  @@id([message_id, user_id])
+  @@index([user_id])
+  @@map("message_hidden")
+}
+
+/// One emoji reaction per person per message (changing it replaces it).
+model MessageReaction {
+  message_id String   @db.Uuid
+  message    Message  @relation(fields: [message_id], references: [id], onDelete: Cascade)
+  user_id    String   @db.Uuid
+  emoji      String   @db.VarChar(16)
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  @@id([message_id, user_id])
+  @@map("message_reactions")
+}
+
+/// The text a message had before each edit (moderation / legal).
+model MessageEdit {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  message_id    String   @db.Uuid
+  message       Message  @relation(fields: [message_id], references: [id], onDelete: Cascade)
+  body_original String
+  edited_at     DateTime @default(now()) @db.Timestamptz
+
+  @@index([message_id])
+  @@map("message_edits")
+}
+
+/// A message pinned to the top of a chat (at most 3 per chat).
+model MessagePin {
+  message_id      String   @id @db.Uuid
+  message         Message  @relation(fields: [message_id], references: [id], onDelete: Cascade)
+  conversation_id String   @db.Uuid
+  pinned_by       String   @db.Uuid
+  pinned_at       DateTime @default(now()) @db.Timestamptz
+
+  @@index([conversation_id, pinned_at(sort: Desc)])
+  @@map("message_pins")
 }
 
 /// Owner 2026-10-20: group chats (Telegram + WhatsApp). Separate from the

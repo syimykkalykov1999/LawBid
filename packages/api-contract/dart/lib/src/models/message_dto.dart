@@ -9,6 +9,8 @@ import 'chat_attachment_dto.dart';
 import 'contact_card_dto.dart';
 import 'gift_send_dto.dart';
 import 'message_dto_type.dart';
+import 'reaction_dto.dart';
+import 'reply_preview_dto.dart';
 import 'sticker_dto.dart';
 import 'voice_note_dto.dart';
 
@@ -23,6 +25,10 @@ class MessageDto {
     required this.body,
     required this.contactMasked,
     required this.createdAt,
+    required this.revoked,
+    required this.forwarded,
+    required this.reactions,
+    required this.pinned,
     this.senderId,
     this.sentByAssistant,
     this.gift,
@@ -32,6 +38,8 @@ class MessageDto {
     this.attachment,
     this.call,
     this.clientMessageId,
+    this.editedAt,
+    this.replyTo,
   });
 
   factory MessageDto.fromJson(Map<String, Object?> json) =>
@@ -66,6 +74,14 @@ class MessageDto {
   /// Only on the viewer's own messages (outbox matching).
   final String? clientMessageId;
   final DateTime createdAt;
+  final DateTime? editedAt;
+
+  /// Deleted for everyone: the app shows "Message deleted"; body and media are empty.
+  final bool revoked;
+  final bool forwarded;
+  final ReplyPreviewDto? replyTo;
+  final List<ReactionDto> reactions;
+  final bool pinned;
 
   Map<String, Object?> toJson() => _$MessageDtoToJson(this);
 }

@@ -52,6 +52,11 @@ export interface MessageJobData {
   /** Owner 2026-10-20: a group chat message (conversationId = the group). */
   groupId?: string;
   deferred?: boolean;
+  /** Owner 2026-10-20: a reaction to / an edit of an existing message
+   * (grouped under the message instead of a new alert each time). */
+  event?: 'reaction' | 'edit';
+  actorId?: string;
+  emoji?: string;
 }
 
 /** OQ-041: ring the callee's devices (push-only, never stored). */
@@ -106,6 +111,10 @@ export interface PushMessage {
   /** Owner 2026-10-17: FCM tokens not to send to (iPhones already rung by
    * a VoIP push — no double ring). */
   skipTokens?: string[];
+  /** Owner 2026-10-20: notifications sharing a key replace each other on the
+   * phone (Android tag + collapse key, iOS collapse id + thread id) — one
+   * alert per message however many reactions or edits follow. */
+  collapseKey?: string;
 }
 
 export type PushSoundKind = 'message' | 'notification';

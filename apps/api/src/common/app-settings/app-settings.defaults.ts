@@ -530,6 +530,15 @@ export const OWNER_RATE_LIMIT_SETTINGS = {
  * - auto_retention: technical logs older than N days are removed;
  * - growth alert: one log alert (CloudWatch → e-mail) when files or the
  *   database grew more than `growth_alert_percent` in a day. */
+/** Owner 2026-10-20 (WhatsApp): how long a sent message can still be edited
+ * and deleted for everyone. 0 = never. */
+export const OWNER_CHAT_ACTION_SETTINGS = {
+  'chat.edit_window_min': 15,
+  'chat.delete_for_all_hours': 48,
+  /** Pinned messages per chat (WhatsApp: 3). */
+  'chat.max_pins': 3,
+};
+
 export const OWNER_STORAGE_SETTINGS = {
   'storage.dedup': true,
   'storage.auto_cleanup': true,
@@ -669,6 +678,7 @@ export const APP_SETTINGS = {
   ...OWNER_COUNTRY_SETTINGS,
   ...OWNER_RATE_LIMIT_SETTINGS,
   ...OWNER_STORAGE_SETTINGS,
+  ...OWNER_CHAT_ACTION_SETTINGS,
   ...OWNER_FRAUD_SETTINGS,
   ...OWNER_OPS_SETTINGS,
   ...OWNER_TREASURY_SETTINGS,

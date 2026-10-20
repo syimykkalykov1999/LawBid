@@ -14,6 +14,8 @@ export const viewingKey = (userId: string, conversationId: string) =>
 
 export type RealtimeEvent =
   | 'message:new'
+  // Owner 2026-10-20: edited, deleted for everyone, reaction, pin.
+  | 'message:updated'
   | 'message:read'
   // OQ-040: the recipient played a voice note.
   | 'message:listened'

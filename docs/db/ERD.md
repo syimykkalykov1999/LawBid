@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-208 tables.
+212 tables.
 
 ```mermaid
 erDiagram
@@ -671,6 +671,7 @@ erDiagram
     String conversation_id PK,FK
     String user_id PK,FK
     String last_read_message_id "nullable"
+    DateTime last_read_at "nullable"
     DateTime muted_until "nullable"
     enum_ChatFolder folder "nullable"
     DateTime waiting_since "nullable"
@@ -726,8 +727,35 @@ erDiagram
     String sticker_id FK "nullable"
     String gift_send_id FK "nullable"
     DateTime deleted_at "nullable"
+    DateTime edited_at "nullable"
+    DateTime revoked_at "nullable"
+    String reply_to_id FK "nullable"
+    Boolean forwarded
     DateTime created_at
     DateTime updated_at
+  }
+  message_hidden {
+    String message_id PK,FK
+    String user_id PK
+    DateTime created_at
+  }
+  message_reactions {
+    String message_id PK,FK
+    String user_id PK
+    String emoji
+    DateTime created_at
+  }
+  message_edits {
+    String id PK
+    String message_id FK
+    String body_original
+    DateTime edited_at
+  }
+  message_pins {
+    String message_id PK,FK
+    String conversation_id
+    String pinned_by
+    DateTime pinned_at
   }
   chat_groups {
     String id PK
@@ -2691,6 +2719,11 @@ erDiagram
   messages }o--o| files : "file_id"
   messages }o--o| stickers : "sticker_id"
   messages }o--o| gift_sends : "gift_send_id"
+  messages }o--o| messages : "reply_to_id"
+  message_hidden }o--|| messages : "message_id"
+  message_reactions }o--|| messages : "message_id"
+  message_edits }o--|| messages : "message_id"
+  message_pins |o--|| messages : "message_id"
   chat_groups }o--o| files : "avatar_file_id"
   chat_groups }o--|| users : "created_by"
   chat_group_members }o--|| chat_groups : "group_id"

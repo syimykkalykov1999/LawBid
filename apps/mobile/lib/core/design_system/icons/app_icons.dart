@@ -422,6 +422,15 @@ abstract final class AppIcons {
     fontFamily: fillFamily,
   );
   static const IconData homeOutlined = IconData(0xe2c2, fontFamily: boldFamily);
+  static const IconData copyOutlined = IconData(0xe1ca, fontFamily: fillFamily);
+  static const IconData forwardRounded = IconData(
+    0xed52,
+    fontFamily: fillFamily,
+  );
+  static const IconData selectChecksRounded = IconData(
+    0xeadc,
+    fontFamily: fillFamily,
+  );
   static const IconData homeRounded = IconData(0xe2c2, fontFamily: fillFamily);
   static const IconData homeWorkRounded = IconData(
     0xe2c4,

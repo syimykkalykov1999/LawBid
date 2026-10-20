@@ -56,6 +56,8 @@ import {
   type ContactCardDto,
   type MessageDto,
   type MessagePage,
+  type ReactionDto,
+  type ReplyPreviewDto,
   type SendMessageDto,
   ChatFolderCountsDto,
   type ChatStorageDto,
@@ -63,6 +65,7 @@ import {
   OrganizeConversationDto,
 } from './chat.dto';
 import { MessageBodyCipher } from '../../common/secrets/message-body-cipher';
+import { loadMessageExtras, type MessageExtras } from './chat-message-extras';
 import { touchClientActive } from '../cases/cases.public';
 
 const CONVERSATIONS_PAGE = 20;
@@ -474,6 +477,7 @@ export class ChatService {
         where: {
           conversation_id: id,
           deleted_at: null,
+          hidden_for: { none: { user_id: user.sub } },
           OR: [
             { created_at: { gt: anchor.created_at } },
             { created_at: anchor.created_at, id: { gt: anchor.id } },
@@ -493,6 +497,7 @@ export class ChatService {
       where: {
         conversation_id: id,
         deleted_at: null,
+        hidden_for: { none: { user_id: user.sub } },
         ...(only ? { type: only } : {}),
         ...(c
           ? {
@@ -520,6 +525,86 @@ export class ChatService {
 
   /** POST /conversations/:id/messages (§8.4). */
   async send(
+    user: RequestUser,
+    id: string,
+    dto: SendMessageDto,
+  ): Promise<MessageDto> {
+    if (!dto.forwardFromId) return this.sendContent(user, id, dto);
+    // A retry of a forward must not copy the file twice.
+    const existing = await this.findOwn(id, user.sub, dto.clientMessageId);
+    if (existing) {
+      return this.toMessage(
+        existing,
+        user.sub,
+        undefined,
+        await this.mediaLinks([existing]),
+      );
+    }
+    return this.sendContent(user, id, await this.forwardContent(user, dto));
+  }
+
+  /**
+   * Owner 2026-10-20: the content of the message to forward as a send
+   * request — text, sticker, or a voice note / file copied as a new file row
+   * over the same stored object (FilesService.copyForUser: no upload, same
+   * type, size and quota rules).
+   */
+  private async forwardContent(
+    user: RequestUser,
+    dto: SendMessageDto,
+  ): Promise<SendMessageDto> {
+    const src = await this.prisma.message.findFirst({
+      where: {
+        id: dto.forwardFromId,
+        deleted_at: null,
+        revoked_at: null,
+        hidden_for: { none: { user_id: user.sub } },
+      },
+    });
+    if (!src) throw notFound();
+    // Only from a chat the forwarder takes part in.
+    await this.load(user, src.conversation_id);
+    if (src.type === 'system' || src.type === 'call') {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_ERROR,
+        message: 'This message cannot be forwarded.',
+        details: { field: 'forwardFromId' },
+      });
+    }
+    const text = this.cipher?.open(src.body_display) ?? src.body_display;
+    const base = {
+      clientMessageId: dto.clientMessageId,
+      forwarded: true,
+      replyToId: dto.replyToId,
+    };
+    if (src.type === 'sticker') {
+      return {
+        ...base,
+        type: 'sticker',
+        stickerId: src.sticker_id ?? undefined,
+      };
+    }
+    if (src.type === 'voice' || src.type === 'attachment') {
+      if (!src.file_id) throw notFound();
+      const copy = await this.files.copyForUser(
+        src.file_id,
+        user.sub,
+        src.type === 'voice' ? 'chat_voice' : 'chat_attachment',
+      );
+      return {
+        ...base,
+        type: src.type,
+        body: src.type === 'attachment' ? text : undefined,
+        fileId: copy.id,
+        ...(src.type === 'voice'
+          ? { durationMs: src.duration_ms ?? 0, waveform: src.waveform }
+          : { fileName: src.file_name ?? 'file' }),
+      };
+    }
+    return { ...base, body: text };
+  }
+
+  private async sendContent(
     user: RequestUser,
     id: string,
     dto: SendMessageDto,
@@ -742,6 +827,16 @@ export class ChatService {
       }
     }
 
+    // Owner 2026-10-20: a reply quotes a message of this same chat.
+    let replyToId: string | null = null;
+    if (dto.replyToId) {
+      const quoted = await this.prisma.message.findFirst({
+        where: { id: dto.replyToId, conversation_id: id },
+        select: { id: true },
+      });
+      if (!quoted) throw notFound();
+      replyToId = quoted.id;
+    }
     let message: Message;
     try {
       message = await withTxRetry(this.prisma, async (tx) => {
@@ -796,6 +891,8 @@ export class ChatService {
             body_display: this.seal(gift ? '' : masked.text),
             contact_masked: masked.masked,
             client_message_id: dto.clientMessageId,
+            reply_to_id: replyToId,
+            forwarded: dto.forwarded === true,
             ...(voice
               ? {
                   file_id: dto.fileId,
@@ -828,7 +925,7 @@ export class ChatService {
           where: {
             conversation_id_user_id: { conversation_id: id, user_id: user.sub },
           },
-          data: { last_read_message_id: m.id },
+          data: { last_read_message_id: m.id, last_read_at: new Date() },
         });
         return m;
       });
@@ -1101,7 +1198,7 @@ export class ChatService {
         where: {
           conversation_id_user_id: { conversation_id: id, user_id: user.sub },
         },
-        data: { last_read_message_id: target.id },
+        data: { last_read_message_id: target.id, last_read_at: new Date() },
       });
       return { lastReadMessageId: target.id, moved: true };
     });
@@ -1112,6 +1209,7 @@ export class ChatService {
       this.realtime.toUsers([other], 'message:read', {
         conversationId: id,
         lastReadMessageId: result.lastReadMessageId,
+        readAt: new Date().toISOString(),
       });
       await this.badges.chatsChanged(user.sub);
     }
@@ -1234,7 +1332,7 @@ export class ChatService {
     return out;
   }
 
-  private async load(user: RequestUser, id: string): Promise<Conversation> {
+  async load(user: RequestUser, id: string): Promise<Conversation> {
     const conv = await this.prisma.conversation.findUnique({ where: { id } });
     if (
       !conv ||
@@ -1246,7 +1344,7 @@ export class ChatService {
   }
 
   /** Signed links for the voice notes and attachments among [rows]. */
-  private async mediaLinks(rows: Message[]): Promise<MediaLinks> {
+  async mediaLinks(rows: Message[]): Promise<MediaLinks> {
     const ids = (type: Message['type']) =>
       rows.flatMap((m) => (m.type === type && m.file_id ? [m.file_id] : []));
     const [voice, attachments, stickers, gifts, contacts] = await Promise.all([
@@ -1264,7 +1362,8 @@ export class ChatService {
         ),
       ),
     ]);
-    return { voice, attachments, stickers, gifts, contacts };
+    const extras = await loadMessageExtras(this.prisma, rows);
+    return { voice, attachments, stickers, gifts, contacts, extras };
   }
 
   private findOwn(id: string, senderId: string, clientMessageId: string) {
@@ -1369,7 +1468,7 @@ export class ChatService {
   /** Security review (docs/05): while contacts are locked the attorney
    * must not learn the client's user id — their messages come with
    * senderId null (the app treats "not mine" the same). */
-  private toMessage(
+  toMessage(
     m: Message,
     viewerId: string,
     conv?: Pick<
@@ -1384,14 +1483,57 @@ export class ChatService {
       viewerId === conv.attorney_id &&
       !conv.contacts_unlocked &&
       m.sender_id === conv.client_id;
+    const revoked = m.revoked_at !== null;
+    const extras = media?.extras;
+    const target = m.reply_to_id
+      ? extras?.replyTargets.get(m.reply_to_id)
+      : undefined;
+    const reactionRows = extras?.reactions.get(m.id) ?? [];
+    const reactions: ReactionDto[] = [];
+    for (const r of reactionRows) {
+      const have = reactions.find((x) => x.emoji === r.emoji);
+      if (have) {
+        have.count += 1;
+        have.mine ||= r.userId === viewerId;
+      } else {
+        reactions.push({
+          emoji: r.emoji,
+          count: 1,
+          mine: r.userId === viewerId,
+        });
+      }
+    }
     return {
       id: m.id,
       conversationId: m.conversation_id,
       senderId: hideSender ? null : m.sender_id,
       sentByAssistant: m.sent_by_name,
       type: m.type,
+      editedAt: m.edited_at,
+      revoked,
+      forwarded: m.forwarded && !revoked,
+      replyTo:
+        target && !revoked
+          ? {
+              id: target.id,
+              senderId: target.sender_id,
+              type: target.type as ReplyPreviewDto['type'],
+              revoked: target.revoked_at !== null,
+              snippet:
+                target.revoked_at || target.type !== 'text'
+                  ? ''
+                  : [
+                      ...(this.cipher?.open(target.body_display) ??
+                        target.body_display),
+                    ]
+                      .slice(0, 120)
+                      .join(''),
+            }
+          : null,
+      reactions: revoked ? [] : reactions,
+      pinned: !revoked && (extras?.pinned.has(m.id) ?? false),
       voice:
-        m.type === 'voice'
+        m.type === 'voice' && !revoked
           ? {
               url: m.file_id ? (media?.voice.get(m.file_id) ?? null) : null,
               durationMs: m.duration_ms ?? 0,
@@ -1399,9 +1541,12 @@ export class ChatService {
               listened: m.listened_at !== null,
             }
           : null,
-      attachment: m.type === 'attachment' ? this.attachmentOf(m, media) : null,
+      attachment:
+        m.type === 'attachment' && !revoked
+          ? this.attachmentOf(m, media)
+          : null,
       sticker:
-        m.type === 'sticker' && m.sticker_id
+        m.type === 'sticker' && m.sticker_id && !revoked
           ? (media?.stickers.get(m.sticker_id) ?? null)
           : null,
       gift:
@@ -1419,7 +1564,9 @@ export class ChatService {
         m.type === 'contact'
           ? (media?.contacts.get(this.openBody(m.body_display)) ?? null)
           : null,
-      body: this.openBody(m.body_display),
+      body: revoked
+        ? ''
+        : (this.cipher?.open(m.body_display) ?? m.body_display),
       contactMasked: m.contact_masked,
       clientMessageId: m.sender_id === viewerId ? m.client_message_id : null,
       createdAt: m.created_at,
@@ -1497,6 +1644,7 @@ export class ChatService {
             conversation_id: true,
             user_id: true,
             last_read_message_id: true,
+            last_read_at: true,
             muted_until: true,
             folder: true,
             waiting_since: true,
@@ -1596,6 +1744,9 @@ export class ChatService {
         counterpartLastReadMessageId: seenHidden
           ? null
           : (partOf.get(`${c.id}:${otherId}`)?.last_read_message_id ?? null),
+        counterpartLastReadAt: seenHidden
+          ? null
+          : (partOf.get(`${c.id}:${otherId}`)?.last_read_at ?? null),
         kind: c.case_id ? 'case' : 'direct',
         requestStatus: c.request_status,
         requestedByMe: c.requested_by === viewerId,
@@ -1619,6 +1770,7 @@ export class ChatService {
 
 /** OQ-047: links of a page's voice notes and attachments. */
 interface MediaLinks {
+  extras?: MessageExtras;
   voice: Map<string, string>;
   stickers: Map<string, StickerDto>;
   gifts: Map<string, GiftSendDto>;

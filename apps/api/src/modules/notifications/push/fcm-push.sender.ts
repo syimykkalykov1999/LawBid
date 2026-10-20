@@ -138,6 +138,9 @@ export class FcmPushSender implements PushSender {
                       ? { priority: 'high', ttl: `${REMINDER_TTL_SEC}s` }
                       : {
                           priority: 'high',
+                          ...(message.collapseKey
+                            ? { collapse_key: message.collapseKey }
+                            : {}),
                           ...(message.sound || message.reminder
                             ? {
                                 notification: {
@@ -149,11 +152,13 @@ export class FcmPushSender implements PushSender {
                                           PUSH_SOUNDS[message.sound].android,
                                       }
                                     : {}),
-                                  // One notification per task: a repeat of the
-                                  // same reminder replaces it.
-                                  ...(message.reminder && message.data?.taskId
-                                    ? { tag: `task:${message.data.taskId}` }
-                                    : {}),
+                                  // One notification per task / per message
+                                  // thread: a repeat replaces it.
+                                  ...(message.collapseKey
+                                    ? { tag: message.collapseKey }
+                                    : message.reminder && message.data?.taskId
+                                      ? { tag: `task:${message.data.taskId}` }
+                                      : {}),
                                 },
                               }
                             : {}),
@@ -165,11 +170,20 @@ export class FcmPushSender implements PushSender {
                     headers: {
                       'apns-priority': '10',
                       'apns-push-type': 'alert',
-                      // Owner 2026-10-20: a visible reminder replaces the
-                      // earlier one of the same task (a repeat, a retry).
-                      ...(message.reminder && message.data?.taskId
-                        ? { 'apns-collapse-id': `task:${message.data.taskId}` }
-                        : {}),
+                      // A visible reminder / a reaction replaces the earlier
+                      // one of the same task or message (a repeat, a retry).
+                      ...(message.collapseKey
+                        ? {
+                            'apns-collapse-id': message.collapseKey.slice(
+                              0,
+                              64,
+                            ),
+                          }
+                        : message.reminder && message.data?.taskId
+                          ? {
+                              'apns-collapse-id': `task:${message.data.taskId}`,
+                            }
+                          : {}),
                       ...(message.call
                         ? {
                             'apns-expiration': String(
@@ -214,6 +228,9 @@ export class FcmPushSender implements PushSender {
                         // Lets a notification service extension (if one is
                         // added) enrich the alert; ignored without one.
                         'mutable-content': 1,
+                        ...(message.collapseKey
+                          ? { 'thread-id': message.collapseKey }
+                          : {}),
                       },
                     },
                   },
