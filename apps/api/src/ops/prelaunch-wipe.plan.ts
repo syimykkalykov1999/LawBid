@@ -219,6 +219,8 @@ export const WIPE_TABLES: Readonly<Record<string, string>> = {
   reports: 'user reports',
   dmca_notices: 'DMCA notices',
   moderation_actions: 'moderation decisions',
+  moderation_appeals: 'appeals against moderation decisions',
+  user_privacy_settings: 'privacy settings',
   support_tickets: 'support tickets',
   support_messages: 'support messages',
   support_message_files: 'files attached to support messages',

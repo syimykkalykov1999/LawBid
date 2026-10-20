@@ -66,6 +66,23 @@ abstract final class AppRoutes {
   static String lawyer(String username) =>
       '/lawyer/${Uri.encodeComponent(username)}';
 
+  /// `lawbid.dev/u/<username>` — the address inside a profile QR code: an
+  /// attorney's or a client's profile, whichever the username belongs to.
+  static const profileByUsernamePattern = '/u/:username';
+  static String profileByUsername(String username) =>
+      '/u/${Uri.encodeComponent(username)}';
+
+  /// `lawbid.dev/q/<id>` — the sign-in QR of the website. On the phone:
+  /// "Sign in on the web?"; in the browser: the "open the app" page. Public
+  /// (no session needed to see it).
+  static const webLoginPrefix = '/q/';
+  static const webLoginPattern = '/q/:id';
+  static String webLogin(String qrId) => '/q/${Uri.encodeComponent(qrId)}';
+
+  /// Profile → "My QR code" (owner 2026-10-20), and the scanner.
+  static const myQr = '/qr/my';
+  static const qrScan = '/qr/scan';
+
   /// Public client mini-profile (OQ-026), opened from People search,
   /// followers and @mentions.
   static String client(String username) =>
@@ -146,6 +163,10 @@ abstract final class AppRoutes {
   /// Settings → «Скачать мои данные» (docs/06 §5.2).
   /// Settings → Blocked users (OQ-028).
   static const blockedUsers = '/profile/settings/blocked';
+
+  /// Owner 2026-10-20: phone-book contacts on LawBid + invites, pushed on
+  /// the ROOT navigator like [blockedUsers].
+  static const contacts = '/profile/settings/phone-contacts';
 
   static const dataExport = '/profile/settings/data-export';
   // Owner 2026-10-02: About LawBid + the website link.

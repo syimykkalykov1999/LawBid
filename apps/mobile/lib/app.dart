@@ -8,6 +8,7 @@ import 'package:lawbid/core/connectivity/offline_banner_host.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/available_languages.dart';
 import 'package:lawbid/core/l10n/language_providers.dart';
+import 'package:lawbid/core/l10n/material_locale.dart';
 import 'package:lawbid/core/navigation/app_router.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/navigation/root_messenger.dart';
@@ -39,8 +40,8 @@ class LawBidApp extends ConsumerWidget {
         : (spec.brightness == Brightness.dark
             ? ThemeMode.dark
             : ThemeMode.light);
-    // Arabic, Hebrew, Persian, Urdu, Pashto: mirror the whole UI. The app
-    // ships no Flutter localization delegates, so nothing else would.
+    // Arabic, Hebrew, Persian, Urdu, Pashto: mirror the whole UI (the
+    // direction below is set from the app's own list of languages).
     final language = ref.watch(languageControllerProvider).value;
     final rtl = language != null &&
         (language.isRtl ||
@@ -56,6 +57,11 @@ class LawBidApp extends ConsumerWidget {
       darkTheme: chosen == null ? AppTheme.dark() : AppTheme.of(chosen),
       themeMode: themeMode,
       routerConfig: router,
+      // Owner 2026-10-20: the date / time dialogs and the system texts speak
+      // the app's language (core/l10n/material_locale.dart).
+      locale: language == null ? null : flutterLocaleFor(language),
+      localizationsDelegates: appLocalizationsDelegates,
+      localeResolutionCallback: keepRequestedLocale,
       // Update gate (docs/01_FOUNDATION_AUTH.md §7/§12/§15 "Этап 1.8"):
       // forced-update screen (below min_app_version_* or ANY 426
       // APP_UPDATE_REQUIRED response) and the dismissible soft-update

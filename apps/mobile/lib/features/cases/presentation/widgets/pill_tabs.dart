@@ -463,15 +463,23 @@ class SwipePages<T> extends StatefulWidget {
 }
 
 class _SwipePagesState<T> extends State<SwipePages<T>> {
-  late final PageController _pages = PageController(
-    initialPage: math.max(0, widget.values.indexOf(widget.value)),
-  );
+  late final PageController _pages;
 
-  /// The page the controller is on or animating to.
-  late int _target = math.max(0, widget.values.indexOf(widget.value));
+  /// The page the controller is on or animating to. Set in [initState]: as a
+  /// lazy `late` initializer it would first run inside [didUpdateWidget],
+  /// after the widget already holds the tapped tab, and the first tap would
+  /// read as "already there" (the tab lit up, the page stayed).
+  late int _target;
 
   /// A tap's slide is running (the pages it passes are not chosen).
   bool _animating = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _target = math.max(0, widget.values.indexOf(widget.value));
+    _pages = PageController(initialPage: _target);
+  }
 
   @override
   void didUpdateWidget(SwipePages<T> old) {

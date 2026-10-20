@@ -61,10 +61,14 @@ class _NoContactsSync implements ContactsSyncRepository {
       const ContactsSyncStatus(enabled: false, matches: 0);
 
   @override
-  Future<int> upload(Set<String> hashes) async => 0;
+  Future<ContactsUploadResult> upload(Set<String> hashes) async =>
+      const ContactsUploadResult(matched: 0, people: []);
 
   @override
   Future<void> remove() async {}
+
+  @override
+  Future<void> setFindByPhone({required bool enabled}) async {}
 }
 
 /// "Asked already": the soft row shows, no system dialog in tests.

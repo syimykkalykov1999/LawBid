@@ -94,6 +94,9 @@ export enum ErrorCode {
   REVIEW_NOT_EDITABLE = 'REVIEW_NOT_EDITABLE',
   /** Owner 2026-09-30: a client review was already appealed. */
   REVIEW_APPEAL_EXISTS = 'REVIEW_APPEAL_EXISTS',
+  // 409: this moderation decision cannot be appealed (owner 2026-10-20):
+  // already appealed / decided, too old, not the latest, or a DMCA removal.
+  APPEAL_NOT_ALLOWED = 'APPEAL_NOT_ALLOWED',
   /** OQ-047: chat files open once the bid is accepted. */
   CHAT_ATTACHMENTS_LOCKED = 'CHAT_ATTACHMENTS_LOCKED',
   // OQ-048: attorney assistants.
@@ -327,6 +330,9 @@ export enum ErrorCode {
   SEARCH_QUERY_TOO_SHORT = 'SEARCH_QUERY_TOO_SHORT',
   // 403: one of the two users blocked the other (OQ-028).
   USER_BLOCKED = 'USER_BLOCKED',
+  // 403: the person's privacy settings do not let this user write / call
+  // (owner 2026-10-20).
+  PRIVACY_RESTRICTED = 'PRIVACY_RESTRICTED',
   // 404: no such call, or the caller is not one of its two members (OQ-041).
   CALL_NOT_FOUND = 'CALL_NOT_FOUND',
   // 409: calls open once the bid is accepted (contacts unlocked) (OQ-041).

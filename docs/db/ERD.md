@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-184 tables.
+186 tables.
 
 ```mermaid
 erDiagram
@@ -30,6 +30,7 @@ erDiagram
     String suspended_reason "nullable"
     DateTime last_active_at "nullable"
     Boolean show_activity_status
+    Boolean find_by_phone
     String feed_content_mode "nullable"
     DateTime deletion_requested_at "nullable"
     DateTime deleted_at "nullable"
@@ -842,6 +843,29 @@ erDiagram
     String target_id
     enum_ModerationActionType action
     String reason "nullable"
+    DateTime created_at
+  }
+  user_privacy_settings {
+    String user_id PK,FK
+    enum_PrivacyAudience last_seen
+    enum_PrivacyAudience message_from
+    enum_PrivacyAudience call_from
+    enum_PrivacyAudience photo_from
+    enum_PrivacyAudience about_from
+    enum_PrivacyAudience group_add_from
+    DateTime updated_at
+  }
+  moderation_appeals {
+    String id PK
+    String appellant_id FK
+    String action_id FK,UK
+    enum_ReportTargetType target_type
+    String target_id
+    String message
+    enum_ModerationAppealStatus status
+    String decided_by "nullable"
+    DateTime decided_at "nullable"
+    String decision_note "nullable"
     DateTime created_at
   }
   admin_profiles {
@@ -2370,6 +2394,9 @@ erDiagram
   dmca_notices }o--o| users : "submitted_by_user_id"
   moderation_actions }o--o| reports : "report_id"
   moderation_actions }o--|| users : "admin_id"
+  user_privacy_settings |o--|| users : "user_id"
+  moderation_appeals }o--|| users : "appellant_id"
+  moderation_appeals |o--|| moderation_actions : "action_id"
   admin_profiles |o--|| users : "user_id"
   audit_log }o--|| users : "admin_id"
   data_access_requests }o--|| users : "handled_by"

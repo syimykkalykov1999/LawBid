@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
-import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/widgets/language_picker_sheet.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
@@ -12,13 +11,13 @@ import 'package:lawbid/features/auth/application/sign_out.dart';
 import 'package:lawbid/features/auth/auth_routes.dart';
 import 'package:lawbid/features/case_payments/application/case_payments_providers.dart';
 import 'package:lawbid/features/case_payments/case_payments_routes.dart';
-import 'package:lawbid/features/chat/application/presence_providers.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/demo/application/demo_providers.dart';
 import 'package:lawbid/features/demo/presentation/demo_settings_card.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/partners/application/partners_providers.dart';
 import 'package:lawbid/features/partners/domain/partner_models.dart';
+import 'package:lawbid/features/privacy/privacy_routes.dart';
 import 'package:lawbid/features/promotions/application/promotions_providers.dart';
 import 'package:lawbid/features/referrals/application/referrals_providers.dart';
 import 'package:lawbid/features/settings/account/account_routes.dart';
@@ -276,8 +275,14 @@ class SettingsScreen extends ConsumerWidget {
             label: t.t('settings.notifications'),
             onTap: () => context.push(ChatRoutes.notificationSettings),
           ),
-          // Owner 2026-10-01: online / last seen in chats (reciprocal).
-          const _ActivityStatusRow(),
+          // Owner 2026-10-20: last seen, who may write / call me, blocked
+          // users, my reports and moderation decisions in one place.
+          AppListRow(
+            key: const ValueKey('settings-privacy'),
+            icon: AppIcons.lockOutlineRounded,
+            label: t.t('settings.privacy'),
+            onTap: () => context.push(PrivacyRoutes.privacy),
+          ),
         ],
       ),
       AppListSection(
@@ -318,6 +323,12 @@ class SettingsScreen extends ConsumerWidget {
             label: t.t('about.title'),
             subtitle: t.t('about.hint'),
             onTap: () => context.push(AppRoutes.about),
+          ),
+          // Owner 2026-10-20: contacts like WhatsApp — who is on LawBid.
+          AppListRow(
+            icon: AppIcons.contactPhoneOutlined,
+            label: t.t('phoneContacts.title'),
+            onTap: () => context.push(AppRoutes.contacts),
           ),
           // OQ-028: who I blocked, with Unblock.
           AppListRow(
@@ -379,35 +390,6 @@ class SettingsScreen extends ConsumerWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _ActivityStatusRow extends ConsumerWidget {
-  const _ActivityStatusRow();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final t = ref.watch(translatorProvider);
-    final value = ref.watch(activityStatusProvider);
-    final on = value.value ?? true;
-    return AppListRow(
-      key: const ValueKey('settings-activity-status'),
-      icon: AppIcons.visibilityOutlined,
-      label: t.t('settings.activityStatus'),
-      trailingText: value.hasValue ? t.t(on ? 'common.on' : 'common.off') : '…',
-      showChevron: false,
-      onTap: value.hasValue
-          ? () async {
-              try {
-                await ref.read(activityStatusProvider.notifier).set(!on);
-              } on Object catch (e) {
-                if (context.mounted) {
-                  showAppSnackBar(context, errorText(t, e));
-                }
-              }
-            }
-          : null,
     );
   }
 }

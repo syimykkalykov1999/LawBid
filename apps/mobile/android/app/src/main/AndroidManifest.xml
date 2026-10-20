@@ -24,6 +24,9 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.MANAGE_OWN_CALLS" />
     <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <!-- Owner 2026-10-20: "Save" on the My QR code card writes a picture to
+         the gallery; Android 9 and older need this, newer ones do not. -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
     <!-- OQ-040: voice messages; in-app calls. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
@@ -72,7 +75,8 @@
                 <data android:scheme="lawbid" />
             </intent-filter>
             <!-- Android App Links (docs/01_FOUNDATION_AUTH.md §12):
-                 https://lawbid.dev/case/:id, /lawyer/:username, /post/:id and
+                 https://lawbid.dev/case/:id, /lawyer/:username, /post/:id, /u/:username (profile QR), /q/:id
+                 (website sign-in QR), /g/:token (group invite) and
                  the magic sign-in link /auth/email-code. Verified against
                  https://<deepLinkHost>/.well-known/assetlinks.json (template:
                  docs/deeplinks/assetlinks.json). The host is the Gradle
@@ -88,6 +92,9 @@
                 <data android:pathPrefix="/post/" />
                 <data android:pathPrefix="/c/" />
                 <data android:pathPrefix="/r/" />
+                <data android:pathPrefix="/u/" />
+                <data android:pathPrefix="/q/" />
+                <data android:pathPrefix="/g/" />
                 <data android:path="/auth/email-code" />
             </intent-filter>
         </activity>

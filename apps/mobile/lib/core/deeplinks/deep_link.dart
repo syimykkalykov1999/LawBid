@@ -51,6 +51,62 @@ final class ReferralDeepLink extends DeepLink {
   int get hashCode => code.hashCode;
 }
 
+/// `…/u/<username>` — the link inside a profile QR code (owner 2026-10-20):
+/// an attorney's or a client's profile, whichever the username belongs to.
+final class ProfileDeepLink extends DeepLink {
+  const ProfileDeepLink(this.username);
+
+  final String username;
+
+  /// In-app go_router location (resolved to the attorney / client profile).
+  String get location => '/u/${Uri.encodeComponent(username)}';
+
+  @override
+  bool operator ==(Object other) =>
+      other is ProfileDeepLink && other.username == username;
+
+  @override
+  int get hashCode => username.hashCode;
+}
+
+/// `…/q/<id>` — the sign-in QR code the website shows (owner 2026-10-20):
+/// the phone asks "Sign in on the web?". The id is public and single use.
+final class WebLoginDeepLink extends DeepLink {
+  const WebLoginDeepLink(this.qrId);
+
+  final String qrId;
+
+  @override
+  bool operator ==(Object other) =>
+      other is WebLoginDeepLink && other.qrId == qrId;
+
+  @override
+  int get hashCode => qrId.hashCode;
+
+  // The id is half of a sign-in credential — never print it.
+  @override
+  String toString() => 'WebLoginDeepLink(<redacted>)';
+}
+
+/// `…/g/<token>` — a group invitation. The groups feature
+/// (claude/group-chats-polls) plugs its "join" handling into
+/// `groupInviteHandlerProvider`; until then the link is only recognised.
+final class GroupInviteDeepLink extends DeepLink {
+  const GroupInviteDeepLink(this.token);
+
+  final String token;
+
+  @override
+  bool operator ==(Object other) =>
+      other is GroupInviteDeepLink && other.token == token;
+
+  @override
+  int get hashCode => token.hashCode;
+
+  @override
+  String toString() => 'GroupInviteDeepLink(<redacted>)';
+}
+
 enum ContentKind { caseItem, lawyer, post, channel }
 
 /// `/case/:id`, `/lawyer/:username`, `/post/:id`, `/c/:username` — content
@@ -115,6 +171,9 @@ final _referralCodePattern = RegExp(r'^[A-Za-z0-9]{4,24}$');
 /// Case / post ids are UUIDs server-side (.cursorrules: UUID only); a
 /// slightly wider safe charset keeps the parser independent of that.
 final _idPattern = RegExp(r'^[A-Za-z0-9-]{1,64}$');
+
+/// Ids in `/q/<id>` (16 random bytes, base64url) and `/g/<token>`.
+final _qrIdPattern = RegExp(r'^[A-Za-z0-9_-]{16,64}$');
 
 /// docs/01_FOUNDATION_AUTH.md §12: "3-30 символов, латиница, цифры, `_` и `.`".
 final _usernamePattern = RegExp(r'^[A-Za-z0-9_.]{3,30}$');
@@ -224,6 +283,12 @@ DeepLink? parseDeepLink(
     'r' ||
     'referral' when _referralCodePattern.hasMatch(id) =>
       ReferralDeepLink(id.toUpperCase()),
+    'u'
+        when _usernamePattern
+            .hasMatch(id.startsWith('@') ? id.substring(1) : id) =>
+      ProfileDeepLink(id.startsWith('@') ? id.substring(1) : id),
+    'q' when _qrIdPattern.hasMatch(id) => WebLoginDeepLink(id),
+    'g' when _qrIdPattern.hasMatch(id) => GroupInviteDeepLink(id),
     'case' when _idPattern.hasMatch(id) =>
       ContentDeepLink(ContentKind.caseItem, id),
     'post' when _idPattern.hasMatch(id) =>

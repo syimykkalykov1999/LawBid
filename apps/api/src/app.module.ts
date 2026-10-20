@@ -2,6 +2,7 @@ import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { LoggerModule } from 'nestjs-pino';
 import type { Options as PinoHttpOptions } from 'pino-http';
+import { ViewerContextInterceptor } from './common/viewer/viewer-context';
 import { ConfigModule } from './config/config.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RedisModule } from './redis/redis.module';
@@ -31,6 +32,7 @@ import { ReportsModule } from './modules/reports/reports.module';
 import { FollowsModule } from './modules/follows/follows.module';
 import { BlocksModule } from './modules/blocks/blocks.module';
 import { PresenceModule } from './modules/presence/presence.module';
+import { PrivacySettingsModule } from './modules/privacy-settings/privacy-settings.module';
 import { SecretsModule } from './common/secrets/secrets.module';
 import { AdminIntegrationsModule } from './modules/admin-integrations/admin-integrations.module';
 import { AdminOpsModule } from './modules/admin-ops/admin-ops.module';
@@ -270,6 +272,7 @@ const isDev =
     // Owner 2026-09-29 (OQ-028): user blocks.
     BlocksModule,
     PresenceModule,
+    PrivacySettingsModule,
     SecretsModule,
     AdminIntegrationsModule,
     // Owner 2026-10-05: Система → Здоровье системы.
@@ -334,6 +337,7 @@ const isDev =
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
     { provide: APP_INTERCEPTOR, useClass: ResponseInterceptor },
+    { provide: APP_INTERCEPTOR, useClass: ViewerContextInterceptor },
     // OQ-048: per signed-in user (assistants share an office IP).
     { provide: APP_GUARD, useClass: UserThrottlerGuard },
   ],

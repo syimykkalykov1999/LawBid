@@ -76,6 +76,43 @@ class AuthApiClient {
     return envelope.data;
   }
 
+  /// Owner 2026-10-20: the website's sign-in QR code (`POST /auth/qr`).
+  Future<api.QrLoginCreatedDto> qrCreate() async {
+    final envelope = await guardApiCall(
+      () => _auth.qrCreate(
+        body: const api.QrLoginCreateDto(),
+        extras: _skipAuth,
+      ),
+    );
+    return envelope.data;
+  }
+
+  /// `POST /auth/qr/poll` — the website waits for the phone's answer.
+  Future<api.QrLoginPollResultDto> qrPoll({
+    required String qrId,
+    required String pollSecret,
+  }) async {
+    final envelope = await guardApiCall(
+      () => _auth.qrPoll(
+        body: api.QrLoginPollDto(qrId: qrId, pollSecret: pollSecret),
+        extras: _skipAuth,
+      ),
+    );
+    return envelope.data;
+  }
+
+  /// `GET /auth/qr/{qrId}` — the phone scanned the code: which browser?
+  Future<api.QrLoginPreviewDto> qrPreview(String qrId) async {
+    final envelope = await guardApiCall(() => _auth.qrPreview(qrId: qrId));
+    return envelope.data;
+  }
+
+  /// `POST /auth/qr/{qrId}/approve` | `/reject`.
+  Future<void> qrAnswer(String qrId, {required bool approve}) => guardApiCall(
+        () =>
+            approve ? _auth.qrApprove(qrId: qrId) : _auth.qrReject(qrId: qrId),
+      );
+
   /// `POST /auth/otp/verify-link` — email magic link: the link's one-time
   /// `token` plus the `verifier` this device stored when it requested the
   /// code. Issues tokens like [verifyOtp] (same `_skipAuth`).
