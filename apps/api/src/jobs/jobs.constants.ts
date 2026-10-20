@@ -51,6 +51,10 @@ export const CRON_JOBS = {
   journalRetention: 'journal.retention',
   /** docs/06 §5.3: daily hash-chain check of case_journal. */
   journalChainVerify: 'journal.chain-verify',
+  /** Owner 2026-10-20: one government-request archive per tick + expired files. */
+  legalExports: 'legal.exports',
+  /** Owner 2026-10-20: deleted content past 90 days is scrubbed (holds skip). */
+  legalRetention: 'legal.retention',
   /** docs/06 §5.3: expired export files. */
   exportsCleanup: 'exports.cleanup',
   /** docs/06 §8: queue depth / oldest job age → CloudWatch (log metric). */
@@ -166,6 +170,8 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.journalRetention, pattern: '30 2 1 * *' },
   { name: CRON_JOBS.journalChainVerify, pattern: '50 2 * * *' },
   { name: CRON_JOBS.exportsCleanup, pattern: '10 3 * * *' },
+  { name: CRON_JOBS.legalExports, pattern: '* * * * *' },
+  { name: CRON_JOBS.legalRetention, pattern: '20 3 * * *' },
   { name: CRON_JOBS.opsQueueMetrics, pattern: '* * * * *' },
   { name: CRON_JOBS.opsBusinessMetrics, pattern: '*/10 * * * *' },
   { name: CRON_JOBS.callsSweep, pattern: '* * * * *' },

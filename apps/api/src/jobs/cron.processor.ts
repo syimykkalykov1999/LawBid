@@ -43,6 +43,8 @@ import { CallsService } from '../modules/calls/calls.service';
 import { PostVideosService } from '../modules/posts/post-videos.service';
 import { ClientReviewsService } from '../modules/client-reviews/client-reviews.service';
 import { AccountAnonymizationService } from '../modules/privacy/account-anonymization.service';
+import { LegalExportBuilder } from '../modules/admin-data-requests/legal-export.builder';
+import { LegalRetentionService } from '../modules/admin-data-requests/legal-retention.service';
 import { ExportsCleanupService } from '../modules/privacy/exports-cleanup.service';
 import { JournalIntegrityService } from '../modules/privacy/journal-integrity.service';
 import { AttorneyTrustService } from '../modules/attorney-trust/attorney-trust.service';
@@ -114,6 +116,8 @@ export class CronProcessor {
     @Optional() private readonly searchSynonyms?: SearchSynonymsService,
     @Optional() private readonly crashReports?: CrashReportsService,
     @Optional() private readonly consultationSweep?: ConsultationRemindersJob,
+    @Optional() private readonly legalExports?: LegalExportBuilder,
+    @Optional() private readonly legalRetention?: LegalRetentionService,
   ) {}
 
   async process(name: string): Promise<unknown> {
@@ -172,6 +176,10 @@ export class CronProcessor {
         return this.journalRetention.run();
       case CRON_JOBS.journalChainVerify:
         return this.journalIntegrity.run();
+      case CRON_JOBS.legalExports:
+        return this.legalExports?.run() ?? null;
+      case CRON_JOBS.legalRetention:
+        return this.legalRetention?.run() ?? null;
       case CRON_JOBS.exportsCleanup:
         return this.exportsCleanup.run();
       case CRON_JOBS.opsQueueMetrics:

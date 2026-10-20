@@ -597,6 +597,14 @@ export const OWNER_STORAGE_SETTINGS = {
   'storage.retention_post_views_days': 365,
   'storage.retention_app_events_days': 90,
   'storage.growth_alert_percent': 20,
+  // Owner 2026-10-20 (government requests): evidence archives are built one at
+  // a time by the worker; the file is removed after `export_ttl_days` (the
+  // S3 lifecycle rule is the second net); deleted content is scrubbed after
+  // `deleted_retention_days` unless a legal hold covers it.
+  'legal.export_ttl_days': 30,
+  'legal.export_max_rows': 50000,
+  'legal.export_link_days': 7,
+  'legal.deleted_retention_days': 90,
 };
 
 /** Owner 2026-10-05: zero-maintenance operations (admin Система →
