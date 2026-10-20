@@ -1132,12 +1132,20 @@ class _Bubble extends ConsumerWidget {
                                 color: meta,
                               ),
                               const SizedBox(width: 4),
-                              Text(
-                                t.t('chat.forwarded'),
-                                style: type.caption.copyWith(
-                                  color: meta,
-                                  fontStyle: FontStyle.italic,
-                                  fontSize: 11,
+                              Flexible(
+                                child: Text(
+                                  m.forwardedFrom == null
+                                      ? t.t('chat.forwarded')
+                                      : t.t('chat.forwardedFrom', {
+                                          'name': m.forwardedFrom!,
+                                        }),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: type.caption.copyWith(
+                                    color: meta,
+                                    fontStyle: FontStyle.italic,
+                                    fontSize: 11,
+                                  ),
                                 ),
                               ),
                             ],

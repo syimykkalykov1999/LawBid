@@ -2345,6 +2345,8 @@ model Message {
   reply_to              Message?          @relation("MessageReply", fields: [reply_to_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
   replies               Message[]         @relation("MessageReply")
   forwarded             Boolean           @default(false)
+  /// "Forwarded from <name>": the first author, kept through re-forwards.
+  forwarded_from_name   String?           @db.VarChar(120)
   hidden_for            MessageHidden[]
   reactions             MessageReaction[]
   edits                 MessageEdit[]

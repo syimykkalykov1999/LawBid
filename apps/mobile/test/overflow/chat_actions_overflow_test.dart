@@ -80,6 +80,7 @@ void main() {
     body: 'Forwarded from the court clerk about the filing deadline',
     createdAt: now.subtract(const Duration(minutes: 2)),
     forwarded: true,
+    forwardedFrom: 'Konstantinopolsky-Vasilevsky Alexandrovich',
     reactions: const [
       MessageReaction(emoji: '👍', count: 2, mine: true),
     ],

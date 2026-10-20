@@ -326,6 +326,7 @@ class ChatMessage {
     this.editedAt,
     this.revoked = false,
     this.forwarded = false,
+    this.forwardedFrom,
     this.replyTo,
     this.reactions = const [],
     this.pinned = false,
@@ -337,6 +338,9 @@ class ChatMessage {
   /// Deleted for everyone: the bubble says "Message deleted".
   final bool revoked;
   final bool forwarded;
+
+  /// Telegram's "Forwarded from <name>": the first author.
+  final String? forwardedFrom;
   final ReplyPreview? replyTo;
   final List<MessageReaction> reactions;
   final bool pinned;
@@ -380,6 +384,7 @@ class ChatMessage {
     DateTime? editedAt,
     bool? revoked,
     bool? forwarded,
+    String? forwardedFrom,
     ReplyPreview? replyTo,
     List<MessageReaction>? reactions,
     bool? pinned,
@@ -397,6 +402,7 @@ class ChatMessage {
         editedAt: editedAt ?? this.editedAt,
         revoked: revoked ?? this.revoked,
         forwarded: forwarded ?? this.forwarded,
+        forwardedFrom: forwardedFrom ?? this.forwardedFrom,
         replyTo: replyTo ?? this.replyTo,
         reactions: reactions ?? this.reactions,
         pinned: pinned ?? this.pinned,

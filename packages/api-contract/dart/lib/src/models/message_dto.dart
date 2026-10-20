@@ -35,6 +35,7 @@ class MessageDto {
     this.call,
     this.clientMessageId,
     this.editedAt,
+    this.forwardedFrom,
     this.replyTo,
   });
 
@@ -69,6 +70,9 @@ class MessageDto {
   /// Deleted for everyone: the app shows "Message deleted"; body and media are empty.
   final bool revoked;
   final bool forwarded;
+
+  /// Telegram-style "Forwarded from": the first author's name.
+  final String? forwardedFrom;
   final ReplyPreviewDto? replyTo;
   final List<ReactionDto> reactions;
   final bool pinned;

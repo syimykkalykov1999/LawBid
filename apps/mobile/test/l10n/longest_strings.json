@@ -986,6 +986,7 @@
 "chat.forward.send":"Фиристодан",
 "chat.forward.title":"Redirecționează către…",
 "chat.forwarded":"Переслане повідомлення",
+"chat.forwardedFrom":"{name} tərəfindən yönləndirildi",
 "chat.hiddenClient":"Πελάτης της υπόθεσης «{title}»",
 "chat.hiddenClient.direct":"Skjólstæðingur",
 "chat.hint":"Teachtaireacht…",

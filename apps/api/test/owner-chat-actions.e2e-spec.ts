@@ -375,6 +375,8 @@ describe('Chat message actions (e2e, owner 2026-10-20)', () => {
       .send({ clientMessageId: cid, forwardFromId: voice.body.data.id })
       .expect(201);
     expect(fwdVoice.body.data.forwarded).toBe(true);
+    // Telegram: "Forwarded from <first author>".
+    expect(fwdVoice.body.data.forwardedFrom).toBe('Vera Voice');
     expect(fwdVoice.body.data.type).toBe('voice');
     expect(fwdVoice.body.data.voice.durationMs).toBe(4200);
     const fwdDoc = await post(b, b.client, {
@@ -382,6 +384,7 @@ describe('Chat message actions (e2e, owner 2026-10-20)', () => {
     }).expect(201);
     expect(fwdDoc.body.data.type).toBe('attachment');
     expect(fwdDoc.body.data.forwarded).toBe(true);
+    expect(fwdDoc.body.data.forwardedFrom).toBe('Vera Voice');
 
     // A new file row, the same stored object: nothing was uploaded.
     const rows = await prisma.message.findMany({

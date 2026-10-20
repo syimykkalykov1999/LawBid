@@ -986,6 +986,7 @@
 "chat.forward.send":"पठाउनुहोस्",
 "chat.forward.title":"यसमा फर्वार्ड गर्नुहोस्…",
 "chat.forwarded":"फर्वार्ड गरिएको",
+"chat.forwardedFrom":"{name} बाट फर्वार्ड गरिएको",
 "chat.hiddenClient":"“{title}” का ग्राहक",
 "chat.hiddenClient.direct":"ग्राहक",
 "chat.hint":"सन्देश…",
