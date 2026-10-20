@@ -28,6 +28,7 @@ import type {
 } from '../billing/payment-provider';
 import { BlocksService } from '../blocks/blocks.service';
 import { FilesService } from '../files/files.service';
+import { PrivacySettingsService } from '../privacy-settings/privacy-settings.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import type {
   AdminGiftDto,
@@ -111,6 +112,8 @@ export class StarsService {
     private readonly files: FilesService,
     private readonly blocks: BlocksService,
     private readonly notifications: NotificationsService,
+    // Owner 2026-10-20: a profile gift obeys «who can write to me».
+    @Optional() private readonly privacy?: PrivacySettingsService,
     @Optional()
     @Inject(PAYMENT_PROVIDER)
     private readonly provider?: PaymentProvider,
@@ -691,6 +694,7 @@ export class StarsService {
     });
     if (!recipient || recipient.status !== 'active') throw notFound('User');
     await this.blocks.assertNotBlocked(senderId, dto.recipientId);
+    await this.privacy?.assertAllowed(senderId, dto.recipientId, 'message');
     const { send, gift } = await withTxRetry(this.prisma, (tx) =>
       this.giveGift(tx, {
         giftId,

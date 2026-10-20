@@ -354,6 +354,30 @@ describe('Stars, gifts and paid stickers (e2e)', () => {
       .expect(403);
   });
 
+  it('a gift to a profile is refused (403, nothing charged) when the person does not accept messages from the giver', async () => {
+    await flag(true);
+    const a = await user('client', 'Gamma');
+    const b = await user('attorney', 'Delta');
+    const g = await gift(a.id, 10);
+    await prisma.starWallet.create({
+      data: { user_id: a.id, balance: 25, lifetime_bought: 25 },
+    });
+    await api()
+      .put('/api/v1/users/me/privacy')
+      .set(b.auth)
+      .send({ messageFrom: 'nobody' })
+      .expect(200);
+    const res = await api()
+      .post(`/api/v1/stars/gifts/${g.id}/send`)
+      .set(a.auth)
+      .send({ recipientId: b.id })
+      .expect(403);
+    expect(res.body.error?.code ?? res.body.code).toBe('PRIVACY_RESTRICTED');
+    const w = await prisma.starWallet.findUnique({ where: { user_id: a.id } });
+    expect(w?.balance).toBe(25);
+    expect(await prisma.giftSend.count({ where: { sender_id: a.id } })).toBe(0);
+  });
+
   it('a paid sticker pack is charged once, free to add again, sent only when added', async () => {
     await flag(true);
     const u = await user('client', 'Sticky');

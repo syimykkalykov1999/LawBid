@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { BlocksModule } from '../blocks/blocks.module';
 import { FilesModule } from '../files/files.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { PrivacySettingsModule } from '../privacy-settings/privacy-settings.module';
 import { AdminStarsController, StarsController } from './stars.controller';
 import { StarsService } from './stars.service';
 import { StarterCatalogService } from './starter-catalog.service';
@@ -9,7 +10,12 @@ import { StarterCatalogService } from './starter-catalog.service';
 /** The service alone — imported by stickers (paid packs), chat (gifts) and
  * billing (the payment webhook). Uses the global PAYMENT_PROVIDER. */
 @Module({
-  imports: [BlocksModule, FilesModule, NotificationsModule],
+  imports: [
+    BlocksModule,
+    FilesModule,
+    NotificationsModule,
+    PrivacySettingsModule,
+  ],
   providers: [StarsService],
   exports: [StarsService],
 })
