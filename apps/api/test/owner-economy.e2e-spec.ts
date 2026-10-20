@@ -73,6 +73,12 @@ describe('Economy (e2e)', () => {
 
   afterAll(async () => {
     await ops.setEconomy(null);
+    // Back to the suites' default (global setup): the guard off, so no
+    // later suite's worker can limit SMS (503) on an empty test database.
+    await prisma.featureFlag.updateMany({
+      where: { key: 'economy_guard' },
+      data: { enabled: false },
+    });
     await app.close();
   });
 
