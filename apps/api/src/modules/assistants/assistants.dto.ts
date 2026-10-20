@@ -932,6 +932,13 @@ export class TaskDto {
     description: 'When the archive cleanup removes it (null: never).',
   })
   purgeAt!: string | null;
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    format: 'uuid',
+    description: 'The booked consultation this entry mirrors (its time is fixed here).',
+  })
+  consultationId!: string | null;
   @ApiProperty({ description: 'The viewer may check it off.' })
   canComplete!: boolean;
   @ApiProperty({ description: 'The viewer may edit it.' })

@@ -45,6 +45,8 @@ import { OutreachModule } from './modules/outreach/outreach.module';
 import { ClientBadgeModule } from './modules/client-badge/client-badge.module';
 import { SearchModule } from './modules/search/search.module';
 import { ContactsSyncModule } from './modules/contacts-sync/contacts-sync.module';
+import { DeadlinesModule } from './modules/deadlines/deadlines.module';
+import { LegalQaModule } from './modules/legal-qa/legal-qa.module';
 import { ConsultationsModule } from './modules/consultations/consultations.module';
 import { ChatModule } from './modules/chat/chat.module';
 import { TranslationModule } from './modules/translation/translation.module';
@@ -292,6 +294,8 @@ const isDev =
     RealtimeGatewayModule,
     ChatModule,
     ConsultationsModule,
+    LegalQaModule,
+    DeadlinesModule,
     TranslationModule,
     CallsModule,
     MentionsModule,

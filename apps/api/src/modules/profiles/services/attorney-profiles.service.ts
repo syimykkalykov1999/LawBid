@@ -1,5 +1,6 @@
 import { AttorneyStatsDto } from '../dto/attorney-stats.dto';
-import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable, Optional } from '@nestjs/common';
+import { ConsultationsService } from '../../consultations/consultations.service';
 import { Prisma } from '@prisma/client';
 import { CounterAggregator } from '../../counters/counter-aggregator.service';
 import { PrismaService } from '../../../prisma/prisma.service';
@@ -80,6 +81,7 @@ export class AttorneyProfilesService {
     private readonly counters: CounterAggregator,
     private readonly usernames: UsernameRegistry,
     private readonly blocks: BlocksService,
+    @Optional() private readonly consultations?: ConsultationsService,
   ) {}
 
   async getOwn(
@@ -410,6 +412,9 @@ export class AttorneyProfilesService {
       },
       isSelf: row.user_id === viewerId,
       isFollowing: follow !== null,
+      consultationEnabled:
+        row.user_id !== viewerId &&
+        ((await this.consultations?.isBookable(row.user_id)) ?? false),
       ...(await this.blocks.relation(viewerId, row.user_id)),
     };
   }
