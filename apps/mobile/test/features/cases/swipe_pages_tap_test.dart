@@ -36,15 +36,26 @@ class _HostState extends State<_Host> {
 }
 
 void main() {
-  for (final reduce in [false, true]) {
-    testWidgets('a tap on a tab turns the page (reduce motion: $reduce)',
+  for (final rtl in [false, true]) {
+    for (final reduce in [false, true]) {
+      _tapTest(rtl: rtl, reduce: reduce);
+    }
+  }
+}
+
+void _tapTest({required bool rtl, required bool reduce}) {
+  {
+    testWidgets('a tap on a tab turns the page (rtl: $rtl, reduce: $reduce)',
         (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           theme: AppTheme.light(),
-          home: MediaQuery(
-            data: MediaQueryData(disableAnimations: reduce),
-            child: const Scaffold(body: _Host()),
+          home: Directionality(
+            textDirection: rtl ? TextDirection.rtl : TextDirection.ltr,
+            child: MediaQuery(
+              data: MediaQueryData(disableAnimations: reduce),
+              child: const Scaffold(body: _Host()),
+            ),
           ),
         ),
       );

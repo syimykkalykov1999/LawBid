@@ -8,6 +8,7 @@ branch cursor/stage-X-Y-description).
 ## Tab taps and system dialogs (2026-10-20)
 
 - «Дела | Задачи», «Чаты | Команда» and every other PillTabs + SwipePages screen: the first tap on a tab lit it up but the page stayed (the page index was a lazy `late` field first read inside `didUpdateWidget`, so the tap read as "already there"). Set in `initState`; widget test `swipe_pages_tap_test`.
+- Inbox «Чаты | Команда» in right-to-left languages: the lit segment was placed from the physical left while the row of segments mirrors, so the wrong tab looked selected (`AnimatedPositionedDirectional`); test `inbox_tabs_rtl_test`.
 - Date / time dialogs and other system texts («Select date», «Cancel», «OK», AM/PM) follow the app's language: Flutter localization delegates with a nearest-language fallback for languages Flutter lacks (`core/l10n/material_locale.dart`; ht→fr, tg→ru, tk/ku→tr, so→sw, others→en). Test: all 85 languages load, date picker in ru / ar / ne.
 
 ## Case cabinet: 5 audit fixes (2026-10-19)
