@@ -1,5 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lawbid/core/l10n/app_language.dart';
+import 'package:lawbid/core/l10n/l10n_translator.dart';
 import 'package:lawbid/features/cases/tools/billing_logic.dart';
+import 'package:lawbid/features/cases/tools/billing_tab.dart';
 
 void main() {
   group('timer', () {
@@ -95,6 +98,24 @@ void main() {
       final shown = dayOnScreen(DateTime.utc(2026, 10, 20));
       expect((shown.year, shown.month, shown.day), (2026, 10, 20));
       expect(shown.isUtc, isFalse);
+    });
+  });
+  group('durationText', () {
+    String plain(String s) => s.replaceAll(RegExp('[\u2068\u2069]'), '');
+
+    L10nTranslator tr(String code, String m, String hm) => L10nTranslator(
+          language: AppLanguage.fromCode(code),
+          cache: {'billing.mOnly': m, 'billing.hm': hm},
+        );
+
+    test('60 s and 120 s read 1 and 2 minutes, in ru and ar', () {
+      final ru = tr('ru', '{m} мин', '{h} ч {m} мин');
+      final ar = tr('ar', '{m} د', '{h} س {m} د');
+      expect(plain(durationText(ru, 60 ~/ 60)), '1 мин');
+      expect(plain(durationText(ru, 120 ~/ 60)), '2 мин');
+      expect(plain(durationText(ar, 60 ~/ 60)), '١ د');
+      expect(plain(durationText(ar, 120 ~/ 60)), '٢ د');
+      expect(plain(durationText(ar, 125)), '٢ س ٥ د');
     });
   });
 }
