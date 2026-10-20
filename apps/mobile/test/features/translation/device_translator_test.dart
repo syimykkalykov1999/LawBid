@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/features/translation/data/device_translator.dart';
 
@@ -7,7 +9,10 @@ class _Engine implements TranslationEngine {
     this.have = const {},
     this.downloads = true,
     this.wifi = true,
+    this.hang = false,
   });
+
+  final bool hang;
 
   final bool wifi;
 
@@ -28,6 +33,7 @@ class _Engine implements TranslationEngine {
 
   @override
   Future<bool> downloadModel(String code) async {
+    if (hang) return Completer<bool>().future;
     if (downloads) fetched.add(code);
     return downloads;
   }
@@ -114,6 +120,18 @@ void main() {
     test('models already on the phone need no Wi-Fi', () async {
       final engine = _Engine(have: {'ru', 'en'}, wifi: false);
       expect(await _on(engine).translate('привет', 'en'), 'ru>en:привет');
+    });
+
+    test('a download that never ends fails with a message', () async {
+      final d = DeviceTranslator(
+        engine: _Engine(hang: true),
+        supported: true,
+        downloadTimeout: const Duration(milliseconds: 20),
+      );
+      expect(
+        await _fails(d.translate('привет', 'en')),
+        DeviceTranslateFailure.download,
+      );
     });
 
     test('a model that does not arrive is a download failure', () async {
