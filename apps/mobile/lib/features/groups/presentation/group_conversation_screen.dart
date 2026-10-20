@@ -251,7 +251,13 @@ class _GroupConversationScreenState
 
   Future<void> _attach() async {
     final t = ref.read(translatorProvider);
-    final choice = await showGroupAttachMenu(context, t);
+    final d = ref.read(groupDetailProvider(widget.groupId)).value;
+    final choice = await showGroupAttachMenu(
+      context,
+      t,
+      media: d?.canSendMedia ?? true,
+      poll: d?.canSendPolls ?? true,
+    );
     if (choice == null || !mounted) return;
     if (choice == GroupAttachChoice.poll) {
       await showCreatePollSheet(
@@ -309,9 +315,9 @@ class _GroupConversationScreenState
       canReply: canWrite,
       canCopy: !m.isPoll && m.body.trim().isNotEmpty,
       canEdit: m.mine && m.type == api.GroupMessageDtoType.text,
-      canPin: detail.isAdmin,
+      canPin: detail.canPinMessages,
       pinned: pinned,
-      canDelete: m.mine || detail.isAdmin,
+      canDelete: m.mine || detail.canDeleteOthers,
     );
     if (action == null || !mounted) return;
     switch (action) {
@@ -647,7 +653,7 @@ class _GroupConversationScreenState
             message: pinned,
             t: t,
             onTap: () => _jumpTo(pinned.id),
-            onUnpin: detail.isAdmin
+            onUnpin: detail.canPinMessages
                 ? () async {
                     try {
                       await _thread.pin(null);
@@ -684,6 +690,7 @@ class _GroupConversationScreenState
             onSend: _send,
             onSaveEdit: _saveEdit,
             onAttach: _attach,
+            canAttach: detail.canSendMedia || detail.canSendPolls,
             onCancelReply: () => setState(() => _replyTo = null),
             onCancelEdit: () {
               setState(() => _editing = null);
@@ -1008,7 +1015,7 @@ class _MessageList extends ConsumerWidget {
             groupId: detail.id,
             showName: startsRun,
             showAvatar: endsRun,
-            canClose: m.mine || detail.isAdmin,
+            canClose: m.mine || detail.canDeleteOthers,
             highlighted: highlightId == m.id,
             onMenu: () => onMenu(m),
             onReply: canWrite && !m.deleted ? () => onReply(m) : null,

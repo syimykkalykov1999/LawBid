@@ -497,6 +497,108 @@ describe('Group chats and polls (e2e)', () => {
     expect(await lines(owner.id)).toBe(0);
   });
 
+  it('admin checkboxes and member permissions: every right is checked (403), the owner is safe, ownership can be handed over', async () => {
+    const { owner, ann, bob, cy, id } = await makeGroup();
+    const role = (who: string, uid: string, body: object) =>
+      api()
+        .put(`/api/v1/groups/${id}/members/${uid}/role`)
+        .set(bearer(who))
+        .send(body);
+    // Ann: admin who may only pin; Bob stays a member.
+    const r = await role(owner.id, ann.id, {
+      role: 'admin',
+      rights: ['pin'],
+    }).expect(200);
+    const annRow = r.body.data.members.find(
+      (m: { userId: string }) => m.userId === ann.id,
+    );
+    expect(annRow.rights).toEqual(['pin']);
+    const mine = await api()
+      .get(`/api/v1/groups/${id}`)
+      .set(bearer(ann.id))
+      .expect(200);
+    expect(mine.body.data.myRights).toEqual(['pin']);
+    // No «invite», «ban», «info», «admins» right.
+    await api()
+      .post(`/api/v1/groups/${id}/members`)
+      .set(bearer(ann.id))
+      .send({ userIds: [cy.id] })
+      .expect(403);
+    await api()
+      .delete(`/api/v1/groups/${id}/members/${bob.id}`)
+      .set(bearer(ann.id))
+      .expect(403);
+    await api()
+      .patch(`/api/v1/groups/${id}`)
+      .set(bearer(ann.id))
+      .send({ whoCanPoll: 'admins' })
+      .expect(403);
+    await role(ann.id, bob.id, { role: 'admin' }).expect(403);
+    // The pin right works for her; a plain member cannot pin.
+    const msg = await api()
+      .post(`/api/v1/groups/${id}/messages`)
+      .set(bearer(bob.id))
+      .send({ type: 'text', body: 'hi', clientMessageId: cmid() })
+      .expect(201);
+    await api()
+      .put(`/api/v1/groups/${id}/pin`)
+      .set(bearer(bob.id))
+      .send({ messageId: msg.body.data.id })
+      .expect(403);
+    await api()
+      .put(`/api/v1/groups/${id}/pin`)
+      .set(bearer(ann.id))
+      .send({ messageId: msg.body.data.id })
+      .expect(200);
+    // Ann cannot delete Bob's message (no «delete»); the owner can.
+    await api()
+      .delete(`/api/v1/groups/${id}/messages/${msg.body.data.id}`)
+      .set(bearer(ann.id))
+      .expect(403);
+    // Member permissions: polls only for admins.
+    await api()
+      .patch(`/api/v1/groups/${id}`)
+      .set(bearer(owner.id))
+      .send({ whoCanPoll: 'admins', whoCanPin: 'all' })
+      .expect(200);
+    await api()
+      .post(`/api/v1/groups/${id}/polls`)
+      .set(bearer(bob.id))
+      .send({
+        clientMessageId: cmid(),
+        question: 'Q?',
+        options: ['a', 'b'],
+        multiple: false,
+        anonymous: false,
+      })
+      .expect(403);
+    await api()
+      .put(`/api/v1/groups/${id}/pin`)
+      .set(bearer(bob.id))
+      .send({ messageId: null })
+      .expect(200);
+    // The owner cannot be demoted; only the owner hands the group over.
+    await role(owner.id, owner.id, { role: 'member' }).expect(404);
+    await api()
+      .put(`/api/v1/groups/${id}/owner`)
+      .set(bearer(ann.id))
+      .send({ userId: ann.id })
+      .expect(403);
+    const t = await api()
+      .put(`/api/v1/groups/${id}/owner`)
+      .set(bearer(owner.id))
+      .send({ userId: bob.id })
+      .expect(200);
+    const roles = Object.fromEntries(
+      t.body.data.members.map((m: { userId: string; role: string }) => [
+        m.userId,
+        m.role,
+      ]),
+    );
+    expect(roles[bob.id]).toBe('owner');
+    expect(roles[owner.id]).toBe('admin');
+  });
+
   it('anonymous multi-answer polls hide the voters', async () => {
     const { ann, bob, id } = await makeGroup();
     const made = await api()

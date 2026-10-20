@@ -2642,6 +2642,10 @@ model ChatGroup {
   who_can_call      GroupWho  @default(admins)
   /// Telegram's «hide service messages»: created / joined / left / renamed lines.
   show_service_messages Boolean @default(true)
+  /// Telegram's member permissions beyond post / add / edit-info / call.
+  who_can_media     GroupWho  @default(all)
+  who_can_poll      GroupWho  @default(all)
+  who_can_pin       GroupWho  @default(admins)
   /// Bare uuid pointers (a FK would make groups <-> messages a cycle).
   pinned_message_id String?   @db.Uuid
   last_message_id   String?   @db.Uuid
@@ -2679,6 +2683,9 @@ model ChatGroupMember {
   muted_until          DateTime?     @db.Timestamptz
   pinned_at            DateTime?     @db.Timestamptz
   hidden_at            DateTime?     @db.Timestamptz
+  /// Telegram's admin checkboxes (info, delete, ban, invite, pin, calls,
+  /// admins); only read for role = admin, the owner can do everything.
+  admin_rights         String[]      @default([])
   updated_at           DateTime      @updatedAt @db.Timestamptz
 
   @@id([group_id, user_id])

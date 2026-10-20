@@ -42,7 +42,10 @@ export class GroupPollsService {
     dto: CreatePollDto,
   ): Promise<GroupMessageDto> {
     const m = await this.groups.requireMember(user.sub, groupId);
-    if (!(m.admin || m.group.who_can_post === 'all')) {
+    if (!(
+      m.admin ||
+      (m.group.who_can_post === 'all' && m.group.who_can_poll === 'all')
+    )) {
       throw new ForbiddenException({
         code: ErrorCode.GROUP_FORBIDDEN,
         message: 'Only admins can write in this group.',
@@ -180,7 +183,7 @@ export class GroupPollsService {
   ): Promise<PollDto> {
     const m = await this.groups.requireMember(user.sub, groupId);
     const poll = await this.load(groupId, pollId);
-    if (poll.creator_id !== user.sub && !m.admin) {
+    if (poll.creator_id !== user.sub && !m.can('delete')) {
       throw new ForbiddenException({
         code: ErrorCode.GROUP_FORBIDDEN,
         message: 'Only the author or an admin can close the poll.',

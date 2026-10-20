@@ -16,6 +16,8 @@ import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/groups/application/group_call_port.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
+import 'package:lawbid/features/groups/domain/group_message_ext.dart';
+import 'package:lawbid/features/groups/presentation/widgets/group_admin_rights_sheet.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_info_avatar.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_info_header.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_info_link.dart';
@@ -29,7 +31,7 @@ import 'package:lawbid/features/groups/presentation/widgets/people_picker.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
-enum _MemberAction { makeAdmin, removeAdmin, remove }
+enum _MemberAction { makeAdmin, rights, removeAdmin, transfer, remove }
 
 enum _Mute { hour, eightHours, week, forever, off }
 
@@ -338,49 +340,123 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
     if (code != null) _toast(t.t('error.api.$code'));
   }
 
+  /// «Administrators»: the owner and the admins; the owner opens the
+  /// checkboxes of an admin from here.
+  Future<void> _openAdmins(api.GroupDetailDto d, Translator t) async {
+    final owner = d.myRole == api.GroupRole.owner;
+    final admins = [
+      for (final m in d.members)
+        if (m.role != api.GroupRole.member) m,
+    ];
+    final pick = await showGroupChoiceSheet<api.GroupMemberDto>(
+      context,
+      title: t.t('channel.admins'),
+      choices: [
+        for (final m in admins)
+          GroupChoice(
+            value: m,
+            label: m.displayName ?? m.username ?? t.t('group.someone'),
+            icon: m.role == api.GroupRole.owner
+                ? AppIcons.verifiedUserOutlined
+                : AppIcons.adminPanelSettingsOutlined,
+          ),
+      ],
+    );
+    if (pick == null || !mounted || !owner) return;
+    if (pick.role == api.GroupRole.owner) return;
+    await _memberMenu(d, pick, t);
+  }
+
   Future<void> _memberMenu(
     api.GroupDetailDto d,
     api.GroupMemberDto m,
     Translator t,
   ) async {
     final iAmOwner = d.myRole == api.GroupRole.owner;
+    final isAdmin = m.role == api.GroupRole.admin;
     final action = await showGroupChoiceSheet<_MemberAction>(
       context,
       title: m.displayName ?? m.username ?? t.t('group.someone'),
       choices: [
-        if (iAmOwner && m.role == api.GroupRole.member)
+        if (d.canAppoint && !isAdmin)
           GroupChoice(
             value: _MemberAction.makeAdmin,
             label: t.t('group.info.member.makeAdmin'),
             icon: AppIcons.adminPanelSettingsOutlined,
           ),
-        if (iAmOwner && m.role == api.GroupRole.admin)
+        if (iAmOwner && isAdmin) ...[
+          GroupChoice(
+            value: _MemberAction.rights,
+            label: t.t('group.info.member.rights'),
+            icon: AppIcons.adminPanelSettingsOutlined,
+          ),
           GroupChoice(
             value: _MemberAction.removeAdmin,
             label: t.t('group.info.member.removeAdmin'),
             icon: AppIcons.personOffOutlined,
           ),
-        GroupChoice(
-          value: _MemberAction.remove,
-          label: t.t('group.info.member.remove'),
-          icon: AppIcons.removeCircleOutlineRounded,
-          destructive: true,
-        ),
+        ],
+        if (iAmOwner)
+          GroupChoice(
+            value: _MemberAction.transfer,
+            label: t.t('group.info.member.transfer'),
+            icon: AppIcons.groupsOutlined,
+          ),
+        if (d.canBanMembers)
+          GroupChoice(
+            value: _MemberAction.remove,
+            label: t.t('group.info.member.remove'),
+            icon: AppIcons.removeCircleOutlineRounded,
+            destructive: true,
+          ),
       ],
     );
     if (action == null || !mounted) return;
     switch (action) {
       case _MemberAction.makeAdmin:
+      case _MemberAction.rights:
+        final name = m.displayName ?? m.username ?? t.t('group.someone');
+        final iAmOwnerNow = d.myRole == api.GroupRole.owner;
+        final rights = await showGroupAdminRightsSheet(
+          context,
+          name: name,
+          allowed: iAmOwnerNow
+              ? kGroupAdminRights
+              : [
+                  for (final r in kGroupAdminRights)
+                    if (d.hasRight(r)) r,
+                ],
+          initial: action == _MemberAction.rights
+              ? [for (final r in m.rights) r.json!]
+              : const ['info', 'delete', 'ban', 'invite', 'pin', 'calls'],
+        );
+        if (rights == null || !mounted) return;
         await _change(
-          () => ref
-              .read(groupRepositoryProvider)
-              .setRole(_id, m.userId, api.SetGroupRoleDtoRole.admin),
+          () => ref.read(groupRepositoryProvider).setRole(
+                _id,
+                m.userId,
+                api.SetGroupRoleDtoRole.admin,
+                rights: rights,
+              ),
         );
       case _MemberAction.removeAdmin:
         await _change(
           () => ref
               .read(groupRepositoryProvider)
               .setRole(_id, m.userId, api.SetGroupRoleDtoRole.member),
+        );
+      case _MemberAction.transfer:
+        final name = m.displayName ?? m.username ?? t.t('group.someone');
+        final ok = await confirmGroupAction(
+          context,
+          title: t.t('group.info.member.transferTitle', {'name': name}),
+          message: t.t('group.info.member.transferBody', {'name': name}),
+          confirmLabel: t.t('group.info.member.transfer'),
+          cancelLabel: t.t('common.cancel'),
+        );
+        if (!ok || !mounted) return;
+        await _change(
+          () => ref.read(groupRepositoryProvider).transferOwner(_id, m.userId),
         );
       case _MemberAction.remove:
         final name = m.displayName ?? m.username ?? t.t('group.someone');
@@ -399,13 +475,15 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
     }
   }
 
-  /// Whether I may manage [m] (admin menu): not me, never the owner, and an
-  /// admin only if I am the owner.
+  /// Whether [m] has a menu for me: not me, never the owner; removing
+  /// needs «ban», appointing needs «admins» (an admin's rights are the
+  /// owner's to change).
   bool _canManage(api.GroupDetailDto d, api.GroupMemberDto m, String? me) {
-    if (m.userId == me || m.role == api.GroupRole.owner || !d.isAdmin) {
-      return false;
-    }
-    return m.role == api.GroupRole.member || d.myRole == api.GroupRole.owner;
+    if (m.userId == me || m.role == api.GroupRole.owner) return false;
+    final owner = d.myRole == api.GroupRole.owner;
+    if (owner) return true;
+    if (m.role == api.GroupRole.admin) return false;
+    return d.canBanMembers || d.canAppoint;
   }
 
   void _openProfile(api.GroupMemberDto m) {
@@ -701,7 +779,7 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
             ),
           ),
         ),
-        if (d.isAdmin && closedWithApproval)
+        if (d.hasRight('invite') && closedWithApproval)
           SliverToBoxAdapter(
             child: GroupInfoSection(
               children: [
@@ -722,7 +800,7 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
           SliverToBoxAdapter(
             child: GroupInfoLink(
               detail: d,
-              onReset: d.isAdmin
+              onReset: d.hasRight('invite')
                   ? () => _change(
                         () =>
                             ref.read(groupRepositoryProvider).resetInvite(_id),
@@ -730,7 +808,7 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
                   : null,
             ),
           ),
-        if (d.isAdmin)
+        if (d.hasRight('info'))
           SliverToBoxAdapter(
             child: GroupInfoSettings(
               detail: d,
@@ -738,7 +816,23 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
               onError: _toast,
             ),
           ),
-        if (d.isAdmin && d.topicsEnabled)
+        if (d.members.any((m) => m.role == api.GroupRole.admin))
+          SliverToBoxAdapter(
+            child: GroupInfoSection(
+              children: [
+                GroupInfoNavRow(
+                  key: const ValueKey('group-admins'),
+                  icon: AppIcons.adminPanelSettingsOutlined,
+                  label: t.t('channel.admins'),
+                  badge: d.members
+                      .where((m) => m.role == api.GroupRole.admin)
+                      .length,
+                  onTap: () => _openAdmins(d, t),
+                ),
+              ],
+            ),
+          ),
+        if (d.hasRight('info') && d.topicsEnabled)
           SliverToBoxAdapter(child: GroupInfoTopics(groupId: _id)),
         SliverToBoxAdapter(
           child: Padding(

@@ -53,6 +53,7 @@ import {
   ReadGroupDto,
   SendGroupMessageDto,
   SetGroupRoleDto,
+  TransferGroupDto,
   UpdateGroupDto,
   UpdateGroupMeDto,
   VotePollDto,
@@ -225,7 +226,19 @@ export class GroupsController {
     @Param() p: GroupMemberParamDto,
     @Body() dto: SetGroupRoleDto,
   ): Promise<GroupDetailDto> {
-    return this.groups.setRole(user, p.id, p.userId, dto.role);
+    return this.groups.setRole(user, p.id, p.userId, dto.role, dto.rights);
+  }
+
+  @Put(':id/owner')
+  @ApiOperation({ summary: 'Hand the group to another member (owner)' })
+  @ApiEnvelopeResponse(GroupDetailDto)
+  @ApiErrors(GROUP_ERRORS)
+  transferGroupOwner(
+    @CurrentUser() user: RequestUser,
+    @Param() p: GroupIdParamDto,
+    @Body() dto: TransferGroupDto,
+  ): Promise<GroupDetailDto> {
+    return this.groups.transferOwner(user, p.id, dto.userId);
   }
 
   @Post(':id/leave')

@@ -70,13 +70,31 @@ class GroupRepository {
   Future<api.GroupDetailDto> setRole(
     String id,
     String userId,
-    api.SetGroupRoleDtoRole role,
-  ) async =>
+    api.SetGroupRoleDtoRole role, {
+    List<String>? rights,
+  }) async =>
       (await guardApiCall(
         () => _c.setGroupMemberRole(
           id: id,
           userId: userId,
-          body: api.SetGroupRoleDto(role: role),
+          body: api.SetGroupRoleDto(
+            role: role,
+            rights: rights == null
+                ? null
+                : [
+                    for (final r in rights)
+                      api.SetGroupRoleDtoRights.fromJson(r),
+                  ],
+          ),
+        ),
+      ))
+          .data;
+
+  Future<api.GroupDetailDto> transferOwner(String id, String userId) async =>
+      (await guardApiCall(
+        () => _c.transferGroupOwner(
+          id: id,
+          body: api.TransferGroupDto(userId: userId),
         ),
       ))
           .data;

@@ -43,6 +43,27 @@ export const TOPIC_COLORS = 7;
 export const GROUP_ROLES = ['owner', 'admin', 'member'] as const;
 export type GroupRoleName = (typeof GROUP_ROLES)[number];
 
+/** Telegram's admin checkboxes. The owner has all of them. */
+export const GROUP_ADMIN_RIGHTS = [
+  'info',
+  'delete',
+  'ban',
+  'invite',
+  'pin',
+  'calls',
+  'admins',
+] as const;
+export type GroupAdminRight = (typeof GROUP_ADMIN_RIGHTS)[number];
+/** What a new admin gets unless the owner ticks otherwise. */
+export const DEFAULT_ADMIN_RIGHTS: GroupAdminRight[] = [
+  'info',
+  'delete',
+  'ban',
+  'invite',
+  'pin',
+  'calls',
+];
+
 const trim = ({ value }: { value: unknown }): unknown =>
   typeof value === 'string' ? value.trim() : value;
 
@@ -186,6 +207,21 @@ export class UpdateGroupDto {
   @IsIn(GROUP_WHO)
   whoCanCall?: GroupWhoName;
 
+  @ApiPropertyOptional({ enum: GROUP_WHO, description: 'Admins only.' })
+  @IsOptional()
+  @IsIn(GROUP_WHO)
+  whoCanMedia?: GroupWhoName;
+
+  @ApiPropertyOptional({ enum: GROUP_WHO, description: 'Admins only.' })
+  @IsOptional()
+  @IsIn(GROUP_WHO)
+  whoCanPoll?: GroupWhoName;
+
+  @ApiPropertyOptional({ enum: GROUP_WHO, description: 'Admins only.' })
+  @IsOptional()
+  @IsIn(GROUP_WHO)
+  whoCanPin?: GroupWhoName;
+
   @ApiPropertyOptional({
     description:
       'Admins only: show service lines (created, joined, left, renamed…) to everyone.',
@@ -243,6 +279,22 @@ export class SetGroupRoleDto {
   @ApiProperty({ enum: ['admin', 'member'] })
   @IsIn(['admin', 'member'])
   role!: 'admin' | 'member';
+
+  @ApiPropertyOptional({
+    enum: GROUP_ADMIN_RIGHTS,
+    isArray: true,
+    description: 'Admin checkboxes (role admin); default = the usual six.',
+  })
+  @IsOptional()
+  @IsArray()
+  @IsIn(GROUP_ADMIN_RIGHTS, { each: true })
+  rights?: GroupAdminRight[];
+}
+
+export class TransferGroupDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID('all')
+  userId!: string;
 }
 
 export class GroupMessagesQueryDto {
@@ -464,6 +516,13 @@ export class GroupPersonDto {
 export class GroupMemberDto extends GroupPersonDto {
   @ApiProperty({ enum: GROUP_ROLES, enumName: 'GroupRole' })
   role!: GroupRoleName;
+
+  @ApiProperty({
+    enum: GROUP_ADMIN_RIGHTS,
+    isArray: true,
+    description: "An admin's checkboxes (owner: all, member: none).",
+  })
+  rights!: GroupAdminRight[];
 
   @ApiProperty()
   joinedAt!: Date;
@@ -690,6 +749,22 @@ export class GroupDto {
 
   @ApiProperty({ enum: GROUP_WHO, enumName: 'GroupWho' })
   whoCanCall!: GroupWhoName;
+
+  @ApiProperty({ enum: GROUP_WHO, enumName: 'GroupWho' })
+  whoCanMedia!: GroupWhoName;
+
+  @ApiProperty({ enum: GROUP_WHO, enumName: 'GroupWho' })
+  whoCanPoll!: GroupWhoName;
+
+  @ApiProperty({ enum: GROUP_WHO, enumName: 'GroupWho' })
+  whoCanPin!: GroupWhoName;
+
+  @ApiProperty({
+    enum: GROUP_ADMIN_RIGHTS,
+    isArray: true,
+    description: 'What I may do as owner / admin (empty for a member).',
+  })
+  myRights!: GroupAdminRight[];
 
   @ApiProperty({
     description:

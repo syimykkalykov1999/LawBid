@@ -14,12 +14,14 @@ import { unreadMessagesSql } from './group-unread.sql';
 import { isImageMime } from '../files/files.policy';
 import { FilesService } from '../files/files.service';
 import type { ChatAttachmentDto } from '../chat/chat.dto';
+import { GROUP_ADMIN_RIGHTS } from './groups.dto';
 import type {
   GroupDto,
   GroupMemberDto,
   GroupMessageDto,
   GroupPersonDto,
   GroupReplyPreviewDto,
+  GroupAdminRight,
   GroupRoleName,
   GroupTopicDto,
   PollDto,
@@ -33,6 +35,16 @@ const RECENT_VOTERS = 3;
 function fullName(first: string | null, last: string | null): string | null {
   const name = [first, last].filter(Boolean).join(' ').trim();
   return name || null;
+}
+
+/** The checkboxes a member holds: all for the owner, the ticked ones for an admin. */
+export function rightsOf(
+  m: { role: GroupRoleName; admin_rights: string[] } | null | undefined,
+): GroupAdminRight[] {
+  if (!m) return [];
+  if (m.role === 'owner') return [...GROUP_ADMIN_RIGHTS];
+  if (m.role !== 'admin') return [];
+  return GROUP_ADMIN_RIGHTS.filter((r) => m.admin_rights.includes(r));
 }
 
 export function isAdminRole(role: GroupRoleName | null | undefined): boolean {
@@ -105,7 +117,9 @@ export class GroupPresenter {
     return rows
       .flatMap((r) => {
         const p = people.get(r.user_id);
-        return p ? [{ ...p, role: r.role, joinedAt: r.joined_at }] : [];
+        return p
+          ? [{ ...p, role: r.role, rights: rightsOf(r), joinedAt: r.joined_at }]
+          : [];
       })
       .sort(
         (a, b) =>
@@ -380,6 +394,7 @@ export class GroupPresenter {
     return rows.map(({ group: g, me }) => {
       const role = me && me.left_at === null ? me.role : null;
       const admin = isAdminRole(role);
+      const myRights = role !== null ? rightsOf(me) : [];
       const member = role !== null;
       const stats = unread.get(g.id);
       return {
@@ -405,10 +420,18 @@ export class GroupPresenter {
         whoCanEditInfo: g.who_can_edit_info,
         whoCanCall: g.who_can_call,
         showServiceMessages: g.show_service_messages,
+        whoCanMedia: g.who_can_media,
+        whoCanPoll: g.who_can_poll,
+        whoCanPin: g.who_can_pin,
+        myRights,
         canPost: member && (g.who_can_post === 'all' || admin),
-        canAdd: member && (g.who_can_add === 'all' || admin),
-        canEditInfo: member && (g.who_can_edit_info === 'all' || admin),
-        canCall: member && (g.who_can_call === 'all' || admin),
+        canAdd:
+          member && (g.who_can_add === 'all' || myRights.includes('invite')),
+        canEditInfo:
+          member &&
+          (g.who_can_edit_info === 'all' || myRights.includes('info')),
+        canCall:
+          member && (g.who_can_call === 'all' || myRights.includes('calls')),
         isAdmin: admin,
         inviteEnabled: g.invite_enabled,
         inviteLink:

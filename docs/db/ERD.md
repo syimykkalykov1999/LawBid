@@ -780,6 +780,9 @@ erDiagram
     enum_GroupWho who_can_edit_info
     enum_GroupWho who_can_call
     Boolean show_service_messages
+    enum_GroupWho who_can_media
+    enum_GroupWho who_can_poll
+    enum_GroupWho who_can_pin
     String pinned_message_id "nullable"
     String last_message_id "nullable"
     DateTime last_message_at "nullable"

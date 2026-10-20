@@ -58,6 +58,11 @@ String groupSystemText(Translator t, api.GroupMessageDto m) {
         'name': _name(t, actor),
         'people': _names(t, targets),
       });
+    case 'transferred':
+      return t.t('group.system.transferred', {
+        'name': _name(t, actor),
+        'people': _names(t, targets),
+      });
     case 'pinned':
       return t.t('group.system.pinned', {'name': _name(t, actor)});
     case 'topic_created':

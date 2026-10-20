@@ -9,7 +9,7 @@ part of 'group_detail_dto.dart';
 GroupDetailDto _$GroupDetailDtoFromJson(
   Map<String, dynamic> json,
 ) => GroupDetailDto(
-  pendingRequests: json['pendingRequests'] as num,
+  whoCanPost: GroupWho.fromJson(json['whoCanPost'] as String),
   title: json['title'] as String,
   members: (json['members'] as List<dynamic>)
       .map((e) => GroupMemberDto.fromJson(e as Map<String, dynamic>))
@@ -22,19 +22,25 @@ GroupDetailDto _$GroupDetailDtoFromJson(
   joinApproval: json['joinApproval'] as bool,
   topicsEnabled: json['topicsEnabled'] as bool,
   unreadMentions: json['unreadMentions'] as num,
-  id: json['id'] as String,
+  pendingRequests: json['pendingRequests'] as num,
   unreadCount: json['unreadCount'] as num,
-  whoCanPost: GroupWho.fromJson(json['whoCanPost'] as String),
+  id: json['id'] as String,
   whoCanAdd: GroupWho.fromJson(json['whoCanAdd'] as String),
   whoCanEditInfo: GroupWho.fromJson(json['whoCanEditInfo'] as String),
   whoCanCall: GroupWho.fromJson(json['whoCanCall'] as String),
+  whoCanMedia: GroupWho.fromJson(json['whoCanMedia'] as String),
+  whoCanPoll: GroupWho.fromJson(json['whoCanPoll'] as String),
+  whoCanPin: GroupWho.fromJson(json['whoCanPin'] as String),
+  myRights: (json['myRights'] as List<dynamic>)
+      .map((e) => GroupDetailDtoMyRights.fromJson(e as String))
+      .toList(),
   showServiceMessages: json['showServiceMessages'] as bool,
   canPost: json['canPost'] as bool,
   canAdd: json['canAdd'] as bool,
   canEditInfo: json['canEditInfo'] as bool,
-  canCall: json['canCall'] as bool,
   inviteEnabled: json['inviteEnabled'] as bool,
   isAdmin: json['isAdmin'] as bool,
+  canCall: json['canCall'] as bool,
   inviteLink: json['inviteLink'] as String?,
   pinnedMessage: json['pinnedMessage'] == null
       ? null
@@ -80,6 +86,10 @@ Map<String, dynamic> _$GroupDetailDtoToJson(GroupDetailDto instance) =>
       'whoCanAdd': instance.whoCanAdd.toJson(),
       'whoCanEditInfo': instance.whoCanEditInfo.toJson(),
       'whoCanCall': instance.whoCanCall.toJson(),
+      'whoCanMedia': instance.whoCanMedia.toJson(),
+      'whoCanPoll': instance.whoCanPoll.toJson(),
+      'whoCanPin': instance.whoCanPin.toJson(),
+      'myRights': instance.myRights.map((e) => e.toJson()).toList(),
       'showServiceMessages': instance.showServiceMessages,
       'canPost': instance.canPost,
       'canAdd': instance.canAdd,

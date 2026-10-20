@@ -8,6 +8,9 @@ import 'group_type.dart';
 import 'update_group_dto_who_can_add.dart';
 import 'update_group_dto_who_can_call.dart';
 import 'update_group_dto_who_can_edit_info.dart';
+import 'update_group_dto_who_can_media.dart';
+import 'update_group_dto_who_can_pin.dart';
+import 'update_group_dto_who_can_poll.dart';
 import 'update_group_dto_who_can_post.dart';
 
 part 'update_group_dto.g.dart';
@@ -22,6 +25,9 @@ class UpdateGroupDto {
     this.whoCanAdd,
     this.whoCanEditInfo,
     this.whoCanCall,
+    this.whoCanMedia,
+    this.whoCanPoll,
+    this.whoCanPin,
     this.showServiceMessages,
     this.inviteEnabled,
     this.type,
@@ -52,6 +58,15 @@ class UpdateGroupDto {
 
   /// Admins only.
   final UpdateGroupDtoWhoCanCall? whoCanCall;
+
+  /// Admins only.
+  final UpdateGroupDtoWhoCanMedia? whoCanMedia;
+
+  /// Admins only.
+  final UpdateGroupDtoWhoCanPoll? whoCanPoll;
+
+  /// Admins only.
+  final UpdateGroupDtoWhoCanPin? whoCanPin;
 
   /// Admins only: show service lines (created, joined, left, renamed…) to everyone.
   final bool? showServiceMessages;

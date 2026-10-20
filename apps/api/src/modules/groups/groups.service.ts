@@ -30,7 +30,12 @@ import { FilesService } from '../files/files.service';
 import { BadgesService } from '../notifications/badges.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { RealtimePublisher } from '../realtime/realtime-publisher.service';
-import { GroupPresenter, NOBODY, isAdminRole } from './group-presenter.service';
+import {
+  GroupPresenter,
+  NOBODY,
+  isAdminRole,
+  rightsOf,
+} from './group-presenter.service';
 import {
   GROUP_MAX_MEMBERS,
   type AddGroupMembersDto,
@@ -46,7 +51,10 @@ import {
   type GroupMessageDto,
   type GroupMessagePage,
   type GroupPage,
+  type GroupAdminRight,
   type GroupRoleName,
+  DEFAULT_ADMIN_RIGHTS,
+  GROUP_ADMIN_RIGHTS,
   type SendGroupMessageDto,
   type UpdateGroupDto,
   type UpdateGroupMeDto,
@@ -82,6 +90,9 @@ export interface Membership {
   me: ChatGroupMember;
   role: GroupRoleName;
   admin: boolean;
+  /** Telegram's checkboxes I hold (the owner: all). */
+  rights: GroupAdminRight[];
+  can: (right: GroupAdminRight) => boolean;
 }
 
 /**
@@ -124,11 +135,14 @@ export class GroupsService {
       throw notFound();
     }
     const { group, ...member } = me;
+    const rights = rightsOf(member);
     return {
       group,
       me: member,
       role: member.role,
       admin: isAdminRole(member.role),
+      rights,
+      can: (right) => rights.includes(right),
     };
   }
 
@@ -150,7 +164,7 @@ export class GroupsService {
   async canStartCall(userId: string, groupId: string): Promise<boolean> {
     try {
       const m = await this.requireMember(userId, groupId);
-      return m.group.who_can_call === 'all' || m.admin;
+      return m.group.who_can_call === 'all' || m.can('calls');
     } catch {
       return false;
     }
@@ -381,8 +395,10 @@ export class GroupsService {
       dto.whoCanAdd !== undefined ||
       dto.whoCanEditInfo !== undefined ||
       dto.whoCanCall !== undefined ||
+      dto.whoCanMedia !== undefined ||
+      dto.whoCanPoll !== undefined ||
+      dto.whoCanPin !== undefined ||
       dto.showServiceMessages !== undefined ||
-      dto.inviteEnabled !== undefined ||
       dto.type !== undefined ||
       dto.username !== undefined ||
       dto.joinApproval !== undefined ||
@@ -391,8 +407,9 @@ export class GroupsService {
       dto.title !== undefined ||
       dto.description !== undefined ||
       dto.avatarFileId !== undefined;
-    if (settings && !m.admin) throw forbidden();
-    if (info && !(m.admin || m.group.who_can_edit_info === 'all')) {
+    if (settings && !m.can('info')) throw forbidden();
+    if (dto.inviteEnabled !== undefined && !m.can('invite')) throw forbidden();
+    if (info && !(m.can('info') || m.group.who_can_edit_info === 'all')) {
       throw forbidden();
     }
     if (dto.avatarFileId) {
@@ -421,6 +438,9 @@ export class GroupsService {
     if (dto.whoCanAdd) data.who_can_add = dto.whoCanAdd;
     if (dto.whoCanEditInfo) data.who_can_edit_info = dto.whoCanEditInfo;
     if (dto.whoCanCall) data.who_can_call = dto.whoCanCall;
+    if (dto.whoCanMedia) data.who_can_media = dto.whoCanMedia;
+    if (dto.whoCanPoll) data.who_can_poll = dto.whoCanPoll;
+    if (dto.whoCanPin) data.who_can_pin = dto.whoCanPin;
     if (dto.showServiceMessages !== undefined) {
       data.show_service_messages = dto.showServiceMessages;
     }
@@ -500,7 +520,7 @@ export class GroupsService {
 
   async resetInvite(user: RequestUser, id: string): Promise<GroupDetailDto> {
     const m = await this.requireMember(user.sub, id);
-    if (!m.admin) throw forbidden();
+    if (!m.can('invite')) throw forbidden();
     if (m.group.group_type === 'private') {
       throw new BadRequestException({
         code: ErrorCode.VALIDATION_ERROR,
@@ -531,7 +551,7 @@ export class GroupsService {
     dto: AddGroupMembersDto,
   ): Promise<GroupDetailDto> {
     const m = await this.requireMember(user.sub, id);
-    if (!(m.admin || m.group.who_can_add === 'all')) throw forbidden();
+    if (!(m.can('invite') || m.group.who_can_add === 'all')) throw forbidden();
     const wanted = await this.addableIds(user.sub, dto.userIds);
     const notAdded = dto.userIds.filter(
       (u) => u !== user.sub && !wanted.includes(u),
@@ -608,7 +628,7 @@ export class GroupsService {
   ): Promise<GroupDetailDto> {
     const m = await this.requireMember(user.sub, id);
     if (targetId === user.sub) throw forbidden('Use leave instead.');
-    if (!m.admin) throw forbidden();
+    if (!m.can('ban')) throw forbidden();
     const target = await this.prisma.chatGroupMember.findUnique({
       where: { group_id_user_id: { group_id: id, user_id: targetId } },
     });
@@ -652,20 +672,37 @@ export class GroupsService {
     id: string,
     targetId: string,
     role: 'admin' | 'member',
+    rights?: GroupAdminRight[],
   ): Promise<GroupDetailDto> {
     const m = await this.requireMember(user.sub, id);
-    if (m.role !== 'owner') throw forbidden('Only the owner can do that.');
+    if (!m.can('admins')) throw forbidden('Only the owner can do that.');
     const target = await this.prisma.chatGroupMember.findUnique({
       where: { group_id_user_id: { group_id: id, user_id: targetId } },
     });
     if (!target || target.left_at !== null || target.role === 'owner') {
       throw notFound();
     }
-    if (target.role !== role) {
+    const asOwner = m.role === 'owner';
+    // An admin with «add admins» may only raise plain members; changing or
+    // removing an admin is the owner's.
+    if (!asOwner && target.role === 'admin') {
+      throw forbidden('Only the owner can change an admin.');
+    }
+    const granted =
+      role === 'admin'
+        ? [...new Set(rights ?? DEFAULT_ADMIN_RIGHTS)].filter((r) =>
+            asOwner ? true : m.rights.includes(r),
+          )
+        : [];
+    const same =
+      target.role === role &&
+      granted.length === target.admin_rights.length &&
+      granted.every((r) => target.admin_rights.includes(r));
+    if (!same) {
       const row = await withTxRetry(this.prisma, async (tx) => {
         await tx.chatGroupMember.update({
           where: { group_id_user_id: { group_id: id, user_id: targetId } },
-          data: { role },
+          data: { role, admin_rights: granted },
         });
         const sys = await this.system(
           tx,
@@ -683,6 +720,42 @@ export class GroupsService {
       await this.broadcast(id, row);
       await this.groupChanged(id, 'members');
     }
+    return this.detail(user.sub, id);
+  }
+
+  /** Owner only: hand the group to [targetId]; I stay as an admin. */
+  async transferOwner(
+    user: RequestUser,
+    id: string,
+    targetId: string,
+  ): Promise<GroupDetailDto> {
+    const m = await this.requireMember(user.sub, id);
+    if (m.role !== 'owner') throw forbidden('Only the owner can do that.');
+    if (targetId === user.sub) throw forbidden();
+    const target = await this.prisma.chatGroupMember.findUnique({
+      where: { group_id_user_id: { group_id: id, user_id: targetId } },
+    });
+    if (!target || target.left_at !== null) throw notFound();
+    const row = await withTxRetry(this.prisma, async (tx) => {
+      await tx.chatGroupMember.update({
+        where: { group_id_user_id: { group_id: id, user_id: targetId } },
+        data: { role: 'owner', admin_rights: [] },
+      });
+      await tx.chatGroupMember.update({
+        where: { group_id_user_id: { group_id: id, user_id: user.sub } },
+        data: { role: 'admin', admin_rights: [...GROUP_ADMIN_RIGHTS] },
+      });
+      const sys = await this.system(tx, id, 'transferred', user.sub, [
+        targetId,
+      ]);
+      await tx.chatGroup.update({
+        where: { id },
+        data: { last_message_id: sys.id, last_message_at: sys.created_at },
+      });
+      return sys;
+    });
+    await this.broadcast(id, row);
+    await this.groupChanged(id, 'members');
     return this.detail(user.sub, id);
   }
 
@@ -851,7 +924,7 @@ export class GroupsService {
     id: string,
   ): Promise<GroupJoinRequestDto[]> {
     const m = await this.requireMember(user.sub, id);
-    if (!m.admin) throw forbidden();
+    if (!m.can('invite')) throw forbidden();
     const rows = await this.prisma.chatGroupJoinRequest.findMany({
       where: { group_id: id },
       orderBy: { created_at: 'asc' },
@@ -871,7 +944,7 @@ export class GroupsService {
     approve: boolean,
   ): Promise<GroupJoinRequestDto[]> {
     const m = await this.requireMember(user.sub, id);
-    if (!m.admin) throw forbidden();
+    if (!m.can('invite')) throw forbidden();
     const req = await this.prisma.chatGroupJoinRequest.findUnique({
       where: { group_id_user_id: { group_id: id, user_id: userId } },
     });
@@ -1025,6 +1098,9 @@ export class GroupsService {
     }
     const body = (dto.body ?? '').trim();
     const attachment = dto.type === 'attachment';
+    if (attachment && !(m.admin || m.group.who_can_media === 'all')) {
+      throw forbidden('Media is not allowed in this group.');
+    }
     if (attachment ? !dto.fileId || !dto.fileName : body.length === 0) {
       throw new BadRequestException({
         code: ErrorCode.VALIDATION_ERROR,
@@ -1164,7 +1240,7 @@ export class GroupsService {
       where: { id: messageId, group_id: id },
     });
     if (!row || row.deleted_at || row.type === 'system') throw notFound();
-    if (row.sender_id !== user.sub && !m.admin) throw forbidden();
+    if (row.sender_id !== user.sub && !m.can('delete')) throw forbidden();
     const updated = await this.prisma.chatGroupMessage.update({
       where: { id: messageId },
       data: { deleted_at: new Date(), body: '', mention_ids: [] },
@@ -1185,7 +1261,7 @@ export class GroupsService {
     messageId: string | null,
   ): Promise<GroupDetailDto> {
     const m = await this.requireMember(user.sub, id);
-    if (!m.admin) throw forbidden();
+    if (!(m.can('pin') || m.group.who_can_pin === 'all')) throw forbidden();
     let row: ChatGroupMessage | null = null;
     if (messageId) {
       const target = await this.prisma.chatGroupMessage.findFirst({
@@ -1327,7 +1403,7 @@ export class GroupsService {
     dto: CreateTopicDto,
   ): Promise<GroupTopicDto> {
     const m = await this.requireMember(user.sub, id);
-    if (!m.admin) throw forbidden();
+    if (!m.can('info')) throw forbidden();
     this.requireTopicsOn(m.group);
     const count = await this.prisma.chatGroupTopic.count({
       where: { group_id: id },
@@ -1376,7 +1452,7 @@ export class GroupsService {
     dto: UpdateTopicDto,
   ): Promise<GroupTopicDto[]> {
     const m = await this.requireMember(user.sub, id);
-    if (!m.admin) throw forbidden();
+    if (!m.can('info')) throw forbidden();
     this.requireTopicsOn(m.group);
     const topic = await this.topicOf(id, topicId);
     const data: Prisma.ChatGroupTopicUpdateInput = {};

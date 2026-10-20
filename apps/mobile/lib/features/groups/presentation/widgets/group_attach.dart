@@ -18,8 +18,10 @@ enum GroupAttachChoice { photos, camera, files, poll }
 /// The «+» menu: photos, camera, files, poll.
 Future<GroupAttachChoice?> showGroupAttachMenu(
   BuildContext context,
-  Translator t,
-) =>
+  Translator t, {
+  bool media = true,
+  bool poll = true,
+}) =>
     showAppBottomSheet<GroupAttachChoice>(
       context: context,
       builder: (sheet) => SafeArea(
@@ -27,30 +29,33 @@ Future<GroupAttachChoice?> showGroupAttachMenu(
           mainAxisSize: MainAxisSize.min,
           children: [
             const AppSheetHandle(),
-            AppListRow(
-              icon: AppIcons.photoLibraryOutlined,
-              label: t.t('chat.attach.photos'),
-              showChevron: false,
-              onTap: () => Navigator.of(sheet).pop(GroupAttachChoice.photos),
-            ),
-            AppListRow(
-              icon: AppIcons.photoCameraOutlined,
-              label: t.t('chat.attach.camera'),
-              showChevron: false,
-              onTap: () => Navigator.of(sheet).pop(GroupAttachChoice.camera),
-            ),
-            AppListRow(
-              icon: AppIcons.descriptionOutlined,
-              label: t.t('chat.attach.files'),
-              showChevron: false,
-              onTap: () => Navigator.of(sheet).pop(GroupAttachChoice.files),
-            ),
-            AppListRow(
-              icon: AppIcons.factCheckOutlined,
-              label: t.t('group.conv.attachPoll'),
-              showChevron: false,
-              onTap: () => Navigator.of(sheet).pop(GroupAttachChoice.poll),
-            ),
+            if (media) ...[
+              AppListRow(
+                icon: AppIcons.photoLibraryOutlined,
+                label: t.t('chat.attach.photos'),
+                showChevron: false,
+                onTap: () => Navigator.of(sheet).pop(GroupAttachChoice.photos),
+              ),
+              AppListRow(
+                icon: AppIcons.photoCameraOutlined,
+                label: t.t('chat.attach.camera'),
+                showChevron: false,
+                onTap: () => Navigator.of(sheet).pop(GroupAttachChoice.camera),
+              ),
+              AppListRow(
+                icon: AppIcons.descriptionOutlined,
+                label: t.t('chat.attach.files'),
+                showChevron: false,
+                onTap: () => Navigator.of(sheet).pop(GroupAttachChoice.files),
+              ),
+            ],
+            if (poll)
+              AppListRow(
+                icon: AppIcons.factCheckOutlined,
+                label: t.t('group.conv.attachPoll'),
+                showChevron: false,
+                onTap: () => Navigator.of(sheet).pop(GroupAttachChoice.poll),
+              ),
             const SizedBox(height: AppSpacing.md),
           ],
         ),

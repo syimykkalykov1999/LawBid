@@ -28,6 +28,7 @@ import '../models/poll_voter_option_list_envelope.dart';
 import '../models/read_group_dto.dart';
 import '../models/send_group_message_dto.dart';
 import '../models/set_group_role_dto.dart';
+import '../models/transfer_group_dto.dart';
 import '../models/update_group_dto.dart';
 import '../models/update_group_me_dto.dart';
 import '../models/update_topic_dto.dart';
@@ -131,6 +132,14 @@ abstract class GroupsClient {
     @Path('id') required String id,
     @Path('userId') required String userId,
     @Body() required SetGroupRoleDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Hand the group to another member (owner)
+  @PUT('/groups/{id}/owner')
+  Future<GroupDetailEnvelope> transferGroupOwner({
+    @Path('id') required String id,
+    @Body() required TransferGroupDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

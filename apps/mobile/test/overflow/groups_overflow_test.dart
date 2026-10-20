@@ -22,6 +22,7 @@ import 'package:lawbid/features/groups/presentation/join_group_screen.dart';
 import 'package:lawbid/features/groups/presentation/poll/create_poll_sheet.dart';
 import 'package:lawbid/features/groups/presentation/poll/poll_bubble.dart';
 import 'package:lawbid/features/groups/presentation/poll/poll_voters_sheet.dart';
+import 'package:lawbid/features/groups/presentation/widgets/group_admin_rights_sheet.dart';
 import 'package:lawbid/features/groups/presentation/widgets/people_picker.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
@@ -484,6 +485,25 @@ void main() {
               null,
               pollVoters(),
             ),
+          );
+          await tester.tap(find.text('open'));
+          await tester.pumpAndSettle();
+          expect(tester.takeException(), isNull);
+          await scrollThrough(tester);
+        });
+
+        testWidgets('admin rights sheet', (tester) async {
+          await pump(
+            tester,
+            opener(
+              (context, _) => showGroupAdminRightsSheet(
+                context,
+                name: 'Wolfeschlegelsteinhausenberger Dorff',
+                allowed: kGroupAdminRights,
+                initial: const ['info', 'pin'],
+              ),
+            ),
+            FakeGroupRepository(),
           );
           await tester.tap(find.text('open'));
           await tester.pumpAndSettle();

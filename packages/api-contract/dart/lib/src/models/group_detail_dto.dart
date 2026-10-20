@@ -4,6 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'group_detail_dto_my_rights.dart';
 import 'group_member_dto.dart';
 import 'group_message_dto.dart';
 import 'group_role.dart';
@@ -15,7 +16,7 @@ part 'group_detail_dto.g.dart';
 @JsonSerializable()
 class GroupDetailDto {
   const GroupDetailDto({
-    required this.pendingRequests,
+    required this.whoCanPost,
     required this.title,
     required this.members,
     required this.updatedAt,
@@ -26,19 +27,23 @@ class GroupDetailDto {
     required this.joinApproval,
     required this.topicsEnabled,
     required this.unreadMentions,
-    required this.id,
+    required this.pendingRequests,
     required this.unreadCount,
-    required this.whoCanPost,
+    required this.id,
     required this.whoCanAdd,
     required this.whoCanEditInfo,
     required this.whoCanCall,
+    required this.whoCanMedia,
+    required this.whoCanPoll,
+    required this.whoCanPin,
+    required this.myRights,
     required this.showServiceMessages,
     required this.canPost,
     required this.canAdd,
     required this.canEditInfo,
-    required this.canCall,
     required this.inviteEnabled,
     required this.isAdmin,
+    required this.canCall,
     this.inviteLink,
     this.pinnedMessage,
     this.lastMessage,
@@ -83,6 +88,12 @@ class GroupDetailDto {
   final GroupWho whoCanAdd;
   final GroupWho whoCanEditInfo;
   final GroupWho whoCanCall;
+  final GroupWho whoCanMedia;
+  final GroupWho whoCanPoll;
+  final GroupWho whoCanPin;
+
+  /// What I may do as owner / admin (empty for a member).
+  final List<GroupDetailDtoMyRights> myRights;
 
   /// Service lines (joined, left, renamed…) are shown to everyone.
   final bool showServiceMessages;

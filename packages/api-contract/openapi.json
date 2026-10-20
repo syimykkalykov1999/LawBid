@@ -86609,6 +86609,113 @@
         ]
       }
     },
+    "/groups/{id}/owner": {
+      "put": {
+        "operationId": "transferGroupOwner",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransferGroupDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupDetailEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: GROUP_FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: GROUP_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Hand the group to another member (owner)",
+        "tags": [
+          "groups"
+        ]
+      }
+    },
     "/groups/{id}/leave": {
       "post": {
         "operationId": "leaveGroup",
@@ -150629,6 +150736,43 @@
               }
             ]
           },
+          "whoCanMedia": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/GroupWho"
+              }
+            ]
+          },
+          "whoCanPoll": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/GroupWho"
+              }
+            ]
+          },
+          "whoCanPin": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/GroupWho"
+              }
+            ]
+          },
+          "myRights": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "info",
+                "delete",
+                "ban",
+                "invite",
+                "pin",
+                "calls",
+                "admins"
+              ]
+            },
+            "description": "What I may do as owner / admin (empty for a member)."
+          },
           "showServiceMessages": {
             "type": "boolean",
             "description": "Service lines (joined, left, renamed…) are shown to everyone."
@@ -150718,6 +150862,10 @@
           "whoCanAdd",
           "whoCanEditInfo",
           "whoCanCall",
+          "whoCanMedia",
+          "whoCanPoll",
+          "whoCanPin",
+          "myRights",
           "showServiceMessages",
           "canPost",
           "canAdd",
@@ -150785,6 +150933,22 @@
               }
             ]
           },
+          "rights": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "info",
+                "delete",
+                "ban",
+                "invite",
+                "pin",
+                "calls",
+                "admins"
+              ]
+            },
+            "description": "An admin's checkboxes (owner: all, member: none)."
+          },
           "joinedAt": {
             "format": "date-time",
             "type": "string"
@@ -150795,6 +150959,7 @@
           "kind",
           "verifiedBadge",
           "role",
+          "rights",
           "joinedAt"
         ]
       },
@@ -150888,6 +151053,43 @@
                 "$ref": "#/components/schemas/GroupWho"
               }
             ]
+          },
+          "whoCanMedia": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/GroupWho"
+              }
+            ]
+          },
+          "whoCanPoll": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/GroupWho"
+              }
+            ]
+          },
+          "whoCanPin": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/GroupWho"
+              }
+            ]
+          },
+          "myRights": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "info",
+                "delete",
+                "ban",
+                "invite",
+                "pin",
+                "calls",
+                "admins"
+              ]
+            },
+            "description": "What I may do as owner / admin (empty for a member)."
           },
           "showServiceMessages": {
             "type": "boolean",
@@ -150991,6 +151193,10 @@
           "whoCanAdd",
           "whoCanEditInfo",
           "whoCanCall",
+          "whoCanMedia",
+          "whoCanPoll",
+          "whoCanPin",
+          "myRights",
           "showServiceMessages",
           "canPost",
           "canAdd",
@@ -151255,6 +151461,30 @@
             "type": "string",
             "description": "Admins only."
           },
+          "whoCanMedia": {
+            "enum": [
+              "admins",
+              "all"
+            ],
+            "type": "string",
+            "description": "Admins only."
+          },
+          "whoCanPoll": {
+            "enum": [
+              "admins",
+              "all"
+            ],
+            "type": "string",
+            "description": "Admins only."
+          },
+          "whoCanPin": {
+            "enum": [
+              "admins",
+              "all"
+            ],
+            "type": "string",
+            "description": "Admins only."
+          },
           "showServiceMessages": {
             "type": "boolean",
             "description": "Admins only: show service lines (created, joined, left, renamed…) to everyone."
@@ -151313,10 +151543,38 @@
               "member"
             ],
             "type": "string"
+          },
+          "rights": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "info",
+                "delete",
+                "ban",
+                "invite",
+                "pin",
+                "calls",
+                "admins"
+              ]
+            },
+            "description": "Admin checkboxes (role admin); default = the usual six."
           }
         },
         "required": [
           "role"
+        ]
+      },
+      "TransferGroupDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "userId"
         ]
       },
       "GroupMessageListEnvelope": {

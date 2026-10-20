@@ -22,6 +22,7 @@ class GroupComposer extends ConsumerStatefulWidget {
     required this.onSend,
     required this.onSaveEdit,
     required this.onAttach,
+    this.canAttach = true,
     this.replyTo,
     this.editing,
     this.onCancelReply,
@@ -41,6 +42,9 @@ class GroupComposer extends ConsumerStatefulWidget {
   /// The new text of the message being edited.
   final void Function(String text) onSaveEdit;
   final VoidCallback onAttach;
+
+  /// False hides «+» (no media and no polls for me in this group).
+  final bool canAttach;
   final api.GroupMessageDto? replyTo;
   final api.GroupMessageDto? editing;
   final VoidCallback? onCancelReply;
@@ -327,7 +331,7 @@ class _GroupComposerState extends ConsumerState<GroupComposer> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    if (editing == null)
+                    if (editing == null && widget.canAttach)
                       AppIconButton(
                         icon: AppIcon(
                           AppIcons.addRounded,

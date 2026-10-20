@@ -5,6 +5,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/text/bidi.dart';
+import 'package:lawbid/features/groups/domain/group_message_ext.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_info_section.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_info_sheets.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
@@ -152,6 +153,54 @@ class GroupInfoSettings extends ConsumerWidget {
                 ),
               ),
             ),
+            AppListRow(
+              dense: true,
+              key: const ValueKey('group-set-media'),
+              icon: AppIcons.photoLibraryOutlined,
+              label: t.t('group.info.settings.whoMedia'),
+              subtitle: _who(t, detail.whoCanMedia),
+              onTap: () => _pickWho(
+                context,
+                t,
+                title: t.t('group.info.settings.whoMedia'),
+                current: detail.whoCanMedia,
+                build: (w) => api.UpdateGroupDto(
+                  whoCanMedia: api.UpdateGroupDtoWhoCanMedia.fromJson(w.name),
+                ),
+              ),
+            ),
+            AppListRow(
+              dense: true,
+              key: const ValueKey('group-set-poll'),
+              icon: AppIcons.factCheckOutlined,
+              label: t.t('group.info.settings.whoPoll'),
+              subtitle: _who(t, detail.whoCanPoll),
+              onTap: () => _pickWho(
+                context,
+                t,
+                title: t.t('group.info.settings.whoPoll'),
+                current: detail.whoCanPoll,
+                build: (w) => api.UpdateGroupDto(
+                  whoCanPoll: api.UpdateGroupDtoWhoCanPoll.fromJson(w.name),
+                ),
+              ),
+            ),
+            AppListRow(
+              dense: true,
+              key: const ValueKey('group-set-pin'),
+              icon: AppIcons.pushPinOutlined,
+              label: t.t('group.right.pin'),
+              subtitle: _who(t, detail.whoCanPin),
+              onTap: () => _pickWho(
+                context,
+                t,
+                title: t.t('group.right.pin'),
+                current: detail.whoCanPin,
+                build: (w) => api.UpdateGroupDto(
+                  whoCanPin: api.UpdateGroupDtoWhoCanPin.fromJson(w.name),
+                ),
+              ),
+            ),
           ],
         ),
         GroupInfoSection(
@@ -182,7 +231,7 @@ class GroupInfoSettings extends ConsumerWidget {
                 value: detail.joinApproval,
                 onChanged: (v) => _run(api.UpdateGroupDto(joinApproval: v)),
               ),
-            if (hasLink)
+            if (hasLink && detail.hasRight('invite'))
               GroupInfoSwitchRow(
                 key: const ValueKey('group-set-invite'),
                 icon: AppIcons.linkRounded,

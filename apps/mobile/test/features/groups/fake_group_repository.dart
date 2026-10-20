@@ -136,6 +136,7 @@ final people = [
 api.GroupMemberDto member(api.GroupPersonDto p, api.GroupRole role) =>
     api.GroupMemberDto(
       userId: p.userId,
+      rights: const [],
       displayName: p.displayName,
       username: p.username,
       kind: p.kind == api.GroupPersonDtoKind.attorney
@@ -338,6 +339,15 @@ api.GroupDetailDto groupDetail({
     whoCanEditInfo: api.GroupWho.admins,
     whoCanCall: api.GroupWho.all,
     showServiceMessages: true,
+    whoCanMedia: api.GroupWho.all,
+    whoCanPoll: api.GroupWho.all,
+    whoCanPin: api.GroupWho.admins,
+    myRights: owner
+        ? [
+            for (final r in api.GroupDetailDtoMyRights.values)
+              if (r.json != null) r,
+          ]
+        : const [],
     canPost: canPost,
     canAdd: owner,
     canEditInfo: owner,
@@ -450,6 +460,10 @@ api.GroupDto listGroup(
       whoCanEditInfo: api.GroupWho.admins,
       whoCanCall: api.GroupWho.all,
       showServiceMessages: true,
+      whoCanMedia: api.GroupWho.all,
+      whoCanPoll: api.GroupWho.all,
+      whoCanPin: api.GroupWho.admins,
+      myRights: const [],
       canPost: true,
       canAdd: true,
       canEditInfo: false,
