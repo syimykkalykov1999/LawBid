@@ -219,6 +219,7 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
   _BidsSection _section = _BidsSection.active;
   _BidKind _kind = _BidKind.waiting;
   bool _saved = false;
+  _SavedKind _savedKind = _SavedKind.cases;
   MineSearch _search = const MineSearch();
   final _chrome = FeedChromeController(revealOnUp: true);
 
@@ -255,7 +256,10 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
       onChanged: (v) => setState(() => _search = v),
       action: saved,
       hintKey: _saved
-          ? 'mine.search.saved'
+          // Owner 2026-10-20: the saved chats have their own caption.
+          ? (_savedKind == _SavedKind.chats
+              ? 'saved.search'
+              : 'mine.search.saved')
           : _section == _BidsSection.active
               ? 'mine.search.hint'
               : 'mine.search.bids',
@@ -293,6 +297,8 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
             key: const ValueKey('saved'),
             search: _search,
             searchBar: const SizedBox.shrink(),
+            kind: _savedKind,
+            onKind: (v) => setState(() => _savedKind = v),
           )
         : switch (_section) {
             // The cases in work.
@@ -475,8 +481,13 @@ class _AttorneySaved extends ConsumerStatefulWidget {
   const _AttorneySaved({
     required this.search,
     required this.searchBar,
+    required this.kind,
+    required this.onKind,
     super.key,
   });
+
+  final _SavedKind kind;
+  final ValueChanged<_SavedKind> onKind;
 
   final MineSearch search;
   final Widget searchBar;
@@ -486,7 +497,7 @@ class _AttorneySaved extends ConsumerStatefulWidget {
 }
 
 class _AttorneySavedState extends ConsumerState<_AttorneySaved> {
-  _SavedKind _kind = _SavedKind.cases;
+  _SavedKind get _kind => widget.kind;
 
   @override
   Widget build(BuildContext context) {
@@ -503,7 +514,7 @@ class _AttorneySavedState extends ConsumerState<_AttorneySaved> {
             // Owner 2026-10-20: messages, files and links kept from chats.
             (_SavedKind.chats, t.t('inbox.tab.chats')),
           ],
-          onChanged: (v) => setState(() => _kind = v),
+          onChanged: widget.onKind,
         ),
         const SizedBox(height: AppSpacing.sm),
         // Owner 2026-10-19 (Instagram): cases and posts slide side by side.
@@ -511,11 +522,11 @@ class _AttorneySavedState extends ConsumerState<_AttorneySaved> {
           child: SwipePages<_SavedKind>(
             value: _kind,
             values: _SavedKind.values,
-            onChanged: (v) => setState(() => _kind = v),
+            onChanged: widget.onKind,
             pageBuilder: (_, kind) => switch (kind) {
               _SavedKind.cases => _SavedGrid(search: widget.search),
               _SavedKind.posts => const SavedPostsList(),
-              _SavedKind.chats => const SavedChatsView(),
+              _SavedKind.chats => SavedChatsView(query: widget.search.q),
             },
           ),
         ),

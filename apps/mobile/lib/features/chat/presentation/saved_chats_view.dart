@@ -24,7 +24,11 @@ final _url = RegExp(r'https?://[^\s<>"]+', caseSensitive: false);
 /// voice notes the person kept (long press → Save), searchable, with tabs
 /// All / Media / Files / Links. The same list serves both profiles.
 class SavedChatsView extends ConsumerStatefulWidget {
-  const SavedChatsView({super.key});
+  const SavedChatsView({super.key, this.query});
+
+  /// Set: the screen's own search field drives the list and this view draws
+  /// none. Null: this view has its own field.
+  final String? query;
 
   @override
   ConsumerState<SavedChatsView> createState() => _SavedChatsViewState();
@@ -60,27 +64,29 @@ class _SavedChatsViewState extends ConsumerState<SavedChatsView> {
   @override
   Widget build(BuildContext context) {
     final t = ref.watch(translatorProvider);
-    final key = (tab: _tab, query: _q);
+    final q = widget.query?.trim() ?? _q;
+    final key = (tab: _tab, query: q);
     final value = ref.watch(savedChatListProvider(key));
     final n = ref.read(savedChatListProvider(key).notifier);
     return Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.screenSide,
-            AppSpacing.sm,
-            AppSpacing.screenSide,
-            AppSpacing.sm,
+        if (widget.query == null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.screenSide,
+              AppSpacing.sm,
+              AppSpacing.screenSide,
+              AppSpacing.sm,
+            ),
+            child: AppTextField(
+              controller: _search,
+              leading: const AppIcon(AppIcons.searchRounded),
+              hintText: t.t('saved.search'),
+              semanticLabel: t.t('saved.search'),
+              textInputAction: TextInputAction.search,
+              onChanged: _changed,
+            ),
           ),
-          child: AppTextField(
-            controller: _search,
-            leading: const AppIcon(AppIcons.searchRounded),
-            hintText: t.t('common.search'),
-            semanticLabel: t.t('common.search'),
-            textInputAction: TextInputAction.search,
-            onChanged: _changed,
-          ),
-        ),
         FilterChips<SavedChatTab>(
           value: _tab,
           options: [
@@ -100,7 +106,8 @@ class _SavedChatsViewState extends ConsumerState<SavedChatsView> {
             skeleton: const Center(child: CircularProgressIndicator()),
             empty: AppEmptyState(
               icon: AppIcons.bookmarkOutlineRounded,
-              message: t.t(_q.isEmpty ? 'saved.empty' : 'search.empty.title'),
+              message:
+                  t.t(q.isEmpty ? 'saved.chats.empty' : 'search.empty.title'),
             ),
             itemBuilder: (context, e, _) => _SavedTile(entry: e),
           ),
