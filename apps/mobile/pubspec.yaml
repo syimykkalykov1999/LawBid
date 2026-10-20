@@ -121,6 +121,7 @@ dependencies:
   audio_session: ^0.2.4
   video_compress: ^3.1.4
   device_info_plus: ^12.4.0
+  phone_numbers_parser: ^9.0.28
   # Owner 2026-10-20 (WeChat-style QR): `qr` draws our own QR cards (pure
   # Dart, no plugin); `mobile_scanner` reads codes from the camera and from
   # a gallery picture (compileSdk 36, AGP 9 aware); `gal` saves the QR card

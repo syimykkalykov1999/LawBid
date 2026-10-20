@@ -9,10 +9,8 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/core/session/session_state.dart';
 import 'package:lawbid/features/auth/application/qr_login_providers.dart';
-import 'package:lawbid/features/auth/data/qr_login_repository.dart';
 import 'package:lawbid/features/auth/presentation/screens/web_qr_login_screen.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
-import 'package:lawbid/features/onboarding/domain/current_user.dart';
 import 'package:lawbid/features/qr/presentation/my_qr_screen.dart';
 import 'package:lawbid/features/qr/presentation/qr_scanner_screen.dart';
 import 'package:lawbid/features/qr/presentation/web_login_link_screen.dart';
@@ -82,7 +80,7 @@ void main() {
       group('QR screens: no overflow at 360 dp ($name, text x$scale)', () {
         Future<void> pump(WidgetTester tester, Widget home) async {
           useNarrowPhone(tester);
-          final List<Override> overrides = [
+          final overrides = <Override>[
             ...uxOverrides(translator: t),
             qrLoginRepositoryProvider.overrideWithValue(_FakeQr()),
             sessionControllerProvider.overrideWith(_Session.new),
