@@ -807,7 +807,6 @@ class _DownButton extends StatelessWidget {
                       style: type.caption.copyWith(
                         color: colors.navy,
                         fontWeight: FontWeight.w700,
-                        fontSize: 11,
                       ),
                     ),
                   ),

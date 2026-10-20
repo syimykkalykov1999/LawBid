@@ -125,7 +125,6 @@ class _TopicRow extends ConsumerWidget {
     final badgeStyle = type.caption.copyWith(
       color: colors.navy,
       fontWeight: FontWeight.w700,
-      fontSize: 11,
     );
 
     return Semantics(
@@ -164,7 +163,10 @@ class _TopicRow extends ConsumerWidget {
                     color: groupTopicColor(topic.color),
                   ),
                   child: emoji != null && emoji.isNotEmpty
-                      ? Text(emoji, style: const TextStyle(fontSize: 22))
+                      ? Text(
+                          emoji,
+                          style: Theme.of(context).textTheme.titleLarge,
+                        )
                       : const AppIcon(
                           AppIcons.tagRounded,
                           color: Colors.white,

@@ -198,8 +198,10 @@ class _TopicEditorState extends ConsumerState<_TopicEditor> {
                                     : colors.border,
                               ),
                             ),
-                            child:
-                                Text(e, style: const TextStyle(fontSize: 20)),
+                            child: Text(
+                              e,
+                              style: Theme.of(context).textTheme.titleLarge,
+                            ),
                           ),
                         ),
                       ),

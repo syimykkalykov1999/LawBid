@@ -116,7 +116,7 @@ class GroupMessageBubble extends ConsumerWidget {
         : f.time(m.createdAt);
     final metaRow = Text(
       timeText,
-      style: type.caption.copyWith(color: meta, fontSize: 11),
+      style: type.caption.copyWith(color: meta),
     );
 
     Widget body() {
@@ -183,8 +183,8 @@ class GroupMessageBubble extends ConsumerWidget {
                   ),
                   child: Text(
                     timeText,
-                    style: type.caption
-                        .copyWith(color: ChatColors.onMediaScrim, fontSize: 11),
+                    style:
+                        type.caption.copyWith(color: ChatColors.onMediaScrim),
                   ),
                 ),
               ),
