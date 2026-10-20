@@ -459,7 +459,9 @@ export class UserProfilesService {
     reserved?: ReadonlySet<string>,
   ): Promise<string> {
     const lower = username.toLowerCase();
-    if ((reserved ?? (await this.usernames.reserved())).has(lower)) {
+    if (
+      reserved ? reserved.has(lower) : await this.usernames.isReserved(lower)
+    ) {
       throw new HttpException(
         {
           code: ErrorCode.USERNAME_RESERVED,
@@ -469,7 +471,10 @@ export class UserProfilesService {
         HttpStatus.BAD_REQUEST,
       );
     }
-    if (await this.usernames.isTaken(tx, lower, userId)) {
+    if (
+      (await this.usernames.isTaken(tx, lower, userId)) ||
+      (await this.usernames.blocker(tx, lower, userId))
+    ) {
       throw new HttpException(
         {
           code: ErrorCode.USERNAME_TAKEN,

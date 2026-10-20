@@ -1,3 +1,4 @@
+import { UsernamePolicyService } from '../usernames/username-policy.service';
 import { GroupAddPolicy } from './group-add-policy';
 import {
   BadRequestException,
@@ -121,6 +122,7 @@ export class GroupsService {
     private readonly blocks: BlocksService,
     private readonly presenter: GroupPresenter,
     private readonly addPolicy: GroupAddPolicy,
+    private readonly usernames: UsernamePolicyService,
   ) {}
 
   // ------------------------------------------------------------ membership
@@ -325,6 +327,17 @@ export class GroupsService {
         details: { field: 'username' },
       });
     }
+    // Owner 2026-10-20: one @username namespace — people, channels, groups.
+    const handle =
+      type === 'public'
+        ? await this.usernames.assertAvailable(
+            dto.username!,
+            'group',
+            { userId: user.sub },
+            ErrorCode.GROUP_USERNAME_TAKEN,
+            { title: dto.title },
+          )
+        : null;
     const others = await this.addableIds(user.sub, dto.memberIds);
     if (others.length === 0 && type === 'private') {
       throw new BadRequestException({
@@ -338,9 +351,8 @@ export class GroupsService {
       const g = await tx.chatGroup.create({
         data: {
           group_type: type,
-          username: type === 'public' ? dto.username : null,
-          username_lower:
-            type === 'public' ? dto.username!.toLowerCase() : null,
+          username: type === 'public' ? dto.username!.replace(/^@/, '') : null,
+          username_lower: handle,
           join_approval: type === 'closed' && !!dto.joinApproval,
           invite_enabled: type !== 'private',
           title,
@@ -481,8 +493,30 @@ export class GroupsService {
       }
     }
     if (newType === 'public') {
-      data.username = newUsername;
-      data.username_lower = newUsername!.toLowerCase();
+      const handle = newUsername!.replace(/^@/, '');
+      if (handle.toLowerCase() !== g0.username_lower) {
+        // Owner 2026-10-20: once per N days, and the same namespace rules.
+        const wait = g0.username_lower
+          ? await this.usernames.nextChangeAt(g0.username_changed_at)
+          : null;
+        if (wait) {
+          throw new ConflictException({
+            code: ErrorCode.USERNAME_CHANGE_TOO_SOON,
+            message: 'The @username was changed recently.',
+            details: { nextChangeAt: wait.toISOString() },
+          });
+        }
+        await this.usernames.assertAvailable(
+          handle,
+          'group',
+          { userId: user.sub, owner: { type: 'group', id } },
+          ErrorCode.GROUP_USERNAME_TAKEN,
+          { title: dto.title ?? g0.title },
+        );
+        data.username_changed_at = new Date();
+      }
+      data.username = handle;
+      data.username_lower = handle.toLowerCase();
     } else {
       data.username = null;
       data.username_lower = null;

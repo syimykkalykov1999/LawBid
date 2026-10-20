@@ -21,7 +21,7 @@ class CreateChannelDto {
 
   final String title;
 
-  /// 4–32 letters, digits or _, starting with a letter.
+  /// 5–32 letters, digits or _, starting with a letter, no «__», not ending with _.
   final String username;
   final String? description;
   final String? avatarFileId;

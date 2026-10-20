@@ -23,6 +23,7 @@ import { ModerationModule } from './modules/moderation/moderation.module';
 import { PostsModule } from './modules/posts/posts.module';
 import { StickersModule } from './modules/stickers/stickers.module';
 import { StoriesModule } from './modules/stories/stories.module';
+import { UsernamesModule } from './modules/usernames/usernames.module';
 import { ChannelsModule } from './modules/channels/channels.module';
 import { FeedModule } from './modules/feed/feed.module';
 import { CommentsModule } from './modules/comments/comments.module';
@@ -268,6 +269,7 @@ const isDev =
     StickersModule,
     StoriesModule,
     ChannelsModule,
+    UsernamesModule,
     FeedModule,
     CommentsModule,
     CaseCommentsModule,

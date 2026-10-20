@@ -143,7 +143,7 @@ describe('Channels (e2e)', () => {
     const id = made.body.data.id as string;
 
     expect((await mkChannel(owner, { username: name })).status).toBe(409);
-    expect((await mkChannel(owner, { username: 'lawbid' })).status).toBe(409);
+    expect((await mkChannel(owner, { username: 'lawbid' })).status).toBe(400);
     expect((await mkChannel(owner, { username: 'a' })).status).toBe(400);
     expect((await mkChannel(reader)).status).toBe(403);
 

@@ -1,3 +1,4 @@
+import { UsernamesModule } from '../usernames/usernames.module';
 import { GroupAddPolicy } from './group-add-policy';
 import { Module } from '@nestjs/common';
 import { AdminAccessModule } from '../admin-access/admin-access.module';
@@ -20,6 +21,7 @@ import { GroupsService } from './groups.service';
     FilesModule,
     NotificationsModule,
     PrivacySettingsModule,
+    UsernamesModule,
   ],
   controllers: [GroupsController, AdminGroupsController],
   providers: [

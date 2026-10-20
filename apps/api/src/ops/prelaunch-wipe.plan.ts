@@ -185,6 +185,8 @@ export const WIPE_TABLES: Readonly<Record<string, string>> = {
   story_views: 'story views',
   story_hidden: 'who stories are hidden from',
   story_settings: 'story privacy settings',
+  usernames: 'one-namespace username registry (rebuilt from owners)',
+  username_holds: 'released-username holds',
   channels: 'channels',
   channel_admins: 'channel admins',
   channel_subscriptions: 'channel subscribers',

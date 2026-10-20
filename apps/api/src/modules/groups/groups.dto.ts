@@ -37,7 +37,10 @@ export type GroupWhoName = (typeof GROUP_WHO)[number];
  * private: added by people only. */
 export const GROUP_TYPES = ['public', 'closed', 'private'] as const;
 export type GroupTypeName = (typeof GROUP_TYPES)[number];
-export const GROUP_USERNAME_RE = /^[A-Za-z][A-Za-z0-9_]{4,31}$/;
+// Owner 2026-10-20 (Telegram): 5–32, a–z 0–9 _, a letter first, no «__»,
+// no «_» last.
+export const GROUP_USERNAME_RE =
+  /^(?=.{5,32}$)[A-Za-z](?:[A-Za-z0-9]|_(?!_|$))*$/;
 export const TOPIC_TITLE_MAX = 64;
 export const TOPIC_COLORS = 7;
 export const GROUP_ROLES = ['owner', 'admin', 'member'] as const;

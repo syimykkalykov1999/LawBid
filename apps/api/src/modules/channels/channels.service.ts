@@ -40,21 +40,12 @@ import type {
   UpdateChannelDto,
 } from './channels.dto';
 import { CHANNEL_REACTIONS } from './channels.dto';
+import { UsernamePolicyService } from '../usernames/username-policy.service';
 
 export const CHANNELS_FLAG = 'channels';
 const PAGE = 20;
 const LIST_MAX = 100;
 const FANOUT_BATCH = 200;
-const RESERVED = new Set([
-  'lawbid',
-  'admin',
-  'support',
-  'official',
-  'help',
-  'legal',
-  'news',
-  'api',
-]);
 
 export interface ChannelPage<T> {
   items: T[];
@@ -95,6 +86,7 @@ export class ChannelsService {
     private readonly flags: FeatureFlagsService,
     private readonly briefs: UserBriefService,
     private readonly notifications: NotificationsService,
+    private readonly usernames: UsernamePolicyService,
   ) {}
 
   async assertEnabled(): Promise<void> {
@@ -173,7 +165,13 @@ export class ChannelsService {
     await this.assertEnabled();
     const me = user.sub;
     await this.assertVerifiedAttorney(me);
-    if (RESERVED.has(dto.username)) throw usernameTaken();
+    const handle = await this.usernames.assertAvailable(
+      dto.username,
+      'channel',
+      { userId: me },
+      ErrorCode.CHANNEL_USERNAME_TAKEN,
+      { title: dto.title },
+    );
     const max = await this.settings.number('channels.max_owned');
     const owned = await this.prisma.channel.count({ where: { owner_id: me } });
     if (owned >= max) {
@@ -192,7 +190,7 @@ export class ChannelsService {
         data: {
           owner_id: me,
           title: dto.title,
-          username: dto.username,
+          username: handle,
           description: dto.description || null,
           avatar_file_id: dto.avatarFileId ?? null,
           comments_enabled: dto.commentsEnabled ?? true,
@@ -228,8 +226,24 @@ export class ChannelsService {
     if (dto.username !== undefined && dto.username !== channel.username) {
       if (role !== 'owner')
         throw forbidden('Only the owner renames @username.');
-      if (RESERVED.has(dto.username)) throw usernameTaken();
-      data.username = dto.username;
+      const wait = await this.usernames.nextChangeAt(
+        channel.username_changed_at,
+      );
+      if (wait) {
+        throw new ConflictException({
+          code: ErrorCode.USERNAME_CHANGE_TOO_SOON,
+          message: 'The @username was changed recently.',
+          details: { nextChangeAt: wait.toISOString() },
+        });
+      }
+      data.username = await this.usernames.assertAvailable(
+        dto.username,
+        'channel',
+        { userId: user.sub, owner: { type: 'channel', id } },
+        ErrorCode.CHANNEL_USERNAME_TAKEN,
+        { title: dto.title ?? channel.title },
+      );
+      data.username_changed_at = new Date();
     }
     if (dto.avatarFileId) {
       await this.files.assertAttachable(user.sub, dto.avatarFileId, ['avatar']);

@@ -1,3 +1,4 @@
+import { UsernamePolicyService } from '../../usernames/username-policy.service';
 import { AttorneyStatsDto } from '../dto/attorney-stats.dto';
 import {
   HttpException,
@@ -90,6 +91,7 @@ export class AttorneyProfilesService {
     // Owner 2026-10-20: who sees my photo and "about".
     @Optional() private readonly privacy?: PrivacySettingsService,
     @Optional() private readonly consultations?: ConsultationsService,
+    private readonly policy: UsernamePolicyService = undefined as never,
   ) {}
 
   async getOwn(
@@ -168,11 +170,9 @@ export class AttorneyProfilesService {
     now = new Date(),
   ): Promise<OwnAttorneyProfileDto> {
     await requireOwnAttorney(this.prisma, userId);
-    const [cooldownDays, reservedList] = await Promise.all([
-      this.settings.number('profile.username_change_cooldown_days'),
-      this.settings.stringList('profile.reserved_usernames'),
-    ]);
-    const reserved = new Set(reservedList.map((r) => r.toLowerCase()));
+    const cooldownDays = await this.settings.number(
+      'profile.username_change_cooldown_days',
+    );
 
     try {
       await withTxRetry(this.prisma, async (tx) => {
@@ -212,7 +212,7 @@ export class AttorneyProfilesService {
               { nextChangeAt: next.toISOString(), cooldownDays },
             );
           }
-          if (reserved.has(lower)) {
+          if (await this.usernames.isReserved(lower)) {
             throw usernameError(
               ErrorCode.USERNAME_RESERVED,
               HttpStatus.BAD_REQUEST,
@@ -223,6 +223,14 @@ export class AttorneyProfilesService {
           if (
             lower !== current.username_lower &&
             (await this.usernames.isTaken(tx, lower, userId))
+          ) {
+            throw usernameTaken();
+          }
+          // Owner 2026-10-20: freed lately by someone else, or reads like a
+          // known handle.
+          if (
+            lower !== current.username_lower &&
+            (await this.usernames.blocker(tx, lower, userId))
           ) {
             throw usernameTaken();
           }
@@ -450,38 +458,28 @@ export class AttorneyProfilesService {
     return { answers, best };
   }
 
-  /** GET /attorneys/username-available?u= — format, reserved list and
-   * case-insensitive uniqueness. The caller's own current username is
-   * reported available. Reveals nothing but "is this handle free". */
+  /** GET /attorneys/username-available?u= — the shared @username verdict
+   * (format, reserved and brand look-alikes, one namespace with clients,
+   * channels and groups, held, look-alikes). The caller's own current
+   * username is reported available. Reveals nothing but "is this handle
+   * free". */
   async availability(
     username: string,
     viewerId: string,
     name: { first?: string; last?: string } = {},
   ): Promise<UsernameAvailabilityDto> {
-    const result = async (
-      reason: UsernameAvailabilityDto['reason'],
-    ): Promise<UsernameAvailabilityDto> => ({
+    const verdict = await this.policy.check(
       username,
-      available: reason === null,
-      reason,
-      // Owner 2026-10-18 («как в инсте»): free handles to tap instead.
-      suggestions:
-        reason === null
-          ? []
-          : await this.suggestions(viewerId, { ...name, typed: username }),
-    });
-    if (!isValidUsername(username)) return result('invalid');
-    const lower = username.toLowerCase();
-    const reserved = await this.settings.stringList(
-      'profile.reserved_usernames',
+      'user',
+      { userId: viewerId },
+      { firstName: name.first, lastName: name.last },
     );
-    if (reserved.some((r) => r.toLowerCase() === lower)) {
-      return result('reserved');
-    }
-    // OQ-026: taken by anyone of either role (the caller's own handle is
-    // reported available).
-    const taken = await this.usernames.isTaken(this.prisma, lower, viewerId);
-    return result(taken ? 'taken' : null);
+    return {
+      username,
+      available: verdict.available,
+      reason: verdict.reason,
+      suggestions: verdict.suggestions,
+    };
   }
 
   /** GET /attorneys/username-suggestions — up to 5 free handles from the

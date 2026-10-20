@@ -151,6 +151,8 @@ export const USERNAME_UNAVAILABLE_REASONS = [
   'invalid',
   'reserved',
   'taken',
+  'held',
+  'similar',
 ] as const;
 export type UsernameUnavailableReason =
   (typeof USERNAME_UNAVAILABLE_REASONS)[number];

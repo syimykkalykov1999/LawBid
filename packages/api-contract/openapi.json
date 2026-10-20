@@ -26840,6 +26840,124 @@
         ]
       }
     },
+    "/usernames/check": {
+      "get": {
+        "operationId": "check",
+        "parameters": [
+          {
+            "name": "u",
+            "required": true,
+            "in": "query",
+            "description": "The handle as typed, with or without @.",
+            "schema": {
+              "minLength": 1,
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/UsernameKind"
+            }
+          },
+          {
+            "name": "title",
+            "required": false,
+            "in": "query",
+            "description": "The title typed on the form (ideas for suggestions).",
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": false,
+            "in": "query",
+            "description": "The channel or group being renamed: its own handle is available.",
+            "schema": {
+              "maxLength": 36,
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsernameCheckEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Rate-limited: an enumeration aid otherwise.",
+        "tags": [
+          "usernames"
+        ]
+      }
+    },
     "/admin/analytics": {
       "get": {
         "operationId": "getAnalytics",
@@ -118296,7 +118414,9 @@
         "enum": [
           "invalid",
           "reserved",
-          "taken"
+          "taken",
+          "held",
+          "similar"
         ],
         "description": "Why it is not available; null when available."
       },
@@ -119944,6 +120064,73 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/DeletionPendingDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "UsernameCheckReason": {
+        "type": "string",
+        "enum": [
+          "invalid",
+          "reserved",
+          "taken",
+          "held",
+          "similar"
+        ],
+        "description": "invalid · reserved · taken · held (freed lately, waits for its old owner) · similar (reads like another handle); null when free."
+      },
+      "UsernameCheckDto": {
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string",
+            "description": "Normalized: lower case, no @."
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "reason": {
+            "nullable": true,
+            "description": "invalid · reserved · taken · held (freed lately, waits for its old owner) · similar (reads like another handle); null when free.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/UsernameCheckReason"
+              }
+            ]
+          },
+          "suggestions": {
+            "description": "3–5 free handles to offer; empty when available.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "username",
+          "available",
+          "reason",
+          "suggestions"
+        ]
+      },
+      "UsernameKind": {
+        "type": "string",
+        "enum": [
+          "user",
+          "channel",
+          "group"
+        ]
+      },
+      "UsernameCheckEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/UsernameCheckDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"
@@ -136386,8 +136573,8 @@
           },
           "username": {
             "type": "string",
-            "description": "4–32 letters, digits or _, starting with a letter.",
-            "pattern": "^@?[A-Za-z][A-Za-z0-9_]{3,31}$"
+            "description": "5–32 letters, digits or _, starting with a letter, no «__», not ending with _.",
+            "pattern": "^@?[A-Za-z][A-Za-z0-9_]{4,31}$"
           },
           "description": {
             "type": "string",
@@ -136431,7 +136618,7 @@
           "username": {
             "type": "string",
             "description": "Owner only.",
-            "pattern": "^@?[A-Za-z][A-Za-z0-9_]{3,31}$"
+            "pattern": "^@?[A-Za-z][A-Za-z0-9_]{4,31}$"
           },
           "description": {
             "type": "string",

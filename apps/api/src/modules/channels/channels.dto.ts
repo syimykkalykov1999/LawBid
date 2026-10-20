@@ -31,7 +31,9 @@ export const CHANNEL_TITLE_MAX = 64;
 export const CHANNEL_DESCRIPTION_MAX = 255;
 export const CHANNEL_POST_MAX = 4000;
 export const CHANNEL_COMMENT_MAX = 1000;
-export const CHANNEL_USERNAME_RE = /^[a-z][a-z0-9_]{3,31}$/;
+// Owner 2026-10-20 (Telegram): 5–32, a–z 0–9 _, a letter first, no «__»,
+// no «_» last.
+export const CHANNEL_USERNAME_RE = /^(?=.{5,32}$)[a-z](?:[a-z0-9]|_(?!_|$))*$/;
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
@@ -119,8 +121,9 @@ export class CreateChannelDto {
   title!: string;
 
   @ApiProperty({
-    description: '4–32 letters, digits or _, starting with a letter.',
-    pattern: '^@?[A-Za-z][A-Za-z0-9_]{3,31}$',
+    description:
+      '5–32 letters, digits or _, starting with a letter, no «__», not ending with _.',
+    pattern: '^@?[A-Za-z][A-Za-z0-9_]{4,31}$',
   })
   @Transform(lowerUsername)
   @IsString()
@@ -155,7 +158,7 @@ export class UpdateChannelDto {
   title?: string;
 
   /** Owner only. */
-  @ApiPropertyOptional({ pattern: '^@?[A-Za-z][A-Za-z0-9_]{3,31}$' })
+  @ApiPropertyOptional({ pattern: '^@?[A-Za-z][A-Za-z0-9_]{4,31}$' })
   @IsOptional()
   @Transform(lowerUsername)
   @IsString()

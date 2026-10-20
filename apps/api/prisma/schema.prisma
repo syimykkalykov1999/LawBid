@@ -2617,46 +2617,48 @@ enum GroupMessageType {
 }
 
 model ChatGroup {
-  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  title             String    @db.VarChar(80)
-  description       String?   @db.VarChar(500)
-  avatar_file_id    String?   @db.Uuid
-  avatar_file       File?     @relation("ChatGroupAvatar", fields: [avatar_file_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  created_by        String    @db.Uuid
-  creator           User      @relation("ChatGroupCreator", fields: [created_by], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  group_type        GroupType @default(private)
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title                 String    @db.VarChar(80)
+  description           String?   @db.VarChar(500)
+  avatar_file_id        String?   @db.Uuid
+  avatar_file           File?     @relation("ChatGroupAvatar", fields: [avatar_file_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  created_by            String    @db.Uuid
+  creator               User      @relation("ChatGroupCreator", fields: [created_by], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  group_type            GroupType @default(private)
   /// Public groups only: the @username (case kept) and its lowercase key.
-  username          String?   @db.VarChar(32)
-  username_lower    String?   @unique @db.VarChar(32)
+  username              String?   @db.VarChar(32)
+  username_lower        String?   @unique @db.VarChar(32)
+  /// Owner 2026-10-20: when the @username last changed (the change limit).
+  username_changed_at   DateTime? @db.Timestamptz
   /// closed groups: the invite link makes a request an admin approves.
-  join_approval     Boolean   @default(false)
+  join_approval         Boolean   @default(false)
   /// Forum mode: topics inside the group (Telegram «Темы»).
-  topics_enabled    Boolean   @default(false)
+  topics_enabled        Boolean   @default(false)
   /// The «General» topic (created when topics are switched on).
-  general_topic_id  String?   @db.Uuid
+  general_topic_id      String?   @db.Uuid
   /// Join link (lawbid.dev/g/<code>); reset by an admin.
-  invite_code       String    @unique @db.VarChar(24)
-  invite_enabled    Boolean   @default(false)
+  invite_code           String    @unique @db.VarChar(24)
+  invite_enabled        Boolean   @default(false)
   /// Telegram's «only admins can write» (a channel-like group).
-  who_can_post      GroupWho  @default(all)
-  who_can_add       GroupWho  @default(admins)
-  who_can_edit_info GroupWho  @default(admins)
+  who_can_post          GroupWho  @default(all)
+  who_can_add           GroupWho  @default(admins)
+  who_can_edit_info     GroupWho  @default(admins)
   /// Group calls: who may start one (the calls thread reads this).
-  who_can_call      GroupWho  @default(admins)
+  who_can_call          GroupWho  @default(admins)
   /// Telegram's «hide service messages»: created / joined / left / renamed lines.
-  show_service_messages Boolean @default(true)
+  show_service_messages Boolean   @default(true)
   /// Telegram's member permissions beyond post / add / edit-info / call.
-  who_can_media     GroupWho  @default(all)
-  who_can_poll      GroupWho  @default(all)
-  who_can_pin       GroupWho  @default(admins)
+  who_can_media         GroupWho  @default(all)
+  who_can_poll          GroupWho  @default(all)
+  who_can_pin           GroupWho  @default(admins)
   /// Bare uuid pointers (a FK would make groups <-> messages a cycle).
-  pinned_message_id String?   @db.Uuid
-  last_message_id   String?   @db.Uuid
-  last_message_at   DateTime? @db.Timestamptz
-  member_count      Int       @default(0)
-  deleted_at        DateTime? @db.Timestamptz
-  created_at        DateTime  @default(now()) @db.Timestamptz
-  updated_at        DateTime  @updatedAt @db.Timestamptz
+  pinned_message_id     String?   @db.Uuid
+  last_message_id       String?   @db.Uuid
+  last_message_at       DateTime? @db.Timestamptz
+  member_count          Int       @default(0)
+  deleted_at            DateTime? @db.Timestamptz
+  created_at            DateTime  @default(now()) @db.Timestamptz
+  updated_at            DateTime  @updatedAt @db.Timestamptz
 
   members  ChatGroupMember[]
   messages ChatGroupMessage[]
@@ -5907,29 +5909,31 @@ model StorySetting {
 /// A Telegram-style channel of an attorney or a company: only its admins
 /// post, subscribers read, react and (when on) comment.
 model Channel {
-  id               String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  owner_id         String                @db.Uuid
-  owner            User                  @relation("ChannelOwner", fields: [owner_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "channels_owner_fkey")
-  title            String                @db.VarChar(64)
+  id                  String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  owner_id            String                @db.Uuid
+  owner               User                  @relation("ChannelOwner", fields: [owner_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "channels_owner_fkey")
+  title               String                @db.VarChar(64)
   /// Lowercase @username, 4–32 chars [a-z0-9_]; unique.
-  username         String                @unique @db.VarChar(32)
-  description      String?               @db.VarChar(255)
-  avatar_file_id   String?               @db.Uuid
-  avatar_file      File?                 @relation(fields: [avatar_file_id], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "channels_avatar_fkey")
-  comments_enabled Boolean               @default(true)
+  username            String                @unique @db.VarChar(32)
+  /// Owner 2026-10-20: when the @username last changed (the change limit).
+  username_changed_at DateTime?             @db.Timestamptz
+  description         String?               @db.VarChar(255)
+  avatar_file_id      String?               @db.Uuid
+  avatar_file         File?                 @relation(fields: [avatar_file_id], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "channels_avatar_fkey")
+  comments_enabled    Boolean               @default(true)
   /// 'active' | 'hidden' (moderation: out of search, posts still readable
   /// by subscribers) | 'banned' (closed for everyone but the admin panel).
-  status           String                @default("active") @db.VarChar(10)
-  moderation_note  String?               @db.VarChar(255)
-  subscriber_count Int                   @default(0)
-  post_count       Int                   @default(0)
-  last_post_at     DateTime?             @db.Timestamptz
-  created_at       DateTime              @default(now()) @db.Timestamptz
-  updated_at       DateTime              @default(now()) @updatedAt @db.Timestamptz
-  deleted_at       DateTime?             @db.Timestamptz
-  admins           ChannelAdmin[]
-  subscriptions    ChannelSubscription[]
-  posts            ChannelPost[]
+  status              String                @default("active") @db.VarChar(10)
+  moderation_note     String?               @db.VarChar(255)
+  subscriber_count    Int                   @default(0)
+  post_count          Int                   @default(0)
+  last_post_at        DateTime?             @db.Timestamptz
+  created_at          DateTime              @default(now()) @db.Timestamptz
+  updated_at          DateTime              @default(now()) @updatedAt @db.Timestamptz
+  deleted_at          DateTime?             @db.Timestamptz
+  admins              ChannelAdmin[]
+  subscriptions       ChannelSubscription[]
+  posts               ChannelPost[]
 
   @@index([status, subscriber_count(sort: Desc)], map: "channels_status_subscribers_idx")
   @@index([owner_id], map: "channels_owner_idx")
@@ -5965,24 +5969,24 @@ model ChannelSubscription {
 }
 
 model ChannelPost {
-  id             String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  channel_id     String            @db.Uuid
-  channel        Channel           @relation(fields: [channel_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "channel_posts_channel_fkey")
-  author_id      String            @db.Uuid
-  author         User              @relation("ChannelPostAuthor", fields: [author_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "channel_posts_author_fkey")
-  body           String            @db.VarChar(4000)
+  id             String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  channel_id     String             @db.Uuid
+  channel        Channel            @relation(fields: [channel_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "channel_posts_channel_fkey")
+  author_id      String             @db.Uuid
+  author         User               @relation("ChannelPostAuthor", fields: [author_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "channel_posts_author_fkey")
+  body           String             @db.VarChar(4000)
   /// Clean post_image files of the author, in order (≤ 10).
-  media_file_ids String[]          @default([]) @db.Uuid
-  video_asset_id String?           @unique @db.Uuid
-  video_asset    VideoAsset?       @relation(fields: [video_asset_id], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "channel_posts_video_asset_fkey")
+  media_file_ids String[]           @default([]) @db.Uuid
+  video_asset_id String?            @unique @db.Uuid
+  video_asset    VideoAsset?        @relation(fields: [video_asset_id], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "channel_posts_video_asset_fkey")
   /// 'active' | 'hidden' | 'removed' (moderation).
-  status         String            @default("active") @db.VarChar(10)
-  view_count     Int               @default(0)
-  comment_count  Int               @default(0)
-  share_count    Int               @default(0)
-  created_at     DateTime          @default(now()) @db.Timestamptz
-  edited_at      DateTime?         @db.Timestamptz
-  deleted_at     DateTime?         @db.Timestamptz
+  status         String             @default("active") @db.VarChar(10)
+  view_count     Int                @default(0)
+  comment_count  Int                @default(0)
+  share_count    Int                @default(0)
+  created_at     DateTime           @default(now()) @db.Timestamptz
+  edited_at      DateTime?          @db.Timestamptz
+  deleted_at     DateTime?          @db.Timestamptz
   views          ChannelPostView[]
   shares         ChannelPostShare[]
   reactions      ChannelReaction[]
@@ -6464,4 +6468,32 @@ model CourtHoliday {
   @@unique([jurisdiction, date])
   @@index([date])
   @@map("court_holidays")
+}
+
+/// Owner 2026-10-20: ONE @username namespace for people, channels and groups.
+/// Filled by the database triggers on the four tables that carry a handle;
+/// the unique key makes a handle exist once everywhere. `skeleton` is the
+/// look-alike key (0→o, 1/i→l, no `_` or `.`).
+model Username {
+  username_lower String   @id @db.VarChar(64)
+  /// user | channel | group
+  owner_type     String   @db.VarChar(8)
+  owner_id       String   @db.Uuid
+  skeleton       String   @db.VarChar(64)
+  created_at     DateTime @default(now()) @db.Timestamptz
+
+  @@index([skeleton])
+  @@index([owner_type, owner_id])
+  @@map("usernames")
+}
+
+/// A handle that was changed or freed: only its last holder can take it back
+/// until `profile.username_hold_days` pass.
+model UsernameHold {
+  username_lower String   @id @db.VarChar(64)
+  holder_user_id String   @db.Uuid
+  released_at    DateTime @default(now()) @db.Timestamptz
+
+  @@index([released_at])
+  @@map("username_holds")
 }

@@ -40,6 +40,37 @@ export const FILE_03_SETTINGS = {
     'verifier',
     'www',
   ],
+  // Owner 2026-10-20 (Telegram): a freed @username waits this long for its
+  // old holder; look-alikes of known brands are refused; a handle one
+  // character away from one with at least this many followers / subscribers /
+  // members is refused as a look-alike.
+  'profile.username_hold_days': 30,
+  'profile.username_brand_list': [
+    'telegram',
+    'whatsapp',
+    'instagram',
+    'facebook',
+    'google',
+    'apple',
+    'microsoft',
+    'amazon',
+    'paypal',
+    'stripe',
+    'twitter',
+    'youtube',
+    'tiktok',
+    'linkedin',
+    'uscis',
+    'irs',
+    'fbi',
+    'police',
+    'court',
+    'courts',
+    'justice',
+    'lawyer',
+    'attorney',
+  ],
+  'profile.username_similar_min_audience': 1000,
   'review.edit_window_days': 14,
   'review.reminder_after_days': 7,
   // Voice messages and other files outside «Загрузки и файлы» (bug 17).

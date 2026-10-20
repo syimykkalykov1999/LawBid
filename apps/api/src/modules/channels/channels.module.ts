@@ -1,3 +1,4 @@
+import { UsernamesModule } from '../usernames/usernames.module';
 import { Module } from '@nestjs/common';
 import { UsageLimitsModule } from '../../common/usage-limits/usage-limits.module';
 import { FeatureFlagsModule } from '../feature-flags/feature-flags.module';
@@ -19,6 +20,7 @@ import { ChannelsService } from './channels.service';
     NotificationsModule,
     UserBriefModule,
     BlocksModule,
+    UsernamesModule,
   ],
   controllers: [ChannelsController],
   providers: [ChannelsService],

@@ -3,6 +3,7 @@ import type { Prisma } from '@prisma/client';
 import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { UsernamePolicyService } from '../../usernames/username-policy.service';
 import {
   pickUsernameFrom,
   randomSuffixCandidates,
@@ -25,7 +26,10 @@ type Db = PrismaService | Prisma.TransactionClient;
  */
 @Injectable()
 export class UsernameRegistry {
-  constructor(private readonly settings: AppSettingsService) {}
+  constructor(
+    private readonly settings: AppSettingsService,
+    private readonly policy: UsernamePolicyService,
+  ) {}
 
   /** Lower-cased reserved handles (`profile.reserved_usernames`). */
   async reserved(): Promise<Set<string>> {
@@ -33,30 +37,41 @@ export class UsernameRegistry {
     return new Set(list.map((r) => r.toLowerCase()));
   }
 
-  /** Which of [lowers] are held by anyone other than [exceptUserId]. */
+  /**
+   * Reserved words and look-alikes of them or of a brand (owner 2026-10-20),
+   * for [lower].
+   */
+  isReserved(lower: string): Promise<boolean> {
+    return this.policy.isReserved(lower);
+  }
+
+  /**
+   * Owner 2026-10-20: why a free-looking [lower] still cannot be taken —
+   * freed lately by someone else («held») or reading like another handle
+   * («similar»); null when it can.
+   */
+  async blocker(
+    db: Db,
+    lower: string,
+    exceptUserId?: string,
+  ): Promise<'held' | 'similar' | null> {
+    const held = await this.policy.heldAgainst(db, [lower], exceptUserId);
+    if (held.has(lower)) return 'held';
+    return (await this.policy.isSimilar(db, lower, { userId: exceptUserId }))
+      ? 'similar'
+      : null;
+  }
+
+  /**
+   * Which of [lowers] are held by anyone other than [exceptUserId] — a
+   * person, a channel or a group (one namespace, owner 2026-10-20).
+   */
   async taken(
     db: Db,
     lowers: readonly string[],
     exceptUserId?: string,
   ): Promise<Set<string>> {
-    if (lowers.length === 0) return new Set();
-    const [a, c] = await Promise.all([
-      db.attorneyProfile.findMany({
-        where: { username_lower: { in: [...lowers] } },
-        select: { user_id: true, username_lower: true },
-      }),
-      db.clientProfile.findMany({
-        where: { username_lower: { in: [...lowers] } },
-        select: { user_id: true, username_lower: true },
-      }),
-    ]);
-    const out = new Set<string>();
-    for (const row of [...a, ...c]) {
-      if (row.username_lower && row.user_id !== exceptUserId) {
-        out.add(row.username_lower);
-      }
-    }
-    return out;
+    return this.policy.takenBy(db, lowers, { userId: exceptUserId });
   }
 
   async isTaken(

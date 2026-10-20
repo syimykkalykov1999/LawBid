@@ -36,6 +36,7 @@ import 'clients/attorneys_client.dart';
 import 'clients/profiles_client.dart';
 import 'clients/clients_client.dart';
 import 'clients/users_client.dart';
+import 'clients/usernames_client.dart';
 import 'clients/admin_analytics_client.dart';
 import 'clients/app_events_client.dart';
 import 'clients/comments_client.dart';
@@ -166,6 +167,7 @@ class LawbidApi {
   ProfilesClient? _profiles;
   ClientsClient? _clients;
   UsersClient? _users;
+  UsernamesClient? _usernames;
   AdminAnalyticsClient? _adminAnalytics;
   AppEventsClient? _appEvents;
   CommentsClient? _comments;
@@ -338,6 +340,9 @@ class LawbidApi {
       _clients ??= ClientsClient(_dio, baseUrl: _baseUrl);
 
   UsersClient get users => _users ??= UsersClient(_dio, baseUrl: _baseUrl);
+
+  UsernamesClient get usernames =>
+      _usernames ??= UsernamesClient(_dio, baseUrl: _baseUrl);
 
   AdminAnalyticsClient get adminAnalytics =>
       _adminAnalytics ??= AdminAnalyticsClient(_dio, baseUrl: _baseUrl);

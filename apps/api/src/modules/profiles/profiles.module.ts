@@ -3,6 +3,7 @@ import { BlocksModule } from '../blocks/blocks.module';
 import { PrivacySettingsModule } from '../privacy-settings/privacy-settings.module';
 import { ConsultationsCoreModule } from '../consultations/consultations-core.module';
 import { FilesModule } from '../files/files.module';
+import { UsernamesModule } from '../usernames/usernames.module';
 import { UsersModule } from '../users/users.module';
 import { AttorneysController } from './controllers/attorneys.controller';
 import { ClientProfileController } from './controllers/client-profile.controller';
@@ -18,6 +19,7 @@ import { PracticeAreasService } from './services/practice-areas.service';
 @Module({
   imports: [
     UsersModule,
+    UsernamesModule,
     FilesModule,
     BlocksModule,
     PrivacySettingsModule,
