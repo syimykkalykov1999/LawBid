@@ -98794,8 +98794,8 @@
             "nullable": true,
             "enum": [
               "call",
-              "sms",
               "email",
+              "sms",
               "in_app_chat"
             ],
             "type": "string"
@@ -98817,8 +98817,8 @@
             "nullable": true,
             "enum": [
               "call",
-              "sms",
               "email",
+              "sms",
               "in_app_chat"
             ],
             "type": "string"
@@ -99634,8 +99634,8 @@
             "nullable": true,
             "enum": [
               "call",
-              "sms",
               "email",
+              "sms",
               "in_app_chat"
             ]
           },
@@ -122487,7 +122487,6 @@
               "more",
               "message",
               "profile",
-              "download",
               "call"
             ],
             "description": "The button under a promoted post (posts only)."
@@ -123092,7 +123091,6 @@
                 "more",
                 "message",
                 "profile",
-                "download",
                 "call"
               ]
             },
@@ -123243,7 +123241,6 @@
                 "more",
                 "message",
                 "profile",
-                "download",
                 "call"
               ]
             },
