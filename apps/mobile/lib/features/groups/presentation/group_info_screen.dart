@@ -14,6 +14,7 @@ import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
+import 'package:lawbid/features/groups/application/group_call_port.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_info_avatar.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_info_header.dart';
@@ -306,6 +307,37 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
     }
   }
 
+  /// [actions] as one row, or two balanced rows when there are over four.
+  List<List<Widget>> _rows(List<Widget> actions) {
+    if (actions.length <= 4) return [actions];
+    final n = (actions.length + 1) ~/ 2;
+    return [actions.sublist(0, n), actions.sublist(n)];
+  }
+
+  /// Audio / video call to the group (the calls feature runs it; the
+  /// audio mesh holds 6, the video one 4).
+  Future<void> _startCall(
+    api.GroupDetailDto d,
+    Translator t, {
+    required bool video,
+  }) async {
+    final port = ref.read(groupCallPortProvider);
+    if (port == null) return;
+    final me = ref.read(currentUserIdProvider);
+    final others = [
+      for (final m in d.members)
+        if (m.userId != me) m.userId,
+    ].take(video ? 3 : 5).toList();
+    final code = await port.start(
+      d.id,
+      title: d.title,
+      avatarUrl: d.avatarUrl,
+      video: video,
+      userIds: others,
+    );
+    if (code != null) _toast(t.t('error.api.$code'));
+  }
+
   Future<void> _memberMenu(
     api.GroupDetailDto d,
     api.GroupMemberDto m,
@@ -589,6 +621,21 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
           label: t.t('group.info.add'),
           onTap: () => _addMembers(d),
         ),
+      if (d.canCall && ref.watch(groupCallPortProvider) != null) ...[
+        action(
+          key: const ValueKey('group-action-audio'),
+          icon: AppIcons.callOutlined,
+          label: t.t('contact.audio'),
+          onTap: () => _startCall(d, t, video: false),
+        ),
+        if (ref.watch(groupVideoCallsProvider))
+          action(
+            key: const ValueKey('group-action-video'),
+            icon: AppIcons.videoCameraOutlined,
+            label: t.t('chat.attach.video'),
+            onTap: () => _startCall(d, t, video: true),
+          ),
+      ],
       if (link != null)
         action(
           key: const ValueKey('group-action-link'),
@@ -635,11 +682,20 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
               AppSpacing.screenSide,
               AppSpacing.md,
             ),
-            child: Row(
+            // Up to four buttons in one row, more are split in two rows.
+            child: Column(
               children: [
-                for (var i = 0; i < actions.length; i++) ...[
-                  if (i > 0) const SizedBox(width: AppSpacing.sm),
-                  actions[i],
+                for (final rowItems in _rows(actions)) ...[
+                  if (rowItems != _rows(actions).first)
+                    const SizedBox(height: AppSpacing.sm),
+                  Row(
+                    children: [
+                      for (var i = 0; i < rowItems.length; i++) ...[
+                        if (i > 0) const SizedBox(width: AppSpacing.sm),
+                        rowItems[i],
+                      ],
+                    ],
+                  ),
                 ],
               ],
             ),
