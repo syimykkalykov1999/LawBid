@@ -10,12 +10,16 @@ import '../models/chat_storage_envelope.dart';
 import '../models/conversation_envelope.dart';
 import '../models/conversation_folder.dart';
 import '../models/conversation_list_envelope.dart';
+import '../models/delete_scope.dart';
+import '../models/edit_message_dto.dart';
 import '../models/message_envelope.dart';
 import '../models/message_list_envelope.dart';
 import '../models/message_translation_envelope.dart';
 import '../models/messages_filter.dart';
 import '../models/mute_conversation_dto.dart';
 import '../models/organize_conversation_dto.dart';
+import '../models/pins_envelope.dart';
+import '../models/react_message_dto.dart';
 import '../models/read_conversation_dto.dart';
 import '../models/read_result_envelope.dart';
 import '../models/requests_count_envelope.dart';
@@ -156,6 +160,58 @@ abstract class ChatClient {
   Future<ConversationEnvelope> muteConversation({
     @Path('id') required String id,
     @Body() required MuteConversationDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Edit your text message within the edit window
+  @PATCH('/conversations/{id}/messages/{messageId}')
+  Future<MessageEnvelope> editChatMessage({
+    @Path('id') required String id,
+    @Path('messageId') required String messageId,
+    @Body() required EditMessageDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Delete a message for me or (within the window) for everyone.
+  ///
+  /// [scope] - me: only for the viewer; all: for everyone (time window).
+  @DELETE('/conversations/{id}/messages/{messageId}')
+  Future<void> deleteChatMessage({
+    @Path('id') required String id,
+    @Path('messageId') required String messageId,
+    @Query('scope') required DeleteScope scope,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// React with one emoji (null removes it)
+  @PUT('/conversations/{id}/messages/{messageId}/reaction')
+  Future<MessageEnvelope> reactToChatMessage({
+    @Path('id') required String id,
+    @Path('messageId') required String messageId,
+    @Body() required ReactMessageDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Pin a message to the top of the chat
+  @POST('/conversations/{id}/messages/{messageId}/pin')
+  Future<MessageEnvelope> pinChatMessage({
+    @Path('id') required String id,
+    @Path('messageId') required String messageId,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Unpin a message
+  @DELETE('/conversations/{id}/messages/{messageId}/pin')
+  Future<MessageEnvelope> unpinChatMessage({
+    @Path('id') required String id,
+    @Path('messageId') required String messageId,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// The chat's pinned messages
+  @GET('/conversations/{id}/pins')
+  Future<PinsEnvelope> listChatPins({
+    @Path('id') required String id,
     @Extras() Map<String, dynamic>? extras,
   });
 }

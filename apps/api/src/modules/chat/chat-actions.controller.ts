@@ -51,7 +51,7 @@ export class ChatActionsController {
     404: [ErrorCode.CONVERSATION_NOT_FOUND, ErrorCode.NOT_FOUND],
     409: [ErrorCode.MESSAGE_WINDOW_EXPIRED, ErrorCode.CONVERSATION_CLOSED],
   })
-  edit(
+  editChatMessage(
     @CurrentUser() user: RequestUser,
     @Param() p: MessageIdParamDto,
     @Body() dto: EditMessageDto,
@@ -69,7 +69,7 @@ export class ChatActionsController {
     404: [ErrorCode.CONVERSATION_NOT_FOUND, ErrorCode.NOT_FOUND],
     409: [ErrorCode.MESSAGE_WINDOW_EXPIRED],
   })
-  async remove(
+  async deleteChatMessage(
     @CurrentUser() user: RequestUser,
     @Param() p: MessageIdParamDto,
     @Query() q: DeleteMessageQueryDto,
@@ -85,7 +85,7 @@ export class ChatActionsController {
     403: [ErrorCode.FORBIDDEN],
     404: [ErrorCode.CONVERSATION_NOT_FOUND, ErrorCode.NOT_FOUND],
   })
-  react(
+  reactToChatMessage(
     @CurrentUser() user: RequestUser,
     @Param() p: MessageIdParamDto,
     @Body() dto: ReactMessageDto,
@@ -102,7 +102,7 @@ export class ChatActionsController {
     404: [ErrorCode.CONVERSATION_NOT_FOUND, ErrorCode.NOT_FOUND],
     409: [ErrorCode.MESSAGE_PIN_LIMIT],
   })
-  pin(
+  pinChatMessage(
     @CurrentUser() user: RequestUser,
     @Param() p: MessageIdParamDto,
   ): Promise<MessageDto> {
@@ -115,7 +115,7 @@ export class ChatActionsController {
   @ApiErrors({
     404: [ErrorCode.CONVERSATION_NOT_FOUND, ErrorCode.NOT_FOUND],
   })
-  unpin(
+  unpinChatMessage(
     @CurrentUser() user: RequestUser,
     @Param() p: MessageIdParamDto,
   ): Promise<MessageDto> {
@@ -126,7 +126,7 @@ export class ChatActionsController {
   @ApiOperation({ summary: "The chat's pinned messages" })
   @ApiEnvelopeResponse(PinsDto)
   @ApiErrors({ 404: [ErrorCode.CONVERSATION_NOT_FOUND] })
-  async pins(
+  async listChatPins(
     @CurrentUser() user: RequestUser,
     @Param() p: ConversationIdParamDto,
   ): Promise<PinsDto> {
