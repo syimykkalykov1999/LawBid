@@ -13,8 +13,6 @@ enum CreatePromotionDtoCtaType {
   message('message'),
   @JsonValue('profile')
   profile('profile'),
-  @JsonValue('download')
-  download('download'),
   @JsonValue('call')
   call('call'),
 

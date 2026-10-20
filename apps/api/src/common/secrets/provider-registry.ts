@@ -616,7 +616,8 @@ export const PROVIDERS: ProviderDefinition[] = [
   {
     id: 'sentry',
     label: 'Sentry (error reports)',
-    description: 'Crash and error reports of the server.',
+    description:
+      'Crash and error reports of the server, the app and the admin.',
     restartRequired: true,
     fields: [
       {
@@ -626,6 +627,24 @@ export const PROVIDERS: ProviderDefinition[] = [
         required: true,
         pattern: /^https:\/\/[^@\s]+@[^\s]+\/\d+$/,
         env: 'SENTRY_DSN',
+      },
+      // Owner 2026-10-20: the app and the admin panel report to their own
+      // Sentry projects. A DSN only lets one SEND events, so it is public
+      // by design: GET /config/bootstrap hands these to the clients
+      // (no rebuild needed to change them).
+      {
+        name: 'mobileDsn',
+        label: 'DSN of the app',
+        secret: true,
+        required: false,
+        pattern: /^https:\/\/[^@\s]+@[^\s]+\/\d+$/,
+      },
+      {
+        name: 'adminDsn',
+        label: 'DSN of the admin panel',
+        secret: true,
+        required: false,
+        pattern: /^https:\/\/[^@\s]+@[^\s]+\/\d+$/,
       },
     ],
   },

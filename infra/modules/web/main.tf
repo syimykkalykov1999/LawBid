@@ -229,7 +229,7 @@ resource "aws_cloudfront_response_headers_policy" "web" {
         "img-src 'self' data: blob: https:",
         "media-src 'self' blob: https:",
         "worker-src 'self' blob:",
-        "connect-src ${join(" ", concat(["'self'", var.api_origin, "wss://${replace(var.api_origin, "https://", "")}"], var.extra_connect_src, var.app_connect_src, var.media_origins))}",
+        "connect-src ${join(" ", concat(["'self'", var.api_origin, "wss://${replace(var.api_origin, "https://", "")}", "https://*.ingest.sentry.io", "https://*.ingest.us.sentry.io"], var.extra_connect_src, var.app_connect_src, var.media_origins))}",
         "frame-src ${join(" ", concat(["'self'"], var.stripe_frame_src))}",
         "frame-ancestors 'none'",
         "base-uri 'self'",

@@ -42,7 +42,7 @@ const PROVIDER_RU: Record<string, { label: string; description: string; warning?
     warning:
       'Если сменить бакеты, файлы из старых бакетов станут недоступны — меняйте только ключи, если файлы не переносили.',
   },
-  sentry: { label: 'Sentry (отчёты об ошибках)', description: 'Отчёты о сбоях и ошибках сервера.' },
+  sentry: { label: 'Sentry (отчёты об ошибках)', description: 'Отчёты о сбоях и ошибках сервера, приложения и админки.' },
   cockroach_cloud: {
     label: 'Хостинг базы данных (проверка бэкапов)',
     description: 'Ключ только для чтения от хостинга базы данных: сервер каждый час проверяет, что свежий бэкап есть. Подключается после выбора боевого хостинга PostgreSQL.',
@@ -87,6 +87,8 @@ const FIELD_BY_NAME: Record<string, string> = {
 };
 
 const FIELD_BY_PROVIDER: Record<string, string> = {
+  'sentry.mobileDsn': 'Адрес для отчётов приложения (DSN)',
+  'sentry.adminDsn': 'Адрес для отчётов админки (DSN)',
   'bunny_stream.apiKey': 'API-ключ библиотеки',
   'google_translate.apiKey': 'API-ключ',
   'ses.accessKeyId': 'ID ключа доступа AWS (только без роли сервера)',

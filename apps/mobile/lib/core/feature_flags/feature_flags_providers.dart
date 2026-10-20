@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/core/diagnostics/app_events.dart';
 import 'package:lawbid/core/diagnostics/crash_reporter.dart';
+import 'package:lawbid/core/diagnostics/sentry_reporter.dart';
 import 'package:lawbid/core/feature_flags/default_feature_flags.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_api_client.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_state.dart';
@@ -74,6 +76,11 @@ class FeatureFlagsController extends _$FeatureFlagsController {
       // Owner 2026-10-15: kill switches of the app's own diagnostics.
       AppEvents.enabled = state.flags['app_events'] ?? true;
       CrashReporter.enabled = state.flags['crash_reports'] ?? true;
+      // Owner 2026-10-20: Sentry's DSN comes from the admin (no rebuild).
+      SentryReporter.configure(
+        state.appConfig['sentry.mobile_dsn'],
+        AppEnvironment.current.flavor,
+      );
     } catch (_) {
       // Best-effort — see class doc comment. `state` already holds
       // `defaultFeatureFlags` (or whatever the last successful refresh
