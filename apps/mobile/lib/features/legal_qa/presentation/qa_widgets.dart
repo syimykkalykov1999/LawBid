@@ -231,7 +231,7 @@ class QuestionCard extends ConsumerWidget {
                 const SizedBox(width: AppSpacing.xs),
                 Flexible(
                   child: Text(
-                    formats.number(question.answerCount),
+                    SocialFormat.count(formats, question.answerCount),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: type.caption.copyWith(color: colors.textSecondary),

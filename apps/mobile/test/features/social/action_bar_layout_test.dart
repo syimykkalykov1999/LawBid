@@ -85,7 +85,7 @@ void main() {
       // comment and send counters sit right of their icons.
       expect(find.byIcon(AppIcons.visibilityOutlined), findsNothing);
       expect(find.text('215K'), findsOneWidget);
-      expect(find.text('15K'), findsOneWidget);
+      expect(find.text('15.4K'), findsOneWidget);
       expect(find.text('1.2M'), findsOneWidget);
       expect(find.byType(BoostButton), findsNothing);
       expect(
