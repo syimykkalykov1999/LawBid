@@ -457,8 +457,11 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
     // Owner 2026-10-13: «Смотреть» only when the reel has attachments; with
     // none the strip goes and the author, text and rail drop down.
     final more = p.hasInner && ref.watch(innerCardsEnabledProvider);
-    final moreSpace = (more ? kReelMoreButtonSpace : AppSpacing.md) +
-        (widget.embedded ? kReelNavClearance : 0);
+    // Owner 2026-10-20 (Instagram): the bottom block stands 12 dp above the
+    // nav bar (the shell already reports the bar as the bottom padding), the
+    // author drops to the bottom when there is no caption and rises by
+    // exactly the caption's height when there is one.
+    final moreSpace = more ? kReelMoreButtonSpace : AppSpacing.md;
     Future<void> run(Future<Object?> Function() a) async {
       final e = await a();
       if (e != null && context.mounted) {
@@ -633,7 +636,9 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                 ),
                 PositionedDirectional(
                   end: AppSpacing.md,
-                  bottom: moreSpace +
+                  // The rail's last item keeps its own 12 dp: its icon ends at
+                  // the same line as the author block.
+                  bottom: moreSpace -
                       AppSpacing.md +
                       MediaQuery.paddingOf(context).bottom,
                   child: Column(
@@ -721,9 +726,7 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                   // Owner 2026-10-15: the text and «Follow» reach out to the
                   // right, 8 dp short of the icon column.
                   end: 60,
-                  bottom: moreSpace +
-                      AppSpacing.sm +
-                      MediaQuery.paddingOf(context).bottom,
+                  bottom: moreSpace + MediaQuery.paddingOf(context).bottom,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
@@ -832,9 +835,7 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
           PositionedDirectional(
             start: AppSpacing.lg,
             end: AppSpacing.lg,
-            bottom:
-                (widget.embedded ? kReelNavTop + kReelNavGap : AppSpacing.md) +
-                    MediaQuery.paddingOf(context).bottom,
+            bottom: AppSpacing.md + MediaQuery.paddingOf(context).bottom,
             child: ReelMoreButton(
               label: t.t(reelMoreLabelKey(p)),
               onTap: () => _openInside(p),
