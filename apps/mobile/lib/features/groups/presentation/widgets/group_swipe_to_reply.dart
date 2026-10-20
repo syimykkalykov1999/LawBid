@@ -87,7 +87,7 @@ class _GroupSwipeToReplyState extends State<GroupSwipeToReply> {
                     height: 30,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: colors.goldTint,
+                      color: colors.iconTintFill,
                     ),
                     child: AppIcon(
                       AppIcons.replyRounded,

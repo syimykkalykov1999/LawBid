@@ -207,7 +207,7 @@ class _MemberTile extends StatelessWidget {
         children: [
           CircleAvatar(
             radius: 22,
-            backgroundColor: colors.goldTint,
+            backgroundColor: colors.iconTintFill,
             child:
                 AppIcon(AppIcons.supportAgentRounded, color: colors.iconTint),
           ),

@@ -686,7 +686,7 @@ class ReviewBadge extends StatelessWidget {
       padding:
           const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 2),
       decoration: BoxDecoration(
-        color: colors.goldTint,
+        color: colors.iconTintFill,
         borderRadius: BorderRadius.circular(AppRadii.pill),
       ),
       child: Row(

@@ -622,7 +622,7 @@ class _ContactAction extends StatelessWidget {
               minHeight: AppSizes.hitTarget + AppSpacing.md,
             ),
             decoration: BoxDecoration(
-              color: colors.goldTint,
+              color: colors.iconTintFill,
               borderRadius: BorderRadius.circular(AppRadii.field),
             ),
             child: Column(

@@ -202,7 +202,7 @@ class _ClientBody extends ConsumerWidget {
                 vertical: AppSpacing.xs,
               ),
               decoration: BoxDecoration(
-                color: colors.goldTint,
+                color: colors.iconTintFill,
                 borderRadius: BorderRadius.circular(AppRadii.pill),
               ),
               child: Row(

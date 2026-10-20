@@ -867,7 +867,7 @@ class _Medallion extends StatelessWidget {
       decoration: BoxDecoration(
         color: colors.navy,
         borderRadius: BorderRadius.circular(AppRadii.field),
-        border: Border.all(color: colors.goldStroke),
+        border: Border.all(color: colors.iconTint),
       ),
       child: AppIcon(_icon(n), size: 20, color: colors.iconTint),
     );

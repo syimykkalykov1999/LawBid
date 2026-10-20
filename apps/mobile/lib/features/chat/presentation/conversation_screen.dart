@@ -933,9 +933,9 @@ class _SystemMessage extends StatelessWidget {
                 vertical: AppSpacing.sm,
               ),
               decoration: BoxDecoration(
-                color: colors.goldTint,
+                color: colors.iconTintFill,
                 borderRadius: BorderRadius.circular(AppRadii.pill),
-                border: Border.all(color: colors.goldStroke),
+                border: Border.all(color: colors.iconTint),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -2267,7 +2267,7 @@ class _ComposerState extends ConsumerState<_Composer> {
       decoration: BoxDecoration(
         color: colors.bg,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: colors.goldStroke),
+        border: Border.all(color: colors.iconTint),
       ),
       child: Row(
         children: [

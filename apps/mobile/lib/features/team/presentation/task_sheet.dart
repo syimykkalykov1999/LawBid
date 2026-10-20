@@ -1139,7 +1139,7 @@ class _ArchiveCard extends StatelessWidget {
       key: const ValueKey('task-archive-card'),
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        color: colors.goldTint,
+        color: colors.iconTintFill,
         borderRadius: BorderRadius.circular(AppRadii.card),
       ),
       child: Column(
@@ -1274,7 +1274,7 @@ class _FileTile extends StatelessWidget {
         child: Container(
           width: side,
           height: side,
-          color: colors.goldTint,
+          color: colors.iconTintFill,
           child: file.isImage && url != null
               ? Image(image: appNetworkImage(url, 600), fit: BoxFit.cover)
               : Column(

@@ -337,9 +337,9 @@ class _AgentCard extends StatelessWidget {
       key: const ValueKey('dmca-agent'),
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        color: colors.goldTint,
+        color: colors.iconTintFill,
         borderRadius: BorderRadius.circular(AppRadii.card),
-        border: Border.all(color: colors.goldStroke),
+        border: Border.all(color: colors.iconTint),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,

@@ -701,7 +701,7 @@ class _TimelineDot extends StatelessWidget {
           shape: BoxShape.circle,
           color: switch (mark) {
             _Mark.done => colors.gold,
-            _Mark.current => colors.goldTint,
+            _Mark.current => colors.iconTintFill,
             _ => colors.surface,
           },
           border: Border.all(

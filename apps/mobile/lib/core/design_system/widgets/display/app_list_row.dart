@@ -79,7 +79,7 @@ class _AppListRowState extends State<AppListRow> {
       trailing = AppIcon(
         AppIcons.checkRounded,
         size: AppSizes.iconSm,
-        color: colors.goldStroke,
+        color: colors.iconTint,
       );
     } else if (widget.showChevron && !widget.destructive) {
       trailing = AppIcon(

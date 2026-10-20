@@ -236,7 +236,7 @@ class _TemplateRow extends StatelessWidget {
       onTap: onTap,
       child: Row(
         children: [
-          AppIcon(AppIcons.descriptionOutlined, color: colors.accent),
+          AppIcon(AppIcons.descriptionOutlined, color: colors.iconTint),
           const SizedBox(width: AppSpacing.md),
           Expanded(
             child: Column(

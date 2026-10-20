@@ -821,8 +821,8 @@ class _PackSheetState extends ConsumerState<_PackSheet> {
                       child: Container(
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: colors.goldStroke),
-                          color: colors.goldTint,
+                          border: Border.all(color: colors.iconTint),
+                          color: colors.iconTintFill,
                         ),
                         child: Center(
                           child: _busy

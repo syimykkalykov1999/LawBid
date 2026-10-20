@@ -64,9 +64,9 @@ class _CreateSheet extends ConsumerWidget {
                       width: AppSizes.rowMedallion,
                       height: AppSizes.rowMedallion,
                       decoration: BoxDecoration(
-                        color: colors.goldTint,
+                        color: colors.iconTintFill,
                         shape: BoxShape.circle,
-                        border: Border.all(color: colors.goldStroke),
+                        border: Border.all(color: colors.iconTint),
                       ),
                       child: AppIcon(
                         icon,

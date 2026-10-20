@@ -576,7 +576,7 @@ class _CounterSheetState extends State<_CounterSheet> {
                 Container(
                   padding: const EdgeInsets.all(AppSpacing.md),
                   decoration: BoxDecoration(
-                    color: colors.goldTint,
+                    color: colors.iconTintFill,
                     borderRadius: BorderRadius.circular(AppRadii.field),
                   ),
                   child: Row(

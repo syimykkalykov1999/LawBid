@@ -29,7 +29,7 @@ class AppIconMedallion extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final (fill, foreground) = switch (tone) {
-      AppMedallionTone.gold => (colors.goldTint, colors.goldStroke),
+      AppMedallionTone.gold => (colors.iconTintFill, colors.iconTint),
       AppMedallionTone.danger => (colors.dangerTint, colors.danger),
       AppMedallionTone.success => (colors.successTint, colors.success),
       AppMedallionTone.neutral => (colors.bg, colors.textSecondary),

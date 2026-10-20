@@ -254,6 +254,10 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
   /// Never gold: gold stays for the client check and rating stars only.
   Color get iconTint => bg.computeLuminance() > 0.5 ? accent : text;
 
+  /// Soft fill behind a tinted icon (icon circles, tiles): [iconTint] at a
+  /// low alpha, so it follows the theme instead of the gold wash.
+  Color get iconTintFill => iconTint.withValues(alpha: 0.12);
+
   final Color navy;
   final Color panFill;
   final Color panText;

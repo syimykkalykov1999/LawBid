@@ -41,7 +41,7 @@ class DemoSettingsCard extends ConsumerWidget {
       decoration: BoxDecoration(
         color: colors.goldTint,
         borderRadius: BorderRadius.circular(AppRadii.card),
-        border: Border.all(color: colors.goldStroke),
+        border: Border.all(color: colors.iconTint),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

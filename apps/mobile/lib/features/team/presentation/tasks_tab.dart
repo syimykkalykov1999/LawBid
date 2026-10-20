@@ -1548,7 +1548,7 @@ class _ArchiveNote extends StatelessWidget {
         key: const ValueKey('tasks-archive-note'),
         padding: const EdgeInsets.all(AppSpacing.sm),
         decoration: BoxDecoration(
-          color: colors.goldTint,
+          color: colors.iconTintFill,
           borderRadius: BorderRadius.circular(AppRadii.field),
         ),
         child: Row(

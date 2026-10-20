@@ -861,9 +861,9 @@ class BidInfoNote extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(AppSpacing.md),
         decoration: BoxDecoration(
-          color: colors.goldTint,
+          color: colors.iconTintFill,
           borderRadius: BorderRadius.circular(AppRadii.field),
-          border: Border.all(color: colors.goldStroke),
+          border: Border.all(color: colors.iconTint),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,

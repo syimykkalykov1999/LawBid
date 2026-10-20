@@ -281,7 +281,7 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                                     compact: true,
                                     icon: AppIcon(
                                       AppIcons.addRounded,
-                                      color: colors.accent,
+                                      color: colors.iconTint,
                                     ),
                                     semanticLabel: t.t('phoneContacts.title'),
                                     onPressed: () =>
@@ -1509,7 +1509,7 @@ class _ReadNoteChip extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
           decoration: BoxDecoration(
-            color: colors.goldTint,
+            color: colors.iconTintFill,
             borderRadius: BorderRadius.circular(AppRadii.pill),
             border: Border.all(color: colors.gold.withValues(alpha: 0.5)),
           ),
@@ -1603,8 +1603,8 @@ class CounterpartAvatar extends StatelessWidget {
         height: size,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: colors.goldTint,
-          border: Border.all(color: colors.goldStroke),
+          color: colors.iconTintFill,
+          border: Border.all(color: colors.iconTint),
         ),
         child: AppIcon(
           AppIcons.personOutlineRounded,

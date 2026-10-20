@@ -62,9 +62,9 @@ class AboutScreen extends ConsumerWidget {
                 width: 36,
                 height: 36,
                 decoration: BoxDecoration(
-                  color: colors.goldTint,
+                  color: colors.iconTintFill,
                   shape: BoxShape.circle,
-                  border: Border.all(color: colors.goldStroke),
+                  border: Border.all(color: colors.iconTint),
                 ),
                 child: AppIcon(icon, color: colors.iconTint, size: 18),
               ),
@@ -174,7 +174,7 @@ class AboutScreen extends ConsumerWidget {
                           width: 48,
                           height: 48,
                           decoration: BoxDecoration(
-                            color: colors.goldTint,
+                            color: colors.iconTintFill,
                             shape: BoxShape.circle,
                           ),
                           child: AppIcon(

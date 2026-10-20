@@ -267,7 +267,7 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
               padding: const EdgeInsets.all(AppSpacing.md),
               margin: const EdgeInsets.only(bottom: AppSpacing.lg),
               decoration: BoxDecoration(
-                color: colors.goldTint,
+                color: colors.iconTintFill,
                 borderRadius: BorderRadius.circular(AppRadii.field),
                 border: Border.all(color: colors.goldStroke),
               ),

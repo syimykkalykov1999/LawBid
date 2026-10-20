@@ -122,7 +122,7 @@ class CaseCoverPicker extends StatelessWidget {
                   onTap: () => onChanged(null),
                   child: SizedBox.expand(
                     child: ColoredBox(
-                      color: colors.goldTint,
+                      color: colors.iconTintFill,
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [

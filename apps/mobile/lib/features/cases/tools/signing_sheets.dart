@@ -179,7 +179,7 @@ class _RequestSheetState extends ConsumerState<_RequestSheet> {
                   _file == null
                       ? AppIcons.uploadFileOutlined
                       : AppIcons.pictureAsPdfOutlined,
-                  color: colors.accent,
+                  color: colors.iconTint,
                 ),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(

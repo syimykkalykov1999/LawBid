@@ -172,9 +172,9 @@ class RequestCard extends StatelessWidget {
     Widget chip(String label, {bool gold = false, IconData? icon}) => Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           decoration: BoxDecoration(
-            color: gold ? colors.goldTint : colors.navy,
+            color: gold ? colors.iconTintFill : colors.navy,
             borderRadius: BorderRadius.circular(AppRadii.pill),
-            border: gold ? Border.all(color: colors.goldStroke) : null,
+            border: gold ? Border.all(color: colors.iconTint) : null,
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -240,7 +240,7 @@ class RequestCard extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: colors.navy,
                   borderRadius: BorderRadius.circular(AppRadii.field),
-                  border: Border.all(color: colors.goldStroke),
+                  border: Border.all(color: colors.iconTint),
                 ),
                 child: AppIcon(kindIcon, color: colors.iconTint, size: 22),
               ),
@@ -361,7 +361,7 @@ class RequestCard extends StatelessWidget {
                           fit: BoxFit.cover,
                           errorBuilder: (_, __, ___) => Container(
                             width: 72,
-                            color: colors.goldTint,
+                            color: colors.iconTintFill,
                             child: AppIcon(
                               AppIcons.imageOutlined,
                               color: colors.iconTint,
@@ -490,7 +490,7 @@ class ActivityRow extends StatelessWidget {
             decoration: BoxDecoration(
               color: colors.navy,
               borderRadius: BorderRadius.circular(AppRadii.field),
-              border: Border.all(color: colors.goldStroke),
+              border: Border.all(color: colors.iconTint),
             ),
             child: AppIcon(
               activityIcon(entry.action),
@@ -580,7 +580,7 @@ class AssistantBanner extends StatelessWidget {
         horizontal: AppSpacing.screenSide,
         vertical: AppSpacing.sm,
       ),
-      color: colors.goldTint,
+      color: colors.iconTintFill,
       child: Row(
         // Owner 2026-10-01: centred.
         mainAxisAlignment: MainAxisAlignment.center,

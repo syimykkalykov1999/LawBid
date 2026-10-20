@@ -534,7 +534,7 @@ class SelfieStep extends StatelessWidget {
             width: illustration,
             height: illustration,
             decoration: BoxDecoration(
-              color: colors.goldTint,
+              color: colors.iconTintFill,
               borderRadius: BorderRadius.circular(AppRadii.sheet),
             ),
             child: Stack(

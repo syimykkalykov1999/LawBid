@@ -75,7 +75,7 @@ class CompactCaseRow extends StatelessWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final neutral = ColoredBox(
-      color: colors.goldTint,
+      color: colors.iconTintFill,
       child: Center(
         child: AppIcon(
           practiceGlyph(categoryCode),
