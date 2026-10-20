@@ -16,5 +16,5 @@ Tool: `apps/api/bench/hot-endpoints.mjs` (autocannon, 50 connections, 8 s).
 Cause: Prisma sends `status = $1`; Postgres cannot use the partial index
 `WHERE status = 'published'` with a parameter (EXPLAIN: 0.29 ms with a
 literal, 46 ms with a parameter, 4 s with a cached generic plan on 100 k
-posts, growing with the table). Fix: migration `20261021000000_feed_plan_stability`
+posts, growing with the table). Fix: migrations `20261021000000_posts_visible_created_idx`, `…000100_posts_author_visible_idx` (built CONCURRENTLY, no write lock) and `…000200_feed_plan_stability_db`
 (indexes that test only `IS NULL` + `plan_cache_mode = force_custom_plan`).
