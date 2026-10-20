@@ -6,8 +6,10 @@ import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
 import '../models/call_envelope.dart';
+import '../models/call_mute_dto.dart';
 import '../models/end_call_dto.dart';
 import '../models/ice_servers_envelope.dart';
+import '../models/invite_call_dto.dart';
 import '../models/start_call_dto.dart';
 import '../models/video_call_config_envelope.dart';
 
@@ -63,6 +65,39 @@ abstract class CallsClient {
   Future<CallEnvelope> endCall({
     @Path('id') required String id,
     @Body() required EndCallDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Add a person to the running call (group call)
+  @POST('/calls/{id}/participants')
+  Future<CallEnvelope> inviteToCall({
+    @Path('id') required String id,
+    @Body() required InviteCallDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Host: switch a member's microphone off / allow it
+  @POST('/calls/{id}/participants/{userId}/mute')
+  Future<CallEnvelope> muteParticipant({
+    @Path('id') required String id,
+    @Path('userId') required String userId,
+    @Body() required CallMuteDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Host: remove a member from the call
+  @DELETE('/calls/{id}/participants/{userId}')
+  Future<CallEnvelope> removeFromCall({
+    @Path('id') required String id,
+    @Path('userId') required String userId,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Tell the call my microphone is off / on
+  @POST('/calls/{id}/mute-state')
+  Future<CallEnvelope> muteState({
+    @Path('id') required String id,
+    @Body() required CallMuteDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 }

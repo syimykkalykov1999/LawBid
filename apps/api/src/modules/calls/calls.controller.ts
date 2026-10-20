@@ -1,4 +1,12 @@
-import { Body, Controller, Get, HttpCode, Param, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  Post,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   ApiEnvelopeResponse,
@@ -14,8 +22,11 @@ import { ConversationIdParamDto } from '../chat/chat.dto';
 import {
   CallDto,
   CallIdParamDto,
+  CallMuteDto,
+  CallParticipantParamDto,
   EndCallDto,
   IceServersDto,
+  InviteCallDto,
   StartCallDto,
   VideoCallConfigDto,
 } from './calls.dto';
@@ -125,5 +136,80 @@ export class CallsController {
     @Body() dto: EndCallDto,
   ): Promise<CallDto> {
     return this.calls.end(user, p.id, dto);
+  }
+
+  @Post('calls/:id/participants')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'Add a person to the running call (group call)',
+  })
+  @ApiEnvelopeResponse(CallDto)
+  @ApiErrors({
+    403: [
+      ErrorCode.SUBSCRIPTION_REQUIRED,
+      ErrorCode.USER_BLOCKED,
+      ErrorCode.ENTITLEMENT_REQUIRED,
+    ],
+    404: [ErrorCode.CALL_NOT_FOUND, ErrorCode.NOT_FOUND],
+    409: [
+      ErrorCode.CALL_NOT_ALLOWED,
+      ErrorCode.CALL_IN_PROGRESS,
+      ErrorCode.CALL_STATE_CONFLICT,
+    ],
+  })
+  inviteToCall(
+    @CurrentUser() user: RequestUser,
+    @Param() p: CallIdParamDto,
+    @Body() dto: InviteCallDto,
+  ): Promise<CallDto> {
+    return this.calls.invite(user, p.id, dto);
+  }
+
+  @Post('calls/:id/participants/:userId/mute')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: "Host: switch a member's microphone off / allow it",
+  })
+  @ApiEnvelopeResponse(CallDto)
+  @ApiErrors({
+    403: [ErrorCode.FORBIDDEN],
+    404: [ErrorCode.CALL_NOT_FOUND],
+    409: [ErrorCode.CALL_STATE_CONFLICT],
+  })
+  muteParticipant(
+    @CurrentUser() user: RequestUser,
+    @Param() p: CallParticipantParamDto,
+    @Body() dto: CallMuteDto,
+  ): Promise<CallDto> {
+    return this.calls.muteParticipant(user, p.id, p.userId, dto.muted);
+  }
+
+  @Delete('calls/:id/participants/:userId')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Host: remove a member from the call' })
+  @ApiEnvelopeResponse(CallDto)
+  @ApiErrors({
+    403: [ErrorCode.FORBIDDEN],
+    404: [ErrorCode.CALL_NOT_FOUND],
+    409: [ErrorCode.CALL_STATE_CONFLICT],
+  })
+  removeFromCall(
+    @CurrentUser() user: RequestUser,
+    @Param() p: CallParticipantParamDto,
+  ): Promise<CallDto> {
+    return this.calls.removeParticipant(user, p.id, p.userId);
+  }
+
+  @Post('calls/:id/mute-state')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Tell the call my microphone is off / on' })
+  @ApiEnvelopeResponse(CallDto)
+  @ApiErrors({ 404: [ErrorCode.CALL_NOT_FOUND] })
+  muteState(
+    @CurrentUser() user: RequestUser,
+    @Param() p: CallIdParamDto,
+    @Body() dto: CallMuteDto,
+  ): Promise<CallDto> {
+    return this.calls.setMuteState(user, p.id, dto.muted);
   }
 }

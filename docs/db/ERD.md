@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-175 tables.
+176 tables.
 
 ```mermaid
 erDiagram
@@ -685,7 +685,21 @@ erDiagram
     Int duration_sec "nullable"
     String end_reason "nullable"
     Boolean video
+    Boolean is_group
     DateTime created_at
+    DateTime updated_at
+  }
+  call_participants {
+    String id PK
+    String call_id FK
+    String user_id FK
+    String invited_by_id FK "nullable"
+    String status
+    Boolean muted
+    Boolean muted_by_host
+    DateTime invited_at
+    DateTime joined_at "nullable"
+    DateTime left_at "nullable"
     DateTime updated_at
   }
   messages {
@@ -2282,6 +2296,9 @@ erDiagram
   calls }o--|| conversations : "conversation_id"
   calls }o--|| users : "caller_id"
   calls }o--|| users : "callee_id"
+  call_participants }o--|| calls : "call_id"
+  call_participants }o--|| users : "user_id"
+  call_participants }o--o| users : "invited_by_id"
   messages }o--|| conversations : "conversation_id"
   messages }o--o| users : "sender_id"
   messages }o--o| files : "file_id"

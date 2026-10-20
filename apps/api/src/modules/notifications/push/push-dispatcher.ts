@@ -158,21 +158,37 @@ export class PushDispatcher
         status: true,
         conversation_id: true,
         video: true,
+        is_group: true,
         callee: { select: { status: true, ui_language: true } },
         caller: {
           select: { first_name: true, last_name: true },
         },
+        // Group calls: a person added to a running call.
+        participants: {
+          where: { user_id: data.recipientId, status: 'invited' },
+          select: {
+            invited_by: { select: { first_name: true, last_name: true } },
+            user: { select: { status: true, ui_language: true } },
+          },
+        },
       },
     });
-    if (!call || call.callee.status !== 'active') return 'no_user';
-    if (call.status !== 'ringing') return 'no_push';
+    if (!call) return 'no_user';
+    const invite = call.is_group ? call.participants[0] : undefined;
+    if (invite) {
+      if (invite.user.status !== 'active') return 'no_user';
+      if (call.status !== 'active') return 'no_push';
+    } else {
+      if (call.callee.status !== 'active') return 'no_user';
+      if (call.status !== 'ringing') return 'no_push';
+    }
+    const language = invite ? invite.user.ui_language : call.callee.ui_language;
     // Owner 2026-10-02: calls switched off still come through — silently
     // (no ringtone), so a call is never lost.
     const silent = !(await this.pushAllowed(data.recipientId, 'calls'));
+    const who = invite?.invited_by ?? call.caller;
     const name =
-      [call.caller.first_name, call.caller.last_name]
-        .filter(Boolean)
-        .join(' ') || 'LawBid';
+      [who.first_name, who.last_name].filter(Boolean).join(' ') || 'LawBid';
     // Owner 2026-10-17: iPhones with a VoIP token ring through Apple
     // directly (CallKit, even when the app is closed); their FCM call push
     // is skipped so they don't ring twice.
@@ -193,10 +209,10 @@ export class PushDispatcher
         title: name,
         // Owner 2026-10-05: video calls say so.
         body: call.video
-          ? call.callee.ui_language === 'ru'
+          ? language === 'ru'
             ? '📹 Входящий видеозвонок'
             : '📹 Incoming video call'
-          : call.callee.ui_language === 'ru'
+          : language === 'ru'
             ? '📞 Входящий звонок'
             : '📞 Incoming call',
         data: {

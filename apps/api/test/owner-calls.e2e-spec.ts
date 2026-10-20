@@ -222,6 +222,7 @@ describe('In-app calls (e2e, OQ-041)', () => {
     expect(await gotOffer).toEqual({
       callId,
       data: { type: 'offer', sdp: 'v=0' },
+      from: c.attorney.id,
     });
     const stranger = await prisma.user.create({
       data: { role: 'client', first_name: 'Eve', last_name: 'Drop' },

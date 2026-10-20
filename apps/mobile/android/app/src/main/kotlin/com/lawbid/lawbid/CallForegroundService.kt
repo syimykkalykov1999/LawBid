@@ -22,6 +22,14 @@ import android.os.IBinder
 class CallForegroundService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
+    /** The app was swiped from the recent apps: the call is gone with it —
+     * no "ongoing call" notification or microphone indicator may stay. */
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        stopSelf()
+        super.onTaskRemoved(rootIntent)
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
             stopForeground(STOP_FOREGROUND_REMOVE)
