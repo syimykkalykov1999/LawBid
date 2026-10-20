@@ -267,6 +267,8 @@ export const WIPE_TABLES: Readonly<Record<string, string>> = {
   support_messages: 'support messages',
   support_message_files: 'files attached to support messages',
   data_access_requests: 'law-enforcement requests (test)',
+  legal_exports: 'evidence archives of law-enforcement requests (test)',
+  legal_holds: 'legal holds of law-enforcement requests (test)',
   data_access_log: 'their access log',
   data_export_jobs: '"download my data" jobs',
   audit_log:
