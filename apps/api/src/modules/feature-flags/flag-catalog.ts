@@ -75,6 +75,20 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     description: 'Video calls in chats (WebRTC, needs a TURN relay)',
   },
   {
+    // Owner 2026-10-20: stories (24 h) like Instagram / WhatsApp.
+    key: 'stories',
+    enabled: true,
+    app: true,
+    description: 'Stories: photo / video / text for 24 hours',
+  },
+  {
+    // Owner 2026-10-20: Telegram-style channels of attorneys and companies.
+    key: 'channels',
+    enabled: true,
+    app: true,
+    description: 'Channels: posts from admins to subscribers',
+  },
+  {
     key: 'document_templates',
     enabled: true,
     app: true,

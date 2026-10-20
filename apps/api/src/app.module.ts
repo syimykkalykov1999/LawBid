@@ -21,6 +21,8 @@ import { CountersModule } from './modules/counters/counters.module';
 import { ModerationModule } from './modules/moderation/moderation.module';
 import { PostsModule } from './modules/posts/posts.module';
 import { StickersModule } from './modules/stickers/stickers.module';
+import { StoriesModule } from './modules/stories/stories.module';
+import { ChannelsModule } from './modules/channels/channels.module';
 import { FeedModule } from './modules/feed/feed.module';
 import { CommentsModule } from './modules/comments/comments.module';
 import { CaseCommentsModule } from './modules/case-comments/case-comments.module';
@@ -255,6 +257,8 @@ const isDev =
     // docs/05 §3 (stage 5.2).
     PostsModule,
     StickersModule,
+    StoriesModule,
+    ChannelsModule,
     FeedModule,
     CommentsModule,
     CaseCommentsModule,

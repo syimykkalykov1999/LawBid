@@ -239,6 +239,93 @@ export class ModerationService {
             }
           : null;
       }
+      case 'story': {
+        const st = await db.story.findUnique({
+          where: withDeleted({ id }),
+          select: {
+            author_id: true,
+            kind: true,
+            text: true,
+            status: true,
+            deleted_at: true,
+            created_at: true,
+          },
+        });
+        return st
+          ? {
+              type,
+              id,
+              authorId: st.author_id,
+              status: st.deleted_at
+                ? 'removed'
+                : st.status === 'active'
+                  ? 'published'
+                  : 'removed',
+              text: `[${st.kind} story] ${st.text ?? ''}`.trim(),
+              context: {},
+              createdAt: st.created_at,
+            }
+          : null;
+      }
+      case 'channel': {
+        const ch = await db.channel.findUnique({
+          where: withDeleted({ id }),
+          select: {
+            owner_id: true,
+            title: true,
+            username: true,
+            description: true,
+            status: true,
+            deleted_at: true,
+            created_at: true,
+          },
+        });
+        return ch
+          ? {
+              type,
+              id,
+              authorId: ch.owner_id,
+              status: ch.deleted_at
+                ? 'removed'
+                : ch.status === 'active'
+                  ? 'published'
+                  : ch.status === 'banned'
+                    ? 'removed'
+                    : 'hidden',
+              text: `${ch.title} (@${ch.username}) ${ch.description ?? ''}`.trim(),
+              context: {},
+              createdAt: ch.created_at,
+            }
+          : null;
+      }
+      case 'channel_post': {
+        const cp = await db.channelPost.findUnique({
+          where: withDeleted({ id }),
+          select: {
+            author_id: true,
+            body: true,
+            status: true,
+            deleted_at: true,
+            created_at: true,
+            channel_id: true,
+          },
+        });
+        return cp
+          ? {
+              type,
+              id,
+              authorId: cp.author_id,
+              status: cp.deleted_at
+                ? 'removed'
+                : cp.status === 'active'
+                  ? 'published'
+                  : cp.status,
+              text: cp.body,
+              context: { channelId: cp.channel_id },
+              createdAt: cp.created_at,
+            }
+          : null;
+      }
       case 'client_review': {
         const r = await db.clientReview.findUnique({
           where: { id },
@@ -440,6 +527,54 @@ export class ModerationService {
           where: { id: target.id },
           data: { status: next === 'published' ? 'active' : 'hidden' },
         });
+        return target.status;
+      }
+      case 'story': {
+        // A story has two states: shown or removed (hide = remove).
+        await tx.story.update({
+          where: { id: target.id },
+          data: { status: action === 'restore' ? 'active' : 'removed' },
+        });
+        return target.status;
+      }
+      case 'channel': {
+        // hide: out of search and lists; remove: closed (banned).
+        await tx.channel.update({
+          where: { id: target.id },
+          data: {
+            status:
+              action === 'restore'
+                ? 'active'
+                : action === 'hide'
+                  ? 'hidden'
+                  : 'banned',
+          },
+        });
+        return target.status;
+      }
+      case 'channel_post': {
+        if (target.status === 'removed' && action !== 'restore') return null;
+        const status =
+          action === 'restore'
+            ? 'active'
+            : action === 'hide'
+              ? 'hidden'
+              : 'removed';
+        await tx.channelPost.update({
+          where: { id: target.id },
+          data: {
+            status,
+            ...(action === 'restore' ? { deleted_at: null } : {}),
+          },
+        });
+        const delta =
+          target.status === 'published' ? -1 : next === 'published' ? 1 : 0;
+        if (delta && target.context.channelId) {
+          await tx.channel.update({
+            where: { id: target.context.channelId },
+            data: { post_count: { increment: delta } },
+          });
+        }
         return target.status;
       }
       case 'client_review': {

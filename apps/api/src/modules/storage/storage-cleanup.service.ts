@@ -32,6 +32,9 @@ export const FILE_REFERENCES = [
   'messages.file_id',
   'support_message_files.file_id',
   'stickers.file_id',
+  'stories.file_id',
+  'channels.avatar_file_id',
+  'channel_posts.media_file_ids[]',
   'document_templates.file_id',
   'attorney_tasks.file_ids[]',
   'reviews.photo_ids[]',
@@ -239,6 +242,12 @@ export class StorageCleanupService {
         AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.file_id = f.id)
         AND NOT EXISTS (SELECT 1 FROM support_message_files smf WHERE smf.file_id = f.id)
         AND NOT EXISTS (SELECT 1 FROM stickers s WHERE s.file_id = f.id)
+        AND NOT EXISTS (
+          SELECT 1 FROM stories st WHERE st.file_id = f.id AND st.deleted_at IS NULL)
+        AND NOT EXISTS (SELECT 1 FROM channels ch WHERE ch.avatar_file_id = f.id)
+        AND NOT EXISTS (
+          SELECT 1 FROM channel_posts cp
+          WHERE cp.media_file_ids @> ARRAY[f.id] AND cp.deleted_at IS NULL)
         AND NOT EXISTS (SELECT 1 FROM document_templates d WHERE d.file_id = f.id)
         AND NOT EXISTS (SELECT 1 FROM attorney_tasks t WHERE t.file_ids @> ARRAY[f.id])
         AND NOT EXISTS (SELECT 1 FROM reviews r WHERE r.photo_ids @> ARRAY[f.id])

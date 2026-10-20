@@ -96,6 +96,17 @@ export const OWNER_MEDIA_SETTINGS = {
   'stickers.recent_max': 30,
   'rate_limit.sticker_pack_create_per_day': 5,
   'rate_limit.sticker_add_per_hour': 60,
+  // Owner 2026-10-20: stories (24 h) and channels.
+  'stories.max_active_per_user': 30,
+  'stories.max_video_sec': 15,
+  'stories.ttl_hours': 24,
+  'rate_limit.story_create_per_day': 50,
+  'channels.max_owned': 5,
+  'channels.max_admins': 10,
+  'channels.max_post_media': 10,
+  'rate_limit.channel_create_per_day': 3,
+  'rate_limit.channel_post_per_hour': 30,
+  'rate_limit.channel_comment_per_hour': 60,
   'files.sticker_max_size_mb': 1,
   // Owner 2026-10-05: a reel may be cut from a longer video (trim); the
   // played part stays ≤ video.max_duration_sec.

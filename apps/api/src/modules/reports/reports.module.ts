@@ -52,6 +52,10 @@ const REPORTABLE: ReportTargetType[] = [
   'message',
   'user',
   'sticker_pack',
+  // Owner 2026-10-20: stories, channels and channel posts.
+  'story',
+  'channel',
+  'channel_post',
 ];
 
 export class CreateReportDto {

@@ -1,0 +1,365 @@
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Patch,
+  Post,
+  Put,
+  Query,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiHeader,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
+import {
+  ApiEnvelopeResponse,
+  ApiErrors,
+  AUTHENTICATED_ERRORS,
+} from '../../common/dto/api-docs.decorators';
+import { ErrorCode } from '../../common/errors/error-code.enum';
+import { IdempotencyInterceptor } from '../../idempotency/idempotency.interceptor';
+import { RequireIdempotencyKeyGuard } from '../../idempotency/require-idempotency-key.guard';
+import {
+  CurrentUser,
+  type RequestUser,
+} from '../auth/decorators/current-user.decorator';
+import { CreateVideoUploadDto, VideoUploadDto } from '../videos/videos.dto';
+import {
+  AddChannelAdminDto,
+  ChannelAdminDto,
+  ChannelAdminParamDto,
+  ChannelCommentDto,
+  ChannelCommentParamDto,
+  ChannelDto,
+  ChannelIdParamDto,
+  ChannelListQueryDto,
+  ChannelPageQueryDto,
+  ChannelPostDto,
+  ChannelPostParamDto,
+  ChannelReactionDto,
+  ChannelRefParamDto,
+  ChannelSubscriptionDto,
+  ChannelViewsDto,
+  CreateChannelCommentDto,
+  CreateChannelDto,
+  CreateChannelPostDto,
+  UpdateChannelDto,
+  UpdateChannelPostDto,
+  UpdateChannelSubscriptionDto,
+} from './channels.dto';
+import { ChannelsService, type ChannelPage } from './channels.service';
+
+const E = ErrorCode;
+
+/** Owner 2026-10-20 — Telegram-style channels. */
+@ApiTags('channels')
+@ApiBearerAuth()
+@ApiErrors(AUTHENTICATED_ERRORS)
+@Controller('channels')
+export class ChannelsController {
+  constructor(private readonly channels: ChannelsService) {}
+
+  @Get()
+  @ApiOperation({
+    summary: 'Channels: discover / search, the ones I follow, the ones I run',
+  })
+  @ApiEnvelopeResponse(ChannelDto, { isArray: true })
+  @ApiErrors({ 403: [E.FEATURE_DISABLED] })
+  list(
+    @CurrentUser() user: RequestUser,
+    @Query() q: ChannelListQueryDto,
+  ): Promise<ChannelDto[]> {
+    return this.channels.list(user, q.scope, q.q);
+  }
+
+  @Post()
+  @ApiOperation({ summary: 'Create a channel (verified attorneys)' })
+  @ApiEnvelopeResponse(ChannelDto, { status: 201 })
+  @ApiErrors({
+    403: [E.POST_NOT_ALLOWED, E.FEATURE_DISABLED],
+    409: [E.CHANNEL_USERNAME_TAKEN, E.CHANNEL_LIMIT_REACHED],
+    429: [E.RATE_LIMITED],
+  })
+  create(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: CreateChannelDto,
+  ): Promise<ChannelDto> {
+    return this.channels.create(user, dto);
+  }
+
+  @Post('video-uploads')
+  @ApiOperation({ summary: 'Start a direct upload of a channel post video' })
+  @ApiEnvelopeResponse(VideoUploadDto, { status: 201 })
+  @ApiErrors({
+    403: [E.VIDEO_UNAVAILABLE, E.POST_NOT_ALLOWED],
+    409: [E.VIDEO_NOT_READY],
+    422: [E.VIDEO_TOO_LONG],
+    429: [E.RATE_LIMITED],
+    503: [E.VIDEO_UNAVAILABLE],
+  })
+  createVideoUpload(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: CreateVideoUploadDto,
+  ): Promise<VideoUploadDto> {
+    return this.channels.createVideoUpload(user, dto);
+  }
+
+  @Get(':ref')
+  @ApiOperation({ summary: 'A channel by id or @username' })
+  @ApiEnvelopeResponse(ChannelDto)
+  @ApiErrors({ 404: [E.NOT_FOUND] })
+  get(
+    @CurrentUser() user: RequestUser,
+    @Param() p: ChannelRefParamDto,
+  ): Promise<ChannelDto> {
+    return this.channels.get(user, p.ref);
+  }
+
+  @Patch(':id')
+  @ApiOperation({ summary: 'Edit a channel (admins; @username: owner)' })
+  @ApiEnvelopeResponse(ChannelDto)
+  @ApiErrors({
+    403: [E.FORBIDDEN],
+    404: [E.NOT_FOUND],
+    409: [E.CHANNEL_USERNAME_TAKEN],
+  })
+  update(
+    @CurrentUser() user: RequestUser,
+    @Param() p: ChannelIdParamDto,
+    @Body() dto: UpdateChannelDto,
+  ): Promise<ChannelDto> {
+    return this.channels.update(user, p.id, dto);
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Delete a channel (owner)' })
+  @ApiErrors({ 403: [E.FORBIDDEN], 404: [E.NOT_FOUND] })
+  remove(
+    @CurrentUser() user: RequestUser,
+    @Param() p: ChannelIdParamDto,
+  ): Promise<void> {
+    return this.channels.remove(user, p.id);
+  }
+
+  @Put(':id/subscription')
+  @ApiOperation({ summary: 'Subscribe' })
+  @ApiEnvelopeResponse(ChannelSubscriptionDto)
+  @ApiErrors({ 403: [E.USER_BLOCKED], 404: [E.NOT_FOUND] })
+  subscribe(
+    @CurrentUser() user: RequestUser,
+    @Param() p: ChannelIdParamDto,
+  ): Promise<ChannelSubscriptionDto> {
+    return this.channels.subscribe(user, p.id);
+  }
+
+  @Delete(':id/subscription')
+  @ApiOperation({ summary: 'Unsubscribe' })
+  @ApiEnvelopeResponse(ChannelSubscriptionDto)
+  @ApiErrors({ 404: [E.NOT_FOUND] })
+  unsubscribe(
+    @CurrentUser() user: RequestUser,
+    @Param() p: ChannelIdParamDto,
+  ): Promise<ChannelSubscriptionDto> {
+    return this.channels.unsubscribe(user, p.id);
+  }
+
+  @Patch(':id/subscription')
+  @ApiOperation({ summary: 'Mute / unmute notifications of a channel' })
+  @ApiEnvelopeResponse(ChannelSubscriptionDto)
+  @ApiErrors({ 404: [E.NOT_FOUND] })
+  mute(
+    @CurrentUser() user: RequestUser,
+    @Param() p: ChannelIdParamDto,
+    @Body() dto: UpdateChannelSubscriptionDto,
+  ): Promise<ChannelSubscriptionDto> {
+    return this.channels.mute(user, p.id, dto.muted);
+  }
+
+  @Get(':id/admins')
+  @ApiOperation({ summary: 'Owner and admins of a channel (admins only)' })
+  @ApiEnvelopeResponse(ChannelAdminDto, { isArray: true })
+  @ApiErrors({ 403: [E.FORBIDDEN], 404: [E.NOT_FOUND] })
+  admins(
+    @CurrentUser() user: RequestUser,
+    @Param() p: ChannelIdParamDto,
+  ): Promise<ChannelAdminDto[]> {
+    return this.channels.admins(user, p.id);
+  }
+
+  @Post(':id/admins')
+  @ApiOperation({ summary: 'Add an admin by @username (owner)' })
+  @ApiEnvelopeResponse(ChannelAdminDto, { isArray: true, status: 201 })
+  @ApiErrors({
+    403: [E.FORBIDDEN, E.POST_NOT_ALLOWED, E.USER_BLOCKED],
+    404: [E.NOT_FOUND],
+    409: [E.CHANNEL_LIMIT_REACHED],
+  })
+  addAdmin(
+    @CurrentUser() user: RequestUser,
+    @Param() p: ChannelIdParamDto,
+    @Body() dto: AddChannelAdminDto,
+  ): Promise<ChannelAdminDto[]> {
+    return this.channels.addAdmin(user, p.id, dto);
+  }
+
+  @Delete(':id/admins/:userId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Remove an admin (owner), or leave (yourself)' })
+  @ApiErrors({ 403: [E.FORBIDDEN], 404: [E.NOT_FOUND] })
+  removeAdmin(
+    @CurrentUser() user: RequestUser,
+    @Param() p: ChannelAdminParamDto,
+  ): Promise<void> {
+    return this.channels.removeAdmin(user, p.id, p.userId);
+  }
+
+  @Get(':id/posts')
+  @ApiOperation({ summary: 'Posts of a channel, newest first' })
+  @ApiEnvelopeResponse(ChannelPostDto, { isArray: true })
+  @ApiErrors({ 404: [E.NOT_FOUND] })
+  posts(
+    @CurrentUser() user: RequestUser,
+    @Param() p: ChannelIdParamDto,
+    @Query() q: ChannelPageQueryDto,
+  ): Promise<ChannelPage<ChannelPostDto>> {
+    return this.channels.posts(user, p.id, q.cursor, q.limit);
+  }
+
+  @Post(':id/posts')
+  @UseGuards(RequireIdempotencyKeyGuard)
+  @UseInterceptors(IdempotencyInterceptor)
+  @ApiHeader({ name: 'Idempotency-Key', required: true })
+  @ApiOperation({ summary: 'Publish a post (admins)' })
+  @ApiEnvelopeResponse(ChannelPostDto, { status: 201 })
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    403: [E.FORBIDDEN, E.POST_NOT_ALLOWED],
+    404: [E.NOT_FOUND],
+    409: [E.FILE_NOT_ATTACHABLE, E.VIDEO_NOT_READY],
+    429: [E.RATE_LIMITED],
+  })
+  createPost(
+    @CurrentUser() user: RequestUser,
+    @Param() p: ChannelIdParamDto,
+    @Body() dto: CreateChannelPostDto,
+  ): Promise<ChannelPostDto> {
+    return this.channels.createPost(user, p.id, dto);
+  }
+
+  @Post(':id/views')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Count the posts a reader saw (once per person)' })
+  @ApiErrors({ 404: [E.NOT_FOUND] })
+  markViewed(
+    @CurrentUser() user: RequestUser,
+    @Param() p: ChannelIdParamDto,
+    @Body() dto: ChannelViewsDto,
+  ): Promise<void> {
+    return this.channels.markViewed(user, p.id, dto.postIds);
+  }
+
+  @Get(':id/posts/:postId')
+  @ApiOperation({ summary: 'One post of a channel' })
+  @ApiEnvelopeResponse(ChannelPostDto)
+  @ApiErrors({ 404: [E.NOT_FOUND] })
+  post(
+    @CurrentUser() user: RequestUser,
+    @Param() p: ChannelPostParamDto,
+  ): Promise<ChannelPostDto> {
+    return this.channels.post(user, p.id, p.postId);
+  }
+
+  @Patch(':id/posts/:postId')
+  @ApiOperation({ summary: 'Edit a post (admins)' })
+  @ApiEnvelopeResponse(ChannelPostDto)
+  @ApiErrors({ 403: [E.FORBIDDEN], 404: [E.NOT_FOUND] })
+  editPost(
+    @CurrentUser() user: RequestUser,
+    @Param() p: ChannelPostParamDto,
+    @Body() dto: UpdateChannelPostDto,
+  ): Promise<ChannelPostDto> {
+    return this.channels.editPost(user, p.id, p.postId, dto.body);
+  }
+
+  @Delete(':id/posts/:postId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Delete a post (admins)' })
+  @ApiErrors({ 403: [E.FORBIDDEN], 404: [E.NOT_FOUND] })
+  removePost(
+    @CurrentUser() user: RequestUser,
+    @Param() p: ChannelPostParamDto,
+  ): Promise<void> {
+    return this.channels.removePost(user, p.id, p.postId);
+  }
+
+  @Put(':id/posts/:postId/reaction')
+  @ApiOperation({ summary: 'React to a post with one emoji' })
+  @ApiEnvelopeResponse(ChannelPostDto)
+  @ApiErrors({ 404: [E.NOT_FOUND] })
+  react(
+    @CurrentUser() user: RequestUser,
+    @Param() p: ChannelPostParamDto,
+    @Body() dto: ChannelReactionDto,
+  ): Promise<ChannelPostDto> {
+    return this.channels.react(user, p.id, p.postId, dto.emoji);
+  }
+
+  @Delete(':id/posts/:postId/reaction')
+  @ApiOperation({ summary: 'Take my reaction back' })
+  @ApiEnvelopeResponse(ChannelPostDto)
+  @ApiErrors({ 404: [E.NOT_FOUND] })
+  unreact(
+    @CurrentUser() user: RequestUser,
+    @Param() p: ChannelPostParamDto,
+  ): Promise<ChannelPostDto> {
+    return this.channels.react(user, p.id, p.postId, null);
+  }
+
+  @Get(':id/posts/:postId/comments')
+  @ApiOperation({ summary: 'Comments under a post, oldest first' })
+  @ApiEnvelopeResponse(ChannelCommentDto, { isArray: true })
+  @ApiErrors({ 404: [E.NOT_FOUND] })
+  comments(
+    @CurrentUser() user: RequestUser,
+    @Param() p: ChannelPostParamDto,
+    @Query() q: ChannelPageQueryDto,
+  ): Promise<ChannelPage<ChannelCommentDto>> {
+    return this.channels.comments(user, p.id, p.postId, q.cursor, q.limit);
+  }
+
+  @Post(':id/posts/:postId/comments')
+  @ApiOperation({ summary: 'Comment on a post' })
+  @ApiEnvelopeResponse(ChannelCommentDto, { status: 201 })
+  @ApiErrors({
+    403: [E.FORBIDDEN, E.POST_NOT_ALLOWED, E.USER_BLOCKED],
+    404: [E.NOT_FOUND],
+    429: [E.RATE_LIMITED],
+  })
+  addComment(
+    @CurrentUser() user: RequestUser,
+    @Param() p: ChannelPostParamDto,
+    @Body() dto: CreateChannelCommentDto,
+  ): Promise<ChannelCommentDto> {
+    return this.channels.addComment(user, p.id, p.postId, dto.body);
+  }
+
+  @Delete(':id/posts/:postId/comments/:commentId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Delete a comment (author or a channel admin)' })
+  @ApiErrors({ 403: [E.FORBIDDEN], 404: [E.NOT_FOUND] })
+  removeComment(
+    @CurrentUser() user: RequestUser,
+    @Param() p: ChannelCommentParamDto,
+  ): Promise<void> {
+    return this.channels.removeComment(user, p.id, p.postId, p.commentId);
+  }
+}

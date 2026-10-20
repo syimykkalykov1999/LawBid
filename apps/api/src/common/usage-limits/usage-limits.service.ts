@@ -24,7 +24,12 @@ export type LimitedAction =
   | 'report'
   | 'video_upload'
   | 'sticker_pack_create'
-  | 'sticker_add';
+  | 'sticker_add'
+  // Owner 2026-10-20: stories and channels.
+  | 'story_create'
+  | 'channel_create'
+  | 'channel_post'
+  | 'channel_comment';
 
 const HOUR = 3600;
 const DAY = 24 * HOUR;
@@ -55,6 +60,16 @@ export const USAGE_LIMITS: Record<
     windowSec: DAY,
   },
   sticker_add: { setting: 'rate_limit.sticker_add_per_hour', windowSec: HOUR },
+  story_create: { setting: 'rate_limit.story_create_per_day', windowSec: DAY },
+  channel_create: {
+    setting: 'rate_limit.channel_create_per_day',
+    windowSec: DAY,
+  },
+  channel_post: { setting: 'rate_limit.channel_post_per_hour', windowSec: HOUR },
+  channel_comment: {
+    setting: 'rate_limit.channel_comment_per_hour',
+    windowSec: HOUR,
+  },
 };
 
 /**

@@ -442,6 +442,8 @@ enum MessageType {
 }
 
 enum NotificationType {
+  // Owner 2026-10-20: a new post in a channel I subscribed to.
+  channel_post
   bid_received
   offer_countered
   offer_accepted
@@ -605,6 +607,10 @@ enum ReportTargetType {
   client_review
   // Owner 2026-10-02: user sticker packs can be reported.
   sticker_pack
+  // Owner 2026-10-20: stories, channels and their posts can be reported.
+  story
+  channel
+  channel_post
 
   @@map("report_target_type")
 }
@@ -721,6 +727,17 @@ model User {
   integration_credentials IntegrationCredential[] @relation("IntegrationCredentialCreator")
   video_assets            VideoAsset[]            @relation("VideoAssetOwner")
   sticker_packs           StickerPack[]           @relation("StickerPackOwner")
+  stories                 Story[]                 @relation("StoryAuthor")
+  story_views             StoryView[]             @relation("StoryViewer")
+  story_setting           StorySetting?
+  story_hidden            StoryHidden[]           @relation("StoryHiddenOwner")
+  story_hidden_from       StoryHidden[]           @relation("StoryHiddenTarget")
+  channels_owned          Channel[]               @relation("ChannelOwner")
+  channel_admin_of        ChannelAdmin[]          @relation("ChannelAdminUser")
+  channel_subscriptions   ChannelSubscription[]   @relation("ChannelSubscriber")
+  channel_posts           ChannelPost[]           @relation("ChannelPostAuthor")
+  channel_reactions       ChannelReaction[]       @relation("ChannelReactor")
+  channel_comments        ChannelComment[]        @relation("ChannelCommenter")
   installed_sticker_packs UserStickerPack[]
   client_verification     ClientVerification?
   client_subscription     ClientSubscription?
@@ -895,13 +912,15 @@ model File {
   verification_documents VerificationDocument[]
   data_export_jobs       DataExportJob[]
 
-  post_media        PostMedia[]
-  post_attachments  PostAttachment[]
-  case_photos       CasePhoto[]
-  voice_messages    Message[]         @relation("MessageVoice")
-  sticker           Sticker?
-  document_template DocumentTemplate?
+  post_media            PostMedia[]
+  post_attachments      PostAttachment[]
+  case_photos           CasePhoto[]
+  voice_messages        Message[]            @relation("MessageVoice")
+  sticker               Sticker?
+  document_template     DocumentTemplate?
   support_message_files SupportMessageFile[]
+  stories               Story[]
+  channels              Channel[]
 
   @@index([owner_user_id])
   @@index([s3_bucket, s3_key])
@@ -3576,6 +3595,8 @@ model VideoAsset {
   deleted_at        DateTime?        @db.Timestamptz
   purged_at         DateTime?        @db.Timestamptz
   post              Post?
+  story             Story?
+  channel_post      ChannelPost?
 
   @@index([status, created_at], map: "video_assets_status_created_idx")
   @@index([owner_user_id, created_at(sort: Desc)], map: "video_assets_owner_created_idx")
@@ -4070,18 +4091,18 @@ model SupportTicket {
 }
 
 model SupportMessage {
-  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  ticket_id       String   @db.Uuid
+  id              String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ticket_id       String               @db.Uuid
   // Exactly one of author_user_id (the app user) / author_admin_id.
-  author_user_id  String?  @db.Uuid
-  author_admin_id String?  @db.Uuid
+  author_user_id  String?              @db.Uuid
+  author_admin_id String?              @db.Uuid
   // Admin-only note, never shown to the user.
-  internal        Boolean  @default(false)
+  internal        Boolean              @default(false)
   // Owner 2026-10-05: an automatic answer (after hours, "we got it"):
   // neither author id is set; shown as "LawBid Support".
-  auto            Boolean  @default(false)
-  body            String   @db.VarChar(20000)
-  created_at      DateTime @default(now()) @db.Timestamptz
+  auto            Boolean              @default(false)
+  body            String               @db.VarChar(20000)
+  created_at      DateTime             @default(now()) @db.Timestamptz
   files           SupportMessageFile[]
 
   @@index([ticket_id, created_at])
@@ -5150,4 +5171,206 @@ model BarFormatMiss {
   @@unique([state_code, shape])
   @@index([last_seen])
   @@map("bar_format_misses")
+}
+
+// ---------------------------------------------------------------------------
+// Owner 2026-10-20 — stories and channels.
+// ---------------------------------------------------------------------------
+
+/// A story: a photo, a video up to 15 s or a text card with emoji
+/// stickers, visible for 24 hours (expires_at); afterwards only its author
+/// sees it, in the archive. Short string columns are validated by CHECKs.
+model Story {
+  id             String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  author_id      String      @db.Uuid
+  author         User        @relation("StoryAuthor", fields: [author_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "stories_author_fkey")
+  /// 'photo' | 'video' | 'text'.
+  kind           String      @db.VarChar(8)
+  /// A clean post_image of the author (photo stories).
+  file_id        String?     @db.Uuid
+  file           File?       @relation(fields: [file_id], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "stories_file_fkey")
+  video_asset_id String?     @unique @db.Uuid
+  video_asset    VideoAsset? @relation(fields: [video_asset_id], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "stories_video_asset_fkey")
+  /// The caption of a photo/video or the text of a text card (≤ 280).
+  text           String?     @db.VarChar(280)
+  /// Palette key of a text card's background.
+  background     String?     @db.VarChar(16)
+  /// Emoji stickers placed on the story: [{emoji, x, y, scale, rotation}].
+  overlays       Json        @default("[]")
+  /// Who may see it: 'all' | 'followers' | 'contacts'.
+  audience       String      @default("all") @db.VarChar(10)
+  /// 'active' | 'removed' (moderation).
+  status         String      @default("active") @db.VarChar(10)
+  view_count     Int         @default(0)
+  created_at     DateTime    @default(now()) @db.Timestamptz
+  expires_at     DateTime    @db.Timestamptz
+  deleted_at     DateTime?   @db.Timestamptz
+  views          StoryView[]
+
+  @@index([author_id, created_at(sort: Desc)], map: "stories_author_created_idx")
+  @@index([expires_at], map: "stories_expires_idx")
+  @@map("stories")
+}
+
+model StoryView {
+  story_id  String   @db.Uuid
+  story     Story    @relation(fields: [story_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "story_views_story_fkey")
+  viewer_id String   @db.Uuid
+  viewer    User     @relation("StoryViewer", fields: [viewer_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "story_views_viewer_fkey")
+  viewed_at DateTime @default(now()) @db.Timestamptz
+
+  @@id([story_id, viewer_id])
+  @@index([story_id, viewed_at(sort: Desc)], map: "story_views_story_time_idx")
+  @@index([viewer_id, viewed_at(sort: Desc)], map: "story_views_viewer_time_idx")
+  @@map("story_views")
+}
+
+/// "Hide my stories from": [hidden_user_id] never sees [owner_id]'s stories.
+model StoryHidden {
+  owner_id       String   @db.Uuid
+  owner          User     @relation("StoryHiddenOwner", fields: [owner_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "story_hidden_owner_fkey")
+  hidden_user_id String   @db.Uuid
+  hidden_user    User     @relation("StoryHiddenTarget", fields: [hidden_user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "story_hidden_target_fkey")
+  created_at     DateTime @default(now()) @db.Timestamptz
+
+  @@id([owner_id, hidden_user_id])
+  @@index([hidden_user_id])
+  @@map("story_hidden")
+}
+
+/// Story privacy: the default audience of new stories and whether others
+/// may reply to them.
+model StorySetting {
+  user_id       String   @id @db.Uuid
+  user          User     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "story_settings_user_fkey")
+  audience      String   @default("all") @db.VarChar(10)
+  allow_replies Boolean  @default(true)
+  updated_at    DateTime @default(now()) @updatedAt @db.Timestamptz
+
+  @@map("story_settings")
+}
+
+/// A Telegram-style channel of an attorney or a company: only its admins
+/// post, subscribers read, react and (when on) comment.
+model Channel {
+  id               String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  owner_id         String                @db.Uuid
+  owner            User                  @relation("ChannelOwner", fields: [owner_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "channels_owner_fkey")
+  title            String                @db.VarChar(64)
+  /// Lowercase @username, 4–32 chars [a-z0-9_]; unique.
+  username         String                @unique @db.VarChar(32)
+  description      String?               @db.VarChar(255)
+  avatar_file_id   String?               @db.Uuid
+  avatar_file      File?                 @relation(fields: [avatar_file_id], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "channels_avatar_fkey")
+  comments_enabled Boolean               @default(true)
+  /// 'active' | 'hidden' (moderation: out of search, posts still readable
+  /// by subscribers) | 'banned' (closed for everyone but the admin panel).
+  status           String                @default("active") @db.VarChar(10)
+  moderation_note  String?               @db.VarChar(255)
+  subscriber_count Int                   @default(0)
+  post_count       Int                   @default(0)
+  last_post_at     DateTime?             @db.Timestamptz
+  created_at       DateTime              @default(now()) @db.Timestamptz
+  updated_at       DateTime              @default(now()) @updatedAt @db.Timestamptz
+  deleted_at       DateTime?             @db.Timestamptz
+  admins           ChannelAdmin[]
+  subscriptions    ChannelSubscription[]
+  posts            ChannelPost[]
+
+  @@index([status, subscriber_count(sort: Desc)], map: "channels_status_subscribers_idx")
+  @@index([owner_id], map: "channels_owner_idx")
+  @@map("channels")
+}
+
+model ChannelAdmin {
+  channel_id String   @db.Uuid
+  channel    Channel  @relation(fields: [channel_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "channel_admins_channel_fkey")
+  user_id    String   @db.Uuid
+  user       User     @relation("ChannelAdminUser", fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "channel_admins_user_fkey")
+  /// 'owner' | 'admin'.
+  role       String   @default("admin") @db.VarChar(8)
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  @@id([channel_id, user_id])
+  @@index([user_id])
+  @@map("channel_admins")
+}
+
+model ChannelSubscription {
+  channel_id String   @db.Uuid
+  channel    Channel  @relation(fields: [channel_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "channel_subscriptions_channel_fkey")
+  user_id    String   @db.Uuid
+  user       User     @relation("ChannelSubscriber", fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "channel_subscriptions_user_fkey")
+  /// No notifications from this channel.
+  muted      Boolean  @default(false)
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  @@id([channel_id, user_id])
+  @@index([user_id, created_at(sort: Desc)], map: "channel_subscriptions_user_idx")
+  @@map("channel_subscriptions")
+}
+
+model ChannelPost {
+  id             String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  channel_id     String            @db.Uuid
+  channel        Channel           @relation(fields: [channel_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "channel_posts_channel_fkey")
+  author_id      String            @db.Uuid
+  author         User              @relation("ChannelPostAuthor", fields: [author_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "channel_posts_author_fkey")
+  body           String            @db.VarChar(4000)
+  /// Clean post_image files of the author, in order (≤ 10).
+  media_file_ids String[]          @default([]) @db.Uuid
+  video_asset_id String?           @unique @db.Uuid
+  video_asset    VideoAsset?       @relation(fields: [video_asset_id], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "channel_posts_video_asset_fkey")
+  /// 'active' | 'hidden' | 'removed' (moderation).
+  status         String            @default("active") @db.VarChar(10)
+  view_count     Int               @default(0)
+  comment_count  Int               @default(0)
+  created_at     DateTime          @default(now()) @db.Timestamptz
+  edited_at      DateTime?         @db.Timestamptz
+  deleted_at     DateTime?         @db.Timestamptz
+  views          ChannelPostView[]
+  reactions      ChannelReaction[]
+  comments       ChannelComment[]
+
+  @@index([channel_id, created_at(sort: Desc)], map: "channel_posts_channel_created_idx")
+  @@map("channel_posts")
+}
+
+/// One row per viewer: a channel post counts a person once.
+model ChannelPostView {
+  post_id   String      @db.Uuid
+  post      ChannelPost @relation(fields: [post_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "channel_post_views_post_fkey")
+  user_id   String      @db.Uuid
+  viewed_at DateTime    @default(now()) @db.Timestamptz
+
+  @@id([post_id, user_id])
+  @@map("channel_post_views")
+}
+
+/// A person's one reaction (an emoji) to a channel post.
+model ChannelReaction {
+  post_id    String      @db.Uuid
+  post       ChannelPost @relation(fields: [post_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "channel_reactions_post_fkey")
+  user_id    String      @db.Uuid
+  user       User        @relation("ChannelReactor", fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "channel_reactions_user_fkey")
+  emoji      String      @db.VarChar(8)
+  created_at DateTime    @default(now()) @db.Timestamptz
+
+  @@id([post_id, user_id])
+  @@index([post_id, emoji], map: "channel_reactions_post_emoji_idx")
+  @@map("channel_reactions")
+}
+
+model ChannelComment {
+  id         String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  post_id    String      @db.Uuid
+  post       ChannelPost @relation(fields: [post_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "channel_comments_post_fkey")
+  author_id  String      @db.Uuid
+  author     User        @relation("ChannelCommenter", fields: [author_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "channel_comments_author_fkey")
+  body       String      @db.VarChar(1000)
+  created_at DateTime    @default(now()) @db.Timestamptz
+  deleted_at DateTime?   @db.Timestamptz
+
+  @@index([post_id, created_at], map: "channel_comments_post_created_idx")
+  @@map("channel_comments")
 }

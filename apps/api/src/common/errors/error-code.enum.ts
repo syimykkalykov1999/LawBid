@@ -459,4 +459,9 @@ export enum ErrorCode {
   // place a bid) needs the user to accept the updated legal documents
   // first; details.documents = the doc types.
   LEGAL_REACCEPT_REQUIRED = 'LEGAL_REACCEPT_REQUIRED',
+  // Owner 2026-10-20 — stories and channels. 409: too many active stories /
+  // channels of one person; 409: the @username of a channel is taken.
+  STORY_LIMIT_REACHED = 'STORY_LIMIT_REACHED',
+  CHANNEL_LIMIT_REACHED = 'CHANNEL_LIMIT_REACHED',
+  CHANNEL_USERNAME_TAKEN = 'CHANNEL_USERNAME_TAKEN',
 }

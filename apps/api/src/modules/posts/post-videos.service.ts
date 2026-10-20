@@ -115,6 +115,9 @@ export class PostVideosService {
         status: { in: ['ready', 'failed', 'rejected'] },
         deleted_at: null,
         post: null,
+        // Owner 2026-10-20: a video of a story / channel post is in use.
+        story: null,
+        channel_post: null,
         created_at: { lt: new Date(now - ORPHAN_MS) },
       },
       select: { id: true },

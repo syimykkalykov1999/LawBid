@@ -296,6 +296,18 @@ export const NOTIFICATION_TEMPLATES: Partial<
     },
     ru: { title: 'Вас отметили', body: 'Вас отметили в LawBid.' },
   },
+  // Owner 2026-10-20: a post in a channel I subscribed to.
+  channel_post: {
+    group: 'social',
+    en: {
+      title: 'New post in a channel',
+      body: 'A channel you follow published a new post.',
+    },
+    ru: {
+      title: 'Новый пост в канале',
+      body: 'В канале, на который вы подписаны, новая публикация.',
+    },
+  },
   // Owner 2026-09-30 (opt-in).
   followed_post: {
     group: 'social',

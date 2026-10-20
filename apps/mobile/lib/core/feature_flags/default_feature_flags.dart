@@ -30,6 +30,8 @@ const Map<String, bool> defaultFeatureFlags = {
   'bid_packs': false,
   'firm_profiles': false,
   'video_calls': false,
+  'stories': true,
+  'channels': true,
   'document_templates': true,
   'video_posts': false,
   'payments_in_app': false,
