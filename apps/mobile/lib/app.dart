@@ -14,6 +14,7 @@ import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/navigation/root_messenger.dart';
 import 'package:lawbid/core/navigation/route_observer.dart';
 import 'package:lawbid/core/platform/web_consent_notice.dart';
+import 'package:lawbid/core/platform/web_open_in_app.dart';
 import 'package:lawbid/core/platform/web_safe_area.dart';
 import 'package:lawbid/core/theme/preferences_sync.dart';
 import 'package:lawbid/features/calls/presentation/call_host.dart';
@@ -86,30 +87,33 @@ class LawBidApp extends ConsumerWidget {
             textDirection: rtl ? TextDirection.rtl : TextDirection.ltr,
             // Owner 2026-10-05: nothing ever sits under the Android system
             // navigation bar (core/design_system/widgets/bars/system_nav_band.dart).
-            child: TextWarmUp(
-              child: WebConsentNotice(
-                onOpenPrivacy: () => router.push(AppRoutes.legalDoc('privacy')),
-                child: AppBackdrop(
-                  child: SystemNavBand(
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.translucent,
-                      onTap: dropKeyboard,
-                      child: AccountSuspendedGate(
-                        child: AppUpdateGate(
-                          child: child == null
-                              ? null
-                              // OQ-041: the call screen pops over any route.
-                              : CallHost(
-                                  router: router,
-                                  child: RouterOfflineBannerHost(
+            child: WebOpenInApp(
+              child: TextWarmUp(
+                child: WebConsentNotice(
+                  onOpenPrivacy: () =>
+                      router.push(AppRoutes.legalDoc('privacy')),
+                  child: AppBackdrop(
+                    child: SystemNavBand(
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.translucent,
+                        onTap: dropKeyboard,
+                        child: AccountSuspendedGate(
+                          child: AppUpdateGate(
+                            child: child == null
+                                ? null
+                                // OQ-041: the call screen pops over any route.
+                                : CallHost(
                                     router: router,
-                                    // Owner 2026-10-05 (docs/CLIENT_FRAUD.md).
-                                    child: AccountRestrictedHost(
+                                    child: RouterOfflineBannerHost(
                                       router: router,
-                                      child: child,
+                                      // Owner 2026-10-05 (docs/CLIENT_FRAUD.md).
+                                      child: AccountRestrictedHost(
+                                        router: router,
+                                        child: child,
+                                      ),
                                     ),
                                   ),
-                                ),
+                          ),
                         ),
                       ),
                     ),
