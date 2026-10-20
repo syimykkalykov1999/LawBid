@@ -13,6 +13,9 @@ import 'package:lawbid/features/chat/data/voice_files.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:proximity_sensor/proximity_sensor.dart';
 
+/// The id the player shows while a not-yet-sent recording is previewed.
+const kVoiceDraftId = '__draft__';
+
 /// What the one app-wide voice player is doing (OQ-040): only one note
 /// plays at a time, like Telegram.
 @immutable
@@ -106,6 +109,7 @@ class VoicePlayer extends Notifier<VoicePlayback> {
     return _player = p;
   }
 
+  int _load = 0;
   StreamSubscription<int>? _proximity;
   bool _earpiece = false;
 
@@ -116,6 +120,7 @@ class VoicePlayer extends Notifier<VoicePlayback> {
         s.cancel();
       }
       unawaited(_proximity?.cancel());
+      if (!kIsWeb) unawaited(ProximitySensor.setProximityScreenOff(false));
       _player?.dispose();
     });
     // A call (ringing or talking) takes the audio: the note stops.
@@ -173,7 +178,7 @@ class VoicePlayer extends Notifier<VoicePlayback> {
     String? threadId,
   }) async {
     final v = m.voice;
-    if (v == null) return;
+    if (v == null || callBusy) return;
     final p = _p;
     if (state.messageId == m.id) {
       if (p.playing) {
@@ -183,7 +188,9 @@ class VoicePlayer extends Notifier<VoicePlayback> {
       }
       return;
     }
+    final load = ++_load;
     if (p.playing || state.messageId != null) await _pauseFaded(p, stop: true);
+    if (load != _load) return;
     _next = then;
     _onAutoPlay = onAutoPlay;
     state = VoicePlayback(
@@ -203,14 +210,16 @@ class VoicePlayer extends Notifier<VoicePlayback> {
           return;
         }
         await p.setUrl(url);
+        if (load != _load) return;
         await p.setSpeed(state.speed);
         await _playFaded(p);
         return;
       }
       final path = v.localPath ?? await _cached(m.id, v.url);
-      if (!ref.mounted) return;
+      if (!ref.mounted || load != _load) return;
       if (path != null) {
         await p.setFilePath(path);
+        if (load != _load) return;
       } else {
         state = state.copyWith(loading: false);
         return;
@@ -222,29 +231,41 @@ class VoicePlayer extends Notifier<VoicePlayback> {
     }
   }
 
-  /// No click: the sound rises over ~120 ms when it starts or resumes and
-  /// falls over ~90 ms before it pauses (a hard cut is a pop on speakers).
+  /// Bumped by every fade / start / stop: a ramp that finds a newer number
+  /// stops at once (pause + play within 90 ms, two notes at the same time).
+  int _gen = 0;
+
+  Future<bool> _ramp(AudioPlayer p, double from, double to, int gen) async {
+    const steps = 6;
+    for (var i = 1; i <= steps; i++) {
+      if (gen != _gen) return false;
+      await p.setVolume(from + (to - from) * i / steps);
+      await Future<void>.delayed(const Duration(milliseconds: 18));
+    }
+    return gen == _gen;
+  }
+
+  /// No click: the sound rises over ~110 ms when it starts or resumes and
+  /// falls over ~110 ms before it pauses (a hard cut is a pop on speakers).
   Future<void> _playFaded(AudioPlayer p) async {
+    final gen = ++_gen;
     await p.setVolume(0);
     unawaited(p.play());
     _watchProximity();
-    for (var i = 1; i <= 6; i++) {
-      await Future<void>.delayed(const Duration(milliseconds: 20));
-      await p.setVolume(i / 6);
-    }
+    await _ramp(p, 0, 1, gen);
   }
 
   Future<void> _pauseFaded(AudioPlayer p, {bool stop = false}) async {
-    for (var i = 5; i >= 0; i--) {
-      await p.setVolume(i / 6 * 1.0);
-      await Future<void>.delayed(const Duration(milliseconds: 15));
-    }
+    final gen = ++_gen;
+    if (p.playing && !await _ramp(p, p.volume, 0, gen)) return;
     if (stop) {
       await p.stop();
     } else {
       await p.pause();
     }
     await p.setVolume(1);
+    // A paused note listens to nothing: sensor and screen lock released.
+    if (stop || !(_player?.playing ?? false)) _unwatchProximity();
   }
 
   /// WhatsApp: held to the ear the note moves to the earpiece and the
@@ -264,26 +285,56 @@ class VoicePlayer extends Notifier<VoicePlayback> {
   void _unwatchProximity() {
     final sub = _proximity;
     _proximity = null;
-    if (sub == null) return;
-    unawaited(sub.cancel());
-    unawaited(_setEarpiece(false));
+    if (sub != null) unawaited(sub.cancel());
+    if (_earpiece) unawaited(_setEarpiece(false));
   }
 
+  /// Earpiece (voice-call route: iOS playAndRecord + voiceChat without
+  /// defaultToSpeaker; Android voiceCommunication / speech) or the normal
+  /// loudspeaker. The session category never changes under live sound: the
+  /// note fades out, the route is switched in silence, and it fades back.
   Future<void> _setEarpiece(bool on) async {
-    if (_earpiece == on || (on && !(_player?.playing ?? false))) return;
+    if (_earpiece == on) return;
+    final p = _player;
+    final wasPlaying = p?.playing ?? false;
+    if (on && !wasPlaying) return;
     _earpiece = on;
+    final gen = ++_gen;
     try {
+      if (wasPlaying && p != null) {
+        if (!await _ramp(p, p.volume, 0, gen)) return;
+        await p.pause();
+      }
       final session = await AudioSession.instance;
-      await session.configure(
-        on ? const AudioSessionConfiguration.speech() : _music,
-      );
+      await session.configure(on ? _earpieceConfig : _music);
       await ProximitySensor.setProximityScreenOff(on);
+      if (wasPlaying && p != null && ref.mounted && gen == _gen) {
+        await p.setVolume(0);
+        unawaited(p.play());
+        await _ramp(p, 0, 1, gen);
+      }
     } on Object {
       // The session stays as it was.
     }
   }
 
   static const _music = AudioSessionConfiguration.music();
+
+  static const _earpieceConfig = AudioSessionConfiguration(
+    avAudioSessionCategory: AVAudioSessionCategory.playAndRecord,
+    avAudioSessionCategoryOptions: AVAudioSessionCategoryOptions.allowBluetooth,
+    avAudioSessionMode: AVAudioSessionMode.voiceChat,
+    avAudioSessionRouteSharingPolicy:
+        AVAudioSessionRouteSharingPolicy.defaultPolicy,
+    androidAudioAttributes: AndroidAudioAttributes(
+      contentType: AndroidAudioContentType.speech,
+      usage: AndroidAudioUsage.voiceCommunication,
+    ),
+  );
+
+  /// A call is on (ringing, dialling or talking): sound from notes would
+  /// fight the call for the audio session.
+  bool get callBusy => ref.read(callControllerProvider).phase != CallPhase.idle;
 
   /// Telegram-style: a note is downloaded once into the cache and played
   /// from the file (replays work offline; the signed link may expire).
@@ -304,6 +355,44 @@ class VoicePlayer extends Notifier<VoicePlayback> {
     await file.writeAsBytes(data, flush: true);
     return file.path;
   }
+
+  /// The preview of a recording not sent yet (lock mode): same player, same
+  /// fades, never two sounds at once. [kVoiceDraftId] marks it.
+  Future<void> toggleLocal(String path, int durationMs) async {
+    if (callBusy) return;
+    final p = _p;
+    if (state.messageId == kVoiceDraftId) {
+      if (p.playing) {
+        await _pauseFaded(p);
+      } else {
+        await _playFaded(p);
+      }
+      return;
+    }
+    final load = ++_load;
+    if (p.playing || state.messageId != null) await _pauseFaded(p, stop: true);
+    if (load != _load) return;
+    _next = const [];
+    state = VoicePlayback(
+      messageId: kVoiceDraftId,
+      loading: true,
+      durationMs: durationMs,
+    );
+    try {
+      if (kIsWeb) {
+        await p.setUrl(path);
+      } else {
+        await p.setFilePath(path);
+      }
+      if (load != _load) return;
+      await p.setSpeed(1);
+      await _playFaded(p);
+    } on Object {
+      if (ref.mounted) state = state.copyWith(loading: false, playing: false);
+    }
+  }
+
+  Future<void> seekTo(Duration at) async => _player?.seek(at);
 
   /// Play/pause the current note (the mini-player).
   Future<void> playPause() async {
@@ -341,6 +430,7 @@ class VoicePlayer extends Notifier<VoicePlayback> {
 
   Future<void> stop() async {
     _next = const [];
+    _load++;
     final p = _player;
     if (p != null && p.playing) {
       await _pauseFaded(p, stop: true);

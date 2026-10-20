@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
@@ -16,7 +17,7 @@ const kVoiceBars = 48;
 /// A finished recording.
 typedef VoiceRecording = ({String path, int durationMs, List<int> waveform});
 
-/// Records a voice note (AAC in .m4a, mono, 32 kbit/s), sampling the level
+/// Records a voice note (AAC in .m4a, mono, 16 kHz, 32 kbit/s), sampling the level
 /// every 80 ms for the live meter and the stored waveform. In a browser the
 /// note is AAC in MP4 where the browser can (Safari) and Opus in WebM
 /// otherwise (Chrome, Firefox); `stop` then gives a blob: URL, not a file.
@@ -35,7 +36,7 @@ class VoiceRecorder {
   bool _paused = false;
 
   /// WhatsApp: the tail of the last word is not cut when the finger lifts.
-  static const _tail = Duration(milliseconds: 220);
+  static const _tail = Duration(milliseconds: 150);
 
   /// 0…1 while recording (for the pulsing mic and the live bars).
   Stream<double> get levels => _levels.stream;
@@ -67,6 +68,8 @@ class VoiceRecorder {
       RecordConfig(
         encoder: encoder,
         bitRate: 32000,
+        // 32 kbit/s needs 16 kHz: at 44.1 kHz AAC bubbles and warbles.
+        sampleRate: 16000,
         numChannels: 1,
       ),
       path: path,
@@ -192,3 +195,24 @@ String voiceClock(Duration d) {
 
 /// The duration a bubble shows for [v].
 Duration voiceLength(VoiceNote v) => Duration(milliseconds: v.durationMs);
+
+/// A recording left in a chat's composer (lock mode, call came in, screen
+/// left): it waits there to be played, sent or deleted — never lost.
+class VoiceDrafts extends Notifier<Map<String, VoiceRecording>> {
+  @override
+  Map<String, VoiceRecording> build() => const {};
+
+  VoiceRecording? of(String chatId) => state[chatId];
+
+  void put(String chatId, VoiceRecording r) => state = {...state, chatId: r};
+
+  void clear(String chatId) {
+    if (!state.containsKey(chatId)) return;
+    state = {...state}..remove(chatId);
+  }
+}
+
+final voiceDraftsProvider =
+    NotifierProvider<VoiceDrafts, Map<String, VoiceRecording>>(
+  VoiceDrafts.new,
+);

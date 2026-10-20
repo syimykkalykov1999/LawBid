@@ -179,6 +179,7 @@ const file06Ru = <String, String>{
   'chat.voice.pauseRec': 'Пауза записи',
   'chat.voice.resume': 'Продолжить запись',
   'chat.voice.stop': 'Остановить воспроизведение',
+  'chat.voice.duringCall': 'Нельзя во время звонка',
   'chat.voice.noMic':
       'Нет доступа к микрофону. Разрешите его в настройках телефона.',
   // --- Подписка (docs/06 §1.7 п.1–2) ---
@@ -484,7 +485,8 @@ const file06En = <String, String>{
   'chat.attach.files': 'Documents (PDF, Word, Excel…)',
   'chat.attach.photo': 'Photo',
   'chat.attach.label': 'File',
-  'chat.attach.skipped': '{count} not added — unsupported format or over {max} MB',
+  'chat.attach.skipped':
+      '{count} not added — unsupported format or over {max} MB',
   'chat.files.title': 'Files and photos',
   'chat.files.photos': 'Photos',
   'chat.files.documents': 'Documents',
@@ -650,6 +652,7 @@ const file06En = <String, String>{
   'chat.voice.pauseRec': 'Pause recording',
   'chat.voice.resume': 'Resume recording',
   'chat.voice.stop': 'Stop playback',
+  'chat.voice.duringCall': 'Not available during a call',
   'chat.voice.noMic': 'No microphone access. Allow it in your phone settings.',
   // --- Subscription (docs/06 §1.7 items 1–2) ---
   'subscription.title': 'Subscription',

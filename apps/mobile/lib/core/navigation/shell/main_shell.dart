@@ -109,7 +109,9 @@ class _MainShellState extends ConsumerState<MainShell> {
       reelPublishJobProvider.select((j) => j.phase != ReelPublishPhase.idle),
     );
     final miniPlayer = ref.watch(
-      voicePlayerProvider.select((p) => p.messageId != null),
+      voicePlayerProvider.select(
+        (p) => p.messageId != null && p.messageId != kVoiceDraftId,
+      ),
     );
     // Owner 2026-10-15 (web): on a wide window the bar moves to the side.
     final layout = shellLayoutFor(MediaQuery.sizeOf(context).width);

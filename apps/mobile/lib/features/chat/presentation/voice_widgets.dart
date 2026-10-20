@@ -60,6 +60,10 @@ class VoiceMessageBody extends ConsumerWidget {
 
     Future<void> toggle() async {
       if (!playable) return;
+      if (player.callBusy) {
+        showAppSnackBar(context, t.t('chat.voice.duringCall'));
+        return;
+      }
       final thread = ref.read(chatThreadProvider(threadId).notifier);
       // WhatsApp: the other side's voice notes right after this one.
       final all = ref.read(chatThreadProvider(threadId)).all;
@@ -447,7 +451,9 @@ class VoiceMiniPlayer extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final p = ref.watch(voicePlayerProvider);
-    if (p.messageId == null) return const SizedBox.shrink();
+    if (p.messageId == null || p.messageId == kVoiceDraftId) {
+      return const SizedBox.shrink();
+    }
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
