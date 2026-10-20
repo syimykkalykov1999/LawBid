@@ -18,6 +18,9 @@ import 'package:lawbid/core/platform/web_consent_notice.dart';
 import 'package:lawbid/core/platform/web_gate.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/callkit_bridge.dart';
+import 'package:lawbid/features/calls/presentation/call_widgets.dart';
+import 'package:lawbid/features/contacts_sync/application/phone_contacts.dart';
+import 'package:lawbid/features/contacts_sync/presentation/contact_picker.dart';
 import 'package:lawbid/features/referrals/application/install_referrer.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -67,6 +70,17 @@ Future<void> runLawBid(AppFlavor flavor) async {
         systemCallUiProvider.overrideWithValue(const CallkitSystemUi()),
       // OQ-044: ringback / busy / end tones and message sounds.
       appSoundsProvider.overrideWithValue(JustAudioAppSounds()),
+      // "Add participant" offers the LawBid people of the phone book.
+      callContactPickerProvider.overrideWithValue(
+        (context, skip) async => [
+          for (final c in await showContactPicker(
+                context,
+                excludeUserIds: skip,
+              ) ??
+              const <LawBidContact>[])
+            c.userId,
+        ],
+      ),
     ],
   );
 

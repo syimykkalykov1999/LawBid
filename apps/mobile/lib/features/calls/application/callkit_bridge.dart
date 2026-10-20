@@ -11,6 +11,7 @@ import 'package:lawbid/features/calls/application/call_end_port_stub.dart'
     if (dart.library.io) 'package:lawbid/features/calls/application/call_end_port_io.dart';
 import 'package:lawbid/features/calls/data/calls_repository.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
+import 'package:lawbid/features/notifications/application/task_reminder_scheduler.dart';
 
 /// OQ-041: the phone's own incoming-call screen (Android full-screen
 /// ringing notification / iOS CallKit) — rings on a locked screen and
@@ -186,6 +187,12 @@ Future<void> stopLawbidIncoming(String callId, {bool over = false}) async {
 @pragma('vm:entry-point')
 Future<void> lawbidBackgroundMessage(RemoteMessage message) async {
   final d = message.data;
+  // Owner 2026-10-20: a planner reminder (data-only, Android) is drawn by
+  // the app under the id of its own alarm.
+  if (d['type'] == taskReminderType) {
+    await showTaskReminderFromPush(d);
+    return;
+  }
   final callId = d['callId'];
   if (callId is! String) return;
   if (d['type'] == 'call_ended') {

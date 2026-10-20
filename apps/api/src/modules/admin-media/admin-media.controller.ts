@@ -44,6 +44,7 @@ import {
   AdminVideoStatsDto,
   AdminVideosQueryDto,
   CreateOfficialStickerPackDto,
+  SetStickerPackPriceDto,
 } from './admin-media.dto';
 import { AdminStickersService } from './admin-stickers.service';
 import { AdminVideosService } from './admin-videos.service';
@@ -247,6 +248,23 @@ export class AdminMediaController {
     @Body() dto: AdminMediaReasonDto,
   ): Promise<AdminStickerPackDto> {
     return this.stickers.setHidden(admin, p.id, false, dto.reason);
+  }
+
+  @Post('sticker-packs/:id/price')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Set the price in stars of an official pack' })
+  @ApiEnvelopeResponse(AdminStickerPackDto)
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    404: [E.NOT_FOUND],
+    409: [E.CONTENT_INVALID_STATE],
+  })
+  setAdminStickerPackPrice(
+    @CurrentAdmin() admin: AdminActor,
+    @Param() p: AdminMediaIdParamDto,
+    @Body() dto: SetStickerPackPriceDto,
+  ): Promise<AdminStickerPackDto> {
+    return this.stickers.setPrice(admin, p.id, dto.priceStars);
   }
 
   @Post('sticker-packs/:id/stickers')

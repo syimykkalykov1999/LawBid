@@ -13,6 +13,7 @@ class PromotionQuoteDto {
     required this.priceCentsPerDay,
     required this.grossCents,
     required this.totalCents,
+    required this.starsTotal,
     required this.creditDaysAvailable,
     required this.creditDaysUsed,
     required this.creditDaysAvailableExact,
@@ -44,6 +45,9 @@ class PromotionQuoteDto {
 
   /// If credits are used.
   final int totalCents;
+
+  /// The same total in stars; null while stars are switched off or nothing is due.
+  final int? starsTotal;
 
   /// Whole credit days.
   final int creditDaysAvailable;

@@ -29,12 +29,16 @@ import 'package:lawbid/features/channels/channels_routes.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/client_badge/presentation/client_badge_screen.dart';
 import 'package:lawbid/features/client_plan/client_plan_routes.dart';
+import 'package:lawbid/features/consultations/consultations_routes.dart';
 import 'package:lawbid/features/contacts_sync/presentation/contacts_screen.dart';
 import 'package:lawbid/features/create/presentation/screens/create_screen.dart';
+import 'package:lawbid/features/deadlines/deadlines_routes.dart';
 import 'package:lawbid/features/feed/presentation/screens/feed_screen.dart';
+import 'package:lawbid/features/groups/group_router.dart';
 import 'package:lawbid/features/guide/presentation/guide_screen.dart';
 import 'package:lawbid/features/legal/presentation/dmca_notice_screen.dart';
 import 'package:lawbid/features/legal/presentation/legal_accept_screen.dart';
+import 'package:lawbid/features/legal_qa/legal_qa_routes.dart';
 import 'package:lawbid/features/mine/presentation/screens/mine_screen.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/onboarding/onboarding_routes.dart';
@@ -67,6 +71,8 @@ import 'package:lawbid/features/settings/archive/archive_screen.dart';
 import 'package:lawbid/features/settings/data_export/presentation/data_export_screen.dart';
 import 'package:lawbid/features/settings/saved/saved_screen.dart';
 import 'package:lawbid/features/social/social_routes.dart';
+import 'package:lawbid/features/stars/presentation/my_gifts_screen.dart';
+import 'package:lawbid/features/stars/presentation/stars_screen.dart';
 import 'package:lawbid/features/stories/stories_routes.dart';
 import 'package:lawbid/features/subscription/subscription_routes.dart';
 import 'package:lawbid/features/support/presentation/support_list_screen.dart';
@@ -396,6 +402,20 @@ GoRouter appRouter(Ref ref) {
             AppPageTransitions.push(state, const BidPacksScreen()),
       ),
       GoRoute(
+        path: AppRoutes.stars,
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            AppPageTransitions.push(state, const StarsScreen()),
+        routes: [
+          GoRoute(
+            path: 'gifts',
+            parentNavigatorKey: _rootNavigatorKey,
+            pageBuilder: (context, state) =>
+                AppPageTransitions.push(state, const MyGiftsScreen()),
+          ),
+        ],
+      ),
+      GoRoute(
         path: AppRoutes.myFirm,
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) =>
@@ -499,10 +519,18 @@ GoRouter appRouter(Ref ref) {
       ...socialRoutes(_rootNavigatorKey),
       // docs/05 chats, notifications, notification settings.
       ...chatRoutes(_rootNavigatorKey),
+      // Owner 2026-10-20: group chats, polls, join links.
+      ...groupRoutes(_rootNavigatorKey),
       // docs/06 §1.7: Settings → Подписка, payments, gate paywall.
       ...subscriptionRoutes(_rootNavigatorKey),
       // Owner 2026-10-05: payouts, case payments, Stripe return pages.
       ...casePaymentsRoutes(_rootNavigatorKey),
+      // Owner 2026-10-20: consultation booking.
+      ...consultationsRoutes(_rootNavigatorKey),
+      // Owner 2026-10-20: the deadline calculator.
+      ...deadlinesRoutes(_rootNavigatorKey),
+      // Owner 2026-10-20: «Вопрос юристу».
+      ...legalQaRoutes(_rootNavigatorKey),
       // Owner 2026-10-05 (plan builder): Settings → «Подписка клиента».
       ...clientPlanRoutes(_rootNavigatorKey),
       // OQ-048: Team, new task, assistant joining.

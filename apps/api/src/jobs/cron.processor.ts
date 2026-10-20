@@ -2,6 +2,7 @@ import { Injectable, Optional } from '@nestjs/common';
 import { CRON_JOBS } from './jobs.constants';
 import { CasePaymentsService } from '../modules/case-payments/case-payments.service';
 import { PromotionsService } from '../modules/promotions/promotions.service';
+import { StarsService } from '../modules/stars/stars.service';
 import { PartnersService } from '../modules/partners/partners.service';
 import { CountryPartnersService } from '../modules/country-partners/country-partners.service';
 import { RewardsService } from '../modules/rewards/rewards.service';
@@ -33,6 +34,7 @@ import { OpsMetricsJob } from './handlers/ops-metrics.job';
 import { OpsGuardJob } from './handlers/ops-guard.job';
 import { HEAVY_CRON_JOBS } from '../common/ops/ops.constants';
 import { OpsStateService } from '../common/ops/ops-state.service';
+import { ConsultationRemindersJob } from '../modules/consultations/consultation-reminders.job';
 import {
   TaskArchivePurgeJob,
   TaskRemindersJob,
@@ -86,6 +88,7 @@ export class CronProcessor {
     private readonly clientReviews: ClientReviewsService,
     private readonly postVideos: PostVideosService,
     private readonly promotions: PromotionsService,
+    private readonly stars: StarsService,
     private readonly taskReminders: TaskRemindersJob,
     private readonly taskArchivePurge: TaskArchivePurgeJob,
     private readonly casePayments: CasePaymentsService,
@@ -110,6 +113,7 @@ export class CronProcessor {
     @Optional() private readonly searchLog?: SearchLogService,
     @Optional() private readonly searchSynonyms?: SearchSynonymsService,
     @Optional() private readonly crashReports?: CrashReportsService,
+    @Optional() private readonly consultationSweep?: ConsultationRemindersJob,
   ) {}
 
   async process(name: string): Promise<unknown> {
@@ -182,6 +186,10 @@ export class CronProcessor {
         return this.postVideos.sweep();
       case CRON_JOBS.promotionsExpire:
         return this.promotions.expire();
+      case CRON_JOBS.starsSweep:
+        return this.stars.sweepPending();
+      case CRON_JOBS.consultationsSweep:
+        return this.consultationSweep?.run() ?? null;
       case CRON_JOBS.taskReminders:
         return this.taskReminders.run();
       case CRON_JOBS.taskArchivePurge:

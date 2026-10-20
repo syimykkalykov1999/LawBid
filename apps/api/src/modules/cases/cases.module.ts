@@ -103,6 +103,13 @@ import { PresenceModule } from '../presence/presence.module';
     CaseContactsService,
     MineService,
   ],
-  exports: [CasesService, CaseStateMachine, CaseAccessPolicy, CasesFeedService],
+  exports: [
+    CasesService,
+    CaseStateMachine,
+    CaseAccessPolicy,
+    CasesFeedService,
+    // Owner 2026-10-20: the case tools read the same two sides of a case.
+    CaseWorkspaceService,
+  ],
 })
 export class CasesModule {}

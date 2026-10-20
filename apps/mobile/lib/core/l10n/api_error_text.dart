@@ -90,6 +90,11 @@ const _keys = <String, String>{
   ApiErrorCodes.reviewCaseNotClosed: 'error.api.REVIEW_CASE_NOT_CLOSED',
   ApiErrorCodes.reviewNoAcceptedBid: 'error.api.REVIEW_NO_ACCEPTED_BID',
   ApiErrorCodes.reviewAlreadyExists: 'error.api.REVIEW_ALREADY_EXISTS',
+  ApiErrorCodes.consultationSlotTaken: 'error.api.CONSULTATION_SLOT_TAKEN',
+  ApiErrorCodes.consultationNotAvailable:
+      'error.api.CONSULTATION_NOT_AVAILABLE',
+  ApiErrorCodes.consultationStateConflict:
+      'error.api.CONSULTATION_STATE_CONFLICT',
   ApiErrorCodes.reviewAppealExists: 'error.api.REVIEW_APPEAL_EXISTS',
   ApiErrorCodes.chatAttachmentsLocked: 'error.api.CHAT_ATTACHMENTS_LOCKED',
   ApiErrorCodes.subscriptionPlanIncludesSeats:
@@ -162,6 +167,8 @@ const _keys = <String, String>{
   ApiErrorCodes.bidMaxRoundsReached: 'error.api.BID_MAX_ROUNDS_REACHED',
   ApiErrorCodes.bidCounterNotAllowed: 'error.api.BID_COUNTER_NOT_ALLOWED',
   ApiErrorCodes.subscriptionRequired: 'error.api.SUBSCRIPTION_REQUIRED',
+  ApiErrorCodes.insufficientStars: 'error.api.INSUFFICIENT_STARS',
+  ApiErrorCodes.stickerPackNotOwned: 'error.api.STICKER_PACK_NOT_OWNED',
   ApiErrorCodes.caseNotAvailable: 'error.api.CASE_NOT_AVAILABLE',
   ApiErrorCodes.postNotFound: 'error.api.POST_NOT_FOUND',
   ApiErrorCodes.postNotAllowed: 'error.api.POST_NOT_ALLOWED',
@@ -170,6 +177,11 @@ const _keys = <String, String>{
   ApiErrorCodes.followNotAllowed: 'error.api.FOLLOW_NOT_ALLOWED',
   ApiErrorCodes.conversationNotFound: 'error.api.CONVERSATION_NOT_FOUND',
   ApiErrorCodes.conversationClosed: 'error.api.CONVERSATION_CLOSED',
+  ApiErrorCodes.groupNotFound: 'error.api.GROUP_NOT_FOUND',
+  ApiErrorCodes.groupForbidden: 'error.api.GROUP_FORBIDDEN',
+  ApiErrorCodes.groupFull: 'error.api.GROUP_FULL',
+  ApiErrorCodes.groupUsernameTaken: 'error.api.GROUP_USERNAME_TAKEN',
+  ApiErrorCodes.pollClosed: 'error.api.POLL_CLOSED',
   ApiErrorCodes.messageTooLong: 'error.api.MESSAGE_TOO_LONG',
   ApiErrorCodes.textTooLong: 'error.api.TEXT_TOO_LONG',
   ApiErrorCodes.featureDisabled: 'error.api.FEATURE_DISABLED',

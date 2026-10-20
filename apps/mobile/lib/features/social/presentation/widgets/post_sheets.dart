@@ -22,7 +22,7 @@ import 'package:lawbid/features/social/data/social_repository.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/screens/create_post_screen.dart';
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart'
-    show RepostersScreen;
+    show LikersScreen, RepostersScreen;
 import 'package:lawbid/features/social/presentation/widgets/post_impression_tracker.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
@@ -101,6 +101,12 @@ Future<void> showRepostSheet(
     showAppSnackBar(context, errorText(t, error));
   }
 }
+
+/// The list of people who liked a post (the like counter's tap).
+Future<void> showLikersList(BuildContext context, String postId) =>
+    Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(builder: (_) => LikersScreen(postId: postId)),
+    );
 
 /// The list of people who reposted a post (the counter's tap).
 Future<void> showRepostersList(BuildContext context, String postId) =>
@@ -630,7 +636,11 @@ String? _dmcaTargetType(ReportTarget target) => switch (target) {
       ReportTarget.post => 'post',
       ReportTarget.comment => 'comment',
       ReportTarget.message => 'message',
-      ReportTarget.user || ReportTarget.stickerPack => null,
+      ReportTarget.user ||
+      ReportTarget.stickerPack ||
+      ReportTarget.legalQuestion ||
+      ReportTarget.legalAnswer =>
+        null,
     };
 
 /// Owner 2026-09-30: "Edit" opens the "+" form with the post's title,

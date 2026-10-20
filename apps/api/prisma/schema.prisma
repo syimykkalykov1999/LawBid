@@ -320,6 +320,11 @@ enum CaseJournalEvent {
   restored
   deleted
   closed
+  signature_requested
+  signature_signed
+  signature_completed
+  signature_declined
+  invoice_issued
 
   @@map("case_journal_event")
 }
@@ -437,6 +442,13 @@ enum MessageType {
   attachment
   // Owner 2026-10-01: a Telegram-style sticker (messages.sticker_id).
   sticker
+  // Owner 2026-10-20: a gift paid in stars (messages.gift_send_id).
+  gift
+  // Owner 2026-10-20: a shared attorney card (body = the attorney's user id;
+  // the app draws the public profile).
+  contact
+  // Owner 2026-10-20: a place (body = the address; opens in the phone's maps).
+  place
 
   @@map("message_type")
 }
@@ -444,6 +456,16 @@ enum MessageType {
 enum NotificationType {
   // Owner 2026-10-20: a new post in a channel I subscribed to.
   channel_post
+  /// Owner 2026-10-20: a booked consultation (payload.kind: requested,
+  /// confirmed, declined, cancelled, rescheduled, reminder_day, reminder_hour).
+  consultation_update
+  /// Owner 2026-10-20: «Вопрос юристу» — a new question in an attorney's
+  /// practice area and state (opt-in «Новые кейсы»).
+  legal_question_new
+  /// Owner 2026-10-20: «Вопрос юристу» — an answer to my question, my
+  /// answer was marked best or liked (payload.kind: answered,
+  /// best_answer, answer_liked).
+  legal_answer_update
   bid_received
   offer_countered
   offer_accepted
@@ -542,6 +564,8 @@ enum NotificationType {
   new_urgent_case
   // Owner 2026-10-07: someone reposted your post (Threads-style).
   post_repost
+  // Owner 2026-10-20: a gift received on the profile.
+  gift_received
   // Audit 2026-10-19: the other side added something in a case in work
   // (payload.kind: update, task_added, task_done, task_files, details).
   case_workspace_activity
@@ -611,6 +635,9 @@ enum ReportTargetType {
   story
   channel
   channel_post
+  // Owner 2026-10-20: «Вопрос юристу» — a question and an answer.
+  legal_question
+  legal_answer
 
   @@map("report_target_type")
 }
@@ -694,81 +721,92 @@ enum DataRequestStatus {
 // -----------------------------------------------------------------------
 
 model User {
-  id                      String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id                       String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   // Nullable: docs/01_FOUNDATION_AUTH.md §11 "Guard-логика навигации" treats "no role yet"
   // as a real intermediate state ("нет роли → /onboarding/role") -- a user exists
   // from the moment OTP/social login succeeds (stage 1.4), but role is
   // chosen afterward during onboarding step 2, not at creation. Added in
   // stage 1.4 (docs/CHANGELOG.md) -- the stage 1.3 migration is not
   // modified, only extended, per .cursorrules.
-  role                    UserRole?
-  status                  UserStatus              @default(active)
-  first_name              String?
-  last_name               String?
-  avatar_file_id          String?                 @db.Uuid
-  avatar_file             File?                   @relation("UserAvatar", fields: [avatar_file_id], references: [id], onDelete: Restrict)
+  role                     UserRole?
+  status                   UserStatus              @default(active)
+  first_name               String?
+  last_name                String?
+  avatar_file_id           String?                 @db.Uuid
+  avatar_file              File?                   @relation("UserAvatar", fields: [avatar_file_id], references: [id], onDelete: Restrict)
+  chat_groups_created      ChatGroup[]             @relation("ChatGroupCreator")
+  chat_group_memberships   ChatGroupMember[]       @relation("ChatGroupMemberUser")
+  chat_group_messages      ChatGroupMessage[]      @relation("ChatGroupMessageSender")
+  chat_group_polls         ChatGroupPoll[]         @relation("ChatGroupPollCreator")
+  chat_group_votes         ChatGroupPollVote[]     @relation("ChatGroupPollVoter")
+  chat_group_topic_reads   ChatGroupTopicRead[]    @relation("ChatGroupTopicReader")
+  chat_group_join_requests ChatGroupJoinRequest[]  @relation("ChatGroupJoinRequester")
   /// Owner 2026-10-05: a personal storage cap in MB set by an admin
   /// (null = storage.user_quota_mb, 0 = no cap).
-  storage_quota_mb        Int?
+  storage_quota_mb         Int?
   // UQ (docs/02 §4.A, §5.1). A plain unique index already admits any
   // number of NULLs in PostgreSQL, which is exactly the §8 stage-2.2
   // acceptance ("несколько NULL допускаются"); a partial index can't be
   // expressed in Prisma 6 and would be dropped as drift by the next
   // `migrate dev`, so @unique is used instead.
-  email                   String?                 @unique
-  email_verified_at       DateTime?               @db.Timestamptz
-  phone_e164              String?                 @unique
-  phone_verified_at       DateTime?               @db.Timestamptz
+  email                    String?                 @unique
+  email_verified_at        DateTime?               @db.Timestamptz
+  phone_e164               String?                 @unique
+  phone_verified_at        DateTime?               @db.Timestamptz
   /// Owner 2026-10-13: sign-in password (scrypt hash, never returned by
   /// any endpoint). Null = the account signs in with an SMS code until it
   /// sets one.
-  password_hash           String?
-  password_set_at         DateTime?               @db.Timestamptz
-  ui_language             String                  @default("en")
+  password_hash            String?
+  password_set_at          DateTime?               @db.Timestamptz
+  ui_language              String                  @default("en")
+  /// Owner 2026-10-20: the person's IANA time zone (the app sends it at
+  /// sign-in and when it changes). Repeating tasks and the daily
+  /// reminders follow this local clock; null = the quiet-hours zone, else UTC.
+  timezone                 String?                 @db.VarChar(64)
   /// Owner 2026-10-15: do not show like counters under other people's posts.
-  hide_like_counts        Boolean                 @default(false)
-  theme                   ThemePref               @default(system)
-  suspended_reason        String?
-  last_active_at          DateTime?               @db.Timestamptz
-  integration_credentials IntegrationCredential[] @relation("IntegrationCredentialCreator")
-  video_assets            VideoAsset[]            @relation("VideoAssetOwner")
-  sticker_packs           StickerPack[]           @relation("StickerPackOwner")
-  stories                 Story[]                 @relation("StoryAuthor")
-  story_views             StoryView[]             @relation("StoryViewer")
-  story_setting           StorySetting?
-  story_hidden            StoryHidden[]           @relation("StoryHiddenOwner")
-  story_hidden_from       StoryHidden[]           @relation("StoryHiddenTarget")
-  channels_owned          Channel[]               @relation("ChannelOwner")
-  channel_admin_of        ChannelAdmin[]          @relation("ChannelAdminUser")
-  channel_subscriptions   ChannelSubscription[]   @relation("ChannelSubscriber")
-  channel_posts           ChannelPost[]           @relation("ChannelPostAuthor")
-  channel_reactions       ChannelReaction[]       @relation("ChannelReactor")
-  channel_comments        ChannelComment[]        @relation("ChannelCommenter")
-  installed_sticker_packs UserStickerPack[]
-  client_verification     ClientVerification?
-  client_subscription     ClientSubscription?
-  recent_stickers         UserRecentSticker[]
+  hide_like_counts         Boolean                 @default(false)
+  theme                    ThemePref               @default(system)
+  suspended_reason         String?
+  last_active_at           DateTime?               @db.Timestamptz
+  integration_credentials  IntegrationCredential[] @relation("IntegrationCredentialCreator")
+  video_assets             VideoAsset[]            @relation("VideoAssetOwner")
+  sticker_packs            StickerPack[]           @relation("StickerPackOwner")
+  installed_sticker_packs  UserStickerPack[]
+  client_verification      ClientVerification?
+  client_subscription      ClientSubscription?
+  recent_stickers          UserRecentSticker[]
+  stories                  Story[]                 @relation("StoryAuthor")
+  story_views              StoryView[]             @relation("StoryViewer")
+  story_setting            StorySetting?
+  story_hidden             StoryHidden[]           @relation("StoryHiddenOwner")
+  story_hidden_from        StoryHidden[]           @relation("StoryHiddenTarget")
+  channels_owned           Channel[]               @relation("ChannelOwner")
+  channel_admin_of         ChannelAdmin[]          @relation("ChannelAdminUser")
+  channel_subscriptions    ChannelSubscription[]   @relation("ChannelSubscriber")
+  channel_posts            ChannelPost[]           @relation("ChannelPostAuthor")
+  channel_reactions        ChannelReaction[]       @relation("ChannelReactor")
+  channel_comments         ChannelComment[]        @relation("ChannelCommenter")
   /// Owner 2026-10-01: others see "online / last seen" (reciprocal).
-  show_activity_status    Boolean                 @default(true)
+  show_activity_status     Boolean                 @default(true)
   /// Owner 2026-10-20: clients can be found by people who have their number
   /// in the address book (contacts sync); attorneys' profiles are public.
-  find_by_phone           Boolean                 @default(true)
+  find_by_phone            Boolean                 @default(true)
   /// Owner 2026-10-05: feed content — 'all' or 'legal_only' (general
   /// posts hidden from feed, search and recommendations); null = the admin
   /// default `feed.default_content_mode`.
-  feed_content_mode       String?                 @db.VarChar(16)
-  deletion_requested_at   DateTime?               @db.Timestamptz
-  deleted_at              DateTime?               @db.Timestamptz
-  anonymized_at           DateTime?               @db.Timestamptz
+  feed_content_mode        String?                 @db.VarChar(16)
+  deletion_requested_at    DateTime?               @db.Timestamptz
+  deleted_at               DateTime?               @db.Timestamptz
+  anonymized_at            DateTime?               @db.Timestamptz
   // STORED computed column (§5.3): lower(first_name || ' ' || last_name),
   // trigram GIN-indexed. Read-only — never write it.
-  full_name_lower         String?                 @default(dbgenerated("lower(((COALESCE(first_name, ''::text) || ' '::text) || COALESCE(last_name, ''::text)))"))
+  full_name_lower          String?                 @default(dbgenerated("lower(((COALESCE(first_name, ''::text) || ' '::text) || COALESCE(last_name, ''::text)))"))
   // Owner 2026-10-13 (contacts sync): STORED computed column, lowercase hex
   // SHA-256 of phone_e164. Lets the app match its address book without
   // sending a single raw number. Read-only — never write it.
-  phone_sha256            String?                 @default(dbgenerated("encode(sha256((phone_e164)::bytea), 'hex'::text)"))
-  created_at              DateTime                @default(now()) @db.Timestamptz
-  updated_at              DateTime                @updatedAt @db.Timestamptz
+  phone_sha256             String?                 @default(dbgenerated("encode(sha256((phone_e164)::bytea), 'hex'::text)"))
+  created_at               DateTime                @default(now()) @db.Timestamptz
+  updated_at               DateTime                @updatedAt @db.Timestamptz
 
   identifiers          UserIdentifier[]
   sessions             Session[]
@@ -809,6 +847,7 @@ model User {
   blocks_made                 UserBlock[]                    @relation("Blocker")
   blocked_by                  UserBlock[]                    @relation("Blocked")
   saved_items                 SavedItem[]
+  saved_chat_messages         SavedChatMessage[]
   conversations_attorney      Conversation[]                 @relation("ConversationAttorney")
   conversations_client        Conversation[]                 @relation("ConversationClient")
   conversation_memberships    ConversationParticipant[]
@@ -816,6 +855,8 @@ model User {
   calls_made                  Call[]                         @relation("CallCaller")
   chat_requests_sent          Conversation[]                 @relation("ConversationRequester")
   calls_received              Call[]                         @relation("CallCallee")
+  call_participations         CallParticipant[]              @relation("CallParticipantUser")
+  call_invites_sent           CallParticipant[]              @relation("CallParticipantInviter")
   notifications               Notification[]
   notification_settings       NotificationSetting[]
   quiet_hours                 NotificationQuietHours?
@@ -835,6 +876,14 @@ model User {
   data_access_entries         DataAccessLog[]                @relation("DataAccessAdmin")
   case_comments               CaseComment[]                  @relation("CaseCommentAuthor")
   case_comment_likes          CaseCommentLike[]              @relation("CaseCommentLiker")
+  consultation_settings       ConsultationSettings?          @relation("ConsultationSettings")
+  consultation_windows        ConsultationWindow[]           @relation("ConsultationWindows")
+  consultation_time_off       ConsultationTimeOff[]          @relation("ConsultationTimeOff")
+  consultations_as_attorney   Consultation[]                 @relation("ConsultationAttorney")
+  consultations_as_client     Consultation[]                 @relation("ConsultationClient")
+  legal_questions             LegalQuestion[]                @relation("LegalQuestionAuthor")
+  legal_answers               LegalAnswer[]                  @relation("LegalAnswerAuthor")
+  legal_answer_likes          LegalAnswerLike[]              @relation("LegalAnswerLiker")
   post_shares                 PostShare[]                    @relation("PostSharer")
   post_views                  PostView[]                     @relation("PostViewer")
   post_view_events            PostViewEvent[]                @relation("PostEventViewer")
@@ -860,7 +909,8 @@ model User {
   // Owner 2026-10-05: a row that stands for a person outside the app (an
   // external partner — a blogger whose referral code the admin hands out
   // before they register). No identifiers, cannot sign in, hidden from
-  // the people lists. Values: external_partner.
+  // the people lists. Values: external_partner | system (owner of the starter
+  // catalog images).
   placeholder_kind            String?                        @db.VarChar(24)
   country_code                String                         @default("US") @db.Char(2)
   country                     Country                        @relation(fields: [country_code], references: [code], onDelete: Restrict)
@@ -889,34 +939,36 @@ model User {
 // docs/02_DATABASE.md §4.A (stage 2.2). Binary content lives only in S3
 // (§1.6); this row is the reference. Soft delete via deleted_at.
 model File {
-  id             String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  owner_user_id  String      @db.Uuid
-  owner          User        @relation("FileOwner", fields: [owner_user_id], references: [id], onDelete: Restrict)
-  purpose        FilePurpose
-  s3_bucket      String
+  id                 String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  owner_user_id      String             @db.Uuid
+  owner              User               @relation("FileOwner", fields: [owner_user_id], references: [id], onDelete: Restrict)
+  chat_group_avatars ChatGroup[]        @relation("ChatGroupAvatar")
+  chat_group_files   ChatGroupMessage[] @relation("ChatGroupMessageFile")
+  purpose            FilePurpose
+  s3_bucket          String
   /// Owner 2026-10-05 (storage like Telegram): one object can back many
   /// rows — identical uploads share it (no longer unique). The object is
   /// removed only when no live row points at it (FileReleaseService).
-  s3_key         String
-  mime           String
-  size_bytes     BigInt
-  sha256         String
+  s3_key             String
+  mime               String
+  size_bytes         BigInt
+  sha256             String
   /// SHA-256 of the bytes as uploaded (sha256 above describes the stored,
   /// processed object). The deduplication key together with the bucket.
-  source_sha256  String?
-  width          Int?
-  height         Int?
-  scan_status    ScanStatus  @default(pending)
-  is_public      Boolean     @default(false)
-  deleted_at     DateTime?   @db.Timestamptz
+  source_sha256      String?
+  width              Int?
+  height             Int?
+  scan_status        ScanStatus         @default(pending)
+  is_public          Boolean            @default(false)
+  deleted_at         DateTime?          @db.Timestamptz
   /// Why the row was deleted: orphan (never attached / detached), released
   /// (its owner entity went away), infected, failed.
-  deleted_reason String?     @db.VarChar(16)
+  deleted_reason     String?            @db.VarChar(16)
   /// The S3 object (and its variants) is gone; the row stays only while
   /// something still references it.
-  purged_at      DateTime?   @db.Timestamptz
-  created_at     DateTime    @default(now()) @db.Timestamptz
-  updated_at     DateTime    @updatedAt @db.Timestamptz
+  purged_at          DateTime?          @db.Timestamptz
+  created_at         DateTime           @default(now()) @db.Timestamptz
+  updated_at         DateTime           @updatedAt @db.Timestamptz
 
   avatar_of User[] @relation("UserAvatar")
 
@@ -928,7 +980,9 @@ model File {
   case_photos           CasePhoto[]
   voice_messages        Message[]            @relation("MessageVoice")
   sticker               Sticker?
+  gift                  Gift?
   document_template     DocumentTemplate?
+  expense_receipts      CaseExpense[]        @relation("ExpenseReceipt")
   support_message_files SupportMessageFile[]
   stories               Story[]
   channels              Channel[]
@@ -1271,6 +1325,7 @@ model State {
   primary_for_cases CaseState[]
   cases_primary     Case[]            @relation("CasePrimaryState")
   bar_registry      StateBarRegistry?
+  legal_questions   LegalQuestion[]
 
   @@index([country_code])
   @@map("states")
@@ -1314,8 +1369,10 @@ model PracticeArea {
   cases                 Case[]
   posts                 Post[]
   document_templates    DocumentTemplate[]
+  form_templates        FormTemplate[]
   case_extra_practices  CaseExtraPractice[]
   search_synonym_groups SearchSynonymGroup[]
+  legal_questions       LegalQuestion[]
 
   @@index([parent_id])
   @@map("practice_areas")
@@ -1625,6 +1682,10 @@ model Case {
   photos              CasePhoto[]
   attorney_tasks      AttorneyTask[]
   case_tasks          CaseTask[]
+  time_entries        CaseTimeEntry[]
+  expenses            CaseExpense[]
+  invoices            CaseInvoice[]
+  sign_requests       CaseSignRequest[]
   case_updates        CaseUpdate[]
   bid_drafts          BidDraft[]
   invites             CaseInvite[]
@@ -2231,6 +2292,37 @@ model SavedItem {
   @@map("saved_items")
 }
 
+/// Owner 2026-10-20: a chat message the person saved («Сохранённое», like
+/// WeChat favorites / Telegram Saved Messages). Only the reference is stored:
+/// the text stays sealed in `messages`, and it is read again through the
+/// chat's own membership check.
+model SavedChatMessage {
+  user_id    String        @db.Uuid
+  user       User          @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  message_id String        @db.Uuid
+  message    Message       @relation(fields: [message_id], references: [id], onDelete: Cascade)
+  kind       SavedChatKind
+  created_at DateTime      @default(now()) @db.Timestamptz
+
+  @@id([user_id, message_id])
+  @@index([user_id, kind, created_at(sort: Desc)])
+  @@index([user_id, created_at(sort: Desc)])
+  @@index([message_id])
+  @@map("saved_chat_messages")
+}
+
+enum SavedChatKind {
+  text
+  link
+  file
+  media
+  voice
+  contact
+  place
+
+  @@map("saved_chat_kind")
+}
+
 model Conversation {
   id                String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   // Nullable since 2026-09-28 (migration applied, then the owner kept
@@ -2282,6 +2374,8 @@ model ConversationParticipant {
   user_id              String       @db.Uuid
   user                 User         @relation(fields: [user_id], references: [id], onDelete: Cascade)
   last_read_message_id String?      @db.Uuid
+  /// When last_read_message_id last moved ("read at HH:MM", WhatsApp style).
+  last_read_at         DateTime?    @db.Timestamptz
   muted_until          DateTime?    @db.Timestamptz
   /// Owner 2026-10-01: my folder for this chat; null = automatic (a case
   /// chat is Primary, a direct chat General).
@@ -2305,22 +2399,27 @@ model ConversationParticipant {
 /// OQ-041 (owner 2026-09-30): an in-app audio call between the two chat
 /// members (WebRTC; the server relays signaling, never the audio).
 model Call {
-  id              String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  conversation_id String       @db.Uuid
-  conversation    Conversation @relation(fields: [conversation_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  caller_id       String       @db.Uuid
-  caller          User         @relation("CallCaller", fields: [caller_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  callee_id       String       @db.Uuid
-  callee          User         @relation("CallCallee", fields: [callee_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  status          CallStatus   @default(ringing)
-  answered_at     DateTime?    @db.Timestamptz
-  ended_at        DateTime?    @db.Timestamptz
+  id              String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  conversation_id String            @db.Uuid
+  conversation    Conversation      @relation(fields: [conversation_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  caller_id       String            @db.Uuid
+  caller          User              @relation("CallCaller", fields: [caller_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  callee_id       String            @db.Uuid
+  callee          User              @relation("CallCallee", fields: [callee_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  status          CallStatus        @default(ringing)
+  answered_at     DateTime?         @db.Timestamptz
+  ended_at        DateTime?         @db.Timestamptz
   duration_sec    Int?
   end_reason      String?
   /// Owner 2026-10-05: a video call (camera on both sides).
-  video           Boolean      @default(false)
-  created_at      DateTime     @default(now()) @db.Timestamptz
-  updated_at      DateTime     @updatedAt @db.Timestamptz
+  video           Boolean           @default(false)
+  /// Owner 2026-10-20: people were added to the call (like WhatsApp /
+  /// Telegram group calls): `call_participants` holds everyone, the call
+  /// lives while two or more are in it.
+  is_group        Boolean           @default(false)
+  participants    CallParticipant[]
+  created_at      DateTime          @default(now()) @db.Timestamptz
+  updated_at      DateTime          @updatedAt @db.Timestamptz
 
   @@index([callee_id, status])
   @@index([caller_id, status])
@@ -2329,46 +2428,388 @@ model Call {
   @@map("calls")
 }
 
+/// Owner 2026-10-20: one person in a group call. `status`: invited (rings),
+/// joined, declined, left, removed (by the host). `muted_by_host`: the host
+/// switched the microphone off; the person may switch it back on.
+model CallParticipant {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  call_id       String    @db.Uuid
+  call          Call      @relation(fields: [call_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user_id       String    @db.Uuid
+  user          User      @relation("CallParticipantUser", fields: [user_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  invited_by_id String?   @db.Uuid
+  invited_by    User?     @relation("CallParticipantInviter", fields: [invited_by_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  status        String    @default("invited") @db.VarChar(12)
+  muted         Boolean   @default(false)
+  muted_by_host Boolean   @default(false)
+  invited_at    DateTime  @default(now()) @db.Timestamptz
+  joined_at     DateTime? @db.Timestamptz
+  left_at       DateTime? @db.Timestamptz
+  updated_at    DateTime  @updatedAt @db.Timestamptz
+
+  @@unique([call_id, user_id])
+  @@index([user_id, status])
+  @@map("call_participants")
+}
+
 model Message {
-  id                    String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  conversation_id       String       @db.Uuid
-  conversation          Conversation @relation(fields: [conversation_id], references: [id], onDelete: Restrict)
+  id                    String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  conversation_id       String             @db.Uuid
+  conversation          Conversation       @relation(fields: [conversation_id], references: [id], onDelete: Restrict)
   // NULL for system messages.
-  sender_id             String?      @db.Uuid
-  sender                User?        @relation("MessageSender", fields: [sender_id], references: [id], onDelete: Restrict)
+  sender_id             String?            @db.Uuid
+  sender                User?              @relation("MessageSender", fields: [sender_id], references: [id], onDelete: Restrict)
   type                  MessageType
   // Server/moderation/legal only (§1.6).
   body_original         String
   body_display          String
-  contact_masked        Boolean      @default(false)
+  contact_masked        Boolean            @default(false)
   // Client-generated idempotency key.
   client_message_id     String
   // OQ-040 voice messages: the audio file, its length, 0–100 bars for the
   // bubble and when the recipient first played it (Telegram's blue dot).
-  file_id               String?      @db.Uuid
-  file                  File?        @relation("MessageVoice", fields: [file_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  file_id               String?            @db.Uuid
+  file                  File?              @relation("MessageVoice", fields: [file_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
   duration_ms           Int?
-  waveform              Int[]        @default([])
+  waveform              Int[]              @default([])
   // OQ-047: the original name of an attached document (≤200, CHECK).
   file_name             String?
   // OQ-048: sent by an assistant on the attorney's behalf.
-  sent_by_membership_id String?      @db.Uuid
-  sent_by_name          String?      @db.VarChar(80)
-  listened_at           DateTime?    @db.Timestamptz
+  sent_by_membership_id String?            @db.Uuid
+  sent_by_name          String?            @db.VarChar(80)
+  listened_at           DateTime?          @db.Timestamptz
   // Owner 2026-10-01: a sticker message.
-  sticker_id            String?      @db.Uuid
-  sticker               Sticker?     @relation(fields: [sticker_id], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "messages_sticker_fkey")
-  deleted_at            DateTime?    @db.Timestamptz
-  created_at            DateTime     @default(now()) @db.Timestamptz
-  updated_at            DateTime     @updatedAt @db.Timestamptz
+  sticker_id            String?            @db.Uuid
+  sticker               Sticker?           @relation(fields: [sticker_id], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "messages_sticker_fkey")
+  // Owner 2026-10-20: a gift message.
+  gift_send_id          String?            @db.Uuid
+  gift_send             GiftSend?          @relation(fields: [gift_send_id], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "messages_gift_send_fkey")
+  saved_by              SavedChatMessage[]
+  deleted_at            DateTime?          @db.Timestamptz
+  // Owner 2026-10-20 (WhatsApp/Telegram): edited within chat.edit_window_min;
+  // "deleted for everyone" within chat.delete_for_all_hours (the bubble
+  // stays as "Message deleted"; the texts are scrubbed from the display
+  // column, the original is kept for moderation/legal); a reply quotes
+  // reply_to_id; forwarded = shown as "Forwarded".
+  edited_at             DateTime?          @db.Timestamptz
+  revoked_at            DateTime?          @db.Timestamptz
+  reply_to_id           String?            @db.Uuid
+  reply_to              Message?           @relation("MessageReply", fields: [reply_to_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  replies               Message[]          @relation("MessageReply")
+  forwarded             Boolean            @default(false)
+  hidden_for            MessageHidden[]
+  reactions             MessageReaction[]
+  edits                 MessageEdit[]
+  pin                   MessagePin?
+  created_at            DateTime           @default(now()) @db.Timestamptz
+  updated_at            DateTime           @updatedAt @db.Timestamptz
 
   @@unique([conversation_id, sender_id, client_message_id])
   @@index([file_id])
   @@index([sticker_id])
+  @@index([gift_send_id])
+  @@index([reply_to_id])
   @@index([conversation_id, created_at(sort: Desc)])
   // docs/06 §5.1: anonymization scrubs a user's messages by sender.
   @@index([sender_id])
   @@map("messages")
+}
+
+/// "Delete for me": the message stays for the other side.
+model MessageHidden {
+  message_id String   @db.Uuid
+  message    Message  @relation(fields: [message_id], references: [id], onDelete: Cascade)
+  user_id    String   @db.Uuid
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  @@id([message_id, user_id])
+  @@index([user_id])
+  @@map("message_hidden")
+}
+
+/// One emoji reaction per person per message (changing it replaces it).
+model MessageReaction {
+  message_id String   @db.Uuid
+  message    Message  @relation(fields: [message_id], references: [id], onDelete: Cascade)
+  user_id    String   @db.Uuid
+  emoji      String   @db.VarChar(16)
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  @@id([message_id, user_id])
+  @@map("message_reactions")
+}
+
+/// The text a message had before each edit (moderation / legal).
+model MessageEdit {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  message_id    String   @db.Uuid
+  message       Message  @relation(fields: [message_id], references: [id], onDelete: Cascade)
+  body_original String
+  edited_at     DateTime @default(now()) @db.Timestamptz
+
+  @@index([message_id])
+  @@map("message_edits")
+}
+
+/// A message pinned to the top of a chat (at most 3 per chat).
+model MessagePin {
+  message_id      String   @id @db.Uuid
+  message         Message  @relation(fields: [message_id], references: [id], onDelete: Cascade)
+  conversation_id String   @db.Uuid
+  pinned_by       String   @db.Uuid
+  pinned_at       DateTime @default(now()) @db.Timestamptz
+
+  @@index([conversation_id, pinned_at(sort: Desc)])
+  @@map("message_pins")
+}
+
+/// Owner 2026-10-20: group chats (Telegram + WhatsApp). Separate from the
+/// 1:1 `conversations` (those are attorney<->client pairs); the app merges
+/// both into one chat list.
+enum ChatGroupRole {
+  owner
+  admin
+  member
+
+  @@map("chat_group_role")
+}
+
+/// Who may do a thing in a group: admins only, or every member.
+enum GroupWho {
+  admins
+  all
+
+  @@map("group_who")
+}
+
+/// public: @username + search, anyone joins. closed: join by the invite link
+/// (optionally approved by an admin). private: added by people only.
+enum GroupType {
+  public
+  closed
+  private
+
+  @@map("group_type")
+}
+
+enum GroupMessageType {
+  text
+  system
+  poll
+  attachment
+
+  @@map("group_message_type")
+}
+
+model ChatGroup {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title             String    @db.VarChar(80)
+  description       String?   @db.VarChar(500)
+  avatar_file_id    String?   @db.Uuid
+  avatar_file       File?     @relation("ChatGroupAvatar", fields: [avatar_file_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  created_by        String    @db.Uuid
+  creator           User      @relation("ChatGroupCreator", fields: [created_by], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  group_type        GroupType @default(private)
+  /// Public groups only: the @username (case kept) and its lowercase key.
+  username          String?   @db.VarChar(32)
+  username_lower    String?   @unique @db.VarChar(32)
+  /// closed groups: the invite link makes a request an admin approves.
+  join_approval     Boolean   @default(false)
+  /// Forum mode: topics inside the group (Telegram «Темы»).
+  topics_enabled    Boolean   @default(false)
+  /// The «General» topic (created when topics are switched on).
+  general_topic_id  String?   @db.Uuid
+  /// Join link (lawbid.dev/g/<code>); reset by an admin.
+  invite_code       String    @unique @db.VarChar(24)
+  invite_enabled    Boolean   @default(false)
+  /// Telegram's «only admins can write» (a channel-like group).
+  who_can_post      GroupWho  @default(all)
+  who_can_add       GroupWho  @default(admins)
+  who_can_edit_info GroupWho  @default(admins)
+  /// Group calls: who may start one (the calls thread reads this).
+  who_can_call      GroupWho  @default(admins)
+  /// Bare uuid pointers (a FK would make groups <-> messages a cycle).
+  pinned_message_id String?   @db.Uuid
+  last_message_id   String?   @db.Uuid
+  last_message_at   DateTime? @db.Timestamptz
+  member_count      Int       @default(0)
+  deleted_at        DateTime? @db.Timestamptz
+  created_at        DateTime  @default(now()) @db.Timestamptz
+  updated_at        DateTime  @updatedAt @db.Timestamptz
+
+  members  ChatGroupMember[]
+  messages ChatGroupMessage[]
+  polls    ChatGroupPoll[]
+  topics   ChatGroupTopic[]
+  requests ChatGroupJoinRequest[]
+
+  @@index([created_by])
+  @@index([avatar_file_id])
+  @@map("chat_groups")
+}
+
+model ChatGroupMember {
+  group_id             String        @db.Uuid
+  group                ChatGroup     @relation(fields: [group_id], references: [id], onDelete: Cascade)
+  user_id              String        @db.Uuid
+  user                 User          @relation("ChatGroupMemberUser", fields: [user_id], references: [id], onDelete: Cascade)
+  role                 ChatGroupRole @default(member)
+  added_by             String?       @db.Uuid
+  joined_at            DateTime      @default(now()) @db.Timestamptz
+  /// Set when the person left or was removed; the row stays so history
+  /// keeps its authors and a re-join keeps the read position.
+  left_at              DateTime?     @db.Timestamptz
+  /// left | removed | null
+  left_reason          String?       @db.VarChar(12)
+  last_read_message_id String?       @db.Uuid
+  muted_until          DateTime?     @db.Timestamptz
+  pinned_at            DateTime?     @db.Timestamptz
+  hidden_at            DateTime?     @db.Timestamptz
+  updated_at           DateTime      @updatedAt @db.Timestamptz
+
+  @@id([group_id, user_id])
+  @@index([user_id, left_at])
+  @@map("chat_group_members")
+}
+
+model ChatGroupMessage {
+  id                String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  group_id          String             @db.Uuid
+  group             ChatGroup          @relation(fields: [group_id], references: [id], onDelete: Cascade)
+  /// NULL for system messages.
+  sender_id         String?            @db.Uuid
+  sender            User?              @relation("ChatGroupMessageSender", fields: [sender_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  type              GroupMessageType
+  body              String             @default("")
+  client_message_id String
+  /// system messages: added | removed | left | joined | renamed | created |
+  /// photo | pinned | promoted | demoted | poll_closed | call_started | call_ended
+  system_kind       String?            @db.VarChar(24)
+  system_payload    Json?
+  /// null = «General» (or no topics at all).
+  topic_id          String?            @db.Uuid
+  topic             ChatGroupTopic?    @relation(fields: [topic_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  reply_to_id       String?            @db.Uuid
+  reply_to          ChatGroupMessage?  @relation("GroupMessageReply", fields: [reply_to_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  replies           ChatGroupMessage[] @relation("GroupMessageReply")
+  /// @mentioned user ids.
+  mention_ids       String[]           @default([]) @db.Uuid
+  file_id           String?            @db.Uuid
+  file              File?              @relation("ChatGroupMessageFile", fields: [file_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  file_name         String?
+  edited_at         DateTime?          @db.Timestamptz
+  deleted_at        DateTime?          @db.Timestamptz
+  created_at        DateTime           @default(now()) @db.Timestamptz
+  poll              ChatGroupPoll?
+
+  @@unique([group_id, sender_id, client_message_id])
+  @@index([group_id, created_at(sort: Desc)])
+  @@index([topic_id, created_at(sort: Desc)])
+  @@index([sender_id])
+  @@index([file_id])
+  @@index([reply_to_id])
+  @@map("chat_group_messages")
+}
+
+model ChatGroupTopic {
+  id              String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  group_id        String               @db.Uuid
+  group           ChatGroup            @relation(fields: [group_id], references: [id], onDelete: Cascade)
+  title           String               @db.VarChar(64)
+  /// One emoji as the topic's icon (null = the colored dot).
+  icon_emoji      String?              @db.VarChar(16)
+  /// Index into the app's topic palette (0–6).
+  color           Int                  @default(0)
+  is_general      Boolean              @default(false)
+  created_by      String?              @db.Uuid
+  closed_at       DateTime?            @db.Timestamptz
+  pinned_at       DateTime?            @db.Timestamptz
+  last_message_id String?              @db.Uuid
+  last_message_at DateTime?            @db.Timestamptz
+  created_at      DateTime             @default(now()) @db.Timestamptz
+  updated_at      DateTime             @updatedAt @db.Timestamptz
+  messages        ChatGroupMessage[]
+  reads           ChatGroupTopicRead[]
+
+  @@index([group_id, last_message_at(sort: Desc)])
+  @@map("chat_group_topics")
+}
+
+/// A member's read position inside one topic (forum groups only).
+model ChatGroupTopicRead {
+  topic_id             String         @db.Uuid
+  topic                ChatGroupTopic @relation(fields: [topic_id], references: [id], onDelete: Cascade)
+  user_id              String         @db.Uuid
+  user                 User           @relation("ChatGroupTopicReader", fields: [user_id], references: [id], onDelete: Cascade)
+  last_read_message_id String?        @db.Uuid
+  updated_at           DateTime       @updatedAt @db.Timestamptz
+
+  @@id([topic_id, user_id])
+  @@index([user_id])
+  @@map("chat_group_topic_reads")
+}
+
+/// A closed group with «approve new members»: the request of a person who
+/// opened the invite link.
+model ChatGroupJoinRequest {
+  group_id   String    @db.Uuid
+  group      ChatGroup @relation(fields: [group_id], references: [id], onDelete: Cascade)
+  user_id    String    @db.Uuid
+  user       User      @relation("ChatGroupJoinRequester", fields: [user_id], references: [id], onDelete: Cascade)
+  created_at DateTime  @default(now()) @db.Timestamptz
+
+  @@id([group_id, user_id])
+  @@index([user_id])
+  @@map("chat_group_join_requests")
+}
+
+model ChatGroupPoll {
+  id         String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  group_id   String                @db.Uuid
+  group      ChatGroup             @relation(fields: [group_id], references: [id], onDelete: Cascade)
+  message_id String                @unique @db.Uuid
+  message    ChatGroupMessage      @relation(fields: [message_id], references: [id], onDelete: Cascade)
+  creator_id String                @db.Uuid
+  creator    User                  @relation("ChatGroupPollCreator", fields: [creator_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  question   String                @db.VarChar(300)
+  /// false = one answer, true = several.
+  multiple   Boolean               @default(false)
+  /// true = nobody sees who voted (only the counts).
+  anonymous  Boolean               @default(true)
+  closed_at  DateTime?             @db.Timestamptz
+  closed_by  String?               @db.Uuid
+  created_at DateTime              @default(now()) @db.Timestamptz
+  options    ChatGroupPollOption[]
+  votes      ChatGroupPollVote[]
+
+  @@index([group_id])
+  @@map("chat_group_polls")
+}
+
+model ChatGroupPollOption {
+  id       String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  poll_id  String              @db.Uuid
+  poll     ChatGroupPoll       @relation(fields: [poll_id], references: [id], onDelete: Cascade)
+  position Int
+  text     String              @db.VarChar(100)
+  votes    ChatGroupPollVote[]
+
+  @@unique([poll_id, position])
+  @@map("chat_group_poll_options")
+}
+
+model ChatGroupPollVote {
+  poll_id    String              @db.Uuid
+  poll       ChatGroupPoll       @relation(fields: [poll_id], references: [id], onDelete: Cascade)
+  option_id  String              @db.Uuid
+  option     ChatGroupPollOption @relation(fields: [option_id], references: [id], onDelete: Cascade)
+  user_id    String              @db.Uuid
+  user       User                @relation("ChatGroupPollVoter", fields: [user_id], references: [id], onDelete: Cascade)
+  created_at DateTime            @default(now()) @db.Timestamptz
+
+  @@id([option_id, user_id])
+  @@index([poll_id, user_id])
+  @@map("chat_group_poll_votes")
 }
 
 model Notification {
@@ -2415,15 +2856,22 @@ model NotificationQuietHours {
 }
 
 model PushToken {
-  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id      String   @db.Uuid
-  user         User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  session_id   String   @db.Uuid
-  session      Session  @relation(fields: [session_id], references: [id], onDelete: Cascade)
-  fcm_token    String   @unique
-  platform     String
-  last_seen_at DateTime @default(now()) @db.Timestamptz
-  created_at   DateTime @default(now()) @db.Timestamptz
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id         String   @db.Uuid
+  user            User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  session_id      String   @db.Uuid
+  session         Session  @relation(fields: [session_id], references: [id], onDelete: Cascade)
+  fcm_token       String   @unique
+  platform        String
+  /// Owner 2026-10-20: the app on this device keeps its own copy of the
+  /// planner reminders (local alarm) and shows the reminder push itself,
+  /// under the same id, so the two never show twice. Android only.
+  local_reminders Boolean  @default(false)
+  /// Owner 2026-10-20: reminders (`<taskId>@<remindAt ms>`) this iPhone has
+  /// armed as local alarms; the reminder push skips them (no double banner).
+  armed_reminders String[] @default([])
+  last_seen_at    DateTime @default(now()) @db.Timestamptz
+  created_at      DateTime @default(now()) @db.Timestamptz
 
   @@index([user_id])
   @@map("push_tokens")
@@ -3218,6 +3666,9 @@ model AttorneyTask {
   /// Owner 2026-10-13: the case task this entry mirrors (a due date or a
   /// reminder set from the case); it is not a Private task of the case.
   case_task_id             String?              @db.Uuid
+  /// Owner 2026-10-20: the booked consultation this entry mirrors (bare
+  /// uuid; the consultation owns the time, the planner shows it).
+  consultation_id          String?              @db.Uuid
   file_ids                 String[]             @default([]) @db.Uuid
   status                   AttorneyTaskStatus   @default(open)
   priority                 AttorneyTaskPriority @default(normal)
@@ -3245,6 +3696,7 @@ model AttorneyTask {
   people                   AttorneyTaskPerson[]
 
   @@index([attorney_id, status, due_at])
+  @@index([consultation_id], map: "attorney_tasks_consultation_idx")
   @@index([remind_at], map: "attorney_tasks_remind_idx")
   @@index([archived_at], map: "attorney_tasks_archived_idx")
   @@index([file_ids], map: "attorney_tasks_file_ids_idx", type: Gin)
@@ -4068,6 +4520,10 @@ model CasePromotion {
   cta_value           String?   @db.VarChar(500)
   // Refunded part (admin cancel with refund).
   refunded_cents      Int       @default(0)
+  // Paid with the in-app star balance instead of Stripe (0 = not by stars),
+  // and the part of it given back on an admin cancel.
+  paid_stars          Int       @default(0)
+  refunded_stars      Int       @default(0)
   // Who approved it (null = automatic) and when.
   reviewed_by         String?   @db.Uuid
   reviewed_at         DateTime? @db.Timestamptz
@@ -4286,6 +4742,8 @@ model StickerPack {
   status        String            @default("active") @db.VarChar(16)
   sticker_count Int               @default(0)
   install_count Int               @default(0)
+  // Owner 2026-10-20: 0 = free; otherwise the stars one pays to add the pack.
+  price_stars   Int               @default(0)
   created_at    DateTime          @default(now()) @db.Timestamptz
   updated_at    DateTime          @default(now()) @updatedAt @db.Timestamptz
   deleted_at    DateTime?         @db.Timestamptz
@@ -4337,6 +4795,105 @@ model UserRecentSticker {
   @@id([user_id, sticker_id])
   @@index([user_id, used_at(sort: Desc)], map: "user_recent_stickers_used_idx")
   @@map("user_recent_stickers")
+}
+
+/// Owner 2026-10-20 — stars, the in-app balance (like Telegram Stars). Bought
+/// only on the web (Stripe), spent on gifts and paid sticker packs. No FK to
+/// users on purpose: the ledger is a financial record and outlives accounts.
+/// The balance never goes below 0 (CHECK in the migration).
+model StarWallet {
+  user_id         String   @id @db.Uuid
+  balance         Int      @default(0)
+  lifetime_bought Int      @default(0)
+  lifetime_spent  Int      @default(0)
+  /// Stars owed after a refunded top-up that was already spent: the balance
+  /// stays at 0 and later credits pay the debt first.
+  debt            Int      @default(0)
+  updated_at      DateTime @default(now()) @db.Timestamptz
+
+  @@map("star_wallets")
+}
+
+/// Every change of a balance, one row; `idem_key` makes a retry (webhook,
+/// double tap) a no-op. kind: topup | gift_sent | gift_converted |
+/// sticker_pack | admin_grant | refund.
+model StarLedger {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id       String   @db.Uuid
+  delta         Int
+  balance_after Int
+  kind          String   @db.VarChar(24)
+  ref_id        String?  @db.Uuid
+  note          String?  @db.VarChar(120)
+  idem_key      String   @unique @db.VarChar(100)
+  created_at    DateTime @default(now()) @db.Timestamptz
+
+  @@index([user_id, created_at(sort: Desc)])
+  @@index([kind, created_at(sort: Desc)])
+  @@map("star_ledger")
+}
+
+/// A star pack bought on the hosted Stripe page (one-time checkout).
+model StarPurchase {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id            String    @db.Uuid
+  pack_id            String    @db.VarChar(40)
+  stars              Int
+  price_cents        Int
+  status             String    @default("pending_payment") @db.VarChar(20)
+  stripe_checkout_id String?   @unique
+  payment_id         String?   @db.Uuid
+  created_at         DateTime  @default(now()) @db.Timestamptz
+  paid_at            DateTime? @db.Timestamptz
+  refunded_at        DateTime? @db.Timestamptz
+
+  @@index([user_id, created_at(sort: Desc)])
+  @@index([status, paid_at(sort: Desc)])
+  @@map("star_purchases")
+}
+
+/// The gift catalog (admin). status: active | hidden.
+model Gift {
+  id          String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title       String     @db.VarChar(64)
+  price_stars Int
+  // Starter gifts carry a code (the app translates `gift.<code>`); a gift an
+  // admin adds has none and shows its title as typed.
+  code        String?    @db.VarChar(24)
+  file_id     String     @unique @db.Uuid
+  file        File       @relation(fields: [file_id], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "gifts_file_fkey")
+  position    Int        @default(0)
+  status      String     @default("active") @db.VarChar(12)
+  sent_count  Int        @default(0)
+  created_at  DateTime   @default(now()) @db.Timestamptz
+  deleted_at  DateTime?  @db.Timestamptz
+  sends       GiftSend[]
+
+  @@index([status, position], map: "gifts_catalog_idx")
+  @@map("gifts")
+}
+
+/// One gift given: in a chat (messages.gift_send_id) or from a profile.
+/// The recipient shows it on the profile (`shown`) or turns it into stars.
+model GiftSend {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  gift_id         String    @db.Uuid
+  gift            Gift      @relation(fields: [gift_id], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "gift_sends_gift_fkey")
+  sender_id       String    @db.Uuid
+  recipient_id    String    @db.Uuid
+  conversation_id String?   @db.Uuid
+  price_stars     Int
+  note            String?   @db.VarChar(200)
+  anonymous       Boolean   @default(false)
+  shown           Boolean   @default(true)
+  converted_stars Int?
+  converted_at    DateTime? @db.Timestamptz
+  created_at      DateTime  @default(now()) @db.Timestamptz
+  messages        Message[]
+
+  @@index([recipient_id, created_at(sort: Desc)])
+  @@index([sender_id, created_at(sort: Desc)])
+  @@map("gift_sends")
 }
 
 /// Owner 2026-10-02: the paid verified badge of a client (gold). Documents
@@ -5444,4 +6001,427 @@ model ChannelComment {
 
   @@index([post_id, created_at], map: "channel_comments_post_created_idx")
   @@map("channel_comments")
+}
+
+/// Owner 2026-10-20 (case tools): the attorney's hourly rate on one case —
+/// the number time entries are priced with (each entry keeps the rate it was
+/// logged at, so a later change never rewrites an issued invoice).
+model CaseBilling {
+  case_id           String   @id @db.Uuid
+  attorney_id       String   @db.Uuid
+  hourly_rate_cents Int
+  currency          String   @default("USD") @db.Char(3)
+  updated_at        DateTime @default(now()) @updatedAt @db.Timestamptz
+
+  @@map("case_billing")
+}
+
+/// A block of the attorney's time on a case: typed in by hand or run by the
+/// timer (`running_since` set while it runs, `minutes` = what was already
+/// counted). Only the attorney sees entries until an invoice carries them.
+model CaseTimeEntry {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  case_id       String    @db.Uuid
+  case          Case      @relation(fields: [case_id], references: [id], onDelete: Cascade)
+  attorney_id   String    @db.Uuid
+  worked_on     DateTime  @db.Date
+  minutes       Int       @default(0)
+  running_since DateTime? @db.Timestamptz
+  note          String    @default("") @db.VarChar(300)
+  /// The hourly rate (cents) this entry is priced at.
+  rate_cents    Int
+  invoice_id    String?   @db.Uuid
+  created_at    DateTime  @default(now()) @db.Timestamptz
+  updated_at    DateTime  @default(now()) @updatedAt @db.Timestamptz
+  deleted_at    DateTime? @db.Timestamptz
+
+  @@index([case_id, worked_on])
+  @@index([attorney_id, running_since])
+  @@map("case_time_entries")
+}
+
+/// A case expense (filing fee, translation, courier …) with an optional
+/// receipt photo; billed on the next invoice.
+model CaseExpense {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  case_id         String    @db.Uuid
+  case            Case      @relation(fields: [case_id], references: [id], onDelete: Cascade)
+  attorney_id     String    @db.Uuid
+  spent_on        DateTime  @db.Date
+  description     String    @db.VarChar(200)
+  amount_cents    Int
+  receipt_file_id String?   @db.Uuid
+  receipt_file    File?     @relation("ExpenseReceipt", fields: [receipt_file_id], references: [id], onDelete: Restrict)
+  invoice_id      String?   @db.Uuid
+  created_at      DateTime  @default(now()) @db.Timestamptz
+  deleted_at      DateTime? @db.Timestamptz
+
+  @@index([case_id, spent_on])
+  @@map("case_expenses")
+}
+
+/// An invoice document for the client (no payment — owner 2026-10-20:
+/// client → attorney payments are off): the time and expenses it carries
+/// are frozen in `lines`, the PDF is a case file.
+model CaseInvoice {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  case_id        String   @db.Uuid
+  case           Case     @relation(fields: [case_id], references: [id], onDelete: Restrict)
+  attorney_id    String   @db.Uuid
+  client_id      String   @db.Uuid
+  seq            Int
+  number         String   @db.VarChar(40)
+  currency       String   @default("USD") @db.Char(3)
+  minutes        Int
+  time_cents     Int
+  expenses_cents Int
+  total_cents    Int
+  note           String?  @db.VarChar(500)
+  /// [{kind: time|expense, date, text, minutes?, rateCents?, cents}]
+  lines          Json
+  file_id        String   @db.Uuid
+  created_at     DateTime @default(now()) @db.Timestamptz
+
+  @@unique([case_id, seq])
+  @@index([attorney_id, created_at])
+  @@map("case_invoices")
+}
+
+enum CaseSignStatus {
+  pending
+  signed
+  declined
+  canceled
+
+  @@map("case_sign_status")
+}
+
+/// Owner 2026-10-20: a PDF both sides of a case sign in the app. The
+/// SHA-256 of the file is fixed when the request is made; the finished PDF
+/// (original + signature page + protocol page) is a new case file.
+model CaseSignRequest {
+  id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  case_id        String          @db.Uuid
+  case           Case            @relation(fields: [case_id], references: [id], onDelete: Restrict)
+  created_by     String          @db.Uuid
+  title          String          @db.VarChar(160)
+  source_file_id String          @db.Uuid
+  source_sha256  String          @db.VarChar(64)
+  status         CaseSignStatus  @default(pending)
+  final_file_id  String?         @db.Uuid
+  final_sha256   String?         @db.VarChar(64)
+  declined_by    String?         @db.Uuid
+  decline_reason String?         @db.VarChar(300)
+  completed_at   DateTime?       @db.Timestamptz
+  created_at     DateTime        @default(now()) @db.Timestamptz
+  updated_at     DateTime        @default(now()) @updatedAt @db.Timestamptz
+  signatures     CaseSignature[]
+
+  @@index([case_id, created_at])
+  @@map("case_sign_requests")
+}
+
+/// One side's signature: drawn (PNG) or typed name, with the consent, the
+/// time, the IP and the hash of the document it was given on.
+model CaseSignature {
+  id          String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  request_id  String          @db.Uuid
+  request     CaseSignRequest @relation(fields: [request_id], references: [id], onDelete: Cascade)
+  signer_id   String          @db.Uuid
+  /// client | attorney
+  signer_role String          @db.VarChar(16)
+  signed_name String          @db.VarChar(120)
+  /// drawn | typed
+  method      String          @db.VarChar(8)
+  image_png   Bytes?
+  doc_sha256  String          @db.VarChar(64)
+  ip          String?         @db.VarChar(64)
+  user_agent  String?         @db.VarChar(300)
+  signed_at   DateTime        @default(now()) @db.Timestamptz
+
+  @@unique([request_id, signer_id])
+  @@map("case_signatures")
+}
+
+/// Owner 2026-10-20: a document the attorney builds from fields. The admin
+/// writes `body` per language with {{key}} places; `fields` describe the
+/// form: [{key, type: text|textarea|date|number, required, label: {en, ru…}}].
+model FormTemplate {
+  id               String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug             String        @unique @db.VarChar(64)
+  /// {"en": "...", "ru": "..."}
+  title            Json          @default("{}")
+  description      Json          @default("{}")
+  body             Json          @default("{}")
+  fields           Json          @default("[]")
+  practice_area_id String?       @db.Uuid
+  practice_area    PracticeArea? @relation(fields: [practice_area_id], references: [id], onDelete: SetNull)
+  position         Int           @default(0)
+  is_published     Boolean       @default(false)
+  created_by       String?       @db.Uuid
+  created_at       DateTime      @default(now()) @db.Timestamptz
+  updated_at       DateTime      @default(now()) @updatedAt @db.Timestamptz
+  deleted_at       DateTime?     @db.Timestamptz
+
+  @@index([is_published, deleted_at, position])
+  @@map("form_templates")
+}
+
+/// Owner 2026-10-20 (conflict of interests): what the server found when an
+/// attorney looked at / bid on a case — kept as the attorney's own record.
+model CaseConflictCheck {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  case_id     String   @db.Uuid
+  attorney_id String   @db.Uuid
+  /// bid | view
+  trigger     String   @db.VarChar(8)
+  bid_id      String?  @db.Uuid
+  /// [{kind: former_client|opposing_party, by: name|phone|email, caseId}]
+  matches     Json
+  created_at  DateTime @default(now()) @db.Timestamptz
+
+  @@index([attorney_id, created_at])
+  @@index([case_id, attorney_id])
+  @@map("case_conflict_checks")
+}
+
+// ---------------------------------------------------------------------------
+// Owner 2026-10-20: booking a consultation, «Вопрос юристу», deadline
+// calculator. Free, our own code only.
+// ---------------------------------------------------------------------------
+
+enum ConsultationStatus {
+  pending
+  confirmed
+  declined
+  cancelled
+
+  @@map("consultation_status")
+}
+
+/// The attorney's booking rules (the time zone lives in users.timezone).
+model ConsultationSettings {
+  attorney_id      String   @id @db.Uuid
+  attorney         User     @relation("ConsultationSettings", fields: [attorney_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  /// Off = no booking button on the profile.
+  enabled          Boolean  @default(false)
+  slot_minutes     Int      @default(30) @db.SmallInt
+  /// A break after each consultation.
+  buffer_minutes   Int      @default(0) @db.SmallInt
+  /// The nearest bookable moment is this many hours from now.
+  min_notice_hours Int      @default(12) @db.SmallInt
+  /// How far ahead clients may book.
+  horizon_days     Int      @default(30) @db.SmallInt
+  /// true = a booking is confirmed at once, false = the attorney confirms.
+  auto_confirm     Boolean  @default(false)
+  created_at       DateTime @default(now()) @db.Timestamptz
+  updated_at       DateTime @updatedAt @db.Timestamptz
+
+  @@map("consultation_settings")
+}
+
+/// A weekly window of free time (ISO weekday 1 = Monday … 7 = Sunday,
+/// minutes from midnight in the attorney's time zone). Two windows in a
+/// day leave a lunch break between them.
+model ConsultationWindow {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  attorney_id  String   @db.Uuid
+  attorney     User     @relation("ConsultationWindows", fields: [attorney_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  weekday      Int      @db.SmallInt
+  start_minute Int      @db.SmallInt
+  end_minute   Int      @db.SmallInt
+  created_at   DateTime @default(now()) @db.Timestamptz
+
+  @@index([attorney_id, weekday])
+  @@map("consultation_windows")
+}
+
+/// Days off (vacation, a hearing week): no slots from starts_on to ends_on.
+model ConsultationTimeOff {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  attorney_id String   @db.Uuid
+  attorney    User     @relation("ConsultationTimeOff", fields: [attorney_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  starts_on   DateTime @db.Date
+  ends_on     DateTime @db.Date
+  note        String?  @db.VarChar(120)
+  created_at  DateTime @default(now()) @db.Timestamptz
+
+  @@index([attorney_id, starts_on])
+  @@map("consultation_time_off")
+}
+
+model Consultation {
+  id               String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  attorney_id      String             @db.Uuid
+  attorney         User               @relation("ConsultationAttorney", fields: [attorney_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  client_id        String             @db.Uuid
+  client           User               @relation("ConsultationClient", fields: [client_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  starts_at        DateTime           @db.Timestamptz
+  ends_at          DateTime           @db.Timestamptz
+  status           ConsultationStatus @default(pending)
+  /// What the client wants to discuss (≤500).
+  note             String?            @db.VarChar(500)
+  /// The client's case this is about (bare uuid, checked on booking).
+  case_id          String?            @db.Uuid
+  /// The chat where the booking line sits (bare uuid: chats are never deleted).
+  conversation_id  String?            @db.Uuid
+  confirmed_at     DateTime?          @db.Timestamptz
+  cancelled_by_id  String?            @db.Uuid
+  cancel_reason    String?            @db.VarChar(300)
+  /// Who moved it last (attorney or client) and when; the other side is told.
+  rescheduled_at   DateTime?          @db.Timestamptz
+  reminded_day_at  DateTime?          @db.Timestamptz
+  reminded_hour_at DateTime?          @db.Timestamptz
+  created_at       DateTime           @default(now()) @db.Timestamptz
+  updated_at       DateTime           @updatedAt @db.Timestamptz
+
+  @@index([attorney_id, starts_at])
+  @@index([client_id, starts_at])
+  @@index([status, starts_at])
+  @@map("consultations")
+}
+
+/// «Вопрос юристу»: a client's public question; answers only from
+/// verified attorneys.
+model LegalQuestion {
+  id               String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  author_id        String        @db.Uuid
+  author           User          @relation("LegalQuestionAuthor", fields: [author_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  practice_area_id String?       @db.Uuid
+  practice_area    PracticeArea? @relation(fields: [practice_area_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  state_code       String?       @db.Char(2)
+  state            State?        @relation(fields: [state_code], references: [code], onDelete: Restrict, onUpdate: NoAction)
+  title            String        @db.VarChar(160)
+  body             String        @db.VarChar(3000)
+  /// true = others see "Anonymous"; the author always sees their own.
+  is_anonymous     Boolean       @default(false)
+  status           ContentStatus @default(published)
+  answer_count     Int           @default(0)
+  /// The answer the author marked as the best (bare uuid).
+  best_answer_id   String?       @db.Uuid
+  deleted_at       DateTime?     @db.Timestamptz
+  created_at       DateTime      @default(now()) @db.Timestamptz
+  updated_at       DateTime      @updatedAt @db.Timestamptz
+
+  answers LegalAnswer[]
+
+  @@index([status, created_at(sort: Desc)])
+  @@index([practice_area_id, created_at(sort: Desc)])
+  @@index([state_code, created_at(sort: Desc)])
+  @@index([author_id, created_at(sort: Desc)])
+  @@map("legal_questions")
+}
+
+model LegalAnswer {
+  id          String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  question_id String        @db.Uuid
+  question    LegalQuestion @relation(fields: [question_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  attorney_id String        @db.Uuid
+  attorney    User          @relation("LegalAnswerAuthor", fields: [attorney_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  body        String        @db.VarChar(4000)
+  status      ContentStatus @default(published)
+  like_count  Int           @default(0)
+  is_best     Boolean       @default(false)
+  deleted_at  DateTime?     @db.Timestamptz
+  created_at  DateTime      @default(now()) @db.Timestamptz
+  updated_at  DateTime      @updatedAt @db.Timestamptz
+
+  likes LegalAnswerLike[]
+
+  /// One answer per attorney and question (edited, not repeated).
+  @@unique([question_id, attorney_id])
+  @@index([attorney_id, created_at(sort: Desc)])
+  @@map("legal_answers")
+}
+
+model LegalAnswerLike {
+  answer_id  String      @db.Uuid
+  answer     LegalAnswer @relation(fields: [answer_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user_id    String      @db.Uuid
+  user       User        @relation("LegalAnswerLiker", fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  created_at DateTime    @default(now()) @db.Timestamptz
+
+  @@id([answer_id, user_id])
+  @@map("legal_answer_likes")
+}
+
+enum DeadlineKind {
+  court_deadline
+  statute_of_limitations
+
+  @@map("deadline_kind")
+}
+
+enum DeadlineUnit {
+  day
+  month
+  year
+
+  @@map("deadline_unit")
+}
+
+/// Calendar days count every day; business days skip weekends and the
+/// jurisdiction's court holidays.
+enum DeadlineDayType {
+  calendar
+  business
+
+  @@map("deadline_day_type")
+}
+
+/// after = the period runs from the event forward; before = the act is due
+/// that long before the event (a motion 14 days before the hearing).
+enum DeadlineDirection {
+  after
+  before
+
+  @@map("deadline_direction")
+}
+
+/// A period of time a court or a statute sets. jurisdiction 'US' = federal
+/// courts; a state code = that state's courts. Edited in the admin.
+model DeadlineRule {
+  id            String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  jurisdiction  String            @db.VarChar(2)
+  kind          DeadlineKind
+  /// Stable slug (frcp_12a_answer).
+  code          String            @unique
+  /// {"en": "...", "ru": "..."}; the app takes its language, then English.
+  labels        Json
+  amount        Int
+  unit          DeadlineUnit      @default(day)
+  day_type      DeadlineDayType   @default(calendar)
+  direction     DeadlineDirection @default(after)
+  /// A statute of limitations: the practice category code it is for
+  /// (personal_injury), null for a court deadline.
+  practice_code String?           @db.VarChar(80)
+  /// The rule or statute it comes from (FRCP 12(a)(1)(A)(i)).
+  citation      String?           @db.VarChar(160)
+  /// An explanation shown under the result: {"en": "...", "ru": "..."}.
+  notes         Json?
+  source_url    String?           @db.VarChar(300)
+  /// A staff member checked the rule against the source.
+  verified      Boolean           @default(false)
+  is_active     Boolean           @default(true)
+  sort          Int               @default(0)
+  created_at    DateTime          @default(now()) @db.Timestamptz
+  updated_at    DateTime          @updatedAt @db.Timestamptz
+
+  @@index([jurisdiction, kind, is_active])
+  @@map("deadline_rules")
+}
+
+/// A day the courts of a jurisdiction are closed (counted like a weekend).
+model CourtHoliday {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  jurisdiction String   @db.VarChar(2)
+  date         DateTime @db.Date
+  /// {"en": "Independence Day", "ru": "День независимости"}.
+  names        Json
+  created_at   DateTime @default(now()) @db.Timestamptz
+  updated_at   DateTime @updatedAt @db.Timestamptz
+
+  @@unique([jurisdiction, date])
+  @@index([date])
+  @@map("court_holidays")
 }

@@ -16,6 +16,7 @@ StickerPackDto _$StickerPackDtoFromJson(Map<String, dynamic> json) =>
       installed: json['installed'] as bool,
       stickerCount: (json['stickerCount'] as num).toInt(),
       installCount: (json['installCount'] as num).toInt(),
+      priceStars: (json['priceStars'] as num).toInt(),
       stickers: (json['stickers'] as List<dynamic>)
           .map((e) => StickerDto.fromJson(e as Map<String, dynamic>))
           .toList(),
@@ -31,5 +32,6 @@ Map<String, dynamic> _$StickerPackDtoToJson(StickerPackDto instance) =>
       'installed': instance.installed,
       'stickerCount': instance.stickerCount,
       'installCount': instance.installCount,
+      'priceStars': instance.priceStars,
       'stickers': instance.stickers.map((e) => e.toJson()).toList(),
     };

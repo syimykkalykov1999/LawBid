@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -48,7 +50,9 @@ Future<bool> showPlannerTaskSheet(
     } else {
       await updatePlannerTaskFrom(ref, existing, r);
     }
-    if (context.mounted) showAppSnackBar(context, t.t('tasks.saved'));
+    if (context.mounted) {
+      showAppSnackBar(context, t.t('tasks.saved'));
+    }
     return true;
   } on Object catch (e) {
     if (context.mounted) showAppSnackBar(context, errorText(t, e));

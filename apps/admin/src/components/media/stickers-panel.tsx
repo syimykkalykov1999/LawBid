@@ -153,13 +153,14 @@ export function StickersPanel() {
               <Th>Автор</Th>
               <Th className="text-right">Стикеров</Th>
               <Th className="text-right">Установок</Th>
+              <Th className="text-right">Цена</Th>
               <Th>Статус</Th>
               <Th>Создан</Th>
             </tr>
           </thead>
           <tbody>
             {list.isPending ? (
-              <TableEmpty colSpan={canWrite ? 7 : 6} loading />
+              <TableEmpty colSpan={canWrite ? 8 : 7} loading />
             ) : (
               rows.map((p) => (
                 <tr key={p.id} className="cursor-pointer" onClick={() => setOpenId(p.id)}>
@@ -178,6 +179,7 @@ export function StickersPanel() {
                   <Td className="text-muted">{p.isOfficial ? 'LawBid' : p.ownerName || '—'}</Td>
                   <Td className="text-right tabular-nums">{p.stickerCount}</Td>
                   <Td className="text-right tabular-nums">{p.installCount}</Td>
+                  <Td className="text-right tabular-nums">{p.priceStars > 0 ? `${p.priceStars} ⭐` : 'бесплатно'}</Td>
                   <Td>
                     <Badge tone={p.status === 'active' ? 'success' : 'warning'} dot>
                       {PACK_STATUS[p.status]}
@@ -213,6 +215,7 @@ function CreatePackDialog({ onClose, onCreated }: { onClose: () => void; onCreat
   const [key] = useState(() => crypto.randomUUID());
   const [title, setTitle] = useState('');
   const [shortName, setShortName] = useState('');
+  const [price, setPrice] = useState('');
   const shortOk = shortName.trim() === '' || /^[A-Za-z][A-Za-z0-9_]{2,39}$/.test(shortName.trim());
   const ok = title.trim().length >= 1 && title.trim().length <= 64 && shortOk;
 
@@ -221,7 +224,7 @@ function CreatePackDialog({ onClose, onCreated }: { onClose: () => void; onCreat
       (
         await api.POST('/admin/media/sticker-packs', {
           params: { header: { 'Idempotency-Key': key } },
-          body: { title: title.trim(), shortName: shortName.trim() || undefined },
+          body: { title: title.trim(), shortName: shortName.trim() || undefined, priceStars: price ? Number(price) : undefined },
         })
       ).data!.data,
     onSuccess: (p) => {
@@ -246,6 +249,9 @@ function CreatePackDialog({ onClose, onCreated }: { onClose: () => void; onCreat
         </Field>
         <Field label="Короткое имя (необязательно)" htmlFor="sp-short" hint="Для ссылки lawbid.app/stickers/имя. Латиница, цифры и _, 3–40 символов, начинается с буквы. Пусто — придумаем сами.">
           <Input id="sp-short" className={shortOk ? 'font-mono' : 'border-danger font-mono'} value={shortName} onChange={(e) => setShortName(e.target.value)} />
+        </Field>
+        <Field label="Цена в звёздах (необязательно)" htmlFor="sp-price" hint="Пусто или 0 — набор бесплатный. Платный набор пользователь добавляет за звёзды один раз.">
+          <Input id="sp-price" inputMode="numeric" className="w-32" value={price} onChange={(e) => setPrice(e.target.value.replace(/\D/g, ''))} />
         </Field>
         <div className="flex justify-end gap-2">
           <Button type="button" variant="ghost" onClick={onClose}>
@@ -390,6 +396,8 @@ function PackDialog({ id, canWrite, onClose }: { id: string; canWrite: boolean; 
               </div>
             )}
 
+            {canWrite && p.isOfficial ? <PackPrice pack={p} onSaved={setPack} /> : null}
+
             {canWrite && p.isOfficial ? <StickerUploader packId={p.id} onAdded={setPack} /> : null}
 
             {canWrite ? (
@@ -410,5 +418,32 @@ function PackDialog({ id, canWrite, onClose }: { id: string; canWrite: boolean; 
       </Dialog>
       {dialog}
     </>
+  );
+}
+
+/** Owner 2026-10-20: the price in stars of an official pack (0 = free). */
+function PackPrice({ pack, onSaved }: { pack: Pack; onSaved: (p: Pack) => void }) {
+  const toast = useToast();
+  const [value, setValue] = useState(String(pack.priceStars));
+  const n = Number(value);
+  const ok = value !== '' && Number.isInteger(n) && n >= 0 && n !== pack.priceStars;
+  const save = useMutation({
+    mutationFn: async () =>
+      (await api.POST('/admin/media/sticker-packs/{id}/price', { params: { path: { id: pack.id } }, body: { priceStars: n } })).data!.data,
+    onSuccess: (p) => {
+      toast.success(n > 0 ? `Цена: ${n} ⭐` : 'Набор бесплатный');
+      onSaved(p);
+    },
+    onError: (e) => toast.error(growthError(e)),
+  });
+  return (
+    <div className="flex flex-wrap items-end gap-3 rounded-xl border border-line bg-surface-2/40 p-4">
+      <Field label="Цена в звёздах" htmlFor="pk-price" hint="0 — бесплатно. Кто уже добавил набор, сохраняет его.">
+        <Input id="pk-price" className="w-32" inputMode="numeric" value={value} onChange={(e) => setValue(e.target.value.replace(/\D/g, ''))} />
+      </Field>
+      <Button variant="gold" disabled={!ok || save.isPending} loading={save.isPending} onClick={() => save.mutate()}>
+        Сохранить цену
+      </Button>
+    </div>
   );
 }

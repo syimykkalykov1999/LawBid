@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/features/stars/domain/stars_models.dart';
 import 'package:lawbid/features/stickers/domain/sticker_models.dart';
 
 enum ConversationStatus { preAcceptance, active, closed }
@@ -60,6 +61,7 @@ class Conversation {
     this.lastMessageAt,
     this.mutedUntil,
     this.counterpartLastReadId,
+    this.counterpartLastReadAt,
     this.isDirect = false,
     this.request = MessageRequest.none,
     this.requestedByMe = false,
@@ -131,6 +133,10 @@ class Conversation {
   final int unreadCount;
   final DateTime? mutedUntil;
   final String? counterpartLastReadId;
+
+  /// When the other side last read: "seen at HH:MM" for every message up
+  /// to [counterpartLastReadId].
+  final DateTime? counterpartLastReadAt;
   final DateTime updatedAt;
 
   bool get muted => mutedUntil != null && mutedUntil!.isAfter(DateTime.now());
@@ -144,7 +150,45 @@ enum ChatFolder { primary, general }
 enum ChatListFolder { all, primary, general, waiting, requests }
 
 // OQ-047: `attachment` — a photo or a document after acceptance.
-enum MessageKind { text, system, voice, call, attachment, sticker }
+// Owner 2026-10-20: `contact` — a shared attorney card, `place` — an address.
+enum MessageKind {
+  text,
+  system,
+  voice,
+  call,
+  attachment,
+  sticker,
+  gift,
+  contact,
+  place,
+}
+
+/// Owner 2026-10-20: an attorney shared in a chat — the public profile only
+/// (never a phone or an e-mail).
+@immutable
+class ContactCard {
+  const ContactCard({
+    required this.userId,
+    required this.username,
+    required this.displayName,
+    required this.verified,
+    this.avatarUrl,
+    this.firmNames = const [],
+    this.practiceKeys = const [],
+    this.licensedStates = const [],
+  });
+
+  final String userId;
+  final String username;
+  final String displayName;
+  final String? avatarUrl;
+  final bool verified;
+  final List<String> firmNames;
+
+  /// Translation keys of the practice areas.
+  final List<String> practiceKeys;
+  final List<String> licensedStates;
+}
 
 /// OQ-041: a call in the chat log (the sender placed it).
 @immutable
@@ -257,6 +301,49 @@ class ChatAttachment {
 /// прочитано"); server messages are [sent].
 enum DeliveryState { sending, failed, sent }
 
+/// Owner 2026-10-20: the quoted message of a reply.
+@immutable
+class ReplyPreview {
+  const ReplyPreview({
+    required this.id,
+    required this.kind,
+    required this.snippet,
+    this.senderId,
+    this.revoked = false,
+  });
+
+  /// The quote of [m] as the composer and the sending bubble show it.
+  factory ReplyPreview.of(ChatMessage m) => ReplyPreview(
+        id: m.id,
+        senderId: m.senderId,
+        kind: m.kind,
+        snippet: m.kind == MessageKind.text ? m.body : '',
+        revoked: m.revoked,
+      );
+
+  final String id;
+  final String? senderId;
+  final MessageKind kind;
+
+  /// First characters of a text; empty for media.
+  final String snippet;
+  final bool revoked;
+}
+
+/// Owner 2026-10-20: one emoji with how many people chose it.
+@immutable
+class MessageReaction {
+  const MessageReaction({
+    required this.emoji,
+    required this.count,
+    required this.mine,
+  });
+
+  final String emoji;
+  final int count;
+  final bool mine;
+}
+
 @immutable
 class ChatMessage {
   const ChatMessage({
@@ -275,7 +362,32 @@ class ChatMessage {
     this.attachment,
     this.sentByAssistant,
     this.sticker,
+    this.gift,
+    this.contact,
+    this.editedAt,
+    this.revoked = false,
+    this.forwarded = false,
+    this.replyTo,
+    this.reactions = const [],
+    this.pinned = false,
   });
+
+  /// Owner 2026-10-20: set for [MessageKind.gift]; the note is [body].
+  final GiftSend? gift;
+
+  /// Owner 2026-10-20: set for [MessageKind.contact] (null when that
+  /// attorney is gone).
+  final ContactCard? contact;
+
+  /// Edited at (the bubble says "edited").
+  final DateTime? editedAt;
+
+  /// Deleted for everyone: the bubble says "Message deleted".
+  final bool revoked;
+  final bool forwarded;
+  final ReplyPreview? replyTo;
+  final List<MessageReaction> reactions;
+  final bool pinned;
 
   /// Owner 2026-10-01: set for [MessageKind.sticker].
   final ChatSticker? sticker;
@@ -313,16 +425,29 @@ class ChatMessage {
     ChatAttachment? attachment,
     DeliveryState? delivery,
     String? failedCode,
+    DateTime? editedAt,
+    bool? revoked,
+    bool? forwarded,
+    ReplyPreview? replyTo,
+    List<MessageReaction>? reactions,
+    bool? pinned,
+    String? body,
   }) =>
       ChatMessage(
         id: id,
         conversationId: conversationId,
         senderId: senderId,
         kind: kind,
-        body: body,
+        body: body ?? this.body,
         createdAt: createdAt,
         contactMasked: contactMasked,
         clientMessageId: clientMessageId,
+        editedAt: editedAt ?? this.editedAt,
+        revoked: revoked ?? this.revoked,
+        forwarded: forwarded ?? this.forwarded,
+        replyTo: replyTo ?? this.replyTo,
+        reactions: reactions ?? this.reactions,
+        pinned: pinned ?? this.pinned,
         delivery: delivery ?? this.delivery,
         failedCode: failedCode ?? this.failedCode,
         voice: voice ?? this.voice,
@@ -330,6 +455,8 @@ class ChatMessage {
         attachment: attachment ?? this.attachment,
         sentByAssistant: sentByAssistant,
         sticker: sticker,
+        gift: gift,
+        contact: contact,
       );
 }
 
@@ -352,6 +479,8 @@ String newClientMessageId() {
 String systemLineText(Translator t, String body, {L10nFormats? formats}) {
   final i = body.indexOf(':');
   if (i < 0) return t.t('chat.system.$body');
+  // Owner 2026-10-20: `consult:<booking id>` — the id is not text.
+  if (body.startsWith('consult:')) return t.t('chat.system.consult');
   final raw = body.substring(i + 1);
   final key = body.substring(0, i);
   final cents = int.tryParse(raw);

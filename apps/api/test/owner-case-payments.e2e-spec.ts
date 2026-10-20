@@ -1212,14 +1212,17 @@ describe('owner — client → attorney payments (e2e, fake provider)', () => {
       .expect(200);
 
     // Reminders: due in ~1 day → reminded once a day; overdue → every N days; long overdue → expired.
-    let r = await service.remind();
+    // Owner 2026-10-20: reminders go out in the client's local morning, so
+    // the run is pinned to noon UTC (a client without a zone reads as UTC).
+    const noon = new Date(todayUtc + 12 * 3_600_000);
+    let r = await service.remind(noon);
     expect(r.reminded).toBe(1);
     expect(
       await prisma.notification.count({
         where: { user_id: cli.id, type: 'payment_request_due' },
       }),
     ).toBe(1);
-    r = await service.remind();
+    r = await service.remind(noon);
     expect(r.reminded).toBe(0);
     await prisma.paymentRequest.update({
       where: { id: second },
@@ -1228,7 +1231,7 @@ describe('owner — client → attorney payments (e2e, fake provider)', () => {
         last_reminded_at: null,
       },
     });
-    r = await service.remind(new Date(Date.now() + 86_400_000));
+    r = await service.remind(new Date(noon.getTime() + 86_400_000));
     expect(r.overdue).toBe(1);
     expect(
       await prisma.notification.count({
@@ -1239,7 +1242,7 @@ describe('owner — client → attorney payments (e2e, fake provider)', () => {
       where: { id: second },
       data: { due_at: new Date(Date.now() - 45 * 86_400_000) },
     });
-    r = await service.remind(new Date(Date.now() + 2 * 86_400_000));
+    r = await service.remind(new Date(noon.getTime() + 2 * 86_400_000));
     expect(r.expired).toBe(1);
     // The attorney withdraws it; the client is told; a second cancel is 409.
     const canceled = await api()

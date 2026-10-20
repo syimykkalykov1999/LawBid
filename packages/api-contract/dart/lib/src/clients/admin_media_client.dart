@@ -24,6 +24,7 @@ import '../models/create_official_sticker_pack_dto.dart';
 import '../models/file_envelope.dart';
 import '../models/kind2.dart';
 import '../models/presigned_file_envelope.dart';
+import '../models/set_sticker_pack_price_dto.dart';
 import '../models/status6.dart';
 
 part 'admin_media_client.g.dart';
@@ -125,6 +126,14 @@ abstract class AdminMediaClient {
   Future<AdminStickerPackEnvelope> unhideAdminStickerPack({
     @Path('id') required String id,
     @Body() required AdminMediaReasonDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Set the price in stars of an official pack
+  @POST('/admin/media/sticker-packs/{id}/price')
+  Future<AdminStickerPackEnvelope> setAdminStickerPackPrice({
+    @Path('id') required String id,
+    @Body() required SetStickerPackPriceDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

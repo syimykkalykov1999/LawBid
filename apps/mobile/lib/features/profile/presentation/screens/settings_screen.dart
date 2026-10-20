@@ -12,6 +12,8 @@ import 'package:lawbid/features/auth/auth_routes.dart';
 import 'package:lawbid/features/case_payments/application/case_payments_providers.dart';
 import 'package:lawbid/features/case_payments/case_payments_routes.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
+import 'package:lawbid/features/consultations/application/consultations_providers.dart';
+import 'package:lawbid/features/consultations/consultations_routes.dart';
 import 'package:lawbid/features/demo/application/demo_providers.dart';
 import 'package:lawbid/features/demo/presentation/demo_settings_card.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
@@ -144,6 +146,21 @@ class SettingsScreen extends ConsumerWidget {
               subtitle: t.t('cpay.payout.hint'),
               onTap: () => context.push(CasePaymentsRoutes.payoutAccount),
             ),
+          // Owner 2026-10-20: consultation booking (flag `consultations`):
+          // the attorney sets the hours; both roles see the bookings.
+          if (ref.watch(consultationsFlagProvider) &&
+              !ref.watch(isAssistantProvider))
+            AppListRow(
+              key: const ValueKey('settings-consultations'),
+              icon: AppIcons.eventAvailableOutlined,
+              label: t.t('consult.title'),
+              subtitle: t.t(
+                ref.watch(currentUserRoleProvider) == UserRole.attorney
+                    ? 'consult.hint.attorney'
+                    : 'consult.hint.client',
+              ),
+              onTap: () => context.push(ConsultationsRoutes.list),
+            ),
           if (ref.watch(casePaymentsFlagProvider))
             AppListRow(
               key: const ValueKey('settings-case-payments'),
@@ -174,6 +191,17 @@ class SettingsScreen extends ConsumerWidget {
               label: t.t('packs.title'),
               subtitle: t.t('packs.hint'),
               onTap: () => context.push(AppRoutes.bidPacks),
+            ),
+          // Owner 2026-10-20: stars — the balance, gifts, paid stickers
+          // (flag `stars`).
+          if (!ref.watch(isAssistantProvider) &&
+              ref.watch(featureFlagsControllerProvider).isEnabled('stars'))
+            AppListRow(
+              key: const ValueKey('settings-stars'),
+              icon: AppIcons.starRounded,
+              label: t.t('stars.title'),
+              subtitle: t.t('stars.hint'),
+              onTap: () => context.push(AppRoutes.stars),
             ),
           // Owner 2026-10-14: the firm profile (flag `firm_profiles`).
           if (ref.watch(currentUserRoleProvider) == UserRole.attorney &&

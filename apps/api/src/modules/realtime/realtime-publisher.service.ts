@@ -14,6 +14,8 @@ export const viewingKey = (userId: string, conversationId: string) =>
 
 export type RealtimeEvent =
   | 'message:new'
+  // Owner 2026-10-20: edited, deleted for everyone, reaction, pin.
+  | 'message:updated'
   | 'message:read'
   // OQ-040: the recipient played a voice note.
   | 'message:listened'
@@ -21,6 +23,18 @@ export type RealtimeEvent =
   | 'call:incoming'
   | 'call:accepted'
   | 'call:ended'
+  // Group calls: the member list changed / the host muted or removed you.
+  | 'call:participants'
+  | 'call:muted'
+  | 'call:removed'
+  // Owner 2026-10-20 group chats: a new / changed message (poll edits and
+  // deletions included), the group's settings or member list changed, my
+  // own removal (the calls thread drops the person from a running call),
+  // fresh poll counters.
+  | 'group:message'
+  | 'group:update'
+  | 'group:member_removed'
+  | 'poll:update'
   | 'conversation:update'
   | 'notification:new'
   | 'badge:update';

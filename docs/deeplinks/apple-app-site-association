@@ -35,6 +35,10 @@
             "comment": "Group invitation"
           },
           {
+            "/": "/c/*",
+            "comment": "Channel (lawbid.dev/c/<username>)"
+          },
+          {
             "/": "/auth/email-code",
             "comment": "Email magic sign-in link"
           }

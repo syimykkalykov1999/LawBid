@@ -393,6 +393,10 @@ export class PublicAttorneyProfileDto {
   })
   isFollowing!: boolean;
 
+  /** Owner 2026-10-20: the attorney takes consultation bookings now. */
+  @ApiProperty()
+  consultationEnabled!: boolean;
+
   /** OQ-028: the viewer blocked this user. */
   @ApiProperty()
   isBlocked!: boolean;

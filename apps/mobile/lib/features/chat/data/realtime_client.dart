@@ -39,6 +39,8 @@ class RealtimeClient {
 
   static const _serverEvents = [
     'message:new',
+    // Owner 2026-10-20: edited, deleted for all, reaction, pin.
+    'message:updated',
     'message:read',
     // OQ-040: the other side played a voice note.
     'message:listened',
@@ -47,12 +49,21 @@ class RealtimeClient {
     'call:accepted',
     'call:ended',
     'call:signal',
+    // Group calls: member list, host muted you, host removed you.
+    'call:participants',
+    'call:muted',
+    'call:removed',
     'typing',
     'notification:new',
     'badge:update',
     'conversation:update',
     // Owner 2026-10-01: a chat partner came online / left.
     'presence:update',
+    // Owner 2026-10-20: group chats and polls.
+    'group:message',
+    'group:update',
+    'group:member_removed',
+    'poll:update',
   ];
 
   Stream<RealtimeEvent> get events => _events.stream;
@@ -192,14 +203,19 @@ class RealtimeClient {
   }
 
   /// OQ-041: WebRTC signaling (offer / answer / ICE) to the other member
-  /// of a live call; false when the socket is down or the server refused.
-  Future<bool> callSignal(String callId, Map<String, Object?> data) {
+  /// of a live call (group calls: to [to], or all the others when null);
+  /// false when the socket is down or the server refused.
+  Future<bool> callSignal(
+    String callId,
+    Map<String, Object?> data, {
+    String? to,
+  }) {
     final s = _socket;
     if (s == null || !s.connected) return Future.value(false);
     final done = Completer<bool>();
     s.emitWithAck(
       'call:signal',
-      {'callId': callId, 'data': data},
+      {'callId': callId, 'data': data, if (to != null) 'to': to},
       ack: (Object? r) {
         if (!done.isCompleted) done.complete(r is Map && r['ok'] == true);
       },

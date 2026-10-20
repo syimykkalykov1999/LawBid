@@ -105,6 +105,8 @@ const SEGMENT_AREA: Record<string, RouteArea> = {
   fraud: 'verification',
   moderation: 'moderation',
   'review-appeals': 'moderation',
+  // Owner 2026-10-20: group chats (remove members, close groups).
+  'group-chats': 'moderation',
   overview: 'content',
   content: 'content',
   'practice-areas': 'content',

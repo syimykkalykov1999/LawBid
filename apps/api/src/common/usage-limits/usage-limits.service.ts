@@ -29,7 +29,10 @@ export type LimitedAction =
   | 'story_create'
   | 'channel_create'
   | 'channel_post'
-  | 'channel_comment';
+  | 'channel_comment'
+  | 'consultation_book'
+  | 'question_create'
+  | 'answer_create';
 
 const HOUR = 3600;
 const DAY = 24 * HOUR;
@@ -73,6 +76,13 @@ export const USAGE_LIMITS: Record<
     setting: 'rate_limit.channel_comment_per_hour',
     windowSec: HOUR,
   },
+  // Owner 2026-10-20: consultations and «Вопрос юристу».
+  consultation_book: {
+    setting: 'rate_limit.consultation_book_per_day',
+    windowSec: DAY,
+  },
+  question_create: { setting: 'rate_limit.question_per_day', windowSec: DAY },
+  answer_create: { setting: 'rate_limit.answer_per_hour', windowSec: HOUR },
 };
 
 /**

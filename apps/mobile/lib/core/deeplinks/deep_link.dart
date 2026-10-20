@@ -107,11 +107,12 @@ final class GroupInviteDeepLink extends DeepLink {
   String toString() => 'GroupInviteDeepLink(<redacted>)';
 }
 
-enum ContentKind { caseItem, lawyer, post, channel }
+enum ContentKind { caseItem, lawyer, post, group, channel }
 
-/// `/case/:id`, `/lawyer/:username`, `/post/:id`, `/c/:username` — content
-/// that lives in files 03–05 (opened by the router). A channel link may name
-/// one post (`/c/:username?post=<id>`).
+/// `/case/:id`, `/lawyer/:username`, `/post/:id`, `/g/<code or @username>`
+/// (a group invite), `/c/:username` — content that lives in files 03–05
+/// (opened by the router). A channel link may name one post
+/// (`/c/:username?post=<id>`).
 final class ContentDeepLink extends DeepLink {
   const ContentDeepLink(this.kind, this.id, {this.postId});
 
@@ -128,6 +129,7 @@ final class ContentDeepLink extends DeepLink {
         ContentKind.post => '/post/${Uri.encodeComponent(id)}',
         ContentKind.channel => '/c/${Uri.encodeComponent(id)}'
             '${postId == null ? '' : '?post=${Uri.encodeComponent(postId!)}'}',
+        ContentKind.group => '/g/${Uri.encodeComponent(id)}',
       };
 
   @override
@@ -182,6 +184,10 @@ final _usernamePattern = RegExp(r'^[A-Za-z0-9_.]{3,30}$');
 /// link may carry capitals).
 final _channelUsernamePattern = RegExp(r'^@?[A-Za-z][A-Za-z0-9_]{3,31}$');
 
+/// A group invite: the 16-char base64url code of the link, or the public
+/// group's @username (5-32 chars, GROUP_USERNAME_RE on the server).
+final _groupCodePattern = RegExp(r'^@?[A-Za-z0-9_-]{4,64}$');
+
 /// A dev web server (http://localhost:…) — the only plain http link taken.
 bool _isLoopback(String host) =>
     host == 'localhost' || host == '127.0.0.1' || host == '[::1]';
@@ -211,6 +217,8 @@ String? _paymentReturn(String kind, String step, Uri uri) {
       return '/profile/settings/verify-account';
     case 'bid-packs' when done:
       return '/profile/settings/bid-packs';
+    case 'stars' when done:
+      return '/profile/settings/stars';
   }
   return null;
 }
@@ -298,6 +306,8 @@ DeepLink? parseDeepLink(
         (id.startsWith('@') ? id.substring(1) : id).toLowerCase(),
         postId: _sharedPostId(uri),
       ),
+    'g' when _groupCodePattern.hasMatch(id) =>
+      ContentDeepLink(ContentKind.group, id),
     'lawyer'
         when _usernamePattern
             .hasMatch(id.startsWith('@') ? id.substring(1) : id) =>

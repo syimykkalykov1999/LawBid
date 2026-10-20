@@ -18,6 +18,12 @@ enum MessageDtoType {
   attachment('attachment'),
   @JsonValue('sticker')
   sticker('sticker'),
+  @JsonValue('gift')
+  gift('gift'),
+  @JsonValue('contact')
+  contact('contact'),
+  @JsonValue('place')
+  place('place'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

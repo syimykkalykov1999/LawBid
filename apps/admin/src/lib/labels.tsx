@@ -37,6 +37,8 @@ export const TARGET_TYPE: Record<string, string> = {
   story: 'История',
   channel: 'Канал',
   channel_post: 'Пост канала',
+  legal_question: 'Вопрос юристу',
+  legal_answer: 'Ответ юристу',
 };
 
 export const REPORT_REASON: Record<string, string> = {

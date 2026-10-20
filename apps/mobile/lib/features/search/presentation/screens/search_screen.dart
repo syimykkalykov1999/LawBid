@@ -21,6 +21,7 @@ import 'package:lawbid/features/feed/application/feed_topics.dart';
 import 'package:lawbid/features/feed/presentation/widgets/feed_chrome.dart';
 import 'package:lawbid/features/feed/presentation/widgets/topic_filter_bar.dart'
     show topicName;
+import 'package:lawbid/features/legal_qa/presentation/qa_search_entry.dart';
 import 'package:lawbid/features/practice/practice_matches.dart';
 import 'package:lawbid/features/search/application/search_providers.dart';
 import 'package:lawbid/features/search/data/search_repository.dart';
@@ -318,14 +319,21 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 // Owner 2026-09-30: the sections on top, the field under them.
                 tabsRow,
                 ChromeCollapse(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      AppSpacing.screenSide,
-                      AppSpacing.xs,
-                      AppSpacing.screenSide,
-                      AppSpacing.xs,
-                    ),
-                    child: field,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(
+                          AppSpacing.screenSide,
+                          AppSpacing.xs,
+                          AppSpacing.screenSide,
+                          AppSpacing.xs,
+                        ),
+                        child: field,
+                      ),
+                      // Owner 2026-10-20: «Вопрос юристу».
+                      if (!_focused) const QaSearchEntry(),
+                    ],
                   ),
                 ),
                 if (_focused && _suggestQ.isNotEmpty)
@@ -1074,7 +1082,7 @@ class _RecentHistory extends ConsumerWidget {
                   child: Text(
                     t.t('search.recent.clear'),
                     style: type.body.copyWith(
-                      color: colors.gold,
+                      color: colors.goldText,
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
                     ),

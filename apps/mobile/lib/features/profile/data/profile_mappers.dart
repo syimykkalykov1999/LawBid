@@ -70,6 +70,7 @@ abstract final class ProfileMappers {
         isFollowing: d.isFollowing,
         isBlocked: d.isBlocked,
         hasBlockedMe: d.hasBlockedMe,
+        consultationEnabled: d.consultationEnabled,
         // Owner 2026-10-18: the profile header shows the full avatar (the
         // 256 px variant looked soft at ~100 dp on a Retina screen);
         // AppAvatar decodes it at the size it is drawn.

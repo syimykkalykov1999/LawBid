@@ -94,8 +94,10 @@ class CallScreenVisible extends Notifier<bool> {
   @override
   bool build() => false;
 
-  // ignore: use_setters_to_change_properties
-  void set({required bool visible}) => state = visible;
+  void set({required bool visible}) {
+    // The screen's dispose runs a microtask later, maybe after the scope.
+    if (ref.mounted) state = visible;
+  }
 }
 
 final callScreenVisibleProvider =

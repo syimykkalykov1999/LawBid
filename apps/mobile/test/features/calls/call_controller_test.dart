@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter/foundation.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -25,8 +26,12 @@ AppCall _call(
   CallStatus status, {
   required bool outgoing,
   bool video = false,
+  List<CallMember> members = const [],
 }) =>
     AppCall(
+      group: members.isNotEmpty,
+      hostId: members.isEmpty ? null : 'p1',
+      participants: members,
       id: id,
       conversationId: 'conv',
       status: status,
@@ -56,6 +61,21 @@ Map<String, Object?> _event(AppCall c) => {
         'endedAt': null,
         'durationSec': null,
         'video': c.video,
+        'group': c.group,
+        'hostId': c.hostId,
+        'participants': [
+          for (final m in c.participants)
+            {
+              'userId': m.userId,
+              'displayName': m.displayName,
+              'username': m.username,
+              'avatarUrl': null,
+              'status': m.status.name,
+              'muted': m.muted,
+              'mutedByHost': m.mutedByHost,
+              'joinedAt': m.joinedAt?.toUtc().toIso8601String(),
+            },
+        ],
       },
     };
 
@@ -71,6 +91,7 @@ class _FakeRepo implements CallsRepository {
   Completer<void>? startGate;
   Completer<void>? getGate;
   CallStatus getStatus = CallStatus.ringing;
+  List<CallMember> getMembers = const [];
 
   @override
   Future<AppCall> start(String conversationId, {bool video = false}) async {
@@ -80,10 +101,17 @@ class _FakeRepo implements CallsRepository {
     return _call(nextId, startStatus, outgoing: true, video: video);
   }
 
+  List<CallMember> acceptMembers = const [];
+
   @override
   Future<AppCall> accept(String callId) async {
     accepted.add(callId);
-    return _call(callId, CallStatus.active, outgoing: false);
+    return _call(
+      callId,
+      CallStatus.active,
+      outgoing: false,
+      members: acceptMembers,
+    );
   }
 
   @override
@@ -92,8 +120,18 @@ class _FakeRepo implements CallsRepository {
     return _call(callId, CallStatus.declined, outgoing: false);
   }
 
+  /// Whether the media was already closed when the hang-up reached us.
+  bool Function()? mediaClosed;
+  bool? closedAtEnd;
+  int endFailures = 0;
+
   @override
   Future<AppCall> end(String callId, CallEndReason reason) async {
+    closedAtEnd = mediaClosed?.call();
+    if (endFailures > 0) {
+      endFailures--;
+      throw Exception('offline');
+    }
     ends.add(reason);
     return _call(callId, CallStatus.ended, outgoing: true);
   }
@@ -101,8 +139,51 @@ class _FakeRepo implements CallsRepository {
   @override
   Future<AppCall> get(String callId) async {
     if (getGate != null) await getGate!.future;
-    return _call(callId, getStatus, outgoing: false);
+    return _call(callId, getStatus, outgoing: false, members: getMembers);
   }
+
+  final invited = <String?>[];
+  final muteCalls = <String>[];
+  final removeCalls = <String>[];
+  final muteStates = <bool>[];
+  String? inviteError;
+
+  @override
+  Future<AppCall> invite(
+    String callId, {
+    String? userId,
+    String? username,
+  }) async {
+    if (inviteError != null) {
+      throw ApiException(
+        code: inviteError!,
+        message: 'x',
+        statusCode: 409,
+      );
+    }
+    invited.add(userId ?? username);
+    return _call(callId, CallStatus.active, outgoing: true);
+  }
+
+  @override
+  Future<AppCall> muteMember(
+    String callId,
+    String userId, {
+    required bool muted,
+  }) async {
+    muteCalls.add(userId);
+    return _call(callId, CallStatus.active, outgoing: true);
+  }
+
+  @override
+  Future<AppCall> removeMember(String callId, String userId) async {
+    removeCalls.add(userId);
+    return _call(callId, CallStatus.active, outgoing: true);
+  }
+
+  @override
+  Future<void> setMuteState(String callId, {required bool muted}) async =>
+      muteStates.add(muted);
 
   @override
   Future<List<IceServer>> iceServers() async => const [
@@ -130,10 +211,79 @@ class _FakeMedia implements CallMedia {
     required void Function(Map<String, Object?> signal) onSignal,
     required void Function(CallMediaState state) onState,
     bool video = false,
+    String peer = '',
   }) async {
     opened = true;
     openedVideo = video;
     this.onState = onState;
+    firstPeer = peer;
+    links[peer] = onState;
+  }
+
+  String firstPeer = '';
+
+  /// Group calls: link state callbacks by member.
+  final links = <String, void Function(CallMediaState)>{};
+  final offersFor = <String>[];
+  final answersFor = <String>[];
+  final removed = <String>[];
+  final restarted = <String>[];
+
+  @override
+  final ValueListenable<Map<String, MediaStream>> remoteStreams =
+      ValueNotifier(const {});
+
+  @override
+  final ValueListenable<Set<String>> speaking = ValueNotifier(const {});
+
+  @override
+  Set<String> get peers => links.keys.toSet();
+
+  @override
+  Future<void> addPeer(
+    String peer, {
+    required void Function(Map<String, Object?> signal) onSignal,
+    required void Function(CallMediaState state) onState,
+  }) async =>
+      links[peer] = onState;
+
+  @override
+  Future<Map<String, Object?>> createOfferFor(String peer) async {
+    offersFor.add(peer);
+    return {'type': 'offer', 'sdp': 'offer-sdp'};
+  }
+
+  @override
+  Future<Map<String, Object?>> answerFor(
+    String peer,
+    Map<String, Object?> offer,
+  ) async {
+    answersFor.add(peer);
+    return {'type': 'answer', 'sdp': 'answer-to-${offer['sdp']}'};
+  }
+
+  @override
+  Future<void> setAnswerFor(String peer, Map<String, Object?> answer) async =>
+      gotAnswer = answer;
+
+  @override
+  Future<void> addCandidateFor(
+    String peer,
+    Map<String, Object?> candidate,
+  ) async =>
+      candidates.add(candidate);
+
+  @override
+  Future<Map<String, Object?>> restartIceFor(String peer) async {
+    restarted.add(peer);
+    iceRestarts++;
+    return {'type': 'offer', 'sdp': 'x'};
+  }
+
+  @override
+  Future<void> removePeer(String peer) async {
+    removed.add(peer);
+    links.remove(peer);
   }
 
   @override
@@ -234,8 +384,11 @@ class _Harness {
         realtimeEventsProvider.overrideWithValue(events.stream),
         appSoundsProvider.overrideWithValue(sounds),
         callForegroundProvider.overrideWithValue(foreground),
-        callSignalSenderProvider.overrideWithValue((id, data) async {
+        callMyIdProvider.overrideWithValue('me'),
+        callMicPermissionProvider.overrideWithValue(() async => true),
+        callSignalSenderProvider.overrideWithValue((id, data, {to}) async {
           signals.add(data);
+          signalTargets.add(to);
           return true;
         }),
       ],
@@ -249,6 +402,7 @@ class _Harness {
   final media = _FakeMedia();
   final events = StreamController<RealtimeEvent>.broadcast();
   final signals = <Map<String, Object?>>[];
+  final signalTargets = <String?>[];
   late final ProviderContainer container;
   late final ProviderSubscription<CallSession> sub;
 
@@ -346,6 +500,63 @@ void main() {
     await h.c.hangUp();
   });
 
+  test('hanging up reaches the server before the media closes', () async {
+    final h = _Harness();
+    addTearDown(h.dispose);
+    h.repo.mediaClosed = () => h.media.closed;
+    await h.c.call('conv', peer: _peer, video: true);
+    h.emit(
+      'call:accepted',
+      _event(_call('c1', CallStatus.active, outgoing: true)),
+    );
+    await _settle();
+    h.media.onState!(CallMediaState.connected);
+    await h.c.hangUp();
+    expect(h.repo.closedAtEnd, isFalse);
+    expect(h.media.closed, isTrue);
+  });
+
+  test(
+      'the hang-up is retried until the server has it (no network for a while)',
+      () {
+    fakeAsync((async) {
+      final h = _Harness();
+      h.repo.endFailures = 5;
+      h.c.call('conv', peer: _peer);
+      async.flushMicrotasks();
+      h.c.hangUp();
+      async.flushMicrotasks();
+      expect(h.s.phase, CallPhase.ended);
+      expect(h.repo.ends, isEmpty);
+      async.elapse(const Duration(seconds: 40));
+      expect(h.repo.ends, hasLength(1));
+      h
+        ..sub.close()
+        ..container.dispose();
+    });
+  });
+
+  test('the link drops because the other side hung up: closes at once',
+      () async {
+    final h = _Harness();
+    addTearDown(h.dispose);
+    await h.c.call('conv', peer: _peer, video: true);
+    h.emit(
+      'call:accepted',
+      _event(_call('c1', CallStatus.active, outgoing: true)),
+    );
+    await _settle();
+    h.media.onState!(CallMediaState.connected);
+    expect(h.s.phase, CallPhase.active);
+
+    // The "ended" event never arrives; only the link goes.
+    h.repo.getStatus = CallStatus.ended;
+    h.media.onState!(CallMediaState.disconnected);
+    await _settle();
+    expect(h.s.phase, CallPhase.ended);
+    expect(h.s.reconnecting, isFalse);
+  });
+
   test('ringing in: accept answers the offer', () async {
     final h = _Harness();
     addTearDown(h.dispose);
@@ -376,6 +587,66 @@ void main() {
     await _settle();
     expect(h.s.phase, CallPhase.ended);
     expect(h.s.outcome, CallStatus.ended);
+  });
+
+  group('the ringing never goes on forever (owner 2026-10-20)', () {
+    test('incoming: no "ended" ever arrives → the ringtone stops by itself',
+        () {
+      fakeAsync((async) {
+        final h = _Harness()
+          ..emit(
+            'call:incoming',
+            _event(_call('c2', CallStatus.ringing, outgoing: false)),
+          );
+        async.flushMicrotasks();
+        expect(h.s.phase, CallPhase.incoming);
+
+        async.elapse(kCallRingTimeout);
+        expect(h.s.phase, CallPhase.incoming);
+        async.elapse(kCallRingGrace + const Duration(seconds: 1));
+        expect(h.s.phase, CallPhase.ended);
+        expect(h.s.outcome, CallStatus.missed);
+        expect(h.sounds.rings.last, 'stop');
+        h
+          ..sub.close()
+          ..container.dispose();
+      });
+    });
+
+    test('incoming: the caller hung up while this phone had no socket', () {
+      fakeAsync((async) {
+        final h = _Harness()
+          ..emit(
+            'call:incoming',
+            _event(_call('c2', CallStatus.ringing, outgoing: false)),
+          );
+        async.flushMicrotasks();
+        h.repo.getStatus = CallStatus.canceled;
+        async.elapse(kCallSyncInterval + const Duration(seconds: 1));
+        expect(h.s.phase, CallPhase.ended);
+        expect(h.sounds.rings.last, 'stop');
+        h
+          ..sub.close()
+          ..container.dispose();
+      });
+    });
+
+    test('outgoing: nobody answers and the server is unreachable', () {
+      fakeAsync((async) {
+        final h = _Harness();
+        h.c.call('conv', peer: _peer);
+        async.flushMicrotasks();
+        expect(h.s.phase, CallPhase.outgoing);
+
+        async.elapse(kCallRingTimeout + const Duration(seconds: 1));
+        expect(h.s.phase, CallPhase.ended);
+        expect(h.s.outcome, CallStatus.missed);
+        expect(h.sounds.played.last, isNot('ringback'));
+        h
+          ..sub.close()
+          ..container.dispose();
+      });
+    });
   });
 
   test('ringing in: decline tells the server and closes', () async {
@@ -560,5 +831,196 @@ void main() {
       CallPhase.outgoing,
       reason: 'call c2 was ended by the answer about call c1',
     );
+  });
+
+  group('group calls (owner 2026-10-20)', () {
+    CallMember m(
+      String id,
+      CallMemberStatus st, {
+      int at = 0,
+      bool mutedByHost = false,
+    }) =>
+        CallMember(
+          userId: id,
+          status: st,
+          displayName: id,
+          muted: mutedByHost,
+          mutedByHost: mutedByHost,
+          joinedAt: st == CallMemberStatus.joined
+              ? DateTime.utc(2026, 10, 20, 8, 0, at)
+              : null,
+        );
+
+    Future<_Harness> joined() async {
+      // Added to a running call: p1 and p2 are in it, we ring.
+      final h = _Harness();
+      addTearDown(h.dispose);
+      final ringing = [
+        m('p1', CallMemberStatus.joined),
+        m('p2', CallMemberStatus.joined, at: 1),
+        m('me', CallMemberStatus.invited),
+      ];
+      h.repo.acceptMembers = [
+        m('p1', CallMemberStatus.joined),
+        m('p2', CallMemberStatus.joined, at: 1),
+        m('me', CallMemberStatus.joined, at: 5),
+      ];
+      h.emit(
+        'call:incoming',
+        _event(
+          _call('g1', CallStatus.active, outgoing: false, members: ringing),
+        ),
+      );
+      await _settle();
+      await h.c.accept();
+      await _settle();
+      return h;
+    }
+
+    test('a push for a running call we were added to rings (not dismissed)',
+        () async {
+      final h = _Harness();
+      addTearDown(h.dispose);
+      h.repo
+        ..getStatus = CallStatus.active
+        ..getMembers = [
+          m('p1', CallMemberStatus.joined),
+          m('p2', CallMemberStatus.joined, at: 1),
+          m('me', CallMemberStatus.invited),
+        ];
+      await h.c.ringFromPush('g9');
+      expect(h.s.phase, CallPhase.incoming);
+      expect(h.s.call?.group, isTrue);
+    });
+
+    test('added to a call: the latest to join offers to everyone', () async {
+      final h = await joined();
+      expect(h.media.offersFor.toSet(), {'p1', 'p2'});
+      expect(h.signalTargets.toSet(), {'p1', 'p2'});
+      expect(h.media.peers, {'p1', 'p2'});
+    });
+
+    test('a member who joins later: we link them and answer their offer',
+        () async {
+      final h = await joined();
+      h.media.offersFor.clear();
+      h
+        ..emit('call:participants', {
+          'callId': 'g1',
+          'hostId': 'p1',
+          'participants': [
+            for (final x in [
+              m('p1', CallMemberStatus.joined),
+              m('p2', CallMemberStatus.joined, at: 1),
+              m('me', CallMemberStatus.joined, at: 5),
+              m('p3', CallMemberStatus.joined, at: 9),
+            ])
+              {
+                'userId': x.userId,
+                'displayName': x.displayName,
+                'username': null,
+                'avatarUrl': null,
+                'status': x.status.name,
+                'muted': false,
+                'mutedByHost': false,
+                'joinedAt': x.joinedAt?.toIso8601String(),
+              },
+          ],
+        })
+        ..emit('call:signal', {
+          'callId': 'g1',
+          'from': 'p3',
+          'data': {'type': 'offer', 'sdp': 'o3'},
+        });
+      await _settle();
+      expect(h.media.peers, contains('p3'));
+      expect(h.media.offersFor, isEmpty);
+      expect(h.media.answersFor, ['p3']);
+      expect(h.signalTargets.last, 'p3');
+      expect(h.s.call?.participants, hasLength(4));
+    });
+
+    test('a member who left: their link is closed', () async {
+      final h = await joined();
+      h.emit('call:participants', {
+        'callId': 'g1',
+        'hostId': 'p1',
+        'participants': [
+          for (final x in [
+            m('p1', CallMemberStatus.joined),
+            m('p2', CallMemberStatus.left),
+            m('me', CallMemberStatus.joined, at: 5),
+          ])
+            {
+              'userId': x.userId,
+              'displayName': x.displayName,
+              'username': null,
+              'avatarUrl': null,
+              'status': x.status.name,
+              'muted': false,
+              'mutedByHost': false,
+              'joinedAt': x.joinedAt?.toIso8601String(),
+            },
+        ],
+      });
+      await _settle();
+      expect(h.media.removed, ['p2']);
+      expect(h.media.peers, {'p1'});
+    });
+
+    test('the host mutes us: the mic goes off, we may switch it on again',
+        () async {
+      final h = await joined();
+      h.media.onState!(CallMediaState.connected);
+      h.emit('call:muted', {'callId': 'g1', 'muted': true, 'byUserId': 'p1'});
+      await _settle();
+      expect(h.media.muted, isTrue);
+      expect(h.s.muted, isTrue);
+      expect(h.s.notice, kNoticeMutedByHost);
+
+      h.c.toggleMute();
+      await _settle();
+      expect(h.media.muted, isFalse);
+      expect(h.s.notice, isNull);
+      expect(h.repo.muteStates, [false]);
+    });
+
+    test('the host removes us: the call ends here with the reason', () async {
+      final h = await joined();
+      h.media.onState!(CallMediaState.connected);
+      h.emit('call:removed', {'callId': 'g1'});
+      await _settle();
+      expect(h.s.phase, CallPhase.ended);
+      expect(h.s.errorCode, kRemovedFromCall);
+      expect(h.media.closed, isTrue);
+      // The server already took us out: no "end" request.
+      expect(h.repo.ends, isEmpty);
+    });
+
+    test('a link that drops is retried while the call goes on', () async {
+      final h = await joined();
+      h.media.links['p1']!(CallMediaState.connected);
+      h.media.links['p2']!(CallMediaState.connected);
+      expect(h.s.phase, CallPhase.active);
+
+      h.media.links['p2']!(CallMediaState.failed);
+      await _settle();
+      // Reconnect attempt first (we offered p2), the call is still on.
+      expect(h.media.restarted, ['p2']);
+      expect(h.s.phase, CallPhase.active);
+    });
+
+    test('invite / mute / remove go to the server and report errors', () async {
+      final h = await joined();
+      h.media.onState!(CallMediaState.connected);
+      expect(await h.c.invite(userId: 'u9'), isNull);
+      expect(h.repo.invited, ['u9']);
+      expect(await h.c.muteMember('p2'), isNull);
+      expect(h.repo.muteCalls, ['p2']);
+      expect(await h.c.removeMember('p2'), isNull);
+      expect(h.repo.removeCalls, ['p2']);
+      h.repo.inviteError = 'CALL_IN_PROGRESS';
+      expect(await h.c.invite(username: 'busy'), 'CALL_IN_PROGRESS');
+    });
   });
 }

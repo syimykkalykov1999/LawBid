@@ -15,8 +15,8 @@ List<AppTabConfig> tabsForRole(UserRole? role, Translator t) {
   return [
     AppTabConfig(
       key: AppTabKey.feed,
-      icon: AppIcons.articleOutlined,
-      activeIcon: AppIcons.article,
+      icon: AppIcons.homeOutlined,
+      activeIcon: AppIcons.homeRounded,
       label: t.t('nav.tab.feed'),
     ),
     AppTabConfig(

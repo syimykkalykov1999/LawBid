@@ -55,6 +55,7 @@ class _FakeRepo extends PromotionsRepository {
     String? ctaType,
     String? ctaValue,
     bool extend = false,
+    bool withStars = false,
   }) async {
     bought.add((days, goal, ctaType));
     throw StateError('payments off');

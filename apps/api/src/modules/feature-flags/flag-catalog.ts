@@ -52,6 +52,14 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     app: true,
   },
   {
+    // Owner 2026-10-20: stars (balance bought on the web), gifts, paid stickers.
+    key: 'stars',
+    enabled: false,
+    description:
+      'Stars: balance bought on the web, gifts in chats, paid sticker packs',
+    app: true,
+  },
+  {
     // Owner 2026-10-14: offer packs bought on top of the monthly limit.
     key: 'bid_packs',
     enabled: false,
@@ -87,6 +95,29 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     enabled: true,
     app: true,
     description: 'Channels: posts from admins to subscribers',
+  },
+  {
+    // Owner 2026-10-20: attorneys publish free slots, clients book a
+    // consultation from the profile.
+    key: 'consultations',
+    enabled: true,
+    app: true,
+    description: 'Booking a consultation: slots, requests, reminders',
+  },
+  {
+    // Owner 2026-10-20: «Вопрос юристу» — public questions, answers only
+    // from verified attorneys.
+    key: 'legal_qa',
+    enabled: true,
+    app: true,
+    description: 'Ask a lawyer: public questions and attorneys answers',
+  },
+  {
+    // Owner 2026-10-20: court deadlines and statutes of limitations.
+    key: 'deadline_calculator',
+    enabled: true,
+    app: true,
+    description: 'Deadline calculator (admin: Сроки)',
   },
   {
     key: 'document_templates',
@@ -170,10 +201,14 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     description: 'Guide («Справочник») section 8: Deleting your account',
   },
   {
+    // Owner 2026-10-20: the app translates free on the phone (Google ML
+    // Kit); this switches on the paid server Google Translate for the
+    // languages the phone cannot do (off by default).
     key: 'chat_translate',
     enabled: false,
     app: true,
-    description: 'Translate button under chat messages (Google Translate)',
+    description:
+      'Paid server translation (Google Translate) for languages the phone cannot translate; the app translates free on the phone',
   },
   {
     key: 'payroll_stripe_payouts',

@@ -90,6 +90,10 @@ export enum ErrorCode {
   REVIEW_ALREADY_EXISTS = 'REVIEW_ALREADY_EXISTS',
   // review.edit_window_days after publication have passed (§7.2).
   REVIEW_EDIT_WINDOW_EXPIRED = 'REVIEW_EDIT_WINDOW_EXPIRED',
+  // Owner 2026-10-20: a chat message can no longer be edited / deleted for
+  // everyone, or the chat already has the most pinned messages.
+  MESSAGE_WINDOW_EXPIRED = 'MESSAGE_WINDOW_EXPIRED',
+  MESSAGE_PIN_LIMIT = 'MESSAGE_PIN_LIMIT',
   // A moderator hid or removed the review; it can't be edited.
   REVIEW_NOT_EDITABLE = 'REVIEW_NOT_EDITABLE',
   /** Owner 2026-09-30: a client review was already appealed. */
@@ -315,6 +319,16 @@ export enum ErrorCode {
   COMMENT_NOT_FOUND = 'COMMENT_NOT_FOUND',
   // 422: follow a client or yourself (§6.1).
   FOLLOW_NOT_ALLOWED = 'FOLLOW_NOT_ALLOWED',
+  // Owner 2026-10-20 (group chats). 404: no such group, or not a member.
+  GROUP_NOT_FOUND = 'GROUP_NOT_FOUND',
+  // 403: the group's rules do not let this member do that (admins only).
+  GROUP_FORBIDDEN = 'GROUP_FORBIDDEN',
+  // 409: the group is at its member limit.
+  GROUP_FULL = 'GROUP_FULL',
+  // 409: the public group's @username is already used.
+  GROUP_USERNAME_TAKEN = 'GROUP_USERNAME_TAKEN',
+  // 409: the poll was closed by its author or an admin.
+  POLL_CLOSED = 'POLL_CLOSED',
   // 404: not a participant, or no such conversation.
   CONVERSATION_NOT_FOUND = 'CONVERSATION_NOT_FOUND',
   // 409: the conversation is closed (read only, §8.2).
@@ -370,6 +384,10 @@ export enum ErrorCode {
   TRANSLATION_UNAVAILABLE = 'TRANSLATION_UNAVAILABLE',
   // Owner 2026-10-01: stickers — 409: over a pack/sticker/install limit.
   STICKER_LIMIT_REACHED = 'STICKER_LIMIT_REACHED',
+  // Owner 2026-10-20 stars — 402: not enough stars on the balance.
+  INSUFFICIENT_STARS = 'INSUFFICIENT_STARS',
+  // 403: a paid sticker pack is sent only after it is added (bought).
+  STICKER_PACK_NOT_OWNED = 'STICKER_PACK_NOT_OWNED',
   // Owner 2026-10-02: 409 — a closed support ticket can't get replies.
   SUPPORT_TICKET_CLOSED = 'SUPPORT_TICKET_CLOSED',
   // Owner 2026-10-02 referrals — 404: no such referral code.
@@ -470,4 +488,11 @@ export enum ErrorCode {
   STORY_LIMIT_REACHED = 'STORY_LIMIT_REACHED',
   CHANNEL_LIMIT_REACHED = 'CHANNEL_LIMIT_REACHED',
   CHANNEL_USERNAME_TAKEN = 'CHANNEL_USERNAME_TAKEN',
+  // Owner 2026-10-20: booking a consultation.
+  // 409: the slot was taken, moved or is no longer offered.
+  CONSULTATION_SLOT_TAKEN = 'CONSULTATION_SLOT_TAKEN',
+  // 409: the attorney does not take bookings (off, no active subscription).
+  CONSULTATION_NOT_AVAILABLE = 'CONSULTATION_NOT_AVAILABLE',
+  // 409: the booking is not in a state that allows this action.
+  CONSULTATION_STATE_CONFLICT = 'CONSULTATION_STATE_CONFLICT',
 }

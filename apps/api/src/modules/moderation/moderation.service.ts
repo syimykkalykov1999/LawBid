@@ -216,6 +216,54 @@ export class ModerationService {
             }
           : null;
       }
+      case 'legal_question': {
+        const q = await db.legalQuestion.findUnique({
+          where: withDeleted({ id }),
+          select: {
+            author_id: true,
+            title: true,
+            body: true,
+            status: true,
+            deleted_at: true,
+            created_at: true,
+          },
+        });
+        return q
+          ? {
+              type,
+              id,
+              authorId: q.author_id,
+              status: q.deleted_at ? 'removed' : q.status,
+              text: `${q.title}\n${q.body}`,
+              context: {},
+              createdAt: q.created_at,
+            }
+          : null;
+      }
+      case 'legal_answer': {
+        const a = await db.legalAnswer.findUnique({
+          where: withDeleted({ id }),
+          select: {
+            attorney_id: true,
+            question_id: true,
+            body: true,
+            status: true,
+            deleted_at: true,
+            created_at: true,
+          },
+        });
+        return a
+          ? {
+              type,
+              id,
+              authorId: a.attorney_id,
+              status: a.deleted_at ? 'removed' : a.status,
+              text: a.body,
+              context: { questionId: a.question_id },
+              createdAt: a.created_at,
+            }
+          : null;
+      }
       case 'sticker_pack': {
         const pk = await db.stickerPack.findUnique({
           where: { id },
@@ -519,6 +567,51 @@ export class ModerationService {
         });
         const attorneyId = target.context.attorneyId;
         if (attorneyId) await recalcAttorneyRating(tx, attorneyId);
+        return target.status;
+      }
+      case 'legal_question': {
+        if (target.status === 'removed' && action !== 'restore') return null;
+        await tx.legalQuestion.update({
+          where: { id: target.id },
+          data: {
+            status: next,
+            ...(action === 'restore' ? { deleted_at: null } : {}),
+          },
+        });
+        return target.status;
+      }
+      case 'legal_answer': {
+        if (target.status === 'removed' && action !== 'restore') return null;
+        const row = await tx.legalAnswer.update({
+          where: { id: target.id },
+          data: {
+            status: next,
+            ...(action === 'restore' ? { deleted_at: null } : {}),
+          },
+          select: { question_id: true, is_best: true },
+        });
+        const delta =
+          target.status === 'published' ? -1 : next === 'published' ? 1 : 0;
+        if (delta) {
+          await tx.legalQuestion.updateMany({
+            where: withDeleted({ id: row.question_id }),
+            data: { answer_count: { increment: delta } },
+          });
+        }
+        // A hidden best answer stops being "best".
+        if (next !== 'published' && row.is_best) {
+          await tx.legalAnswer.update({
+            where: { id: target.id },
+            data: { is_best: false },
+          });
+          await tx.legalQuestion.updateMany({
+            where: withDeleted({
+              id: row.question_id,
+              best_answer_id: target.id,
+            }),
+            data: { best_answer_id: null },
+          });
+        }
         return target.status;
       }
       case 'sticker_pack': {

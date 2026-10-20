@@ -1,4 +1,6 @@
 // ignore_for_file: lines_longer_than_80_chars
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -21,6 +23,9 @@ import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/presentation/chat_folders.dart';
 import 'package:lawbid/features/chat/presentation/chat_selection_bar.dart';
+import 'package:lawbid/features/groups/application/chat_list_merge.dart';
+import 'package:lawbid/features/groups/group_routes.dart';
+import 'package:lawbid/features/groups/presentation/widgets/group_chat_tile.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
 import 'package:lawbid/features/notifications/presentation/notifications_view.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
@@ -61,22 +66,28 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
   /// Owner 2026-10-18: the search box of the chats list ('' = none).
   String _query = '';
 
-  /// The chats of the folder on screen (Select all, the bulk bar).
-  List<Conversation> _visibleChats() {
+  /// The rows of the folder on screen (Select all, the bulk bar): direct
+  /// chats and, in «All», my groups.
+  List<ChatListEntry> _visibleEntries() {
     if (_folder == ChatListFolder.requests) return const [];
     if (_query.isNotEmpty) {
       return ref
               .watch(
-                searchConversationsProvider((folder: _folder, q: _query)),
+                mergedChatSearchProvider((folder: _folder, q: _query)),
               )
               .value
               ?.items ??
           const [];
     }
-    final provider = _folder == ChatListFolder.all
-        ? conversationsProvider
-        : folderConversationsProvider(_folder);
-    return ref.watch(provider).value?.items ?? const [];
+    if (_folder == ChatListFolder.all) {
+      return ref.watch(mergedChatListProvider).value?.items ?? const [];
+    }
+    return [
+      for (final c
+          in ref.watch(folderConversationsProvider(_folder)).value?.items ??
+              const <Conversation>[])
+        DirectChatEntry(c),
+    ];
   }
 
   @override
@@ -86,7 +97,15 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
     final badges = ref.watch(badgesProvider);
     final selection = ref.watch(chatSelectionProvider);
     final selecting = selection != null;
-    final chats = selecting ? _visibleChats() : const <Conversation>[];
+    final entries = selecting ? _visibleEntries() : const <ChatListEntry>[];
+    final chats = [
+      for (final e in entries)
+        if (e is DirectChatEntry) e.conversation,
+    ];
+    final groups = [
+      for (final e in entries)
+        if (e is GroupChatEntry) e.group,
+    ];
     final requests = ref.watch(messageRequestsCountProvider).value ?? 0;
     final showTeam = ref.watch(currentUserRoleProvider) == UserRole.attorney;
     final teamPending =
@@ -210,16 +229,16 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                                 onPressed: () {
                                   final n =
                                       ref.read(chatSelectionProvider.notifier);
-                                  chats.every(
-                                    (c) => selection.contains(c.id),
+                                  entries.every(
+                                    (e) => selection.contains(e.id),
                                   )
                                       ? n.clear()
-                                      : n.setAll(chats.map((c) => c.id));
+                                      : n.setAll(entries.map((e) => e.id));
                                 },
                                 child: Text(
-                                  chats.isNotEmpty &&
-                                          chats.every(
-                                            (c) => selection.contains(c.id),
+                                  entries.isNotEmpty &&
+                                          entries.every(
+                                            (e) => selection.contains(e.id),
                                           )
                                       ? t.t('chat.select.none')
                                       : t.t('chat.select.all'),
@@ -358,7 +377,7 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                 },
               ),
             ),
-            if (selecting) ChatSelectionBar(chats: chats),
+            if (selecting) ChatSelectionBar(chats: chats, groups: groups),
           ],
         ),
       ),
@@ -367,7 +386,7 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
 
   /// The vertical ⋮ menu of the chats list: "Select chats".
   Future<void> _showChatsMenu(BuildContext context, Translator t) async {
-    final pick = await showAppBottomSheet<bool>(
+    final pick = await showAppBottomSheet<String>(
       context: context,
       builder: (ctx) => SafeArea(
         child: Column(
@@ -375,21 +394,48 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
           children: [
             const SizedBox(height: AppSpacing.sm),
             const AppSheetHandle(),
+            ..._groupMenuRows(ctx, t),
             AppListRow(
               key: const ValueKey('chats-menu-select'),
               icon: AppIcons.checkCircleOutlineRounded,
               label: t.t('chat.select.start'),
               showChevron: false,
-              onTap: () => Navigator.of(ctx).pop(true),
+              onTap: () => Navigator.of(ctx).pop('select'),
             ),
             const SizedBox(height: AppSpacing.md),
           ],
         ),
       ),
     );
-    if (pick ?? false) ref.read(chatSelectionProvider.notifier).start();
+    if (!context.mounted) return;
+    switch (pick) {
+      case 'select':
+        ref.read(chatSelectionProvider.notifier).start();
+      case 'new':
+        unawaited(context.push(GroupRoutes.create));
+      case 'find':
+        unawaited(context.push(GroupRoutes.find));
+    }
   }
 }
+
+/// «New group» and «Find groups» rows (the ⋮ menu and the compose button).
+List<Widget> _groupMenuRows(BuildContext ctx, Translator t) => [
+      AppListRow(
+        key: const ValueKey('menu-new-group'),
+        icon: AppIcons.groupAddOutlined,
+        label: t.t('group.new'),
+        showChevron: false,
+        onTap: () => Navigator.of(ctx).pop('new'),
+      ),
+      AppListRow(
+        key: const ValueKey('menu-find-groups'),
+        icon: AppIcons.searchRounded,
+        label: t.t('group.find'),
+        showChevron: false,
+        onTap: () => Navigator.of(ctx).pop('find'),
+      ),
+    ];
 
 /// Three compact segments with a gliding gold-bordered indicator.
 /// Public for its test only.
@@ -565,6 +611,10 @@ class CountPill extends StatelessWidget {
 /// contacts (§8.2, §8.3).
 String messagePreview(Translator t, ChatMessage m, {String? me}) {
   if (m.kind == MessageKind.system) return systemLineText(t, m.body);
+  // Owner 2026-10-20: deleted for everyone.
+  if (m.revoked) {
+    return '🚫 ${t.t(m.senderId != null && m.senderId == me ? 'chat.deletedMine' : 'chat.deleted')}';
+  }
   // OQ-041: "📞 Missed call".
   if (m.kind == MessageKind.call && m.callLog != null) {
     return '📞 ${t.t(callLogKey(m.callLog!.outcome, outgoing: m.senderId != null && m.senderId == me))}';
@@ -580,6 +630,13 @@ String messagePreview(Translator t, ChatMessage m, {String? me}) {
   if (m.kind == MessageKind.sticker) {
     return '${m.sticker?.emoji ?? ''} ${t.t('stickers.label')}'.trim();
   }
+  // Owner 2026-10-20: "🎁 Gift".
+  if (m.kind == MessageKind.gift) return '🎁 ${t.t('stars.chat.label')}';
+  // Owner 2026-10-20: "👤 Contact" / "📍 address".
+  if (m.kind == MessageKind.contact) {
+    return '👤 ${m.contact?.displayName ?? t.t('card.contact')}';
+  }
+  if (m.kind == MessageKind.place) return '📍 ${m.body}';
   // OQ-047: "📎 File" / "📷 Photo" (+ caption).
   if (m.kind == MessageKind.attachment) {
     final photo = m.attachment?.isImage ?? false;
@@ -623,31 +680,43 @@ class ConversationsView extends ConsumerWidget {
     Widget body;
     if (searching) {
       final key = (folder: folder, q: query);
-      final provider = searchConversationsProvider(key);
-      final value = ref.watch(provider);
-      final n = ref.read(provider.notifier);
-      body = PagedListBody<Conversation>(
-        value: value,
+      body = PagedListBody<ChatListEntry>(
+        value: ref.watch(mergedChatSearchProvider(key)),
         t: t,
-        itemKey: (c) => c.id,
+        itemKey: (e) => e.id,
         edgeToEdge: true,
-        itemBuilder: (context, c, _) =>
-            ConversationRow(conversation: c, highlight: query),
+        itemBuilder: (context, e, _) => _entryRow(e, highlight: query),
         empty: AppEmptyState(
           icon: AppIcons.searchRounded,
           title: t.t('chat.search.empty.title'),
           message: t.t('chat.search.empty.hint'),
         ),
-        onRefresh: n.refresh,
-        onLoadMore: n.loadMore,
-        onRetryMore: n.retryLoadMore,
+        onRefresh: () => refreshChatList(ref, search: key),
+        onLoadMore: () => loadMoreChatList(ref, search: key),
+        onRetryMore: () => retryChatListMore(ref, search: key),
       );
     } else if (folder == ChatListFolder.requests) {
       body = const MessageRequestsView();
+    } else if (folder == ChatListFolder.all) {
+      // Direct chats and groups in ONE list: pinned first, then by the
+      // newest activity.
+      body = PagedListBody<ChatListEntry>(
+        value: ref.watch(mergedChatListProvider),
+        t: t,
+        itemKey: (e) => e.id,
+        edgeToEdge: true,
+        itemBuilder: (context, e, _) => _entryRow(e),
+        empty: AppEmptyState(
+          icon: AppIcons.forumOutlined,
+          title: t.t('chat.empty.title'),
+          message: t.t(attorney ? 'chat.empty.attorney' : 'chat.empty.client'),
+        ),
+        onRefresh: () => refreshChatList(ref),
+        onLoadMore: () => loadMoreChatList(ref),
+        onRetryMore: () => retryChatListMore(ref),
+      );
     } else {
-      final provider = folder == ChatListFolder.all
-          ? conversationsProvider
-          : folderConversationsProvider(folder);
+      final provider = folderConversationsProvider(folder);
       final value = ref.watch(provider);
       final n = ref.read(provider.notifier);
       body = PagedListBody<Conversation>(
@@ -689,11 +758,17 @@ class ConversationsView extends ConsumerWidget {
     return Column(
       children: [
         if (onQuery != null)
-          ListSearchField(
-            fieldKey: const ValueKey('chat-search'),
-            hintKey: 'chat.search.hint',
-            initial: query,
-            onChanged: onQuery!,
+          Row(
+            children: [
+              Expanded(
+                child: ListSearchField(
+                  fieldKey: const ValueKey('chat-search'),
+                  hintKey: 'chat.search.hint',
+                  initial: query,
+                  onChanged: onQuery!,
+                ),
+              ),
+            ],
           ),
         if (onFolder != null) ...[
           ChatFolderPills(value: folder, onChanged: onFolder!),
@@ -704,6 +779,13 @@ class ConversationsView extends ConsumerWidget {
     );
   }
 }
+
+Widget _entryRow(ChatListEntry e, {String highlight = ''}) => switch (e) {
+      DirectChatEntry(:final conversation) =>
+        ConversationRow(conversation: conversation, highlight: highlight),
+      GroupChatEntry(:final group) =>
+        GroupChatTile(group: group, highlight: highlight),
+    };
 
 /// OQ-043: message requests sent to me — open one to accept or delete.
 class MessageRequestsView extends ConsumerWidget {

@@ -29,13 +29,17 @@ export const FILE_REFERENCES = [
   'post_media.file_id',
   'post_attachments.file_id',
   'case_photos.file_id',
+  'case_expenses.receipt_file_id',
   'messages.file_id',
+  'chat_groups.avatar_file_id',
+  'chat_group_messages.file_id',
   'support_message_files.file_id',
   'stickers.file_id',
   'stories.file_id',
   'channels.avatar_file_id',
   'channel_posts.media_file_ids[]',
   'document_templates.file_id',
+  'gifts.file_id',
   'attorney_tasks.file_ids[]',
   'reviews.photo_ids[]',
   'client_reviews.photo_ids[]',
@@ -239,7 +243,10 @@ export class StorageCleanupService {
           WHERE pa.file_id = f.id
             AND (p.deleted_at IS NULL OR p.deleted_at >= ${postCutoff}))
         AND NOT EXISTS (SELECT 1 FROM case_photos cp WHERE cp.file_id = f.id)
+        AND NOT EXISTS (SELECT 1 FROM case_expenses ce WHERE ce.receipt_file_id = f.id)
         AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.file_id = f.id)
+        AND NOT EXISTS (SELECT 1 FROM chat_groups cg WHERE cg.avatar_file_id = f.id)
+        AND NOT EXISTS (SELECT 1 FROM chat_group_messages cgm WHERE cgm.file_id = f.id)
         AND NOT EXISTS (SELECT 1 FROM support_message_files smf WHERE smf.file_id = f.id)
         AND NOT EXISTS (SELECT 1 FROM stickers s WHERE s.file_id = f.id)
         AND NOT EXISTS (
@@ -249,6 +256,7 @@ export class StorageCleanupService {
           SELECT 1 FROM channel_posts cp
           WHERE cp.media_file_ids @> ARRAY[f.id] AND cp.deleted_at IS NULL)
         AND NOT EXISTS (SELECT 1 FROM document_templates d WHERE d.file_id = f.id)
+        AND NOT EXISTS (SELECT 1 FROM gifts g WHERE g.file_id = f.id)
         AND NOT EXISTS (SELECT 1 FROM attorney_tasks t WHERE t.file_ids @> ARRAY[f.id])
         AND NOT EXISTS (SELECT 1 FROM reviews r WHERE r.photo_ids @> ARRAY[f.id])
         AND NOT EXISTS (SELECT 1 FROM client_reviews cr WHERE cr.photo_ids @> ARRAY[f.id])

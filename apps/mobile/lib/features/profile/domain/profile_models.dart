@@ -139,7 +139,11 @@ class PublicAttorneyProfile {
     this.isFollowing = false,
     this.isBlocked = false,
     this.hasBlockedMe = false,
+    this.consultationEnabled = false,
   });
+
+  /// Owner 2026-10-20: the attorney takes consultation bookings.
+  final bool consultationEnabled;
 
   final String id;
   final String username;

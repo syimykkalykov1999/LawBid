@@ -11,6 +11,9 @@ import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/channels/channels_routes.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart';
+import 'package:lawbid/features/consultations/consultations_routes.dart';
+import 'package:lawbid/features/groups/group_routes.dart';
+import 'package:lawbid/features/legal_qa/legal_qa_routes.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
 import 'package:lawbid/features/notifications/data/notifications_repository.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
@@ -43,6 +46,9 @@ String? notificationRoute({
   final bidId = s('bidId');
   final postId = s('postId');
   switch (type) {
+    // Owner 2026-10-20: a group message opens the group.
+    case 'new_message' when s('groupId') != null:
+      return GroupRoutes.group(s('groupId')!);
     case 'new_message' || 'missed_call' || 'incoming_call':
       final c = s('conversationId');
       return c == null ? ChatRoutes.inbox : ChatRoutes.conversation(c);
@@ -88,6 +94,9 @@ String? notificationRoute({
     // Owner 2026-10-05: a client offered a case / an attorney declined.
     case 'case_invite_received':
       return AppRoutes.invites;
+    // Owner 2026-10-20: a gift on my profile.
+    case 'gift_received':
+      return AppRoutes.myGifts;
     case 'case_invite_declined':
       return caseId == null ? null : AppRoutes.myCase(caseId);
     case 'review_requested':
@@ -177,6 +186,12 @@ String? notificationRoute({
       return AppRoutes.myCase(caseId);
     case 'payout_account_status':
       return CasePaymentsRoutes.payoutAccount;
+    // Owner 2026-10-20: a booking was requested, answered, moved or is near.
+    case 'consultation_update':
+      final consultationId = s('consultationId');
+      return consultationId == null
+          ? ConsultationsRoutes.list
+          : ConsultationsRoutes.detail(consultationId);
     case 'subscription_trial_ending' ||
           'subscription_payment_failed' ||
           'subscription_status':
@@ -204,6 +219,11 @@ String? notificationRoute({
     // «Decisions on my content».
     case 'moderation_notice':
       return PrivacyRoutes.notices;
+    // Owner 2026-10-20: a new question in my area / an answer, the best
+    // mark → the question.
+    case 'legal_question_new' || 'legal_answer_update':
+      final questionId = s('questionId');
+      return questionId == null ? null : LegalQaRoutes.question(questionId);
   }
   return null;
 }
@@ -255,6 +275,10 @@ const caseWorkspaceActivityKinds = {
   'task_done',
   'task_files',
   'details',
+  'invoice',
+  'sign_request',
+  'sign_done',
+  'sign_declined',
 };
 
 String notificationText(Translator t, AppNotification n) {
@@ -310,6 +334,13 @@ String notificationText(Translator t, AppNotification n) {
       return base;
     }
   }
+  // Owner 2026-10-20: what happened to a booking (`notif.consult.<kind>`).
+  if (n.type == 'consultation_update') {
+    final kind = n.payload['kind'];
+    if (kind is String && RegExp(r'^[a-z_]{1,40}$').hasMatch(kind)) {
+      return t.t('notif.consult.$kind');
+    }
+  }
   if (n.type == 'review_received' && _flag(n.payload['reply'])) {
     return t.t(
       _flag(n.payload['clientReview'])
@@ -355,6 +386,10 @@ String notificationText(Translator t, AppNotification n) {
       count is num ? count : 1,
       {'count': '${count is num ? count.toInt() : 1}'},
     );
+  }
+  // Owner 2026-10-20: a reminder that could not be sent in time says so.
+  if (n.type == 'task_reminder' && n.payload['missed'] == true) {
+    return t.t('notif.cases.task_reminder.missed');
   }
   // Owner 2026-10-05: "N days until the case's date".
   if (n.type == 'case_deadline_soon') {
@@ -450,9 +485,13 @@ IconData _icon(AppNotification n) => switch (n.type) {
         AppIcons.scheduleRounded,
       'case_payment_disputed' => AppIcons.errorOutlineRounded,
       'payout_account_status' => AppIcons.accountBalanceOutlined,
+      'consultation_update' => AppIcons.eventAvailableRounded,
       'assistant_task' || 'task_assigned' => AppIcons.eventNoteRounded,
       'task_reminder' => AppIcons.notificationsActiveOutlined,
       'task_purge_soon' => AppIcons.inventory2Outlined,
+      'legal_question_new' ||
+      'legal_answer_update' =>
+        AppIcons.helpOutlineRounded,
       'assistant_joined' || 'assistant_result' => AppIcons.supportAgentRounded,
       'case_deadline_soon' ||
       'case_deadline_today' ||

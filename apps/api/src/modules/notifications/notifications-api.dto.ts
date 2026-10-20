@@ -165,6 +165,15 @@ export class CategorySettingViewDto extends CategorySettingDto {
   locked!: boolean;
 }
 
+/** Owner 2026-10-20: the device's IANA time zone. */
+export class TimezoneDto {
+  @ApiProperty({ example: 'America/New_York' })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(64)
+  timezone!: string;
+}
+
 export class QuietHoursDto {
   @ApiPropertyOptional({
     type: String,
@@ -219,6 +228,33 @@ export class PushTokenDto {
   @ApiProperty({ enum: ['ios', 'android', 'web'] })
   @IsIn(['ios', 'android', 'web'])
   platform!: 'ios' | 'android' | 'web';
+
+  @ApiPropertyOptional({
+    description:
+      'Owner 2026-10-20: this app keeps planner reminders locally and shows the reminder push itself (Android).',
+  })
+  @IsOptional()
+  @IsBoolean()
+  localReminders?: boolean;
+}
+
+/** Owner 2026-10-20: the planner reminders an iPhone has armed locally. */
+export class ArmedRemindersDto {
+  @ApiProperty({ description: 'FCM registration token of this device.' })
+  @IsString()
+  @MinLength(20)
+  @MaxLength(4096)
+  token!: string;
+
+  @ApiProperty({
+    type: [String],
+    description: '`<taskId>@<remindAt ms>` of each armed reminder.',
+  })
+  @IsArray()
+  @ArrayMaxSize(100)
+  @IsString({ each: true })
+  @MaxLength(100, { each: true })
+  ids!: string[];
 }
 
 /** Owner 2026-10-17: an iPhone's PushKit (VoIP) token for calls. */

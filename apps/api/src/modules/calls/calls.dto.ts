@@ -1,5 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsIn, IsOptional, IsUUID } from 'class-validator';
+import {
+  IsBoolean,
+  IsIn,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+} from 'class-validator';
 
 /** POST /conversations/:id/calls — owner 2026-10-05: video or audio. */
 export class StartCallDto {
@@ -47,6 +54,33 @@ export class EndCallDto {
   reason?: 'hangup' | 'no_answer' | 'failed';
 }
 
+/** POST /calls/:id/participants — add a person to the running call. */
+export class InviteCallDto {
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID('all')
+  userId?: string;
+
+  @ApiPropertyOptional({ description: 'Username, with or without @.' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  username?: string;
+}
+
+export class CallParticipantParamDto extends CallIdParamDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID('all')
+  userId!: string;
+}
+
+/** POST /calls/:id/participants/:userId/mute (host) and /mute-state (self). */
+export class CallMuteDto {
+  @ApiProperty()
+  @IsBoolean()
+  muted!: boolean;
+}
+
 /** The other member of the call as the viewer sees them. */
 export class CallPeerDto {
   @ApiProperty({ format: 'uuid' })
@@ -63,6 +97,42 @@ export class CallPeerDto {
 
   @ApiProperty({ enum: ['attorney', 'client'] })
   kind!: 'attorney' | 'client';
+}
+
+/** One person in a group call. */
+export class CallParticipantDto {
+  @ApiProperty({ format: 'uuid' })
+  userId!: string;
+
+  @ApiPropertyOptional({ type: String, nullable: true })
+  displayName!: string | null;
+
+  @ApiPropertyOptional({ type: String, nullable: true })
+  username!: string | null;
+
+  @ApiPropertyOptional({ type: String, nullable: true })
+  avatarUrl!: string | null;
+
+  @ApiProperty({
+    enum: ['invited', 'joined', 'declined', 'left', 'removed'],
+    enumName: 'CallParticipantStatus',
+  })
+  status!: 'invited' | 'joined' | 'declined' | 'left' | 'removed';
+
+  @ApiProperty({
+    description: 'The microphone is off (their own or the host).',
+  })
+  muted!: boolean;
+
+  @ApiProperty({ description: 'The host switched the microphone off.' })
+  mutedByHost!: boolean;
+
+  @ApiPropertyOptional({
+    type: Date,
+    nullable: true,
+    description: 'When they joined; the later joiner offers WebRTC.',
+  })
+  joinedAt!: Date | null;
 }
 
 /** OQ-041: an in-app audio call. */
@@ -111,6 +181,21 @@ export class CallDto {
 
   @ApiProperty({ type: CallPeerDto })
   peer!: CallPeerDto;
+
+  /** Owner 2026-10-20: people were added; `participants` lists everyone. */
+  @ApiProperty({ default: false })
+  group!: boolean;
+
+  @ApiPropertyOptional({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description: 'Who can mute / remove others (group calls).',
+  })
+  hostId!: string | null;
+
+  @ApiProperty({ type: CallParticipantDto, isArray: true })
+  participants!: CallParticipantDto[];
 
   @ApiProperty()
   createdAt!: Date;

@@ -6,7 +6,11 @@ import 'package:json_annotation/json_annotation.dart';
 
 import 'call_log_dto.dart';
 import 'chat_attachment_dto.dart';
+import 'contact_card_dto.dart';
+import 'gift_send_dto.dart';
 import 'message_dto_type.dart';
+import 'reaction_dto.dart';
+import 'reply_preview_dto.dart';
 import 'sticker_dto.dart';
 import 'voice_note_dto.dart';
 
@@ -21,13 +25,21 @@ class MessageDto {
     required this.body,
     required this.contactMasked,
     required this.createdAt,
+    required this.revoked,
+    required this.forwarded,
+    required this.reactions,
+    required this.pinned,
     this.senderId,
     this.sentByAssistant,
+    this.gift,
+    this.contact,
     this.sticker,
     this.voice,
     this.attachment,
     this.call,
     this.clientMessageId,
+    this.editedAt,
+    this.replyTo,
   });
 
   factory MessageDto.fromJson(Map<String, Object?> json) =>
@@ -40,6 +52,12 @@ class MessageDto {
   /// OQ-048: sent by the attorney's assistant — their name (shown as "Assistant of …").
   final String? sentByAssistant;
   final MessageDtoType type;
+
+  /// Owner 2026-10-20: the gift of a gift message.
+  final GiftSendDto? gift;
+
+  /// Owner 2026-10-20: the attorney card of a `contact` message.
+  final ContactCardDto? contact;
 
   /// Owner 2026-10-01: the sticker of a sticker message.
   final StickerDto? sticker;
@@ -56,6 +74,14 @@ class MessageDto {
   /// Only on the viewer's own messages (outbox matching).
   final String? clientMessageId;
   final DateTime createdAt;
+  final DateTime? editedAt;
+
+  /// Deleted for everyone: the app shows "Message deleted"; body and media are empty.
+  final bool revoked;
+  final bool forwarded;
+  final ReplyPreviewDto? replyTo;
+  final List<ReactionDto> reactions;
+  final bool pinned;
 
   Map<String, Object?> toJson() => _$MessageDtoToJson(this);
 }

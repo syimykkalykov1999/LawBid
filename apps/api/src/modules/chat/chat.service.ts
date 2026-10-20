@@ -3,6 +3,8 @@ import {
   textLimit,
 } from '../../common/app-settings/text-limits.service';
 import { StickersService } from '../stickers/stickers.service';
+import { StarsService } from '../stars/stars.service';
+import type { GiftSendDto } from '../stars/stars.dto';
 import type { StickerDto } from '../stickers/stickers.dto';
 import {
   BadRequestException,
@@ -18,6 +20,7 @@ import {
   type ChatPairKind,
   type Conversation,
   type Message,
+  type SavedChatKind,
 } from '@prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
@@ -50,8 +53,11 @@ import {
   type ChatAttachmentDto,
   type ConversationDto,
   type ConversationPage,
+  type ContactCardDto,
   type MessageDto,
   type MessagePage,
+  type ReactionDto,
+  type ReplyPreviewDto,
   type SendMessageDto,
   ChatFolderCountsDto,
   type ChatStorageDto,
@@ -59,11 +65,17 @@ import {
   OrganizeConversationDto,
 } from './chat.dto';
 import { MessageBodyCipher } from '../../common/secrets/message-body-cipher';
+import { loadMessageExtras, type MessageExtras } from './chat-message-extras';
 import { touchClientActive } from '../cases/cases.public';
 
 const CONVERSATIONS_PAGE = 20;
 const MESSAGES_PAGE = 30;
 const CATCH_UP_MAX = 100;
+/** A shared place is an address, not a letter. */
+const PLACE_MAX_CHARS = 200;
+const URL_RE = /(?:https?:\/\/|www\.)[^\s<>"]+/i;
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** ~80 characters of [text] around the first typed word. */
 function snippetAround(text: string, words: string[]): string {
@@ -129,6 +141,7 @@ export class ChatService {
     private readonly blocks: BlocksService,
     private readonly presence: PresenceService,
     private readonly stickers: StickersService,
+    private readonly stars: StarsService,
     // Scaling TZ point 11: message texts encrypted at rest.
     @Optional() private readonly cipher?: MessageBodyCipher,
     // Owner 2026-10-05 (docs/CLIENT_FRAUD.md): a restricted account cannot
@@ -464,6 +477,7 @@ export class ChatService {
         where: {
           conversation_id: id,
           deleted_at: null,
+          hidden_for: { none: { user_id: user.sub } },
           OR: [
             { created_at: { gt: anchor.created_at } },
             { created_at: anchor.created_at, id: { gt: anchor.id } },
@@ -483,6 +497,7 @@ export class ChatService {
       where: {
         conversation_id: id,
         deleted_at: null,
+        hidden_for: { none: { user_id: user.sub } },
         ...(only ? { type: only } : {}),
         ...(c
           ? {
@@ -514,11 +529,102 @@ export class ChatService {
     id: string,
     dto: SendMessageDto,
   ): Promise<MessageDto> {
+    if (!dto.forwardFromId) return this.sendContent(user, id, dto);
+    // A retry of a forward must not copy the file twice.
+    const existing = await this.findOwn(id, user.sub, dto.clientMessageId);
+    if (existing) {
+      return this.toMessage(
+        existing,
+        user.sub,
+        undefined,
+        await this.mediaLinks([existing]),
+      );
+    }
+    return this.sendContent(user, id, await this.forwardContent(user, dto));
+  }
+
+  /**
+   * Owner 2026-10-20: the content of the message to forward as a send
+   * request — text, sticker, or a voice note / file copied as a new file row
+   * over the same stored object (FilesService.copyForUser: no upload, same
+   * type, size and quota rules).
+   */
+  private async forwardContent(
+    user: RequestUser,
+    dto: SendMessageDto,
+  ): Promise<SendMessageDto> {
+    const src = await this.prisma.message.findFirst({
+      where: {
+        id: dto.forwardFromId,
+        deleted_at: null,
+        revoked_at: null,
+        hidden_for: { none: { user_id: user.sub } },
+      },
+    });
+    if (!src) throw notFound();
+    // Only from a chat the forwarder takes part in.
+    await this.load(user, src.conversation_id);
+    if (src.type === 'system' || src.type === 'call') {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_ERROR,
+        message: 'This message cannot be forwarded.',
+        details: { field: 'forwardFromId' },
+      });
+    }
+    const text = this.cipher?.open(src.body_display) ?? src.body_display;
+    const base = {
+      clientMessageId: dto.clientMessageId,
+      forwarded: true,
+      replyToId: dto.replyToId,
+    };
+    if (src.type === 'sticker') {
+      return {
+        ...base,
+        type: 'sticker',
+        stickerId: src.sticker_id ?? undefined,
+      };
+    }
+    if (src.type === 'voice' || src.type === 'attachment') {
+      if (!src.file_id) throw notFound();
+      const copy = await this.files.copyForUser(
+        src.file_id,
+        user.sub,
+        src.type === 'voice' ? 'chat_voice' : 'chat_attachment',
+      );
+      return {
+        ...base,
+        type: src.type,
+        body: src.type === 'attachment' ? text : undefined,
+        fileId: copy.id,
+        ...(src.type === 'voice'
+          ? { durationMs: src.duration_ms ?? 0, waveform: src.waveform }
+          : { fileName: src.file_name ?? 'file' }),
+      };
+    }
+    return { ...base, body: text };
+  }
+
+  private async sendContent(
+    user: RequestUser,
+    id: string,
+    dto: SendMessageDto,
+  ): Promise<MessageDto> {
     const voice = dto.type === 'voice';
     const attachment = dto.type === 'attachment';
     // Owner 2026-10-01: a sticker carries no text.
     const sticker = dto.type === 'sticker';
-    const body = voice || sticker ? '' : (dto.body ?? '').trim();
+    // Owner 2026-10-20: a gift paid in stars (`body` is its note), a shared
+    // attorney card (the body is the attorney's id) and a place (the body is
+    // the address).
+    const gift = dto.type === 'gift';
+    const contact = dto.type === 'contact';
+    const place = dto.type === 'place';
+    const body =
+      voice || sticker
+        ? ''
+        : contact
+          ? (dto.contactUserId ?? '')
+          : (dto.body ?? '').trim();
     await this.fraud?.assertNotRestricted(user.sub);
     // OQ-048: an assistant sends documents/photos only with "files".
     if (
@@ -540,12 +646,42 @@ export class ChatService {
           details: { fields: ['fileId', 'fileName'] },
         });
       }
+    } else if (gift) {
+      if (!dto.giftId) {
+        throw new BadRequestException({
+          code: ErrorCode.VALIDATION_ERROR,
+          message: 'A gift message needs giftId.',
+          details: { field: 'giftId' },
+        });
+      }
+      // An assistant never spends the attorney's stars.
+      if (user.assistant) {
+        throw new ForbiddenException({
+          code: ErrorCode.ASSISTANT_NOT_ALLOWED,
+          message: 'Assistants cannot give gifts.',
+        });
+      }
     } else if (sticker) {
       if (!dto.stickerId) {
         throw new BadRequestException({
           code: ErrorCode.VALIDATION_ERROR,
           message: 'A sticker message needs stickerId.',
           details: { field: 'stickerId' },
+        });
+      }
+    } else if (contact) {
+      if (!dto.contactUserId) {
+        throw new BadRequestException({
+          code: ErrorCode.VALIDATION_ERROR,
+          message: 'A contact card needs contactUserId.',
+          details: { field: 'contactUserId' },
+        });
+      }
+      if (!(await this.sharableAttorney(user.sub, dto.contactUserId))) {
+        throw new BadRequestException({
+          code: ErrorCode.VALIDATION_ERROR,
+          message: 'Only an attorney profile can be shared.',
+          details: { field: 'contactUserId' },
         });
       }
     } else if (voice) {
@@ -561,6 +697,13 @@ export class ChatService {
         code: ErrorCode.VALIDATION_ERROR,
         message: 'Empty message.',
         details: { field: 'body' },
+      });
+    }
+    if (place && [...body].length > PLACE_MAX_CHARS) {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_ERROR,
+        message: `An address is at most ${PLACE_MAX_CHARS} characters.`,
+        details: { field: 'body', max: PLACE_MAX_CHARS },
       });
     }
     const maxChars = await textLimit(
@@ -668,6 +811,7 @@ export class ChatService {
       await this.files.assertChatRoom(id, dto.fileId!);
     }
     if (sticker) await this.stickers.useForMessage(user.sub, dto.stickerId!);
+    if (gift) await this.stars.assertMayGift(user.sub);
     if (voice) {
       await this.files.assertAttachable(user.sub, dto.fileId!, ['chat_voice']);
       // One note, one message: a file is never re-sent elsewhere.
@@ -683,6 +827,16 @@ export class ChatService {
       }
     }
 
+    // Owner 2026-10-20: a reply quotes a message of this same chat.
+    let replyToId: string | null = null;
+    if (dto.replyToId) {
+      const quoted = await this.prisma.message.findFirst({
+        where: { id: dto.replyToId, conversation_id: id },
+        select: { id: true },
+      });
+      if (!quoted) throw notFound();
+      replyToId = quoted.id;
+    }
     let message: Message;
     try {
       message = await withTxRetry(this.prisma, async (tx) => {
@@ -700,9 +854,20 @@ export class ChatService {
           });
         }
         const masked =
-          voice || locked.contacts_unlocked
+          voice || contact || locked.contacts_unlocked
             ? { text: body, masked: false }
             : maskContactInfo(body);
+        const giftNote = gift && masked.text ? masked.text.slice(0, 200) : null;
+        const given = gift
+          ? await this.stars.giveGift(tx, {
+              giftId: dto.giftId!,
+              senderId: user.sub,
+              recipientId:
+                user.sub === conv.client_id ? conv.attorney_id : conv.client_id,
+              conversationId: id,
+              note: giftNote,
+            })
+          : null;
         const m = await tx.message.create({
           data: {
             conversation_id: id,
@@ -715,11 +880,19 @@ export class ChatService {
                 ? 'attachment'
                 : sticker
                   ? 'sticker'
-                  : 'text',
-            body_original: this.seal(body),
-            body_display: this.seal(masked.text),
+                  : gift
+                    ? 'gift'
+                    : contact
+                      ? 'contact'
+                      : place
+                        ? 'place'
+                        : 'text',
+            body_original: this.seal(gift ? '' : body),
+            body_display: this.seal(gift ? '' : masked.text),
             contact_masked: masked.masked,
             client_message_id: dto.clientMessageId,
+            reply_to_id: replyToId,
+            forwarded: dto.forwarded === true,
             ...(voice
               ? {
                   file_id: dto.fileId,
@@ -733,7 +906,9 @@ export class ChatService {
                   }
                 : sticker
                   ? { sticker_id: dto.stickerId }
-                  : {}),
+                  : given
+                    ? { gift_send_id: given.send.id }
+                    : {}),
           },
         });
         await tx.conversation.update({
@@ -750,7 +925,7 @@ export class ChatService {
           where: {
             conversation_id_user_id: { conversation_id: id, user_id: user.sub },
           },
-          data: { last_read_message_id: m.id },
+          data: { last_read_message_id: m.id, last_read_at: new Date() },
         });
         return m;
       });
@@ -1023,7 +1198,7 @@ export class ChatService {
         where: {
           conversation_id_user_id: { conversation_id: id, user_id: user.sub },
         },
-        data: { last_read_message_id: target.id },
+        data: { last_read_message_id: target.id, last_read_at: new Date() },
       });
       return { lastReadMessageId: target.id, moved: true };
     });
@@ -1034,6 +1209,7 @@ export class ChatService {
       this.realtime.toUsers([other], 'message:read', {
         conversationId: id,
         lastReadMessageId: result.lastReadMessageId,
+        readAt: new Date().toISOString(),
       });
       await this.badges.chatsChanged(user.sub);
     }
@@ -1071,7 +1247,92 @@ export class ChatService {
   }
 
   /** The conversation if the caller takes part in it, else 404. */
-  private async load(user: RequestUser, id: string): Promise<Conversation> {
+  /**
+   * Owner 2026-10-20 («Сохранённое»): what kind of saved item message [id]
+   * is, for a reader of its chat. 404 when the person is not in the chat or
+   * the message is gone; 400 for a message that is not worth saving (a
+   * system line, a call, a sticker).
+   */
+  async savableKind(user: RequestUser, id: string): Promise<SavedChatKind> {
+    const m = await this.prisma.message.findFirst({
+      where: { id, deleted_at: null },
+    });
+    if (!m) throw notFound();
+    await this.load(user, m.conversation_id);
+    switch (m.type) {
+      case 'voice':
+        return 'voice';
+      case 'contact':
+        return 'contact';
+      case 'place':
+        return 'place';
+      case 'attachment': {
+        const f = m.file_id
+          ? (await this.files.attachmentUrls([m.file_id])).get(m.file_id)
+          : undefined;
+        const mime = f?.mime ?? '';
+        return isImageMime(mime) || mime.startsWith('video/')
+          ? 'media'
+          : 'file';
+      }
+      case 'text':
+        return URL_RE.test(this.openBody(m.body_display)) ? 'link' : 'text';
+      default:
+        throw new BadRequestException({
+          code: ErrorCode.VALIDATION_ERROR,
+          message: 'This message cannot be saved.',
+          details: { field: 'messageId' },
+        });
+    }
+  }
+
+  /**
+   * The messages [ids] as [user] reads them, each with its chat — newest
+   * order of [ids] kept. A message of a chat the person is not in (or a
+   * deleted one) is left out.
+   */
+  async messagesWithChats(
+    user: RequestUser,
+    ids: string[],
+  ): Promise<{ message: MessageDto; chat: ConversationDto }[]> {
+    if (ids.length === 0) return [];
+    const rows = await this.prisma.message.findMany({
+      where: { id: { in: ids }, deleted_at: null },
+    });
+    const convs = new Map<string, Conversation>();
+    for (const convId of new Set(rows.map((r) => r.conversation_id))) {
+      try {
+        convs.set(convId, await this.load(user, convId));
+      } catch {
+        // Not in that chat any more: its messages stay unseen.
+      }
+    }
+    const readable = rows.filter((r) => convs.has(r.conversation_id));
+    const [urls, chats] = await Promise.all([
+      this.mediaLinks(readable),
+      this.present([...convs.values()], user.sub),
+    ]);
+    const chatOf = new Map(chats.map((c) => [c.id, c]));
+    const byId = new Map(readable.map((r) => [r.id, r]));
+    const out: { message: MessageDto; chat: ConversationDto }[] = [];
+    for (const id of ids) {
+      const r = byId.get(id);
+      const chat = r ? chatOf.get(r.conversation_id) : undefined;
+      if (!r || !chat) continue;
+      out.push({
+        message: this.toMessage(
+          r,
+          user.sub,
+          convs.get(r.conversation_id),
+          urls,
+        ),
+        chat,
+      });
+    }
+    return out;
+  }
+
+  async load(user: RequestUser, id: string): Promise<Conversation> {
     const conv = await this.prisma.conversation.findUnique({ where: { id } });
     if (
       !conv ||
@@ -1083,17 +1344,26 @@ export class ChatService {
   }
 
   /** Signed links for the voice notes and attachments among [rows]. */
-  private async mediaLinks(rows: Message[]): Promise<MediaLinks> {
+  async mediaLinks(rows: Message[]): Promise<MediaLinks> {
     const ids = (type: Message['type']) =>
       rows.flatMap((m) => (m.type === type && m.file_id ? [m.file_id] : []));
-    const [voice, attachments, stickers] = await Promise.all([
+    const [voice, attachments, stickers, gifts, contacts] = await Promise.all([
       this.files.voiceUrls(ids('voice')),
       this.files.attachmentUrls(ids('attachment')),
       this.stickers.forMessages(
         rows.flatMap((m) => (m.sticker_id ? [m.sticker_id] : [])),
       ),
+      this.stars.forMessages(
+        rows.flatMap((m) => (m.gift_send_id ? [m.gift_send_id] : [])),
+      ),
+      this.contactCards(
+        rows.flatMap((m) =>
+          m.type === 'contact' ? [this.openBody(m.body_display)] : [],
+        ),
+      ),
     ]);
-    return { voice, attachments, stickers };
+    const extras = await loadMessageExtras(this.prisma, rows);
+    return { voice, attachments, stickers, gifts, contacts, extras };
   }
 
   private findOwn(id: string, senderId: string, clientMessageId: string) {
@@ -1108,6 +1378,89 @@ export class ChatService {
     });
   }
 
+  private openBody(stored: string): string {
+    return this.cipher?.open(stored) ?? stored;
+  }
+
+  /** Owner 2026-10-20: only an attorney's public profile can be shared. */
+  private async sharableAttorney(
+    viewerId: string,
+    userId: string,
+  ): Promise<boolean> {
+    // Not a person the sender blocked or who blocked the sender.
+    if ((await this.blocks.hiddenIds(viewerId)).has(userId)) return false;
+    const u = await this.prisma.user.findFirst({
+      where: {
+        id: userId,
+        status: 'active',
+        role: 'attorney',
+        attorney_profile: { isNot: null },
+      },
+      select: { id: true },
+    });
+    return u !== null;
+  }
+
+  /** The public cards of the attorneys shared in a page of messages. */
+  private async contactCards(
+    ids: string[],
+  ): Promise<Map<string, ContactCardDto>> {
+    const unique = [...new Set(ids)].filter((x) => UUID_RE.test(x));
+    if (unique.length === 0) return new Map();
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: unique }, role: 'attorney', status: 'active' },
+      select: {
+        id: true,
+        first_name: true,
+        last_name: true,
+        avatar_file_id: true,
+        attorney_profile: {
+          select: {
+            username: true,
+            firm_names: true,
+            trust_badge: true,
+            licenses: {
+              where: { license_status: 'verified' },
+              select: { state_code: true },
+            },
+            practice_areas: {
+              select: {
+                practice_area: { select: { i18n_key: true, sort: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+    const avatars = await this.files.avatarUrlsMany(
+      users.map((u) => u.avatar_file_id),
+    );
+    const out = new Map<string, ContactCardDto>();
+    for (const u of users) {
+      const p = u.attorney_profile;
+      if (!p) continue;
+      out.set(u.id, {
+        userId: u.id,
+        username: p.username,
+        displayName: fullName(u.first_name, u.last_name) ?? p.username,
+        avatarUrl: u.avatar_file_id
+          ? (avatars.get(u.avatar_file_id)?.url256 ?? null)
+          : null,
+        verifiedBadge: p.trust_badge,
+        firmNames: p.firm_names,
+        practiceKeys: p.practice_areas
+          .map((a) => a.practice_area)
+          .sort((a, b) => a.sort - b.sort)
+          .slice(0, 6)
+          .map((a) => a.i18n_key),
+        licensedStates: [
+          ...new Set(p.licenses.map((l) => l.state_code)),
+        ].sort(),
+      });
+    }
+    return out;
+  }
+
   private seal(text: string): string {
     return this.cipher?.seal(text) ?? text;
   }
@@ -1115,7 +1468,7 @@ export class ChatService {
   /** Security review (docs/05): while contacts are locked the attorney
    * must not learn the client's user id — their messages come with
    * senderId null (the app treats "not mine" the same). */
-  private toMessage(
+  toMessage(
     m: Message,
     viewerId: string,
     conv?: Pick<
@@ -1130,14 +1483,57 @@ export class ChatService {
       viewerId === conv.attorney_id &&
       !conv.contacts_unlocked &&
       m.sender_id === conv.client_id;
+    const revoked = m.revoked_at !== null;
+    const extras = media?.extras;
+    const target = m.reply_to_id
+      ? extras?.replyTargets.get(m.reply_to_id)
+      : undefined;
+    const reactionRows = extras?.reactions.get(m.id) ?? [];
+    const reactions: ReactionDto[] = [];
+    for (const r of reactionRows) {
+      const have = reactions.find((x) => x.emoji === r.emoji);
+      if (have) {
+        have.count += 1;
+        have.mine ||= r.userId === viewerId;
+      } else {
+        reactions.push({
+          emoji: r.emoji,
+          count: 1,
+          mine: r.userId === viewerId,
+        });
+      }
+    }
     return {
       id: m.id,
       conversationId: m.conversation_id,
       senderId: hideSender ? null : m.sender_id,
       sentByAssistant: m.sent_by_name,
       type: m.type,
+      editedAt: m.edited_at,
+      revoked,
+      forwarded: m.forwarded && !revoked,
+      replyTo:
+        target && !revoked
+          ? {
+              id: target.id,
+              senderId: target.sender_id,
+              type: target.type as ReplyPreviewDto['type'],
+              revoked: target.revoked_at !== null,
+              snippet:
+                target.revoked_at || target.type !== 'text'
+                  ? ''
+                  : [
+                      ...(this.cipher?.open(target.body_display) ??
+                        target.body_display),
+                    ]
+                      .slice(0, 120)
+                      .join(''),
+            }
+          : null,
+      reactions: revoked ? [] : reactions,
+      pinned: !revoked && (extras?.pinned.has(m.id) ?? false),
       voice:
-        m.type === 'voice'
+        m.type === 'voice' && !revoked
           ? {
               url: m.file_id ? (media?.voice.get(m.file_id) ?? null) : null,
               durationMs: m.duration_ms ?? 0,
@@ -1145,10 +1541,17 @@ export class ChatService {
               listened: m.listened_at !== null,
             }
           : null,
-      attachment: m.type === 'attachment' ? this.attachmentOf(m, media) : null,
+      attachment:
+        m.type === 'attachment' && !revoked
+          ? this.attachmentOf(m, media)
+          : null,
       sticker:
-        m.type === 'sticker' && m.sticker_id
+        m.type === 'sticker' && m.sticker_id && !revoked
           ? (media?.stickers.get(m.sticker_id) ?? null)
+          : null,
+      gift:
+        m.type === 'gift' && m.gift_send_id
+          ? (media?.gifts.get(m.gift_send_id) ?? null)
           : null,
       call:
         m.type === 'call'
@@ -1157,7 +1560,13 @@ export class ChatService {
               durationSec: Math.round((m.duration_ms ?? 0) / 1000),
             }
           : null,
-      body: this.cipher?.open(m.body_display) ?? m.body_display,
+      contact:
+        m.type === 'contact'
+          ? (media?.contacts.get(this.openBody(m.body_display)) ?? null)
+          : null,
+      body: revoked
+        ? ''
+        : (this.cipher?.open(m.body_display) ?? m.body_display),
       contactMasked: m.contact_masked,
       clientMessageId: m.sender_id === viewerId ? m.client_message_id : null,
       createdAt: m.created_at,
@@ -1235,6 +1644,7 @@ export class ChatService {
             conversation_id: true,
             user_id: true,
             last_read_message_id: true,
+            last_read_at: true,
             muted_until: true,
             folder: true,
             waiting_since: true,
@@ -1334,6 +1744,9 @@ export class ChatService {
         counterpartLastReadMessageId: seenHidden
           ? null
           : (partOf.get(`${c.id}:${otherId}`)?.last_read_message_id ?? null),
+        counterpartLastReadAt: seenHidden
+          ? null
+          : (partOf.get(`${c.id}:${otherId}`)?.last_read_at ?? null),
         kind: c.case_id ? 'case' : 'direct',
         requestStatus: c.request_status,
         requestedByMe: c.requested_by === viewerId,
@@ -1357,9 +1770,12 @@ export class ChatService {
 
 /** OQ-047: links of a page's voice notes and attachments. */
 interface MediaLinks {
+  extras?: MessageExtras;
   voice: Map<string, string>;
   stickers: Map<string, StickerDto>;
+  gifts: Map<string, GiftSendDto>;
   attachments: Awaited<ReturnType<FilesService['attachmentUrls']>>;
+  contacts: Map<string, ContactCardDto>;
 }
 
 /** A display name: no path, no control characters, ≤200 chars. */

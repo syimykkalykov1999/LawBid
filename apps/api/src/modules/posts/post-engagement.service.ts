@@ -95,6 +95,52 @@ export class PostEngagementService {
     });
   }
 
+  /** Owner 2026-10-20: GET /posts/:id/likes — who liked a post (newest
+   * first, avatar/name/follow state). When the author hid the counter only
+   * the author sees the list; blocked people either way are left out. */
+  async listLikers(
+    viewerId: string,
+    postId: string,
+    cursor: string | undefined,
+  ): Promise<PeoplePage> {
+    const post = await this.visible(postId);
+    await assertNoBlock(this.prisma, viewerId, post.author_id);
+    if (post.hide_likes && post.author_id !== viewerId) {
+      return { items: [], nextCursor: null };
+    }
+    const c = cursor ? decodeCursor(cursor) : undefined;
+    const hidden = await this.blockedWith(viewerId);
+    const rows = await this.prisma.postLike.findMany({
+      where: {
+        post_id: postId,
+        user: { status: 'active', deleted_at: null },
+        ...(hidden.length > 0 ? { user_id: { notIn: hidden } } : {}),
+        ...(c
+          ? {
+              OR: [
+                { created_at: { lt: c.createdAt } },
+                { created_at: c.createdAt, user_id: { lt: c.id } },
+              ],
+            }
+          : {}),
+      },
+      orderBy: [{ created_at: 'desc' }, { user_id: 'desc' }],
+      take: REPOSTS_PAGE + 1,
+    });
+    const page = rows.slice(0, REPOSTS_PAGE);
+    const last = page[page.length - 1];
+    return {
+      items: await this.follows.peopleByIds(
+        page.map((r) => r.user_id),
+        viewerId,
+      ),
+      nextCursor:
+        rows.length > REPOSTS_PAGE && last
+          ? encodeCursor({ createdAt: last.created_at, id: last.user_id })
+          : null,
+    };
+  }
+
   /** Owner 2026-10-18: GET /posts/:id/reposts — who reposted a post
    * (newest first, avatar/name/follow state); blocked people either way
    * are left out. */
@@ -324,7 +370,7 @@ export class PostEngagementService {
   private async visible(postId: string) {
     const post = await this.prisma.post.findFirst({
       where: { ...VISIBLE_POST_WHERE, id: postId },
-      select: { id: true, author_id: true },
+      select: { id: true, author_id: true, hide_likes: true },
     });
     if (!post) throw postNotFound();
     return post;

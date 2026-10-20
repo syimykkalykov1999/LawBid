@@ -81,6 +81,9 @@ abstract final class ApiErrorCodes {
   static const reviewNoAcceptedBid = 'REVIEW_NO_ACCEPTED_BID';
   static const reviewAlreadyExists = 'REVIEW_ALREADY_EXISTS';
   static const reviewAppealExists = 'REVIEW_APPEAL_EXISTS';
+  static const consultationSlotTaken = 'CONSULTATION_SLOT_TAKEN';
+  static const consultationNotAvailable = 'CONSULTATION_NOT_AVAILABLE';
+  static const consultationStateConflict = 'CONSULTATION_STATE_CONFLICT';
   static const chatAttachmentsLocked = 'CHAT_ATTACHMENTS_LOCKED';
   // OQ-048 plans and assistants.
   static const subscriptionPlanIncludesSeats =
@@ -132,6 +135,9 @@ abstract final class ApiErrorCodes {
   static const bidCounterNotAllowed = 'BID_COUNTER_NOT_ALLOWED';
   // Bids and negotiation (docs/04 §5–§6, stage 4.4)
   static const subscriptionRequired = 'SUBSCRIPTION_REQUIRED';
+  // Stars and gifts (owner 2026-10-20)
+  static const insufficientStars = 'INSUFFICIENT_STARS';
+  static const stickerPackNotOwned = 'STICKER_PACK_NOT_OWNED';
   static const caseNotAvailable = 'CASE_NOT_AVAILABLE';
   static const postNotFound = 'POST_NOT_FOUND';
   static const postNotAllowed = 'POST_NOT_ALLOWED';
@@ -143,7 +149,13 @@ abstract final class ApiErrorCodes {
   static const followNotAllowed = 'FOLLOW_NOT_ALLOWED';
   static const conversationNotFound = 'CONVERSATION_NOT_FOUND';
   static const conversationClosed = 'CONVERSATION_CLOSED';
+  static const groupNotFound = 'GROUP_NOT_FOUND';
+  static const groupForbidden = 'GROUP_FORBIDDEN';
+  static const groupFull = 'GROUP_FULL';
+  static const groupUsernameTaken = 'GROUP_USERNAME_TAKEN';
+  static const pollClosed = 'POLL_CLOSED';
   static const messageTooLong = 'MESSAGE_TOO_LONG';
+  static const messageWindowExpired = 'MESSAGE_WINDOW_EXPIRED';
   static const textTooLong = 'TEXT_TOO_LONG';
   static const featureDisabled = 'FEATURE_DISABLED';
   static const searchQueryTooShort = 'SEARCH_QUERY_TOO_SHORT';
@@ -328,6 +340,9 @@ abstract final class ApiErrorCodes {
     reviewNoAcceptedBid,
     reviewAlreadyExists,
     reviewAppealExists,
+    consultationSlotTaken,
+    consultationNotAvailable,
+    consultationStateConflict,
     chatAttachmentsLocked,
     subscriptionPlanIncludesSeats,
     assistantSeatsInUse,
@@ -370,6 +385,8 @@ abstract final class ApiErrorCodes {
     bidMaxRoundsReached,
     bidCounterNotAllowed,
     subscriptionRequired,
+    insufficientStars,
+    stickerPackNotOwned,
     caseNotAvailable,
     postNotFound,
     postNotAllowed,
@@ -378,6 +395,11 @@ abstract final class ApiErrorCodes {
     followNotAllowed,
     conversationNotFound,
     conversationClosed,
+    groupNotFound,
+    groupForbidden,
+    groupFull,
+    groupUsernameTaken,
+    pollClosed,
     messageTooLong,
     textTooLong,
     featureDisabled,
@@ -488,6 +510,7 @@ abstract final class ApiErrorCodes {
     storyLimitReached,
     channelLimitReached,
     channelUsernameTaken,
+    messageWindowExpired,
   ];
 }
 

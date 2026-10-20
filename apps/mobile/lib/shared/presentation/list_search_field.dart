@@ -7,9 +7,10 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/shared/presentation/flip_search_bar.dart';
 
 /// Owner 2026-10-18: the search box above a list whose matching the server
-/// does (chats, followers, following) — the app's 36 px search field, a
-/// magnifier at the end, the placeholder says what is searched. [onChanged]
-/// gets the trimmed text after a short pause in typing ('' = cleared).
+/// does (chats, followers, following) — the app's 36 px search field with
+/// its one magnifier at the start, the placeholder says what is searched.
+/// [onChanged] gets the trimmed text after a short pause in typing
+/// ('' = cleared).
 class ListSearchField extends ConsumerStatefulWidget {
   const ListSearchField({
     required this.hintKey,
@@ -66,7 +67,6 @@ class _ListSearchFieldState extends ConsumerState<ListSearchField> {
   @override
   Widget build(BuildContext context) {
     final t = ref.watch(translatorProvider);
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         AppSpacing.screenSide,
@@ -83,11 +83,6 @@ class _ListSearchFieldState extends ConsumerState<ListSearchField> {
         clearLabel: t.t('search.clear'),
         showCancel: false,
         hints: [t.t(widget.hintKey)],
-        trailing: AppIconButton(
-          icon: AppIcon(AppIcons.searchRounded, color: colors.textSecondary),
-          semanticLabel: t.t(widget.hintKey),
-          onPressed: _focus.requestFocus,
-        ),
       ),
     );
   }

@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -14,6 +15,8 @@ import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/time/local_now.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
 import 'package:lawbid/features/cases/workspace/workspace_data.dart';
+import 'package:lawbid/features/consultations/application/consultations_providers.dart';
+import 'package:lawbid/features/consultations/consultations_routes.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
@@ -616,6 +619,14 @@ class _TasksTabState extends ConsumerState<TasksTab> {
                   showViews: widget.showViews,
                   attorneySide: _attorneySide,
                   assistant: assistant,
+                  // Owner 2026-10-20: booking and the deadline calculator
+                  // live one tap from the planner.
+                  consultations: !assistant &&
+                      ref.watch(consultationsFlagProvider),
+                  deadlines: !assistant &&
+                      ref
+                          .watch(featureFlagsControllerProvider)
+                          .isEnabled('deadline_calculator'),
                   onScope: (scope) => setState(() {
                     _view = TasksView.all;
                     _picked.clear();
@@ -1007,7 +1018,13 @@ class _TaskList extends ConsumerWidget {
                                 : () => onPick(task))
                             : task.boardTask != null
                                 ? () => onOpenCase(task)
-                                : () => showTaskSheet(
+                                : task.consultationId != null
+                                    ? () => context.push(
+                                          ConsultationsRoutes.detail(
+                                            task.consultationId!,
+                                          ),
+                                        )
+                                    : () => showTaskSheet(
                                       context,
                                       task: task,
                                       listKey: listKey,
@@ -1145,7 +1162,12 @@ class _TopChips extends StatelessWidget {
     required this.assistant,
     required this.onScope,
     required this.onView,
+    this.consultations = false,
+    this.deadlines = false,
   });
+
+  final bool consultations;
+  final bool deadlines;
 
   final Translator t;
   final TaskFilter filter;
@@ -1191,6 +1213,20 @@ class _TopChips extends StatelessWidget {
             () => onView(TasksView.results),
           ),
       ],
+      if (consultations)
+        (
+          'consultations',
+          t.t('consult.chip'),
+          false,
+          () => context.push(ConsultationsRoutes.list),
+        ),
+      if (deadlines)
+        (
+          'deadlines',
+          t.t('consult.chip.deadlines'),
+          false,
+          () => context.push('/deadlines'),
+        ),
     ];
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
@@ -1589,7 +1625,11 @@ class _ResultsList extends ConsumerWidget {
               t: t,
               formats: formats,
               now: now,
-              onTap: () => showTaskSheet(context, task: task, listKey: listKey),
+              onTap: () => task.consultationId != null
+                  ? context.push(
+                      ConsultationsRoutes.detail(task.consultationId!),
+                    )
+                  : showTaskSheet(context, task: task, listKey: listKey),
             ),
           ),
       ],

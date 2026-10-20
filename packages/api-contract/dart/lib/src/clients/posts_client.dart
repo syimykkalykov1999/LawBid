@@ -193,6 +193,16 @@ abstract class PostsClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
+  /// Who liked a post, newest first (owner 2026-10-20).
+  ///
+  /// [cursor] - meta.nextCursor of the previous page.
+  @GET('/posts/{id}/likes')
+  Future<PersonItemListEnvelope> listLikers({
+    @Path('id') required String id,
+    @Query('cursor') String? cursor,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
   /// Who reposted a post, newest first (owner 2026-10-18).
   ///
   /// [cursor] - meta.nextCursor of the previous page.

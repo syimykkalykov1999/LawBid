@@ -9,8 +9,13 @@ part of 'send_message_dto.dart';
 SendMessageDto _$SendMessageDtoFromJson(Map<String, dynamic> json) =>
     SendMessageDto(
       clientMessageId: json['clientMessageId'] as String,
+      giftId: json['giftId'] as String?,
+      contactUserId: json['contactUserId'] as String?,
       stickerId: json['stickerId'] as String?,
       fileName: json['fileName'] as String?,
+      replyToId: json['replyToId'] as String?,
+      forwardFromId: json['forwardFromId'] as String?,
+      forwarded: json['forwarded'] as bool?,
       body: json['body'] as String?,
       fileId: json['fileId'] as String?,
       durationMs: (json['durationMs'] as num?)?.toInt(),
@@ -26,8 +31,13 @@ Map<String, dynamic> _$SendMessageDtoToJson(SendMessageDto instance) =>
     <String, dynamic>{
       'clientMessageId': instance.clientMessageId,
       'type': instance.type.toJson(),
+      'giftId': ?instance.giftId,
+      'contactUserId': ?instance.contactUserId,
       'stickerId': ?instance.stickerId,
       'fileName': ?instance.fileName,
+      'replyToId': ?instance.replyToId,
+      'forwardFromId': ?instance.forwardFromId,
+      'forwarded': ?instance.forwarded,
       'body': ?instance.body,
       'fileId': ?instance.fileId,
       'durationMs': ?instance.durationMs,

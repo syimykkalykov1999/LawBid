@@ -560,6 +560,38 @@ class PostCard extends ConsumerWidget {
           // Owner 2026-10-18: only in the profile's post list (Instagram).
           if (fromProfile) PostPromoRow(post: p),
           PostActionsBar(post: p, run: run, showTime: true),
+          // Owner 2026-10-20 (Instagram): «N отметок «Нравится»» under the
+          // icons; a tap opens the people who liked. The author's choice to
+          // hide the counter hides the line.
+          if (p.likeCount > 0 && showLikeCount(ref, p))
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.md,
+                0,
+                AppSpacing.md,
+                AppSpacing.xs,
+              ),
+              child: AppPressable(
+                onTap: () => showLikersList(context, p.id),
+                child: Text(
+                  SocialFormat.plural(
+                    t,
+                    ref.watch(l10nFormatsProvider),
+                    'post.likes',
+                    p.likeCount,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context)
+                      .extension<AppTypographyTokens>()!
+                      .bodySmall
+                      .copyWith(
+                        color: colors.text,
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+              ),
+            ),
           // Owner 2026-10-15: the advertiser's button under a promoted post.
           if (post.promotionId != null && post.promotionCta != null)
             Padding(
@@ -631,8 +663,10 @@ class PostCard extends ConsumerWidget {
     final m = _trailingTags.firstMatch(trimmed);
     if (m == null) return (trimmed, const []);
     final tags = [
-      for (final x
-          in RegExp(r'#[\p{L}\p{N}_]+', unicode: true).allMatches(m.group(0)!))
+      for (final x in RegExp(
+        r'#[\p{L}\p{N}_]+',
+        unicode: true,
+      ).allMatches(m.group(0)!))
         x.group(0)!,
     ];
     return (trimmed.substring(0, m.start).trim(), tags);
@@ -788,20 +822,20 @@ class PostCard extends ConsumerWidget {
               AppSpacing.lg,
               AppSpacing.xs,
             ),
-            child: Text(
-              SocialFormat.plural(
-                t,
-                ref.watch(l10nFormatsProvider),
-                'post.likes',
-                p.likeCount,
+            child: AppPressable(
+              onTap: () => showLikersList(context, p.id),
+              child: Text(
+                SocialFormat.plural(
+                  t,
+                  ref.watch(l10nFormatsProvider),
+                  'post.likes',
+                  p.likeCount,
+                ),
+                style: Theme.of(context)
+                    .extension<AppTypographyTokens>()!
+                    .bodySmall
+                    .copyWith(color: colors.text, fontWeight: FontWeight.w600),
               ),
-              style: Theme.of(context)
-                  .extension<AppTypographyTokens>()!
-                  .bodySmall
-                  .copyWith(
-                    color: colors.text,
-                    fontWeight: FontWeight.w600,
-                  ),
             ),
           ),
         if (p.pendingReview)
@@ -1003,13 +1037,16 @@ class _InstagramPost extends ConsumerWidget {
               AppSpacing.lg,
               AppSpacing.xs,
             ),
-            child: Text(
-              SocialFormat.plural(t, f, 'post.likes', p.likeCount),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: type.bodySmall.copyWith(
-                color: colors.text,
-                fontWeight: FontWeight.w700,
+            child: AppPressable(
+              onTap: () => showLikersList(context, p.id),
+              child: Text(
+                SocialFormat.plural(t, f, 'post.likes', p.likeCount),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: type.bodySmall.copyWith(
+                  color: colors.text,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
           ),
@@ -1261,10 +1298,7 @@ class _ThreadsPost extends ConsumerWidget {
               SizedBox(
                 width: 48,
                 height: 28,
-                child: OverflowBox(
-                  maxHeight: 48,
-                  child: menuButton,
-                ),
+                child: OverflowBox(maxHeight: 48, child: menuButton),
               )
             else
               menuButton,
@@ -1346,7 +1380,7 @@ class _ThreadsPost extends ConsumerWidget {
             // The first icon's edge on the avatar's edge (the icon sits 7 in
             // its 34-wide touch area).
             child: Transform.translate(
-              offset: const Offset(-7, 0),
+              offset: const Offset(-6, 0),
               child: Row(
                 children: [
                   action(
@@ -1355,8 +1389,7 @@ class _ThreadsPost extends ConsumerWidget {
                       activeIcon: AppIcons.favoriteRounded,
                       icon: AppIcons.favoriteBorderRounded,
                       activeColor: colors.danger,
-                      size: 22,
-                      extent: 34,
+                      extent: 38,
                       label: t.t(p.likedByMe ? 'post.unlike' : 'post.like'),
                       onTap: () => run(() => actions.toggleLike(p)),
                     ),
@@ -1367,8 +1400,7 @@ class _ThreadsPost extends ConsumerWidget {
                       active: false,
                       activeIcon: AppIcons.modeCommentOutlined,
                       icon: AppIcons.modeCommentOutlined,
-                      size: 22,
-                      extent: 34,
+                      extent: 38,
                       label: t.t('post.comments'),
                       // In the open thread the replies are right below:
                       // no sheet.
@@ -1388,10 +1420,10 @@ class _ThreadsPost extends ConsumerWidget {
                       activeIcon: AppIcons.autoModeRounded,
                       icon: AppIcons.autoModeRounded,
                       activeColor: colors.success,
-                      size: 22,
-                      extent: 34,
-                      label:
-                          t.t(p.repostedByMe ? 'post.unrepost' : 'post.repost'),
+                      extent: 38,
+                      label: t.t(
+                        p.repostedByMe ? 'post.unrepost' : 'post.repost',
+                      ),
                       onTap: () => showRepostSheet(context, ref, p),
                     ),
                     p.repostCount,
@@ -1403,8 +1435,7 @@ class _ThreadsPost extends ConsumerWidget {
                       active: false,
                       activeIcon: AppIcons.sendOutlined,
                       icon: AppIcons.sendOutlined,
-                      size: 22,
-                      extent: 34,
+                      extent: 38,
                       label: t.t('post.share'),
                       onTap: () => sharePost(context, ref, p),
                     ),
@@ -1437,8 +1468,8 @@ class _ThreadsPost extends ConsumerWidget {
           activeIcon: AppIcons.bookmarkRounded,
           icon: AppIcons.bookmarkBorderRounded,
           activeColor: colors.gold,
-          size: 24,
-          extent: 34,
+          size: 28,
+          extent: 38,
           label: t.t(p.savedByMe ? 'post.unsave' : 'post.save'),
           onTap: () => run(() => actions.toggleSave(p)),
         ),
@@ -1985,10 +2016,7 @@ class AuthorHeader extends ConsumerWidget {
           ConstrainedBox(
             constraints: BoxConstraints(maxWidth: followMaxWidth),
             child: onDark
-                ? ReelFollowButton(
-                    attorneyId: a.id,
-                    initial: a.isFollowing,
-                  )
+                ? ReelFollowButton(attorneyId: a.id, initial: a.isFollowing)
                 : FollowButton(
                     attorneyId: a.id,
                     initial: a.isFollowing,
@@ -2161,6 +2189,32 @@ class GoldRingAvatar extends StatelessWidget {
   }
 }
 
+bool _isEmojiRune(int r) =>
+    (r >= 0x1F300 && r <= 0x1FAFF) ||
+    (r >= 0x2600 && r <= 0x27BF) ||
+    (r >= 0x2190 && r <= 0x21FF) ||
+    (r >= 0x2B00 && r <= 0x2BFF) ||
+    (r >= 0x1F1E6 && r <= 0x1F1FF) ||
+    r == 0x200D ||
+    r == 0xFE0F ||
+    r == 0x20E3 ||
+    r == 0x00A9 ||
+    r == 0x00AE ||
+    r == 0x203C ||
+    r == 0x2049 ||
+    r == 0x3030 ||
+    r == 0x303D;
+
+/// Font size for a body that is nothing but 1–3 emoji (null otherwise).
+double? emojiOnlySize(String body) {
+  final t = body.trim();
+  if (t.isEmpty || t.length > 40) return null;
+  if (!t.runes.every((r) => _isEmojiRune(r) || r == 0x20)) return null;
+  final n = t.characters.where((c) => c.trim().isNotEmpty).length;
+  if (n > 3) return null;
+  return n == 1 ? 44 : (n == 2 ? 36 : 30);
+}
+
 class PostBodyText extends ConsumerStatefulWidget {
   const PostBodyText({
     required this.body,
@@ -2212,8 +2266,10 @@ class PostBodyText extends ConsumerStatefulWidget {
 class _PostBodyTextState extends ConsumerState<PostBodyText> {
   /// Pasted runs of empty lines collapse to one (owner 2026-10-07).
   String get _body => tidyText(widget.body);
-  static final _token =
-      RegExp(r'(#[\p{L}\p{N}_]+|@[A-Za-z0-9._]+)', unicode: true);
+  static final _token = RegExp(
+    r'(#[\p{L}\p{N}_]+|@[A-Za-z0-9._]+)',
+    unicode: true,
+  );
   late bool _expanded = widget.expanded;
   final _recognizers = <TapGestureRecognizer>[];
 
@@ -2264,8 +2320,10 @@ class _PostBodyTextState extends ConsumerState<PostBodyText> {
         spans.add(
           TextSpan(
             text: token,
-            style:
-                TextStyle(color: colors.goldDark, fontWeight: FontWeight.w600),
+            style: TextStyle(
+              color: colors.goldDark,
+              fontWeight: FontWeight.w600,
+            ),
             recognizer: r,
           ),
         );
@@ -2320,9 +2378,17 @@ class _PostBodyTextState extends ConsumerState<PostBodyText> {
     if (_body.trim().isEmpty && widget.leading == null) {
       return const SizedBox.shrink();
     }
-    final style = widget.style ??
-        (widget.large ? type.body : type.bodySmall)
-            .copyWith(color: colors.text, height: widget.height);
+    var style = widget.style ??
+        (widget.large ? type.body : type.bodySmall).copyWith(
+          color: colors.text,
+          height: widget.height,
+        );
+    // Owner 2026-10-20: a post that is only emoji drew them at caption size,
+    // a tiny glyph in a big empty card — they are drawn big, like a sticker.
+    final emojiSize = widget.leading == null ? emojiOnlySize(_body) : null;
+    if (emojiSize != null) {
+      style = style.copyWith(fontSize: emojiSize, height: 1.2);
+    }
     final text = Text.rich(
       TextSpan(children: _spans(colors), style: style),
       maxLines: _expanded ? null : widget.collapsedLines,
@@ -2777,7 +2843,6 @@ class PostActionsBar extends ConsumerWidget {
                 children: [
                   if (reactions) ...[
                     BounceIcon(
-                      size: _kBarIcon,
                       extent: _kBarExtent,
                       active: post.likedByMe,
                       activeIcon: AppIcons.favoriteRounded,
@@ -2789,7 +2854,6 @@ class PostActionsBar extends ConsumerWidget {
                     // Owner 2026-10-15 (Instagram): no count next to like or
                     // send; the comments keep theirs.
                     BounceIcon(
-                      size: _kBarIcon,
                       extent: _kBarExtent,
                       active: false,
                       activeIcon: AppIcons.modeCommentOutlined,
@@ -2804,7 +2868,6 @@ class PostActionsBar extends ConsumerWidget {
                     if (showCounts && (showTime || post.commentCount > 0))
                       _Count(post.commentCount),
                     BounceIcon(
-                      size: _kBarIcon,
                       extent: _kBarExtent,
                       active: false,
                       activeIcon: AppIcons.sendOutlined,
@@ -2859,11 +2922,11 @@ class _Count extends ConsumerWidget {
   }
 }
 
-/// Owner 2026-10-14: Instagram-size icons in the action bar (22).
-const double _kBarIcon = 22;
+/// Owner 2026-10-20: bigger, solid icons in the action bar (was 22).
+const double _kBarIcon = 26;
 
 /// Owner 2026-10-15: the touch area of a bar icon, as in a brief's row.
-const double _kBarExtent = 34;
+const double _kBarExtent = 38;
 
 /// The bar's side padding that puts the first icon's edge on the text's
 /// edge (lg) given [_kBarExtent].
@@ -2907,8 +2970,10 @@ class _BounceIconState extends State<BounceIcon>
   late final Animation<double> _scale = TweenSequence<double>([
     TweenSequenceItem(tween: Tween<double>(begin: 1, end: 1.28), weight: 40),
     TweenSequenceItem(
-      tween: Tween<double>(begin: 1.28, end: 1)
-          .chain(CurveTween(curve: Curves.elasticOut)),
+      tween: Tween<double>(
+        begin: 1.28,
+        end: 1,
+      ).chain(CurveTween(curve: Curves.elasticOut)),
       weight: 60,
     ),
   ]).animate(_c);
@@ -3378,14 +3443,8 @@ class FeedCaptionState extends ConsumerState<FeedCaption> {
     final scaler = MediaQuery.textScalerOf(context);
     return cachedCaptionFit<bool>(
       ('feedOver', text, measured, width, maxLines, direction, scaler),
-      () => captionOverflows(
-        text,
-        measured,
-        width,
-        maxLines,
-        direction,
-        scaler,
-      ),
+      () =>
+          captionOverflows(text, measured, width, maxLines, direction, scaler),
     );
   }
 
@@ -3397,14 +3456,7 @@ class FeedCaptionState extends ConsumerState<FeedCaption> {
     final scaler = MediaQuery.textScalerOf(context);
     return cachedCaptionFit<int>(
       ('feedLines', text, measured, width, direction, scaler),
-      () => captionLineCount(
-        text,
-        measured,
-        width,
-        direction,
-        scaler,
-        cap: 5,
-      ),
+      () => captionLineCount(text, measured, width, direction, scaler, cap: 5),
     );
   }
 
@@ -3460,6 +3512,27 @@ class FeedCaptionState extends ConsumerState<FeedCaption> {
           )
         : const SizedBox.shrink();
     final moreLabel = t.t('post.more');
+    // Owner 2026-10-20: a post that is only 1–3 emoji — drawn big, in one
+    // block, instead of a caption-size glyph in a tall empty card.
+    final emojiSize = widget.hashtags.isEmpty && !widget.forceMore
+        ? emojiOnlySize('${widget.title}${widget.text}')
+        : null;
+    if (emojiSize != null) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(AppSpacing.md, 4, AppSpacing.md, 0),
+        child: AppPressable(
+          onTap: widget.onOpen,
+          child: Text(
+            '${widget.title}${widget.text}'.trim(),
+            style: bodyStyle.copyWith(
+              color: colors.text,
+              fontSize: emojiSize,
+              height: 1.2,
+            ),
+          ),
+        ),
+      );
+    }
     return Padding(
       padding: const EdgeInsets.fromLTRB(AppSpacing.md, 8, AppSpacing.md, 0),
       child: LayoutBuilder(
@@ -3542,8 +3615,12 @@ class FeedCaptionState extends ConsumerState<FeedCaption> {
                   builder: (context, box) {
                     // Owner 2026-10-18 (speed): counted up to 5 lines and
                     // cached (only "> 2" and "> 4" are asked below).
-                    final lines =
-                        _lines(widget.text, bodyStyle, box.maxWidth, context);
+                    final lines = _lines(
+                      widget.text,
+                      bodyStyle,
+                      box.maxWidth,
+                      context,
+                    );
                     final collapsed = (lines > 2 ||
                             hasTags ||
                             widget.forceMore ||
@@ -3701,10 +3778,8 @@ class _FeedFill extends StatefulWidget {
   const _FeedFill({required this.height, required this.builder});
 
   final double? height;
-  final Widget Function({
-    required bool fill,
-    required VoidCallback onExpand,
-  }) builder;
+  final Widget Function({required bool fill, required VoidCallback onExpand})
+      builder;
 
   @override
   State<_FeedFill> createState() => _FeedFillState();

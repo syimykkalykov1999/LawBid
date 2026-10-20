@@ -13,6 +13,9 @@ import 'package:lawbid/features/calls/application/callkit_bridge.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
 import 'package:lawbid/features/notifications/application/system_notifications.dart';
+import 'package:lawbid/features/notifications/application/task_reminder_scheduler.dart';
+import 'package:lawbid/features/notifications/application/task_reminders.dart';
+import 'package:lawbid/features/notifications/application/timezone_sync.dart';
 import 'package:lawbid/features/notifications/presentation/notifications_view.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
@@ -102,6 +105,13 @@ class PushService {
         // just refresh the badge.
         ..add(
           FirebaseMessaging.onMessage.listen((msg) {
+            // Owner 2026-10-20: a planner reminder (data-only on devices that
+            // keep their own alarms) is drawn here, under the task's id.
+            if (msg.data['type'] == taskReminderType) {
+              unawaited(showTaskReminderFromPush(msg.data));
+              _ref.read(badgesProvider.notifier).refresh();
+              return;
+            }
             // OQ-041: the socket may have missed the ring.
             // Push 2026-10-19: the call is over — stop the system ringing
             // (realtime updates the in-app screen).
@@ -165,6 +175,8 @@ class PushService {
             token,
             ios: !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS,
             web: kIsWeb,
+            // Owner 2026-10-20: this app arms the planner reminders itself.
+            localReminders: TaskReminderScheduler.supported,
           );
     } on Object {
       // Next app start registers again.
@@ -280,6 +292,11 @@ final pushServiceProvider = Provider<PushService>((ref) {
 final sessionServicesProvider = Provider<void>((ref) {
   final user = ref.watch(currentUserIdProvider);
   if (user == null) return;
+  // Owner 2026-10-20: the phone's time zone and the planner's reminder
+  // alarms follow the session.
+  ref
+    ..watch(timezoneSyncProvider)
+    ..watch(taskReminderSyncProvider);
   Future.microtask(() {
     ref.read(pushServiceProvider).start();
     ref.read(outboxSenderProvider).drain();

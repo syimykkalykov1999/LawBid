@@ -541,6 +541,15 @@ export const OWNER_RATE_LIMIT_SETTINGS = {
  * - auto_retention: technical logs older than N days are removed;
  * - growth alert: one log alert (CloudWatch → e-mail) when files or the
  *   database grew more than `growth_alert_percent` in a day. */
+/** Owner 2026-10-20 (WhatsApp): how long a sent message can still be edited
+ * and deleted for everyone. 0 = never. */
+export const OWNER_CHAT_ACTION_SETTINGS = {
+  'chat.edit_window_min': 15,
+  'chat.delete_for_all_hours': 48,
+  /** Pinned messages per chat (WhatsApp: 3). */
+  'chat.max_pins': 3,
+};
+
 export const OWNER_STORAGE_SETTINGS = {
   'storage.dedup': true,
   'storage.auto_cleanup': true,
@@ -634,6 +643,21 @@ export const OWNER_POST_ATTACHMENT_SETTINGS = {
   attachments_keep_after_cancel: true,
 };
 
+/** Owner 2026-10-20: booking a consultation and «Вопрос юристу». */
+export const OWNER_BOOKING_QA_SETTINGS = {
+  /** Bookings one client may make in a day. */
+  'rate_limit.consultation_book_per_day': 10,
+  /** Questions one client may ask in a day. */
+  'rate_limit.question_per_day': 3,
+  /** Answers (and edits) one attorney may post in an hour. */
+  'rate_limit.answer_per_hour': 30,
+  /** Pending + confirmed upcoming consultations one client may hold. */
+  'consultations.max_active_per_client': 5,
+  /** A new question alerts at most this many attorneys of its practice
+   * area and state (those who turned on «Новые кейсы»). */
+  'qa.alert_max_attorneys': 500,
+};
+
 import { OWNER_TEXT_LIMIT_SETTINGS } from './text-limits';
 
 export const APP_SETTINGS = {
@@ -665,11 +689,13 @@ export const APP_SETTINGS = {
   ...OWNER_COUNTRY_SETTINGS,
   ...OWNER_RATE_LIMIT_SETTINGS,
   ...OWNER_STORAGE_SETTINGS,
+  ...OWNER_CHAT_ACTION_SETTINGS,
   ...OWNER_FRAUD_SETTINGS,
   ...OWNER_OPS_SETTINGS,
   ...OWNER_TREASURY_SETTINGS,
   ...OWNER_FEED_SETTINGS,
   ...OWNER_POST_ATTACHMENT_SETTINGS,
+  ...OWNER_BOOKING_QA_SETTINGS,
   ...OWNER_TEXT_LIMIT_SETTINGS,
 };
 

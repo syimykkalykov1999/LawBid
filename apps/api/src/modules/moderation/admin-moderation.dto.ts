@@ -30,6 +30,9 @@ export const REPORT_TARGET_TYPES = [
   'story',
   'channel',
   'channel_post',
+  // Owner 2026-10-20: «Вопрос юристу».
+  'legal_question',
+  'legal_answer',
 ] as const;
 export type ReportTargetName = (typeof REPORT_TARGET_TYPES)[number];
 

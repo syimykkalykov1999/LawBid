@@ -222,6 +222,7 @@ describe('In-app calls (e2e, OQ-041)', () => {
     expect(await gotOffer).toEqual({
       callId,
       data: { type: 'offer', sdp: 'v=0' },
+      from: c.attorney.id,
     });
     const stranger = await prisma.user.create({
       data: { role: 'client', first_name: 'Eve', last_name: 'Drop' },
@@ -317,6 +318,74 @@ describe('In-app calls (e2e, OQ-041)', () => {
     } finally {
       link.mockRestore();
     }
+  });
+
+  it('a call is never left blocking: the end frees both at once, a silent one is closed (owner 2026-10-20)', async () => {
+    const c = await chat();
+    const first = await api()
+      .post(`/api/v1/conversations/${c.id}/calls`)
+      .set(c.client.auth)
+      .expect(201);
+    await api()
+      .post(`/api/v1/calls/${first.body.data.id}/accept`)
+      .set(c.attorney.auth)
+      .expect(200);
+    await api()
+      .post(`/api/v1/calls/${first.body.data.id}/end`)
+      .set(c.client.auth)
+      .send({})
+      .expect(200);
+    // Straight after the hang-up the same pair can call again, both ways.
+    const again = await api()
+      .post(`/api/v1/conversations/${c.id}/calls`)
+      .set(c.attorney.auth)
+      .expect(201);
+    expect(again.body.data.status).toBe('ringing');
+    await api()
+      .post(`/api/v1/calls/${again.body.data.id}/end`)
+      .set(c.attorney.auth)
+      .send({})
+      .expect(200);
+
+    // A call whose apps went silent (the end request was lost, both phones
+    // gone) is over: asking for it is a heartbeat, silence is closed.
+    const stuck = await prisma.call.create({
+      data: {
+        conversation_id: c.id,
+        caller_id: c.client.id,
+        callee_id: c.attorney.id,
+        status: 'active',
+        answered_at: new Date(Date.now() - 600_000),
+        video: true,
+      },
+    });
+    await prisma.$executeRaw`UPDATE calls SET updated_at = now() - interval '2 minutes' WHERE id = ${stuck.id}::uuid`;
+    const fresh = await api()
+      .post(`/api/v1/conversations/${c.id}/calls`)
+      .set(c.client.auth)
+      .expect(201);
+    expect(fresh.body.data.status).toBe('ringing');
+    expect(
+      (await prisma.call.findUniqueOrThrow({ where: { id: stuck.id } })).status,
+    ).toBe('ended');
+
+    // An answered call that keeps being read stays up.
+    await api()
+      .post(`/api/v1/calls/${fresh.body.data.id}/accept`)
+      .set(c.attorney.auth)
+      .expect(200);
+    await api()
+      .get(`/api/v1/calls/${fresh.body.data.id}`)
+      .set(c.client.auth)
+      .expect(200);
+    await app.get(CallsService).sweep();
+    expect(
+      (
+        await prisma.call.findUniqueOrThrow({
+          where: { id: fresh.body.data.id },
+        })
+      ).status,
+    ).toBe('active');
   });
 
   it('decline, busy and missed (sweep) are logged; missed notifies the callee', async () => {

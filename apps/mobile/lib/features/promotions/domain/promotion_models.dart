@@ -88,6 +88,7 @@ class PromotionQuote {
     this.estReachMin = 0,
     this.estReachMax = 0,
     this.ctaTypes = const [],
+    this.starsTotal,
   });
 
   final int days;
@@ -115,6 +116,9 @@ class PromotionQuote {
 
   /// Owner 2026-10-15: the buttons the admin lets an advertiser pick.
   final List<String> ctaTypes;
+
+  /// The total in stars (null: stars are off or nothing to pay).
+  final int? starsTotal;
 }
 
 @immutable
@@ -201,11 +205,15 @@ class PromotionPurchase {
     required this.totalCents,
     required this.creditDaysUsed,
     this.checkoutUrl,
+    this.starsCharged = 0,
   });
 
   final PromotionStatus status;
   final int totalCents;
   final num creditDaysUsed;
+
+  /// Stars taken when paid with the balance.
+  final int starsCharged;
 
   /// Stripe's page when something is left to pay (null = fully covered by
   /// credits, already active).

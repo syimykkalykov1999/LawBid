@@ -49,7 +49,14 @@ export interface MessageJobData {
   recipientId: string;
   conversationId: string;
   messageId: string;
+  /** Owner 2026-10-20: a group chat message (conversationId = the group). */
+  groupId?: string;
   deferred?: boolean;
+  /** Owner 2026-10-20: a reaction to / an edit of an existing message
+   * (grouped under the message instead of a new alert each time). */
+  event?: 'reaction' | 'edit';
+  actorId?: string;
+  emoji?: string;
 }
 
 /** OQ-041: ring the callee's devices (push-only, never stored). */
@@ -95,9 +102,19 @@ export interface PushMessage {
    * on their own). Owner 2026-10-07: both play the phone's own default
    * sound — LawBid ships no sounds of its own. */
   sound?: PushSoundKind;
+  /** Owner 2026-10-20: a planner reminder. iOS gets it time-sensitive
+   * (breaks through Focus); an Android device that keeps its own local
+   * copy of the reminder gets a data-only message the app shows under the
+   * same id as its alarm (never twice); other devices a normal alert
+   * grouped per task (`data.taskId`). */
+  reminder?: boolean;
   /** Owner 2026-10-17: FCM tokens not to send to (iPhones already rung by
    * a VoIP push — no double ring). */
   skipTokens?: string[];
+  /** Owner 2026-10-20: notifications sharing a key replace each other on the
+   * phone (Android tag + collapse key, iOS collapse id + thread id) — one
+   * alert per message however many reactions or edits follow. */
+  collapseKey?: string;
 }
 
 export type PushSoundKind = 'message' | 'notification';

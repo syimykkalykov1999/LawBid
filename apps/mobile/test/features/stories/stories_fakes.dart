@@ -242,8 +242,10 @@ class FakeReplyChat implements ChatRepository {
   Future<ChatMessage> send(
     String id,
     String clientMessageId,
-    String body,
-  ) async {
+    String body, {
+    bool forwarded = false,
+    String? replyToId,
+  }) async {
     sent.add((conversationId: id, clientId: clientMessageId, body: body));
     return ChatMessage(
       id: 'm1',
