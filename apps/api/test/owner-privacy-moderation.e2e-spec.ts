@@ -6,6 +6,8 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
+import { RealtimeGateway } from '../src/modules/realtime/realtime.gateway';
+import { PrivacySettingsService } from '../src/modules/privacy-settings/privacy-settings.service';
 import { ModerationAppealsService } from '../src/modules/moderation/moderation-appeals.service';
 import type { AdminActor } from '../src/modules/admin-auth/admin-auth.decorators';
 
@@ -84,6 +86,9 @@ describe('Privacy settings and moderation appeals (e2e, owner 2026-10-20)', () =
       lastSeen: 'everyone',
       messageFrom: 'everyone',
       callFrom: 'everyone',
+      photoFrom: 'everyone',
+      aboutFrom: 'everyone',
+      groupAddFrom: 'everyone',
     });
     const put = await api()
       .put('/api/v1/users/me/privacy')
@@ -94,6 +99,9 @@ describe('Privacy settings and moderation appeals (e2e, owner 2026-10-20)', () =
       lastSeen: 'nobody',
       messageFrom: 'contacts',
       callFrom: 'everyone',
+      photoFrom: 'everyone',
+      aboutFrom: 'everyone',
+      groupAddFrom: 'everyone',
     });
     const flag = await api()
       .get('/api/v1/users/me/activity-status')
@@ -327,5 +335,141 @@ describe('Privacy settings and moderation appeals (e2e, owner 2026-10-20)', () =
     expect(notice?.payload).toMatchObject({ action: 'appeal_accepted' });
     const journal = await appeals.journal({});
     expect(journal.items.some((j) => j.id === action.id)).toBe(true);
+  });
+
+  it('"about" is hidden from non-contacts; "who adds me to groups" is enforced', async () => {
+    const owner = await person('attorney', 'Olga');
+    const friend = await person('client', 'Fred');
+    const stranger = await person('client', 'Sam');
+    const username = `pm_${owner.id.slice(0, 8)}`;
+    await prisma.attorneyProfile.update({
+      where: { user_id: owner.id },
+      data: { bio: 'Criminal defence for 15 years.' },
+    });
+    await prisma.contactMatch.create({
+      data: { owner_id: owner.id, matched_id: friend.id },
+    });
+    const bioFor = async (viewer: { auth: Record<string, string> }) =>
+      (
+        await api()
+          .get(`/api/v1/attorneys/${username}`)
+          .set(viewer.auth)
+          .expect(200)
+      ).body.data.bio as string | null;
+    expect(await bioFor(stranger)).toBe('Criminal defence for 15 years.');
+    const put = await api()
+      .put('/api/v1/users/me/privacy')
+      .set(owner.auth)
+      .send({
+        aboutFrom: 'contacts',
+        photoFrom: 'nobody',
+        groupAddFrom: 'contacts',
+      })
+      .expect(200);
+    expect(put.body.data).toMatchObject({
+      aboutFrom: 'contacts',
+      photoFrom: 'nobody',
+      groupAddFrom: 'contacts',
+    });
+    expect(await bioFor(stranger)).toBeNull();
+    expect(await bioFor(friend)).toBe('Criminal defence for 15 years.');
+    expect(await bioFor(owner)).toBe('Criminal defence for 15 years.');
+
+    const privacy = app.get(PrivacySettingsService);
+    await expect(
+      privacy.assertAllowed(stranger.id, owner.id, 'group'),
+    ).rejects.toMatchObject({ response: { code: 'PRIVACY_RESTRICTED' } });
+    await expect(
+      privacy.assertAllowed(friend.id, owner.id, 'group'),
+    ).resolves.toBeUndefined();
+    await expect(privacy.allows(stranger.id, owner.id, 'group')).resolves.toBe(
+      false,
+    );
+  });
+
+  it('presence: a watcher who is no longer allowed is dropped from the room', async () => {
+    const owner = await person('client', 'Pia');
+    const friend = await person('client', 'Finn');
+    const stranger = await person('client', 'Sven');
+    await prisma.user.updateMany({
+      where: { id: { in: [owner.id, friend.id, stranger.id] } },
+      data: { show_activity_status: true },
+    });
+    await prisma.contactMatch.create({
+      data: { owner_id: owner.id, matched_id: friend.id },
+    });
+    await app
+      .get(PrivacySettingsService)
+      .update(owner.id, { lastSeen: 'contacts' });
+    const sockets = [friend, stranger].map((p) => ({
+      data: { user: { sub: p.id } },
+      emit: jest.fn(),
+      leave: jest.fn(),
+    }));
+    const gateway = app.get(RealtimeGateway);
+    gateway.nsp = {
+      in: () => ({ fetchSockets: () => Promise.resolve(sockets) }),
+    };
+    await gateway.announce(owner.id, true, null);
+    expect(sockets[0].emit).toHaveBeenCalledWith(
+      'presence:update',
+      expect.objectContaining({ userId: owner.id, online: true }),
+    );
+    expect(sockets[0].leave).not.toHaveBeenCalled();
+    expect(sockets[1].emit).not.toHaveBeenCalled();
+    expect(sockets[1].leave).toHaveBeenCalledWith(`presence:${owner.id}`);
+  });
+
+  it('appeals: two moderators at once restore and notify only once', async () => {
+    const author = await person('attorney', 'Ada');
+    const post = await prisma.post.create({
+      data: { author_id: author.id, body: 'Text', status: 'hidden' },
+    });
+    const admin = await prisma.user.create({
+      data: { role: 'client', first_name: 'Mod', last_name: 'Two' },
+    });
+    const action = await prisma.moderationAction.create({
+      data: {
+        admin_id: admin.id,
+        target_type: 'post',
+        target_id: post.id,
+        action: 'hide',
+        reason: 'x',
+      },
+    });
+    await api()
+      .post('/api/v1/moderation/appeals')
+      .set(author.auth)
+      .send({ actionId: action.id, message: 'Please look again.' })
+      .expect(201);
+    const appeals = app.get(ModerationAppealsService);
+    const item = (await appeals.queue({ status: 'pending' }, null)).items.find(
+      (i) => i.targetId === post.id,
+    )!;
+    const actor = {
+      id: admin.id,
+      adminRole: 'super_admin',
+      sessionId: randomUUID(),
+      justification: null,
+      ip: null,
+    } as unknown as AdminActor;
+    const results = await Promise.allSettled([
+      appeals.decide(actor, item.id, true, 'A'),
+      appeals.decide(actor, item.id, true, 'B'),
+    ]);
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    const notices = await prisma.notification.findMany({
+      where: { user_id: author.id, type: 'moderation_notice' },
+    });
+    expect(
+      notices.filter(
+        (n) => (n.payload as { action?: string }).action === 'appeal_accepted',
+      ),
+    ).toHaveLength(1);
+    expect(
+      await prisma.moderationAction.count({
+        where: { target_id: post.id, action: 'restore' },
+      }),
+    ).toBe(1);
   });
 });

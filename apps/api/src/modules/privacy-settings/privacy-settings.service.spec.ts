@@ -124,6 +124,9 @@ describe('PrivacySettingsService (owner 2026-10-20)', () => {
       lastSeen: 'everyone',
       messageFrom: 'everyone',
       callFrom: 'everyone',
+      photoFrom: 'everyone',
+      aboutFrom: 'everyone',
+      groupAddFrom: 'everyone',
     });
     await expect(s.assertAllowed('x', 'a', 'message')).resolves.toBeUndefined();
   });

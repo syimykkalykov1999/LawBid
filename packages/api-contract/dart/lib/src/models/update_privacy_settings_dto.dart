@@ -14,6 +14,9 @@ class UpdatePrivacySettingsDto {
     this.lastSeen,
     this.messageFrom,
     this.callFrom,
+    this.photoFrom,
+    this.aboutFrom,
+    this.groupAddFrom,
   });
 
   factory UpdatePrivacySettingsDto.fromJson(Map<String, Object?> json) =>
@@ -22,6 +25,9 @@ class UpdatePrivacySettingsDto {
   final PrivacyAudience? lastSeen;
   final PrivacyAudience? messageFrom;
   final PrivacyAudience? callFrom;
+  final PrivacyAudience? photoFrom;
+  final PrivacyAudience? aboutFrom;
+  final PrivacyAudience? groupAddFrom;
 
   Map<String, Object?> toJson() => _$UpdatePrivacySettingsDtoToJson(this);
 }

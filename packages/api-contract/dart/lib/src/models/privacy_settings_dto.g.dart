@@ -11,6 +11,9 @@ PrivacySettingsDto _$PrivacySettingsDtoFromJson(Map<String, dynamic> json) =>
       lastSeen: PrivacyAudience.fromJson(json['lastSeen'] as String),
       messageFrom: PrivacyAudience.fromJson(json['messageFrom'] as String),
       callFrom: PrivacyAudience.fromJson(json['callFrom'] as String),
+      photoFrom: PrivacyAudience.fromJson(json['photoFrom'] as String),
+      aboutFrom: PrivacyAudience.fromJson(json['aboutFrom'] as String),
+      groupAddFrom: PrivacyAudience.fromJson(json['groupAddFrom'] as String),
     );
 
 Map<String, dynamic> _$PrivacySettingsDtoToJson(PrivacySettingsDto instance) =>
@@ -18,4 +21,7 @@ Map<String, dynamic> _$PrivacySettingsDtoToJson(PrivacySettingsDto instance) =>
       'lastSeen': instance.lastSeen.toJson(),
       'messageFrom': instance.messageFrom.toJson(),
       'callFrom': instance.callFrom.toJson(),
+      'photoFrom': instance.photoFrom.toJson(),
+      'aboutFrom': instance.aboutFrom.toJson(),
+      'groupAddFrom': instance.groupAddFrom.toJson(),
     };

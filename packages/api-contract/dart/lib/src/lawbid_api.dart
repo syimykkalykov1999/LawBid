@@ -37,6 +37,7 @@ import 'clients/users_client.dart';
 import 'clients/admin_analytics_client.dart';
 import 'clients/app_events_client.dart';
 import 'clients/blocks_client.dart';
+import 'clients/privacy_client.dart';
 import 'clients/comments_client.dart';
 import 'clients/case_comments_client.dart';
 import 'clients/cases_client.dart';
@@ -45,7 +46,6 @@ import 'clients/invites_client.dart';
 import 'clients/admin_contact_issues_client.dart';
 import 'clients/admin_case_disputes_client.dart';
 import 'clients/presence_client.dart';
-import 'clients/privacy_client.dart';
 import 'clients/admin_content_client.dart';
 import 'clients/admin_media_client.dart';
 import 'clients/admin_search_client.dart';
@@ -151,6 +151,7 @@ class LawbidApi {
   AdminAnalyticsClient? _adminAnalytics;
   AppEventsClient? _appEvents;
   BlocksClient? _blocks;
+  PrivacyClient? _privacy;
   CommentsClient? _comments;
   CaseCommentsClient? _caseComments;
   CasesClient? _cases;
@@ -159,7 +160,6 @@ class LawbidApi {
   AdminContactIssuesClient? _adminContactIssues;
   AdminCaseDisputesClient? _adminCaseDisputes;
   PresenceClient? _presence;
-  PrivacyClient? _privacy;
   AdminContentClient? _adminContent;
   AdminMediaClient? _adminMedia;
   AdminSearchClient? _adminSearch;
@@ -310,6 +310,9 @@ class LawbidApi {
 
   BlocksClient get blocks => _blocks ??= BlocksClient(_dio, baseUrl: _baseUrl);
 
+  PrivacyClient get privacy =>
+      _privacy ??= PrivacyClient(_dio, baseUrl: _baseUrl);
+
   CommentsClient get comments =>
       _comments ??= CommentsClient(_dio, baseUrl: _baseUrl);
 
@@ -331,9 +334,6 @@ class LawbidApi {
 
   PresenceClient get presence =>
       _presence ??= PresenceClient(_dio, baseUrl: _baseUrl);
-
-  PrivacyClient get privacy =>
-      _privacy ??= PrivacyClient(_dio, baseUrl: _baseUrl);
 
   AdminContentClient get adminContent =>
       _adminContent ??= AdminContentClient(_dio, baseUrl: _baseUrl);

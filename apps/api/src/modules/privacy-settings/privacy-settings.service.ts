@@ -9,12 +9,18 @@ export interface PrivacySettings {
   lastSeen: PrivacyAudience;
   messageFrom: PrivacyAudience;
   callFrom: PrivacyAudience;
+  photoFrom: PrivacyAudience;
+  aboutFrom: PrivacyAudience;
+  groupAddFrom: PrivacyAudience;
 }
 
 export const DEFAULT_PRIVACY: PrivacySettings = {
   lastSeen: 'everyone',
   messageFrom: 'everyone',
   callFrom: 'everyone',
+  photoFrom: 'everyone',
+  aboutFrom: 'everyone',
+  groupAddFrom: 'everyone',
 };
 
 /**
@@ -36,6 +42,9 @@ export class PrivacySettingsService {
           lastSeen: row.last_seen,
           messageFrom: row.message_from,
           callFrom: row.call_from,
+          photoFrom: row.photo_from,
+          aboutFrom: row.about_from,
+          groupAddFrom: row.group_add_from,
         }
       : DEFAULT_PRIVACY;
   }
@@ -48,6 +57,9 @@ export class PrivacySettingsService {
       ...(patch.lastSeen ? { last_seen: patch.lastSeen } : {}),
       ...(patch.messageFrom ? { message_from: patch.messageFrom } : {}),
       ...(patch.callFrom ? { call_from: patch.callFrom } : {}),
+      ...(patch.photoFrom ? { photo_from: patch.photoFrom } : {}),
+      ...(patch.aboutFrom ? { about_from: patch.aboutFrom } : {}),
+      ...(patch.groupAddFrom ? { group_add_from: patch.groupAddFrom } : {}),
     };
     await this.prisma.$transaction(async (tx) => {
       await tx.userPrivacySettings.upsert({
@@ -103,21 +115,50 @@ export class PrivacySettingsService {
    * Which of [ownerIds] let [viewerId] see their last seen. A person who
    * never opened the screen shows it to everyone.
    */
-  async lastSeenVisibleTo(
+  lastSeenVisibleTo(
     viewerId: string,
     ownerIds: string[],
   ): Promise<Set<string>> {
+    return this.visibleTo(viewerId, ownerIds, 'last_seen');
+  }
+
+  /**
+   * Which of [ownerIds] let [viewerId] see their profile photo / "about"
+   * (the viewer always sees their own).
+   */
+  visibleTo(
+    viewerId: string,
+    ownerIds: string[],
+    field: 'last_seen' | 'photo_from' | 'about_from',
+  ): Promise<Set<string>> {
+    return this.audienceAllows(viewerId, ownerIds, field);
+  }
+
+  private async audienceAllows(
+    viewerId: string,
+    ownerIds: string[],
+    field: 'last_seen' | 'photo_from' | 'about_from',
+  ): Promise<Set<string>> {
+    if (ownerIds.length === 0) return new Set();
     const rows = await this.prisma.userPrivacySettings.findMany({
       where: { user_id: { in: ownerIds } },
-      select: { user_id: true, last_seen: true },
+      select: {
+        user_id: true,
+        last_seen: true,
+        photo_from: true,
+        about_from: true,
+      },
     });
-    const audience = new Map(rows.map((r) => [r.user_id, r.last_seen]));
+    const audience = new Map<string, PrivacyAudience>(
+      rows.map((r) => [r.user_id, r[field]]),
+    );
     const needContact = ownerIds.filter(
       (id) => audience.get(id) === 'contacts',
     );
     const contacts = await this.contactsAmong(viewerId, needContact);
     return new Set(
       ownerIds.filter((id) => {
+        if (id === viewerId) return true;
         const a = audience.get(id) ?? 'everyone';
         return a === 'everyone' || (a === 'contacts' && contacts.has(id));
       }),
@@ -146,18 +187,39 @@ export class PrivacySettingsService {
     ]);
   }
 
+  /** Non-throwing [assertAllowed]. */
+  async allows(
+    actorId: string,
+    targetId: string,
+    what: 'message' | 'call' | 'group',
+  ): Promise<boolean> {
+    try {
+      await this.assertAllowed(actorId, targetId, what);
+      return true;
+    } catch (e) {
+      if (e instanceof ForbiddenException) return false;
+      throw e;
+    }
+  }
+
   /**
    * 403 PRIVACY_RESTRICTED when [targetId]'s settings keep [actorId] from
-   * [what] ("message" starts a chat, "call" rings them).
+   * [what] ("message" starts a chat, "call" rings them, "group" adds them
+   * to a group chat — for the groups module to call per invited person).
    */
   async assertAllowed(
     actorId: string,
     targetId: string,
-    what: 'message' | 'call',
+    what: 'message' | 'call' | 'group',
   ): Promise<void> {
     if (actorId === targetId) return;
     const s = await this.get(targetId);
-    const audience = what === 'message' ? s.messageFrom : s.callFrom;
+    const audience =
+      what === 'message'
+        ? s.messageFrom
+        : what === 'call'
+          ? s.callFrom
+          : s.groupAddFrom;
     if (audience === 'everyone') return;
     if (audience === 'contacts' && (await this.isContactOf(targetId, actorId)))
       return;
@@ -166,7 +228,9 @@ export class PrivacySettingsService {
       message:
         what === 'message'
           ? 'This person does not accept new chats from you.'
-          : 'This person does not accept calls from you.',
+          : what === 'call'
+            ? 'This person does not accept calls from you.'
+            : 'This person does not let you add them to groups.',
       details: { what },
     });
   }

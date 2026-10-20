@@ -849,6 +849,9 @@ erDiagram
     enum_PrivacyAudience last_seen
     enum_PrivacyAudience message_from
     enum_PrivacyAudience call_from
+    enum_PrivacyAudience photo_from
+    enum_PrivacyAudience about_from
+    enum_PrivacyAudience group_add_from
     DateTime updated_at
   }
   moderation_appeals {

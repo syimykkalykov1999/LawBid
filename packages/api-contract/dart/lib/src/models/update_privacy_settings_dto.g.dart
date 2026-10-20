@@ -18,6 +18,15 @@ UpdatePrivacySettingsDto _$UpdatePrivacySettingsDtoFromJson(
   callFrom: json['callFrom'] == null
       ? null
       : PrivacyAudience.fromJson(json['callFrom'] as String),
+  photoFrom: json['photoFrom'] == null
+      ? null
+      : PrivacyAudience.fromJson(json['photoFrom'] as String),
+  aboutFrom: json['aboutFrom'] == null
+      ? null
+      : PrivacyAudience.fromJson(json['aboutFrom'] as String),
+  groupAddFrom: json['groupAddFrom'] == null
+      ? null
+      : PrivacyAudience.fromJson(json['groupAddFrom'] as String),
 );
 
 Map<String, dynamic> _$UpdatePrivacySettingsDtoToJson(
@@ -26,4 +35,7 @@ Map<String, dynamic> _$UpdatePrivacySettingsDtoToJson(
   'lastSeen': ?instance.lastSeen?.toJson(),
   'messageFrom': ?instance.messageFrom?.toJson(),
   'callFrom': ?instance.callFrom?.toJson(),
+  'photoFrom': ?instance.photoFrom?.toJson(),
+  'aboutFrom': ?instance.aboutFrom?.toJson(),
+  'groupAddFrom': ?instance.groupAddFrom?.toJson(),
 };

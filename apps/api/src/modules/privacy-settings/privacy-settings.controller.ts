@@ -31,6 +31,15 @@ export class PrivacySettingsDto {
 
   @ApiProperty({ enum: AUDIENCES, enumName: 'PrivacyAudience' })
   callFrom!: Audience;
+
+  @ApiProperty({ enum: AUDIENCES, enumName: 'PrivacyAudience' })
+  photoFrom!: Audience;
+
+  @ApiProperty({ enum: AUDIENCES, enumName: 'PrivacyAudience' })
+  aboutFrom!: Audience;
+
+  @ApiProperty({ enum: AUDIENCES, enumName: 'PrivacyAudience' })
+  groupAddFrom!: Audience;
 }
 
 export class UpdatePrivacySettingsDto {
@@ -48,6 +57,21 @@ export class UpdatePrivacySettingsDto {
   @IsOptional()
   @IsEnum(AUDIENCES)
   callFrom?: Audience;
+
+  @ApiPropertyOptional({ enum: AUDIENCES, enumName: 'PrivacyAudience' })
+  @IsOptional()
+  @IsEnum(AUDIENCES)
+  photoFrom?: Audience;
+
+  @ApiPropertyOptional({ enum: AUDIENCES, enumName: 'PrivacyAudience' })
+  @IsOptional()
+  @IsEnum(AUDIENCES)
+  aboutFrom?: Audience;
+
+  @ApiPropertyOptional({ enum: AUDIENCES, enumName: 'PrivacyAudience' })
+  @IsOptional()
+  @IsEnum(AUDIENCES)
+  groupAddFrom?: Audience;
 }
 
 /** Owner 2026-10-20: Settings → Privacy (who sees last seen, writes, calls). */

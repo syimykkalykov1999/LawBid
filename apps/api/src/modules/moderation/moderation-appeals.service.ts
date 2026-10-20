@@ -309,24 +309,9 @@ export class ModerationAppealsService {
         message: 'This appeal was already decided.',
       });
     }
-    if (accept) {
-      const target = await this.moderation.resolve(
-        appeal.target_type,
-        appeal.target_id,
-      );
-      // Already published again (restored from the queue meanwhile): nothing
-      // to restore, the appeal is still accepted.
-      if (target && target.status !== 'published') {
-        await this.adminModeration.act(
-          admin,
-          appeal.target_type,
-          appeal.target_id,
-          'restore',
-          `Appeal accepted: ${note}`,
-        );
-      }
-    }
     const status: AppealStatusName = accept ? 'accepted' : 'rejected';
+    // Claim the appeal first: two moderators at once, the second one finds
+    // it decided and never restores (or notifies) twice.
     const claimed = await this.prisma.moderationAppeal.updateMany({
       where: { id, status: 'pending' },
       data: {
@@ -336,12 +321,42 @@ export class ModerationAppealsService {
         decision_note: note,
       },
     });
-    // Two moderators at once: the second one finds it decided.
     if (claimed.count === 0) {
       throw new ConflictException({
         code: ErrorCode.APPEAL_NOT_ALLOWED,
         message: 'This appeal was already decided.',
       });
+    }
+    if (accept) {
+      try {
+        const target = await this.moderation.resolve(
+          appeal.target_type,
+          appeal.target_id,
+        );
+        // Already published again (restored from the queue meanwhile):
+        // nothing to restore, the appeal is still accepted.
+        if (target && target.status !== 'published') {
+          await this.adminModeration.act(
+            admin,
+            appeal.target_type,
+            appeal.target_id,
+            'restore',
+            `Appeal accepted: ${note}`,
+          );
+        }
+      } catch (e) {
+        // The restore failed: the appeal goes back to the queue.
+        await this.prisma.moderationAppeal.updateMany({
+          where: { id, status },
+          data: {
+            status: 'pending',
+            decided_by: null,
+            decided_at: null,
+            decision_note: null,
+          },
+        });
+        throw e;
+      }
     }
     await this.audit.record({
       adminId: admin.id,

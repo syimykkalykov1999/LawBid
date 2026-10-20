@@ -2602,12 +2602,16 @@ enum PrivacyAudience {
 }
 
 model UserPrivacySettings {
-  user_id      String          @id @db.Uuid
-  user         User            @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "user_privacy_settings_user_fkey")
-  last_seen    PrivacyAudience @default(everyone)
-  message_from PrivacyAudience @default(everyone)
-  call_from    PrivacyAudience @default(everyone)
-  updated_at   DateTime        @updatedAt @db.Timestamptz
+  user_id        String          @id @db.Uuid
+  user           User            @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "user_privacy_settings_user_fkey")
+  last_seen      PrivacyAudience @default(everyone)
+  message_from   PrivacyAudience @default(everyone)
+  call_from      PrivacyAudience @default(everyone)
+  // Who sees my profile photo / my "about", and who may add me to a group.
+  photo_from     PrivacyAudience @default(everyone)
+  about_from     PrivacyAudience @default(everyone)
+  group_add_from PrivacyAudience @default(everyone)
+  updated_at     DateTime        @updatedAt @db.Timestamptz
 
   @@map("user_privacy_settings")
 }

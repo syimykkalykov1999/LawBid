@@ -26219,6 +26219,148 @@
         ]
       }
     },
+    "/users/me/privacy": {
+      "get": {
+        "operationId": "getPrivacySettings",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrivacySettingsEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "My privacy settings",
+        "tags": [
+          "privacy"
+        ]
+      },
+      "put": {
+        "operationId": "updatePrivacySettings",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePrivacySettingsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrivacySettingsEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Change my privacy settings (any subset)",
+        "tags": [
+          "privacy"
+        ]
+      }
+    },
     "/posts/{id}/comments": {
       "get": {
         "operationId": "listComments",
@@ -33444,148 +33586,6 @@
         "summary": "Show / hide my activity status",
         "tags": [
           "presence"
-        ]
-      }
-    },
-    "/users/me/privacy": {
-      "get": {
-        "operationId": "getPrivacySettings",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "Success envelope (docs/01 §7).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PrivacySettingsEnvelope"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "426": {
-            "description": "Upgrade required: APP_UPDATE_REQUIRED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests: RATE_LIMITED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal error: INTERNAL_ERROR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "My privacy settings",
-        "tags": [
-          "privacy"
-        ]
-      },
-      "put": {
-        "operationId": "updatePrivacySettings",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdatePrivacySettingsDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Success envelope (docs/01 §7).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PrivacySettingsEnvelope"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "426": {
-            "description": "Upgrade required: APP_UPDATE_REQUIRED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests: RATE_LIMITED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal error: INTERNAL_ERROR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Change my privacy settings (any subset)",
-        "tags": [
-          "privacy"
         ]
       }
     },
@@ -100953,6 +100953,130 @@
           "data"
         ]
       },
+      "PrivacyAudience": {
+        "type": "string",
+        "enum": [
+          "everyone",
+          "contacts",
+          "nobody"
+        ]
+      },
+      "PrivacySettingsDto": {
+        "type": "object",
+        "properties": {
+          "lastSeen": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PrivacyAudience"
+              }
+            ]
+          },
+          "messageFrom": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PrivacyAudience"
+              }
+            ]
+          },
+          "callFrom": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PrivacyAudience"
+              }
+            ]
+          },
+          "photoFrom": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PrivacyAudience"
+              }
+            ]
+          },
+          "aboutFrom": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PrivacyAudience"
+              }
+            ]
+          },
+          "groupAddFrom": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PrivacyAudience"
+              }
+            ]
+          }
+        },
+        "required": [
+          "lastSeen",
+          "messageFrom",
+          "callFrom",
+          "photoFrom",
+          "aboutFrom",
+          "groupAddFrom"
+        ]
+      },
+      "PrivacySettingsEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PrivacySettingsDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "UpdatePrivacySettingsDto": {
+        "type": "object",
+        "properties": {
+          "lastSeen": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PrivacyAudience"
+              }
+            ]
+          },
+          "messageFrom": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PrivacyAudience"
+              }
+            ]
+          },
+          "callFrom": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PrivacyAudience"
+              }
+            ]
+          },
+          "photoFrom": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PrivacyAudience"
+              }
+            ]
+          },
+          "aboutFrom": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PrivacyAudience"
+              }
+            ]
+          },
+          "groupAddFrom": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PrivacyAudience"
+              }
+            ]
+          }
+        }
+      },
       "CommentAuthorDto": {
         "type": "object",
         "properties": {
@@ -104698,85 +104822,6 @@
         "required": [
           "data"
         ]
-      },
-      "PrivacyAudience": {
-        "type": "string",
-        "enum": [
-          "everyone",
-          "contacts",
-          "nobody"
-        ]
-      },
-      "PrivacySettingsDto": {
-        "type": "object",
-        "properties": {
-          "lastSeen": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/PrivacyAudience"
-              }
-            ]
-          },
-          "messageFrom": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/PrivacyAudience"
-              }
-            ]
-          },
-          "callFrom": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/PrivacyAudience"
-              }
-            ]
-          }
-        },
-        "required": [
-          "lastSeen",
-          "messageFrom",
-          "callFrom"
-        ]
-      },
-      "PrivacySettingsEnvelope": {
-        "type": "object",
-        "properties": {
-          "data": {
-            "$ref": "#/components/schemas/PrivacySettingsDto"
-          },
-          "meta": {
-            "$ref": "#/components/schemas/ResponseMetaDto"
-          }
-        },
-        "required": [
-          "data"
-        ]
-      },
-      "UpdatePrivacySettingsDto": {
-        "type": "object",
-        "properties": {
-          "lastSeen": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/PrivacyAudience"
-              }
-            ]
-          },
-          "messageFrom": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/PrivacyAudience"
-              }
-            ]
-          },
-          "callFrom": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/PrivacyAudience"
-              }
-            ]
-          }
-        }
       },
       "AdminOverviewDto": {
         "type": "object",

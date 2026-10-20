@@ -156,7 +156,8 @@ export class CallsService {
     const callee =
       user.sub === conv.attorney_id ? conv.client_id : conv.attorney_id;
     // OQ-028: except the chat of a case in progress.
-    if (!(await caseWorkOngoing(this.prisma, conv))) {
+    const caseWork = await caseWorkOngoing(this.prisma, conv);
+    if (!caseWork) {
       await this.blocks.assertNotBlocked(user.sub, callee);
       await this.privacy?.assertAllowed(user.sub, callee, 'call');
     }
@@ -207,7 +208,21 @@ export class CallsService {
     });
     // OQ-048: a call to the attorney also rings assistants who hold the
     // "calls" duty (their own devices; whoever answers takes it).
-    const ringing = [callee, ...(await this.callAssistants(callee))];
+    // Owner 2026-10-20: an assistant's own "who can call me" applies too
+    // (not for a case in work).
+    const helpers = await this.callAssistants(callee);
+    const reachable = caseWork
+      ? helpers
+      : (
+          await Promise.all(
+            helpers.map(async (h) =>
+              (await this.privacy?.allows(user.sub, h, 'call')) === false
+                ? null
+                : h,
+            ),
+          )
+        ).filter((h): h is string => h !== null);
+    const ringing = [callee, ...reachable];
     const incoming = { call: await this.toDto(call, callee) };
     this.realtime.toUsers(ringing, 'call:incoming', incoming);
     for (const recipientId of ringing) {
