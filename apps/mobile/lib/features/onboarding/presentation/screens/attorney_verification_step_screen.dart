@@ -401,6 +401,7 @@ class _SubscriptionStageState extends ConsumerState<_SubscriptionStage> {
               features: yearlyFeatures(
                 t,
                 formats.currencyFromCents(overview.prices.yearlySavingsCents),
+                savingsCents: overview.prices.yearlySavingsCents,
               ),
               status: _plan == SubscriptionPlan.yearly
                   ? t.t('plans.status.selected')
