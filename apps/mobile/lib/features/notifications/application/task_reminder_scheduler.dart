@@ -11,8 +11,9 @@ import 'package:timezone/timezone.dart' as tz;
 /// Owner 2026-10-20 («будильники как часики»): the planner's safety net on
 /// the phone. Every task with a reminder also gets a local alarm, so a
 /// reminder arrives with no network and when a push is late or lost.
-/// Android: inexact (no exact-alarm permission), the push replaces the
-/// alarm's notification under the same id. iPhone: an exact time-sensitive
+/// Android: exact when the person allowed it, else inexact; the push
+/// replaces the alarm's notification under the same id. iPhone: an exact
+/// time-sensitive
 /// calendar alarm (iOS keeps at most 64 pending, so only the nearest
 /// [maxArmedReminders]
 /// are armed); the server also sends it the visible push (iOS does not wake
@@ -131,12 +132,20 @@ abstract class LocalNotificationsGateway {
   /// Ids of the notifications of this app that are on screen now.
   Future<Set<int>> active();
 
+  /// Whether the phone lets the app set exact alarms (Android 12+ asks the
+  /// person; always false elsewhere).
+  Future<bool> exactAllowed();
+
+  /// Opens the system screen where the person allows exact alarms.
+  Future<void> askExact();
+
   Future<void> schedule({
     required int id,
     required DateTime at,
     required String title,
     required String body,
     required String payload,
+    bool exact = false,
   });
 
   Future<void> show({
@@ -219,6 +228,19 @@ class PluginNotificationsGateway implements LocalNotificationsGateway {
     };
   }
 
+  AndroidFlutterLocalNotificationsPlugin? get _android =>
+      _plugin.resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>();
+
+  @override
+  Future<bool> exactAllowed() async =>
+      await _android?.canScheduleExactNotifications() ?? false;
+
+  @override
+  Future<void> askExact() async {
+    await _android?.requestExactAlarmsPermission();
+  }
+
   @override
   Future<void> schedule({
     required int id,
@@ -226,6 +248,7 @@ class PluginNotificationsGateway implements LocalNotificationsGateway {
     required String title,
     required String body,
     required String payload,
+    bool exact = false,
   }) =>
       _plugin.zonedSchedule(
         id: id,
@@ -235,9 +258,12 @@ class PluginNotificationsGateway implements LocalNotificationsGateway {
         body: body,
         payload: payload,
         notificationDetails: _details,
-        // Inexact: no SCHEDULE_EXACT_ALARM; Android may move it by a few
-        // minutes, never lose it (and the push is the exact one).
-        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        // Exact when the person allowed it (a reminder at 12:01 rings at
+        // 12:01); otherwise Android may move it by a few minutes, never lose
+        // it (and the push is the exact one).
+        androidScheduleMode: exact
+            ? AndroidScheduleMode.exactAllowWhileIdle
+            : AndroidScheduleMode.inexactAllowWhileIdle,
       );
 
   @override
@@ -277,6 +303,13 @@ class TaskReminderScheduler {
   Future<void> init({required void Function(String? payload) onTap}) =>
       _gateway.init(onTap: onTap);
 
+  /// The alarms were armed exact on the last [sync].
+  bool _armedExact = false;
+
+  Future<bool> exactAllowed() => _gateway.exactAllowed();
+
+  Future<void> askExact() => _gateway.askExact();
+
   Future<String?> launchPayload() => _gateway.launchPayload();
 
   /// Brings the alarms in line with [slots]: new and moved reminders are
@@ -288,7 +321,11 @@ class TaskReminderScheduler {
     String Function(ReminderSlot) body,
   ) {
     return _queue = _queue.catchError((Object _) {}).then((_) async {
-      final armed = await _gateway.pending();
+      final exact = await _gateway.exactAllowed();
+      var armed = await _gateway.pending();
+      // The person just allowed exact alarms: every alarm is armed again.
+      if (exact && !_armedExact) armed = {};
+      _armedExact = exact;
       final wanted = <int>{};
       for (final s in slots) {
         final id = reminderNotificationId(s.taskId);
@@ -307,6 +344,7 @@ class TaskReminderScheduler {
           title: title(s),
           body: body(s),
           payload: payload,
+          exact: exact,
         );
       }
       for (final id in armed.keys) {
