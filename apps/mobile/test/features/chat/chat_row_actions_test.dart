@@ -153,11 +153,24 @@ void main() {
       (tester) async {
     final repo = await pump(tester, _conv(last: _msg()));
     final row = find.byKey(const ValueKey('chat-swipe-c1'));
-    await tester.drag(row, const Offset(300, 0));
+    final rect = tester.getRect(row);
+    // From the middle of the row nothing happens: the swipe belongs to the
+    // sections.
+    await tester.dragFrom(rect.center, const Offset(200, 0));
+    await tester.pumpAndSettle();
+    expect(repo.calls.where((c) => c.startsWith('organize')), isEmpty);
+    // From the leading edge: pin; from the trailing edge: mute.
+    await tester.dragFrom(
+      Offset(rect.left + 8, rect.center.dy),
+      const Offset(200, 0),
+    );
     await tester.pumpAndSettle();
     expect(repo.calls, contains('organize pinned=true hidden=null'));
     expect(find.text('Anna Petrova'), findsOneWidget);
-    await tester.drag(row, const Offset(-300, 0));
+    await tester.dragFrom(
+      Offset(rect.right - 8, rect.center.dy),
+      const Offset(-200, 0),
+    );
     await tester.pumpAndSettle();
     expect(repo.calls, contains('mute on'));
     await tester.pumpWidget(const SizedBox());
@@ -210,10 +223,17 @@ void main() {
       groups: [listGroup('g1', unread: 2)],
     );
     final row = find.byKey(const ValueKey('chat-swipe-g1'));
-    await tester.drag(row, const Offset(300, 0));
+    final rect = tester.getRect(row);
+    await tester.dragFrom(
+      Offset(rect.left + 8, rect.center.dy),
+      const Offset(200, 0),
+    );
     await tester.pumpAndSettle();
     expect(lastGroups.updates.any((u) => u.contains('pinned=true')), isTrue);
-    await tester.drag(row, const Offset(-300, 0));
+    await tester.dragFrom(
+      Offset(rect.right - 8, rect.center.dy),
+      const Offset(-200, 0),
+    );
     await tester.pumpAndSettle();
     expect(lastGroups.updates.any((u) => u.contains('muted=true')), isTrue);
     await tester.longPress(find.byKey(const ValueKey('group-tile-g1')));
