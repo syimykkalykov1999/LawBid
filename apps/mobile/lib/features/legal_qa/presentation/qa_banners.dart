@@ -12,8 +12,12 @@ class _QaLine extends StatelessWidget {
     required this.text,
     required this.onTap,
     this.subtitle,
+    this.prominent = false,
     super.key,
   });
+
+  /// The feed card: edge to edge, a warmer fill and border, bold text.
+  final bool prominent;
 
   final String text;
   final String? subtitle;
@@ -24,13 +28,19 @@ class _QaLine extends StatelessWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     return Material(
-      color: colors.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppRadii.card),
-        side: BorderSide(color: colors.border),
-      ),
+      color: prominent
+          ? Color.alphaBlend(
+              colors.gold.withValues(alpha: 0.14), colors.surface,)
+          : colors.surface,
+      shape: prominent
+          ? Border.symmetric(
+              horizontal: BorderSide(color: colors.gold.withValues(alpha: 0.6)),
+            )
+          : RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppRadii.card),
+              side: BorderSide(color: colors.border),
+            ),
       child: InkWell(
-        borderRadius: BorderRadius.circular(AppRadii.card),
         onTap: onTap,
         child: ConstrainedBox(
           constraints: const BoxConstraints(minHeight: 56),
@@ -45,7 +55,8 @@ class _QaLine extends StatelessWidget {
                 DecoratedBox(
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: colors.gold.withValues(alpha: 0.16),
+                    color:
+                        colors.gold.withValues(alpha: prominent ? 0.34 : 0.16),
                   ),
                   child: Padding(
                     padding: const EdgeInsets.all(AppSpacing.xs),
@@ -66,7 +77,8 @@ class _QaLine extends StatelessWidget {
                         maxLines: 2,
                         style: type.bodySmall.copyWith(
                           color: colors.text,
-                          fontWeight: FontWeight.w600,
+                          fontWeight:
+                              prominent ? FontWeight.w700 : FontWeight.w600,
                         ),
                       ),
                       if (subtitle != null)
@@ -112,11 +124,9 @@ class QaNewQuestionsBanner extends ConsumerWidget {
       onDismissed: (_) =>
           ref.read(qaBannerLastUsedProvider.notifier).markUsed(),
       child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.screenSide,
-          vertical: AppSpacing.xs,
-        ),
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
         child: _QaLine(
+          prominent: true,
           text: t.t('qa.new.banner', {'count': '$count'}),
           onTap: () {
             ref.read(qaBannerLastUsedProvider.notifier).markUsed();
