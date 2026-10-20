@@ -26,6 +26,7 @@ import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/presentation/chat_folders.dart';
 import 'package:lawbid/features/chat/presentation/chat_selection_bar.dart';
+import 'package:lawbid/features/chat/presentation/chat_swipe.dart';
 import 'package:lawbid/features/chat/presentation/chats_filter_row.dart';
 import 'package:lawbid/features/groups/application/chat_list_merge.dart';
 import 'package:lawbid/features/groups/group_routes.dart';
@@ -703,6 +704,9 @@ class ConversationsView extends ConsumerWidget {
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final attorney = ref.watch(actsAsAttorneyProvider);
     final searching = query.isNotEmpty;
+    final archived = ref.watch(
+      chatFolderCountsProvider.select((c) => c.value?.archived ?? 0),
+    );
     Widget body;
     if (searching) {
       final key = (folder: folder, q: query);
@@ -732,6 +736,8 @@ class ConversationsView extends ConsumerWidget {
         itemKey: (e) => e.id,
         edgeToEdge: true,
         itemBuilder: (context, e, _) => _entryRow(e),
+        // Owner 2026-10-20 (Telegram): «Archive (N)» leads the list.
+        header: archived > 0 ? _ArchiveRow(count: archived) : null,
         empty: AppEmptyState(
           icon: AppIcons.forumOutlined,
           title: t.t('chat.empty.title'),
@@ -819,6 +825,65 @@ class ConversationsView extends ConsumerWidget {
   }
 }
 
+/// «Archive (N)» at the top of the Chats list; opens the Archive screen.
+class _ArchiveRow extends ConsumerWidget {
+  const _ArchiveRow({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    return AppPressable(
+      key: const ValueKey('chats-archive-row'),
+      onTap: () => context.push(ChatRoutes.archive),
+      child: Semantics(
+        button: true,
+        label: '${t.t('settings.archive')}, $count',
+        excludeSemantics: true,
+        // The list gives its header the side padding already.
+        child: Row(
+          children: [
+            Container(
+              width: 54,
+              height: 54,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: colors.chip,
+                shape: BoxShape.circle,
+              ),
+              child: AppIcon(
+                AppIcons.inventory2Outlined,
+                color: colors.textSecondary,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Text(
+                t.t('settings.archive'),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: type.body.copyWith(
+                  color: colors.text,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Text(
+              '$count',
+              key: const ValueKey('chats-archive-count'),
+              style: type.bodySmall.copyWith(color: colors.textSecondary),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 Widget _entryRow(ChatListEntry e, {String highlight = ''}) => switch (e) {
       DirectChatEntry(:final conversation) =>
         ConversationRow(conversation: conversation, highlight: highlight),
@@ -895,13 +960,20 @@ TextSpan boldWords(String text, String query, TextStyle style) {
 /// note) opens on long-press.
 class ConversationRow extends ConsumerWidget {
   // ignore: use_key_in_widget_constructors
-  const ConversationRow({required this.conversation, this.highlight = ''});
+  const ConversationRow({
+    required this.conversation,
+    this.highlight = '',
+    this.inArchive = false,
+  });
 
   final Conversation conversation;
 
   /// Owner 2026-10-18: the typed chat search — the words of it are bold in
   /// the matched message.
   final String highlight;
+
+  /// Shown on the Archive screen: the menu offers «Unarchive».
+  final bool inArchive;
 
   static const double _avatar = 54;
 
@@ -915,7 +987,9 @@ class ConversationRow extends ConsumerWidget {
     final me = ref.watch(currentUserIdProvider);
     final c = conversation;
     final typing =
-        ref.watch(listTypingProvider.select((ids) => ids.contains(c.id)));
+        ref.watch(listTypingProvider.select((m) => m.containsKey(c.id)));
+    final typingVoice =
+        ref.watch(listTypingProvider.select((m) => m[c.id] ?? false));
     // Owner 2026-10-20: an unsent text shows as a red «Drafts: …».
     final draft = ref.watch(chatTextDraftsProvider.select((m) => m[c.id]));
     final who = counterpartName(t, c);
@@ -927,7 +1001,8 @@ class ConversationRow extends ConsumerWidget {
     final canOrganize = !c.awaitingMyAnswer &&
         picking == null &&
         !ref.watch(isAssistantProvider);
-    void organize() => showChatOrganizeSheet(context, ref, c);
+    void organize() =>
+        showChatOrganizeSheet(context, ref, c, inArchive: inArchive);
     final read = last != null && c.counterpartLastReadId == last.id;
     final secondary = type.bodySmall.copyWith(color: colors.textSecondary);
     // Owner 2026-10-18: no @username under the chat (WhatsApp/Telegram);
@@ -1118,7 +1193,11 @@ class ConversationRow extends ConsumerWidget {
                             Expanded(
                               child: typing
                                   ? Text(
-                                      t.t('chat.typing'),
+                                      t.t(
+                                        typingVoice
+                                            ? 'chat.recordingVoice'
+                                            : 'chat.typing',
+                                      ),
                                       key: ValueKey('chat-typing-${c.id}'),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
@@ -1220,86 +1299,26 @@ class ConversationRow extends ConsumerWidget {
     }
 
     final repo = ref.read(chatRepositoryProvider);
-    return Dismissible(
-      key: ValueKey('chat-swipe-${c.id}'),
-      confirmDismiss: (dir) async {
-        if (dir == DismissDirection.startToEnd) {
-          unawaited(
-            act(
-              () => repo.organize(c.id, pinned: !c.pinned),
-              c.pinned ? 'chat.organize.unpinned' : 'chat.organize.pinned',
-            ),
-          );
-        } else {
-          unawaited(
-            act(
-              () => repo.mute(
-                c.id,
-                c.muted ? null : DateTime.now().add(const Duration(days: 3650)),
-              ),
-              c.muted ? 'chat.select.unmuted' : 'chat.select.muted',
-            ),
-          );
-        }
-        return false;
-      },
-      background: _SwipeBackground(
-        key: ValueKey('chat-swipe-pin-${c.id}'),
-        icon: c.pinned ? AppIcons.pushPinOutlined : AppIcons.pushPin,
-        label: t.t(c.pinned ? 'chat.organize.unpin' : 'chat.organize.pin'),
-        alignEnd: false,
-      ),
-      secondaryBackground: _SwipeBackground(
-        key: ValueKey('chat-swipe-mute-${c.id}'),
-        icon: AppIcons.notificationsOffOutlined,
-        label: t.t(c.muted ? 'chat.unmute' : 'chat.mute'),
-        alignEnd: true,
-      ),
-      child: row,
-    );
-  }
-}
-
-/// The coloured strip behind a swiped chat row.
-class _SwipeBackground extends StatelessWidget {
-  const _SwipeBackground({
-    required this.icon,
-    required this.label,
-    required this.alignEnd,
-    super.key,
-  });
-
-  final IconData icon;
-  final String label;
-  final bool alignEnd;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    final fg = alignEnd ? AppColorsDark.text : colors.onAccent;
-    return ColoredBox(
-      color: alignEnd ? colors.navy : colors.gold,
-      child: Align(
-        alignment: alignEnd
-            ? AlignmentDirectional.centerEnd
-            : AlignmentDirectional.centerStart,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              AppIcon(icon, color: fg),
-              Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: type.caption.copyWith(color: fg),
-              ),
-            ],
-          ),
+    return ChatSwipe(
+      id: c.id,
+      pinned: c.pinned,
+      muted: c.muted,
+      onPin: () => unawaited(
+        act(
+          () => repo.organize(c.id, pinned: !c.pinned),
+          c.pinned ? 'chat.organize.unpinned' : 'chat.organize.pinned',
         ),
       ),
+      onMute: () => unawaited(
+        act(
+          () => repo.mute(
+            c.id,
+            c.muted ? null : DateTime.now().add(const Duration(days: 3650)),
+          ),
+          c.muted ? 'chat.select.unmuted' : 'chat.select.muted',
+        ),
+      ),
+      child: row,
     );
   }
 }

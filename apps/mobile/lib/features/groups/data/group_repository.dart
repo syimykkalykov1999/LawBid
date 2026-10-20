@@ -15,8 +15,15 @@ class GroupRepository {
 
   // --- lists and lookup -----------------------------------------------------
 
-  Future<CursorPage<api.GroupDto>> groups({String? cursor}) async {
-    final env = await guardApiCall(() => _c.listGroups(cursor: cursor));
+  /// [archived] = my archived groups (owner 2026-10-20); otherwise the
+  /// archive is left out.
+  Future<CursorPage<api.GroupDto>> groups({
+    String? cursor,
+    bool archived = false,
+  }) async {
+    final env = await guardApiCall(
+      () => _c.listGroups(cursor: cursor, archived: archived ? true : null),
+    );
     return CursorPage(items: env.data, nextCursor: env.meta?.nextCursor);
   }
 

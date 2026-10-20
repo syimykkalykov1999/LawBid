@@ -66,6 +66,19 @@ final groupsProvider = AsyncNotifierProvider.autoDispose<GroupsNotifier,
   retry: _noRetry,
 );
 
+/// Owner 2026-10-20: my archived groups (the Archive screen).
+class ArchivedGroupsNotifier extends GroupsNotifier {
+  @override
+  Future<CursorPage<api.GroupDto>> fetch(String? cursor) =>
+      ref.read(groupRepositoryProvider).groups(cursor: cursor, archived: true);
+}
+
+final archivedGroupsProvider = AsyncNotifierProvider.autoDispose<
+    ArchivedGroupsNotifier, PaginatedList<api.GroupDto>>(
+  ArchivedGroupsNotifier.new,
+  retry: _noRetry,
+);
+
 // --- One group ---
 
 /// The group with its members; re-read on every `group:update` for it.

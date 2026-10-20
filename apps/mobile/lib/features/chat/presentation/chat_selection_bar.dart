@@ -19,6 +19,7 @@ class ChatSelectionBar extends ConsumerStatefulWidget {
   const ChatSelectionBar({
     required this.chats,
     this.groups = const [],
+    this.inArchive = false,
     super.key,
   });
 
@@ -27,6 +28,9 @@ class ChatSelectionBar extends ConsumerStatefulWidget {
 
   /// The groups of the visible list.
   final List<api.GroupDto> groups;
+
+  /// On the Archive screen the action is «Unarchive».
+  final bool inArchive;
 
   @override
   ConsumerState<ChatSelectionBar> createState() => _ChatSelectionBarState();
@@ -136,6 +140,15 @@ class _ChatSelectionBarState extends ConsumerState<ChatSelectionBar> {
       done: unmute ? 'chat.select.unmuted' : 'chat.select.muted',
     );
   }
+
+  /// Owner 2026-10-20 (Telegram): chats and groups to the Archive (or back).
+  Future<void> _archive() => _each(
+        (c) => ref
+            .read(chatRepositoryProvider)
+            .organize(c.id, archived: !widget.inArchive),
+        groupCall: (g) => updateMyGroup(ref, g.id, archived: !widget.inArchive),
+        done: widget.inArchive ? 'chat.unarchive' : 'tasks.bulk.archive',
+      );
 
   /// Owner 2026-10-20: «mark read» for the chats picked (groups keep their own
   /// read marks).
@@ -256,6 +269,14 @@ class _ChatSelectionBarState extends ConsumerState<ChatSelectionBar> {
               AppIcons.doneAllRounded,
               t.t('notif.markAllRead'),
               _readAll,
+            ),
+            action(
+              'select-archive',
+              widget.inArchive
+                  ? AppIcons.unarchiveOutlined
+                  : AppIcons.inventory2Outlined,
+              t.t(widget.inArchive ? 'chat.unarchive' : 'tasks.bulk.archive'),
+              _archive,
             ),
             action(
               'select-delete',

@@ -98,8 +98,8 @@ class _Chats implements ChatRepository {
   }
 
   @override
-  Future<({int waiting, int requests})> folderCounts() async =>
-      (waiting: 1, requests: 2);
+  Future<({int waiting, int requests, int archived})> folderCounts() async =>
+      (waiting: 1, requests: 2, archived: 0);
 
   @override
   Future<Conversation> organize(
@@ -110,6 +110,7 @@ class _Chats implements ChatRepository {
     String? note,
     bool? pinned,
     bool? hidden,
+    bool? archived,
   }) async {
     if (hidden ?? false) hiddenIds.add(id);
     organized.add('$id:${folder?.name}:$waiting:$note:$pinned');

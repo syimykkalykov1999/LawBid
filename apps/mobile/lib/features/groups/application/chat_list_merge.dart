@@ -179,6 +179,7 @@ Future<void> updateMyGroup(
   bool? pinned,
   bool? muted,
   bool? hidden,
+  bool? archived,
 }) async {
   final now = DateTime.now();
   await ref.read(groupRepositoryProvider).updateMine(
@@ -186,6 +187,7 @@ Future<void> updateMyGroup(
         api.UpdateGroupMeDto(
           pinned: pinned,
           hidden: hidden,
+          archived: archived,
           mutedUntil: muted == null
               ? null
               : muted
@@ -195,6 +197,11 @@ Future<void> updateMyGroup(
       );
   if (!ref.context.mounted) return;
   final notifier = ref.read(groupsProvider.notifier);
-  if (hidden ?? false) notifier.removeWhere((g) => g.id == id);
+  if ((hidden ?? false) || archived != null) {
+    notifier.removeWhere((g) => g.id == id);
+  }
+  ref
+    ..invalidate(archivedGroupsProvider)
+    ..invalidate(chatFolderCountsProvider);
   await notifier.refresh().catchError((Object _) {});
 }

@@ -62,10 +62,11 @@ abstract interface class ChatRepository {
     String? note,
     bool? pinned,
     bool? hidden,
+    bool? archived,
   });
 
-  /// Badges of the Waiting and Requests folders.
-  Future<({int waiting, int requests})> folderCounts();
+  /// Badges of the Waiting and Requests folders, and the Archive's size.
+  Future<({int waiting, int requests, int archived})> folderCounts();
 
   /// OQ-043: the direct chat with [userId] ("Message" on a profile).
   Future<Conversation> startDirect(String userId);
@@ -517,6 +518,7 @@ class ApiChatRepository implements ChatRepository {
     String? note,
     bool? pinned,
     bool? hidden,
+    bool? archived,
   }) async =>
       ChatMappers.conversation(
         (await guardApiCall(
@@ -534,6 +536,7 @@ class ApiChatRepository implements ChatRepository {
               note: note,
               pinned: pinned,
               hidden: hidden,
+              archived: archived,
             ),
           ),
         ))
@@ -541,9 +544,13 @@ class ApiChatRepository implements ChatRepository {
       );
 
   @override
-  Future<({int waiting, int requests})> folderCounts() async {
+  Future<({int waiting, int requests, int archived})> folderCounts() async {
     final d = (await guardApiCall(_chat.folderCounts)).data;
-    return (waiting: d.waiting.toInt(), requests: d.requests.toInt());
+    return (
+      waiting: d.waiting.toInt(),
+      requests: d.requests.toInt(),
+      archived: d.archived.toInt(),
+    );
   }
 
   @override

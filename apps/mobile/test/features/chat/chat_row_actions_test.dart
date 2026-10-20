@@ -4,6 +4,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/application/chat_text_drafts.dart';
+import 'package:lawbid/features/chat/application/presence_providers.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/chat/data/chat_repository.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
@@ -11,6 +12,7 @@ import 'package:lawbid/features/chat/presentation/inbox_screen.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
+import 'package:lawbid_api/lawbid_api.dart' as api;
 
 import '../../helpers/ux_harness.dart';
 import '../groups/fake_group_repository.dart';
@@ -36,9 +38,10 @@ Conversation _conv({ChatMessage? last, int unread = 0, bool muted = false}) =>
     );
 
 class _Chats implements ChatRepository {
-  _Chats(this.conv);
+  _Chats(this.conv, {this.archivedCount = 0});
 
   final Conversation conv;
+  final int archivedCount;
   final calls = <String>[];
 
   @override
@@ -52,8 +55,8 @@ class _Chats implements ChatRepository {
       CursorPage(items: [conv]);
 
   @override
-  Future<({int waiting, int requests})> folderCounts() async =>
-      (waiting: 0, requests: 0);
+  Future<({int waiting, int requests, int archived})> folderCounts() async =>
+      (waiting: 0, requests: 0, archived: archivedCount);
 
   @override
   Future<Conversation> organize(
@@ -64,8 +67,10 @@ class _Chats implements ChatRepository {
     String? note,
     bool? pinned,
     bool? hidden,
+    bool? archived,
   }) async {
     calls.add('organize pinned=$pinned hidden=$hidden');
+    if (archived != null) calls.add('archive $archived');
     return conv;
   }
 
@@ -101,17 +106,23 @@ ChatMessage _msg({
 
 void main() {
   setUpAll(initializeDateFormatting);
+  late FakeGroupRepository lastGroups;
 
   Future<_Chats> pump(
     WidgetTester tester,
     Conversation conv, {
     Map<String, String> drafts = const {},
+    int archivedCount = 0,
+    List<api.GroupDto> groups = const [],
+    Map<String, bool> typing = const {},
   }) async {
     tester.view
       ..devicePixelRatio = 1
       ..physicalSize = const Size(390, 800);
     addTearDown(tester.view.reset);
-    final repo = _Chats(conv);
+    final repo = _Chats(conv, archivedCount: archivedCount);
+    final groupRepo = FakeGroupRepository(groups);
+    lastGroups = groupRepo;
     await tester.pumpWidget(
       uxApp(
         const Scaffold(body: ConversationsView()),
@@ -121,9 +132,11 @@ void main() {
         overrides: uxOverrides(
           extra: [
             chatRepositoryProvider.overrideWithValue(repo),
-            groupRepositoryProvider.overrideWithValue(FakeGroupRepository()),
+            groupRepositoryProvider.overrideWithValue(groupRepo),
             currentUserIdProvider.overrideWithValue('me'),
             realtimeClientProvider.overrideWithValue(null),
+            if (typing.isNotEmpty)
+              listTypingProvider.overrideWith(() => _SeededTyping(typing)),
             if (drafts.isNotEmpty)
               chatTextDraftsProvider.overrideWith(
                 () => _Seeded(drafts),
@@ -165,6 +178,56 @@ void main() {
     await tester.pump(const Duration(minutes: 5));
   });
 
+  testWidgets('long press: the menu archives the chat', (tester) async {
+    final repo = await pump(tester, _conv(last: _msg()));
+    await tester.longPress(find.byKey(const ValueKey('chat-organize-c1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('organize-archive')));
+    await tester.pumpAndSettle();
+    expect(repo.calls, contains('archive true'));
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(minutes: 5));
+  });
+
+  testWidgets('«Archive (N)» leads the list only when something is archived',
+      (tester) async {
+    await pump(tester, _conv(last: _msg()), archivedCount: 3);
+    expect(find.byKey(const ValueKey('chats-archive-row')), findsOneWidget);
+    expect(find.text('3'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(minutes: 5));
+    await pump(tester, _conv(last: _msg()));
+    expect(find.byKey(const ValueKey('chats-archive-row')), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(minutes: 5));
+  });
+
+  testWidgets('a group row swipes like a chat and archives from its menu',
+      (tester) async {
+    await pump(
+      tester,
+      _conv(last: _msg()),
+      groups: [listGroup('g1', unread: 2)],
+    );
+    final row = find.byKey(const ValueKey('chat-swipe-g1'));
+    await tester.drag(row, const Offset(300, 0));
+    await tester.pumpAndSettle();
+    expect(lastGroups.updates.any((u) => u.contains('pinned=true')), isTrue);
+    await tester.drag(row, const Offset(-300, 0));
+    await tester.pumpAndSettle();
+    expect(lastGroups.updates.any((u) => u.contains('muted=true')), isTrue);
+    await tester.longPress(find.byKey(const ValueKey('group-tile-g1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('group-menu-archive')));
+    await tester.pumpAndSettle();
+    expect(
+      lastGroups.updates.any((u) => u.contains('archived=true')),
+      isTrue,
+    );
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(minutes: 5));
+  });
+
   testWidgets('a video and a document show their own icon', (tester) async {
     await pump(
       tester,
@@ -183,6 +246,17 @@ void main() {
       ),
     );
     expect(find.textContaining('🎥'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(minutes: 5));
+  });
+
+  testWidgets('the list says «recording a voice message…» for a voice note',
+      (tester) async {
+    await pump(tester, _conv(last: _msg()), typing: {'c1': true});
+    expect(
+      tester.widget<Text>(find.byKey(const ValueKey('chat-typing-c1'))).data,
+      'recording a voice message…',
+    );
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(minutes: 5));
   });
@@ -210,4 +284,13 @@ class _Seeded extends ChatTextDrafts {
 
   @override
   Map<String, String> build() => seed;
+}
+
+class _SeededTyping extends ListTypingNotifier {
+  _SeededTyping(this.seed);
+
+  final Map<String, bool> seed;
+
+  @override
+  Map<String, bool> build() => seed;
 }

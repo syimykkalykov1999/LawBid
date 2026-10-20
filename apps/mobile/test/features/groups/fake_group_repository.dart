@@ -38,7 +38,10 @@ class FakeGroupRepository implements GroupRepository {
   bool failSend = false;
 
   @override
-  Future<CursorPage<api.GroupDto>> groups({String? cursor}) async =>
+  Future<CursorPage<api.GroupDto>> groups({
+    String? cursor,
+    bool archived = false,
+  }) async =>
       CursorPage(items: items);
 
   @override
@@ -90,7 +93,7 @@ class FakeGroupRepository implements GroupRepository {
   Future<api.GroupDto> updateMine(String id, api.UpdateGroupMeDto body) async {
     updates.add(
       '$id:pinned=${body.pinned}:hidden=${body.hidden}:'
-      'muted=${body.mutedUntil != null}',
+      'muted=${body.mutedUntil != null}:archived=${body.archived}',
     );
     return items.firstWhere((g) => g.id == id);
   }

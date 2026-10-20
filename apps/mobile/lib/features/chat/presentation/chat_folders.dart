@@ -47,7 +47,9 @@ class ChatFolderPills extends ConsumerWidget {
           // Owner 2026-10-19: «Основные» (primary) is hidden too; its
           // filter stays in the code.
           for (final f in ChatListFolder.values)
-            if (f != ChatListFolder.general && f != ChatListFolder.primary) ...[
+            if (f != ChatListFolder.general &&
+                f != ChatListFolder.primary &&
+                f != ChatListFolder.archive) ...[
               Semantics(
                 selected: f == value,
                 button: true,
@@ -120,18 +122,22 @@ class ChatFolderPills extends ConsumerWidget {
 Future<void> showChatOrganizeSheet(
   BuildContext context,
   WidgetRef ref,
-  Conversation c,
-) =>
+  Conversation c, {
+  bool inArchive = false,
+}) =>
     showAppBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      builder: (_) => _OrganizeSheet(conversation: c),
+      builder: (_) => _OrganizeSheet(conversation: c, inArchive: inArchive),
     );
 
 class _OrganizeSheet extends ConsumerStatefulWidget {
-  const _OrganizeSheet({required this.conversation});
+  const _OrganizeSheet({required this.conversation, required this.inArchive});
 
   final Conversation conversation;
+
+  /// Opened from the Archive screen: «Unarchive» instead of «Archive».
+  final bool inArchive;
 
   @override
   ConsumerState<_OrganizeSheet> createState() => _OrganizeSheetState();
@@ -240,6 +246,23 @@ class _OrganizeSheetState extends ConsumerState<_OrganizeSheet> {
                           return c;
                         }),
               ),
+            AppListRow(
+              key: const ValueKey('organize-archive'),
+              icon: widget.inArchive
+                  ? AppIcons.unarchiveOutlined
+                  : AppIcons.inventory2Outlined,
+              label: t.t(
+                widget.inArchive ? 'chat.unarchive' : 'tasks.bulk.archive',
+              ),
+              onTap: _busy
+                  ? null
+                  : () => _run(
+                        () => repo.organize(c.id, archived: !widget.inArchive),
+                        done: widget.inArchive
+                            ? 'chat.unarchive'
+                            : 'tasks.bulk.archive',
+                      ),
+            ),
             AppListRow(
               key: const ValueKey('organize-delete'),
               icon: AppIcons.deleteOutlineRounded,

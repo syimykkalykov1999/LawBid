@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,6 +9,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/chat/application/chat_selection.dart';
+import 'package:lawbid/features/chat/presentation/chat_swipe.dart';
 import 'package:lawbid/features/groups/application/chat_list_merge.dart';
 import 'package:lawbid/features/groups/group_routes.dart';
 import 'package:lawbid/features/groups/presentation/group_message_text.dart';
@@ -19,12 +22,20 @@ import 'package:lawbid_api/lawbid_api.dart' as api;
 /// A tap opens the group (or picks it in «Select chats»); a long press
 /// opens its menu (pin · mute · hide).
 class GroupChatTile extends ConsumerWidget {
-  const GroupChatTile({required this.group, this.highlight = '', super.key});
+  const GroupChatTile({
+    required this.group,
+    this.highlight = '',
+    this.inArchive = false,
+    super.key,
+  });
 
   final api.GroupDto group;
 
   /// The typed chats search: matching words of the title are bold.
   final String highlight;
+
+  /// Shown on the Archive screen: the menu offers «Unarchive».
+  final bool inArchive;
 
   static const double _avatar = 54;
 
@@ -43,11 +54,12 @@ class GroupChatTile extends ConsumerWidget {
     final last = g.lastMessage;
     final at = g.lastMessageAt;
     final canOrganize = picking == null && !ref.watch(isAssistantProvider);
-    void organize() => showGroupOrganizeSheet(context, ref, g);
+    void organize() =>
+        showGroupOrganizeSheet(context, ref, g, inArchive: inArchive);
     final secondary = type.bodySmall.copyWith(color: colors.textSecondary);
     final hot = unread > 0 && !muted;
     final title = g.title.trim().isEmpty ? '?' : g.title.trim();
-    return AppPressable(
+    final row = AppPressable(
       key: ValueKey('group-tile-${g.id}'),
       onTap: picking != null
           ? () => ref.read(chatSelectionProvider.notifier).toggle(g.id)
@@ -195,6 +207,35 @@ class GroupChatTile extends ConsumerWidget {
         ),
       ),
     );
+    if (!canOrganize) return row;
+    // Owner 2026-10-20 (Telegram): the same swipes as a direct chat.
+    Future<void> act(Future<void> Function() call, String done) async {
+      try {
+        await call();
+        if (context.mounted) showAppSnackBar(context, t.t(done));
+      } on Object catch (e) {
+        if (context.mounted) showAppSnackBar(context, errorText(t, e));
+      }
+    }
+
+    return ChatSwipe(
+      id: g.id,
+      pinned: g.pinned,
+      muted: muted,
+      onPin: () => unawaited(
+        act(
+          () => updateMyGroup(ref, g.id, pinned: !g.pinned),
+          g.pinned ? 'chat.organize.unpinned' : 'chat.organize.pinned',
+        ),
+      ),
+      onMute: () => unawaited(
+        act(
+          () => updateMyGroup(ref, g.id, muted: !muted),
+          muted ? 'chat.select.unmuted' : 'chat.select.muted',
+        ),
+      ),
+      child: row,
+    );
   }
 }
 
@@ -266,8 +307,9 @@ class _Badge extends StatelessWidget {
 Future<void> showGroupOrganizeSheet(
   BuildContext context,
   WidgetRef ref,
-  api.GroupDto g,
-) async {
+  api.GroupDto g, {
+  bool inArchive = false,
+}) async {
   final t = ref.read(translatorProvider);
   final muted = isGroupMuted(g);
   final pick = await showAppBottomSheet<String>(
@@ -291,6 +333,15 @@ Future<void> showGroupOrganizeSheet(
             label: t.t(muted ? 'group.menu.unmute' : 'group.menu.mute'),
             showChevron: false,
             onTap: () => Navigator.of(ctx).pop('mute'),
+          ),
+          AppListRow(
+            key: const ValueKey('group-menu-archive'),
+            icon: inArchive
+                ? AppIcons.unarchiveOutlined
+                : AppIcons.inventory2Outlined,
+            label: t.t(inArchive ? 'chat.unarchive' : 'tasks.bulk.archive'),
+            showChevron: false,
+            onTap: () => Navigator.of(ctx).pop('archive'),
           ),
           AppListRow(
             key: const ValueKey('group-menu-select'),
@@ -326,6 +377,8 @@ Future<void> showGroupOrganizeSheet(
         await updateMyGroup(ref, g.id, pinned: !g.pinned);
       case 'mute':
         await updateMyGroup(ref, g.id, muted: !muted);
+      case 'archive':
+        await updateMyGroup(ref, g.id, archived: !inArchive);
       case 'hide':
         await updateMyGroup(ref, g.id, hidden: true);
     }

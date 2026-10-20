@@ -70,8 +70,8 @@ class _Chats implements ChatRepository {
       );
 
   @override
-  Future<({int waiting, int requests})> folderCounts() async =>
-      (waiting: 0, requests: 0);
+  Future<({int waiting, int requests, int archived})> folderCounts() async =>
+      (waiting: 0, requests: 0, archived: 0);
 
   @override
   Future<int> requestsCount() async => 0;
