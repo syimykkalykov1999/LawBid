@@ -481,7 +481,8 @@ const file06En = <String, String>{
   'chat.attach.files': 'Documents (PDF, Word, Excel…)',
   'chat.attach.photo': 'Photo',
   'chat.attach.label': 'File',
-  'chat.attach.skipped': '{count} not added — unsupported format or over {max} MB',
+  'chat.attach.skipped':
+      '{count} not added — unsupported format or over {max} MB',
   'chat.files.title': 'Files and photos',
   'chat.files.photos': 'Photos',
   'chat.files.documents': 'Documents',

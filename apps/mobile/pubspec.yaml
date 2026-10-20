@@ -166,9 +166,9 @@ flutter:
 
   fonts:
     # Owner 2026-10-01: Phosphor icons (MIT, assets/fonts/LICENSE-Phosphor.txt).
-    - family: PhosphorLight
+    - family: PhosphorBold
       fonts:
-        - asset: assets/fonts/PhosphorLight.ttf
+        - asset: assets/fonts/PhosphorBold.ttf
     - family: PhosphorFill
       fonts:
         - asset: assets/fonts/PhosphorFill.ttf
