@@ -159,7 +159,11 @@ class _Segment extends StatelessWidget {
 }
 
 /// Filter chips row (Active / Archive / Closed …).
-class FilterChips<T> extends StatelessWidget {
+///
+/// Owner 2026-10-20: when the chips share a row with icons they stay
+/// tight ([compact]) and, if they still do not fit (long languages, 110%
+/// text), scroll with a soft fade at the edge that has more.
+class FilterChips<T> extends StatefulWidget {
   const FilterChips({
     required this.value,
     required this.options,
@@ -168,6 +172,7 @@ class FilterChips<T> extends StatelessWidget {
     this.padding = const EdgeInsets.symmetric(
       horizontal: AppSpacing.screenSide,
     ),
+    this.compact = false,
   });
 
   final T value;
@@ -177,23 +182,92 @@ class FilterChips<T> extends StatelessWidget {
   /// Owner 2026-10-16: zero when the chips share a row with other controls.
   final EdgeInsetsGeometry padding;
 
+  /// Tighter chips (less side padding and gap) for a shared row.
+  final bool compact;
+
   @override
-  Widget build(BuildContext context) => SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        padding: padding,
-        child: Row(
-          children: [
-            for (final (key, label) in options) ...[
-              AppChip(
-                label: label,
-                selected: key == value,
-                onTap: () => onChanged(key),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-            ],
+  State<FilterChips<T>> createState() => _FilterChipsState<T>();
+}
+
+class _FilterChipsState<T> extends State<FilterChips<T>> {
+  final _controller = ScrollController();
+  bool _fadeStart = false;
+  bool _fadeEnd = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.addListener(_sync);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _sync());
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _sync() {
+    if (!mounted || !_controller.hasClients) return;
+    final p = _controller.position;
+    final start = p.pixels > 1;
+    final end = p.pixels < p.maxScrollExtent - 1;
+    if (start != _fadeStart || end != _fadeEnd) {
+      setState(() {
+        _fadeStart = start;
+        _fadeEnd = end;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final compact = widget.compact;
+    final row = SingleChildScrollView(
+      controller: _controller,
+      scrollDirection: Axis.horizontal,
+      padding: widget.padding,
+      child: Row(
+        children: [
+          for (final (key, label) in widget.options) ...[
+            AppChip(
+              label: label,
+              selected: key == widget.value,
+              horizontalPadding: compact ? AppSpacing.sm + 2 : AppSpacing.md,
+              onTap: () => widget.onChanged(key),
+            ),
+            SizedBox(width: compact ? AppSpacing.xs + 2 : AppSpacing.sm),
           ],
-        ),
-      );
+        ],
+      ),
+    );
+    return NotificationListener<ScrollMetricsNotification>(
+      onNotification: (_) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => _sync());
+        return false;
+      },
+      child: ShaderMask(
+        blendMode: BlendMode.dstIn,
+        shaderCallback: (rect) => LinearGradient(
+          // Directional: «start» is the reading start in either direction.
+          begin: AlignmentDirectional.centerStart.resolve(
+            Directionality.of(context),
+          ),
+          end: AlignmentDirectional.centerEnd.resolve(
+            Directionality.of(context),
+          ),
+          colors: [
+            if (_fadeStart) Colors.transparent else Colors.black,
+            Colors.black,
+            Colors.black,
+            if (_fadeEnd) Colors.transparent else Colors.black,
+          ],
+          stops: const [0, 0.06, 0.88, 1],
+        ).createShader(rect),
+        child: row,
+      ),
+    );
+  }
 }
 
 /// Owner 2026-10-01: swipe left / right inside a screen moves to the

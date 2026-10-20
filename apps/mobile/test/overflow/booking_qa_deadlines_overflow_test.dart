@@ -1,11 +1,14 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart' show Consumer;
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
+import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/consultations/application/consultations_providers.dart';
 import 'package:lawbid/features/consultations/data/consultations_repository.dart';
 import 'package:lawbid/features/consultations/domain/consultation_models.dart';
@@ -270,6 +273,42 @@ void main() {
             ),
             const QaProfileRow(answers: 128, best: 37, isSelf: true),
           ],
+        ),
+    'mine chips row with three icons': () => Consumer(
+          builder: (context, ref, _) {
+            final t = ref.watch(translatorProvider);
+            return Padding(
+              padding: const EdgeInsets.all(AppSpacing.screenSide),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: FilterChips<int>(
+                      padding: EdgeInsets.zero,
+                      compact: true,
+                      value: 0,
+                      options: [
+                        (0, t.t('mine.filter.active')),
+                        (1, t.t('mine.bids.title')),
+                        (2, t.t('mine.chip.done')),
+                      ],
+                      onChanged: (_) {},
+                    ),
+                  ),
+                  for (final i in [
+                    AppIcons.searchRounded,
+                    AppIcons.searchRounded,
+                    AppIcons.bookmarkBorderRounded,
+                  ])
+                    AppIconButton(
+                      compact: true,
+                      icon: AppIcon(i),
+                      semanticLabel: 'x',
+                      onPressed: () {},
+                    ),
+                ],
+              ),
+            );
+          },
         ),
     'attorney qa cards': () => const Column(
           children: [

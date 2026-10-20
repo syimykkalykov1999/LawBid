@@ -22,7 +22,11 @@ class AppChip extends StatelessWidget {
     this.height = 32,
     this.expand = false,
     this.fitLabel = false,
+    this.horizontalPadding = AppSpacing.md,
   });
+
+  /// Side padding; a row that is short of room passes less.
+  final double horizontalPadding;
 
   /// One line whose font shrinks to the width the chip gets, so a chip in
   /// a fixed row keeps its place in long languages instead of wrapping.
@@ -57,7 +61,7 @@ class AppChip extends StatelessWidget {
         behavior: HitTestBehavior.opaque,
         child: Container(
           constraints: BoxConstraints(minHeight: height),
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+          padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
           decoration: BoxDecoration(
             color: colors.surface,
             borderRadius: BorderRadius.circular(height / 2),

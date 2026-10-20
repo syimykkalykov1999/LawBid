@@ -83,11 +83,12 @@ class _ClientMineViewState extends ConsumerState<ClientMineView> {
                         onChanged: (v) => setState(() => _search = v),
                         chips: FilterChips<_CaseSection>(
                           key: const ValueKey('case-sections'),
+                          compact: true,
                           padding: EdgeInsets.zero,
                           value: _section,
                           options: [
                             (_CaseSection.active, t.t('mine.filter.active')),
-                            (_CaseSection.completed, t.t('mine.tab.completed')),
+                            (_CaseSection.completed, t.t('mine.chip.done')),
                           ],
                           onChanged: (v) => setState(() => _section = v),
                         ),
@@ -271,12 +272,13 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
           ? null
           : FilterChips<_BidsSection>(
               key: const ValueKey('bids-sections'),
+              compact: true,
               padding: EdgeInsets.zero,
               value: _section,
               options: [
                 (_BidsSection.active, t.t('mine.filter.active')),
                 (_BidsSection.bids, t.t('mine.bids.title')),
-                (_BidsSection.completed, t.t('mine.tab.completed')),
+                (_BidsSection.completed, t.t('mine.chip.done')),
               ],
               onChanged: (v) => setState(() => _section = v),
             ),
