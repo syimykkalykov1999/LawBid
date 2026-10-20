@@ -1539,6 +1539,8 @@ erDiagram
     String cta_type "nullable"
     String cta_value "nullable"
     Int refunded_cents
+    Int paid_stars
+    Int refunded_stars
     String reviewed_by "nullable"
     DateTime reviewed_at "nullable"
     DateTime created_at
@@ -1685,6 +1687,7 @@ erDiagram
     Int balance
     Int lifetime_bought
     Int lifetime_spent
+    Int debt
     DateTime updated_at
   }
   star_ledger {
@@ -1709,6 +1712,7 @@ erDiagram
     String payment_id "nullable"
     DateTime created_at
     DateTime paid_at "nullable"
+    DateTime refunded_at "nullable"
   }
   gifts {
     String id PK
