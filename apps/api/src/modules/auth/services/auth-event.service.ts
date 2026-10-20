@@ -29,6 +29,11 @@ export const AUTH_EVENT_TYPES = {
   PASSWORD_RESET_REQUESTED: 'password_reset_requested',
   PASSWORD_RESET_DONE: 'password_reset_done',
   PASSWORD_RESET_BY_ADMIN: 'password_reset_by_admin',
+  // Owner 2026-10-20: sign-in to the website by scanning its QR code with
+  // the phone (approved / refused on the phone, signed in on the web).
+  QR_LOGIN_APPROVED: 'qr_login_approved',
+  QR_LOGIN_REJECTED: 'qr_login_rejected',
+  QR_LOGIN_SUCCESS: 'qr_login_success',
   TOKEN_REFRESHED: 'token_refreshed',
   REFRESH_REUSE_DETECTED: 'refresh_reuse_detected',
   SESSION_REVOKED: 'session_revoked',

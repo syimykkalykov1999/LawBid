@@ -129,6 +129,13 @@ dependencies:
   # app's language (core/l10n/material_locale.dart). Part of the Flutter SDK.
   flutter_localizations:
     sdk: flutter
+  # Owner 2026-10-20 (WeChat-style QR): `qr` draws our own QR cards (pure
+  # Dart, no plugin); `mobile_scanner` reads codes from the camera and from
+  # a gallery picture (compileSdk 36, AGP 9 aware); `gal` saves the QR card
+  # picture to the phone's gallery.
+  qr: ^3.0.2
+  mobile_scanner: ^7.4.2
+  gal: ^2.3.3
 dev_dependencies:
   flutter_test:
     sdk: flutter

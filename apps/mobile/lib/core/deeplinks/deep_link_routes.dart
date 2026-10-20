@@ -3,6 +3,8 @@ import 'package:lawbid/core/navigation/app_page_transitions.dart';
 import 'package:lawbid/features/cases/presentation/screens/case_route_screens.dart';
 import 'package:lawbid/features/profile/presentation/screens/attorney_profile_screen.dart';
 import 'package:lawbid/features/profile/presentation/screens/client_public_profile_screen.dart';
+import 'package:lawbid/features/profile/presentation/screens/profile_by_username_screen.dart';
+import 'package:lawbid/features/qr/presentation/web_login_link_screen.dart';
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart';
 
 /// Routes the §12 content deep links land on (docs/01_FOUNDATION_AUTH.md:
@@ -15,6 +17,11 @@ abstract final class DeepLinkRoutes {
   static const casePath = '/case/:id';
   static const lawyerPath = '/lawyer/:username';
   static const postPath = '/post/:id';
+
+  /// Owner 2026-10-20: `lawbid.dev/u/:username` (profile QR codes) and
+  /// `lawbid.dev/q/:id` (the website's sign-in QR code).
+  static const profilePath = '/u/:username';
+  static const webLoginPath = '/q/:id';
 
   /// Not a published deep link; the in-app people/followers rows use it.
   static const clientPath = '/client/:username';
@@ -35,6 +42,22 @@ List<RouteBase> deepLinkRoutes() => [
           AttorneyProfileScreen(
             username: state.pathParameters['username'] ?? '',
           ),
+        ),
+      ),
+      GoRoute(
+        path: DeepLinkRoutes.profilePath,
+        pageBuilder: (context, state) => AppPageTransitions.push(
+          state,
+          ProfileByUsernameScreen(
+            username: state.pathParameters['username'] ?? '',
+          ),
+        ),
+      ),
+      GoRoute(
+        path: DeepLinkRoutes.webLoginPath,
+        pageBuilder: (context, state) => AppPageTransitions.push(
+          state,
+          WebLoginLinkScreen(qrId: state.pathParameters['id'] ?? ''),
         ),
       ),
       GoRoute(
