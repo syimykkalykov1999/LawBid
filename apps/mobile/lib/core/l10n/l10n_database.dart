@@ -133,5 +133,4 @@ class L10nDatabase extends _$L10nDatabase {
   }
 }
 
-QueryExecutor _openConnection() =>
-    appDriftDatabase('l10n_cache');
+QueryExecutor _openConnection() => appDriftDatabase('l10n_cache');
