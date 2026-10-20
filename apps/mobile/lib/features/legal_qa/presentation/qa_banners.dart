@@ -51,9 +51,8 @@ class _QaLine extends StatelessWidget {
                       Text(
                         text,
                         maxLines: 2,
-                        style: type.body.copyWith(
+                        style: type.bodySmall.copyWith(
                           color: colors.text,
-                          fontSize: 14,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -61,9 +60,8 @@ class _QaLine extends StatelessWidget {
                         Text(
                           subtitle!,
                           maxLines: 2,
-                          style: type.body.copyWith(
+                          style: type.caption.copyWith(
                             color: colors.textSecondary,
-                            fontSize: 12,
                           ),
                         ),
                     ],
