@@ -66,8 +66,7 @@ class StoryUser {
     if (parts.isEmpty) return '?';
     final first = String.fromCharCode(parts.first.runes.first).toUpperCase();
     if (parts.length == 1) return first;
-    return first +
-        String.fromCharCode(parts.last.runes.first).toUpperCase();
+    return first + String.fromCharCode(parts.last.runes.first).toUpperCase();
   }
 }
 

@@ -17,6 +17,7 @@ import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart'
     show feedCardHeight;
+import 'package:lawbid/features/stories/presentation/stories_tray.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 
@@ -289,6 +290,8 @@ class _TopicFeedState extends ConsumerState<_TopicFeed> {
           stateCodes: _states,
           onStates: (v) => setState(() => _states = v),
         ),
+        // Owner 2026-10-20: stories above the stream (own circle first).
+        const StoriesTray(),
         Expanded(
           // Owner 2026-09-30: News, or one qualification (with its
           // subcategories), optionally in states.

@@ -21,7 +21,6 @@ enum StoryRingState {
 
 /// An avatar with the story ring around it. [progress] (0..1) replaces the
 /// ring with a progress arc while the viewer's own story is being posted;
-/// [indeterminate] spins it.
 class StoryRingAvatar extends StatelessWidget {
   const StoryRingAvatar({
     required this.user,
@@ -108,14 +107,15 @@ class _RingPainter extends CustomPainter {
       ..strokeWidth = width
       ..strokeCap = StrokeCap.round;
     if (progress != null) {
-      canvas.drawArc(arc, 0, math.pi * 2, false, paint..color = track);
-      canvas.drawArc(
-        arc,
-        -math.pi / 2,
-        math.pi * 2 * progress!.clamp(0.02, 1),
-        false,
-        paint..color = gold,
-      );
+      canvas
+        ..drawArc(arc, 0, math.pi * 2, false, paint..color = track)
+        ..drawArc(
+          arc,
+          -math.pi / 2,
+          math.pi * 2 * progress!.clamp(0.02, 1),
+          false,
+          paint..color = gold,
+        );
       return;
     }
     switch (state) {

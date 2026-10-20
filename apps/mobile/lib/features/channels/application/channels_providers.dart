@@ -21,19 +21,18 @@ final channelsEnabledProvider = Provider<bool>(
 );
 
 /// One list of the channels screen: my channels, the ones I follow, or the
-/// discover / search result for [query].
+/// discover / search result for the query.
 typedef ChannelListKey = ({ChannelScope scope, String query});
 
-final channelListProvider = FutureProvider.autoDispose
-    .family<List<Channel>, ChannelListKey>(
-  (ref, key) => ref
-      .watch(channelsRepositoryProvider)
-      .list(key.scope, q: key.query),
+final channelListProvider =
+    FutureProvider.autoDispose.family<List<Channel>, ChannelListKey>(
+  (ref, key) =>
+      ref.watch(channelsRepositoryProvider).list(key.scope, q: key.query),
 );
 
 /// One channel by id or @username. Subscribe / mute change it in place.
-final channelProvider =
-    AsyncNotifierProvider.autoDispose.family<ChannelController, Channel, String>(
+final channelProvider = AsyncNotifierProvider.autoDispose
+    .family<ChannelController, Channel, String>(
   ChannelController.new,
 );
 
@@ -43,7 +42,8 @@ class ChannelController extends AsyncNotifier<Channel> {
   final String channelRef;
 
   @override
-  Future<Channel> build() => ref.watch(channelsRepositoryProvider).get(channelRef);
+  Future<Channel> build() =>
+      ref.watch(channelsRepositoryProvider).get(channelRef);
 
   ChannelsRepository get _repo => ref.read(channelsRepositoryProvider);
 
@@ -55,7 +55,7 @@ class ChannelController extends AsyncNotifier<Channel> {
     state = AsyncData(
       c.copyWith(
         isSubscribed: on,
-        isMuted: on ? c.isMuted : false,
+        isMuted: on && c.isMuted,
         subscriberCount: math.max(0, c.subscriberCount + (on ? 1 : -1)),
       ),
     );
@@ -107,10 +107,16 @@ class ChannelPostsNotifier extends AsyncNotifier<PaginatedList<ChannelPost>> {
   final _seen = <String>{};
   final _pending = <String>{};
   Timer? _flush;
-  ChannelsRepository? _cached;
+  ChannelsRepository? _repoCache;
 
   // Kept from build(): [ref] cannot be read once the provider is disposed.
-  ChannelsRepository get _repo => _cached ??= ref.read(channelsRepositoryProvider);
+  ChannelsRepository get _repo {
+    final cached = _repoCache;
+    if (cached != null) return cached;
+    final repo = ref.read(channelsRepositoryProvider);
+    _repoCache = repo;
+    return repo;
+  }
 
   @override
   Future<PaginatedList<ChannelPost>> build() async {
@@ -120,10 +126,9 @@ class ChannelPostsNotifier extends AsyncNotifier<PaginatedList<ChannelPost>> {
       if (_pending.isNotEmpty) unawaited(_send());
     });
     final page = await _repo.posts(channelId);
-    return PaginatedList.firstPage(CursorPage(
-      items: page.items,
-      nextCursor: page.nextCursor,
-    ));
+    return PaginatedList.firstPage(
+      CursorPage(items: page.items, nextCursor: page.nextCursor),
+    );
   }
 
   Future<void> refresh() async {
@@ -207,7 +212,10 @@ class ChannelPostsNotifier extends AsyncNotifier<PaginatedList<ChannelPost>> {
     if (current == null) return;
     state = AsyncData(
       PaginatedList(
-        items: [for (final p in current.items) p.id == postId ? change(p) : p],
+        items: [
+          for (final p in current.items)
+            if (p.id == postId) change(p) else p,
+        ],
         nextCursor: current.nextCursor,
         isLoadingMore: current.isLoadingMore,
         loadMoreError: current.loadMoreError,
@@ -273,8 +281,8 @@ class ChannelPostsNotifier extends AsyncNotifier<PaginatedList<ChannelPost>> {
 /// The comments of one post, oldest first.
 typedef ChannelPostKey = ({String channelId, String postId});
 
-final channelCommentsProvider = AsyncNotifierProvider.autoDispose
-    .family<ChannelCommentsNotifier, PaginatedList<ChannelComment>, ChannelPostKey>(
+final channelCommentsProvider = AsyncNotifierProvider.autoDispose.family<
+    ChannelCommentsNotifier, PaginatedList<ChannelComment>, ChannelPostKey>(
   ChannelCommentsNotifier.new,
 );
 
@@ -351,17 +359,16 @@ class ChannelCommentsNotifier
     _bump(-1);
   }
 
-  void _bump(int by) => ref
-      .read(channelPostsProvider(key.channelId).notifier)
-      .patch(
-        key.postId,
-        (p) => p.copyWith(commentCount: math.max(0, p.commentCount + by)),
-      );
+  void _bump(int by) =>
+      ref.read(channelPostsProvider(key.channelId).notifier).patch(
+            key.postId,
+            (p) => p.copyWith(commentCount: math.max(0, p.commentCount + by)),
+          );
 }
 
 /// The admins of a channel (owner's screen).
-final channelAdminsProvider =
-    AsyncNotifierProvider.autoDispose.family<ChannelAdminsNotifier, List<ChannelAdmin>, String>(
+final channelAdminsProvider = AsyncNotifierProvider.autoDispose
+    .family<ChannelAdminsNotifier, List<ChannelAdmin>, String>(
   ChannelAdminsNotifier.new,
 );
 

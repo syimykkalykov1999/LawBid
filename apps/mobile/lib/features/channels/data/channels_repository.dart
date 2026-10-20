@@ -34,8 +34,8 @@ class ChannelVideoUpload {
 }
 
 /// Owner 2026-10-20 — channels: the list, one channel, its posts, reactions,
-/// comments and admins. [apiDio] talks to the API, [storageDio] to the file
-/// storage and the Bunny TUS endpoint. Throws [ApiException].
+/// comments and admins. The API Dio talks to the API, the storage Dio to the
+/// file storage and the Bunny TUS endpoint. Throws `ApiException`.
 class ChannelsRepository {
   ChannelsRepository({required Dio apiDio, required Dio storageDio})
       : _channels = api.ChannelsClient(apiDio),
@@ -70,8 +70,9 @@ class ChannelsRepository {
     return env.data.map(channelOf).toList();
   }
 
-  Future<Channel> get(String ref) async =>
-      channelOf((await guardApiCall(() => _channels.channelGet(ref: ref))).data);
+  Future<Channel> get(String ref) async => channelOf(
+        (await guardApiCall(() => _channels.channelGet(ref: ref))).data,
+      );
 
   Future<Channel> create(ChannelDraft d) async => channelOf(
         (await guardApiCall(
@@ -79,9 +80,8 @@ class ChannelsRepository {
             body: api.CreateChannelDto(
               title: d.title.trim(),
               username: normalizeChannelUsername(d.username),
-              description: d.description.trim().isEmpty
-                  ? null
-                  : d.description.trim(),
+              description:
+                  d.description.trim().isEmpty ? null : d.description.trim(),
               avatarFileId: d.avatarFileId,
               commentsEnabled: d.commentsEnabled,
             ),
@@ -103,7 +103,8 @@ class ChannelsRepository {
             id: id,
             body: api.UpdateChannelDto(
               title: d.title.trim(),
-              username: username == null ? null : normalizeChannelUsername(username),
+              username:
+                  username == null ? null : normalizeChannelUsername(username),
               description: d.description.trim(),
               avatarFileId: d.avatarFileId,
               removeAvatar: d.removeAvatar ? true : null,
@@ -119,8 +120,10 @@ class ChannelsRepository {
 
   // ── subscription ───────────────────────────────────────────────────────
 
-  Future<Channel> subscribe(Channel c) async =>
-      _sub(c, (await guardApiCall(() => _channels.channelSubscribe(id: c.id))).data);
+  Future<Channel> subscribe(Channel c) async => _sub(
+        c,
+        (await guardApiCall(() => _channels.channelSubscribe(id: c.id))).data,
+      );
 
   Future<Channel> unsubscribe(Channel c) async => _sub(
         c,
@@ -180,7 +183,9 @@ class ChannelsRepository {
   }
 
   Future<ChannelPost> post(String id, String postId) async => postOf(
-        (await guardApiCall(() => _channels.channelPost(id: id, postId: postId)))
+        (await guardApiCall(
+          () => _channels.channelPost(id: id, postId: postId),
+        ))
             .data,
       );
 
@@ -538,7 +543,8 @@ class ChannelsRepository {
         viewCount: d.viewCount,
         commentCount: d.commentCount,
         reactions: [
-          for (final r in d.reactions) ChannelReactionCount(r.emoji, r.count),
+          for (final r in d.reactions)
+            ChannelReactionCount(r.emoji.json ?? '', r.count),
         ],
         myReaction: d.myReaction,
         createdAt: d.createdAt,

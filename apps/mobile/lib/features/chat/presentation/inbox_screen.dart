@@ -12,6 +12,8 @@ import 'package:lawbid/features/calls/presentation/call_log_entry.dart'
     show callLogKey;
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
+import 'package:lawbid/features/channels/application/channels_providers.dart';
+import 'package:lawbid/features/channels/channels_routes.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/application/chat_selection.dart';
 import 'package:lawbid/features/chat/application/presence_providers.dart';
@@ -124,9 +126,30 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                                     .stop,
                               ),
                             )
-                          : AppBackButton(
-                              semanticLabel: t.t('common.back'),
-                              onPressed: () => Navigator.of(context).maybePop(),
+                          : Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                AppBackButton(
+                                  semanticLabel: t.t('common.back'),
+                                  onPressed: () =>
+                                      Navigator.of(context).maybePop(),
+                                ),
+                                // Owner 2026-10-20: channels — a megaphone
+                                // next to «back», off with the `channels`
+                                // flag.
+                                if (tab == InboxTab.chats &&
+                                    ref.watch(channelsEnabledProvider))
+                                  AppIconButton(
+                                    key: const ValueKey('inbox-channels'),
+                                    icon: AppIcon(
+                                      AppIcons.campaignOutlined,
+                                      color: colors.text,
+                                    ),
+                                    semanticLabel: t.t('channel.title'),
+                                    onPressed: () =>
+                                        context.push(ChannelsRoutes.list),
+                                  ),
+                              ],
                             ),
                     ),
                   ),

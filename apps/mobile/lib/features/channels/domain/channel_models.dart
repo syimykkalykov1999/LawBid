@@ -15,11 +15,12 @@ const int kChannelDefaultMaxPostMedia = 10;
 const List<String> kChannelReactions = ['👍', '❤️', '🔥', '👏', '😮', '🙏'];
 
 /// 4–32 letters, digits or `_`, starting with a letter, lowercase.
-final RegExp channelUsernameRe = RegExp(r'^[a-z][a-z0-9_]{3,31}$');
+// ignore: use_raw_strings
+final RegExp channelUsernameRe = RegExp('^[a-z][a-z0-9_]{3,31}\$');
 
 /// What the reader typed → the form the server stores (no `@`, lowercase).
 String normalizeChannelUsername(String raw) =>
-    raw.trim().replaceFirst(RegExp(r'^@'), '').toLowerCase();
+    raw.trim().replaceFirst(RegExp('^@'), '').toLowerCase();
 
 bool isValidChannelUsername(String raw) =>
     channelUsernameRe.hasMatch(normalizeChannelUsername(raw));
@@ -295,6 +296,10 @@ class ChannelPage<T> {
 }
 
 /// A channel's `ref` is its id (a UUID) or its @username.
-bool looksLikeChannelId(String ref) => RegExp(
-      r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
-    ).hasMatch(ref);
+bool looksLikeChannelId(String ref) => _uuidRe.hasMatch(ref);
+
+final RegExp _uuidRe = RegExp(
+  '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-'
+  // ignore: use_raw_strings
+  '[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\$',
+);

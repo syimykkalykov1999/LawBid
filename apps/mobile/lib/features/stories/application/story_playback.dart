@@ -33,6 +33,7 @@ class StoryPlayback extends ChangeNotifier {
 
   int _index;
   int _restarts = 0;
+  bool _done = false;
   double _progress = 0;
   final Set<Object> _holds = {};
   final Set<int> _timerVideos = {};
@@ -46,6 +47,9 @@ class StoryPlayback extends ChangeNotifier {
   /// 0..1 of the story on screen.
   double get progress => _progress;
   bool get paused => _holds.isNotEmpty;
+
+  /// The last story ended (reported once through [onFinished]).
+  bool get finished => _done;
 
   /// Progress of story [i] for its bar: done, running, or not yet.
   double barValue(int i) => i < _index ? 1 : (i == _index ? _progress : 0);
@@ -69,7 +73,7 @@ class StoryPlayback extends ChangeNotifier {
 
   /// Timer step; ignored while paused or when a player paces the story.
   void advance(Duration dt) {
-    if (paused || !timed) return;
+    if (paused || !timed || _done) return;
     final len = current.playLength.inMicroseconds;
     if (len <= 0) return;
     _progress += dt.inMicroseconds / len;
@@ -106,7 +110,8 @@ class StoryPlayback extends ChangeNotifier {
       _progress = 0;
       notifyListeners();
       onShown?.call(current);
-    } else {
+    } else if (!_done) {
+      _done = true;
       _progress = 1;
       notifyListeners();
       onFinished?.call();
@@ -114,6 +119,7 @@ class StoryPlayback extends ChangeNotifier {
   }
 
   void previous() {
+    _done = false;
     if (_index > 0) {
       _index--;
       _progress = 0;

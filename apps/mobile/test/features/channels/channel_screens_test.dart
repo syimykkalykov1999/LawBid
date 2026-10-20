@@ -1,0 +1,260 @@
+import 'dart:typed_data';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
+import 'package:flutter_test/flutter_test.dart';
+import 'package:image_picker/image_picker.dart' show XFile;
+import 'package:intl/date_symbol_data_local.dart';
+import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/features/channels/application/channel_compose.dart';
+import 'package:lawbid/features/channels/domain/channel_models.dart';
+import 'package:lawbid/features/channels/presentation/channel_composer_screen.dart';
+import 'package:lawbid/features/channels/presentation/channel_pickers.dart';
+import 'package:lawbid/features/channels/presentation/channel_screen.dart';
+import 'package:visibility_detector/visibility_detector.dart';
+
+import 'channels_fakes.dart';
+
+/// Owner 2026-10-20: the channel page and the composer as a reader and an
+/// admin use them.
+void main() {
+  setUpAll(initializeDateFormatting);
+
+  setUp(() {
+    VisibilityDetectorController.instance.updateInterval = Duration.zero;
+  });
+
+  Future<void> pump(
+    WidgetTester tester,
+    Widget screen,
+    FakeChannelsRepository repo, {
+    List<Override> extra = const [],
+  }) async {
+    tester.view
+      ..devicePixelRatio = 1
+      ..physicalSize = const Size(390, 1600);
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [...channelsOverrides(repo), ...extra],
+        child: MaterialApp(theme: AppTheme.light(), home: screen),
+      ),
+    );
+    await tester.pumpAndSettle();
+  }
+
+  group('channel page', () {
+    testWidgets('a reader can subscribe and unsubscribe', (tester) async {
+      final repo = FakeChannelsRepository(channel: fakeChannel());
+      await pump(
+        tester,
+        const ChannelScreen(channelRef: 'tax_news'),
+        repo,
+      );
+      expect(find.byKey(const ValueKey('channel-subscribe')), findsOneWidget);
+      expect(find.byKey(const ValueKey('channel-new-post')), findsNothing);
+      expect(find.byKey(const ValueKey('channel-mute')), findsNothing);
+
+      await tester.tap(find.byKey(const ValueKey('channel-subscribe')));
+      await tester.pumpAndSettle();
+      expect(repo.calls, contains('subscribe'));
+      expect(
+        find.byKey(const ValueKey('channel-unsubscribe')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('channel-mute')), findsOneWidget);
+      expect(find.textContaining('121'), findsWidgets);
+
+      await tester.tap(find.byKey(const ValueKey('channel-unsubscribe')));
+      await tester.pumpAndSettle();
+      expect(repo.calls, contains('unsubscribe'));
+      expect(find.byKey(const ValueKey('channel-subscribe')), findsOneWidget);
+    });
+
+    testWidgets('an admin sees New post and no Subscribe', (tester) async {
+      final repo = FakeChannelsRepository(
+        channel: fakeChannel(role: ChannelRole.admin),
+      );
+      await pump(
+        tester,
+        const ChannelScreen(channelRef: 'tax_news'),
+        repo,
+      );
+      expect(find.byKey(const ValueKey('channel-new-post')), findsOneWidget);
+      expect(find.byKey(const ValueKey('channel-subscribe')), findsNothing);
+      expect(find.byKey(const ValueKey('channel-unsubscribe')), findsNothing);
+      expect(find.byKey(const ValueKey('channel-post-menu')), findsWidgets);
+    });
+
+    testWidgets('a reader has no post menu for editing', (tester) async {
+      final repo = FakeChannelsRepository(channel: fakeChannel());
+      await pump(
+        tester,
+        const ChannelScreen(channelRef: 'tax_news'),
+        repo,
+      );
+      await tester.tap(find.byKey(const ValueKey('channel-post-menu')).first);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('channel-post-report')), findsOne);
+      expect(find.byKey(const ValueKey('channel-post-edit')), findsNothing);
+      expect(find.byKey(const ValueKey('channel-post-delete')), findsNothing);
+    });
+
+    testWidgets('tapping a reaction sets it, tapping again removes it',
+        (tester) async {
+      final repo = FakeChannelsRepository(
+        feed: [
+          fakePost(
+            'p1',
+            reactions: const [ChannelReactionCount('👍', 2)],
+          ),
+        ],
+      );
+      await pump(
+        tester,
+        const ChannelScreen(channelRef: 'tax_news'),
+        repo,
+      );
+      final chip = find.byKey(const ValueKey('channel-react-👍'));
+      expect(chip, findsOneWidget);
+      expect(
+        find.descendant(of: chip, matching: find.text('👍 2')),
+        findsOneWidget,
+      );
+
+      await tester.tap(chip);
+      await tester.pumpAndSettle();
+      expect(repo.calls, contains('react:p1:👍'));
+      expect(
+        find.descendant(of: chip, matching: find.text('👍 3')),
+        findsOneWidget,
+      );
+
+      await tester.tap(chip);
+      await tester.pumpAndSettle();
+      expect(repo.calls, contains('unreact:p1'));
+      expect(
+        find.descendant(of: chip, matching: find.text('👍 2')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('comments are on when enabled and hidden when not',
+        (tester) async {
+      final on = FakeChannelsRepository(channel: fakeChannel());
+      await pump(tester, const ChannelScreen(channelRef: 'tax_news'), on);
+      expect(
+        find.byKey(const ValueKey('channel-post-comments')),
+        findsWidgets,
+      );
+
+      final off = FakeChannelsRepository(
+        channel: fakeChannel(comments: false),
+      );
+      await pump(tester, const ChannelScreen(channelRef: 'tax_news'), off);
+      expect(find.byKey(const ValueKey('channel-post-comments')), findsNothing);
+    });
+
+    testWidgets('shown posts are reported as viewed', (tester) async {
+      final repo = FakeChannelsRepository(channel: fakeChannel());
+      await pump(tester, const ChannelScreen(channelRef: 'tax_news'), repo);
+      await tester.pump(const Duration(seconds: 2));
+      expect(repo.viewed.expand((e) => e), containsAll(['p1', 'p2']));
+    });
+  });
+
+  group('composer', () {
+    Uint8List px() => Uint8List.fromList([1, 2, 3]);
+
+    List<Override> pickers({int photos = 2}) => [
+          channelPhotoPickerProvider.overrideWithValue(
+            (context, left) async => [for (var i = 0; i < photos; i++) px()],
+          ),
+          channelVideoPickerProvider.overrideWithValue(
+            (context, max) async => (
+              video: ChannelVideoDraft(
+                file: XFile.fromData(px(), name: 'v.mp4'),
+                durationSec: 5,
+                size: 3,
+              ),
+              problem: null,
+            ),
+          ),
+          channelPhotoUploaderProvider
+              .overrideWithValue((bytes, {onProgress}) async => 'f'),
+        ];
+
+    bool enabled(WidgetTester tester, String key) {
+      final button = tester.widget<AppButton>(find.byKey(ValueKey(key)));
+      return button.isEnabled;
+    }
+
+    testWidgets('publish needs text and stops at 4000', (tester) async {
+      final repo = FakeChannelsRepository();
+      await pump(
+        tester,
+        const ChannelComposerScreen(channelId: 'ch-1'),
+        repo,
+        extra: pickers(),
+      );
+      expect(enabled(tester, 'channel-compose-publish'), isFalse);
+
+      await tester.enterText(
+        find.byKey(const ValueKey('channel-compose-text')),
+        'Hello',
+      );
+      await tester.pump();
+      expect(enabled(tester, 'channel-compose-publish'), isTrue);
+
+      await tester.enterText(
+        find.byKey(const ValueKey('channel-compose-text')),
+        'x' * (kChannelPostMax + 50),
+      );
+      await tester.pump();
+      final field = tester.widget<TextField>(
+        find.descendant(
+          of: find.byKey(const ValueKey('channel-compose-text')),
+          matching: find.byType(TextField),
+        ),
+      );
+      expect(
+        field.controller!.text.length,
+        lessThanOrEqualTo(kChannelPostMax),
+      );
+    });
+
+    testWidgets('photos stop at the limit and exclude a video', (tester) async {
+      final repo = FakeChannelsRepository();
+      await pump(
+        tester,
+        const ChannelComposerScreen(channelId: 'ch-1'),
+        repo,
+        extra: pickers(photos: 10),
+      );
+      expect(enabled(tester, 'channel-add-photos'), isTrue);
+      expect(enabled(tester, 'channel-add-video'), isTrue);
+
+      await tester.tap(find.byKey(const ValueKey('channel-add-photos')));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('10/10'), findsOneWidget);
+      expect(enabled(tester, 'channel-add-photos'), isFalse);
+      expect(enabled(tester, 'channel-add-video'), isFalse);
+    });
+
+    testWidgets('a video blocks photos', (tester) async {
+      final repo = FakeChannelsRepository();
+      await pump(
+        tester,
+        const ChannelComposerScreen(channelId: 'ch-1'),
+        repo,
+        extra: pickers(),
+      );
+      await tester.tap(find.byKey(const ValueKey('channel-add-video')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('channel-video-draft')), findsOne);
+      expect(enabled(tester, 'channel-add-photos'), isFalse);
+      expect(enabled(tester, 'channel-add-video'), isFalse);
+    });
+  });
+}

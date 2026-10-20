@@ -62,7 +62,8 @@ final storySettingsProvider =
 
 class StorySettingsController extends AsyncNotifier<StorySettings> {
   @override
-  Future<StorySettings> build() => ref.watch(storiesRepositoryProvider).settings();
+  Future<StorySettings> build() =>
+      ref.watch(storiesRepositoryProvider).settings();
 
   Future<void> setAudience(StoryAudience audience) async {
     final next = await ref
@@ -117,8 +118,8 @@ class HiddenStoriesController extends AsyncNotifier<List<StoryUser>> {
 }
 
 /// My expired stories, newest first (paged).
-final storyArchiveProvider =
-    AsyncNotifierProvider.autoDispose<StoryArchiveController, PaginatedList<Story>>(
+final storyArchiveProvider = AsyncNotifierProvider.autoDispose<
+    StoryArchiveController, PaginatedList<Story>>(
   StoryArchiveController.new,
   retry: _noRetry,
 );
@@ -152,7 +153,7 @@ class StoryViewersController extends PagedNotifier<StoryViewer> {
   Object idOf(StoryViewer item) => item.user.id;
 }
 
-/// People I follow, optionally filtered by [query] — the "hide from" picker.
+/// People I follow, optionally filtered by `query` — the "hide from" picker.
 final storyFollowingProvider = AsyncNotifierProvider.autoDispose
     .family<StoryFollowingController, PaginatedList<StoryUser>, String>(
   StoryFollowingController.new,

@@ -30,9 +30,13 @@ Size storyFrameSize(Size available) {
       : Size(available.width, available.width / kStoryAspect);
 }
 
-/// One sticker, drawn at [frame] size (centre at x, y; scale; rotation).
+/// One sticker, drawn at the frame's size (centre at x, y; scale; rotation).
 class StoryStickerView extends StatelessWidget {
-  const StoryStickerView({required this.overlay, required this.frameWidth, super.key});
+  const StoryStickerView({
+    required this.overlay,
+    required this.frameWidth,
+    super.key,
+  });
 
   final StoryOverlay overlay;
   final double frameWidth;
@@ -137,7 +141,11 @@ class StoryTextCard extends StatelessWidget {
   }
 }
 
-TextStyle storyTextStyle(AppTypographyTokens type, double frameWidth, int len) =>
+TextStyle storyTextStyle(
+  AppTypographyTokens type,
+  double frameWidth,
+  int len,
+) =>
     type.titleLarge.copyWith(
       color: Colors.white,
       fontSize: frameWidth * storyTextFactor(len),
@@ -252,7 +260,7 @@ class StoryFrame extends StatelessWidget {
                 fit: BoxFit.contain,
                 errorBuilder: (_, __, ___) => const SizedBox.shrink(),
               ),
-            ?video,
+            if (video != null) video!,
           ],
         );
       case StoryKind.photo:

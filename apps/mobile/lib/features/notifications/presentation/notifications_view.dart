@@ -8,6 +8,7 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/case_payments/case_payments_routes.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
+import 'package:lawbid/features/channels/channels_routes.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
@@ -127,6 +128,13 @@ String? notificationRoute({
         return AppRoutes.caseComments(caseId);
       }
       return postId == null ? null : SocialRoutes.post(postId);
+    // Owner 2026-10-20: a new post in a channel I follow opens the channel
+    // (the shared post first).
+    case 'channel_post':
+      final channelId = s('channelId');
+      return channelId == null
+          ? ChannelsRoutes.list
+          : ChannelsRoutes.channel(channelId, postId: postId);
     case 'verification_update':
       // Owner 2026-10-05: trust level changes / holds open the attorney's
       // own trust screen.
@@ -365,6 +373,14 @@ String notificationText(Translator t, AppNotification n) {
         ? '$base: ${reason.trim()}'
         : base;
   }
+  // Owner 2026-10-20: «New post in "channel"» — no actor, the channel's title
+  // comes with the notification.
+  if (n.type == 'channel_post') {
+    return t.t(
+      'channel.notif.post',
+      {'title': '${n.payload['channelTitle'] ?? ''}'},
+    );
+  }
   final name = n.actor?.displayName ?? '';
   final others = n.aggregateCount - 1;
   // Owner 2026-10-12: a text post is a "Brief" — the notice says so.
@@ -392,6 +408,8 @@ IconData _icon(AppNotification n) => switch (n.type) {
       // Owner 2026-10-07: Threads-style reposts.
       'post_repost' => AppIcons.autoModeRounded,
       'new_follower' => AppIcons.personAddAlt1Rounded,
+      // Owner 2026-10-20: channels.
+      'channel_post' => AppIcons.campaignOutlined,
       // OQ-041.
       'missed_call' => AppIcons.phoneMissedRounded,
       // OQ-042.
