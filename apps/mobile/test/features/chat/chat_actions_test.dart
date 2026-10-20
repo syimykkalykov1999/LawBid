@@ -2,9 +2,18 @@
 import 'dart:async';
 
 import 'package:drift/native.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:lawbid/core/connectivity/connectivity_providers.dart';
+import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/l10n/app_language.dart';
+import 'package:lawbid/core/l10n/l10n_formats.dart';
+import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/l10n/static_translator.dart';
+import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/chat/data/chat_repository.dart';
@@ -13,6 +22,8 @@ import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/presentation/message_actions.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/data/social_local_database.dart';
+import 'package:lawbid/features/stars/application/stars_providers.dart';
+import 'package:lawbid/features/stars/domain/stars_models.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
@@ -26,6 +37,9 @@ class _Chat implements ChatRepository {
   final int unread;
   final sent = <({String body, String? replyToId, bool forwarded})>[];
   final deleted = <String>[];
+
+  /// When set, `react` fails with it (a premium emoji without stars).
+  Object? reactError;
   ChatPins pinsInfo = const ChatPins(
     items: [],
     editWindowMin: 15,
@@ -72,12 +86,15 @@ class _Chat implements ChatRepository {
       deleted.add('$messageId:${all ? 'all' : 'me'}');
 
   @override
-  Future<ChatMessage> react(String id, String messageId, String? emoji) async =>
-      stored.firstWhere((m) => m.id == messageId).copyWith(
-            reactions: emoji == null
-                ? const []
-                : [MessageReaction(emoji: emoji, count: 1, mine: true)],
-          );
+  Future<ChatMessage> react(String id, String messageId, String? emoji) async {
+    final err = reactError;
+    if (err != null) throw err as Exception;
+    return stored.firstWhere((m) => m.id == messageId).copyWith(
+          reactions: emoji == null
+              ? const []
+              : [MessageReaction(emoji: emoji, count: 1, mine: true)],
+        );
+  }
 
   @override
   Future<ChatMessage> setPinned(
@@ -127,8 +144,9 @@ ChatMessage _msg(
     );
 
 ({ProviderContainer c, StreamController<RealtimeEvent> events}) _setup(
-  _Chat chat,
-) {
+  _Chat chat, {
+  List<Override> extra = const [],
+}) {
   final db = SocialLocalDatabase(NativeDatabase.memory());
   final events = StreamController<RealtimeEvent>.broadcast();
   final c = ProviderContainer(
@@ -140,6 +158,7 @@ ChatMessage _msg(
       realtimeEventsProvider.overrideWithValue(events.stream),
       networkInterfaceMonitorProvider.overrideWithValue(FakeNetworkMonitor()),
       reachabilityProbeProvider.overrideWithValue(FakeProbe().call),
+      ...extra,
     ],
   );
   addTearDown(() async {
@@ -153,7 +172,83 @@ ChatMessage _msg(
 Future<void> _settle() =>
     Future<void>.delayed(const Duration(milliseconds: 60));
 
+const _overview = StarsOverview(
+  enabled: true,
+  balance: 0,
+  packs: [],
+  giftConvertPercent: 70,
+  premiumReactions: ['🔥', '🏆'],
+);
+
 void main() {
+  testWidgets(
+    'premium emojis show their price; 402 opens the not-enough-stars sheet',
+    (tester) async {
+      await tester.runAsync(initializeDateFormatting);
+      final chat = _Chat([_msg('a', sender: 'them')])
+        ..reactError = const ApiException(
+          code: ApiErrorCodes.insufficientStars,
+          message: 'Not enough stars',
+          statusCode: 402,
+        );
+      final s = _setup(
+        chat,
+        extra: [
+          starsOverviewProvider.overrideWith((ref) => _overview),
+          starsEnabledProvider.overrideWithValue(true),
+          translatorProvider.overrideWithValue(const StaticTranslatorEn()),
+          l10nFormatsProvider
+              .overrideWithValue(L10nFormats(AppLanguage.fromCode('en'))),
+        ],
+      );
+      final c = s.c;
+      final sub = c.listen(chatThreadProvider('c1'), (_, __) {});
+      addTearDown(sub.close);
+      final stars = c.listen(starsOverviewProvider, (_, __) {});
+      addTearDown(stars.close);
+      await tester.runAsync(() => c.read(starsOverviewProvider.future));
+      await tester.runAsync(_settle);
+      final msg = c.read(chatThreadProvider('c1')).messages.single;
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: c,
+          child: MaterialApp(
+            theme: AppTheme.of(AppThemeId.values.first),
+            home: Consumer(
+              builder: (context, ref, _) => TextButton(
+                onPressed: () => showMessageMenu(context, ref, 'c1', msg),
+                child: const Text('open'),
+              ),
+            ),
+          ),
+        ),
+      );
+      Future<void> settle() async {
+        for (var i = 0; i < 3; i++) {
+          await tester.runAsync(_settle);
+          await tester.pump(const Duration(milliseconds: 400));
+        }
+      }
+
+      await tester.tap(find.text('open'));
+      await settle();
+      expect(
+        find.byKey(const ValueKey('msg-premium-reactions')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('react-price-🔥')), findsOneWidget);
+      expect(find.text('3 ⭐'), findsNWidgets(2));
+
+      await tester.tap(find.text('🔥'));
+      await settle();
+      expect(find.byKey(const ValueKey('low-stars-sheet')), findsOneWidget);
+      expect(find.textContaining('3 ⭐'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(seconds: 5));
+    },
+  );
+
   test('edit is allowed only for my text inside the server window', () async {
     final chat = _Chat([
       _msg('fresh', age: const Duration(minutes: 2)),

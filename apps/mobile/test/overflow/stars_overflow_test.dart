@@ -17,6 +17,7 @@ import 'package:lawbid/features/stars/application/stars_providers.dart';
 import 'package:lawbid/features/stars/data/stars_repository.dart';
 import 'package:lawbid/features/stars/domain/stars_models.dart';
 import 'package:lawbid/features/stars/presentation/gift_widgets.dart';
+import 'package:lawbid/features/stars/presentation/low_stars_sheet.dart';
 import 'package:lawbid/features/stars/presentation/my_gifts_screen.dart';
 import 'package:lawbid/features/stars/presentation/stars_screen.dart';
 
@@ -234,6 +235,23 @@ Future<void> main() async {
           await tester.tap(find.text('open'));
           await tester.pump(const Duration(milliseconds: 400));
           await tester.pump(const Duration(milliseconds: 400));
+          expect(tester.takeException(), isNull);
+        });
+
+        testWidgets('not-enough-stars sheet, $tag', (tester) async {
+          await pump(
+            tester,
+            Builder(
+              builder: (context) => TextButton(
+                onPressed: () => showLowStarsSheet(context, t, price: 99999),
+                child: const Text('open'),
+              ),
+            ),
+          );
+          await tester.tap(find.text('open'));
+          await tester.pump(const Duration(milliseconds: 400));
+          await tester.pump(const Duration(milliseconds: 400));
+          expect(find.byKey(const ValueKey('low-stars-sheet')), findsOneWidget);
           expect(tester.takeException(), isNull);
         });
 
