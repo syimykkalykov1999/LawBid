@@ -3232,7 +3232,9 @@ model DataAccessRequest {
   created_at       DateTime          @default(now()) @db.Timestamptz
   updated_at       DateTime          @updatedAt @db.Timestamptz
 
-  access_log DataAccessLog[]
+  access_log    DataAccessLog[]
+  legal_exports LegalExport[]
+  legal_holds   LegalHold[]
 
   @@map("data_access_requests")
 }
@@ -6496,4 +6498,51 @@ model UsernameHold {
 
   @@index([released_at])
   @@map("username_holds")
+}
+
+/// Owner 2026-10-20 (government requests): one evidence archive for a
+/// registered request. A worker builds the ZIP (PDF report + JSON + SHA-256
+/// of every file) one job at a time; the file lives `legal.export_ttl_days`.
+model LegalExport {
+  id              String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  request_id      String            @db.Uuid
+  request         DataAccessRequest @relation(fields: [request_id], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "legal_exports_request_fkey")
+  subject_user_id String            @db.Uuid
+  requested_by    String            @db.Uuid
+  status          String            @default("queued") @db.VarChar(10)
+  selection       Json
+  file_bucket     String?
+  file_key        String?
+  size_bytes      BigInt?
+  sha256          String?
+  row_counts      Json?
+  error           String?
+  created_at      DateTime          @default(now()) @db.Timestamptz
+  started_at      DateTime?         @db.Timestamptz
+  finished_at     DateTime?         @db.Timestamptz
+  expires_at      DateTime?         @db.Timestamptz
+
+  @@index([request_id, created_at(sort: Desc)])
+  @@index([status, created_at])
+  @@index([requested_by, created_at])
+  @@map("legal_exports")
+}
+
+/// Owner 2026-10-20: a legal hold stops the 90-day scrub of deleted content
+/// for the person / chat / group until it is released.
+model LegalHold {
+  id          String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  request_id  String            @db.Uuid
+  request     DataAccessRequest @relation(fields: [request_id], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "legal_holds_request_fkey")
+  target_type String            @db.VarChar(12)
+  target_id   String            @db.Uuid
+  created_by  String            @db.Uuid
+  created_at  DateTime          @default(now()) @db.Timestamptz
+  /// NULL = until the owner releases it.
+  expires_at  DateTime?         @db.Timestamptz
+  released_at DateTime?         @db.Timestamptz
+
+  @@index([target_type, target_id])
+  @@index([request_id])
+  @@map("legal_holds")
 }

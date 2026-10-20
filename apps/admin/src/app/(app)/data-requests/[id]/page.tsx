@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import { useState } from 'react';
 import { useConfirm } from '@/components/legacy/confirm';
 import { FadeIn, MotionRow } from '@/components/legacy/fade-in';
+import { LegalWorkspace } from '@/components/legal/legal-workspace';
 import { ErrorNote, PageHeader, SectionTitle } from '@/components/page-header';
 import { useReason } from '@/components/reason-dialog';
 import { Button } from '@/components/ui/button';
@@ -222,6 +223,13 @@ export default function DataRequestCardPage() {
         </Card>
         </FadeIn>
       </div>
+      <LegalWorkspace
+        requestId={id}
+        requestType={label(DATA_REQUEST_TYPE, r.requestType)}
+        referenceNumber={r.referenceNumber}
+        agency={r.agency}
+        closed={r.status === 'fulfilled' || r.status === 'rejected'}
+      />
       <section>
         <SectionTitle>Журнал доступа к данным</SectionTitle>
         <Table>

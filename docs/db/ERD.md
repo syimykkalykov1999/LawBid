@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-226 tables.
+228 tables.
 
 ```mermaid
 erDiagram
@@ -2732,6 +2732,34 @@ erDiagram
     String holder_user_id
     DateTime released_at
   }
+  legal_exports {
+    String id PK
+    String request_id FK
+    String subject_user_id
+    String requested_by
+    String status
+    Json selection
+    String file_bucket "nullable"
+    String file_key "nullable"
+    BigInt size_bytes "nullable"
+    String sha256 "nullable"
+    Json row_counts "nullable"
+    String error "nullable"
+    DateTime created_at
+    DateTime started_at "nullable"
+    DateTime finished_at "nullable"
+    DateTime expires_at "nullable"
+  }
+  legal_holds {
+    String id PK
+    String request_id FK
+    String target_type
+    String target_id
+    String created_by
+    DateTime created_at
+    DateTime expires_at "nullable"
+    DateTime released_at "nullable"
+  }
   users }o--o| files : "avatar_file_id"
   users }o--|| countries : "country_code"
   files }o--|| users : "owner_user_id"
@@ -3016,4 +3044,6 @@ erDiagram
   legal_answers }o--|| users : "attorney_id"
   legal_answer_likes }o--|| legal_answers : "answer_id"
   legal_answer_likes }o--|| users : "user_id"
+  legal_exports }o--|| data_access_requests : "request_id"
+  legal_holds }o--|| data_access_requests : "request_id"
 ```

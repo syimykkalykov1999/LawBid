@@ -7,6 +7,7 @@ import { OutreachRetentionModule } from '../modules/outreach/outreach.module';
 import { CountryPartnersCoreModule } from '../modules/country-partners/country-partners.module';
 import { RewardsModule } from '../modules/rewards/rewards.module';
 import { SupportModule } from '../modules/support/support.module';
+import { LegalExportsCoreModule } from '../modules/admin-data-requests/legal-exports-core.module';
 import { StorageCoreModule } from '../modules/storage/storage.module';
 import { ConsultationsCoreModule } from '../modules/consultations/consultations-core.module';
 import { TreasuryCoreModule } from '../modules/treasury/treasury.module';
@@ -99,6 +100,7 @@ export class JobsModule {
         // Owner 2026-10-05: `storage.gc`, `storage.retention`,
         // `storage.snapshot`.
         StorageCoreModule,
+        LegalExportsCoreModule,
         // Owner 2026-10-05: `treasury.daily` (profit and reserve).
         TreasuryCoreModule,
         // Owner 2026-10-20: `consultations.sweep`.
