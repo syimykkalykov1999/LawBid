@@ -716,6 +716,10 @@ String callActionError(Translator t, String code) {
       return t.t('call.full');
     case 'CALL_NOT_ALLOWED':
       return t.t('call.notAllowed');
+    case 'USER_BLOCKED':
+      return t.t('error.api.USER_BLOCKED');
+    case 'PRIVACY_RESTRICTED':
+      return t.t('error.api.PRIVACY_RESTRICTED');
   }
   return t.t('call.status.failed');
 }

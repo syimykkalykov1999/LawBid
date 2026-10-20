@@ -184,19 +184,22 @@ describe('Group calls (e2e)', () => {
     const callId = started.body.data.id as string;
     await api().post(`/api/v1/calls/${callId}/accept`).set(cAuth).expect(200);
 
-    // A stranger cannot add anyone; a member cannot add someone they
-    // cannot chat with.
+    // A stranger cannot add anyone; a person the adder blocked is refused.
     await api()
       .post(`/api/v1/calls/${callId}/participants`)
       .set(auth(stranger.id, 'client'))
       .send({ userId: a2.id })
       .expect(404);
-    const noChat = await api()
+    await api()
+      .put(`/api/v1/users/${stranger.id}/block`)
+      .set(a1Auth)
+      .expect(204);
+    const blocked = await api()
       .post(`/api/v1/calls/${callId}/participants`)
       .set(a1Auth)
       .send({ userId: stranger.id });
-    expect(noChat.status).toBe(409);
-    expect(noChat.body.error.code).toBe('CALL_NOT_ALLOWED');
+    expect(blocked.status).toBe(403);
+    expect(blocked.body.error.code).toBe('USER_BLOCKED');
 
     // a2's privacy "who can call me" = nobody: adding them is refused.
     await api()
@@ -338,6 +341,52 @@ describe('Group calls (e2e)', () => {
     expect((await ended).call.status).toBe('ended');
     const call = await prisma.call.findUniqueOrThrow({ where: { id: callId } });
     expect(call.status).toBe('ended');
+  });
+
+  it('anyone can be added by @username or id, with no chat or accepted bid (like Telegram)', async () => {
+    const client = await prisma.user.create({
+      data: { role: 'client', first_name: 'Eve', last_name: 'Group' },
+    });
+    const a1 = await attorney('Eric');
+    const loose = await attorney('Lena');
+    const looseClient = await prisma.user.create({
+      data: { role: 'client', first_name: 'Max', last_name: 'Loose' },
+    });
+    const conv1 = await chatBetween(client.id, a1.id);
+    const a1Auth = auth(a1.id, 'attorney');
+
+    const started = await api()
+      .post(`/api/v1/conversations/${conv1}/calls`)
+      .set(a1Auth)
+      .expect(201);
+    const callId = started.body.data.id as string;
+    await api()
+      .post(`/api/v1/calls/${callId}/accept`)
+      .set(auth(client.id, 'client'))
+      .expect(200);
+
+    // Neither has a chat with anyone in the call.
+    const byName = await api()
+      .post(`/api/v1/calls/${callId}/participants`)
+      .set(a1Auth)
+      .send({ username: `@${loose.username}` })
+      .expect(200);
+    expect(parts(byName).find((p) => p.userId === loose.id)?.status).toBe(
+      'invited',
+    );
+    const byId = await api()
+      .post(`/api/v1/calls/${callId}/participants`)
+      .set(a1Auth)
+      .send({ userId: looseClient.id })
+      .expect(200);
+    expect(parts(byId).find((p) => p.userId === looseClient.id)?.status).toBe(
+      'invited',
+    );
+    await api()
+      .post(`/api/v1/calls/${callId}/end`)
+      .set(a1Auth)
+      .send({})
+      .expect(200);
   });
 
   it('a group call stays up while two or more remain, and a declined invite ends nothing', async () => {
