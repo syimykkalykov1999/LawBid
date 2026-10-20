@@ -32,7 +32,7 @@ class GroupInfoHeader extends ConsumerWidget {
   final VoidCallback? onEditDescription;
   final bool photoBusy;
 
-  static const double _photo = 112;
+  static const double _photo = 88;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -58,7 +58,7 @@ class GroupInfoHeader extends ConsumerWidget {
 
     return Column(
       children: [
-        const SizedBox(height: AppSpacing.xl),
+        const SizedBox(height: AppSpacing.md),
         Center(
           child: SizedBox(
             width: _photo,
@@ -113,17 +113,17 @@ class GroupInfoHeader extends ConsumerWidget {
                           child: Center(
                             child: Container(
                               key: const ValueKey('group-info-photo-edit'),
-                              width: 34,
-                              height: 34,
+                              width: 30,
+                              height: 30,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
-                                color: colors.text,
-                                border: Border.all(color: colors.bg, width: 2),
+                                color: colors.surface,
+                                border: Border.all(color: colors.border),
                               ),
                               child: AppIcon(
                                 AppIcons.photoCameraOutlined,
                                 size: 18,
-                                color: colors.bg,
+                                color: colors.gold,
                               ),
                             ),
                           ),
@@ -135,7 +135,7 @@ class GroupInfoHeader extends ConsumerWidget {
             ),
           ),
         ),
-        const SizedBox(height: AppSpacing.md),
+        const SizedBox(height: AppSpacing.xs),
         Padding(
           padding:
               const EdgeInsets.symmetric(horizontal: AppSpacing.screenSide),
@@ -150,9 +150,9 @@ class GroupInfoHeader extends ConsumerWidget {
                     detail.title,
                     key: const ValueKey('group-info-title'),
                     textAlign: TextAlign.center,
-                    maxLines: 3,
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: type.titleLarge.copyWith(color: colors.text),
+                    style: type.titleMedium.copyWith(color: colors.text),
                   ),
                 ),
                 if (canEdit) ...[
@@ -204,7 +204,7 @@ class GroupInfoHeader extends ConsumerWidget {
           Padding(
             padding: const EdgeInsets.fromLTRB(
               AppSpacing.screenSide,
-              AppSpacing.lg,
+              0,
               AppSpacing.screenSide,
               0,
             ),
@@ -222,9 +222,12 @@ class GroupInfoHeader extends ConsumerWidget {
                           : description,
                       key: const ValueKey('group-info-description'),
                       textAlign: TextAlign.center,
-                      style: type.body.copyWith(
-                        color:
-                            description.isEmpty ? colors.goldDark : colors.text,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: type.bodySmall.copyWith(
+                        color: description.isEmpty
+                            ? colors.goldDark
+                            : colors.textSecondary,
                       ),
                     ),
                   ),
@@ -244,7 +247,7 @@ class GroupInfoHeader extends ConsumerWidget {
             ),
           ),
         Padding(
-          padding: const EdgeInsets.only(top: AppSpacing.md),
+          padding: const EdgeInsets.only(top: AppSpacing.xs),
           child: Text(
             t.t('group.info.created', {'date': formats.date(detail.createdAt)}),
             key: const ValueKey('group-info-created'),

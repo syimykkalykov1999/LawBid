@@ -88,6 +88,7 @@ class GroupInfoSettings extends ConsumerWidget {
           title: t.t('group.info.settings.permissions'),
           children: [
             AppListRow(
+              dense: true,
               key: const ValueKey('group-set-post'),
               icon: AppIcons.chatBubbleOutlineRounded,
               label: t.t('group.info.settings.whoPost'),
@@ -103,6 +104,7 @@ class GroupInfoSettings extends ConsumerWidget {
               ),
             ),
             AppListRow(
+              dense: true,
               key: const ValueKey('group-set-add'),
               icon: AppIcons.personAddAlt1Rounded,
               label: t.t('group.info.settings.whoAdd'),
@@ -118,6 +120,7 @@ class GroupInfoSettings extends ConsumerWidget {
               ),
             ),
             AppListRow(
+              dense: true,
               key: const ValueKey('group-set-edit'),
               icon: AppIcons.editOutlined,
               label: t.t('group.info.settings.whoEdit'),
@@ -134,6 +137,7 @@ class GroupInfoSettings extends ConsumerWidget {
               ),
             ),
             AppListRow(
+              dense: true,
               key: const ValueKey('group-set-call'),
               icon: AppIcons.callOutlined,
               label: t.t('group.info.settings.whoCall'),
@@ -154,6 +158,7 @@ class GroupInfoSettings extends ConsumerWidget {
           title: t.t('group.info.settings.access'),
           children: [
             AppListRow(
+              dense: true,
               key: const ValueKey('group-set-type'),
               icon: switch (detail.type) {
                 api.GroupType.public => AppIcons.publicRounded,

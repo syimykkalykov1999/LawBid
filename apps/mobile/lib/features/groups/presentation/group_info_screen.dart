@@ -1,7 +1,7 @@
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -292,8 +292,10 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
           .addMembers(_id, [for (final p in picked) p.userId]),
     );
     if (mounted && d2 != null) {
-      final skipped = d2.notAdded?.length ?? 0;
-      final added = picked.length - skipped;
+      // The member list is the truth: someone already in, or refused by
+      // their privacy settings, never shows up there.
+      final added = (d2.members.length - d.members.length).clamp(0, 1 << 20);
+      final skipped = picked.length - added;
       _toast(
         [
           if (added > 0) t.plural('group.info.added', added),
@@ -461,7 +463,9 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     ref.listen(groupDetailProvider(_id), (_, next) {
-      if (next.hasValue && (_fresh != null || _mute != null)) {
+      if (next.hasValue &&
+          !next.isLoading &&
+          (_fresh != null || _mute != null)) {
         setState(() {
           _fresh = null;
           _mute = null;
@@ -524,45 +528,87 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
       required IconData icon,
       required String label,
       required VoidCallback onTap,
-    }) =>
-        Semantics(
+      bool destructive = false,
+    }) {
+      final ink = destructive ? colors.dangerText : colors.text;
+      return Expanded(
+        child: Semantics(
           button: true,
           label: label,
           excludeSemantics: true,
           child: AppPressable(
             onTap: onTap,
-            child: SizedBox(
-              width: 88,
+            child: Container(
+              key: key,
+              height: 56,
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(AppRadii.field),
+                color: colors.surface,
+                border: Border.all(color: colors.border),
+              ),
               child: Column(
-                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Container(
-                    key: key,
-                    width: 56,
-                    height: 56,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: colors.surface,
-                      border: Border.all(color: colors.border),
-                    ),
-                    child: AppIcon(icon, color: colors.text, size: 26),
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
+                  AppIcon(icon, color: ink, size: 22),
+                  const SizedBox(height: 2),
                   Text(
                     label,
-                    maxLines: 2,
+                    maxLines: 1,
                     textAlign: TextAlign.center,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context)
                         .extension<AppTypographyTokens>()!
                         .caption
-                        .copyWith(color: colors.text),
+                        .copyWith(color: ink),
                   ),
                 ],
               ),
             ),
           ),
-        );
+        ),
+      );
+    }
+
+    final link = d.inviteEnabled && d.type != api.GroupType.private
+        ? d.inviteLink
+        : null;
+    final actions = [
+      action(
+        key: const ValueKey('group-action-mute'),
+        icon: muted
+            ? AppIcons.notificationsOffOutlined
+            : AppIcons.notificationsActiveOutlined,
+        label: t.t(muted ? 'group.info.mute.unmute' : 'group.info.mute.mute'),
+        onTap: () => _openMute(d),
+      ),
+      if (d.canAdd)
+        action(
+          key: const ValueKey('group-action-add'),
+          icon: AppIcons.personAddAlt1Rounded,
+          label: t.t('group.info.add'),
+          onTap: () => _addMembers(d),
+        ),
+      if (link != null)
+        action(
+          key: const ValueKey('group-action-link'),
+          icon: AppIcons.linkRounded,
+          label: t.t('referral.copy'),
+          onTap: () async {
+            await Clipboard.setData(ClipboardData(text: link));
+            _toast(t.t('group.info.link.copied'));
+          },
+        ),
+      action(
+        key: const ValueKey('group-action-leave'),
+        icon: AppIcons.logoutRounded,
+        label: t.t('group.info.leave.confirm'),
+        destructive: true,
+        onTap: () {
+          if (!_leaving) unawaited(_leave(d, t));
+        },
+      ),
+    ];
 
     return CustomScrollView(
       key: const ValueKey('group-info'),
@@ -583,29 +629,18 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
         ),
         SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl),
-            child: Wrap(
-              alignment: WrapAlignment.center,
-              spacing: AppSpacing.sm,
-              runSpacing: AppSpacing.md,
+            padding: const EdgeInsetsDirectional.fromSTEB(
+              AppSpacing.screenSide,
+              AppSpacing.md,
+              AppSpacing.screenSide,
+              AppSpacing.md,
+            ),
+            child: Row(
               children: [
-                action(
-                  key: const ValueKey('group-action-mute'),
-                  icon: muted
-                      ? AppIcons.notificationsOffOutlined
-                      : AppIcons.notificationsActiveOutlined,
-                  label: t.t(
-                    muted ? 'group.info.mute.unmute' : 'group.info.mute.mute',
-                  ),
-                  onTap: () => _openMute(d),
-                ),
-                if (d.canAdd)
-                  action(
-                    key: const ValueKey('group-action-add'),
-                    icon: AppIcons.personAddAlt1Rounded,
-                    label: t.t('group.info.add'),
-                    onTap: () => _addMembers(d),
-                  ),
+                for (var i = 0; i < actions.length; i++) ...[
+                  if (i > 0) const SizedBox(width: AppSpacing.sm),
+                  actions[i],
+                ],
               ],
             ),
           ),
@@ -670,20 +705,6 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
             ),
           ),
         ),
-        if (d.canAdd)
-          SliverToBoxAdapter(
-            child: GroupInfoSection(
-              children: [
-                AppListRow(
-                  key: const ValueKey('group-add-members'),
-                  icon: AppIcons.personAddAlt1Rounded,
-                  label: t.t('group.info.addMembers'),
-                  showChevron: false,
-                  onTap: () => _addMembers(d),
-                ),
-              ],
-            ),
-          ),
         SliverPadding(
           padding: const EdgeInsets.symmetric(
             horizontal: AppSpacing.screenSide,
@@ -715,14 +736,6 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
             padding: const EdgeInsets.only(top: AppSpacing.xl),
             child: GroupInfoSection(
               children: [
-                AppListRow(
-                  key: const ValueKey('group-leave'),
-                  icon: AppIcons.logoutRounded,
-                  label: t.t('group.info.leave.title'),
-                  destructive: true,
-                  showChevron: false,
-                  onTap: _leaving ? null : () => _leave(d, t),
-                ),
                 if (owner)
                   AppListRow(
                     key: const ValueKey('group-delete'),
