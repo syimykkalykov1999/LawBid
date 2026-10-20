@@ -257,6 +257,49 @@ class ChatAttachment {
 /// прочитано"); server messages are [sent].
 enum DeliveryState { sending, failed, sent }
 
+/// Owner 2026-10-20: the quoted message of a reply.
+@immutable
+class ReplyPreview {
+  const ReplyPreview({
+    required this.id,
+    required this.kind,
+    required this.snippet,
+    this.senderId,
+    this.revoked = false,
+  });
+
+  /// The quote of [m] as the composer and the sending bubble show it.
+  factory ReplyPreview.of(ChatMessage m) => ReplyPreview(
+        id: m.id,
+        senderId: m.senderId,
+        kind: m.kind,
+        snippet: m.kind == MessageKind.text ? m.body : '',
+        revoked: m.revoked,
+      );
+
+  final String id;
+  final String? senderId;
+  final MessageKind kind;
+
+  /// First characters of a text; empty for media.
+  final String snippet;
+  final bool revoked;
+}
+
+/// Owner 2026-10-20: one emoji with how many people chose it.
+@immutable
+class MessageReaction {
+  const MessageReaction({
+    required this.emoji,
+    required this.count,
+    required this.mine,
+  });
+
+  final String emoji;
+  final int count;
+  final bool mine;
+}
+
 @immutable
 class ChatMessage {
   const ChatMessage({
@@ -275,7 +318,23 @@ class ChatMessage {
     this.attachment,
     this.sentByAssistant,
     this.sticker,
+    this.editedAt,
+    this.revoked = false,
+    this.forwarded = false,
+    this.replyTo,
+    this.reactions = const [],
+    this.pinned = false,
   });
+
+  /// Edited at (the bubble says "edited").
+  final DateTime? editedAt;
+
+  /// Deleted for everyone: the bubble says "Message deleted".
+  final bool revoked;
+  final bool forwarded;
+  final ReplyPreview? replyTo;
+  final List<MessageReaction> reactions;
+  final bool pinned;
 
   /// Owner 2026-10-01: set for [MessageKind.sticker].
   final ChatSticker? sticker;
@@ -313,16 +372,29 @@ class ChatMessage {
     ChatAttachment? attachment,
     DeliveryState? delivery,
     String? failedCode,
+    DateTime? editedAt,
+    bool? revoked,
+    bool? forwarded,
+    ReplyPreview? replyTo,
+    List<MessageReaction>? reactions,
+    bool? pinned,
+    String? body,
   }) =>
       ChatMessage(
         id: id,
         conversationId: conversationId,
         senderId: senderId,
         kind: kind,
-        body: body,
+        body: body ?? this.body,
         createdAt: createdAt,
         contactMasked: contactMasked,
         clientMessageId: clientMessageId,
+        editedAt: editedAt ?? this.editedAt,
+        revoked: revoked ?? this.revoked,
+        forwarded: forwarded ?? this.forwarded,
+        replyTo: replyTo ?? this.replyTo,
+        reactions: reactions ?? this.reactions,
+        pinned: pinned ?? this.pinned,
         delivery: delivery ?? this.delivery,
         failedCode: failedCode ?? this.failedCode,
         voice: voice ?? this.voice,
