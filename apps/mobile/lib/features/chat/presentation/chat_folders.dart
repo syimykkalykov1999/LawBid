@@ -36,7 +36,10 @@ class ChatFolderPills extends ConsumerWidget {
       height: 36,
       child: ListView(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenSide),
+        padding: const EdgeInsetsDirectional.only(
+          start: AppSpacing.sm,
+          end: AppSpacing.sm,
+        ),
         children: [
           // "General" tab is hidden: it meant the same as "All".
           // Owner 2026-10-19: «Основные» (primary) is hidden too; its

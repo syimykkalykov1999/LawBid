@@ -575,7 +575,7 @@ class _NotificationsViewState extends ConsumerState<NotificationsView> {
 
     final chips = SingleChildScrollView(
       scrollDirection: Axis.horizontal,
-      padding: const EdgeInsetsDirectional.only(start: AppSpacing.screenSide),
+      padding: const EdgeInsetsDirectional.only(start: AppSpacing.sm),
       child: Row(
         children: [
           chip(

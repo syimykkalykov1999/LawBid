@@ -134,6 +134,8 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
               // screen whatever the icons at the sides; they shrink, never
               // the icons.
               child: Stack(
+                // The middle is centred in both directions, not top-left.
+                alignment: Alignment.center,
                 children: [
                   Align(
                     alignment: AlignmentDirectional.centerStart,

@@ -27,7 +27,8 @@ class ChipsSearchRow extends ConsumerStatefulWidget {
   /// The chips at the left (they scroll themselves when the words are long).
   final Widget chips;
 
-  /// An icon before the chips (a section's own door, like the channels).
+  /// An icon between the chips and the magnifier (a section's own door, like
+  /// the channels).
   final Widget? leading;
 
   /// Translation key of the placeholder and of the magnifier's label.
@@ -39,7 +40,7 @@ class ChipsSearchRow extends ConsumerStatefulWidget {
   final Key closeKey;
 
   /// The bar's height in both states.
-  static const double height = 56;
+  static const double height = 48;
 
   @override
   ConsumerState<ChipsSearchRow> createState() => _ChipsSearchRowState();
@@ -135,14 +136,10 @@ class _ChipsSearchRowState extends ConsumerState<ChipsSearchRow> {
     return bar(
       Row(
         children: [
-          if (widget.leading != null)
-            Padding(
-              padding: const EdgeInsetsDirectional.only(start: AppSpacing.xs),
-              child: widget.leading,
-            ),
           Expanded(
             child: widget.chips,
           ),
+          if (widget.leading != null) widget.leading!,
           Padding(
             padding: const EdgeInsetsDirectional.only(
               start: AppSpacing.xs,

@@ -95,7 +95,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             ChipsSearchRow(
               chips: Padding(
                 padding: const EdgeInsetsDirectional.only(
-                  start: AppSpacing.screenSide,
+                  start: AppSpacing.sm,
                 ),
                 child: PillTabs<ChannelScope>(
                   value: _tab,

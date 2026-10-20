@@ -96,6 +96,17 @@ void main() {
         } else {
           expect(tabs.left, greaterThanOrEqualTo(firstIcon));
         }
+        // Back, segments and the icons stand on ONE line.
+        final ys = [
+          tester.getCenter(find.byType(AppBackButton)).dy,
+          tabs.center.dy,
+          menu.center.dy,
+          plus.center.dy,
+          tester.getCenter(find.byKey(const ValueKey('inbox-bell'))).dy,
+        ];
+        for (final y in ys) {
+          expect((y - ys.first).abs(), lessThan(1));
+        }
         // The filter bar is a whole number of pixels high.
         final bar = tester.getSize(find.byType(ChatsFilterRow));
         expect(bar.height, ChatsFilterRow.height);
