@@ -10,26 +10,23 @@ The app handles these links (docs/01_FOUNDATION_AUTH.md §12, §10.2 E/F):
 | `https://lawbid.dev/post/<id>` | Post (placeholder until file 05) |
 | `lawbid://auth/email-code?…`, `lawbid://case/<id>`, … | Same routes over the custom scheme. Works without any hosting |
 
-The `https://` links open the app only after the domain proves it trusts the app. You need to host two files for that.
+The `https://` links open the app only after the domain proves it trusts the app. Both files are generated and published by `seo-deploy.yml` (`scripts/seo/well-known.mjs`, tested in `scripts/seo/test/well-known.test.mjs`); nothing is uploaded by hand. They open in the app: `/u/*` (profile QR), `/q/*` (website sign-in QR), `/g/*` (group invitation), `/lawyer/*`, `/case/*`, `/post/*`, `/r/*` and `/auth/email-code`.
 
 ## 1. iOS: `apple-app-site-association`
 
-1. `apple-app-site-association` already carries the Apple Team ID (78T56RPM74, developer.apple.com → Membership details). The live copy is served by the LawBidSite repo at `public/.well-known/`.
-2. Serve the file at `https://lawbid.dev/.well-known/apple-app-site-association`:
-   - the file has no extension;
-   - use `Content-Type: application/json`;
-   - serve it over HTTPS with no redirects.
-3. Keep the Associated Domains capability turned on for all three app ids in the Apple Developer portal. Xcode automatic signing does this for you.
+Served at `https://lawbid.dev/.well-known/apple-app-site-association`, no extension, `Content-Type: application/json`, no redirect. Team ID 78T56RPM74, bundle `com.lawbid.lawbid`. `docs/deeplinks/apple-app-site-association` is a copy kept equal to the generated file by a test.
 
-The app declares `applinks:$(DEEP_LINK_HOST)` in `apps/mobile/ios/Runner/Runner.entitlements`. `DEEP_LINK_HOST` defaults to `lawbid.dev` in `apps/mobile/ios/Flutter/Common.xcconfig`, and `Secrets.xcconfig` can override it.
+Keep the Associated Domains capability on for the app id in the Apple Developer portal (Xcode automatic signing does this). The app declares `applinks:$(DEEP_LINK_HOST)` in `apps/mobile/ios/Runner/Runner.entitlements`. `DEEP_LINK_HOST` defaults to `lawbid.dev` in `apps/mobile/ios/Flutter/Common.xcconfig`.
 
 ## 2. Android: `assetlinks.json`
 
-1. In `assetlinks.json`, replace each `SHA256_*` placeholder with the SHA-256 fingerprint of the certificate that signs that variant:
-   - **prod** (`com.lawbid.lawbid`): Play Console → Test and release → App integrity → App signing key certificate → SHA-256.
-   - **staging / dev**: the fingerprint of the keystore you sign them with. For local debug builds, run `keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android`.
-   - You can list several fingerprints per app, for example the upload key and the app-signing key.
-2. Serve the file at `https://lawbid.dev/.well-known/assetlinks.json` with `Content-Type: application/json`.
+Served at `https://lawbid.dev/.well-known/assetlinks.json`, `Content-Type: application/json`, package `com.lawbid.lawbid`. It needs the SHA-256 of the certificate Google Play signs the app with:
+
+1. Play Console → Test and release → App integrity → App signing key certificate → SHA-256.
+2. GitHub → the LawBid repository → Settings → Secrets and variables → Actions → Variables → new variable `ANDROID_APP_SHA256` with that value. Several fingerprints (for example the upload key too) go in one value separated by commas.
+3. Run the workflow "SEO pages" by hand (or wait for the daily run).
+
+Until the variable exists the Android file is not published (a made-up fingerprint would only look valid) and Android keeps opening the links in the browser; the workflow prints a warning. Check after publishing: `adb shell pm verify-app-links --re-verify com.lawbid.lawbid`, then `adb shell pm get-app-links com.lawbid.lawbid`.
 
 The intent filter in `apps/mobile/android/app/src/main/AndroidManifest.xml` uses `${deepLinkHost}`. It defaults to `lawbid.dev`, and you can override it with the Gradle property `-Plawbid.deepLinkHost=…`.
 
