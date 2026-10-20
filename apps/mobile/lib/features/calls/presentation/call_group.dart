@@ -12,6 +12,7 @@ import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/call_media.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:lawbid/features/calls/presentation/call_widgets.dart';
+import 'package:lawbid/features/contacts_sync/presentation/contact_picker.dart';
 
 /// Owner 2026-10-20 (WhatsApp + Telegram): a call with three or more people
 /// shows everyone as a tile — photo or camera, name, a mic-off mark, a gold
@@ -608,6 +609,42 @@ class _AddSheetState extends ConsumerState<_AddSheet> {
     });
   }
 
+  /// People of the phone book who are on LawBid (several can be ticked).
+  Future<void> _fromContacts() async {
+    if (_busy) return;
+    final session = ref.read(callControllerProvider);
+    final me = ref.read(callMyIdProvider);
+    final skip = <String>{
+      if (me != null) me,
+      for (final m in session.call?.participants ?? const <CallMember>[])
+        if (m.status != CallMemberStatus.left &&
+            m.status != CallMemberStatus.declined)
+          m.userId,
+    };
+    final picked = await showContactPicker(context, excludeUserIds: skip);
+    if (!mounted || picked == null || picked.isEmpty) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    String? failure;
+    for (final c in picked) {
+      final code = await ref
+          .read(callControllerProvider.notifier)
+          .invite(userId: c.userId);
+      if (code != null) failure ??= code;
+      if (!mounted) return;
+    }
+    if (failure == null) {
+      Navigator.of(context).pop();
+      return;
+    }
+    setState(() {
+      _busy = false;
+      _error = callActionError(ref.read(translatorProvider), failure!);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = ref.watch(translatorProvider);
@@ -650,6 +687,13 @@ class _AddSheetState extends ConsumerState<_AddSheet> {
                 icon: AppIcons.personAddAlt1Rounded,
                 isLoading: _busy,
                 onPressed: () => unawaited(_add()),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              AppButton(
+                label: t.t('phoneContacts.title'),
+                icon: AppIcons.contactPhoneOutlined,
+                variant: AppButtonVariant.secondary,
+                onPressed: _busy ? null : () => unawaited(_fromContacts()),
               ),
             ],
           ),
