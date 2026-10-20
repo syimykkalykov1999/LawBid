@@ -626,6 +626,14 @@ export class ConversationDto {
   })
   counterpartLastReadMessageId!: string | null;
 
+  @ApiPropertyOptional({
+    type: Date,
+    nullable: true,
+    description:
+      'When the other side last read; "read at" for every message up to it.',
+  })
+  counterpartLastReadAt!: Date | null;
+
   @ApiProperty()
   updatedAt!: Date;
 

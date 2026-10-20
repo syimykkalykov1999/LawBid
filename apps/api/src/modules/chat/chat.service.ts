@@ -844,7 +844,7 @@ export class ChatService {
           where: {
             conversation_id_user_id: { conversation_id: id, user_id: user.sub },
           },
-          data: { last_read_message_id: m.id },
+          data: { last_read_message_id: m.id, last_read_at: new Date() },
         });
         return m;
       });
@@ -1115,7 +1115,7 @@ export class ChatService {
         where: {
           conversation_id_user_id: { conversation_id: id, user_id: user.sub },
         },
-        data: { last_read_message_id: target.id },
+        data: { last_read_message_id: target.id, last_read_at: new Date() },
       });
       return { lastReadMessageId: target.id, moved: true };
     });
@@ -1376,6 +1376,7 @@ export class ChatService {
             conversation_id: true,
             user_id: true,
             last_read_message_id: true,
+            last_read_at: true,
             muted_until: true,
             folder: true,
             waiting_since: true,
@@ -1475,6 +1476,9 @@ export class ChatService {
         counterpartLastReadMessageId: seenHidden
           ? null
           : (partOf.get(`${c.id}:${otherId}`)?.last_read_message_id ?? null),
+        counterpartLastReadAt: seenHidden
+          ? null
+          : (partOf.get(`${c.id}:${otherId}`)?.last_read_at ?? null),
         kind: c.case_id ? 'case' : 'direct',
         requestStatus: c.request_status,
         requestedByMe: c.requested_by === viewerId,

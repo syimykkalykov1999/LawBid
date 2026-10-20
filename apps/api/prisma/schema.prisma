@@ -2252,6 +2252,8 @@ model ConversationParticipant {
   user_id              String       @db.Uuid
   user                 User         @relation(fields: [user_id], references: [id], onDelete: Cascade)
   last_read_message_id String?      @db.Uuid
+  /// When last_read_message_id last moved ("read at HH:MM", WhatsApp style).
+  last_read_at         DateTime?    @db.Timestamptz
   muted_until          DateTime?    @db.Timestamptz
   /// Owner 2026-10-01: my folder for this chat; null = automatic (a case
   /// chat is Primary, a direct chat General).

@@ -5,6 +5,7 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { S3StorageService } from '../src/modules/files/storage/s3-storage.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
 
 /**
@@ -312,5 +313,121 @@ describe('Chat message actions (e2e, owner 2026-10-20)', () => {
       .set(c.attorney.auth)
       .expect(200);
     expect(left.body.data.items).toHaveLength(2);
+  });
+  /** A second chat of the same client (another attorney, another case). */
+  async function sibling(c: Awaited<ReturnType<typeof chat>>) {
+    const other = await chat();
+    const conv = await prisma.conversation.update({
+      where: { id: other.id },
+      data: { client_id: c.client.id },
+    });
+    await prisma.conversationParticipant.updateMany({
+      where: { conversation_id: other.id, user_id: other.client.id },
+      data: { user_id: c.client.id },
+    });
+    return { ...other, id: conv.id, client: c.client };
+  }
+
+  it('forwards a voice note and a file over the same stored object', async () => {
+    const a = await chat();
+    const b = await sibling(a);
+    const bucket = app.get(S3StorageService).bucket('documents');
+    const mk = (purpose: 'chat_voice' | 'chat_attachment', mime: string) =>
+      prisma.file.create({
+        data: {
+          owner_user_id: a.client.id,
+          purpose,
+          s3_bucket: bucket,
+          s3_key: `e2e/${randomUUID()}`,
+          mime,
+          size_bytes: 1234n,
+          sha256: 'a'.repeat(64),
+          scan_status: 'clean',
+        },
+      });
+    const voiceFile = await mk('chat_voice', 'audio/mp4');
+    const docFile = await mk('chat_attachment', 'application/pdf');
+    const post = (
+      conv: { id: string },
+      who: { auth: Record<string, string> },
+      body: object,
+    ) =>
+      api()
+        .post(`/api/v1/conversations/${conv.id}/messages`)
+        .set(who.auth)
+        .send({ clientMessageId: randomUUID(), ...body });
+    const voice = await post(a, a.client, {
+      type: 'voice',
+      fileId: voiceFile.id,
+      durationMs: 4200,
+      waveform: [10, 40, 80],
+    }).expect(201);
+    const doc = await post(a, a.client, {
+      type: 'attachment',
+      fileId: docFile.id,
+      fileName: 'contract.pdf',
+    }).expect(201);
+
+    const cid = randomUUID();
+    const fwdVoice = await api()
+      .post(`/api/v1/conversations/${b.id}/messages`)
+      .set(b.client.auth)
+      .send({ clientMessageId: cid, forwardFromId: voice.body.data.id })
+      .expect(201);
+    expect(fwdVoice.body.data.forwarded).toBe(true);
+    expect(fwdVoice.body.data.type).toBe('voice');
+    expect(fwdVoice.body.data.voice.durationMs).toBe(4200);
+    const fwdDoc = await post(b, b.client, {
+      forwardFromId: doc.body.data.id,
+    }).expect(201);
+    expect(fwdDoc.body.data.type).toBe('attachment');
+    expect(fwdDoc.body.data.forwarded).toBe(true);
+
+    // A new file row, the same stored object: nothing was uploaded.
+    const rows = await prisma.message.findMany({
+      where: { id: { in: [fwdVoice.body.data.id, fwdDoc.body.data.id] } },
+      include: { file: true },
+    });
+    expect(rows).toHaveLength(2);
+    for (const r of rows) {
+      const original = r.type === 'voice' ? voiceFile : docFile;
+      expect(r.file?.id).not.toBe(original.id);
+      expect(r.file?.s3_key).toBe(original.s3_key);
+      expect(r.file?.owner_user_id).toBe(a.client.id);
+    }
+
+    // A retry with the same clientMessageId does not copy twice.
+    const again = await api()
+      .post(`/api/v1/conversations/${b.id}/messages`)
+      .set(b.client.auth)
+      .send({ clientMessageId: cid, forwardFromId: voice.body.data.id });
+    expect(again.body.data.id).toBe(fwdVoice.body.data.id);
+    expect(
+      await prisma.file.count({ where: { s3_key: voiceFile.s3_key } }),
+    ).toBe(2);
+
+    // Not from a chat you are not in.
+    const stranger = await chat();
+    await post(stranger, stranger.client, {
+      forwardFromId: voice.body.data.id,
+    }).expect(404);
+  });
+
+  it('reports when the other side last read ("read at")', async () => {
+    const c = await chat();
+    const m = await send(c, 'client', 'did you see this');
+    const read = () =>
+      api().get(`/api/v1/conversations/${c.id}`).set(c.client.auth).expect(200);
+    expect((await read()).body.data.counterpartLastReadAt).toBeNull();
+    await api()
+      .post(`/api/v1/conversations/${c.id}/read`)
+      .set(c.attorney.auth)
+      .send({ lastReadMessageId: m.id })
+      .expect(200);
+    const seen = (await read()).body.data;
+    expect(seen.counterpartLastReadMessageId).toBe(m.id);
+    expect(Date.now() - Date.parse(seen.counterpartLastReadAt)).toBeLessThan(
+      60_000,
+    );
   });
 });
