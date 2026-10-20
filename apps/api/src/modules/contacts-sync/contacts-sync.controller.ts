@@ -5,7 +5,9 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Ip,
   Post,
+  Put,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
@@ -21,6 +23,7 @@ import {
 import {
   ContactSyncStatusDto,
   ContactUploadResultDto,
+  SetFindByPhoneDto,
   UploadContactHashesDto,
 } from './contacts-sync.dto';
 import { ContactsSyncService } from './contacts-sync.service';
@@ -54,8 +57,23 @@ export class ContactsSyncController {
   upload(
     @CurrentUser() user: RequestUser,
     @Body() dto: UploadContactHashesDto,
+    @Ip() ip: string,
   ): Promise<ContactUploadResultDto> {
-    return this.sync.upload(user.sub, dto.hashes);
+    return this.sync.upload(user.sub, dto.hashes, ip);
+  }
+
+  @Put('contacts/sync/find-by-phone')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary:
+      'Clients: allow or forbid being found by people who have my number',
+  })
+  @ApiErrors({ 400: [ErrorCode.VALIDATION_ERROR] })
+  setFindByPhone(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: SetFindByPhoneDto,
+  ): Promise<void> {
+    return this.sync.setFindByPhone(user.sub, dto.enabled);
   }
 
   @Delete('contacts/sync')

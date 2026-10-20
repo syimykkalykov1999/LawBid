@@ -97,6 +97,14 @@ class PrivacyScreen extends ConsumerWidget {
             AppListSection(
               title: t.t('privacy.section.safety'),
               children: [
+                // Owner 2026-10-20: the «find me by number» switch lives on
+                // the contacts screen (contacts_sync); linked from here.
+                AppListRow(
+                  key: const ValueKey('privacy-find-by-phone'),
+                  icon: AppIcons.phoneOutlined,
+                  label: t.t('phoneContacts.findByPhone'),
+                  onTap: () => context.push(AppRoutes.contacts),
+                ),
                 AppListRow(
                   icon: AppIcons.blockRounded,
                   label: t.t('settings.blocked'),
