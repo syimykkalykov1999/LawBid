@@ -290,6 +290,7 @@ abstract final class ApiErrorCodes {
   static const demoCodeInvalid = 'DEMO_CODE_INVALID';
 
   /// Every server code, in enum order.
+  static const messagePinLimit = 'MESSAGE_PIN_LIMIT';
   static const all = <String>[
     validationError,
     internalError,
@@ -511,6 +512,7 @@ abstract final class ApiErrorCodes {
     channelLimitReached,
     channelUsernameTaken,
     messageWindowExpired,
+    messagePinLimit,
   ];
 }
 
