@@ -991,6 +991,40 @@ void main() {
       expect(h.s.call?.group, isTrue);
     });
 
+    test("nobody's media ever arrives: the room stays, no 25 s hang-up", () {
+      fakeAsync((async) {
+        final h = _Harness();
+        h.repo.acceptMembers = [
+          m('p1', CallMemberStatus.joined),
+          m('me', CallMemberStatus.joined, at: 5),
+        ];
+        h.emit(
+          'call:incoming',
+          _event(
+            _call(
+              'g1',
+              CallStatus.active,
+              outgoing: false,
+              members: [
+                m('p1', CallMemberStatus.joined),
+                m('me', CallMemberStatus.invited),
+              ],
+            ),
+          ),
+        );
+        async.flushMicrotasks();
+        h.c.accept();
+        async
+          ..flushMicrotasks()
+          ..elapse(kCallConnectTimeout + const Duration(seconds: 5));
+        expect(h.s.busy, isTrue);
+        expect(h.s.phase, CallPhase.active);
+        h
+          ..sub.close()
+          ..container.dispose();
+      });
+    });
+
     test('added to a call: the latest to join offers to everyone', () async {
       final h = await joined();
       expect(h.media.offersFor.toSet(), {'p1', 'p2'});

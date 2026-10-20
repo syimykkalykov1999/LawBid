@@ -1166,9 +1166,20 @@ class CallController extends Notifier<CallSession> {
   void _armConnectTimeout() {
     _connectTimer?.cancel();
     _connectTimer = Timer(kCallConnectTimeout, () {
-      if (state.phase == CallPhase.connecting) {
-        unawaited(hangUp(reason: CallEndReason.failed));
+      if (state.phase != CallPhase.connecting) return;
+      // A group call is a room: one member whose media never arrives (their
+      // app is dead, no network) must not end it for the person who is in
+      // it — they stay in, the others can still connect (device test
+      // 2026-10-20: the call closed itself after 25 s). Only a two-person
+      // call that never connects fails.
+      if (state.call?.group ?? false) {
+        state = state.copyWith(
+          phase: CallPhase.active,
+          connectedAt: DateTime.now(),
+        );
+        return;
       }
+      unawaited(hangUp(reason: CallEndReason.failed));
     });
   }
 

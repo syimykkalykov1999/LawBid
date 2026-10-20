@@ -227,7 +227,21 @@ class _CallScreenState extends ConsumerState<CallScreen>
                               else
                                 const SizedBox(width: 44, height: 44),
                               const Spacer(),
-                              if (group) ...[
+                              // Owner 2026-10-20: the rightmost button always
+                              // sits at the right edge (the same inset as the
+                              // minimise button on the left); "add" appears
+                              // to its left once the call is up.
+                              if (s.phase == CallPhase.active) ...[
+                                _TopButton(
+                                  icon: AppIcons.personAddAlt1Rounded,
+                                  label: t.t('call.addParticipant'),
+                                  onTap: () => unawaited(
+                                    showAddToCallSheet(context),
+                                  ),
+                                ),
+                                if (group) const SizedBox(width: AppSpacing.sm),
+                              ],
+                              if (group)
                                 _TopButton(
                                   icon: AppIcons.peopleOutlineRounded,
                                   label: t.t('call.members'),
@@ -235,18 +249,6 @@ class _CallScreenState extends ConsumerState<CallScreen>
                                     showCallMembersSheet(context),
                                   ),
                                 ),
-                                const SizedBox(width: AppSpacing.sm),
-                              ],
-                              if (s.phase == CallPhase.active)
-                                _TopButton(
-                                  icon: AppIcons.personAddAlt1Rounded,
-                                  label: t.t('call.addParticipant'),
-                                  onTap: () => unawaited(
-                                    showAddToCallSheet(context),
-                                  ),
-                                )
-                              else
-                                const SizedBox(width: 44, height: 44),
                             ],
                           ),
                         ),
