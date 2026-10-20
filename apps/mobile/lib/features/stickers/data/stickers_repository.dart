@@ -164,5 +164,6 @@ class StickersRepository {
         installed: d.installed,
         installCount: d.installCount,
         stickers: d.stickers.map(sticker).toList(),
+        priceStars: d.priceStars,
       );
 }

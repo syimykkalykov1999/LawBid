@@ -176,6 +176,17 @@ class SettingsScreen extends ConsumerWidget {
               subtitle: t.t('packs.hint'),
               onTap: () => context.push(AppRoutes.bidPacks),
             ),
+          // Owner 2026-10-20: stars — the balance, gifts, paid stickers
+          // (flag `stars`).
+          if (!ref.watch(isAssistantProvider) &&
+              ref.watch(featureFlagsControllerProvider).isEnabled('stars'))
+            AppListRow(
+              key: const ValueKey('settings-stars'),
+              icon: AppIcons.starRounded,
+              label: t.t('stars.title'),
+              subtitle: t.t('stars.hint'),
+              onTap: () => context.push(AppRoutes.stars),
+            ),
           // Owner 2026-10-14: the firm profile (flag `firm_profiles`).
           if (ref.watch(currentUserRoleProvider) == UserRole.attorney &&
               !ref.watch(isAssistantProvider) &&

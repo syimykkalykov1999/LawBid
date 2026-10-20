@@ -8,6 +8,8 @@ import { withTxRetry } from '../../prisma/tx-retry.util';
 import { BidsService } from '../bids/bids.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { BidPacksService } from '../bid-packs/bid-packs.service';
+import { StarsService } from '../stars/stars.service';
+import { STARS_CHECKOUT_KIND } from '../stars/stars.settings';
 import { PromotionsService } from '../promotions/promotions.service';
 import {
   CASE_PAYMENT_CHECKOUT_KIND,
@@ -59,6 +61,7 @@ export class SubscriptionSyncService {
     @Optional() private readonly partners?: PartnersService,
     // Owner 2026-10-14: offer packs.
     @Optional() private readonly bidPacks?: BidPacksService,
+    @Optional() private readonly stars?: StarsService,
   ) {}
 
   async handleEvent(event: ProviderEvent): Promise<void> {
@@ -101,6 +104,10 @@ export class SubscriptionSyncService {
         }
         if (session?.metadata.kind === 'bid_pack') {
           await this.bidPacks?.applyCheckout(session);
+          return;
+        }
+        if (session?.metadata.kind === STARS_CHECKOUT_KIND) {
+          await this.stars?.applyCheckout(session);
           return;
         }
         if (session?.metadata.kind === 'client_badge') {

@@ -3,6 +3,8 @@ import {
   textLimit,
 } from '../../common/app-settings/text-limits.service';
 import { StickersService } from '../stickers/stickers.service';
+import { StarsService } from '../stars/stars.service';
+import type { GiftSendDto } from '../stars/stars.dto';
 import type { StickerDto } from '../stickers/stickers.dto';
 import {
   BadRequestException,
@@ -128,6 +130,7 @@ export class ChatService {
     private readonly blocks: BlocksService,
     private readonly presence: PresenceService,
     private readonly stickers: StickersService,
+    private readonly stars: StarsService,
     // Scaling TZ point 11: message texts encrypted at rest.
     @Optional() private readonly cipher?: MessageBodyCipher,
     // Owner 2026-10-05 (docs/CLIENT_FRAUD.md): a restricted account cannot
@@ -515,6 +518,8 @@ export class ChatService {
     const attachment = dto.type === 'attachment';
     // Owner 2026-10-01: a sticker carries no text.
     const sticker = dto.type === 'sticker';
+    // Owner 2026-10-20: a gift paid in stars; `body` is its note.
+    const gift = dto.type === 'gift';
     const body = voice || sticker ? '' : (dto.body ?? '').trim();
     await this.fraud?.assertNotRestricted(user.sub);
     // OQ-048: an assistant sends documents/photos only with "files".
@@ -535,6 +540,21 @@ export class ChatService {
           code: ErrorCode.VALIDATION_ERROR,
           message: 'An attachment needs fileId and fileName.',
           details: { fields: ['fileId', 'fileName'] },
+        });
+      }
+    } else if (gift) {
+      if (!dto.giftId) {
+        throw new BadRequestException({
+          code: ErrorCode.VALIDATION_ERROR,
+          message: 'A gift message needs giftId.',
+          details: { field: 'giftId' },
+        });
+      }
+      // An assistant never spends the attorney's stars.
+      if (user.assistant) {
+        throw new ForbiddenException({
+          code: ErrorCode.ASSISTANT_NOT_ALLOWED,
+          message: 'Assistants cannot give gifts.',
         });
       }
     } else if (sticker) {
@@ -665,6 +685,7 @@ export class ChatService {
       await this.files.assertChatRoom(id, dto.fileId!);
     }
     if (sticker) await this.stickers.useForMessage(user.sub, dto.stickerId!);
+    if (gift) await this.stars.assertMayGift(user.sub);
     if (voice) {
       await this.files.assertAttachable(user.sub, dto.fileId!, ['chat_voice']);
       // One note, one message: a file is never re-sent elsewhere.
@@ -700,6 +721,17 @@ export class ChatService {
           voice || locked.contacts_unlocked
             ? { text: body, masked: false }
             : maskContactInfo(body);
+        const giftNote = gift && masked.text ? masked.text.slice(0, 200) : null;
+        const given = gift
+          ? await this.stars.giveGift(tx, {
+              giftId: dto.giftId!,
+              senderId: user.sub,
+              recipientId:
+                user.sub === conv.client_id ? conv.attorney_id : conv.client_id,
+              conversationId: id,
+              note: giftNote,
+            })
+          : null;
         const m = await tx.message.create({
           data: {
             conversation_id: id,
@@ -712,9 +744,11 @@ export class ChatService {
                 ? 'attachment'
                 : sticker
                   ? 'sticker'
-                  : 'text',
-            body_original: this.seal(body),
-            body_display: this.seal(masked.text),
+                  : gift
+                    ? 'gift'
+                    : 'text',
+            body_original: this.seal(gift ? '' : body),
+            body_display: this.seal(gift ? '' : masked.text),
             contact_masked: masked.masked,
             client_message_id: dto.clientMessageId,
             ...(voice
@@ -730,7 +764,9 @@ export class ChatService {
                   }
                 : sticker
                   ? { sticker_id: dto.stickerId }
-                  : {}),
+                  : given
+                    ? { gift_send_id: given.send.id }
+                    : {}),
           },
         });
         await tx.conversation.update({
@@ -1081,14 +1117,17 @@ export class ChatService {
   private async mediaLinks(rows: Message[]): Promise<MediaLinks> {
     const ids = (type: Message['type']) =>
       rows.flatMap((m) => (m.type === type && m.file_id ? [m.file_id] : []));
-    const [voice, attachments, stickers] = await Promise.all([
+    const [voice, attachments, stickers, gifts] = await Promise.all([
       this.files.voiceUrls(ids('voice')),
       this.files.attachmentUrls(ids('attachment')),
       this.stickers.forMessages(
         rows.flatMap((m) => (m.sticker_id ? [m.sticker_id] : [])),
       ),
+      this.stars.forMessages(
+        rows.flatMap((m) => (m.gift_send_id ? [m.gift_send_id] : [])),
+      ),
     ]);
-    return { voice, attachments, stickers };
+    return { voice, attachments, stickers, gifts };
   }
 
   private findOwn(id: string, senderId: string, clientMessageId: string) {
@@ -1144,6 +1183,10 @@ export class ChatService {
       sticker:
         m.type === 'sticker' && m.sticker_id
           ? (media?.stickers.get(m.sticker_id) ?? null)
+          : null,
+      gift:
+        m.type === 'gift' && m.gift_send_id
+          ? (media?.gifts.get(m.gift_send_id) ?? null)
           : null,
       call:
         m.type === 'call'
@@ -1354,6 +1397,7 @@ export class ChatService {
 interface MediaLinks {
   voice: Map<string, string>;
   stickers: Map<string, StickerDto>;
+  gifts: Map<string, GiftSendDto>;
   attachments: Awaited<ReturnType<FilesService['attachmentUrls']>>;
 }
 

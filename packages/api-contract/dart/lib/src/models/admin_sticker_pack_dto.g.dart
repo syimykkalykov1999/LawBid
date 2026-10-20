@@ -15,6 +15,7 @@ AdminStickerPackDto _$AdminStickerPackDtoFromJson(Map<String, dynamic> json) =>
       status: AdminStickerPackDtoStatus.fromJson(json['status'] as String),
       stickerCount: (json['stickerCount'] as num).toInt(),
       installCount: (json['installCount'] as num).toInt(),
+      priceStars: (json['priceStars'] as num).toInt(),
       createdAt: DateTime.parse(json['createdAt'] as String),
       stickers: (json['stickers'] as List<dynamic>)
           .map((e) => AdminStickerDto.fromJson(e as Map<String, dynamic>))
@@ -35,6 +36,7 @@ Map<String, dynamic> _$AdminStickerPackDtoToJson(
   'ownerName': ?instance.ownerName,
   'stickerCount': instance.stickerCount,
   'installCount': instance.installCount,
+  'priceStars': instance.priceStars,
   'createdAt': instance.createdAt.toIso8601String(),
   'stickers': instance.stickers.map((e) => e.toJson()).toList(),
 };

@@ -24,6 +24,7 @@ import 'clients/admin_config_client.dart';
 import 'clients/subscriptions_client.dart';
 import 'clients/admin_subscriptions_client.dart';
 import 'clients/plans_client.dart';
+import 'clients/blocks_client.dart';
 import 'clients/assistants_client.dart';
 import 'clients/admin_teams_client.dart';
 import 'clients/posts_client.dart';
@@ -36,7 +37,6 @@ import 'clients/clients_client.dart';
 import 'clients/users_client.dart';
 import 'clients/admin_analytics_client.dart';
 import 'clients/app_events_client.dart';
-import 'clients/blocks_client.dart';
 import 'clients/comments_client.dart';
 import 'clients/case_comments_client.dart';
 import 'clients/cases_client.dart';
@@ -88,6 +88,8 @@ import 'clients/admin_outreach_client.dart';
 import 'clients/promotions_client.dart';
 import 'clients/admin_promotions_client.dart';
 import 'clients/bid_packs_client.dart';
+import 'clients/stars_client.dart';
+import 'clients/admin_stars_client.dart';
 import 'clients/case_payments_client.dart';
 import 'clients/admin_case_payments_client.dart';
 import 'clients/client_badge_client.dart';
@@ -136,6 +138,7 @@ class LawbidApi {
   SubscriptionsClient? _subscriptions;
   AdminSubscriptionsClient? _adminSubscriptions;
   PlansClient? _plans;
+  BlocksClient? _blocks;
   AssistantsClient? _assistants;
   AdminTeamsClient? _adminTeams;
   PostsClient? _posts;
@@ -148,7 +151,6 @@ class LawbidApi {
   UsersClient? _users;
   AdminAnalyticsClient? _adminAnalytics;
   AppEventsClient? _appEvents;
-  BlocksClient? _blocks;
   CommentsClient? _comments;
   CaseCommentsClient? _caseComments;
   CasesClient? _cases;
@@ -200,6 +202,8 @@ class LawbidApi {
   PromotionsClient? _promotions;
   AdminPromotionsClient? _adminPromotions;
   BidPacksClient? _bidPacks;
+  StarsClient? _stars;
+  AdminStarsClient? _adminStars;
   CasePaymentsClient? _casePayments;
   AdminCasePaymentsClient? _adminCasePayments;
   ClientBadgeClient? _clientBadge;
@@ -271,6 +275,8 @@ class LawbidApi {
 
   PlansClient get plans => _plans ??= PlansClient(_dio, baseUrl: _baseUrl);
 
+  BlocksClient get blocks => _blocks ??= BlocksClient(_dio, baseUrl: _baseUrl);
+
   AssistantsClient get assistants =>
       _assistants ??= AssistantsClient(_dio, baseUrl: _baseUrl);
 
@@ -303,8 +309,6 @@ class LawbidApi {
 
   AppEventsClient get appEvents =>
       _appEvents ??= AppEventsClient(_dio, baseUrl: _baseUrl);
-
-  BlocksClient get blocks => _blocks ??= BlocksClient(_dio, baseUrl: _baseUrl);
 
   CommentsClient get comments =>
       _comments ??= CommentsClient(_dio, baseUrl: _baseUrl);
@@ -454,6 +458,11 @@ class LawbidApi {
 
   BidPacksClient get bidPacks =>
       _bidPacks ??= BidPacksClient(_dio, baseUrl: _baseUrl);
+
+  StarsClient get stars => _stars ??= StarsClient(_dio, baseUrl: _baseUrl);
+
+  AdminStarsClient get adminStars =>
+      _adminStars ??= AdminStarsClient(_dio, baseUrl: _baseUrl);
 
   CasePaymentsClient get casePayments =>
       _casePayments ??= CasePaymentsClient(_dio, baseUrl: _baseUrl);

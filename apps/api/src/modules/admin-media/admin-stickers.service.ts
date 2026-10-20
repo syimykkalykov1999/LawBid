@@ -36,6 +36,7 @@ export const STICKER_AUDIT = {
   hide: 'admin.sticker_pack.hide',
   unhide: 'admin.sticker_pack.unhide',
   create: 'admin.sticker_pack.create',
+  setPrice: 'admin.sticker_pack.set_price',
   addSticker: 'admin.sticker.add',
   removeSticker: 'admin.sticker.remove',
 } as const;
@@ -189,6 +190,7 @@ export class AdminStickersService {
             title: dto.title,
             short_name: shortName,
             is_official: true,
+            price_stars: dto.priceStars ?? 0,
           },
         });
         await this.audit.record(
@@ -213,6 +215,35 @@ export class AdminStickersService {
       }
       throw e;
     }
+    return this.get(pack.id);
+  }
+
+  /** The price in stars of an official pack (0 = free). Packs already
+   * added stay added. */
+  async setPrice(
+    admin: AdminActor,
+    packId: string,
+    priceStars: number,
+  ): Promise<AdminStickerPackDto> {
+    const pack = await this.officialPack(packId);
+    await withTxRetry(this.prisma, async (tx) => {
+      await tx.stickerPack.update({
+        where: { id: pack.id },
+        data: { price_stars: priceStars },
+      });
+      await this.audit.record(
+        {
+          adminId: admin.id,
+          action: STICKER_AUDIT.setPrice,
+          targetType: 'sticker_pack',
+          targetId: pack.id,
+          before: { priceStars: pack.price_stars },
+          after: { priceStars },
+          ip: admin.ip,
+        },
+        tx,
+      );
+    });
     return this.get(pack.id);
   }
 
@@ -353,6 +384,7 @@ function packRow(p: PackRow): AdminStickerPackRowDto {
     ownerName,
     stickerCount: Math.max(0, p.sticker_count),
     installCount: Math.max(0, p.install_count),
+    priceStars: p.price_stars,
     createdAt: p.created_at.toISOString(),
   };
 }

@@ -122,6 +122,10 @@ void main() {
         web('/bid-packs/success?purchase_id=x'),
         const TabDeepLink('/profile/settings/bid-packs'),
       );
+      expect(
+        web('/stars/success?purchase_id=x'),
+        const TabDeepLink('/profile/settings/stars'),
+      );
       expect(web('/payout/return'), const TabDeepLink('/payout/return'));
       expect(web('/plan/other'), isNull);
       expect(

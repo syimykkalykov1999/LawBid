@@ -364,6 +364,10 @@ export enum ErrorCode {
   TRANSLATION_UNAVAILABLE = 'TRANSLATION_UNAVAILABLE',
   // Owner 2026-10-01: stickers — 409: over a pack/sticker/install limit.
   STICKER_LIMIT_REACHED = 'STICKER_LIMIT_REACHED',
+  // Owner 2026-10-20 stars — 402: not enough stars on the balance.
+  INSUFFICIENT_STARS = 'INSUFFICIENT_STARS',
+  // 403: a paid sticker pack is sent only after it is added (bought).
+  STICKER_PACK_NOT_OWNED = 'STICKER_PACK_NOT_OWNED',
   // Owner 2026-10-02: 409 — a closed support ticket can't get replies.
   SUPPORT_TICKET_CLOSED = 'SUPPORT_TICKET_CLOSED',
   // Owner 2026-10-02 referrals — 404: no such referral code.

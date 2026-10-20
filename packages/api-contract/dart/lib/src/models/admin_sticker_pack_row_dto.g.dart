@@ -16,6 +16,7 @@ AdminStickerPackRowDto _$AdminStickerPackRowDtoFromJson(
   status: AdminStickerPackRowDtoStatus.fromJson(json['status'] as String),
   stickerCount: (json['stickerCount'] as num).toInt(),
   installCount: (json['installCount'] as num).toInt(),
+  priceStars: (json['priceStars'] as num).toInt(),
   createdAt: DateTime.parse(json['createdAt'] as String),
   ownerId: json['ownerId'] as String?,
   ownerName: json['ownerName'] as String?,
@@ -33,5 +34,6 @@ Map<String, dynamic> _$AdminStickerPackRowDtoToJson(
   'ownerName': ?instance.ownerName,
   'stickerCount': instance.stickerCount,
   'installCount': instance.installCount,
+  'priceStars': instance.priceStars,
   'createdAt': instance.createdAt.toIso8601String(),
 };

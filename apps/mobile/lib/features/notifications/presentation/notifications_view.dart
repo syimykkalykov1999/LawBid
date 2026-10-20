@@ -86,6 +86,9 @@ String? notificationRoute({
     // Owner 2026-10-05: a client offered a case / an attorney declined.
     case 'case_invite_received':
       return AppRoutes.invites;
+    // Owner 2026-10-20: a gift on my profile.
+    case 'gift_received':
+      return AppRoutes.myGifts;
     case 'case_invite_declined':
       return caseId == null ? null : AppRoutes.myCase(caseId);
     case 'review_requested':

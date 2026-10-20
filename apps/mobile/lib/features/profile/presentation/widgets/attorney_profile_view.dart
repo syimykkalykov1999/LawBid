@@ -35,6 +35,7 @@ import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart'
     show showReportSheet;
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/social/social_routes.dart';
+import 'package:lawbid/features/stars/presentation/gift_widgets.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/features/translation/data/content_translation_repository.dart';
@@ -326,6 +327,9 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
           _AboutSection(profile: p),
           const SizedBox(height: AppSpacing.md),
           _ChipRows(profile: p),
+          // Owner 2026-10-20: gifts on the profile (flag `stars`).
+          if (!(p.isBlocked || p.hasBlockedMe))
+            GiftShowcase(userId: p.id, isMe: p.isSelf),
           const SizedBox(height: AppSpacing.sm),
           // Instagram order: buttons right above the tabs — Follow |
           // Message | share icon (owner request).

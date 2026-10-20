@@ -6,6 +6,7 @@ import 'package:lawbid/core/network/request_flags.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/profile/data/avatar_upload_repository.dart'
     show sha256Hex;
+import 'package:lawbid/features/stars/domain/stars_mappers.dart';
 import 'package:lawbid/features/stickers/data/stickers_repository.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
@@ -548,7 +549,6 @@ const kChatAttachmentMaxBytes = 50 * 1024 * 1024;
 /// The most any setting allows per chat or task file (the API's ceiling).
 const kChatAttachmentCeilingBytes = 100 * 1024 * 1024;
 
-
 /// Extensions for the file picker (same list as `chatMimeForName`).
 const kChatFileExtensions = [
   'pdf',
@@ -598,10 +598,12 @@ abstract final class ChatMappers {
           api.MessageDtoType.call => MessageKind.call,
           api.MessageDtoType.attachment => MessageKind.attachment,
           api.MessageDtoType.sticker => MessageKind.sticker,
+          api.MessageDtoType.gift => MessageKind.gift,
           _ => MessageKind.text,
         },
         sticker:
             d.sticker == null ? null : StickersRepository.sticker(d.sticker!),
+        gift: d.gift == null ? null : StarsMappers.send(d.gift!),
         body: d.body,
         contactMasked: d.contactMasked,
         clientMessageId: d.clientMessageId,

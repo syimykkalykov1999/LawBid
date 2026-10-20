@@ -9,6 +9,7 @@ part of 'send_message_dto.dart';
 SendMessageDto _$SendMessageDtoFromJson(Map<String, dynamic> json) =>
     SendMessageDto(
       clientMessageId: json['clientMessageId'] as String,
+      giftId: json['giftId'] as String?,
       stickerId: json['stickerId'] as String?,
       fileName: json['fileName'] as String?,
       body: json['body'] as String?,
@@ -26,6 +27,7 @@ Map<String, dynamic> _$SendMessageDtoToJson(SendMessageDto instance) =>
     <String, dynamic>{
       'clientMessageId': instance.clientMessageId,
       'type': instance.type.toJson(),
+      'giftId': ?instance.giftId,
       'stickerId': ?instance.stickerId,
       'fileName': ?instance.fileName,
       'body': ?instance.body,

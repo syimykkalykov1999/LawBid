@@ -62,6 +62,8 @@ import 'package:lawbid/features/settings/archive/archive_screen.dart';
 import 'package:lawbid/features/settings/data_export/presentation/data_export_screen.dart';
 import 'package:lawbid/features/settings/saved/saved_screen.dart';
 import 'package:lawbid/features/social/social_routes.dart';
+import 'package:lawbid/features/stars/presentation/my_gifts_screen.dart';
+import 'package:lawbid/features/stars/presentation/stars_screen.dart';
 import 'package:lawbid/features/subscription/subscription_routes.dart';
 import 'package:lawbid/features/support/presentation/support_list_screen.dart';
 import 'package:lawbid/features/support/presentation/support_new_screen.dart';
@@ -388,6 +390,20 @@ GoRouter appRouter(Ref ref) {
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) =>
             AppPageTransitions.push(state, const BidPacksScreen()),
+      ),
+      GoRoute(
+        path: AppRoutes.stars,
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            AppPageTransitions.push(state, const StarsScreen()),
+        routes: [
+          GoRoute(
+            path: 'gifts',
+            parentNavigatorKey: _rootNavigatorKey,
+            pageBuilder: (context, state) =>
+                AppPageTransitions.push(state, const MyGiftsScreen()),
+          ),
+        ],
       ),
       GoRoute(
         path: AppRoutes.myFirm,

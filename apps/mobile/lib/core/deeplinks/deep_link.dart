@@ -139,6 +139,8 @@ String? _paymentReturn(String kind, String step, Uri uri) {
       return '/profile/settings/verify-account';
     case 'bid-packs' when done:
       return '/profile/settings/bid-packs';
+    case 'stars' when done:
+      return '/profile/settings/stars';
   }
   return null;
 }

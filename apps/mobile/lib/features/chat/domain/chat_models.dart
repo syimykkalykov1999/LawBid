@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/features/stars/domain/stars_models.dart';
 import 'package:lawbid/features/stickers/domain/sticker_models.dart';
 
 enum ConversationStatus { preAcceptance, active, closed }
@@ -144,7 +145,7 @@ enum ChatFolder { primary, general }
 enum ChatListFolder { all, primary, general, waiting, requests }
 
 // OQ-047: `attachment` — a photo or a document after acceptance.
-enum MessageKind { text, system, voice, call, attachment, sticker }
+enum MessageKind { text, system, voice, call, attachment, sticker, gift }
 
 /// OQ-041: a call in the chat log (the sender placed it).
 @immutable
@@ -275,7 +276,11 @@ class ChatMessage {
     this.attachment,
     this.sentByAssistant,
     this.sticker,
+    this.gift,
   });
+
+  /// Owner 2026-10-20: set for [MessageKind.gift]; the note is [body].
+  final GiftSend? gift;
 
   /// Owner 2026-10-01: set for [MessageKind.sticker].
   final ChatSticker? sticker;
@@ -330,6 +335,7 @@ class ChatMessage {
         attachment: attachment ?? this.attachment,
         sentByAssistant: sentByAssistant,
         sticker: sticker,
+        gift: gift,
       );
 }
 

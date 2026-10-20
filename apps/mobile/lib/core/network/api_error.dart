@@ -132,6 +132,9 @@ abstract final class ApiErrorCodes {
   static const bidCounterNotAllowed = 'BID_COUNTER_NOT_ALLOWED';
   // Bids and negotiation (docs/04 §5–§6, stage 4.4)
   static const subscriptionRequired = 'SUBSCRIPTION_REQUIRED';
+  // Stars and gifts (owner 2026-10-20)
+  static const insufficientStars = 'INSUFFICIENT_STARS';
+  static const stickerPackNotOwned = 'STICKER_PACK_NOT_OWNED';
   static const caseNotAvailable = 'CASE_NOT_AVAILABLE';
   static const postNotFound = 'POST_NOT_FOUND';
   static const postNotAllowed = 'POST_NOT_ALLOWED';
@@ -361,6 +364,8 @@ abstract final class ApiErrorCodes {
     bidMaxRoundsReached,
     bidCounterNotAllowed,
     subscriptionRequired,
+    insufficientStars,
+    stickerPackNotOwned,
     caseNotAvailable,
     postNotFound,
     postNotAllowed,

@@ -7,6 +7,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { ClientBadgeCoreModule } from '../client-badge/client-badge.module';
 import { CasePaymentsCoreModule } from '../case-payments/case-payments.module';
 import { BidPacksCoreModule } from '../bid-packs/bid-packs.module';
+import { StarsCoreModule } from '../stars/stars.module';
 import { PromotionsCoreModule } from '../promotions/promotions.module';
 import { ReferralsCoreModule } from '../referrals/referrals.module';
 import { PartnersCoreModule } from '../partners/partners.module';
@@ -63,6 +64,7 @@ export class BillingModule {
         PartnersCoreModule,
         PromotionsCoreModule,
         BidPacksCoreModule,
+        StarsCoreModule,
         // Owner 2026-10-05: client → attorney payments (Connect webhooks).
         CasePaymentsCoreModule,
         ClientBadgeCoreModule,

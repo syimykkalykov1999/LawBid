@@ -52,6 +52,14 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     app: true,
   },
   {
+    // Owner 2026-10-20: stars (balance bought on the web), gifts, paid stickers.
+    key: 'stars',
+    enabled: false,
+    description:
+      'Stars: balance bought on the web, gifts in chats, paid sticker packs',
+    app: true,
+  },
+  {
     // Owner 2026-10-14: offer packs bought on top of the monthly limit.
     key: 'bid_packs',
     enabled: false,
