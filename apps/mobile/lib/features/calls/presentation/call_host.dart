@@ -36,7 +36,13 @@ class CallHost extends ConsumerWidget {
     ref.watch(callkitEventsProvider);
     // ignore: cascade_invocations
     ref.listen(callControllerProvider.select((s) => s.phase), (prev, next) {
-      final opened = (prev == null || prev == CallPhase.idle) &&
+      // A new call opens the screen even during the previous call's
+      // "ended" moment.
+      final wasLive = prev == CallPhase.outgoing ||
+          prev == CallPhase.incoming ||
+          prev == CallPhase.connecting ||
+          prev == CallPhase.active;
+      final opened = !wasLive &&
           (next == CallPhase.outgoing || next == CallPhase.incoming);
       if (!opened) return;
       if (!_onCallScreen(ref)) unawaited(router.push<void>(ChatRoutes.call));

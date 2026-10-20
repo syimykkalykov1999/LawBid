@@ -46,8 +46,32 @@ class CallForegroundService : Service() {
                 startForeground(NOTIFICATION_ID, notification)
             }
         } catch (e: Exception) {
-            // Not allowed to start right now: show a plain notification.
-            getSystemService(NotificationManager::class.java)?.notify(NOTIFICATION_ID, notification)
+            // Not allowed to run as a foreground service right now (a
+            // service started with startForegroundService must call
+            // startForeground or Android kills the app after ~10 s): try the
+            // phone-call type alone, else show a plain notification and stop.
+            var promoted = false
+            if (Build.VERSION.SDK_INT >= 34) {
+                try {
+                    startForeground(
+                        NOTIFICATION_ID,
+                        notification,
+                        ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL,
+                    )
+                    promoted = true
+                } catch (e2: Exception) {
+                    // fall through
+                }
+            }
+            if (!promoted) {
+                try {
+                    startForeground(NOTIFICATION_ID, notification)
+                } catch (e3: Exception) {
+                    getSystemService(NotificationManager::class.java)
+                        ?.notify(NOTIFICATION_ID, notification)
+                    stopSelf()
+                }
+            }
         }
         return START_NOT_STICKY
     }
@@ -59,7 +83,7 @@ class CallForegroundService : Service() {
                 NotificationChannel(
                     CHANNEL,
                     getString(R.string.channel_call),
-                    NotificationManager.IMPORTANCE_DEFAULT,
+                    NotificationManager.IMPORTANCE_LOW,
                 ),
             )
         }
@@ -71,12 +95,10 @@ class CallForegroundService : Service() {
                 .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
-        val hangUp = PendingIntent.getActivity(
+        val hangUp = PendingIntent.getBroadcast(
             this,
             2,
-            Intent(this, MainActivity::class.java)
-                .setAction(ACTION_HANGUP)
-                .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT),
+            Intent(this, CallHangupReceiver::class.java).setAction(ACTION_HANGUP),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         val b = if (Build.VERSION.SDK_INT >= 26) {

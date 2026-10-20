@@ -30,8 +30,15 @@ class CallPeer {
   final String? username;
   final String? avatarUrl;
 
-  String get name =>
-      displayName ?? (username == null ? '' : atHandle(username));
+  /// Never empty: a peer with no name and no username shows as the brand
+  /// (the call screen, the notification and the system call UI never get
+  /// a blank or "?").
+  String get name {
+    final n = displayName?.trim();
+    if (n != null && n.isNotEmpty) return n;
+    final u = username;
+    return u == null || u.isEmpty ? 'LawBid' : atHandle(u);
+  }
 }
 
 @immutable

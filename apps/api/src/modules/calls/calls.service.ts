@@ -190,6 +190,16 @@ export class CallsService {
         },
       });
       await this.logCall(busy, 'busy');
+      // The busy person sees it in their missed calls too.
+      await this.notifications.emit({
+        type: 'missed_call',
+        recipientId: callee,
+        payload: {
+          callId: busy.id,
+          conversationId: conv.id,
+          actorId: user.sub,
+        },
+      });
       return this.toDto(busy, user.sub);
     }
 
@@ -535,7 +545,9 @@ export class CallsService {
           peer?.client_profile?.username ??
           null,
         avatarUrl: peer?.avatar_file_id
-          ? (avatars.get(peer.avatar_file_id)?.url256 ?? null)
+          ? ((avatars.get(peer.avatar_file_id)?.url ??
+              avatars.get(peer.avatar_file_id)?.url256 ??
+              null))
           : null,
         kind: peer?.role === 'attorney' ? 'attorney' : 'client',
       },

@@ -146,6 +146,7 @@ class MainActivity : FlutterFragmentActivity() {
             flutterEngine.dartExecutor.binaryMessenger,
             "lawbid/call_service",
         ).also { ch ->
+            CallBridge.channel = ch
             ch.setMethodCallHandler { call, result ->
                 when (call.method) {
                     "start" -> {
@@ -203,6 +204,11 @@ class MainActivity : FlutterFragmentActivity() {
                 else -> result.notImplemented()
             }
         }
+    }
+
+    override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
+        CallBridge.channel = null
+        super.cleanUpFlutterEngine(flutterEngine)
     }
 
     override fun onNewIntent(intent: Intent) {
