@@ -349,7 +349,7 @@ abstract final class AppIcons {
   );
   static const IconData folderOutlined = IconData(
     0xe24a,
-    fontFamily: fillFamily,
+    fontFamily: boldFamily,
   );
   static const IconData folderRounded = IconData(
     0xe24a,

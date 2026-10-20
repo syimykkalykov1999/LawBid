@@ -1380,7 +1380,7 @@ class _ThreadsPost extends ConsumerWidget {
             // The first icon's edge on the avatar's edge (the icon sits 7 in
             // its 34-wide touch area).
             child: Transform.translate(
-              offset: const Offset(-7, 0),
+              offset: const Offset(-6, 0),
               child: Row(
                 children: [
                   action(
@@ -1389,8 +1389,7 @@ class _ThreadsPost extends ConsumerWidget {
                       activeIcon: AppIcons.favoriteRounded,
                       icon: AppIcons.favoriteBorderRounded,
                       activeColor: colors.danger,
-                      size: 22,
-                      extent: 34,
+                      extent: 38,
                       label: t.t(p.likedByMe ? 'post.unlike' : 'post.like'),
                       onTap: () => run(() => actions.toggleLike(p)),
                     ),
@@ -1401,8 +1400,7 @@ class _ThreadsPost extends ConsumerWidget {
                       active: false,
                       activeIcon: AppIcons.modeCommentOutlined,
                       icon: AppIcons.modeCommentOutlined,
-                      size: 22,
-                      extent: 34,
+                      extent: 38,
                       label: t.t('post.comments'),
                       // In the open thread the replies are right below:
                       // no sheet.
@@ -1422,8 +1420,7 @@ class _ThreadsPost extends ConsumerWidget {
                       activeIcon: AppIcons.autoModeRounded,
                       icon: AppIcons.autoModeRounded,
                       activeColor: colors.success,
-                      size: 22,
-                      extent: 34,
+                      extent: 38,
                       label: t.t(
                         p.repostedByMe ? 'post.unrepost' : 'post.repost',
                       ),
@@ -1438,8 +1435,7 @@ class _ThreadsPost extends ConsumerWidget {
                       active: false,
                       activeIcon: AppIcons.sendOutlined,
                       icon: AppIcons.sendOutlined,
-                      size: 22,
-                      extent: 34,
+                      extent: 38,
                       label: t.t('post.share'),
                       onTap: () => sharePost(context, ref, p),
                     ),
@@ -1472,8 +1468,8 @@ class _ThreadsPost extends ConsumerWidget {
           activeIcon: AppIcons.bookmarkRounded,
           icon: AppIcons.bookmarkBorderRounded,
           activeColor: colors.gold,
-          size: 24,
-          extent: 34,
+          size: 28,
+          extent: 38,
           label: t.t(p.savedByMe ? 'post.unsave' : 'post.save'),
           onTap: () => run(() => actions.toggleSave(p)),
         ),
