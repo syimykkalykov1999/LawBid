@@ -174,7 +174,7 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 96),
                       child: FittedBox(
                         fit: BoxFit.scaleDown,
-                        child: _InboxTabs(
+                        child: InboxTabsBar(
                           value: tab,
                           tabs: [
                             if (chatsAllowed)
@@ -415,8 +415,10 @@ List<Widget> _groupMenuRows(BuildContext ctx, Translator t) => [
     ];
 
 /// Three compact segments with a gliding gold-bordered indicator.
-class _InboxTabs extends StatelessWidget {
-  const _InboxTabs({
+/// Public for its test only.
+@visibleForTesting
+class InboxTabsBar extends StatelessWidget {
+  const InboxTabsBar({
     required this.value,
     required this.tabs,
     required this.onChanged,
@@ -487,10 +489,12 @@ class _InboxTabs extends StatelessWidget {
       ),
       child: Stack(
         children: [
-          AnimatedPositioned(
+          // Owner 2026-10-20: `start`, not `left` — in right-to-left languages
+          // the row of segments mirrors and the lit one has to follow it.
+          AnimatedPositionedDirectional(
             duration: d,
             curve: AppMotion.enterCurve,
-            left: _segment *
+            start: _segment *
                 tabs.indexWhere((x) => x.$1 == value).clamp(0, tabs.length),
             top: 0,
             // Owner 2026-10-01: with the bell open no segment is lit.
