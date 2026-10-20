@@ -1014,4 +1014,9 @@ abstract final class AppIcons {
     0xe8f2,
     fontFamily: fillFamily,
   );
+
+  // Owner 2026-10-20: QR codes (My QR code, scanner, flashlight).
+  static const IconData qrCode = IconData(0xe3e6, fontFamily: boldFamily);
+  static const IconData scan = IconData(0xebb6, fontFamily: boldFamily);
+  static const IconData flashlight = IconData(0xe246, fontFamily: boldFamily);
 }

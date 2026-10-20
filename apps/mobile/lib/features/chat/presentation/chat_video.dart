@@ -3,13 +3,17 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/buttons/player_round_button.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/media/playback_visibility.dart';
+import 'package:lawbid/features/calls/application/call_controller.dart';
+import 'package:lawbid/features/chat/application/voice_player.dart';
 import 'package:lawbid/features/chat/application/voice_recorder.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:video_player/video_player.dart';
+import 'package:visibility_detector/visibility_detector.dart';
 
 /// Owner 2026-10-17 (WhatsApp): a video in a chat bubble — its first frame,
 /// a round play button and the length; a tap opens it full screen. While
@@ -41,13 +45,33 @@ class _ChatVideoTileState extends State<ChatVideoTile> {
   @override
   void initState() {
     super.initState();
-    _open();
   }
 
   @override
   void didUpdateWidget(ChatVideoTile old) {
     super.didUpdateWidget(old);
-    if (old.attachment.url != widget.attachment.url && _c == null) _open();
+    if (old.attachment.url != widget.attachment.url && _c == null && _seen) {
+      _open();
+    }
+  }
+
+  /// Owner 2026-10-20: a tile without a poster opens its player only while
+  /// it is on screen (a long chat no longer holds one decoder per video)
+  /// and lets go of it once it has been scrolled far away.
+  bool _seen = false;
+
+  void _visibility(VisibilityInfo info) {
+    final on = info.visibleFraction > 0;
+    if (on == _seen) return;
+    _seen = on;
+    if (on) {
+      if (_c == null) _open();
+    } else if (_c != null) {
+      final c = _c;
+      _c = null;
+      if (mounted) setState(() => _ready = false);
+      unawaited(c?.dispose());
+    }
   }
 
   /// Owner 2026-10-18 (speed): a poster image from the server, when it
@@ -59,12 +83,17 @@ class _ChatVideoTileState extends State<ChatVideoTile> {
   void _open() {
     final url = widget.attachment.url;
     if (url == null || _poster != null) return;
-    final c = VideoPlayerController.networkUrl(Uri.parse(url));
+    // Only the first frame is wanted, never the sound: mixWithOthers keeps
+    // the tile from taking the audio session from a call or music.
+    final c = VideoPlayerController.networkUrl(
+      Uri.parse(url),
+      videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
+    );
     _c = c;
     unawaited(
       c.initialize().then(
         (_) {
-          if (mounted) setState(() => _ready = true);
+          if (mounted && _c == c) setState(() => _ready = true);
         },
         onError: (Object _) {},
       ),
@@ -91,108 +120,112 @@ class _ChatVideoTileState extends State<ChatVideoTile> {
         : 3 / 4;
     final pct = a.progress > 0 && a.progress < 1 ? a.progress : null;
     final url = a.url;
-    return Semantics(
-      button: url != null,
-      label: widget.playLabel,
-      child: AppPressable(
-        onTap: url == null || widget.sending
-            ? () {}
-            : () => Navigator.of(context, rootNavigator: true).push(
-                  MaterialPageRoute<void>(
-                    fullscreenDialog: true,
-                    builder: (_) => ChatVideoScreen(url: url),
+    return VisibilityDetector(
+      key: ValueKey('chat-video-${a.fileId}-${widget.fill}'),
+      onVisibilityChanged: _visibility,
+      child: Semantics(
+        button: url != null,
+        label: widget.playLabel,
+        child: AppPressable(
+          onTap: url == null || widget.sending
+              ? () {}
+              : () => Navigator.of(context, rootNavigator: true).push(
+                    MaterialPageRoute<void>(
+                      fullscreenDialog: true,
+                      builder: (_) => ChatVideoScreen(url: url),
+                    ),
                   ),
-                ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(widget.fill ? 0 : 12),
-          child: SizedBox(
-            width: widget.fill ? null : 220,
-            child: AspectRatio(
-              aspectRatio: widget.fill ? 1 : ratio,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  const ColoredBox(color: Colors.black),
-                  if (_poster != null && !_ready)
-                    Image(
-                      image: appNetworkImage(
-                        _poster!,
-                        decodeWidthFor(widget.fill ? 150 : 220),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(widget.fill ? 0 : 12),
+            child: SizedBox(
+              width: widget.fill ? null : 220,
+              child: AspectRatio(
+                aspectRatio: widget.fill ? 1 : ratio,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    const ColoredBox(color: Colors.black),
+                    if (_poster != null && !_ready)
+                      Image(
+                        image: appNetworkImage(
+                          _poster!,
+                          decodeWidthFor(widget.fill ? 150 : 220),
+                        ),
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const SizedBox.shrink(),
                       ),
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-                    ),
-                  if (_ready)
-                    FittedBox(
-                      fit: BoxFit.cover,
-                      clipBehavior: Clip.hardEdge,
-                      child: SizedBox(
-                        width: size.width,
-                        height: size.height,
-                        child: VideoPlayer(c!),
+                    if (_ready)
+                      FittedBox(
+                        fit: BoxFit.cover,
+                        clipBehavior: Clip.hardEdge,
+                        child: SizedBox(
+                          width: size.width,
+                          height: size.height,
+                          child: VideoPlayer(c!),
+                        ),
                       ),
-                    ),
-                  Center(
-                    child: widget.sending
-                        ? Container(
-                            width: widget.fill ? 32 : 48,
-                            height: widget.fill ? 32 : 48,
-                            decoration: const BoxDecoration(
-                              color: Colors.black54,
-                              shape: BoxShape.circle,
-                            ),
-                            alignment: Alignment.center,
-                            child: SizedBox.square(
-                              dimension: 28,
-                              child: CircularProgressIndicator(
-                                value: pct,
-                                strokeWidth: 3,
-                                color: Colors.white,
+                    Center(
+                      child: widget.sending
+                          ? Container(
+                              width: widget.fill ? 32 : 48,
+                              height: widget.fill ? 32 : 48,
+                              decoration: const BoxDecoration(
+                                color: Colors.black54,
+                                shape: BoxShape.circle,
                               ),
+                              alignment: Alignment.center,
+                              child: SizedBox.square(
+                                dimension: 28,
+                                child: CircularProgressIndicator(
+                                  value: pct,
+                                  strokeWidth: 3,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            )
+                          // Owner 2026-10-19: the app's player button look.
+                          : PlayerRoundButton(
+                              icon: AppIcons.playArrowRounded,
+                              size: widget.fill ? 32 : 48,
                             ),
-                          )
-                        // Owner 2026-10-19: the app's player button look.
-                        : PlayerRoundButton(
-                            icon: AppIcons.playArrowRounded,
-                            size: widget.fill ? 32 : 48,
+                    ),
+                    if (_ready)
+                      Positioned(
+                        left: widget.fill ? 4 : 8,
+                        bottom: widget.fill ? 4 : 8,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
                           ),
-                  ),
-                  if (_ready)
-                    Positioned(
-                      left: widget.fill ? 4 : 8,
-                      bottom: widget.fill ? 4 : 8,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.black54,
-                          borderRadius: BorderRadius.circular(AppRadii.pill),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const AppIcon(
-                              AppIcons.videoCameraOutlined,
-                              color: Colors.white,
-                              size: 14,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              voiceClock(c!.value.duration),
-                              style: type.caption.copyWith(
+                          decoration: BoxDecoration(
+                            color: Colors.black54,
+                            borderRadius: BorderRadius.circular(AppRadii.pill),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const AppIcon(
+                                AppIcons.videoCameraOutlined,
                                 color: Colors.white,
-                                fontFeatures: const [
-                                  FontFeature.tabularFigures(),
-                                ],
+                                size: 14,
                               ),
-                            ),
-                          ],
+                              const SizedBox(width: 4),
+                              Text(
+                                voiceClock(c!.value.duration),
+                                style: type.caption.copyWith(
+                                  color: Colors.white,
+                                  fontFeatures: const [
+                                    FontFeature.tabularFigures(),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -219,8 +252,15 @@ class ChatVideoScreen extends StatefulWidget {
 /// playing and come back on a tap; a swipe down closes.
 class _ChatVideoScreenState extends State<ChatVideoScreen>
     with PlaybackVisibility {
-  late final VideoPlayerController _c =
-      VideoPlayerController.networkUrl(Uri.parse(widget.url));
+  late final VideoPlayerController _c;
+
+  /// A call is on (or comes in): the video has no sound and does not take
+  /// the audio session from it (iOS: mixWithOthers).
+  bool _inCall = false;
+  ProviderSubscription<CallPhase>? _callSub;
+  Timer? _ramp;
+  double _vol = 1;
+  bool _resumeAfterHide = false;
   bool _controls = true;
   bool _failed = false;
   bool _wasPlaying = false;
@@ -243,14 +283,93 @@ class _ChatVideoScreenState extends State<ChatVideoScreen>
   bool _muted = false;
 
   void _toggleSound() {
-    unawaited(HapticFeedback.selectionClick());
+    if (_inCall) return;
     setState(() => _muted = !_muted);
-    unawaited(_c.setVolume(_muted ? 0 : 1));
+    _fadeTo(_muted ? 0 : 1, const Duration(milliseconds: 140));
+    unawaited(HapticFeedback.selectionClick());
+  }
+
+  /// Owner 2026-10-20: no click — volume moves along an eased slope (the
+  /// same idea as the reels' player) when the sound starts, stops or is
+  /// switched.
+  void _fadeTo(double to, Duration over, {VoidCallback? then}) {
+    _ramp?.cancel();
+    final from = _vol;
+    if ((from - to).abs() < 0.01) {
+      _vol = to;
+      unawaited(_c.setVolume(to));
+      then?.call();
+      return;
+    }
+    final steps = (over.inMilliseconds / 8).ceil().clamp(4, 40);
+    var i = 0;
+    _ramp = Timer.periodic(
+      Duration(microseconds: over.inMicroseconds ~/ steps),
+      (timer) {
+        i++;
+        final x = i / steps;
+        final eased = to > from ? x * x : 1 - (1 - x) * (1 - x);
+        _vol = from + (to - from) * eased;
+        unawaited(_c.setVolume(_vol));
+        if (i >= steps) {
+          timer.cancel();
+          then?.call();
+        }
+      },
+    );
+  }
+
+  /// Starts from silence and rises; one voice note at a time, so a playing
+  /// voice message stops first.
+  Future<void> _startSound() async {
+    unawaited(
+      ProviderScope.containerOf(context, listen: false)
+          .read(voicePlayerProvider.notifier)
+          .stop(),
+    );
+    _vol = 0;
+    await _c.setVolume(0);
+    await _c.play();
+    if (!_inCall && !_muted) {
+      _fadeTo(1, const Duration(milliseconds: 160));
+    }
+  }
+
+  /// Falls to silence, then pauses (a hard cut is a pop).
+  void _stopSound() {
+    _fadeTo(
+      0,
+      const Duration(milliseconds: 120),
+      then: () {
+        if (mounted) unawaited(_c.pause());
+      },
+    );
   }
 
   @override
   void initState() {
     super.initState();
+    final container = ProviderScope.containerOf(context, listen: false);
+    _inCall = container.read(callControllerProvider).phase != CallPhase.idle;
+    _muted = _inCall;
+    _vol = _inCall ? 0 : 1;
+    _c = VideoPlayerController.networkUrl(
+      Uri.parse(widget.url),
+      videoPlayerOptions: VideoPlayerOptions(mixWithOthers: _inCall),
+    );
+    if (_inCall) unawaited(_c.setVolume(0));
+    // A call that comes in meanwhile silences the video at once.
+    _callSub = container.listen(
+      callControllerProvider.select((c) => c.phase),
+      (_, phase) {
+        if (phase == CallPhase.idle || !mounted) return;
+        _inCall = true;
+        _ramp?.cancel();
+        _vol = 0;
+        unawaited(_c.setVolume(0));
+        setState(() => _muted = true);
+      },
+    );
     _c.addListener(_tick);
     _zoom.addListener(() {
       final z = _zoom.value.getMaxScaleOnAxis() > 1.01;
@@ -263,7 +382,11 @@ class _ChatVideoScreenState extends State<ChatVideoScreen>
           setState(() {});
           // Owner 2026-10-18: not in the background (the app was left
           // while it loaded) — it starts when back.
-          await playWhenVisible(_c);
+          if (playbackVisible) {
+            await _startSound();
+          } else {
+            _resumeAfterHide = true;
+          }
           _scheduleHide();
         },
         onError: (Object _) {
@@ -276,8 +399,18 @@ class _ChatVideoScreenState extends State<ChatVideoScreen>
   /// Owner 2026-10-18: the app in the background or a screen over it
   /// pauses the video; back, it plays on (if it was playing).
   @override
-  void didChangePlaybackVisibility({required bool visible}) =>
-      holdPlayback(_c, visible: visible);
+  void didChangePlaybackVisibility({required bool visible}) {
+    if (!_c.value.isInitialized) return;
+    if (!visible) {
+      if (_c.value.isPlaying) {
+        _resumeAfterHide = true;
+        _stopSound();
+      }
+    } else if (_resumeAfterHide) {
+      _resumeAfterHide = false;
+      unawaited(_startSound());
+    }
+  }
 
   void _tick() {
     if (!mounted) return;
@@ -308,6 +441,8 @@ class _ChatVideoScreenState extends State<ChatVideoScreen>
   @override
   void dispose() {
     _hide?.cancel();
+    _ramp?.cancel();
+    _callSub?.close();
     _c.removeListener(_tick);
     _zoom.dispose();
     unawaited(_c.dispose());
@@ -317,21 +452,22 @@ class _ChatVideoScreenState extends State<ChatVideoScreen>
   void _releaseHold() {
     if (!_heldPause) return;
     _heldPause = false;
-    unawaited(_c.play());
+    unawaited(_startSound());
   }
 
   Future<void> _toggle() async {
-    unawaited(HapticFeedback.selectionClick());
     if (_c.value.isPlaying) {
       _hide?.cancel();
-      await _c.pause();
+      _stopSound();
     } else {
       if (_c.value.position >= _c.value.duration) {
         await _c.seekTo(Duration.zero);
       }
-      await _c.play();
+      await _startSound();
       _scheduleHide();
     }
+    // After the sound moved: the buzz is only a touch cue.
+    unawaited(HapticFeedback.selectionClick());
   }
 
   @override
@@ -361,7 +497,7 @@ class _ChatVideoScreenState extends State<ChatVideoScreen>
           onLongPressStart: (_) {
             if (_c.value.isPlaying) {
               _heldPause = true;
-              unawaited(_c.pause());
+              _stopSound();
             }
           },
           onLongPressEnd: (_) => _releaseHold(),
