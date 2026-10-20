@@ -26,6 +26,12 @@ enum ModerationCardDtoTargetType {
   clientReview('client_review'),
   @JsonValue('sticker_pack')
   stickerPack('sticker_pack'),
+  @JsonValue('story')
+  story('story'),
+  @JsonValue('channel')
+  channel('channel'),
+  @JsonValue('channel_post')
+  channelPost('channel_post'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

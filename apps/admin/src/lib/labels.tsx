@@ -34,6 +34,9 @@ export const TARGET_TYPE: Record<string, string> = {
   client_review: 'Отзыв о клиенте / помощнике',
   case_comment: 'Комментарий к кейсу',
   sticker_pack: 'Набор стикеров',
+  story: 'История',
+  channel: 'Канал',
+  channel_post: 'Пост канала',
 };
 
 export const REPORT_REASON: Record<string, string> = {
@@ -516,6 +519,9 @@ export const MODERATION_TARGET_TYPES = [
   'case',
   'review',
   'client_review',
+  'story',
+  'channel',
+  'channel_post',
 ] as const;
 export type ModerationTargetType = (typeof MODERATION_TARGET_TYPES)[number];
 
@@ -583,6 +589,8 @@ const AUDIT_ACTION: Record<string, string> = {
   'admin.sticker_pack.create': 'Создан набор стикеров',
   'admin.sticker_pack.hide': 'Набор стикеров скрыт',
   'admin.sticker_pack.unhide': 'Набор стикеров показан',
+  'admin.channel.status': 'Статус канала изменён',
+  'admin.channel_post.moderate': 'Пост канала: модерация',
   'admin.sticker.add': 'Стикер добавлен',
   'admin.sticker.remove': 'Стикер удалён',
   'config.app_config': 'Изменена настройка',
@@ -660,6 +668,9 @@ export const AUDIT_TARGET: Record<string, string> = {
   review_appeal: 'обжалование отзыва',
   review_appeals: 'обжалование отзыва',
   sticker_pack: 'набор стикеров',
+  channel: 'канал',
+  channel_post: 'пост канала',
+  story: 'история',
   subscription: 'подписка',
   user: 'пользователь',
   users: 'пользователь',

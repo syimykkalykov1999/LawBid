@@ -68,6 +68,8 @@ import 'clients/admin_i18n_client.dart';
 import 'clients/case_history_client.dart';
 import 'clients/admin_moderation_client.dart';
 import 'clients/stickers_client.dart';
+import 'clients/stories_client.dart';
+import 'clients/channels_client.dart';
 import 'clients/feed_client.dart';
 import 'clients/client_reviews_client.dart';
 import 'clients/admin_review_appeals_client.dart';
@@ -180,6 +182,8 @@ class LawbidApi {
   CaseHistoryClient? _caseHistory;
   AdminModerationClient? _adminModeration;
   StickersClient? _stickers;
+  StoriesClient? _stories;
+  ChannelsClient? _channels;
   FeedClient? _feed;
   ClientReviewsClient? _clientReviews;
   AdminReviewAppealsClient? _adminReviewAppeals;
@@ -397,6 +401,12 @@ class LawbidApi {
 
   StickersClient get stickers =>
       _stickers ??= StickersClient(_dio, baseUrl: _baseUrl);
+
+  StoriesClient get stories =>
+      _stories ??= StoriesClient(_dio, baseUrl: _baseUrl);
+
+  ChannelsClient get channels =>
+      _channels ??= ChannelsClient(_dio, baseUrl: _baseUrl);
 
   FeedClient get feed => _feed ??= FeedClient(_dio, baseUrl: _baseUrl);
 

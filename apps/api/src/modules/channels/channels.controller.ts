@@ -73,7 +73,7 @@ export class ChannelsController {
   })
   @ApiEnvelopeResponse(ChannelDto, { isArray: true })
   @ApiErrors({ 403: [E.FEATURE_DISABLED] })
-  list(
+  channelList(
     @CurrentUser() user: RequestUser,
     @Query() q: ChannelListQueryDto,
   ): Promise<ChannelDto[]> {
@@ -88,7 +88,7 @@ export class ChannelsController {
     409: [E.CHANNEL_USERNAME_TAKEN, E.CHANNEL_LIMIT_REACHED],
     429: [E.RATE_LIMITED],
   })
-  create(
+  channelCreate(
     @CurrentUser() user: RequestUser,
     @Body() dto: CreateChannelDto,
   ): Promise<ChannelDto> {
@@ -105,7 +105,7 @@ export class ChannelsController {
     429: [E.RATE_LIMITED],
     503: [E.VIDEO_UNAVAILABLE],
   })
-  createVideoUpload(
+  channelCreateVideoUpload(
     @CurrentUser() user: RequestUser,
     @Body() dto: CreateVideoUploadDto,
   ): Promise<VideoUploadDto> {
@@ -116,7 +116,7 @@ export class ChannelsController {
   @ApiOperation({ summary: 'A channel by id or @username' })
   @ApiEnvelopeResponse(ChannelDto)
   @ApiErrors({ 404: [E.NOT_FOUND] })
-  get(
+  channelGet(
     @CurrentUser() user: RequestUser,
     @Param() p: ChannelRefParamDto,
   ): Promise<ChannelDto> {
@@ -131,7 +131,7 @@ export class ChannelsController {
     404: [E.NOT_FOUND],
     409: [E.CHANNEL_USERNAME_TAKEN],
   })
-  update(
+  channelUpdate(
     @CurrentUser() user: RequestUser,
     @Param() p: ChannelIdParamDto,
     @Body() dto: UpdateChannelDto,
@@ -143,7 +143,7 @@ export class ChannelsController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete a channel (owner)' })
   @ApiErrors({ 403: [E.FORBIDDEN], 404: [E.NOT_FOUND] })
-  remove(
+  channelRemove(
     @CurrentUser() user: RequestUser,
     @Param() p: ChannelIdParamDto,
   ): Promise<void> {
@@ -154,7 +154,7 @@ export class ChannelsController {
   @ApiOperation({ summary: 'Subscribe' })
   @ApiEnvelopeResponse(ChannelSubscriptionDto)
   @ApiErrors({ 403: [E.USER_BLOCKED], 404: [E.NOT_FOUND] })
-  subscribe(
+  channelSubscribe(
     @CurrentUser() user: RequestUser,
     @Param() p: ChannelIdParamDto,
   ): Promise<ChannelSubscriptionDto> {
@@ -165,7 +165,7 @@ export class ChannelsController {
   @ApiOperation({ summary: 'Unsubscribe' })
   @ApiEnvelopeResponse(ChannelSubscriptionDto)
   @ApiErrors({ 404: [E.NOT_FOUND] })
-  unsubscribe(
+  channelUnsubscribe(
     @CurrentUser() user: RequestUser,
     @Param() p: ChannelIdParamDto,
   ): Promise<ChannelSubscriptionDto> {
@@ -176,7 +176,7 @@ export class ChannelsController {
   @ApiOperation({ summary: 'Mute / unmute notifications of a channel' })
   @ApiEnvelopeResponse(ChannelSubscriptionDto)
   @ApiErrors({ 404: [E.NOT_FOUND] })
-  mute(
+  channelMute(
     @CurrentUser() user: RequestUser,
     @Param() p: ChannelIdParamDto,
     @Body() dto: UpdateChannelSubscriptionDto,
@@ -188,7 +188,7 @@ export class ChannelsController {
   @ApiOperation({ summary: 'Owner and admins of a channel (admins only)' })
   @ApiEnvelopeResponse(ChannelAdminDto, { isArray: true })
   @ApiErrors({ 403: [E.FORBIDDEN], 404: [E.NOT_FOUND] })
-  admins(
+  channelAdmins(
     @CurrentUser() user: RequestUser,
     @Param() p: ChannelIdParamDto,
   ): Promise<ChannelAdminDto[]> {
@@ -203,7 +203,7 @@ export class ChannelsController {
     404: [E.NOT_FOUND],
     409: [E.CHANNEL_LIMIT_REACHED],
   })
-  addAdmin(
+  channelAddAdmin(
     @CurrentUser() user: RequestUser,
     @Param() p: ChannelIdParamDto,
     @Body() dto: AddChannelAdminDto,
@@ -215,7 +215,7 @@ export class ChannelsController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Remove an admin (owner), or leave (yourself)' })
   @ApiErrors({ 403: [E.FORBIDDEN], 404: [E.NOT_FOUND] })
-  removeAdmin(
+  channelRemoveAdmin(
     @CurrentUser() user: RequestUser,
     @Param() p: ChannelAdminParamDto,
   ): Promise<void> {
@@ -226,7 +226,7 @@ export class ChannelsController {
   @ApiOperation({ summary: 'Posts of a channel, newest first' })
   @ApiEnvelopeResponse(ChannelPostDto, { isArray: true })
   @ApiErrors({ 404: [E.NOT_FOUND] })
-  posts(
+  channelPosts(
     @CurrentUser() user: RequestUser,
     @Param() p: ChannelIdParamDto,
     @Query() q: ChannelPageQueryDto,
@@ -247,7 +247,7 @@ export class ChannelsController {
     409: [E.FILE_NOT_ATTACHABLE, E.VIDEO_NOT_READY],
     429: [E.RATE_LIMITED],
   })
-  createPost(
+  channelCreatePost(
     @CurrentUser() user: RequestUser,
     @Param() p: ChannelIdParamDto,
     @Body() dto: CreateChannelPostDto,
@@ -259,7 +259,7 @@ export class ChannelsController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Count the posts a reader saw (once per person)' })
   @ApiErrors({ 404: [E.NOT_FOUND] })
-  markViewed(
+  channelMarkViewed(
     @CurrentUser() user: RequestUser,
     @Param() p: ChannelIdParamDto,
     @Body() dto: ChannelViewsDto,
@@ -271,7 +271,7 @@ export class ChannelsController {
   @ApiOperation({ summary: 'One post of a channel' })
   @ApiEnvelopeResponse(ChannelPostDto)
   @ApiErrors({ 404: [E.NOT_FOUND] })
-  post(
+  channelPost(
     @CurrentUser() user: RequestUser,
     @Param() p: ChannelPostParamDto,
   ): Promise<ChannelPostDto> {
@@ -282,7 +282,7 @@ export class ChannelsController {
   @ApiOperation({ summary: 'Edit a post (admins)' })
   @ApiEnvelopeResponse(ChannelPostDto)
   @ApiErrors({ 403: [E.FORBIDDEN], 404: [E.NOT_FOUND] })
-  editPost(
+  channelEditPost(
     @CurrentUser() user: RequestUser,
     @Param() p: ChannelPostParamDto,
     @Body() dto: UpdateChannelPostDto,
@@ -294,7 +294,7 @@ export class ChannelsController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete a post (admins)' })
   @ApiErrors({ 403: [E.FORBIDDEN], 404: [E.NOT_FOUND] })
-  removePost(
+  channelRemovePost(
     @CurrentUser() user: RequestUser,
     @Param() p: ChannelPostParamDto,
   ): Promise<void> {
@@ -305,7 +305,7 @@ export class ChannelsController {
   @ApiOperation({ summary: 'React to a post with one emoji' })
   @ApiEnvelopeResponse(ChannelPostDto)
   @ApiErrors({ 404: [E.NOT_FOUND] })
-  react(
+  channelReact(
     @CurrentUser() user: RequestUser,
     @Param() p: ChannelPostParamDto,
     @Body() dto: ChannelReactionDto,
@@ -317,7 +317,7 @@ export class ChannelsController {
   @ApiOperation({ summary: 'Take my reaction back' })
   @ApiEnvelopeResponse(ChannelPostDto)
   @ApiErrors({ 404: [E.NOT_FOUND] })
-  unreact(
+  channelUnreact(
     @CurrentUser() user: RequestUser,
     @Param() p: ChannelPostParamDto,
   ): Promise<ChannelPostDto> {
@@ -328,7 +328,7 @@ export class ChannelsController {
   @ApiOperation({ summary: 'Comments under a post, oldest first' })
   @ApiEnvelopeResponse(ChannelCommentDto, { isArray: true })
   @ApiErrors({ 404: [E.NOT_FOUND] })
-  comments(
+  channelComments(
     @CurrentUser() user: RequestUser,
     @Param() p: ChannelPostParamDto,
     @Query() q: ChannelPageQueryDto,
@@ -344,7 +344,7 @@ export class ChannelsController {
     404: [E.NOT_FOUND],
     429: [E.RATE_LIMITED],
   })
-  addComment(
+  channelAddComment(
     @CurrentUser() user: RequestUser,
     @Param() p: ChannelPostParamDto,
     @Body() dto: CreateChannelCommentDto,
@@ -356,7 +356,7 @@ export class ChannelsController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete a comment (author or a channel admin)' })
   @ApiErrors({ 403: [E.FORBIDDEN], 404: [E.NOT_FOUND] })
-  removeComment(
+  channelRemoveComment(
     @CurrentUser() user: RequestUser,
     @Param() p: ChannelCommentParamDto,
   ): Promise<void> {

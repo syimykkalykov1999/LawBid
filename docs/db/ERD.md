@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-173 tables.
+184 tables.
 
 ```mermaid
 erDiagram
@@ -2155,6 +2155,99 @@ erDiagram
     DateTime first_seen
     DateTime last_seen
   }
+  stories {
+    String id PK
+    String author_id FK
+    String kind
+    String file_id FK "nullable"
+    String video_asset_id FK,UK "nullable"
+    String text "nullable"
+    String background "nullable"
+    Json overlays
+    String audience
+    String status
+    Int view_count
+    DateTime created_at
+    DateTime expires_at
+    DateTime deleted_at "nullable"
+  }
+  story_views {
+    String story_id PK,FK
+    String viewer_id PK,FK
+    DateTime viewed_at
+  }
+  story_hidden {
+    String owner_id PK,FK
+    String hidden_user_id PK,FK
+    DateTime created_at
+  }
+  story_settings {
+    String user_id PK,FK
+    String audience
+    Boolean allow_replies
+    DateTime updated_at
+  }
+  channels {
+    String id PK
+    String owner_id FK
+    String title
+    String username UK
+    String description "nullable"
+    String avatar_file_id FK "nullable"
+    Boolean comments_enabled
+    String status
+    String moderation_note "nullable"
+    Int subscriber_count
+    Int post_count
+    DateTime last_post_at "nullable"
+    DateTime created_at
+    DateTime updated_at
+    DateTime deleted_at "nullable"
+  }
+  channel_admins {
+    String channel_id PK,FK
+    String user_id PK,FK
+    String role
+    DateTime created_at
+  }
+  channel_subscriptions {
+    String channel_id PK,FK
+    String user_id PK,FK
+    Boolean muted
+    DateTime created_at
+  }
+  channel_posts {
+    String id PK
+    String channel_id FK
+    String author_id FK
+    String body
+    String video_asset_id FK,UK "nullable"
+    String status
+    Int view_count
+    Int comment_count
+    DateTime created_at
+    DateTime edited_at "nullable"
+    DateTime deleted_at "nullable"
+  }
+  channel_post_views {
+    String post_id PK,FK
+    String user_id PK
+    DateTime viewed_at
+  }
+  channel_reactions {
+    String post_id PK,FK
+    String user_id PK,FK
+    String emoji
+    DateTime created_at
+  }
+  channel_comments {
+    String id PK
+    String post_id FK
+    String author_id FK
+    String body
+    DateTime created_at
+    DateTime deleted_at "nullable"
+  }
   users }o--o| files : "avatar_file_id"
   users }o--|| countries : "country_code"
   files }o--|| users : "owner_user_id"
@@ -2360,4 +2453,26 @@ erDiagram
   firm_members }o--|| firms : "firm_id"
   search_synonym_groups }o--o| practice_areas : "practice_area_id"
   search_synonym_terms }o--|| search_synonym_groups : "group_id"
+  stories }o--|| users : "author_id"
+  stories }o--o| files : "file_id"
+  stories |o--o| video_assets : "video_asset_id"
+  story_views }o--|| stories : "story_id"
+  story_views }o--|| users : "viewer_id"
+  story_hidden }o--|| users : "owner_id"
+  story_hidden }o--|| users : "hidden_user_id"
+  story_settings |o--|| users : "user_id"
+  channels }o--|| users : "owner_id"
+  channels }o--o| files : "avatar_file_id"
+  channel_admins }o--|| channels : "channel_id"
+  channel_admins }o--|| users : "user_id"
+  channel_subscriptions }o--|| channels : "channel_id"
+  channel_subscriptions }o--|| users : "user_id"
+  channel_posts }o--|| channels : "channel_id"
+  channel_posts }o--|| users : "author_id"
+  channel_posts |o--o| video_assets : "video_asset_id"
+  channel_post_views }o--|| channel_posts : "post_id"
+  channel_reactions }o--|| channel_posts : "post_id"
+  channel_reactions }o--|| users : "user_id"
+  channel_comments }o--|| channel_posts : "post_id"
+  channel_comments }o--|| users : "author_id"
 ```

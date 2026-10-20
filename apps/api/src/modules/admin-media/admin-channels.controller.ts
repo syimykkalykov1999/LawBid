@@ -46,7 +46,7 @@ export class AdminChannelsController {
   @ApiOperation({ summary: 'Channels, newest first' })
   @ApiEnvelopeResponse(AdminChannelRowDto, { isArray: true })
   @ApiErrors({ 400: [E.VALIDATION_ERROR] })
-  list(
+  listChannels(
     @Query() q: AdminChannelsQueryDto,
   ): Promise<{ items: AdminChannelRowDto[]; nextCursor: string | null }> {
     return this.channels.list(q);
@@ -56,7 +56,7 @@ export class AdminChannelsController {
   @ApiOperation({ summary: 'A channel with its latest posts' })
   @ApiEnvelopeResponse(AdminChannelDto)
   @ApiErrors({ 404: [E.NOT_FOUND] })
-  get(@Param() p: AdminChannelIdParamDto): Promise<AdminChannelDto> {
+  getChannel(@Param() p: AdminChannelIdParamDto): Promise<AdminChannelDto> {
     return this.channels.get(p.id);
   }
 
@@ -67,7 +67,7 @@ export class AdminChannelsController {
   })
   @ApiEnvelopeResponse(AdminChannelDto)
   @ApiErrors({ 404: [E.NOT_FOUND], 409: [E.CONTENT_INVALID_STATE] })
-  setStatus(
+  setChannelStatus(
     @CurrentAdmin() admin: AdminActor,
     @Param() p: AdminChannelIdParamDto,
     @Body() dto: AdminChannelStatusDto,
@@ -80,7 +80,7 @@ export class AdminChannelsController {
   @ApiOperation({ summary: 'Remove or restore one post of a channel' })
   @ApiEnvelopeResponse(AdminChannelDto)
   @ApiErrors({ 404: [E.NOT_FOUND], 409: [E.CONTENT_INVALID_STATE] })
-  moderatePost(
+  moderateChannelPost(
     @CurrentAdmin() admin: AdminActor,
     @Param() p: AdminChannelPostParamDto,
     @Body() dto: AdminChannelPostActionDto,

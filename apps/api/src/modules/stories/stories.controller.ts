@@ -61,14 +61,14 @@ export class StoriesController {
   @ApiOperation({ summary: 'Story bubbles: me first, then people I follow' })
   @ApiEnvelopeResponse(StoryTrayItemDto, { isArray: true })
   @ApiErrors({ 403: [E.FEATURE_DISABLED] })
-  tray(@CurrentUser() user: RequestUser): Promise<StoryTrayItemDto[]> {
+  storyTray(@CurrentUser() user: RequestUser): Promise<StoryTrayItemDto[]> {
     return this.stories.tray(user);
   }
 
   @Get('archive')
   @ApiOperation({ summary: 'My expired stories, newest first' })
   @ApiEnvelopeResponse(StoryDto, { isArray: true })
-  archive(
+  storyArchive(
     @CurrentUser() user: RequestUser,
     @Query() q: StoryPageQueryDto,
   ): Promise<StoryPage<StoryDto>> {
@@ -78,14 +78,14 @@ export class StoriesController {
   @Get('settings')
   @ApiOperation({ summary: 'My story privacy' })
   @ApiEnvelopeResponse(StorySettingsDto)
-  settings(@CurrentUser() user: RequestUser): Promise<StorySettingsDto> {
+  storySettings(@CurrentUser() user: RequestUser): Promise<StorySettingsDto> {
     return this.stories.getSettings(user);
   }
 
   @Patch('settings')
   @ApiOperation({ summary: 'Change my story privacy' })
   @ApiEnvelopeResponse(StorySettingsDto)
-  updateSettings(
+  storyUpdateSettings(
     @CurrentUser() user: RequestUser,
     @Body() dto: UpdateStorySettingsDto,
   ): Promise<StorySettingsDto> {
@@ -95,7 +95,7 @@ export class StoriesController {
   @Get('hidden')
   @ApiOperation({ summary: 'People my stories are hidden from' })
   @ApiEnvelopeResponse(UserBriefDto, { isArray: true })
-  hidden(@CurrentUser() user: RequestUser): Promise<UserBriefDto[]> {
+  storyHidden(@CurrentUser() user: RequestUser): Promise<UserBriefDto[]> {
     return this.stories.hiddenFrom(user);
   }
 
@@ -103,7 +103,7 @@ export class StoriesController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Hide my stories from a person' })
   @ApiErrors({ 404: [E.NOT_FOUND], 409: [E.STORY_LIMIT_REACHED] })
-  hide(
+  storyHide(
     @CurrentUser() user: RequestUser,
     @Param() p: StoryUserIdParamDto,
   ): Promise<void> {
@@ -113,7 +113,7 @@ export class StoriesController {
   @Delete('hidden/:userId')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Show my stories to a person again' })
-  unhide(
+  storyUnhide(
     @CurrentUser() user: RequestUser,
     @Param() p: StoryUserIdParamDto,
   ): Promise<void> {
@@ -131,7 +131,7 @@ export class StoriesController {
     429: [E.RATE_LIMITED],
     503: [E.VIDEO_UNAVAILABLE],
   })
-  createVideoUpload(
+  storyCreateVideoUpload(
     @CurrentUser() user: RequestUser,
     @Body() dto: CreateStoryVideoUploadDto,
   ): Promise<VideoUploadDto> {
@@ -151,7 +151,7 @@ export class StoriesController {
     409: [E.STORY_LIMIT_REACHED, E.FILE_NOT_ATTACHABLE, E.VIDEO_NOT_READY],
     429: [E.RATE_LIMITED],
   })
-  create(
+  storyCreate(
     @CurrentUser() user: RequestUser,
     @Body() dto: CreateStoryDto,
   ): Promise<StoryDto> {
@@ -161,7 +161,7 @@ export class StoriesController {
   @Get('users/:userId')
   @ApiOperation({ summary: "A person's live stories I may see" })
   @ApiEnvelopeResponse(StoryDto, { isArray: true })
-  ofUser(
+  storyOfUser(
     @CurrentUser() user: RequestUser,
     @Param() p: StoryUserIdParamDto,
   ): Promise<StoryDto[]> {
@@ -172,7 +172,7 @@ export class StoriesController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete my story' })
   @ApiErrors({ 404: [E.NOT_FOUND] })
-  remove(
+  storyRemove(
     @CurrentUser() user: RequestUser,
     @Param() p: StoryIdParamDto,
   ): Promise<void> {
@@ -183,7 +183,7 @@ export class StoriesController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Mark a story as seen' })
   @ApiErrors({ 404: [E.NOT_FOUND] })
-  view(
+  storyView(
     @CurrentUser() user: RequestUser,
     @Param() p: StoryIdParamDto,
   ): Promise<void> {
@@ -194,7 +194,7 @@ export class StoriesController {
   @ApiOperation({ summary: 'Who saw my story (author only)' })
   @ApiEnvelopeResponse(StoryViewerDto, { isArray: true })
   @ApiErrors({ 404: [E.NOT_FOUND] })
-  viewers(
+  storyViewers(
     @CurrentUser() user: RequestUser,
     @Param() p: StoryIdParamDto,
     @Query() q: StoryPageQueryDto,

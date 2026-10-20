@@ -416,6 +416,12 @@ enum ErrorCode {
   demoCodeInvalid('DEMO_CODE_INVALID'),
   @JsonValue('LEGAL_REACCEPT_REQUIRED')
   legalReacceptRequired('LEGAL_REACCEPT_REQUIRED'),
+  @JsonValue('STORY_LIMIT_REACHED')
+  storyLimitReached('STORY_LIMIT_REACHED'),
+  @JsonValue('CHANNEL_LIMIT_REACHED')
+  channelLimitReached('CHANNEL_LIMIT_REACHED'),
+  @JsonValue('CHANNEL_USERNAME_TAKEN')
+  channelUsernameTaken('CHANNEL_USERNAME_TAKEN'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);
