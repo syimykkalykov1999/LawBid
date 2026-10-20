@@ -57,6 +57,15 @@ import {
 import { ContinueLoginDto } from './dto/continue-login.dto';
 import { AssistantCodeLoginDto } from './dto/assistant-code-login.dto';
 import { TokenService } from './services/token.service';
+import { QrLoginService } from './services/qr-login.service';
+import {
+  QrLoginAnsweredDto,
+  QrLoginCreateDto,
+  QrLoginCreatedDto,
+  QrLoginPollDto,
+  QrLoginPollResultDto,
+  QrLoginPreviewDto,
+} from './dto/qr-login.dto';
 
 const E = ErrorCode;
 /** Global JwtAuthGuard 401s, for the routes that need a bearer token. */
@@ -96,6 +105,7 @@ export class AuthController {
     private readonly socialAuth: SocialAuthService,
     private readonly passwordAuth: PasswordAuthService,
     private readonly tokens: TokenService,
+    private readonly qrLogin: QrLoginService,
   ) {}
 
   @ApiEnvelopeResponse(OtpSentDto)
@@ -446,6 +456,79 @@ export class AuthController {
     @Req() req: Request,
   ): Promise<AuthTokensDto> {
     return this.passwordAuth.confirmReset(dto, this.meta(req));
+  }
+
+  // ---------------------------------------------------------------------
+  // Owner 2026-10-20: sign in to the website by scanning its QR code.
+  // ---------------------------------------------------------------------
+
+  /** The website asks for a QR code (two minutes, single use). */
+  @ApiEnvelopeResponse(QrLoginCreatedDto, { status: HttpStatus.CREATED })
+  @ApiErrors({ 400: [E.VALIDATION_ERROR], 429: [E.RATE_LIMITED] })
+  @Public()
+  @Post('qr')
+  async qrCreate(
+    @Body() dto: QrLoginCreateDto,
+    @Req() req: Request,
+  ): Promise<QrLoginCreatedDto> {
+    return this.qrLogin.create(dto.deviceInfo ?? {}, this.meta(req));
+  }
+
+  /** The website waits: pending → scanned → tokens (once). */
+  @ApiEnvelopeResponse(QrLoginPollResultDto)
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    403: [E.FEATURE_DISABLED, E.ACCOUNT_SUSPENDED, E.ACCOUNT_DELETED],
+    429: [E.RATE_LIMITED],
+  })
+  @Public()
+  @Post('qr/poll')
+  @HttpCode(HttpStatus.OK)
+  async qrPoll(
+    @Body() dto: QrLoginPollDto,
+    @Req() req: Request,
+  ): Promise<QrLoginPollResultDto> {
+    return this.qrLogin.poll(dto.qrId, dto.pollSecret, this.meta(req));
+  }
+
+  /** The phone scanned the code: which browser is asking? */
+  @ApiBearerAuth()
+  @ApiEnvelopeResponse(QrLoginPreviewDto)
+  @ApiErrors({ 401: BEARER_401, 404: [E.NOT_FOUND], 429: [E.RATE_LIMITED] })
+  @Get('qr/:qrId')
+  async qrPreview(
+    @CurrentUser() user: RequestUser,
+    @Param('qrId') qrId: string,
+  ): Promise<QrLoginPreviewDto> {
+    return this.qrLogin.preview(user.sub, user.sid, qrId);
+  }
+
+  @ApiBearerAuth()
+  @ApiEnvelopeResponse(QrLoginAnsweredDto)
+  @ApiErrors({ 401: BEARER_401, 404: [E.NOT_FOUND], 429: [E.RATE_LIMITED] })
+  @Post('qr/:qrId/approve')
+  @HttpCode(HttpStatus.OK)
+  async qrApprove(
+    @CurrentUser() user: RequestUser,
+    @Param('qrId') qrId: string,
+    @Req() req: Request,
+  ): Promise<QrLoginAnsweredDto> {
+    await this.qrLogin.answer(user.sub, user.sid, qrId, true, this.meta(req));
+    return { ok: true };
+  }
+
+  @ApiBearerAuth()
+  @ApiEnvelopeResponse(QrLoginAnsweredDto)
+  @ApiErrors({ 401: BEARER_401, 404: [E.NOT_FOUND], 429: [E.RATE_LIMITED] })
+  @Post('qr/:qrId/reject')
+  @HttpCode(HttpStatus.OK)
+  async qrReject(
+    @CurrentUser() user: RequestUser,
+    @Param('qrId') qrId: string,
+    @Req() req: Request,
+  ): Promise<QrLoginAnsweredDto> {
+    await this.qrLogin.answer(user.sub, user.sid, qrId, false, this.meta(req));
+    return { ok: true };
   }
 
   private meta(req: Request): RequestMeta {

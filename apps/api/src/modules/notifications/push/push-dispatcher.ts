@@ -367,6 +367,7 @@ export class PushDispatcher
           created_at: true,
           body_display: true,
           type: true,
+          duration_ms: true,
           deleted_at: true,
           sent_by_name: true,
         },
@@ -411,9 +412,13 @@ export class PushDispatcher
       .join('');
     const preview =
       message.type === 'voice'
-        ? ru
-          ? '🎤 Голосовое сообщение'
-          : '🎤 Voice message'
+        ? (ru ? '🎤 Голосовое сообщение' : '🎤 Voice message') +
+          // WhatsApp: "🎤 0:12".
+          (message.duration_ms
+            ? ` ${Math.floor(message.duration_ms / 60000)}:${String(
+                Math.floor(message.duration_ms / 1000) % 60,
+              ).padStart(2, '0')}`
+            : '')
         : // OQ-047: say what was attached; the file name stays private.
           message.type === 'attachment'
           ? (ru ? '📎 Файл' : '📎 File') + (caption ? `: ${caption}` : '')

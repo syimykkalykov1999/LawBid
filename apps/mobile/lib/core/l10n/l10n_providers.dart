@@ -138,8 +138,7 @@ class L10nCacheController extends _$L10nCacheController {
         seedAndLoad(enCode, compiledSeedFor(enCode)),
     ]);
     final cached = loaded[0];
-    final english =
-        loaded.length > 1 ? loaded[1] : const <String, String>{};
+    final english = loaded.length > 1 ? loaded[1] : const <String, String>{};
     if (_isStillCurrent(language)) {
       state = L10nCacheState(lang: code, entries: cached, english: english);
     }

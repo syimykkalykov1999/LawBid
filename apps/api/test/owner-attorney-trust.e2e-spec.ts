@@ -829,8 +829,13 @@ describe('Attorney trust levels (e2e, owner 2026-10-05)', () => {
           payload: { path: ['kind'], equals: 'trust_requirements_changed' },
         },
       });
-    for (let i = 0; i < 50 && (await told()) === 0; i++) {
-      await new Promise((r) => setTimeout(r, 100));
+    // The preset's background run walks every attorney of the shared test
+    // database in id order and tells ours when it reaches them, which can
+    // take longer than a few seconds on a slow runner: poll with a real
+    // timeout instead of a fixed short wait.
+    const deadline = Date.now() + 45_000;
+    while (Date.now() < deadline && (await told()) === 0) {
+      await new Promise((r) => setTimeout(r, 200));
     }
     expect(await told()).toBe(1);
 

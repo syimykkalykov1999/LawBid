@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,6 +8,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/features/auth/auth_routes.dart';
 import 'package:lawbid/features/settings/active_devices/application/active_devices_controller.dart';
@@ -268,11 +270,26 @@ class _DevicesList extends StatelessWidget {
       ),
       footer: Padding(
         padding: const EdgeInsets.only(top: AppSpacing.sm),
-        child: AppButton(
-          label: t.t('devices.logoutAll'),
-          icon: AppIcons.logoutRounded,
-          variant: AppButtonVariant.secondary,
-          onPressed: onLogoutAll,
+        child: Column(
+          children: [
+            // Owner 2026-10-20: sign in on the website by scanning its QR
+            // code (the phone only; the website shows the code).
+            if (!kIsWeb) ...[
+              AppButton(
+                key: const ValueKey('devices-scan-web'),
+                label: t.t('devices.scanWeb'),
+                icon: AppIcons.qrCode,
+                onPressed: () => context.push(AppRoutes.qrScan),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+            ],
+            AppButton(
+              label: t.t('devices.logoutAll'),
+              icon: AppIcons.logoutRounded,
+              variant: AppButtonVariant.secondary,
+              onPressed: onLogoutAll,
+            ),
+          ],
         ),
       ),
     );

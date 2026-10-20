@@ -79,6 +79,25 @@ class ProfileScreen extends ConsumerWidget {
           ),
         ),
         actions: [
+          // Owner 2026-10-20 (WeChat): "My QR code" next to the gear.
+          if (username != null || user?.clientProfile != null)
+            Semantics(
+              button: true,
+              label: t.t('qr.my.title'),
+              excludeSemantics: true,
+              child: AppPressable(
+                key: const ValueKey('profile-my-qr'),
+                onTap: () => context.push(AppRoutes.myQr),
+                child: SizedBox.square(
+                  dimension: AppSizes.touchTarget,
+                  child: AppIcon(
+                    AppIcons.qrCode,
+                    color: colors.text,
+                    size: AppSizes.iconMd,
+                  ),
+                ),
+              ),
+            ),
           Semantics(
             button: true,
             label: t.t('settings.title'),

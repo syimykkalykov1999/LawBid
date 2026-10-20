@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
@@ -16,7 +17,7 @@ const kVoiceBars = 48;
 /// A finished recording.
 typedef VoiceRecording = ({String path, int durationMs, List<int> waveform});
 
-/// Records a voice note (AAC in .m4a, mono, 64 kbit/s), sampling the level
+/// Records a voice note (AAC in .m4a, mono, 16 kHz, 32 kbit/s), sampling the level
 /// every 80 ms for the live meter and the stored waveform. In a browser the
 /// note is AAC in MP4 where the browser can (Safari) and Opus in WebM
 /// otherwise (Chrome, Firefox); `stop` then gives a blob: URL, not a file.
@@ -30,14 +31,23 @@ class VoiceRecorder {
   DateTime? _startedAt;
   Timer? _cap;
 
+  /// Time recorded before the last pause (pauses are not counted).
+  Duration _before = Duration.zero;
+  bool _paused = false;
+
+  /// WhatsApp: the tail of the last word is not cut when the finger lifts.
+  static const _tail = Duration(milliseconds: 150);
+
   /// 0…1 while recording (for the pulsing mic and the live bars).
   Stream<double> get levels => _levels.stream;
 
   bool get recording => _startedAt != null;
 
-  Duration get elapsed => _startedAt == null
-      ? Duration.zero
-      : DateTime.now().difference(_startedAt!);
+  bool get paused => _paused;
+
+  Duration get elapsed => _startedAt == null || _paused
+      ? _before
+      : _before + DateTime.now().difference(_startedAt!);
 
   /// Asks for the microphone once; false when refused.
   Future<bool> hasPermission() => _rec.hasPermission();
@@ -57,13 +67,26 @@ class VoiceRecorder {
     await _rec.start(
       RecordConfig(
         encoder: encoder,
-        bitRate: 64000,
+        bitRate: 32000,
+        // 32 kbit/s needs 16 kHz: at 44.1 kHz AAC bubbles and warbles.
+        sampleRate: 16000,
         numChannels: 1,
       ),
       path: path,
     );
     _samples.clear();
+    _before = Duration.zero;
+    _paused = false;
     _startedAt = DateTime.now();
+    _onCap = onCap;
+    _listen();
+    _armCap();
+    return true;
+  }
+
+  void Function()? _onCap;
+
+  void _listen() {
     _ampSub =
         _rec.onAmplitudeChanged(const Duration(milliseconds: 80)).listen((a) {
       // dBFS −60…0 → 0…1.
@@ -71,17 +94,49 @@ class VoiceRecorder {
       _samples.add(v);
       if (!_levels.isClosed) _levels.add(v);
     });
-    _cap = Timer(kVoiceMaxDuration, () => onCap?.call());
-    return true;
   }
+
+  void _armCap() {
+    _cap?.cancel();
+    _cap = Timer(kVoiceMaxDuration - elapsed, () => _onCap?.call());
+  }
+
+  /// Lock mode: pause (the file stays open; the meter freezes).
+  Future<void> pause() async {
+    if (!recording || _paused) return;
+    _before = elapsed;
+    _startedAt = DateTime.now();
+    _paused = true;
+    _cap?.cancel();
+    await _ampSub?.cancel();
+    _ampSub = null;
+    await _rec.pause();
+  }
+
+  /// Lock mode: carry on into the same file.
+  Future<void> resume() async {
+    if (!recording || !_paused) return;
+    await _rec.resume();
+    _paused = false;
+    _startedAt = DateTime.now();
+    _listen();
+    _armCap();
+  }
+
+  /// The waveform recorded so far (for the frozen / preview bars).
+  List<int> get waveformNow => bars(_samples, kVoiceBars);
 
   /// Stops and returns the note, or null when shorter than 0.5 s.
   Future<VoiceRecording?> stop() async {
     if (!recording) return null;
+    // Keep listening a moment: the end of the last word must not be cut.
+    if (!_paused) await Future<void>.delayed(_tail);
     final took = elapsed;
     await _ampSub?.cancel();
     _cap?.cancel();
     _startedAt = null;
+    _before = Duration.zero;
+    _paused = false;
     final path = await _rec.stop();
     if (path == null || took < kVoiceMinDuration) return null;
     return (
@@ -97,6 +152,8 @@ class VoiceRecorder {
     await _ampSub?.cancel();
     _cap?.cancel();
     _startedAt = null;
+    _before = Duration.zero;
+    _paused = false;
     await _rec.cancel();
   }
 
@@ -138,3 +195,24 @@ String voiceClock(Duration d) {
 
 /// The duration a bubble shows for [v].
 Duration voiceLength(VoiceNote v) => Duration(milliseconds: v.durationMs);
+
+/// A recording left in a chat's composer (lock mode, call came in, screen
+/// left): it waits there to be played, sent or deleted — never lost.
+class VoiceDrafts extends Notifier<Map<String, VoiceRecording>> {
+  @override
+  Map<String, VoiceRecording> build() => const {};
+
+  VoiceRecording? of(String chatId) => state[chatId];
+
+  void put(String chatId, VoiceRecording r) => state = {...state, chatId: r};
+
+  void clear(String chatId) {
+    if (!state.containsKey(chatId)) return;
+    state = {...state}..remove(chatId);
+  }
+}
+
+final voiceDraftsProvider =
+    NotifierProvider<VoiceDrafts, Map<String, VoiceRecording>>(
+  VoiceDrafts.new,
+);
