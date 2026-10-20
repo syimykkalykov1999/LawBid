@@ -60,11 +60,11 @@ export class LegalExportBuilder {
         SELECT id FROM legal_exports
         WHERE (status = 'queued'
                OR (status = 'running'
-                   AND started_at < now() - make_interval(mins => ${STALE_RUNNING_MIN})))
+                   AND started_at < now() - make_interval(mins => ${STALE_RUNNING_MIN}::INT)))
           AND NOT EXISTS (
             SELECT 1 FROM legal_exports r
             WHERE r.status = 'running'
-              AND r.started_at >= now() - make_interval(mins => ${STALE_RUNNING_MIN}))
+              AND r.started_at >= now() - make_interval(mins => ${STALE_RUNNING_MIN}::INT))
         ORDER BY created_at
         LIMIT 1
         FOR UPDATE SKIP LOCKED)
