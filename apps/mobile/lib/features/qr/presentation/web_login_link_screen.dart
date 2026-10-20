@@ -321,6 +321,13 @@ class _Question extends StatelessWidget {
           textAlign: TextAlign.center,
           style: typography.bodySmall.copyWith(color: colors.textSecondary),
         ),
+        const SizedBox(height: AppSpacing.sm),
+        Text(
+          t.t('qr.login.warn'),
+          key: const ValueKey('qr-login-warn'),
+          textAlign: TextAlign.center,
+          style: typography.bodySmall.copyWith(color: colors.text),
+        ),
         const SizedBox(height: AppSpacing.xl),
         AppButton(
           key: const ValueKey('qr-login-approve'),

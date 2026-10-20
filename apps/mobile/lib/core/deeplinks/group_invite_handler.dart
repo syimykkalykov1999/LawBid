@@ -8,4 +8,8 @@ typedef GroupInviteHandler = void Function(String token);
 /// groups feature (claude/group-chats-polls) overrides this with its join
 /// screen; until it does, the link and QR scanner recognise an invitation
 /// but have nothing to open, and say so.
+///
+/// The token is untrusted input from a link or a QR code: the handler must
+/// have the server validate it (existence, expiry, ban) before showing or
+/// joining anything; the app only checks its shape.
 final groupInviteHandlerProvider = Provider<GroupInviteHandler?>((ref) => null);

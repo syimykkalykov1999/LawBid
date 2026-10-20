@@ -13,6 +13,7 @@ const qrRu = <String, String>{
   'qr.login.done': 'Вход на вебе выполнен',
   'qr.login.expired': 'Код устарел. Обновите его на сайте.',
   'qr.login.title': 'Войти на вебе?',
+  'qr.login.warn': 'Подтверждайте, только если сами открыли этот код на сайте.',
   'qr.my.hint': 'Отсканируйте, чтобы открыть мой профиль',
   'qr.my.title': 'Мой QR-код',
   'qr.save.done': 'Сохранено в галерею',
@@ -44,6 +45,8 @@ const qrEn = <String, String>{
   'qr.login.done': 'Signed in on the web',
   'qr.login.expired': 'This code expired. Refresh it on the website.',
   'qr.login.title': 'Sign in on the web?',
+  'qr.login.warn':
+      'Confirm only if you opened this code on the website yourself.',
   'qr.my.hint': 'Scan to open my profile',
   'qr.my.title': 'My QR code',
   'qr.save.done': 'Saved to gallery',

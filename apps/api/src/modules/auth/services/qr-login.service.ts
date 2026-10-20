@@ -3,6 +3,7 @@ import {
   HttpStatus,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -86,6 +87,8 @@ const sha256 = (v: string) => createHash('sha256').update(v).digest('hex');
  */
 @Injectable()
 export class QrLoginService {
+  private readonly logger = new Logger(QrLoginService.name);
+
   constructor(
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     private readonly prisma: PrismaService,
@@ -126,10 +129,9 @@ export class QrLoginService {
       status: 'pending',
       device: {
         deviceId: device.deviceId?.slice(0, 255),
-        deviceName:
-          device.deviceName?.slice(0, 120) ??
-          browserLabel(meta.userAgent) ??
-          undefined,
+        // Never the client's own text: the phone owner decides on this
+        // label, so a phisher must not be able to write it.
+        deviceName: browserLabel(meta.userAgent) ?? undefined,
         platform: 'web',
         appVersion: device.appVersion?.slice(0, 50),
       },
@@ -160,7 +162,10 @@ export class QrLoginService {
     pollSecret: string,
     meta: RequestMeta,
   ): Promise<QrLoginPollResultDto> {
-    if (meta.ip) await this.limit(['qr-poll', 'ip', meta.ip], 1800, 3600);
+    // Per IP generously (an office or mobile carrier shares one address),
+    // per code tightly (one browser polls every 2 s for 2 minutes).
+    if (meta.ip) await this.limit(['qr-poll', 'ip', meta.ip], 7200, 3600);
+    await this.limit(['qr-poll', 'id', qrId], 300, 3600);
     const raw = (await this.redis.eval(
       REDEEM_LUA,
       1,
@@ -173,11 +178,18 @@ export class QrLoginService {
     if (st.status !== 'approved' || !st.userId) {
       return this.result(st.status);
     }
-    const tokens = await this.auth.issueQrLogin(
-      st.userId,
-      { ...st.device, platform: 'web' },
-      { ...meta, ip: st.ip ?? meta.ip, userAgent: st.userAgent ?? undefined },
-    );
+    let tokens: Awaited<ReturnType<AuthService['issueQrLogin']>>;
+    try {
+      tokens = await this.auth.issueQrLogin(
+        st.userId,
+        { ...st.device, platform: 'web' },
+        { ...meta, ip: st.ip ?? meta.ip, userAgent: st.userAgent ?? undefined },
+      );
+    } catch (err) {
+      // The code is already spent: tell the website to show a new one.
+      this.logger.error(`QR login issue failed: ${String(err)}`);
+      return this.result('expired');
+    }
     return {
       status: 'approved',
       accessToken: tokens.accessToken,

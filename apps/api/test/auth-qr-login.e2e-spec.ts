@@ -58,7 +58,14 @@ describe('Auth QR login (e2e)', () => {
   async function newCode() {
     const res = await api()
       .post('/api/v1/auth/qr')
-      .send({ deviceInfo: { deviceId: 'browser-1', deviceName: 'Chrome' } })
+      .set(
+        'User-Agent',
+        'Mozilla/5.0 (Windows NT 10.0) AppleWebKit/537.36 Chrome/120.0 Safari/537.36',
+      )
+      // A phisher's own label is ignored: the name comes from the User-Agent.
+      .send({
+        deviceInfo: { deviceId: 'browser-1', deviceName: 'LawBid Bank' },
+      })
       .expect(201);
     return res.body.data as {
       qrId: string;
@@ -85,7 +92,7 @@ describe('Auth QR login (e2e)', () => {
       .get(`/api/v1/auth/qr/${qr.qrId}`)
       .set('Authorization', `Bearer ${phone}`)
       .expect(200);
-    expect(preview.body.data.deviceName).toBe('Chrome');
+    expect(preview.body.data.deviceName).toBe('Chrome · Windows');
     expect(preview.body.data.platform).toBe('web');
     expect((await poll(qr.qrId, qr.pollSecret)).body.data.status).toBe(
       'scanned',
@@ -118,7 +125,7 @@ describe('Auth QR login (e2e)', () => {
     }[];
     const web = rows.find((s) => s.isCurrent)!;
     expect(web.platform).toBe('web');
-    expect(web.deviceName).toBe('Chrome');
+    expect(web.deviceName).toBe('Chrome · Windows');
   });
 
   it('a wrong poll secret never collects the tokens', async () => {
