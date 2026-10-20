@@ -290,19 +290,19 @@ class _ChannelHeaderState extends ConsumerState<ChannelHeader> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const SizedBox(height: AppSpacing.md),
+        const SizedBox(height: AppSpacing.sm),
         Center(
           child: ChannelAvatar(
             title: channel.title,
             url: channel.avatarUrl,
-            size: AppSizes.profileAvatar,
+            size: 64,
           ),
         ),
-        const SizedBox(height: AppSpacing.md),
+        const SizedBox(height: AppSpacing.sm),
         Text(
           channel.title,
           textAlign: TextAlign.center,
-          style: type.titleLarge.copyWith(color: colors.text),
+          style: type.titleMedium.copyWith(color: colors.text),
         ),
         const SizedBox(height: AppSpacing.xs),
         Text(
@@ -358,7 +358,7 @@ class _ChannelHeaderState extends ConsumerState<ChannelHeader> {
             ),
           ),
         ],
-        const SizedBox(height: AppSpacing.lg),
+        const SizedBox(height: AppSpacing.md),
         Row(
           children: [
             Expanded(
