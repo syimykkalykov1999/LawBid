@@ -384,6 +384,7 @@ class _AnswerCard extends ConsumerWidget {
       required String label,
       required VoidCallback onTap,
       Color? color,
+      String? shown,
     }) =>
         Semantics(
           button: true,
@@ -406,16 +407,19 @@ class _AnswerCard extends ConsumerWidget {
                       size: 20,
                       color: color ?? colors.textSecondary,
                     ),
-                    const SizedBox(width: AppSpacing.xs),
-                    Flexible(
-                      child: Text(
-                        label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: type.caption
-                            .copyWith(color: color ?? colors.textSecondary),
+                    if (shown ?? label case final text
+                        when text.isNotEmpty) ...[
+                      const SizedBox(width: AppSpacing.xs),
+                      Flexible(
+                        child: Text(
+                          text,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: type.caption
+                              .copyWith(color: color ?? colors.textSecondary),
+                        ),
                       ),
-                    ),
+                    ],
                   ],
                 ),
               ),
@@ -452,9 +456,9 @@ class _AnswerCard extends ConsumerWidget {
                 icon: a.likedByMe
                     ? AppIcons.thumbUpAltRounded
                     : AppIcons.thumbUpAltOutlined,
-                label: a.likeCount > 0
-                    ? '${t.t('qa.like')} ${formats.number(a.likeCount)}'
-                    : t.t('qa.like'),
+                // Owner 2026-10-20: icon + counter, no words.
+                label: t.t('qa.like'),
+                shown: a.likeCount > 0 ? formats.number(a.likeCount) : '',
                 color: a.likedByMe ? colors.goldDark : null,
                 onTap: onLike,
               ),

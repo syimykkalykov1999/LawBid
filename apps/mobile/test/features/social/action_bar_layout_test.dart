@@ -59,8 +59,7 @@ void main() {
     const StaticTranslatorRu(),
   ]) {
     testWidgets(
-        'video post bar at 360dp: no views, no like/send counts, date shown, no Boost',
-        (
+        'video post bar at 360dp: like and comment counters, date, no Boost', (
       t,
     ) async {
       t.view.physicalSize = const Size(360, 740);
@@ -82,10 +81,10 @@ void main() {
       );
       await t.pump();
       expect(t.takeException(), isNull);
-      // Owner 2026-10-15: no views counter on feed cards; no count next to
-      // like or send, the comment count stays.
+      // Owner 2026-10-20: no views counter on feed cards; the like and
+      // comment counters sit right of their icons, none next to send.
       expect(find.byIcon(AppIcons.visibilityOutlined), findsNothing);
-      expect(find.text('215K'), findsNothing);
+      expect(find.text('215K'), findsOneWidget);
       expect(find.text('15K'), findsNothing);
       expect(find.text('1.2M'), findsOneWidget);
       expect(find.byType(BoostButton), findsNothing);

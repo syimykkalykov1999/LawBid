@@ -207,7 +207,7 @@ void main() {
     );
     await tester.pump();
     expect(find.byKey(const ValueKey('story-reply-field')), findsNothing);
-    expect(find.text('3 views'), findsOneWidget);
+    expect(find.text('3'), findsOneWidget);
     expect(find.byIcon(AppIcons.visibilityOutlined), findsOneWidget);
     expect(repo.viewed, isEmpty);
 

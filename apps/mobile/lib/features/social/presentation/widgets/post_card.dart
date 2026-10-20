@@ -560,38 +560,6 @@ class PostCard extends ConsumerWidget {
           // Owner 2026-10-18: only in the profile's post list (Instagram).
           if (fromProfile) PostPromoRow(post: p),
           PostActionsBar(post: p, run: run, showTime: true),
-          // Owner 2026-10-20 (Instagram): «N отметок «Нравится»» under the
-          // icons; a tap opens the people who liked. The author's choice to
-          // hide the counter hides the line.
-          if (p.likeCount > 0 && showLikeCount(ref, p))
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.md,
-                0,
-                AppSpacing.md,
-                AppSpacing.xs,
-              ),
-              child: AppPressable(
-                onTap: () => showLikersList(context, p.id),
-                child: Text(
-                  SocialFormat.plural(
-                    t,
-                    ref.watch(l10nFormatsProvider),
-                    'post.likes',
-                    p.likeCount,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context)
-                      .extension<AppTypographyTokens>()!
-                      .bodySmall
-                      .copyWith(
-                        color: colors.text,
-                        fontWeight: FontWeight.w700,
-                      ),
-                ),
-              ),
-            ),
           // Owner 2026-10-15: the advertiser's button under a promoted post.
           if (post.promotionId != null && post.promotionCta != null)
             Padding(
@@ -814,30 +782,6 @@ class PostCard extends ConsumerWidget {
         // Owner 2026-10-07: the comment button opens the comments sheet.
         if (fromProfile) PostPromoRow(post: p),
         PostActionsBar(post: p, run: run, boost: false, reactions: false),
-        if (p.likeCount > 0 && showLikeCount(ref, p))
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.lg,
-              0,
-              AppSpacing.lg,
-              AppSpacing.xs,
-            ),
-            child: AppPressable(
-              onTap: () => showLikersList(context, p.id),
-              child: Text(
-                SocialFormat.plural(
-                  t,
-                  ref.watch(l10nFormatsProvider),
-                  'post.likes',
-                  p.likeCount,
-                ),
-                style: Theme.of(context)
-                    .extension<AppTypographyTokens>()!
-                    .bodySmall
-                    .copyWith(color: colors.text, fontWeight: FontWeight.w600),
-              ),
-            ),
-          ),
         if (p.pendingReview)
           Padding(
             padding: const EdgeInsets.fromLTRB(
@@ -1021,7 +965,6 @@ class _InstagramPost extends ConsumerWidget {
         PostActionsBar(
           post: p,
           run: run,
-          showCounts: false,
           showTime: true,
           boost: !inDetail,
           reactions: !inDetail,
@@ -1029,27 +972,6 @@ class _InstagramPost extends ConsumerWidget {
           // Owner 2026-10-07: the comment button opens the comments sheet,
           // inside the post too.
         ),
-        if (p.likeCount > 0 && showLikeCount(ref, p))
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.lg,
-              0,
-              AppSpacing.lg,
-              AppSpacing.xs,
-            ),
-            child: AppPressable(
-              onTap: () => showLikersList(context, p.id),
-              child: Text(
-                SocialFormat.plural(t, f, 'post.likes', p.likeCount),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: type.bodySmall.copyWith(
-                  color: colors.text,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ),
         if (hasMedia && caption.isNotEmpty)
           Padding(
             padding: side,
@@ -2796,7 +2718,6 @@ class PostActionsBar extends ConsumerWidget {
     required this.post,
     required this.run,
     this.showTime = false,
-    this.showCounts = true,
     this.boost = true,
     this.reactions = true,
     super.key,
@@ -2809,10 +2730,6 @@ class PostActionsBar extends ConsumerWidget {
   /// Owner 2026-10-07: «Продвигать» only on the cards in a list, never
   /// inside the open post.
   final bool boost;
-
-  /// Owner 2026-10-06: Instagram-style posts show bare icons; the likes
-  /// count sits on its own line below.
-  final bool showCounts;
 
   final Post post;
   final Future<void> Function(Future<Object?> Function()) run;
@@ -2841,6 +2758,26 @@ class PostActionsBar extends ConsumerWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  if (!reactions) ...[
+                    if (post.likeCount > 0 && showLikeCount(ref, post))
+                      _Stat(
+                        icon: AppIcons.favoriteRounded,
+                        value: post.likeCount,
+                        color: colors.danger,
+                        onTap: () => showLikersList(context, post.id),
+                      ),
+                    if (post.commentCount > 0)
+                      _Stat(
+                        icon: AppIcons.modeCommentOutlined,
+                        value: post.commentCount,
+                        color: colors.textSecondary,
+                        onTap: () => showCommentsSheet(
+                          context,
+                          postId: post.id,
+                          commentsEnabled: post.commentsEnabled,
+                        ),
+                      ),
+                  ],
                   if (reactions) ...[
                     BounceIcon(
                       extent: _kBarExtent,
@@ -2851,8 +2788,14 @@ class PostActionsBar extends ConsumerWidget {
                       label: t.t(post.likedByMe ? 'post.unlike' : 'post.like'),
                       onTap: () => run(() => actions.toggleLike(post)),
                     ),
-                    // Owner 2026-10-15 (Instagram): no count next to like or
-                    // send; the comments keep theirs.
+                    // Owner 2026-10-20: «иконка + счётчик справа», no text
+                    // line under the post; a tap on the number opens the
+                    // people who liked. The author may hide the counter.
+                    if (post.likeCount > 0 && showLikeCount(ref, post))
+                      _Count(
+                        post.likeCount,
+                        onTap: () => showLikersList(context, post.id),
+                      ),
                     BounceIcon(
                       extent: _kBarExtent,
                       active: false,
@@ -2865,7 +2808,7 @@ class PostActionsBar extends ConsumerWidget {
                         commentsEnabled: post.commentsEnabled,
                       ),
                     ),
-                    if (showCounts && (showTime || post.commentCount > 0))
+                    if (showTime || post.commentCount > 0)
                       _Count(post.commentCount),
                     BounceIcon(
                       extent: _kBarExtent,
@@ -2899,24 +2842,61 @@ class PostActionsBar extends ConsumerWidget {
 }
 
 class _Count extends ConsumerWidget {
-  const _Count(this.value);
+  const _Count(this.value, {this.onTap});
 
   final int value;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final f = ref.watch(l10nFormatsProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    final text = Text(
+      SocialFormat.count(f, value),
+      maxLines: 1,
+      style: type.bodySmall.copyWith(
+        color: colors.text,
+        fontWeight: FontWeight.w500,
+        fontSize: 13,
+      ),
+    );
     return Padding(
       padding: const EdgeInsetsDirectional.only(end: AppSpacing.sm),
-      child: Text(
-        SocialFormat.count(f, value),
-        style: type.bodySmall.copyWith(
-          color: colors.text,
-          fontWeight: FontWeight.w500,
-          fontSize: 13,
-        ),
+      child: onTap == null ? text : AppPressable(onTap: onTap, child: text),
+    );
+  }
+}
+
+/// «Иконка + счётчик» (read-only icon) for the open post, where the like
+/// and comment buttons are not shown.
+class _Stat extends StatelessWidget {
+  const _Stat({
+    required this.icon,
+    required this.value,
+    required this.color,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final int value;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(end: AppSpacing.xs),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: _kBarExtent,
+            height: _kBarExtent,
+            child: Center(child: AppIcon(icon, size: _kBarIcon, color: color)),
+          ),
+          _Count(value, onTap: onTap),
+        ],
       ),
     );
   }

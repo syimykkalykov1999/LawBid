@@ -28,7 +28,7 @@ void main() {
     );
     await t.pump(const Duration(seconds: 1));
     expect(find.byType(LikersScreen), findsNothing);
-    await t.tap(find.text('5 likes'));
+    await t.tap(find.text('5'));
     await t.pump(const Duration(milliseconds: 400));
     await t.pumpAndSettle();
     expect(find.byType(LikersScreen), findsOneWidget);

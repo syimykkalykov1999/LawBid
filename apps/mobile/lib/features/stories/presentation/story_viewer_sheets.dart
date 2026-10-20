@@ -236,11 +236,7 @@ class _ViewersSheetState extends ConsumerState<_ViewersSheet> {
                   const SizedBox(width: AppSpacing.sm),
                   Expanded(
                     child: Text(
-                      t.plural(
-                        'story.viewer.views',
-                        widget.story.viewCount,
-                        {'count': formats.number(widget.story.viewCount)},
-                      ),
+                      formats.number(widget.story.viewCount),
                       style: type.titleMedium,
                     ),
                   ),
