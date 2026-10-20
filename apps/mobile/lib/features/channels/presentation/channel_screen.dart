@@ -291,28 +291,47 @@ class _ChannelHeaderState extends ConsumerState<ChannelHeader> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const SizedBox(height: AppSpacing.sm),
-        Center(
-          child: ChannelAvatar(
-            title: channel.title,
-            url: channel.avatarUrl,
-            size: 64,
-          ),
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        Text(
-          channel.title,
-          textAlign: TextAlign.center,
-          style: type.titleMedium.copyWith(color: colors.text),
-        ),
-        const SizedBox(height: AppSpacing.xs),
-        Text(
-          '@${channel.username}',
-          textAlign: TextAlign.center,
-          style: type.body.copyWith(color: colors.textSecondary),
+        // Owner 2026-10-20: a row like a chat — the picture on the left, the
+        // name, @username and the counters beside it.
+        Row(
+          children: [
+            ChannelAvatar(
+              title: channel.title,
+              url: channel.avatarUrl,
+              size: 56,
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    channel.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: type.titleMedium.copyWith(color: colors.text),
+                  ),
+                  Text(
+                    '@${channel.username}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: type.caption.copyWith(color: colors.textSecondary),
+                  ),
+                  Text(
+                    '$subscribers · $posts',
+                    key: const ValueKey('channel-counters'),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: type.caption.copyWith(color: colors.textSecondary),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: AppSpacing.xs),
         Wrap(
-          alignment: WrapAlignment.center,
           crossAxisAlignment: WrapCrossAlignment.center,
           spacing: AppSpacing.xs,
           children: [
@@ -327,13 +346,6 @@ class _ChannelHeaderState extends ConsumerState<ChannelHeader> {
                 gold: true,
               ),
           ],
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        Text(
-          '$subscribers · $posts',
-          key: const ValueKey('channel-counters'),
-          textAlign: TextAlign.center,
-          style: type.bodySmall.copyWith(color: colors.textSecondary),
         ),
         if (description != null && description.isNotEmpty) ...[
           const SizedBox(height: AppSpacing.md),

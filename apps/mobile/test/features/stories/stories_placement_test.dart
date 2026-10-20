@@ -129,4 +129,37 @@ void main() {
     expect(ring.state, StoryRingState.unseen);
     expect(find.byKey(const ValueKey('plain')), findsOneWidget);
   });
+
+  testWidgets("the photo's own tap does not win over the story",
+      (tester) async {
+    useSmallPhone(tester);
+    var photoTaps = 0;
+    final repo = FakeStoriesRepository(
+      byUser: {
+        'u1': [fakeStory('s1')],
+      },
+    );
+    await tester.pumpWidget(
+      storyApp(
+        Scaffold(
+          body: StoryAvatarRing(
+            userId: 'u1',
+            size: 60,
+            child: GestureDetector(
+              onTap: () => photoTaps++,
+              child: const SizedBox.square(dimension: 60),
+            ),
+          ),
+        ),
+        overrides: await storyOverrides(repo: repo),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('profile-story-ring')));
+    await tester.pump();
+    // No router in this harness: opening the viewer throws, that is the proof
+    // the ring's tap was the one that fired.
+    expect(tester.takeException(), isNotNull);
+    expect(photoTaps, 0);
+  });
 }

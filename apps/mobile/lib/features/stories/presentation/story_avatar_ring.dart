@@ -37,7 +37,9 @@ class StoryAvatarRing extends ConsumerWidget {
       child: StoryRing(
         state: unseen ? StoryRingState.unseen : StoryRingState.seen,
         size: size,
-        child: child,
+        // The photo's own tap (its full-screen picture) must not win over the
+        // story: with a live story the whole ring opens it.
+        child: IgnorePointer(child: child),
       ),
     );
   }

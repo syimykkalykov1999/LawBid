@@ -304,8 +304,8 @@ class _FormState extends ConsumerState<_Form> {
                                 ClipOval(
                                   child: Image.memory(
                                     _avatarBytes!,
-                                    width: AppSizes.profileAvatar,
-                                    height: AppSizes.profileAvatar,
+                                    width: 64,
+                                    height: 64,
                                     fit: BoxFit.cover,
                                   ),
                                 )
@@ -313,7 +313,7 @@ class _FormState extends ConsumerState<_Form> {
                                 ChannelAvatar(
                                   title: _title.text,
                                   url: url,
-                                  size: AppSizes.profileAvatar,
+                                  size: 64,
                                 ),
                               if (_avatarUploading)
                                 CircularProgressIndicator(
@@ -342,7 +342,7 @@ class _FormState extends ConsumerState<_Form> {
                       textInputAction: TextInputAction.next,
                       enabled: !_saving,
                     ),
-                    const SizedBox(height: AppSpacing.lg),
+                    const SizedBox(height: AppSpacing.md),
                     AppTextField(
                       key: const ValueKey('channel-username'),
                       controller: _username,
@@ -370,7 +370,7 @@ class _FormState extends ConsumerState<_Form> {
                         _usernameTaken = false;
                       }),
                     ),
-                    const SizedBox(height: AppSpacing.lg),
+                    const SizedBox(height: AppSpacing.md),
                     AppTextField(
                       key: const ValueKey('channel-description'),
                       controller: _description,
@@ -382,7 +382,7 @@ class _FormState extends ConsumerState<_Form> {
                       enabled: !_saving,
                       minHeight: 96,
                     ),
-                    const SizedBox(height: AppSpacing.lg),
+                    const SizedBox(height: AppSpacing.md),
                     MergeSemantics(
                       child: Row(
                         children: [
@@ -415,7 +415,7 @@ class _FormState extends ConsumerState<_Form> {
                       ),
                     ),
                     if (editing != null && editing.isOwner) ...[
-                      const SizedBox(height: AppSpacing.xl),
+                      const SizedBox(height: AppSpacing.lg),
                       AppButton(
                         key: const ValueKey('channel-form-delete'),
                         label: t.t('channel.delete'),

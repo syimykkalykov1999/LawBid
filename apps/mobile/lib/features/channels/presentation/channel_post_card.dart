@@ -216,46 +216,44 @@ class ChannelPostCard extends ConsumerWidget {
               Padding(
                 padding: const EdgeInsets.fromLTRB(
                   AppSpacing.lg,
-                  AppSpacing.md,
+                  AppSpacing.sm,
                   AppSpacing.lg,
                   0,
                 ),
                 child: ChannelLinkedText(text: post.body, collapsedLines: 10),
               ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.lg,
-                AppSpacing.sm,
-                AppSpacing.lg,
-                0,
+            // Owner 2026-10-20: the «react» button sits in the footer row, so
+            // there is no empty strip between the text and the icons; chips
+            // show only when someone reacted.
+            if (post.reactions.any((r) => r.count > 0))
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.lg,
+                  AppSpacing.sm,
+                  AppSpacing.lg,
+                  0,
+                ),
+                child: Wrap(
+                  spacing: AppSpacing.sm,
+                  runSpacing: AppSpacing.xs,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    for (final r in post.reactions)
+                      if (r.count > 0)
+                        _ReactionChip(
+                          key: ValueKey('channel-react-${r.emoji}'),
+                          emoji: r.emoji,
+                          count: SocialFormat.count(f, r.count),
+                          selected: post.myReaction == r.emoji,
+                          label: t.t('channel.react.chip', {
+                            'emoji': r.emoji,
+                            'count': '${r.count}',
+                          }),
+                          onTap: () => _react(context, ref, r.emoji),
+                        ),
+                  ],
+                ),
               ),
-              child: Wrap(
-                spacing: AppSpacing.sm,
-                runSpacing: AppSpacing.xs,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  for (final r in post.reactions)
-                    if (r.count > 0)
-                      _ReactionChip(
-                        key: ValueKey('channel-react-${r.emoji}'),
-                        emoji: r.emoji,
-                        count: SocialFormat.count(f, r.count),
-                        selected: post.myReaction == r.emoji,
-                        label: t.t('channel.react.chip', {
-                          'emoji': r.emoji,
-                          'count': '${r.count}',
-                        }),
-                        onTap: () => _react(context, ref, r.emoji),
-                      ),
-                  _ActionButton(
-                    key: const ValueKey('channel-react-add'),
-                    icon: AppIcons.thumbUpAltOutlined,
-                    label: t.t('channel.react.add'),
-                    onTap: () => _pickReaction(context, ref),
-                  ),
-                ],
-              ),
-            ),
             Padding(
               padding: const EdgeInsetsDirectional.fromSTEB(
                 AppSpacing.lg,
@@ -307,6 +305,12 @@ class ChannelPostCard extends ConsumerWidget {
                         ),
                       ],
                     ),
+                  ),
+                  _ActionButton(
+                    key: const ValueKey('channel-react-add'),
+                    icon: AppIcons.thumbUpAltOutlined,
+                    label: t.t('channel.react.add'),
+                    onTap: () => _pickReaction(context, ref),
                   ),
                   if (channel.commentsEnabled)
                     _ActionButton(
