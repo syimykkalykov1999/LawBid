@@ -1155,8 +1155,8 @@ class _Bubble extends ConsumerWidget {
                     children: [
                       _attachment(ref, m),
                       // WhatsApp: the time (and ticks) on the picture.
-                      Positioned(
-                        right: 6,
+                      PositionedDirectional(
+                        end: 6,
                         bottom: 6,
                         child: Container(
                           padding: const EdgeInsets.symmetric(
