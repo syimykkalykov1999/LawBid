@@ -13,6 +13,7 @@ class SendMessageDto {
   const SendMessageDto({
     required this.clientMessageId,
     this.giftId,
+    this.contactUserId,
     this.stickerId,
     this.fileName,
     this.body,
@@ -32,6 +33,9 @@ class SendMessageDto {
   /// Owner 2026-10-20: a gift message (type=gift) paid in stars; `body` is.
   /// the optional note (≤200).
   final String? giftId;
+
+  /// Owner 2026-10-20: the attorney whose card is shared (type=contact).
+  final String? contactUserId;
 
   /// Owner 2026-10-01: a sticker message (type=sticker).
   final String? stickerId;

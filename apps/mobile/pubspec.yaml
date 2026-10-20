@@ -138,6 +138,11 @@ dependencies:
   qr: ^3.0.2
   mobile_scanner: ^7.4.2
   gal: ^2.3.3
+  # Owner 2026-10-20: «Перевести» on the phone instead of paid Google
+  # Translate. Free, offline after a one-time ~30 MB language download.
+  # Android + iOS only (iOS 15.5+); the web says «in the app».
+  google_mlkit_translation: ^0.15.1
+  google_mlkit_language_id: ^0.15.1
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -20,6 +20,7 @@ import {
   type ChatPairKind,
   type Conversation,
   type Message,
+  type SavedChatKind,
 } from '@prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
@@ -52,6 +53,7 @@ import {
   type ChatAttachmentDto,
   type ConversationDto,
   type ConversationPage,
+  type ContactCardDto,
   type MessageDto,
   type MessagePage,
   type SendMessageDto,
@@ -66,6 +68,11 @@ import { touchClientActive } from '../cases/cases.public';
 const CONVERSATIONS_PAGE = 20;
 const MESSAGES_PAGE = 30;
 const CATCH_UP_MAX = 100;
+/** A shared place is an address, not a letter. */
+const PLACE_MAX_CHARS = 200;
+const URL_RE = /(?:https?:\/\/|www\.)[^\s<>"]+/i;
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** ~80 characters of [text] around the first typed word. */
 function snippetAround(text: string, words: string[]): string {
@@ -521,9 +528,18 @@ export class ChatService {
     const attachment = dto.type === 'attachment';
     // Owner 2026-10-01: a sticker carries no text.
     const sticker = dto.type === 'sticker';
-    // Owner 2026-10-20: a gift paid in stars; `body` is its note.
+    // Owner 2026-10-20: a gift paid in stars (`body` is its note), a shared
+    // attorney card (the body is the attorney's id) and a place (the body is
+    // the address).
     const gift = dto.type === 'gift';
-    const body = voice || sticker ? '' : (dto.body ?? '').trim();
+    const contact = dto.type === 'contact';
+    const place = dto.type === 'place';
+    const body =
+      voice || sticker
+        ? ''
+        : contact
+          ? (dto.contactUserId ?? '')
+          : (dto.body ?? '').trim();
     await this.fraud?.assertNotRestricted(user.sub);
     // OQ-048: an assistant sends documents/photos only with "files".
     if (
@@ -568,6 +584,21 @@ export class ChatService {
           details: { field: 'stickerId' },
         });
       }
+    } else if (contact) {
+      if (!dto.contactUserId) {
+        throw new BadRequestException({
+          code: ErrorCode.VALIDATION_ERROR,
+          message: 'A contact card needs contactUserId.',
+          details: { field: 'contactUserId' },
+        });
+      }
+      if (!(await this.sharableAttorney(user.sub, dto.contactUserId))) {
+        throw new BadRequestException({
+          code: ErrorCode.VALIDATION_ERROR,
+          message: 'Only an attorney profile can be shared.',
+          details: { field: 'contactUserId' },
+        });
+      }
     } else if (voice) {
       if (!dto.fileId || dto.durationMs === undefined) {
         throw new BadRequestException({
@@ -581,6 +612,13 @@ export class ChatService {
         code: ErrorCode.VALIDATION_ERROR,
         message: 'Empty message.',
         details: { field: 'body' },
+      });
+    }
+    if (place && [...body].length > PLACE_MAX_CHARS) {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_ERROR,
+        message: `An address is at most ${PLACE_MAX_CHARS} characters.`,
+        details: { field: 'body', max: PLACE_MAX_CHARS },
       });
     }
     const maxChars = await textLimit(
@@ -721,7 +759,7 @@ export class ChatService {
           });
         }
         const masked =
-          voice || locked.contacts_unlocked
+          voice || contact || locked.contacts_unlocked
             ? { text: body, masked: false }
             : maskContactInfo(body);
         const giftNote = gift && masked.text ? masked.text.slice(0, 200) : null;
@@ -749,7 +787,11 @@ export class ChatService {
                   ? 'sticker'
                   : gift
                     ? 'gift'
-                    : 'text',
+                    : contact
+                      ? 'contact'
+                      : place
+                        ? 'place'
+                        : 'text',
             body_original: this.seal(gift ? '' : body),
             body_display: this.seal(gift ? '' : masked.text),
             contact_masked: masked.masked,
@@ -1107,6 +1149,91 @@ export class ChatService {
   }
 
   /** The conversation if the caller takes part in it, else 404. */
+  /**
+   * Owner 2026-10-20 («Сохранённое»): what kind of saved item message [id]
+   * is, for a reader of its chat. 404 when the person is not in the chat or
+   * the message is gone; 400 for a message that is not worth saving (a
+   * system line, a call, a sticker).
+   */
+  async savableKind(user: RequestUser, id: string): Promise<SavedChatKind> {
+    const m = await this.prisma.message.findFirst({
+      where: { id, deleted_at: null },
+    });
+    if (!m) throw notFound();
+    await this.load(user, m.conversation_id);
+    switch (m.type) {
+      case 'voice':
+        return 'voice';
+      case 'contact':
+        return 'contact';
+      case 'place':
+        return 'place';
+      case 'attachment': {
+        const f = m.file_id
+          ? (await this.files.attachmentUrls([m.file_id])).get(m.file_id)
+          : undefined;
+        const mime = f?.mime ?? '';
+        return isImageMime(mime) || mime.startsWith('video/')
+          ? 'media'
+          : 'file';
+      }
+      case 'text':
+        return URL_RE.test(this.openBody(m.body_display)) ? 'link' : 'text';
+      default:
+        throw new BadRequestException({
+          code: ErrorCode.VALIDATION_ERROR,
+          message: 'This message cannot be saved.',
+          details: { field: 'messageId' },
+        });
+    }
+  }
+
+  /**
+   * The messages [ids] as [user] reads them, each with its chat — newest
+   * order of [ids] kept. A message of a chat the person is not in (or a
+   * deleted one) is left out.
+   */
+  async messagesWithChats(
+    user: RequestUser,
+    ids: string[],
+  ): Promise<{ message: MessageDto; chat: ConversationDto }[]> {
+    if (ids.length === 0) return [];
+    const rows = await this.prisma.message.findMany({
+      where: { id: { in: ids }, deleted_at: null },
+    });
+    const convs = new Map<string, Conversation>();
+    for (const convId of new Set(rows.map((r) => r.conversation_id))) {
+      try {
+        convs.set(convId, await this.load(user, convId));
+      } catch {
+        // Not in that chat any more: its messages stay unseen.
+      }
+    }
+    const readable = rows.filter((r) => convs.has(r.conversation_id));
+    const [urls, chats] = await Promise.all([
+      this.mediaLinks(readable),
+      this.present([...convs.values()], user.sub),
+    ]);
+    const chatOf = new Map(chats.map((c) => [c.id, c]));
+    const byId = new Map(readable.map((r) => [r.id, r]));
+    const out: { message: MessageDto; chat: ConversationDto }[] = [];
+    for (const id of ids) {
+      const r = byId.get(id);
+      const chat = r ? chatOf.get(r.conversation_id) : undefined;
+      if (!r || !chat) continue;
+      out.push({
+        message: this.toMessage(
+          r,
+          user.sub,
+          convs.get(r.conversation_id),
+          urls,
+        ),
+        chat,
+      });
+    }
+    return out;
+  }
+
   private async load(user: RequestUser, id: string): Promise<Conversation> {
     const conv = await this.prisma.conversation.findUnique({ where: { id } });
     if (
@@ -1122,7 +1249,7 @@ export class ChatService {
   private async mediaLinks(rows: Message[]): Promise<MediaLinks> {
     const ids = (type: Message['type']) =>
       rows.flatMap((m) => (m.type === type && m.file_id ? [m.file_id] : []));
-    const [voice, attachments, stickers, gifts] = await Promise.all([
+    const [voice, attachments, stickers, gifts, contacts] = await Promise.all([
       this.files.voiceUrls(ids('voice')),
       this.files.attachmentUrls(ids('attachment')),
       this.stickers.forMessages(
@@ -1131,8 +1258,13 @@ export class ChatService {
       this.stars.forMessages(
         rows.flatMap((m) => (m.gift_send_id ? [m.gift_send_id] : [])),
       ),
+      this.contactCards(
+        rows.flatMap((m) =>
+          m.type === 'contact' ? [this.openBody(m.body_display)] : [],
+        ),
+      ),
     ]);
-    return { voice, attachments, stickers, gifts };
+    return { voice, attachments, stickers, gifts, contacts };
   }
 
   private findOwn(id: string, senderId: string, clientMessageId: string) {
@@ -1145,6 +1277,89 @@ export class ChatService {
         },
       },
     });
+  }
+
+  private openBody(stored: string): string {
+    return this.cipher?.open(stored) ?? stored;
+  }
+
+  /** Owner 2026-10-20: only an attorney's public profile can be shared. */
+  private async sharableAttorney(
+    viewerId: string,
+    userId: string,
+  ): Promise<boolean> {
+    // Not a person the sender blocked or who blocked the sender.
+    if ((await this.blocks.hiddenIds(viewerId)).has(userId)) return false;
+    const u = await this.prisma.user.findFirst({
+      where: {
+        id: userId,
+        status: 'active',
+        role: 'attorney',
+        attorney_profile: { isNot: null },
+      },
+      select: { id: true },
+    });
+    return u !== null;
+  }
+
+  /** The public cards of the attorneys shared in a page of messages. */
+  private async contactCards(
+    ids: string[],
+  ): Promise<Map<string, ContactCardDto>> {
+    const unique = [...new Set(ids)].filter((x) => UUID_RE.test(x));
+    if (unique.length === 0) return new Map();
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: unique }, role: 'attorney', status: 'active' },
+      select: {
+        id: true,
+        first_name: true,
+        last_name: true,
+        avatar_file_id: true,
+        attorney_profile: {
+          select: {
+            username: true,
+            firm_names: true,
+            trust_badge: true,
+            licenses: {
+              where: { license_status: 'verified' },
+              select: { state_code: true },
+            },
+            practice_areas: {
+              select: {
+                practice_area: { select: { i18n_key: true, sort: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+    const avatars = await this.files.avatarUrlsMany(
+      users.map((u) => u.avatar_file_id),
+    );
+    const out = new Map<string, ContactCardDto>();
+    for (const u of users) {
+      const p = u.attorney_profile;
+      if (!p) continue;
+      out.set(u.id, {
+        userId: u.id,
+        username: p.username,
+        displayName: fullName(u.first_name, u.last_name) ?? p.username,
+        avatarUrl: u.avatar_file_id
+          ? (avatars.get(u.avatar_file_id)?.url256 ?? null)
+          : null,
+        verifiedBadge: p.trust_badge,
+        firmNames: p.firm_names,
+        practiceKeys: p.practice_areas
+          .map((a) => a.practice_area)
+          .sort((a, b) => a.sort - b.sort)
+          .slice(0, 6)
+          .map((a) => a.i18n_key),
+        licensedStates: [
+          ...new Set(p.licenses.map((l) => l.state_code)),
+        ].sort(),
+      });
+    }
+    return out;
   }
 
   private seal(text: string): string {
@@ -1200,7 +1415,11 @@ export class ChatService {
               durationSec: Math.round((m.duration_ms ?? 0) / 1000),
             }
           : null,
-      body: this.cipher?.open(m.body_display) ?? m.body_display,
+      contact:
+        m.type === 'contact'
+          ? (media?.contacts.get(this.openBody(m.body_display)) ?? null)
+          : null,
+      body: this.openBody(m.body_display),
       contactMasked: m.contact_masked,
       clientMessageId: m.sender_id === viewerId ? m.client_message_id : null,
       createdAt: m.created_at,
@@ -1404,6 +1623,7 @@ interface MediaLinks {
   stickers: Map<string, StickerDto>;
   gifts: Map<string, GiftSendDto>;
   attachments: Awaited<ReturnType<FilesService['attachmentUrls']>>;
+  contacts: Map<string, ContactCardDto>;
 }
 
 /** A display name: no path, no control characters, ≤200 chars. */

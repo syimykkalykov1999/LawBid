@@ -605,6 +605,11 @@ String messagePreview(Translator t, ChatMessage m, {String? me}) {
   }
   // Owner 2026-10-20: "🎁 Gift".
   if (m.kind == MessageKind.gift) return '🎁 ${t.t('stars.chat.label')}';
+  // Owner 2026-10-20: "👤 Contact" / "📍 address".
+  if (m.kind == MessageKind.contact) {
+    return '👤 ${m.contact?.displayName ?? t.t('card.contact')}';
+  }
+  if (m.kind == MessageKind.place) return '📍 ${m.body}';
   // OQ-047: "📎 File" / "📷 Photo" (+ caption).
   if (m.kind == MessageKind.attachment) {
     final photo = m.attachment?.isImage ?? false;

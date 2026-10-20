@@ -10,6 +10,7 @@ import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/features/cases/application/paged_notifier.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
+import 'package:lawbid/features/chat/data/chat_extras_repository.dart';
 import 'package:lawbid/features/chat/data/chat_repository.dart';
 import 'package:lawbid/features/chat/data/realtime_client.dart';
 import 'package:lawbid/features/chat/data/voice_files.dart';
@@ -622,6 +623,30 @@ class ChatThread extends Notifier<ChatThreadState> {
       _markVoice(local, DeliveryState.failed, e.code);
     } on Object {
       _markVoice(local, DeliveryState.failed, null);
+    }
+  }
+
+  /// Owner 2026-10-20: an attorney's card ([contactUserId]) or a place
+  /// ([place], an address). Sent at once; a refusal goes to the caller.
+  Future<void> sendCard({String? contactUserId, String? place}) async {
+    assert(
+      (contactUserId == null) != (place == null),
+      'a card is either a contact or a place',
+    );
+    final repo = ref.read(chatExtrasRepositoryProvider);
+    final cmid = newClientMessageId();
+    try {
+      final sent = contactUserId != null
+          ? await repo.sendContact(id, cmid, contactUserId)
+          : await repo.sendPlace(id, cmid, place!);
+      if (!ref.mounted) return;
+      unawaited(ref.read(appSoundsProvider).messageOut());
+      _merge([sent]);
+    } on ApiException catch (e) {
+      if (e.code == ApiErrorCodes.subscriptionRequired) {
+        ref.read(outboxSenderProvider).subscriptionRequired.value = true;
+      }
+      rethrow;
     }
   }
 

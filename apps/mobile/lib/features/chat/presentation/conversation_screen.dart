@@ -11,10 +11,8 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
-import 'package:lawbid/core/l10n/app_language.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
-import 'package:lawbid/core/l10n/language_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/limits/text_limits.dart';
 import 'package:lawbid/core/media/video_compression.dart';
@@ -37,12 +35,13 @@ import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/domain/message_groups.dart';
 import 'package:lawbid/features/chat/presentation/attachment_widgets.dart';
 import 'package:lawbid/features/chat/presentation/chat_album.dart';
+import 'package:lawbid/features/chat/presentation/chat_cards.dart';
 import 'package:lawbid/features/chat/presentation/chat_folders.dart';
+import 'package:lawbid/features/chat/presentation/chat_message_menu.dart';
 import 'package:lawbid/features/chat/presentation/contact_info_screen.dart';
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart';
 import 'package:lawbid/features/chat/presentation/voice_widgets.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
-import 'package:lawbid/features/plans/presentation/plan_offer.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/stars/application/stars_providers.dart';
 import 'package:lawbid/features/stars/domain/stars_models.dart';
@@ -54,6 +53,7 @@ import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/features/team/team_routes.dart';
 import 'package:lawbid/features/templates/application/templates_providers.dart';
 import 'package:lawbid/features/templates/presentation/templates_screen.dart';
+import 'package:lawbid/features/translation/presentation/translate_block.dart';
 
 /// docs/05 §8.2: 2000 characters, text only.
 int get kMessageMaxChars => TextLimits.of(TextLimit.chatMessage);
@@ -190,6 +190,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
       context,
       t,
       onTemplate: ref.read(templatesEnabledProvider) ? _sendTemplate : null,
+      onContact: () => unawaited(_sendContact()),
+      onPlace: () => unawaited(_sendPlace()),
       limits: ref.read(uploadLimitsProvider)[UploadPlace.chat],
       prepareVideo: _prepareVideo,
     );
@@ -208,6 +210,29 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
         after: previous,
       );
       unawaited(previous);
+    }
+  }
+
+  /// Owner 2026-10-20: an attorney's card into this chat.
+  Future<void> _sendContact() async {
+    final userId = await pickContactToShare(context, ref);
+    if (userId == null || !mounted) return;
+    await _sendCard(contactUserId: userId);
+  }
+
+  /// Owner 2026-10-20: an address into this chat («Open in maps»).
+  Future<void> _sendPlace() async {
+    final address = await askPlaceAddress(context, ref);
+    if (address == null || address.isEmpty || !mounted) return;
+    await _sendCard(place: address);
+  }
+
+  Future<void> _sendCard({String? contactUserId, String? place}) async {
+    final t = ref.read(translatorProvider);
+    try {
+      await _thread.sendCard(contactUserId: contactUserId, place: place);
+    } on Object catch (e) {
+      if (mounted) showAppSnackBar(context, errorText(t, e));
     }
   }
 
@@ -1056,6 +1081,11 @@ class _Bubble extends ConsumerWidget {
                       else if (m.kind == MessageKind.attachment &&
                           m.attachment != null)
                         _attachment(ref, m)
+                      else if (m.kind == MessageKind.contact &&
+                          m.contact != null)
+                        ContactCardBody(card: m.contact!, mine: mine)
+                      else if (m.kind == MessageKind.place)
+                        PlaceCardBody(address: m.body, mine: mine)
                       else
                         _MessageText(
                           message: m,
@@ -1064,10 +1094,7 @@ class _Bubble extends ConsumerWidget {
                           // Owner 2026-10-04: only other people's text.
                           translatable: !mine &&
                               m.kind == MessageKind.text &&
-                              m.body.trim().isNotEmpty &&
-                              ref
-                                  .watch(featureFlagsControllerProvider)
-                                  .isEnabled('chat_translate'),
+                              m.body.trim().isNotEmpty,
                           threadId: threadId,
                         ),
                       const SizedBox(height: 2),
@@ -1137,14 +1164,23 @@ class _Bubble extends ConsumerWidget {
                   '${t.t('stars.chat.label')}: $giftName'
                 else if (m.kind == MessageKind.attachment)
                   '${t.t('chat.attach.label')}: $fileNames'
+                else if (m.kind == MessageKind.contact)
+                  '${t.t('card.contact')}: ${m.contact?.displayName ?? ''}'
+                else if (m.kind == MessageKind.place)
+                  '${t.t('card.place')}: ${m.body}'
                 else
                   m.body.replaceAll(kContactMask, t.t('chat.masked')),
                 if (mine) t.t(_deliveryKey(m.delivery, seen)),
               ].join('. '),
               // Voice bubbles keep their play/speed buttons reachable.
               excludeSemantics: m.kind != MessageKind.voice &&
-                  m.kind != MessageKind.attachment,
-              child: bubble,
+                  m.kind != MessageKind.attachment &&
+                  m.kind != MessageKind.contact &&
+                  m.kind != MessageKind.place,
+              child: MessageMenuTarget(
+                messages: group ?? [m],
+                child: bubble,
+              ),
             ),
           ),
           if (showSeenLabel)
@@ -1226,76 +1262,22 @@ class _MessageText extends ConsumerStatefulWidget {
 }
 
 class _MessageTextState extends ConsumerState<_MessageText> {
-  String? _translated;
-  bool _showTranslation = false;
-  bool _loading = false;
-
-  Future<void> _toggle() async {
-    if (_translated != null) {
-      setState(() => _showTranslation = !_showTranslation);
-      return;
-    }
-    final target =
-        (ref.read(languageControllerProvider).value ?? AppLanguage.fallback)
-            .code;
-    setState(() => _loading = true);
-    try {
-      final text = await ref
-          .read(chatRepositoryProvider)
-          .translate(widget.threadId, widget.message.id, target);
-      if (!mounted) return;
-      setState(() {
-        _translated = text;
-        _showTranslation = true;
-      });
-    } on Object catch (e) {
-      if (mounted) showErrorOrPlans(context, ref, e);
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    final t = ref.watch(translatorProvider);
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    final showing = _showTranslation && _translated != null;
-    final text = showing
-        ? Text(_translated!, style: widget.style)
-        : Text.rich(TextSpan(children: widget.spans), style: widget.style);
-    if (!widget.translatable) return text;
-    final link = type.caption.copyWith(
-      color: colors.goldDark,
-      fontSize: 12,
-      fontWeight: FontWeight.w600,
-    );
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        text,
-        const SizedBox(height: 4),
-        Semantics(
-          button: true,
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: _loading ? null : _toggle,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 2),
-              child: Text(
-                _loading
-                    ? t.t('chat.translate.loading')
-                    : showing
-                        ? '${t.t('chat.translate.note')} · '
-                            '${t.t('chat.translate.original')}'
-                        : t.t('chat.translate'),
-                style: link,
-              ),
-            ),
+    return TranslateBlock(
+      text: widget.message.body,
+      enabled: widget.translatable,
+      identity: widget.message.id,
+      // The paid server translation, only while the admin switched it on.
+      serverOn: ref.watch(featureFlagsControllerProvider).isEnabled(
+            'chat_translate',
           ),
-        ),
-      ],
+      server: (target) => ref
+          .read(chatRepositoryProvider)
+          .translate(widget.threadId, widget.message.id, target),
+      builder: (context, translation) => translation == null
+          ? Text.rich(TextSpan(children: widget.spans), style: widget.style)
+          : Text(translation, style: widget.style),
     );
   }
 }

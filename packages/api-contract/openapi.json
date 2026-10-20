@@ -78770,6 +78770,338 @@
         ]
       }
     },
+    "/saved-chat": {
+      "get": {
+        "operationId": "listSavedChat",
+        "parameters": [
+          {
+            "name": "tab",
+            "required": false,
+            "in": "query",
+            "description": "media = photos, videos and voice notes; files = documents; links = messages with a link.",
+            "schema": {
+              "$ref": "#/components/schemas/SavedChatTab"
+            }
+          },
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "description": "Text in the message, the file name, the sender or the chat title.",
+            "schema": {
+              "maxLength": 100,
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "meta.nextCursor of the previous page.",
+            "schema": {
+              "maxLength": 300,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedChatItemListEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "My saved chat messages, newest saved first",
+        "tags": [
+          "chat-saved"
+        ]
+      }
+    },
+    "/saved-chat/ids": {
+      "get": {
+        "operationId": "savedChatIds",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedChatIdsEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Ids of my saved chat messages",
+        "tags": [
+          "chat-saved"
+        ]
+      }
+    },
+    "/saved-chat/{messageId}": {
+      "put": {
+        "operationId": "saveChatMessage",
+        "parameters": [
+          {
+            "name": "messageId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: CONVERSATION_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Save a chat message; idempotent",
+        "tags": [
+          "chat-saved"
+        ]
+      },
+      "delete": {
+        "operationId": "unsaveChatMessage",
+        "parameters": [
+          {
+            "name": "messageId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Remove a chat message from the saved; idempotent",
+        "tags": [
+          "chat-saved"
+        ]
+      }
+    },
     "/translations": {
       "post": {
         "operationId": "translate",
@@ -138045,6 +138377,64 @@
           "verifiedBadge"
         ]
       },
+      "ContactCardDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "username": {
+            "type": "string",
+            "example": "anna.lee"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "avatarUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "verifiedBadge": {
+            "type": "boolean",
+            "description": "The blue check."
+          },
+          "firmNames": {
+            "description": "Firm names.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "practiceKeys": {
+            "description": "Translation keys of the practice areas (≤6).",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "licensedStates": {
+            "example": [
+              "CA",
+              "NY"
+            ],
+            "description": "States of verified licenses.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "userId",
+          "username",
+          "displayName",
+          "verifiedBadge",
+          "firmNames",
+          "practiceKeys",
+          "licensedStates"
+        ]
+      },
       "VoiceNoteDto": {
         "type": "object",
         "properties": {
@@ -138179,7 +138569,9 @@
               "call",
               "attachment",
               "sticker",
-              "gift"
+              "gift",
+              "contact",
+              "place"
             ],
             "type": "string"
           },
@@ -138190,6 +138582,16 @@
             "allOf": [
               {
                 "$ref": "#/components/schemas/GiftSendDto"
+              }
+            ]
+          },
+          "contact": {
+            "nullable": true,
+            "description": "Owner 2026-10-20: the attorney card of a `contact` message.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ContactCardDto"
               }
             ]
           },
@@ -138594,7 +138996,9 @@
           "voice",
           "attachment",
           "sticker",
-          "gift"
+          "gift",
+          "contact",
+          "place"
         ]
       },
       "SendMessageDto": {
@@ -138617,6 +139021,11 @@
           "giftId": {
             "type": "string",
             "description": "Owner 2026-10-20: a gift message (type=gift) paid in stars; `body` is\nthe optional note (≤200).",
+            "format": "uuid"
+          },
+          "contactUserId": {
+            "type": "string",
+            "description": "Owner 2026-10-20: the attorney whose card is shared (type=contact).",
             "format": "uuid"
           },
           "stickerId": {
@@ -138799,6 +139208,92 @@
             "description": "ISO time; null unmutes."
           }
         }
+      },
+      "SavedChatItemDto": {
+        "type": "object",
+        "properties": {
+          "savedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "message": {
+            "$ref": "#/components/schemas/MessageDto"
+          },
+          "chat": {
+            "description": "The chat the message is in (for the title and the opener).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ConversationDto"
+              }
+            ]
+          },
+          "mine": {
+            "type": "boolean",
+            "description": "The person wrote it."
+          }
+        },
+        "required": [
+          "savedAt",
+          "message",
+          "chat",
+          "mine"
+        ]
+      },
+      "SavedChatTab": {
+        "type": "string",
+        "enum": [
+          "all",
+          "media",
+          "files",
+          "links"
+        ]
+      },
+      "SavedChatItemListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SavedChatItemDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "SavedChatIdsDto": {
+        "type": "object",
+        "properties": {
+          "ids": {
+            "description": "Ids of every saved message (newest 5000).",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        },
+        "required": [
+          "ids"
+        ]
+      },
+      "SavedChatIdsEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SavedChatIdsDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
       },
       "ContentTranslationDto": {
         "type": "object",

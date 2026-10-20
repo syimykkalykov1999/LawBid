@@ -211,13 +211,22 @@ export class SendMessageDto {
   clientMessageId!: string;
 
   @ApiPropertyOptional({
-    enum: ['text', 'voice', 'attachment', 'sticker', 'gift'],
+    enum: [
+      'text',
+      'voice',
+      'attachment',
+      'sticker',
+      'gift',
+      'contact',
+      'place',
+    ],
     enumName: 'SendMessageType',
     default: 'text',
   })
   @IsOptional()
-  @IsIn(['text', 'voice', 'attachment', 'sticker', 'gift'])
-  type?: 'text' | 'voice' | 'attachment' | 'sticker' | 'gift';
+  @IsIn(['text', 'voice', 'attachment', 'sticker', 'gift', 'contact', 'place'])
+  type?:
+    'text' | 'voice' | 'attachment' | 'sticker' | 'gift' | 'contact' | 'place';
 
   /** Owner 2026-10-20: a gift message (type=gift) paid in stars; `body` is
    * the optional note (≤200). */
@@ -225,6 +234,12 @@ export class SendMessageDto {
   @IsOptional()
   @IsUUID('all')
   giftId?: string;
+
+  /** Owner 2026-10-20: the attorney whose card is shared (type=contact). */
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID('all')
+  contactUserId?: string;
 
   /** Owner 2026-10-01: a sticker message (type=sticker). */
   @ApiPropertyOptional({ format: 'uuid' })
@@ -370,6 +385,41 @@ export class CallLogDto {
   durationSec!: number;
 }
 
+/** Owner 2026-10-20: an attorney shared in a chat — only what the public
+ * profile already shows (never a phone, e-mail or a client's identity). */
+export class ContactCardDto {
+  @ApiProperty({ format: 'uuid' })
+  userId!: string;
+
+  @ApiProperty({ example: 'anna.lee' })
+  username!: string;
+
+  @ApiProperty()
+  displayName!: string;
+
+  @ApiPropertyOptional({ type: String, nullable: true })
+  avatarUrl!: string | null;
+
+  @ApiProperty({ description: 'The blue check.' })
+  verifiedBadge!: boolean;
+
+  @ApiProperty({ type: [String], description: 'Firm names.' })
+  firmNames!: string[];
+
+  @ApiProperty({
+    type: [String],
+    description: 'Translation keys of the practice areas (≤6).',
+  })
+  practiceKeys!: string[];
+
+  @ApiProperty({
+    type: [String],
+    example: ['CA', 'NY'],
+    description: 'States of verified licenses.',
+  })
+  licensedStates!: string[];
+}
+
 export class MessageDto {
   @ApiProperty({ format: 'uuid' })
   id!: string;
@@ -389,14 +439,36 @@ export class MessageDto {
   sentByAssistant!: string | null;
 
   @ApiProperty({
-    enum: ['text', 'system', 'voice', 'call', 'attachment', 'sticker', 'gift'],
+    enum: [
+      'text',
+      'system',
+      'voice',
+      'call',
+      'attachment',
+      'sticker',
+      'gift',
+      'contact',
+      'place',
+    ],
   })
   type!:
-    'text' | 'system' | 'voice' | 'call' | 'attachment' | 'sticker' | 'gift';
+    | 'text'
+    | 'system'
+    | 'voice'
+    | 'call'
+    | 'attachment'
+    | 'sticker'
+    | 'gift'
+    | 'contact'
+    | 'place';
 
   /** Owner 2026-10-20: the gift of a gift message. */
   @ApiPropertyOptional({ type: () => GiftSendDto, nullable: true })
   gift!: GiftSendDto | null;
+
+  /** Owner 2026-10-20: the attorney card of a `contact` message. */
+  @ApiPropertyOptional({ type: () => ContactCardDto, nullable: true })
+  contact!: ContactCardDto | null;
 
   /** Owner 2026-10-01: the sticker of a sticker message. */
   @ApiPropertyOptional({ type: () => StickerDto, nullable: true })

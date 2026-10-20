@@ -6,6 +6,7 @@ import 'package:json_annotation/json_annotation.dart';
 
 import 'call_log_dto.dart';
 import 'chat_attachment_dto.dart';
+import 'contact_card_dto.dart';
 import 'gift_send_dto.dart';
 import 'message_dto_type.dart';
 import 'sticker_dto.dart';
@@ -25,6 +26,7 @@ class MessageDto {
     this.senderId,
     this.sentByAssistant,
     this.gift,
+    this.contact,
     this.sticker,
     this.voice,
     this.attachment,
@@ -45,6 +47,9 @@ class MessageDto {
 
   /// Owner 2026-10-20: the gift of a gift message.
   final GiftSendDto? gift;
+
+  /// Owner 2026-10-20: the attorney card of a `contact` message.
+  final ContactCardDto? contact;
 
   /// Owner 2026-10-01: the sticker of a sticker message.
   final StickerDto? sticker;

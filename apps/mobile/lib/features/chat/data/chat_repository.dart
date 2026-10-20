@@ -599,8 +599,22 @@ abstract final class ChatMappers {
           api.MessageDtoType.attachment => MessageKind.attachment,
           api.MessageDtoType.sticker => MessageKind.sticker,
           api.MessageDtoType.gift => MessageKind.gift,
+          api.MessageDtoType.contact => MessageKind.contact,
+          api.MessageDtoType.place => MessageKind.place,
           _ => MessageKind.text,
         },
+        contact: d.contact == null
+            ? null
+            : ContactCard(
+                userId: d.contact!.userId,
+                username: d.contact!.username,
+                displayName: d.contact!.displayName,
+                avatarUrl: d.contact!.avatarUrl,
+                verified: d.contact!.verifiedBadge,
+                firmNames: [...d.contact!.firmNames],
+                practiceKeys: [...d.contact!.practiceKeys],
+                licensedStates: [...d.contact!.licensedStates],
+              ),
         sticker:
             d.sticker == null ? null : StickersRepository.sticker(d.sticker!),
         gift: d.gift == null ? null : StarsMappers.send(d.gift!),

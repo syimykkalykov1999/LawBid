@@ -444,6 +444,11 @@ enum MessageType {
   sticker
   // Owner 2026-10-20: a gift paid in stars (messages.gift_send_id).
   gift
+  // Owner 2026-10-20: a shared attorney card (body = the attorney's user id;
+  // the app draws the public profile).
+  contact
+  // Owner 2026-10-20: a place (body = the address; opens in the phone's maps).
+  place
 
   @@map("message_type")
 }
@@ -812,6 +817,7 @@ model User {
   blocks_made                 UserBlock[]                    @relation("Blocker")
   blocked_by                  UserBlock[]                    @relation("Blocked")
   saved_items                 SavedItem[]
+  saved_chat_messages         SavedChatMessage[]
   conversations_attorney      Conversation[]                 @relation("ConversationAttorney")
   conversations_client        Conversation[]                 @relation("ConversationClient")
   conversation_memberships    ConversationParticipant[]
@@ -2244,6 +2250,37 @@ model SavedItem {
   @@map("saved_items")
 }
 
+/// Owner 2026-10-20: a chat message the person saved («Сохранённое», like
+/// WeChat favorites / Telegram Saved Messages). Only the reference is stored:
+/// the text stays sealed in `messages`, and it is read again through the
+/// chat's own membership check.
+model SavedChatMessage {
+  user_id    String        @db.Uuid
+  user       User          @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  message_id String        @db.Uuid
+  message    Message       @relation(fields: [message_id], references: [id], onDelete: Cascade)
+  kind       SavedChatKind
+  created_at DateTime      @default(now()) @db.Timestamptz
+
+  @@id([user_id, message_id])
+  @@index([user_id, kind, created_at(sort: Desc)])
+  @@index([user_id, created_at(sort: Desc)])
+  @@index([message_id])
+  @@map("saved_chat_messages")
+}
+
+enum SavedChatKind {
+  text
+  link
+  file
+  media
+  voice
+  contact
+  place
+
+  @@map("saved_chat_kind")
+}
+
 model Conversation {
   id                String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   // Nullable since 2026-09-28 (migration applied, then the owner kept
@@ -2372,40 +2409,41 @@ model CallParticipant {
 }
 
 model Message {
-  id                    String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  conversation_id       String       @db.Uuid
-  conversation          Conversation @relation(fields: [conversation_id], references: [id], onDelete: Restrict)
+  id                    String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  conversation_id       String             @db.Uuid
+  conversation          Conversation       @relation(fields: [conversation_id], references: [id], onDelete: Restrict)
   // NULL for system messages.
-  sender_id             String?      @db.Uuid
-  sender                User?        @relation("MessageSender", fields: [sender_id], references: [id], onDelete: Restrict)
+  sender_id             String?            @db.Uuid
+  sender                User?              @relation("MessageSender", fields: [sender_id], references: [id], onDelete: Restrict)
   type                  MessageType
   // Server/moderation/legal only (§1.6).
   body_original         String
   body_display          String
-  contact_masked        Boolean      @default(false)
+  contact_masked        Boolean            @default(false)
   // Client-generated idempotency key.
   client_message_id     String
   // OQ-040 voice messages: the audio file, its length, 0–100 bars for the
   // bubble and when the recipient first played it (Telegram's blue dot).
-  file_id               String?      @db.Uuid
-  file                  File?        @relation("MessageVoice", fields: [file_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  file_id               String?            @db.Uuid
+  file                  File?              @relation("MessageVoice", fields: [file_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
   duration_ms           Int?
-  waveform              Int[]        @default([])
+  waveform              Int[]              @default([])
   // OQ-047: the original name of an attached document (≤200, CHECK).
   file_name             String?
   // OQ-048: sent by an assistant on the attorney's behalf.
-  sent_by_membership_id String?      @db.Uuid
-  sent_by_name          String?      @db.VarChar(80)
-  listened_at           DateTime?    @db.Timestamptz
+  sent_by_membership_id String?            @db.Uuid
+  sent_by_name          String?            @db.VarChar(80)
+  listened_at           DateTime?          @db.Timestamptz
   // Owner 2026-10-01: a sticker message.
-  sticker_id            String?      @db.Uuid
-  sticker               Sticker?     @relation(fields: [sticker_id], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "messages_sticker_fkey")
+  sticker_id            String?            @db.Uuid
+  sticker               Sticker?           @relation(fields: [sticker_id], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "messages_sticker_fkey")
   // Owner 2026-10-20: a gift message.
-  gift_send_id          String?      @db.Uuid
-  gift_send             GiftSend?    @relation(fields: [gift_send_id], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "messages_gift_send_fkey")
-  deleted_at            DateTime?    @db.Timestamptz
-  created_at            DateTime     @default(now()) @db.Timestamptz
-  updated_at            DateTime     @updatedAt @db.Timestamptz
+  gift_send_id          String?            @db.Uuid
+  gift_send             GiftSend?          @relation(fields: [gift_send_id], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "messages_gift_send_fkey")
+  saved_by              SavedChatMessage[]
+  deleted_at            DateTime?          @db.Timestamptz
+  created_at            DateTime           @default(now()) @db.Timestamptz
+  updated_at            DateTime           @updatedAt @db.Timestamptz
 
   @@unique([conversation_id, sender_id, client_message_id])
   @@index([file_id])

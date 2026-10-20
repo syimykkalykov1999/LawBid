@@ -188,6 +188,7 @@ export const WIPE_TABLES: Readonly<Record<string, string>> = {
   chat_group_polls: 'polls in groups',
   chat_group_poll_options: 'poll options',
   chat_group_poll_votes: 'poll votes',
+  saved_chat_messages: 'saved chat messages',
   calls: 'calls',
   call_participants: 'group call members',
   // notifications
