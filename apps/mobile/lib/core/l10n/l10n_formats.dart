@@ -55,12 +55,32 @@ class L10nFormats {
       DateFormat('EEEEE', locale).format(_local(value));
 
   /// `3:05 PM` / `15:05`
-  String time(DateTime value) =>
-      _n(DateFormat.jm(locale).format(_local(value)));
+  String time(DateTime value) => _n(_dayPart(DateFormat.jm(locale), value));
 
   /// Date + time, e.g. `Sep 27, 2026, 3:05 PM`.
   String dateTime(DateTime value) =>
-      _n(DateFormat.yMMMd(locale).add_jm().format(_local(value)));
+      _n(_dayPart(DateFormat.yMMMd(locale).add_jm(), value));
+
+  /// Formats [value] with [format]; a language whose intl data marks the
+  /// day half with a bare letter (Marathi: «७:३२ a») gets a real marker.
+  String _dayPart(DateFormat format, DateTime value) {
+    final local = _local(value);
+    final text = format.format(local);
+    final marker = DateFormat('a', locale).format(local);
+    if (marker.length != 1 || !RegExp('^[A-Za-z]\$').hasMatch(marker)) {
+      return text;
+    }
+    final pm = local.hour >= 12;
+    final own = _dayHalves[locale];
+    final real = own != null ? (pm ? own.$2 : own.$1) : (pm ? 'PM' : 'AM');
+    final at = text.lastIndexOf(marker);
+    return at < 0 ? text : text.replaceRange(at, at + 1, real);
+  }
+
+  /// Day-half markers (CLDR) for languages whose intl data has only a letter.
+  static const _dayHalves = <String, (String, String)>{
+    'mr': ('म.पू.', 'म.उ.'),
+  };
 
   /// A ready number text (`'3/4'`, `'12'`) in the language's own digits.
   String digits(Object value) => _n('$value');

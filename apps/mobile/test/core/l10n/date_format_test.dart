@@ -17,6 +17,18 @@ void main() {
 
   setUpAll(initializeDateFormatting);
 
+  test('Marathi marks the day half with words, not a bare letter', () {
+    final f = L10nFormats(AppLanguage.fromCode('mr'));
+    expect(f.time(DateTime(2026, 10, 20, 7, 32)), '७:३२ म.पू.');
+    expect(f.time(DateTime(2026, 10, 20, 19, 32)), '७:३२ म.उ.');
+    expect(f.dateTime(moment), contains('म.उ.'));
+    expect(
+      L10nFormats(AppLanguage.fromCode('de'))
+          .time(DateTime(2026, 10, 20, 7, 32)),
+      '07:32',
+    );
+  });
+
   test('dates per language', () {
     expect(L10nFormats(AppLanguage.en).date(moment), 'Sep 27, 2026');
     expect(L10nFormats(AppLanguage.ru).date(moment), '27 сент. 2026$nnbspг.');
