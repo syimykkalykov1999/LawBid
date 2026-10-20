@@ -19,9 +19,14 @@ describe('Starter catalog (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
   const stored: string[] = [];
+  const removed: string[] = [];
 
   const storage = {
     ready: () => Promise.resolve(true),
+    remove: (_b: string, keys: string[]) => {
+      removed.push(...keys);
+      return Promise.resolve();
+    },
     bucket: () => 'media-test',
     put: (_b: string, key: string) => {
       stored.push(key);
@@ -48,12 +53,14 @@ describe('Starter catalog (e2e)', () => {
       where: { short_name: { startsWith: 'lawbid_' }, is_official: true },
     });
     await prisma.file.deleteMany({ where: files });
+    await prisma.user.deleteMany({
+      where: { email: 'catalog@system.lawbid.invalid' },
+    });
     await app.close();
   });
 
   it('makes the gifts and three packs once; a second run does nothing', async () => {
     await prisma.appConfig.deleteMany({ where: { key: STARTER_CATALOG_KEY } });
-    await prisma.user.create({ data: { role: 'admin', first_name: 'Seed' } });
     const noGiftsYet = (await prisma.gift.count()) === 0;
     const svc = new StarterCatalogService(
       prisma,
@@ -77,6 +84,11 @@ describe('Starter catalog (e2e)', () => {
     const f = await prisma.file.findUniqueOrThrow({
       where: { id: packs[0].stickers[0].file_id },
     });
+    const owner = await prisma.user.findUniqueOrThrow({
+      where: { id: f.owner_user_id },
+    });
+    expect(owner.email).toBe('catalog@system.lawbid.invalid');
+    expect(removed).toEqual([]);
     expect(f).toMatchObject({
       purpose: 'sticker',
       scan_status: 'clean',
