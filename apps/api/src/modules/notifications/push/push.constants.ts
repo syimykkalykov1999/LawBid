@@ -69,6 +69,9 @@ export interface CallEndJobData {
   kind: 'call_end';
   recipientId: string;
   callId: string;
+  /** The ANSWERED call is over (not just the ringing): its own job and
+   * dedupe key, so the answer's "stop ringing" push does not swallow it. */
+  ended?: boolean;
   deferred?: boolean;
 }
 

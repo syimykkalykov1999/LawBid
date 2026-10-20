@@ -322,20 +322,19 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                             trailing: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
+                                // An icon, not a words button: in Russian the
+                                // text squeezed the last filter chip.
                                 if (badges.notifications > 0)
-                                  ConstrainedBox(
-                                    constraints:
-                                        const BoxConstraints(maxWidth: 160),
-                                    child: TextButton(
-                                      onPressed: () => ref
-                                          .read(notificationsProvider.notifier)
-                                          .markRead(),
-                                      child: Text(
-                                        t.t('notif.markAllRead'),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
+                                  AppIconButton(
+                                    key: const ValueKey('notif-mark-all'),
+                                    icon: AppIcon(
+                                      AppIcons.doneAllRounded,
+                                      color: colors.text,
                                     ),
+                                    semanticLabel: t.t('notif.markAllRead'),
+                                    onPressed: () => ref
+                                        .read(notificationsProvider.notifier)
+                                        .markRead(),
                                   ),
                               ],
                             ),
