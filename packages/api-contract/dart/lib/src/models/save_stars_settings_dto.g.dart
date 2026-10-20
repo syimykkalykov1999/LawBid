@@ -14,6 +14,11 @@ SaveStarsSettingsDto _$SaveStarsSettingsDtoFromJson(
       .toList(),
   giftConvertPercent: (json['giftConvertPercent'] as num).toInt(),
   giftsPerDayMax: (json['giftsPerDayMax'] as num).toInt(),
+  starCents: (json['starCents'] as num?)?.toInt(),
+  reactionStars: (json['reactionStars'] as num?)?.toInt(),
+  premiumReactions: (json['premiumReactions'] as List<dynamic>?)
+      ?.map((e) => e as String)
+      .toList(),
 );
 
 Map<String, dynamic> _$SaveStarsSettingsDtoToJson(
@@ -22,4 +27,7 @@ Map<String, dynamic> _$SaveStarsSettingsDtoToJson(
   'packs': instance.packs.map((e) => e.toJson()).toList(),
   'giftConvertPercent': instance.giftConvertPercent,
   'giftsPerDayMax': instance.giftsPerDayMax,
+  'starCents': ?instance.starCents,
+  'reactionStars': ?instance.reactionStars,
+  'premiumReactions': ?instance.premiumReactions,
 };

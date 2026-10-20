@@ -14,6 +14,12 @@ enum StarLedgerItemDtoKind {
   giftConverted('gift_converted'),
   @JsonValue('sticker_pack')
   stickerPack('sticker_pack'),
+  @JsonValue('boost')
+  boost('boost'),
+  @JsonValue('boost_refund')
+  boostRefund('boost_refund'),
+  @JsonValue('reaction')
+  reaction('reaction'),
   @JsonValue('admin_grant')
   adminGrant('admin_grant'),
   @JsonValue('refund')

@@ -20,6 +20,9 @@ class StarsRepository {
       enabled: d.enabled,
       balance: d.balance,
       giftConvertPercent: d.giftConvertPercent,
+      reactionStars: d.reactionStars,
+      premiumReactions: d.premiumReactions,
+      freeReactions: d.freeReactions,
       packs: [
         for (final p in d.packs)
           StarPack(id: p.id, stars: p.stars, priceCents: p.priceCents),
@@ -47,6 +50,10 @@ class StarsRepository {
                 StarLedgerKind.stickerPack,
               api.StarLedgerItemDtoKind.adminGrant => StarLedgerKind.adminGrant,
               api.StarLedgerItemDtoKind.refund => StarLedgerKind.refund,
+              api.StarLedgerItemDtoKind.boost => StarLedgerKind.boost,
+              api.StarLedgerItemDtoKind.boostRefund =>
+                StarLedgerKind.boostRefund,
+              api.StarLedgerItemDtoKind.reaction => StarLedgerKind.reaction,
               _ => StarLedgerKind.other,
             },
             note: i.note,

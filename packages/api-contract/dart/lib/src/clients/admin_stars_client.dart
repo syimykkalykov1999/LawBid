@@ -13,6 +13,7 @@ import '../models/save_stars_settings_dto.dart';
 import '../models/star_ledger_item_list_envelope.dart';
 import '../models/stars_admin_settings_envelope.dart';
 import '../models/stars_balance_envelope.dart';
+import '../models/stars_debt_list_envelope.dart';
 import '../models/stars_report_envelope.dart';
 import '../models/update_gift_dto.dart';
 
@@ -67,6 +68,12 @@ abstract class AdminStarsClient {
   @GET('/admin/stars/report')
   Future<StarsReportEnvelope> adminStarsReport({
     @Query('days') int? days,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Accounts that owe stars after a refund
+  @GET('/admin/stars/debts')
+  Future<StarsDebtListEnvelope> adminStarsDebts({
     @Extras() Map<String, dynamic>? extras,
   });
 

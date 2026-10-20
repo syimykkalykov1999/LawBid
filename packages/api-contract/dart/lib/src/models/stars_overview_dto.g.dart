@@ -14,6 +14,14 @@ StarsOverviewDto _$StarsOverviewDtoFromJson(Map<String, dynamic> json) =>
           .map((e) => StarPackDto.fromJson(e as Map<String, dynamic>))
           .toList(),
       giftConvertPercent: (json['giftConvertPercent'] as num).toInt(),
+      starCents: (json['starCents'] as num).toInt(),
+      reactionStars: (json['reactionStars'] as num).toInt(),
+      premiumReactions: (json['premiumReactions'] as List<dynamic>)
+          .map((e) => e as String)
+          .toList(),
+      freeReactions: (json['freeReactions'] as List<dynamic>)
+          .map((e) => e as String)
+          .toList(),
     );
 
 Map<String, dynamic> _$StarsOverviewDtoToJson(StarsOverviewDto instance) =>
@@ -22,4 +30,8 @@ Map<String, dynamic> _$StarsOverviewDtoToJson(StarsOverviewDto instance) =>
       'balance': instance.balance,
       'packs': instance.packs.map((e) => e.toJson()).toList(),
       'giftConvertPercent': instance.giftConvertPercent,
+      'starCents': instance.starCents,
+      'reactionStars': instance.reactionStars,
+      'premiumReactions': instance.premiumReactions,
+      'freeReactions': instance.freeReactions,
     };

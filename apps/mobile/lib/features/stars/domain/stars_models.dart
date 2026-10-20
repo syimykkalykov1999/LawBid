@@ -24,6 +24,9 @@ class StarsOverview {
     required this.balance,
     required this.packs,
     required this.giftConvertPercent,
+    this.reactionStars = 3,
+    this.premiumReactions = const [],
+    this.freeReactions = const [],
   });
 
   static const off = StarsOverview(
@@ -37,6 +40,11 @@ class StarsOverview {
   final int balance;
   final List<StarPack> packs;
   final int giftConvertPercent;
+
+  /// Reactions: the price of a premium one and the two lists.
+  final int reactionStars;
+  final List<String> premiumReactions;
+  final List<String> freeReactions;
 }
 
 enum StarLedgerKind {
@@ -44,6 +52,9 @@ enum StarLedgerKind {
   giftSent,
   giftConverted,
   stickerPack,
+  boost,
+  boostRefund,
+  reaction,
   adminGrant,
   refund,
   other,

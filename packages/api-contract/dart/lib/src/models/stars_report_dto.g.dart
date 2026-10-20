@@ -14,6 +14,8 @@ StarsReportDto _$StarsReportDtoFromJson(Map<String, dynamic> json) =>
       purchases: (json['purchases'] as num).toInt(),
       starsSpent: (json['starsSpent'] as num).toInt(),
       outstandingStars: (json['outstandingStars'] as num).toInt(),
+      debtStars: (json['debtStars'] as num).toInt(),
+      debtUsers: (json['debtUsers'] as num).toInt(),
       giftsSent: (json['giftsSent'] as num).toInt(),
       starsConverted: (json['starsConverted'] as num).toInt(),
       byKind: (json['byKind'] as List<dynamic>)
@@ -32,6 +34,8 @@ Map<String, dynamic> _$StarsReportDtoToJson(StarsReportDto instance) =>
       'purchases': instance.purchases,
       'starsSpent': instance.starsSpent,
       'outstandingStars': instance.outstandingStars,
+      'debtStars': instance.debtStars,
+      'debtUsers': instance.debtUsers,
       'giftsSent': instance.giftsSent,
       'starsConverted': instance.starsConverted,
       'byKind': instance.byKind.map((e) => e.toJson()).toList(),

@@ -15,6 +15,10 @@ class StarsOverviewDto {
     required this.balance,
     required this.packs,
     required this.giftConvertPercent,
+    required this.starCents,
+    required this.reactionStars,
+    required this.premiumReactions,
+    required this.freeReactions,
   });
 
   factory StarsOverviewDto.fromJson(Map<String, Object?> json) =>
@@ -26,6 +30,18 @@ class StarsOverviewDto {
 
   /// Percent of a gift price a receiver gets turning it to stars.
   final int giftConvertPercent;
+
+  /// Cents one star is worth (Boost price conversion).
+  final int starCents;
+
+  /// Stars a premium reaction costs.
+  final int reactionStars;
+
+  /// Reactions charged in stars.
+  final List<String> premiumReactions;
+
+  /// Reactions free for everyone.
+  final List<String> freeReactions;
 
   Map<String, Object?> toJson() => _$StarsOverviewDtoToJson(this);
 }

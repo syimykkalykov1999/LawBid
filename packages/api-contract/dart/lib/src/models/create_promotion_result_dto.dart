@@ -15,6 +15,7 @@ class CreatePromotionResultDto {
     required this.promotionId,
     required this.status,
     required this.totalCents,
+    required this.starsCharged,
     required this.creditDaysUsed,
     required this.creditDaysUsedExact,
     required this.promotion,
@@ -30,6 +31,9 @@ class CreatePromotionResultDto {
   /// Open in the browser to pay; null when nothing to pay.
   final String? checkoutUrl;
   final int totalCents;
+
+  /// Stars taken when paid with the star balance, else 0.
+  final int starsCharged;
 
   /// Whole credit days.
   final int creditDaysUsed;

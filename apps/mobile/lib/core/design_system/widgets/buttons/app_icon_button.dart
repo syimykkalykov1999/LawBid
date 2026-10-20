@@ -80,9 +80,8 @@ class _AppIconButtonState extends State<AppIconButton> {
             duration: AppMotion.pressScale,
             child: Container(
               constraints: BoxConstraints(
-                minWidth: widget.compact
-                    ? _compactWidth
-                    : (widget.plain ? 44 : 38),
+                minWidth:
+                    widget.compact ? _compactWidth : (widget.plain ? 44 : 38),
                 minHeight: widget.plain ? 44 : 38,
               ),
               decoration: widget.plain

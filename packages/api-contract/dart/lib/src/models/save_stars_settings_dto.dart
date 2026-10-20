@@ -14,6 +14,9 @@ class SaveStarsSettingsDto {
     required this.packs,
     required this.giftConvertPercent,
     required this.giftsPerDayMax,
+    this.starCents,
+    this.reactionStars,
+    this.premiumReactions,
   });
 
   factory SaveStarsSettingsDto.fromJson(Map<String, Object?> json) =>
@@ -22,6 +25,9 @@ class SaveStarsSettingsDto {
   final List<StarPackDto> packs;
   final int giftConvertPercent;
   final int giftsPerDayMax;
+  final int? starCents;
+  final int? reactionStars;
+  final List<String>? premiumReactions;
 
   Map<String, Object?> toJson() => _$SaveStarsSettingsDtoToJson(this);
 }

@@ -10,6 +10,9 @@ CreatePromotionDto _$CreatePromotionDtoFromJson(Map<String, dynamic> json) =>
     CreatePromotionDto(
       days: (json['days'] as num).toInt(),
       useCredits: json['useCredits'] as bool? ?? true,
+      payWith: json['payWith'] == null
+          ? null
+          : CreatePromotionDtoPayWith.fromJson(json['payWith'] as String),
       dailyBudgetCents: (json['dailyBudgetCents'] as num?)?.toInt(),
       audience: json['audience'] == null
           ? null
@@ -29,6 +32,7 @@ CreatePromotionDto _$CreatePromotionDtoFromJson(Map<String, dynamic> json) =>
 
 Map<String, dynamic> _$CreatePromotionDtoToJson(CreatePromotionDto instance) =>
     <String, dynamic>{
+      'payWith': ?instance.payWith?.toJson(),
       'days': instance.days,
       'dailyBudgetCents': ?instance.dailyBudgetCents,
       'audience': ?instance.audience?.toJson(),

@@ -15,6 +15,11 @@ StarsAdminSettingsDto _$StarsAdminSettingsDtoFromJson(
   enabled: json['enabled'] as bool,
   giftConvertPercent: (json['giftConvertPercent'] as num).toInt(),
   giftsPerDayMax: (json['giftsPerDayMax'] as num).toInt(),
+  starCents: (json['starCents'] as num).toInt(),
+  reactionStars: (json['reactionStars'] as num).toInt(),
+  premiumReactions: (json['premiumReactions'] as List<dynamic>)
+      .map((e) => e as String)
+      .toList(),
 );
 
 Map<String, dynamic> _$StarsAdminSettingsDtoToJson(
@@ -24,4 +29,7 @@ Map<String, dynamic> _$StarsAdminSettingsDtoToJson(
   'enabled': instance.enabled,
   'giftConvertPercent': instance.giftConvertPercent,
   'giftsPerDayMax': instance.giftsPerDayMax,
+  'starCents': instance.starCents,
+  'reactionStars': instance.reactionStars,
+  'premiumReactions': instance.premiumReactions,
 };

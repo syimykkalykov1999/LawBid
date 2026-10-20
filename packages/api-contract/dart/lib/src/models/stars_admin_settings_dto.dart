@@ -15,6 +15,9 @@ class StarsAdminSettingsDto {
     required this.enabled,
     required this.giftConvertPercent,
     required this.giftsPerDayMax,
+    required this.starCents,
+    required this.reactionStars,
+    required this.premiumReactions,
   });
 
   factory StarsAdminSettingsDto.fromJson(Map<String, Object?> json) =>
@@ -24,6 +27,13 @@ class StarsAdminSettingsDto {
   final bool enabled;
   final int giftConvertPercent;
   final int giftsPerDayMax;
+
+  /// US cents one star is worth when a Boost is paid in stars.
+  final int starCents;
+
+  /// Stars one premium reaction costs.
+  final int reactionStars;
+  final List<String> premiumReactions;
 
   Map<String, Object?> toJson() => _$StarsAdminSettingsDtoToJson(this);
 }

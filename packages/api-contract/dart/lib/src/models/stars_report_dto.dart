@@ -18,6 +18,8 @@ class StarsReportDto {
     required this.purchases,
     required this.starsSpent,
     required this.outstandingStars,
+    required this.debtStars,
+    required this.debtUsers,
     required this.giftsSent,
     required this.starsConverted,
     required this.byKind,
@@ -41,6 +43,10 @@ class StarsReportDto {
 
   /// Stars users hold now — what we still owe in goods.
   final int outstandingStars;
+
+  /// Stars owed after refunded top-ups that were already spent.
+  final int debtStars;
+  final int debtUsers;
   final int giftsSent;
 
   /// Stars handed back to receivers (the rest is our fee).

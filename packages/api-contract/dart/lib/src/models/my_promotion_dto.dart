@@ -19,6 +19,7 @@ class MyPromotionDto {
     required this.days,
     required this.priceCentsPerDay,
     required this.totalCents,
+    required this.paidStars,
     required this.impressions,
     required this.reach,
     required this.clicks,
@@ -49,6 +50,9 @@ class MyPromotionDto {
 
   /// Charged amount.
   final int totalCents;
+
+  /// Stars paid (0 = by card).
+  final int paidStars;
   final DateTime? startsAt;
   final DateTime? endsAt;
   final int impressions;
