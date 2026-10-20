@@ -21,6 +21,7 @@ const auditSocialRu = <String, String>{
   'post.repost.action': 'Репост',
   'post.reposters.title': 'Репосты',
   'post.reposters.empty': 'Пока никто не сделал репост.',
+  'post.likers.empty': 'Пока нет отметок «Нравится».',
   'profile.tab.reposts': 'Репосты',
   'profile.reposts.empty.title': 'Репостов пока нет',
   'profile.reposts.empty.self':
@@ -103,6 +104,7 @@ const auditSocialEn = <String, String>{
   'post.repost.action': 'Repost',
   'post.reposters.title': 'Reposts',
   'post.reposters.empty': 'Nobody has reposted this yet.',
+  'post.likers.empty': 'No likes yet.',
   'profile.tab.reposts': 'Reposts',
   'profile.reposts.empty.title': 'No reposts yet',
   'profile.reposts.empty.self': 'Tap ↻ under a post and it will appear here.',

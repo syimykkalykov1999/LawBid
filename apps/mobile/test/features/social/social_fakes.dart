@@ -155,6 +155,7 @@ class FakeSocialRepository implements SocialRepository {
 
   List<Post> reposts = const [];
   List<PersonRow> reposters = const [];
+  List<PersonRow> likers = const [];
 
   /// Set: [attorneyPosts] and [userReposts] page by this many items (the
   /// cursor is the next index); null = everything on one page.
@@ -180,6 +181,13 @@ class FakeSocialRepository implements SocialRepository {
     userRepostsCursors.add(cursor);
     return _page(reposts, cursor);
   }
+
+  @override
+  Future<CursorPage<PersonRow>> postLikers(
+    String postId, {
+    String? cursor,
+  }) async =>
+      CursorPage(items: likers);
 
   @override
   Future<CursorPage<PersonRow>> postReposters(

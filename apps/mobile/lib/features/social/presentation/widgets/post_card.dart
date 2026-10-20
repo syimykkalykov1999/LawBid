@@ -560,6 +560,38 @@ class PostCard extends ConsumerWidget {
           // Owner 2026-10-18: only in the profile's post list (Instagram).
           if (fromProfile) PostPromoRow(post: p),
           PostActionsBar(post: p, run: run, showTime: true),
+          // Owner 2026-10-20 (Instagram): «N отметок «Нравится»» under the
+          // icons; a tap opens the people who liked. The author's choice to
+          // hide the counter hides the line.
+          if (p.likeCount > 0 && showLikeCount(ref, p))
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.md,
+                0,
+                AppSpacing.md,
+                AppSpacing.xs,
+              ),
+              child: AppPressable(
+                onTap: () => showLikersList(context, p.id),
+                child: Text(
+                  SocialFormat.plural(
+                    t,
+                    ref.watch(l10nFormatsProvider),
+                    'post.likes',
+                    p.likeCount,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context)
+                      .extension<AppTypographyTokens>()!
+                      .bodySmall
+                      .copyWith(
+                        color: colors.text,
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+              ),
+            ),
           // Owner 2026-10-15: the advertiser's button under a promoted post.
           if (post.promotionId != null && post.promotionCta != null)
             Padding(
@@ -790,17 +822,20 @@ class PostCard extends ConsumerWidget {
               AppSpacing.lg,
               AppSpacing.xs,
             ),
-            child: Text(
-              SocialFormat.plural(
-                t,
-                ref.watch(l10nFormatsProvider),
-                'post.likes',
-                p.likeCount,
+            child: AppPressable(
+              onTap: () => showLikersList(context, p.id),
+              child: Text(
+                SocialFormat.plural(
+                  t,
+                  ref.watch(l10nFormatsProvider),
+                  'post.likes',
+                  p.likeCount,
+                ),
+                style: Theme.of(context)
+                    .extension<AppTypographyTokens>()!
+                    .bodySmall
+                    .copyWith(color: colors.text, fontWeight: FontWeight.w600),
               ),
-              style: Theme.of(context)
-                  .extension<AppTypographyTokens>()!
-                  .bodySmall
-                  .copyWith(color: colors.text, fontWeight: FontWeight.w600),
             ),
           ),
         if (p.pendingReview)
@@ -1002,13 +1037,16 @@ class _InstagramPost extends ConsumerWidget {
               AppSpacing.lg,
               AppSpacing.xs,
             ),
-            child: Text(
-              SocialFormat.plural(t, f, 'post.likes', p.likeCount),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: type.bodySmall.copyWith(
-                color: colors.text,
-                fontWeight: FontWeight.w700,
+            child: AppPressable(
+              onTap: () => showLikersList(context, p.id),
+              child: Text(
+                SocialFormat.plural(t, f, 'post.likes', p.likeCount),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: type.bodySmall.copyWith(
+                  color: colors.text,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
           ),
@@ -3478,6 +3516,27 @@ class FeedCaptionState extends ConsumerState<FeedCaption> {
           )
         : const SizedBox.shrink();
     final moreLabel = t.t('post.more');
+    // Owner 2026-10-20: a post that is only 1–3 emoji — drawn big, in one
+    // block, instead of a caption-size glyph in a tall empty card.
+    final emojiSize = widget.hashtags.isEmpty && !widget.forceMore
+        ? emojiOnlySize('${widget.title}${widget.text}')
+        : null;
+    if (emojiSize != null) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(AppSpacing.md, 4, AppSpacing.md, 0),
+        child: AppPressable(
+          onTap: widget.onOpen,
+          child: Text(
+            '${widget.title}${widget.text}'.trim(),
+            style: bodyStyle.copyWith(
+              color: colors.text,
+              fontSize: emojiSize,
+              height: 1.2,
+            ),
+          ),
+        ),
+      );
+    }
     return Padding(
       padding: const EdgeInsets.fromLTRB(AppSpacing.md, 8, AppSpacing.md, 0),
       child: LayoutBuilder(
