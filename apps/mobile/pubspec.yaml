@@ -123,6 +123,7 @@ dependencies:
   device_info_plus: ^12.4.0
   flutter_local_notifications: ^22.3.2
   timezone: ^0.11.2
+  phone_numbers_parser: ^9.0.28
 dev_dependencies:
   flutter_test:
     sdk: flutter
