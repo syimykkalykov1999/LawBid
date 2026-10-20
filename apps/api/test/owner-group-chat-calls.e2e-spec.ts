@@ -178,4 +178,77 @@ describe('Group chat calls (e2e)', () => {
     ).toBe('ended');
     await api().get(`/api/v1/groups/${gid}/call`).set(auth(cy.id)).expect(404);
   });
+
+  it('limits the size, drops a removed member, lets the call outlive its host', async () => {
+    const owner = await person('Host');
+    const crowd = await Promise.all(
+      ['a', 'b', 'c', 'd', 'e', 'f'].map((n) => person(`M${n}`)),
+    );
+    const g = await api()
+      .post('/api/v1/groups')
+      .set(auth(owner.id))
+      .send({
+        title: 'Crowd',
+        type: 'closed',
+        memberIds: crowd.map((c) => c.id),
+      })
+      .expect(201);
+    const gid = g.body.data.id as string;
+    const started = await api()
+      .post(`/api/v1/groups/${gid}/calls`)
+      .set(auth(owner.id))
+      .send({})
+      .expect(201);
+    const callId = started.body.data.id as string;
+
+    // Audio holds six: the host + five join, the seventh is told it is full.
+    for (const c of crowd.slice(0, 5)) {
+      await api()
+        .post(`/api/v1/calls/${callId}/join`)
+        .set(auth(c.id))
+        .expect(200);
+    }
+    const full = await api()
+      .post(`/api/v1/calls/${callId}/join`)
+      .set(auth(crowd[5].id))
+      .expect(409);
+    expect((full.body as { error: { code: string } }).error.code).toBe(
+      'CALL_STATE_CONFLICT',
+    );
+
+    // An admin removing a member from the group takes them out of the call.
+    await api()
+      .delete(`/api/v1/groups/${gid}/members/${crowd[0].id}`)
+      .set(auth(owner.id))
+      .expect(200);
+    await new Promise((r) => setTimeout(r, 300));
+    const gone = await prisma.callParticipant.findUniqueOrThrow({
+      where: { call_id_user_id: { call_id: callId, user_id: crowd[0].id } },
+    });
+    expect(gone.status).toBe('removed');
+    // ...and the freed place can be taken.
+    await api()
+      .post(`/api/v1/calls/${callId}/join`)
+      .set(auth(crowd[5].id))
+      .expect(200);
+
+    // The host hangs up: the call goes on while two or more are in it.
+    await api()
+      .post(`/api/v1/calls/${callId}/end`)
+      .set(auth(owner.id))
+      .send({})
+      .expect(200);
+    const status = async () =>
+      (await prisma.call.findUniqueOrThrow({ where: { id: callId } })).status;
+    expect(await status()).toBe('active');
+    for (const c of [crowd[1], crowd[2], crowd[3], crowd[4]]) {
+      await api()
+        .post(`/api/v1/calls/${callId}/end`)
+        .set(auth(c.id))
+        .send({})
+        .expect(200);
+    }
+    // One person left in it: over.
+    expect(await status()).toBe('ended');
+  });
 });
