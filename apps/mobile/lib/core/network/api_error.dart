@@ -135,6 +135,9 @@ abstract final class ApiErrorCodes {
   static const caseNotAvailable = 'CASE_NOT_AVAILABLE';
   static const postNotFound = 'POST_NOT_FOUND';
   static const postNotAllowed = 'POST_NOT_ALLOWED';
+  static const storyLimitReached = 'STORY_LIMIT_REACHED';
+  static const channelLimitReached = 'CHANNEL_LIMIT_REACHED';
+  static const channelUsernameTaken = 'CHANNEL_USERNAME_TAKEN';
   static const repostOwnPost = 'REPOST_OWN_POST';
   static const commentNotFound = 'COMMENT_NOT_FOUND';
   static const followNotAllowed = 'FOLLOW_NOT_ALLOWED';
@@ -474,6 +477,9 @@ abstract final class ApiErrorCodes {
     demoLimitReached,
     demoUnavailable,
     demoCodeInvalid,
+    storyLimitReached,
+    channelLimitReached,
+    channelUsernameTaken,
   ];
 }
 

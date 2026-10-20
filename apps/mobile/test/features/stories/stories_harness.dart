@@ -26,7 +26,7 @@ Future<List<Override>> storyOverrides({
   SharedPreferences.setMockInitialValues({});
   final prefs = await SharedPreferences.getInstance();
   return [
-    ...uxOverrides(translator: translator),
+    ...uxOverrides(translator: translator, storiesTray: false),
     sharedPreferencesProvider.overrideWithValue(prefs),
     storiesRepositoryProvider
         .overrideWithValue(repo ?? FakeStoriesRepository()),

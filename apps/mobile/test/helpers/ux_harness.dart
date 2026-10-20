@@ -10,6 +10,7 @@ import 'package:lawbid/core/l10n/static_translator.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/contacts_sync/application/contacts_sync_providers.dart';
 import 'package:lawbid/features/contacts_sync/data/contacts_sync_repository.dart';
+import 'package:lawbid/features/stories/application/stories_providers.dart';
 
 import '../features/cases/cases_fakes.dart';
 import '../features/social/social_fakes.dart';
@@ -82,6 +83,7 @@ List<Override> uxOverrides({
   Translator translator = const StaticTranslatorEn(),
   FakeCasesRepository? cases,
   List<Override> extra = const [],
+  bool storiesTray = true,
 }) =>
     [
       translatorProvider.overrideWithValue(translator),
@@ -89,6 +91,8 @@ List<Override> uxOverrides({
           .overrideWithValue(monitor ?? FakeNetworkMonitor()),
       reachabilityProbeProvider.overrideWithValue((probe ?? FakeProbe()).call),
       ...casesOverrides(repo: cases),
+      // The feed's stories tray: no network in tests.
+      if (storiesTray) storyTrayProvider.overrideWith((ref) async => const []),
       ...socialOverrides(social, search),
       ...legalOverrides(),
       contactsSyncRepositoryProvider.overrideWithValue(_NoContactsSync()),
