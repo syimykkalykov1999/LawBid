@@ -53,9 +53,6 @@ describe('FcmPushSender planner reminder', () => {
       body: 'Meeting · 14:30',
     });
     expect(local.android).toMatchObject({ priority: 'high' });
-    // An iPhone with its own alarms gets it silent (background) too.
-    expect(local.apns.headers['apns-push-type']).toBe('background');
-    expect(local.apns.payload.aps).toEqual({ 'content-available': 1 });
   });
 
   it('other devices get an alert grouped per task, time-sensitive on iOS', async () => {
@@ -67,6 +64,7 @@ describe('FcmPushSender planner reminder', () => {
     });
     expect(plain.android.notification.tag).toBe('task:t1');
     expect(plain.apns.payload.aps['interruption-level']).toBe('time-sensitive');
+    expect(plain.apns.headers['apns-collapse-id']).toBe('task:t1');
   });
 
   it('an ordinary push is untouched', async () => {

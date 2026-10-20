@@ -104,8 +104,10 @@ export class PushTokensService {
     return rows.map((r) => r.fcm_token);
   }
 
-  /** Devices (Android, iPhone) whose app keeps the planner reminders itself
-   * and shows the reminder push under its own id (data-only message). */
+  /** Android devices whose app keeps the planner reminders itself and
+   * shows the reminder push under its own id (data-only message). An iPhone
+   * always gets the visible push too: iOS does not wake a swiped-away app
+   * for a silent one, so a task made elsewhere would otherwise be missed. */
   async localReminderTokens(userId: string): Promise<string[]> {
     const rows = await this.prisma.pushToken.findMany({
       where: {

@@ -174,7 +174,7 @@ export class NotificationsApiController {
       user.sid,
       dto.token,
       dto.platform,
-      dto.localReminders === true && dto.platform !== 'web',
+      dto.localReminders === true && dto.platform === 'android',
     );
   }
 

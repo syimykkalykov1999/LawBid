@@ -1,6 +1,5 @@
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/features/notifications/application/task_reminder_scheduler.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
@@ -216,22 +215,17 @@ void main() {
       expect(gw.shown.length, 1);
     });
 
-    test('iPhone: the silent push fills a gap only', () async {
-      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
-      addTearDown(() => debugDefaultTargetPlatformOverride = null);
+    test('a pushed reminder cancels the armed alarm first', () async {
       final a = planReminders(
         [_task('a', due: now.add(const Duration(hours: 2)))],
         now,
       );
       await s.sync(a, title, body);
-      final push = {'taskId': 'a', 'title': 'T', 'body': 'B'};
-      await s.showFromPush(push);
-      expect(gw.shown, isEmpty);
-      await s.cancelTask('a');
-      await s.showFromPush(push);
-      expect(gw.shown.length, 1);
-      await s.showFromPush(push);
-      expect(gw.log.where((l) => l.startsWith('show')).length, 1);
+      gw.log.clear();
+      await s.showFromPush({'taskId': 'a', 'title': 'T', 'body': 'B'});
+      final id = reminderNotificationId('a');
+      expect(gw.log, ['cancel $id', 'show $id']);
+      expect(gw.armed, isEmpty);
     });
 
     test('cancelTask removes the alarm', () async {

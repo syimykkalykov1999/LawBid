@@ -15,8 +15,9 @@ import 'package:timezone/timezone.dart' as tz;
 /// alarm's notification under the same id. iPhone: an exact time-sensitive
 /// calendar alarm (iOS keeps at most 64 pending, so only the nearest
 /// [maxArmedReminders]
-/// are armed); the server sends such a phone only a silent push, which is
-/// shown only when the phone's own alarm is not pending or already up.
+/// are armed); the server also sends it the visible push (iOS does not wake
+/// a swiped-away app for a silent one), so a task made on another device
+/// is never missed — at worst the two collapse or show twice.
 
 /// The channel the system notifications already use (MainActivity.kt).
 const _channelId = 'general';
@@ -273,11 +274,6 @@ class TaskReminderScheduler {
       (defaultTargetPlatform == TargetPlatform.android ||
           defaultTargetPlatform == TargetPlatform.iOS);
 
-  /// iPhone: the phone's own alarm is the reminder, the silent push only
-  /// fills a gap.
-  static bool get _silentPush =>
-      !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
-
   Future<void> init({required void Function(String? payload) onTap}) =>
       _gateway.init(onTap: onTap);
 
@@ -330,11 +326,8 @@ class TaskReminderScheduler {
     final body = data['body'];
     if (taskId is! String || title is! String || body is! String) return;
     final id = reminderNotificationId(taskId);
-    if (_silentPush &&
-        ((await _gateway.pending()).containsKey(id) ||
-            (await _gateway.active()).contains(id))) {
-      return;
-    }
+    // The task's armed alarm goes: the push is the reminder now.
+    await _gateway.cancel(id);
     await _gateway.show(
       id: id,
       title: title,
