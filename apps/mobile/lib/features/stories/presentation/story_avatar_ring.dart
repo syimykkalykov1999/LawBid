@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/stories/application/stories_providers.dart';
 import 'package:lawbid/features/stories/presentation/story_navigation.dart';
 import 'package:lawbid/features/stories/presentation/story_ring.dart';
@@ -36,13 +37,19 @@ class StoryAvatarRing extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     if (!ref.watch(storiesEnabledProvider)) return child;
     final stories = ref.watch(userStoriesProvider(userId)).value;
-    if (stories == null || stories.isEmpty) return child;
+    final live = stories != null && stories.isNotEmpty;
+    // Owner 2026-10-20: on my own photo a tap adds a story when I have none
+    // (the camera), a long press always opens the photo.
+    final mine = ref.watch(currentUserIdProvider) == userId;
+    if (!live && !mine) return child;
     final photo = photoUrl;
-    final unseen = stories.any((s) => !s.viewedByMe);
+    final unseen = live && stories.any((s) => !s.viewedByMe);
+    final body = IgnorePointer(child: child);
     return GestureDetector(
       key: const ValueKey('profile-story-ring'),
       behavior: HitTestBehavior.opaque,
-      onTap: () => openStories(context, userId),
+      onTap: () =>
+          live ? openStories(context, userId) : openStoryCreator(context),
       onLongPress: photo == null || photo.isEmpty
           ? null
           : () => showPhotoGallery(
@@ -50,13 +57,15 @@ class StoryAvatarRing extends ConsumerWidget {
                 urls: [photo],
                 closeLabel: photoCloseLabel ?? '',
               ),
-      child: StoryRing(
-        state: unseen ? StoryRingState.unseen : StoryRingState.seen,
-        size: size,
-        // The photo's own tap (its full-screen picture) must not win over the
-        // story: with a live story the whole ring opens it.
-        child: IgnorePointer(child: child),
-      ),
+      // The photo's own tap (its full-screen picture) must not win over the
+      // story: the whole ring opens it.
+      child: live
+          ? StoryRing(
+              state: unseen ? StoryRingState.unseen : StoryRingState.seen,
+              size: size,
+              child: body,
+            )
+          : body,
     );
   }
 }

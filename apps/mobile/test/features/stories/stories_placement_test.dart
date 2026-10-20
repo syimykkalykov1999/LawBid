@@ -1,12 +1,15 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/date_symbol_data_local.dart';
-import 'package:lawbid/core/design_system/widgets/display/photo_gallery.dart';
+import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/features/profile/presentation/widgets/profile_avatar.dart';
 import 'package:lawbid/features/stories/presentation/story_avatar_ring.dart';
 import 'package:lawbid/features/stories/presentation/story_ring.dart';
+import 'package:lawbid/features/stories/stories_routes.dart';
 import 'package:lawbid/shared/presentation/collapsing_header.dart';
 
 import 'stories_fakes.dart';
@@ -273,5 +276,95 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
     expect(find.byKey(const ValueKey('gallery-photo')), findsOneWidget);
+  });
+
+  group('my own photo (owner 2026-10-20)', () {
+    Future<List<String>> pumpMine(
+      WidgetTester tester, {
+      required bool hasStory,
+      required Future<void> Function(Finder ring) act,
+    }) async {
+      useSmallPhone(tester);
+      debugGalleryImage = (_) => const SizedBox(key: ValueKey('gallery-photo'));
+      addTearDown(() => debugGalleryImage = null);
+      final opened = <String>[];
+      final router = GoRouter(
+        routes: [
+          GoRoute(
+            path: '/',
+            builder: (_, __) => const Scaffold(
+              body: StoryAvatarRing(
+                userId: 'me',
+                size: 60,
+                photoUrl: 'https://img.test/a.jpg',
+                photoCloseLabel: 'Close',
+                child: SizedBox.square(dimension: 60),
+              ),
+            ),
+          ),
+          GoRoute(
+            path: StoriesRoutes.create,
+            builder: (_, __) {
+              opened.add('create');
+              return const Scaffold();
+            },
+          ),
+          GoRoute(
+            path: StoriesRoutes.viewPattern,
+            builder: (_, __) {
+              opened.add('view');
+              return const Scaffold();
+            },
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+      final repo = FakeStoriesRepository(
+        byUser: {
+          if (hasStory) 'me': [fakeStory('s1', author: meUser, mine: true)],
+        },
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: await storyOverrides(repo: repo),
+          child: MaterialApp.router(
+            theme: AppTheme.light(),
+            routerConfig: router,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await act(find.byKey(const ValueKey('profile-story-ring')));
+      await tester.pumpAndSettle();
+      return opened;
+    }
+
+    testWidgets('no story: a tap opens the camera', (tester) async {
+      final opened = await pumpMine(
+        tester,
+        hasStory: false,
+        act: (ring) => tester.tap(ring),
+      );
+      expect(opened, ['create']);
+    });
+
+    testWidgets('a story: a tap plays it', (tester) async {
+      final opened = await pumpMine(
+        tester,
+        hasStory: true,
+        act: (ring) => tester.tap(ring),
+      );
+      expect(opened, ['view']);
+    });
+
+    testWidgets('a long press opens the photo (no story too)', (tester) async {
+      final opened = await pumpMine(
+        tester,
+        hasStory: false,
+        act: (ring) => tester.longPress(ring),
+      );
+      expect(opened, isEmpty);
+      expect(find.byKey(const ValueKey('gallery-photo')), findsOneWidget);
+    });
   });
 }

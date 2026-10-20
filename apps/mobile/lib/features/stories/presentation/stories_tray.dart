@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
-import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/stories/application/stories_providers.dart';
@@ -52,11 +51,11 @@ class StoriesTray extends ConsumerWidget {
   }
 }
 
-/// Owner 2026-10-20 (Telegram): the folded teaser of the strip — a few tiny
-/// circles and a chevron, shown after the first pull-down; a tap (or a second
-/// pull) opens the whole row.
-class StoriesHint extends ConsumerWidget {
-  const StoriesHint({super.key});
+/// Owner 2026-10-20 (Telegram): the folded teaser after the first pull-down —
+/// just a chevron in the middle; a tap (or a second pull) opens the whole
+/// row. Nothing at all while the `stories` flag is off or the tray is empty.
+class StoriesChevron extends ConsumerWidget {
+  const StoriesChevron({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -65,54 +64,18 @@ class StoriesHint extends ConsumerWidget {
     if (items == null || items.isEmpty) return const SizedBox.shrink();
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final t = ref.watch(translatorProvider);
-    final shown = items.take(6).toList();
-    const size = 22.0;
     return Semantics(
       button: true,
       label: t.t('story.tray.add'),
       excludeSemantics: true,
       child: SizedBox(
-        key: const ValueKey('stories-hint'),
-        height: 32,
+        key: const ValueKey('stories-chevron'),
+        height: 22,
         child: Center(
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SizedBox(
-                width: size + (shown.length - 1) * 14,
-                height: size,
-                child: Stack(
-                  children: [
-                    for (var i = 0; i < shown.length; i++)
-                      PositionedDirectional(
-                        start: i * 14.0,
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(color: colors.bg, width: 2),
-                          ),
-                          child: AppAvatar(
-                            size: size,
-                            initials: shown[i].user.initials,
-                            imageProvider: shown[i].user.avatarUrl == null
-                                ? null
-                                : appNetworkImage(
-                                    shown[i].user.avatarUrl!,
-                                    decodeWidthFor(size),
-                                  ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: AppSpacing.xs),
-              Icon(
-                AppIcons.expandMoreRounded,
-                size: 18,
-                color: colors.textSecondary,
-              ),
-            ],
+          child: Icon(
+            AppIcons.expandMoreRounded,
+            size: 20,
+            color: colors.textSecondary,
           ),
         ),
       ),

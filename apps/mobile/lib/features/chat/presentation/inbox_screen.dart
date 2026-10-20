@@ -807,7 +807,7 @@ class ConversationsView extends ConsumerWidget {
     // hidden by default; two separate pulls open it.
     return CollapsingHeader(
       collapsible: const StoriesTray(),
-      hint: const StoriesHint(),
+      hint: const StoriesChevron(),
       pinned: filters,
       body: body,
     );

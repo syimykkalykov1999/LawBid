@@ -18,6 +18,7 @@ import 'package:lawbid/features/stories/application/story_playback.dart';
 import 'package:lawbid/features/stories/application/story_reply.dart';
 import 'package:lawbid/features/stories/domain/story_models.dart';
 import 'package:lawbid/features/stories/presentation/story_frame.dart';
+import 'package:lawbid/features/stories/presentation/story_navigation.dart';
 import 'package:lawbid/features/stories/presentation/story_video.dart';
 import 'package:lawbid/features/stories/presentation/story_viewer_sheets.dart';
 
@@ -509,6 +510,7 @@ class _StoryPlaybackViewState extends ConsumerState<StoryPlaybackView>
             readOnly: widget.readOnly,
             onClose: widget.onClose,
             onMenu: _openMenu,
+            onAdd: () => openStoryCreator(context),
           ),
         ],
       ),
@@ -651,6 +653,7 @@ class _TopChrome extends ConsumerWidget {
     required this.readOnly,
     required this.onClose,
     required this.onMenu,
+    required this.onAdd,
   });
 
   final StoryPlayback pb;
@@ -659,6 +662,7 @@ class _TopChrome extends ConsumerWidget {
   final bool readOnly;
   final VoidCallback onClose;
   final VoidCallback onMenu;
+  final VoidCallback onAdd;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -759,6 +763,13 @@ class _TopChrome extends ConsumerWidget {
                         ],
                       ),
                     ),
+                    // Owner 2026-10-20: my own story has a «+» to add another.
+                    if (!readOnly && story.isMine)
+                      StoryChromeButton(
+                        icon: AppIcons.addRounded,
+                        label: t.t('story.tray.add'),
+                        onTap: onAdd,
+                      ),
                     if (!readOnly)
                       StoryChromeButton(
                         icon: AppIcons.moreHorizRounded,

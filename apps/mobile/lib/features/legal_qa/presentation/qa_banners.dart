@@ -30,7 +30,9 @@ class _QaLine extends StatelessWidget {
     return Material(
       color: prominent
           ? Color.alphaBlend(
-              colors.gold.withValues(alpha: 0.14), colors.surface,)
+              colors.gold.withValues(alpha: 0.14),
+              colors.surface,
+            )
           : colors.surface,
       shape: prominent
           ? Border.symmetric(
