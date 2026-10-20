@@ -33,6 +33,39 @@ class CallkitSystemUi implements SystemCallUi {
       // No plugin / already gone.
     }
   }
+
+  @override
+  Future<void> showOngoing(AppCall call) async {
+    // Android only: iOS keeps the call alive through its own audio session
+    // and CallKit, and the plugin's startCall would add a second CallKit call.
+    if (defaultTargetPlatform != TargetPlatform.android) return;
+    try {
+      await FlutterCallkitIncoming.startCall(
+        CallKitParams(
+          id: call.id,
+          nameCaller: call.peer.name,
+          appName: 'LawBid',
+          avatar: call.peer.avatarUrl,
+          handle: 'LawBid',
+          type: 0,
+          extra: {'callId': call.id},
+          callingNotification: const NotificationParams(
+            showNotification: true,
+            subtitle: 'Ongoing call',
+          ),
+          android: const AndroidParams(
+            isCustomNotification: true,
+            isShowLogo: false,
+            backgroundColor: '#0A1A3F',
+            actionColor: '#C9A24A',
+            textColor: '#ffffff',
+          ),
+        ),
+      );
+    } on Object catch (e) {
+      debugPrint('callkit ongoing unavailable: $e');
+    }
+  }
 }
 
 /// Shows the system ringing UI for [callId] (also from the push
