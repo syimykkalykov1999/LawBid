@@ -102,3 +102,6 @@ PUT /admin/storage/uploads added the new `webm` enum value to the `data/places/i
 PUT /admin/promotions/settings removed the enum value `download` of the request property `ctaTypes/items/`
 POST /cases/{id}/promotions removed the enum value `download` of the request property `ctaType`
 POST /posts/{id}/promotions removed the enum value `download` of the request property `ctaType`
+GET /conversations/{id}/messages added the new `gift` enum value to the `data/items/type` response property for the response status `200`
+POST /conversations/{id}/messages added the new `gift` enum value to the `data/type` response property for the response status `201`
+POST /conversations/{id}/messages/{messageId}/listened added the new `gift` enum value to the `data/type` response property for the response status `200`

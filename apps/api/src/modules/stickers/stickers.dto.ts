@@ -56,6 +56,12 @@ export class StickerPackDto {
   @ApiProperty({ type: 'integer' })
   installCount!: number;
 
+  @ApiProperty({
+    type: 'integer',
+    description: 'Stars to add the pack; 0 = free (owner 2026-10-20).',
+  })
+  priceStars!: number;
+
   @ApiProperty({ type: StickerDto, isArray: true })
   stickers!: StickerDto[];
 }

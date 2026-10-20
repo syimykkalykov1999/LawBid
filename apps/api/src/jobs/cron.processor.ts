@@ -2,6 +2,7 @@ import { Injectable, Optional } from '@nestjs/common';
 import { CRON_JOBS } from './jobs.constants';
 import { CasePaymentsService } from '../modules/case-payments/case-payments.service';
 import { PromotionsService } from '../modules/promotions/promotions.service';
+import { StarsService } from '../modules/stars/stars.service';
 import { PartnersService } from '../modules/partners/partners.service';
 import { CountryPartnersService } from '../modules/country-partners/country-partners.service';
 import { RewardsService } from '../modules/rewards/rewards.service';
@@ -86,6 +87,7 @@ export class CronProcessor {
     private readonly clientReviews: ClientReviewsService,
     private readonly postVideos: PostVideosService,
     private readonly promotions: PromotionsService,
+    private readonly stars: StarsService,
     private readonly taskReminders: TaskRemindersJob,
     private readonly taskArchivePurge: TaskArchivePurgeJob,
     private readonly casePayments: CasePaymentsService,
@@ -182,6 +184,8 @@ export class CronProcessor {
         return this.postVideos.sweep();
       case CRON_JOBS.promotionsExpire:
         return this.promotions.expire();
+      case CRON_JOBS.starsSweep:
+        return this.stars.sweepPending();
       case CRON_JOBS.taskReminders:
         return this.taskReminders.run();
       case CRON_JOBS.taskArchivePurge:

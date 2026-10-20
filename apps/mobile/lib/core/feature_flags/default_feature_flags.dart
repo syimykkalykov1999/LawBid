@@ -27,6 +27,7 @@ const Map<String, bool> defaultFeatureFlags = {
   'crash_reports': true,
   'app_events': true,
   'hide_counts': true,
+  'stars': false,
   'bid_packs': false,
   'firm_profiles': false,
   'video_calls': false,

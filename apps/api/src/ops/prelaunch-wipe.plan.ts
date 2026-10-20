@@ -40,6 +40,7 @@ export const KEEP_TABLES: Readonly<Record<string, string>> = {
   document_templates:
     'templates the admin publishes (download_count reset to 0)',
   stickers: 'stickers of the official packs (user packs go with them)',
+  gifts: 'the gift catalog (admin); sent_count reset to 0',
   admin_profiles: 'admin accounts (their users rows are kept)',
   admin_credentials: 'admin logins / passwords / 2FA',
   admin_role_templates: 'admin role presets',
@@ -161,6 +162,11 @@ export const WIPE_TABLES: Readonly<Record<string, string>> = {
   video_assets: 'Bunny video rows (videos are deleted in Bunny too)',
   user_sticker_packs: 'installed sticker packs',
   user_recent_stickers: 'recent stickers',
+  // stars (owner 2026-10-20): test balances, purchases and gifts given
+  star_wallets: 'star balances',
+  star_ledger: 'star history',
+  star_purchases: 'star purchases',
+  gift_sends: 'gifts given',
   // chat and calls
   conversations: 'chats',
   conversation_participants: 'chat members',
@@ -248,6 +254,7 @@ export const SOFT_USER_REFS: ReadonlyArray<{ table: string; column: string }> =
 export const RESET_SQL: readonly string[] = [
   'UPDATE "promo_codes" SET "redeemed_count" = 0 WHERE "redeemed_count" <> 0',
   'UPDATE "sticker_packs" SET "install_count" = 0 WHERE "install_count" <> 0',
+  'UPDATE "gifts" SET "sent_count" = 0 WHERE "sent_count" <> 0',
   'UPDATE "document_templates" SET "download_count" = 0 WHERE "download_count" <> 0',
 ];
 

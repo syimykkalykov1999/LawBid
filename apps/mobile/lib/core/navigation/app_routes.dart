@@ -185,6 +185,8 @@ abstract final class AppRoutes {
       '/profile/settings/promotions/${Uri.encodeComponent(id)}';
   static const myStats = '/profile/settings/stats';
   static const bidPacks = '/profile/settings/bid-packs';
+  static const stars = '/profile/settings/stars';
+  static const myGifts = '/profile/settings/stars/gifts';
   static const myFirm = '/profile/settings/firm';
   // Owner 2026-10-05: partner program (shown to partners only).
   static const partner = '/profile/settings/partner';

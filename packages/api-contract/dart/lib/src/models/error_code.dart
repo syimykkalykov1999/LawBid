@@ -340,6 +340,10 @@ enum ErrorCode {
   translationUnavailable('TRANSLATION_UNAVAILABLE'),
   @JsonValue('STICKER_LIMIT_REACHED')
   stickerLimitReached('STICKER_LIMIT_REACHED'),
+  @JsonValue('INSUFFICIENT_STARS')
+  insufficientStars('INSUFFICIENT_STARS'),
+  @JsonValue('STICKER_PACK_NOT_OWNED')
+  stickerPackNotOwned('STICKER_PACK_NOT_OWNED'),
   @JsonValue('SUPPORT_TICKET_CLOSED')
   supportTicketClosed('SUPPORT_TICKET_CLOSED'),
   @JsonValue('REFERRAL_CODE_INVALID')

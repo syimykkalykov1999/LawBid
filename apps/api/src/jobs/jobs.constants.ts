@@ -65,6 +65,8 @@ export const CRON_JOBS = {
   videosSweep: 'videos.sweep',
   /** Owner 2026-10-02: ended case promotions → finished; unpaid → canceled. */
   promotionsExpire: 'promotions.expire',
+  /** Owner 2026-10-20: stars top-ups whose webhook was lost → credited. */
+  starsSweep: 'stars.sweep',
   /** Owner 2026-10-05: planner reminders (push at a task's remind_at). */
   taskReminders: 'tasks.reminders',
   /** Owner 2026-10-05: archived tasks past the retention → removed. */
@@ -168,6 +170,7 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.reviewAppealsSweep, pattern: '40 * * * *' },
   { name: CRON_JOBS.videosSweep, pattern: '* * * * *' },
   { name: CRON_JOBS.promotionsExpire, pattern: '2-57/5 * * * *' },
+  { name: CRON_JOBS.starsSweep, pattern: '1-58/3 * * * *' },
   { name: CRON_JOBS.taskReminders, pattern: '* * * * *' },
   // 16:20 UTC: notices arrive in the US daytime.
   { name: CRON_JOBS.taskArchivePurge, pattern: '20 16 * * *' },

@@ -12,6 +12,7 @@ part 'send_message_dto.g.dart';
 class SendMessageDto {
   const SendMessageDto({
     required this.clientMessageId,
+    this.giftId,
     this.stickerId,
     this.fileName,
     this.body,
@@ -27,6 +28,10 @@ class SendMessageDto {
   /// App-generated id (UUID), idempotency key.
   final String clientMessageId;
   final SendMessageType type;
+
+  /// Owner 2026-10-20: a gift message (type=gift) paid in stars; `body` is.
+  /// the optional note (≤200).
+  final String? giftId;
 
   /// Owner 2026-10-01: a sticker message (type=sticker).
   final String? stickerId;

@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-185 tables.
+190 tables.
 
 ```mermaid
 erDiagram
@@ -718,6 +718,7 @@ erDiagram
     String sent_by_name "nullable"
     DateTime listened_at "nullable"
     String sticker_id FK "nullable"
+    String gift_send_id FK "nullable"
     DateTime deleted_at "nullable"
     DateTime created_at
     DateTime updated_at
@@ -1685,6 +1686,8 @@ erDiagram
     String cta_type "nullable"
     String cta_value "nullable"
     Int refunded_cents
+    Int paid_stars
+    Int refunded_stars
     String reviewed_by "nullable"
     DateTime reviewed_at "nullable"
     DateTime created_at
@@ -1801,6 +1804,7 @@ erDiagram
     String status
     Int sticker_count
     Int install_count
+    Int price_stars
     DateTime created_at
     DateTime updated_at
     DateTime deleted_at "nullable"
@@ -1824,6 +1828,64 @@ erDiagram
     String user_id PK,FK
     String sticker_id PK,FK
     DateTime used_at
+  }
+  star_wallets {
+    String user_id PK
+    Int balance
+    Int lifetime_bought
+    Int lifetime_spent
+    Int debt
+    DateTime updated_at
+  }
+  star_ledger {
+    String id PK
+    String user_id
+    Int delta
+    Int balance_after
+    String kind
+    String ref_id "nullable"
+    String note "nullable"
+    String idem_key UK
+    DateTime created_at
+  }
+  star_purchases {
+    String id PK
+    String user_id
+    String pack_id
+    Int stars
+    Int price_cents
+    String status
+    String stripe_checkout_id UK "nullable"
+    String payment_id "nullable"
+    DateTime created_at
+    DateTime paid_at "nullable"
+    DateTime refunded_at "nullable"
+  }
+  gifts {
+    String id PK
+    String title
+    Int price_stars
+    String code "nullable"
+    String file_id FK,UK
+    Int position
+    String status
+    Int sent_count
+    DateTime created_at
+    DateTime deleted_at "nullable"
+  }
+  gift_sends {
+    String id PK
+    String gift_id FK
+    String sender_id
+    String recipient_id
+    String conversation_id "nullable"
+    Int price_stars
+    String note "nullable"
+    Boolean anonymous
+    Boolean shown
+    Int converted_stars "nullable"
+    DateTime converted_at "nullable"
+    DateTime created_at
   }
   client_verifications {
     String id PK
@@ -2410,6 +2472,7 @@ erDiagram
   messages }o--o| users : "sender_id"
   messages }o--o| files : "file_id"
   messages }o--o| stickers : "sticker_id"
+  messages }o--o| gift_sends : "gift_send_id"
   chat_groups }o--o| files : "avatar_file_id"
   chat_groups }o--|| users : "created_by"
   chat_group_members }o--|| chat_groups : "group_id"
@@ -2520,6 +2583,8 @@ erDiagram
   user_sticker_packs }o--|| sticker_packs : "pack_id"
   user_recent_stickers }o--|| users : "user_id"
   user_recent_stickers }o--|| stickers : "sticker_id"
+  gifts |o--|| files : "file_id"
+  gift_sends }o--|| gifts : "gift_id"
   client_verifications |o--|| users : "user_id"
   payroll_payouts }o--|| payroll_employees : "employee_id"
   payroll_accruals }o--|| payroll_employees : "employee_id"

@@ -162,6 +162,8 @@ const _keys = <String, String>{
   ApiErrorCodes.bidMaxRoundsReached: 'error.api.BID_MAX_ROUNDS_REACHED',
   ApiErrorCodes.bidCounterNotAllowed: 'error.api.BID_COUNTER_NOT_ALLOWED',
   ApiErrorCodes.subscriptionRequired: 'error.api.SUBSCRIPTION_REQUIRED',
+  ApiErrorCodes.insufficientStars: 'error.api.INSUFFICIENT_STARS',
+  ApiErrorCodes.stickerPackNotOwned: 'error.api.STICKER_PACK_NOT_OWNED',
   ApiErrorCodes.caseNotAvailable: 'error.api.CASE_NOT_AVAILABLE',
   ApiErrorCodes.postNotFound: 'error.api.POST_NOT_FOUND',
   ApiErrorCodes.postNotAllowed: 'error.api.POST_NOT_ALLOWED',

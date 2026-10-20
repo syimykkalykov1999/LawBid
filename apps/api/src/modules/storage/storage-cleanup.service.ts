@@ -35,6 +35,7 @@ export const FILE_REFERENCES = [
   'support_message_files.file_id',
   'stickers.file_id',
   'document_templates.file_id',
+  'gifts.file_id',
   'attorney_tasks.file_ids[]',
   'reviews.photo_ids[]',
   'client_reviews.photo_ids[]',
@@ -244,6 +245,7 @@ export class StorageCleanupService {
         AND NOT EXISTS (SELECT 1 FROM support_message_files smf WHERE smf.file_id = f.id)
         AND NOT EXISTS (SELECT 1 FROM stickers s WHERE s.file_id = f.id)
         AND NOT EXISTS (SELECT 1 FROM document_templates d WHERE d.file_id = f.id)
+        AND NOT EXISTS (SELECT 1 FROM gifts g WHERE g.file_id = f.id)
         AND NOT EXISTS (SELECT 1 FROM attorney_tasks t WHERE t.file_ids @> ARRAY[f.id])
         AND NOT EXISTS (SELECT 1 FROM reviews r WHERE r.photo_ids @> ARRAY[f.id])
         AND NOT EXISTS (SELECT 1 FROM client_reviews cr WHERE cr.photo_ids @> ARRAY[f.id])

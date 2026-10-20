@@ -38,6 +38,7 @@ import { JournalIntegrityService } from '../modules/privacy/journal-integrity.se
 import { JournalRetentionService } from '../modules/privacy/journal-retention.service';
 import type { CasePaymentsService } from '../modules/case-payments/case-payments.service';
 import type { PromotionsService } from '../modules/promotions/promotions.service';
+import type { StarsService } from '../modules/stars/stars.service';
 import type { PartnersService } from '../modules/partners/partners.service';
 import type { AttorneyTrustService } from '../modules/attorney-trust/attorney-trust.service';
 import type { ClientFraudService } from '../modules/client-fraud/client-fraud.service';
@@ -162,6 +163,7 @@ function processor() {
       {
         expire: jest.fn(() => Promise.resolve({ finished: 0, abandoned: 0 })),
       } as unknown as PromotionsService,
+      { sweepPending: jest.fn() } as unknown as StarsService,
       { run: jest.fn() } as unknown as TaskRemindersJob,
       { run: jest.fn() } as unknown as TaskArchivePurgeJob,
       {
@@ -229,7 +231,8 @@ describe('JobsRunner', () => {
     // Owner 2026-10-15: + nightly search.learn and search.tag-topics (5 min).
     // Owner 2026-10-16: + economy.guard (every 5 minutes).
     // Owner 2026-10-16: + billing.verification-loss (every 10 minutes).
-    expect(upserts).toHaveLength(52);
+    expect(upserts).toHaveLength(53);
+    // Owner 2026-10-20: + stars.sweep (every 3 minutes).
     const byName = Object.fromEntries(
       upserts.map((c: unknown[]) => [c[0], c[1]]),
     );

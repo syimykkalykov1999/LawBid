@@ -1,18 +1,25 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/text/search_fold.dart';
 import 'package:lawbid/features/profile/data/avatar_upload_repository.dart'
     show sniffImageMime;
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart';
+import 'package:lawbid/features/stars/domain/stars_models.dart';
+import 'package:lawbid/features/stars/presentation/gift_names.dart';
+import 'package:lawbid/features/stars/presentation/gift_widgets.dart';
 import 'package:lawbid/features/stickers/application/stickers_providers.dart';
 import 'package:lawbid/features/stickers/domain/sticker_models.dart';
 import 'package:lawbid/features/stickers/presentation/emoji_data.dart';
@@ -81,11 +88,15 @@ class StickerPanel extends ConsumerStatefulWidget {
   const StickerPanel({
     required this.onSticker,
     required this.onEmoji,
+    this.onGift,
     super.key,
   });
 
   final ValueChanged<ChatSticker> onSticker;
   final ValueChanged<String> onEmoji;
+
+  /// Owner 2026-10-20: set when stars are on — shows the «Подарки» tab.
+  final ValueChanged<Gift>? onGift;
 
   static const height = 300.0;
 
@@ -95,6 +106,7 @@ class StickerPanel extends ConsumerStatefulWidget {
 
 class _StickerPanelState extends ConsumerState<StickerPanel> {
   bool _stickers = true;
+  bool _gifts = false;
 
   /// Owner 2026-10-18: the search over the stickers (by the pack's name and
   /// the sticker's emoji); null = the pack strip shows.
@@ -139,7 +151,11 @@ class _StickerPanelState extends ConsumerState<StickerPanel> {
           child: Column(
             children: [
               Expanded(
-                child: _stickers ? _stickerView(t, colors, type) : _emojiView(),
+                child: _gifts && widget.onGift != null
+                    ? GiftPicker(onGift: widget.onGift!)
+                    : _stickers
+                        ? _stickerView(t, colors, type)
+                        : _emojiView(),
               ),
               Container(
                 height: 44,
@@ -152,8 +168,11 @@ class _StickerPanelState extends ConsumerState<StickerPanel> {
                     Flexible(
                       child: _tab(
                         t.t('stickers.tab.emoji'),
-                        !_stickers,
-                        () => setState(() => _stickers = false),
+                        !_stickers && !_gifts,
+                        () => setState(() {
+                          _stickers = false;
+                          _gifts = false;
+                        }),
                         colors,
                         type,
                       ),
@@ -162,12 +181,27 @@ class _StickerPanelState extends ConsumerState<StickerPanel> {
                     Flexible(
                       child: _tab(
                         t.t('stickers.tab.stickers'),
-                        _stickers,
-                        () => setState(() => _stickers = true),
+                        _stickers && !_gifts,
+                        () => setState(() {
+                          _stickers = true;
+                          _gifts = false;
+                        }),
                         colors,
                         type,
                       ),
                     ),
+                    if (widget.onGift != null) ...[
+                      const SizedBox(width: AppSpacing.md),
+                      Flexible(
+                        child: _tab(
+                          t.t('stars.tab.gifts'),
+                          _gifts,
+                          () => setState(() => _gifts = true),
+                          colors,
+                          type,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -446,13 +480,16 @@ class _StickerHub extends ConsumerWidget {
               ? AppIcon(AppIcons.stickerOutlined, color: colors.textSecondary)
               : StickerImage(sticker: p.cover!, size: 44),
           title: Text(
-            p.title,
+            packTitle(t, p.shortName, p.title),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: type.body.copyWith(color: colors.text),
           ),
           subtitle: Text(
-            t.t('stickers.count', {'count': '${p.stickers.length}'}),
+            [
+              t.t('stickers.count', {'count': '${p.stickers.length}'}),
+              if (p.isPaid && !p.installed) '${p.priceStars} ⭐',
+            ].join(' · '),
             style: type.caption.copyWith(color: colors.textSecondary),
           ),
           trailing: AppIcon(
@@ -586,7 +623,18 @@ class _PackSheetState extends ConsumerState<_PackSheet> {
         ..invalidate(stickerPackProvider(widget.packRef))
         ..invalidate(stickerLibraryProvider);
     } on Object catch (e) {
-      if (mounted) showAppSnackBar(context, errorText(t, e));
+      if (mounted) {
+        // Owner 2026-10-20: a paid pack and too few stars → the top-up.
+        final low =
+            e is ApiException && e.code == ApiErrorCodes.insufficientStars;
+        showAppSnackBar(
+          context,
+          errorText(t, e),
+          // Store rules: the top-up action exists on the web build only.
+          actionLabel: low && kIsWeb ? t.t('stars.topup') : null,
+          onAction: low && kIsWeb ? () => context.push(AppRoutes.stars) : null,
+        );
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -695,7 +743,7 @@ class _PackSheetState extends ConsumerState<_PackSheet> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              pack.title,
+                              packTitle(t, pack.shortName, pack.title),
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                               style:
@@ -812,10 +860,12 @@ class _PackSheetState extends ConsumerState<_PackSheet> {
                   child: AppButton(
                     label: pack.installed
                         ? t.t('stickers.remove')
-                        : t.t(
-                            'stickers.install',
-                            {'count': '${pack.stickers.length}'},
-                          ),
+                        : pack.isPaid
+                            ? t.t('stars.pack.add', {'n': '${pack.priceStars}'})
+                            : t.t(
+                                'stickers.install',
+                                {'count': '${pack.stickers.length}'},
+                              ),
                     variant: pack.installed
                         ? AppButtonVariant.secondary
                         : AppButtonVariant.primary,

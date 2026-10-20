@@ -228,6 +228,7 @@ export const GROUPS: readonly SectionGroup[] = [
       { href: '/partners', label: 'Партнёры', icon: 'handshake', area: 'money', hint: 'блогеры и агенты: плата за адвокатов и клиентов' },
       { href: '/country-partners', label: 'Партнёры стран', icon: 'globe', area: 'moneyOwner', hint: 'главный партнёр страны: команда, процент, цели' },
       { href: '/payroll', label: 'Зарплаты', icon: 'wallet', area: 'payroll', hint: 'сотрудники, массовая выплата' },
+      { href: '/stars', label: 'Звёзды', icon: 'star', area: 'moneyOwner', hint: 'пакеты звёзд, подарки, цены наборов стикеров, отчёт' },
       { href: '/treasury', label: 'Прибыль и резерв', icon: 'bank', area: 'money', hint: 'расходы отдельно, на карту — чистая прибыль' },
     ],
   },

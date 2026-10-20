@@ -6,6 +6,7 @@ import 'package:json_annotation/json_annotation.dart';
 
 import 'create_promotion_dto_cta_type.dart';
 import 'create_promotion_dto_goal.dart';
+import 'create_promotion_dto_pay_with.dart';
 import 'promotion_audience_dto.dart';
 
 part 'create_promotion_dto.g.dart';
@@ -15,6 +16,7 @@ class CreatePromotionDto {
   const CreatePromotionDto({
     required this.days,
     this.useCredits = true,
+    this.payWith,
     this.dailyBudgetCents,
     this.audience,
     this.promoCode,
@@ -27,6 +29,8 @@ class CreatePromotionDto {
   factory CreatePromotionDto.fromJson(Map<String, Object?> json) =>
       _$CreatePromotionDtoFromJson(json);
 
+  /// How to pay: the web card checkout (default) or the star balance.
+  final CreatePromotionDtoPayWith? payWith;
   final int days;
 
   /// Owner 2026-10-05: daily budget; default from the admin.

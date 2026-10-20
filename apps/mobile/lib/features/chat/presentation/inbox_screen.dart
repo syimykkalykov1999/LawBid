@@ -603,6 +603,8 @@ String messagePreview(Translator t, ChatMessage m, {String? me}) {
   if (m.kind == MessageKind.sticker) {
     return '${m.sticker?.emoji ?? ''} ${t.t('stickers.label')}'.trim();
   }
+  // Owner 2026-10-20: "🎁 Gift".
+  if (m.kind == MessageKind.gift) return '🎁 ${t.t('stars.chat.label')}';
   // OQ-047: "📎 File" / "📷 Photo" (+ caption).
   if (m.kind == MessageKind.attachment) {
     final photo = m.attachment?.isImage ?? false;

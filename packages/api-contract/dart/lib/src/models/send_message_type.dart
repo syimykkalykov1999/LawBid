@@ -14,6 +14,8 @@ enum SendMessageType {
   attachment('attachment'),
   @JsonValue('sticker')
   sticker('sticker'),
+  @JsonValue('gift')
+  gift('gift'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

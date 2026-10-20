@@ -19,6 +19,7 @@ import 'package:lawbid/features/notifications/data/notifications_repository.dart
     show NotifCategory;
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/data/social_local_database.dart';
+import 'package:lawbid/features/stars/application/stars_providers.dart';
 import 'package:lawbid/features/stickers/application/stickers_providers.dart';
 import 'package:lawbid/features/stickers/domain/sticker_models.dart';
 import 'package:lawbid/features/templates/application/templates_providers.dart';
@@ -645,6 +646,24 @@ class ChatThread extends Notifier<ChatThreadState> {
     // ignore: unawaited_futures
     HapticFeedback.selectionClick();
     await _sendSticker(local);
+  }
+
+  /// Owner 2026-10-20: a gift paid in stars. Not shown before the server
+  /// has charged it; throws like an API call (INSUFFICIENT_STARS …) so the
+  /// gift sheet can answer. The same [clientMessageId] never charges twice.
+  Future<void> sendGift(
+    String giftId, {
+    required String clientMessageId,
+    String? note,
+  }) async {
+    final sent = ChatMappers.message(
+      await ref
+          .read(starsRepositoryProvider)
+          .sendInChat(id, clientMessageId, giftId, note: note),
+    );
+    if (!ref.mounted) return;
+    unawaited(ref.read(appSoundsProvider).messageOut());
+    _merge([sent]);
   }
 
   Future<void> _sendSticker(ChatMessage local) async {

@@ -33,6 +33,7 @@ import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart'
     show FollowButton, TrustAvatarBadge;
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/social/social_routes.dart';
+import 'package:lawbid/features/stars/presentation/gift_widgets.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/shared/presentation/share_sheet.dart';
@@ -258,6 +259,8 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
               style: type.bodySmall.copyWith(color: colors.textSecondary),
             ),
           ],
+          // Owner 2026-10-20: gifts on the profile (flag `stars`).
+          if (!blocked) GiftShowcase(userId: p.id, isMe: p.isSelf),
           const SizedBox(height: AppSpacing.md),
           if (p.isSelf)
             Row(

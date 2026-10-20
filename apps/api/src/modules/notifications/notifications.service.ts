@@ -49,6 +49,8 @@ export const NOTIFICATION_CATEGORY: Record<
   post_like: 'social',
   // Owner 2026-10-07: Threads-style reposts.
   post_repost: 'social',
+  // Owner 2026-10-20: a gift on the profile.
+  gift_received: 'social',
   post_comment: 'social',
   case_comment: 'bids',
   // OQ-041: a call nobody answered (own category, owner 2026-09-30).
@@ -138,6 +140,7 @@ export const NOTIFICATION_IMPORTANT: Record<NotificationType, boolean> = {
   new_follower: false,
   post_like: false,
   post_repost: false,
+  gift_received: true,
   post_comment: false,
   case_comment: false,
   missed_call: true,

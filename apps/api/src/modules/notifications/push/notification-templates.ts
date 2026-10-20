@@ -640,6 +640,14 @@ export const NOTIFICATION_TEMPLATES: Partial<
       body: 'Кто-то сделал репост вашей публикации.',
     },
   },
+  gift_received: {
+    group: 'social',
+    en: { title: 'You received a gift', body: 'Open your profile to see it.' },
+    ru: {
+      title: 'Вам подарили подарок',
+      body: 'Откройте профиль, чтобы посмотреть.',
+    },
+  },
   comment_like: {
     group: 'social',
     en: { title: 'New like', body: 'Someone liked your comment.' },

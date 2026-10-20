@@ -17799,6 +17799,231 @@
         ]
       }
     },
+    "/users/me/blocks": {
+      "get": {
+        "operationId": "listBlocks",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BlockedUserListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Users I blocked (OQ-028)",
+        "tags": [
+          "blocks"
+        ]
+      }
+    },
+    "/users/{id}/block": {
+      "put": {
+        "operationId": "block",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Block a user (OQ-028); idempotent",
+        "tags": [
+          "blocks"
+        ]
+      },
+      "delete": {
+        "operationId": "unblock",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Unblock a user (OQ-028); idempotent",
+        "tags": [
+          "blocks"
+        ]
+      }
+    },
     "/assistants/me": {
       "get": {
         "operationId": "getAssistantMe",
@@ -26649,231 +26874,6 @@
         "summary": "The app reports events (batch of up to 50)",
         "tags": [
           "app-events"
-        ]
-      }
-    },
-    "/users/me/blocks": {
-      "get": {
-        "operationId": "listBlocks",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "Success envelope (docs/01 §7).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BlockedUserListEnvelope"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "426": {
-            "description": "Upgrade required: APP_UPDATE_REQUIRED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests: RATE_LIMITED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal error: INTERNAL_ERROR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Users I blocked (OQ-028)",
-        "tags": [
-          "blocks"
-        ]
-      }
-    },
-    "/users/{id}/block": {
-      "put": {
-        "operationId": "block",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "format": "uuid",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": ""
-          },
-          "401": {
-            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found: NOT_FOUND",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Error: VALIDATION_ERROR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "426": {
-            "description": "Upgrade required: APP_UPDATE_REQUIRED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests: RATE_LIMITED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal error: INTERNAL_ERROR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Block a user (OQ-028); idempotent",
-        "tags": [
-          "blocks"
-        ]
-      },
-      "delete": {
-        "operationId": "unblock",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "format": "uuid",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": ""
-          },
-          "401": {
-            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "426": {
-            "description": "Upgrade required: APP_UPDATE_REQUIRED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests: RATE_LIMITED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal error: INTERNAL_ERROR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Unblock a user (OQ-028); idempotent",
-        "tags": [
-          "blocks"
         ]
       }
     },
@@ -37798,6 +37798,133 @@
           }
         ],
         "summary": "Make a hidden pack available again",
+        "tags": [
+          "admin-media"
+        ]
+      }
+    },
+    "/admin/media/sticker-packs/{id}/price": {
+      "post": {
+        "operationId": "setAdminStickerPackPrice",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetStickerPackPriceDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminStickerPackEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: CONTENT_INVALID_STATE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Set the price in stars of an official pack",
         "tags": [
           "admin-media"
         ]
@@ -71198,6 +71325,1797 @@
         ]
       }
     },
+    "/stars": {
+      "get": {
+        "operationId": "starsOverview",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StarsOverviewEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Stars balance and the packs on offer",
+        "tags": [
+          "stars"
+        ]
+      }
+    },
+    "/stars/history": {
+      "get": {
+        "operationId": "starsHistory",
+        "parameters": [
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StarLedgerItemListEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "My stars history, newest first",
+        "tags": [
+          "stars"
+        ]
+      }
+    },
+    "/stars/packs/{packId}/buy": {
+      "post": {
+        "operationId": "buyStars",
+        "parameters": [
+          {
+            "name": "packId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StarsBuyEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable: PAYMENTS_NOT_CONFIGURED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Start the payment (web page) for a stars pack",
+        "tags": [
+          "stars"
+        ]
+      }
+    },
+    "/stars/purchases/{id}": {
+      "get": {
+        "operationId": "getStarsPurchase",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StarsPurchaseEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "A stars purchase after the payment page",
+        "tags": [
+          "stars"
+        ]
+      }
+    },
+    "/stars/gifts": {
+      "get": {
+        "operationId": "listGifts",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GiftListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "The gift catalog",
+        "tags": [
+          "stars"
+        ]
+      }
+    },
+    "/stars/gifts/{giftId}/send": {
+      "post": {
+        "operationId": "sendGiftToProfile",
+        "parameters": [
+          {
+            "name": "giftId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendProfileGiftDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GiftSendEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Error: INSUFFICIENT_STARS",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: USER_BLOCKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Give a gift to a profile (paid in stars)",
+        "tags": [
+          "stars"
+        ]
+      }
+    },
+    "/stars/users/{id}/gifts": {
+      "get": {
+        "operationId": "giftShowcase",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GiftSendListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: USER_BLOCKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "A profile's gifts (the owner sees all of theirs)",
+        "tags": [
+          "stars"
+        ]
+      }
+    },
+    "/stars/received-gifts/{id}": {
+      "patch": {
+        "operationId": "setGiftShown",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetGiftShownDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Show a received gift on my profile, or hide it",
+        "tags": [
+          "stars"
+        ]
+      }
+    },
+    "/stars/received-gifts/{id}/convert": {
+      "post": {
+        "operationId": "convertGift",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConvertGiftResultEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: CONTENT_INVALID_STATE, FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Turn a received gift into stars",
+        "tags": [
+          "stars"
+        ]
+      }
+    },
+    "/admin/stars/settings": {
+      "get": {
+        "operationId": "adminStarsSettings",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StarsAdminSettingsEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Stars: packs, the gift fee, the daily brake",
+        "tags": [
+          "admin-stars"
+        ]
+      },
+      "put": {
+        "operationId": "saveAdminStarsSettings",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveStarsSettingsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StarsAdminSettingsEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Save the stars packs and gift settings",
+        "tags": [
+          "admin-stars"
+        ]
+      }
+    },
+    "/admin/stars/gifts": {
+      "get": {
+        "operationId": "adminGifts",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminGiftListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "The gift catalog with counts",
+        "tags": [
+          "admin-stars"
+        ]
+      },
+      "post": {
+        "operationId": "createAdminGift",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateGiftDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminGiftEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: FILE_NOT_ATTACHABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Add a gift (an uploaded clean image)",
+        "tags": [
+          "admin-stars"
+        ]
+      }
+    },
+    "/admin/stars/gifts/{id}": {
+      "patch": {
+        "operationId": "updateAdminGift",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateGiftDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminGiftEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Change a gift: title, price, order, visibility",
+        "tags": [
+          "admin-stars"
+        ]
+      },
+      "delete": {
+        "operationId": "deleteAdminGift",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Remove a gift from the catalog",
+        "tags": [
+          "admin-stars"
+        ]
+      }
+    },
+    "/admin/stars/report": {
+      "get": {
+        "operationId": "adminStarsReport",
+        "parameters": [
+          {
+            "name": "days",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 365,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StarsReportEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Stars report for «Деньги»",
+        "tags": [
+          "admin-stars"
+        ]
+      }
+    },
+    "/admin/stars/debts": {
+      "get": {
+        "operationId": "adminStarsDebts",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StarsDebtListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Accounts that owe stars after a refund",
+        "tags": [
+          "admin-stars"
+        ]
+      }
+    },
+    "/admin/stars/ledger": {
+      "get": {
+        "operationId": "adminStarsLedger",
+        "parameters": [
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            }
+          },
+          {
+            "name": "userId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StarLedgerItemListEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Stars history of everyone, or of one user",
+        "tags": [
+          "admin-stars"
+        ]
+      }
+    },
+    "/admin/stars/grant": {
+      "post": {
+        "operationId": "grantStars",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GrantStarsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StarsBalanceEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Error: INSUFFICIENT_STARS",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Add or take back stars by hand, with a reason",
+        "tags": [
+          "admin-stars"
+        ]
+      }
+    },
     "/payments/settings": {
       "get": {
         "operationId": "getPaymentSettings",
@@ -90824,6 +92742,8 @@
           "ATTORNEY_ON_HOLD",
           "TRANSLATION_UNAVAILABLE",
           "STICKER_LIMIT_REACHED",
+          "INSUFFICIENT_STARS",
+          "STICKER_PACK_NOT_OWNED",
           "SUPPORT_TICKET_CLOSED",
           "REFERRAL_CODE_INVALID",
           "REFERRAL_NOT_ALLOWED",
@@ -100207,6 +102127,74 @@
           "sessionId"
         ]
       },
+      "PersonRole": {
+        "type": "string",
+        "enum": [
+          "attorney",
+          "client"
+        ]
+      },
+      "BlockedUserDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "role": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PersonRole"
+              }
+            ]
+          },
+          "username": {
+            "type": "string",
+            "nullable": true
+          },
+          "firstName": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastName": {
+            "type": "string",
+            "nullable": true
+          },
+          "avatarUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "blockedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "role",
+          "username",
+          "firstName",
+          "lastName",
+          "avatarUrl",
+          "blockedAt"
+        ]
+      },
+      "BlockedUserListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BlockedUserDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
       "AssistantMeDto": {
         "type": "object",
         "properties": {
@@ -103068,13 +105056,6 @@
         },
         "required": [
           "data"
-        ]
-      },
-      "PersonRole": {
-        "type": "string",
-        "enum": [
-          "attorney",
-          "client"
         ]
       },
       "AttorneyListItemDto": {
@@ -105941,67 +107922,6 @@
         },
         "required": [
           "events"
-        ]
-      },
-      "BlockedUserDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "role": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/PersonRole"
-              }
-            ]
-          },
-          "username": {
-            "type": "string",
-            "nullable": true
-          },
-          "firstName": {
-            "type": "string",
-            "nullable": true
-          },
-          "lastName": {
-            "type": "string",
-            "nullable": true
-          },
-          "avatarUrl": {
-            "type": "string",
-            "nullable": true
-          },
-          "blockedAt": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "role",
-          "username",
-          "firstName",
-          "lastName",
-          "avatarUrl",
-          "blockedAt"
-        ]
-      },
-      "BlockedUserListEnvelope": {
-        "type": "object",
-        "properties": {
-          "data": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/BlockedUserDto"
-            }
-          },
-          "meta": {
-            "$ref": "#/components/schemas/ResponseMetaDto"
-          }
-        },
-        "required": [
-          "data"
         ]
       },
       "CommentAuthorDto": {
@@ -110909,6 +112829,10 @@
           "installCount": {
             "type": "integer"
           },
+          "priceStars": {
+            "type": "integer",
+            "description": "Stars to add the pack; 0 = free."
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -110922,6 +112846,7 @@
           "status",
           "stickerCount",
           "installCount",
+          "priceStars",
           "createdAt"
         ]
       },
@@ -111010,6 +112935,10 @@
           "installCount": {
             "type": "integer"
           },
+          "priceStars": {
+            "type": "integer",
+            "description": "Stars to add the pack; 0 = free."
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -111029,6 +112958,7 @@
           "status",
           "stickerCount",
           "installCount",
+          "priceStars",
           "createdAt",
           "stickers"
         ]
@@ -111045,6 +112975,12 @@
             "type": "string",
             "pattern": "^[A-Za-z][A-Za-z0-9_]{2,39}$",
             "description": "Share name (lawbid.app/stickers/<shortName>); generated if omitted."
+          },
+          "priceStars": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000,
+            "description": "Stars to add the pack (0 = free, the default)."
           }
         },
         "required": [
@@ -111063,6 +112999,19 @@
         },
         "required": [
           "data"
+        ]
+      },
+      "SetStickerPackPriceDto": {
+        "type": "object",
+        "properties": {
+          "priceStars": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000
+          }
+        },
+        "required": [
+          "priceStars"
         ]
       },
       "AddOfficialStickerDto": {
@@ -121103,6 +123052,10 @@
           "installCount": {
             "type": "integer"
           },
+          "priceStars": {
+            "type": "integer",
+            "description": "Stars to add the pack; 0 = free (owner 2026-10-20)."
+          },
           "stickers": {
             "type": "array",
             "items": {
@@ -121119,6 +123072,7 @@
           "installed",
           "stickerCount",
           "installCount",
+          "priceStars",
           "stickers"
         ]
       },
@@ -128368,6 +130322,11 @@
             "type": "integer",
             "description": "If credits are used."
           },
+          "starsTotal": {
+            "type": "integer",
+            "nullable": true,
+            "description": "The same total in stars; null while stars are switched off or nothing is due."
+          },
           "creditDaysAvailable": {
             "type": "integer",
             "description": "Whole credit days."
@@ -128444,6 +130403,7 @@
           "priceCentsPerDay",
           "grossCents",
           "totalCents",
+          "starsTotal",
           "creditDaysAvailable",
           "creditDaysUsed",
           "creditDaysAvailableExact",
@@ -128585,6 +130545,10 @@
             "type": "integer",
             "description": "Charged amount."
           },
+          "paidStars": {
+            "type": "integer",
+            "description": "Stars paid (0 = by card)."
+          },
           "startsAt": {
             "type": "string",
             "nullable": true,
@@ -128647,6 +130611,7 @@
           "days",
           "priceCentsPerDay",
           "totalCents",
+          "paidStars",
           "impressions",
           "reach",
           "clicks",
@@ -128720,6 +130685,10 @@
           "totalCents": {
             "type": "integer"
           },
+          "starsCharged": {
+            "type": "integer",
+            "description": "Stars taken when paid with the star balance, else 0."
+          },
           "creditDaysUsed": {
             "type": "integer",
             "description": "Whole credit days."
@@ -128736,6 +130705,7 @@
           "promotionId",
           "status",
           "totalCents",
+          "starsCharged",
           "creditDaysUsed",
           "creditDaysUsedExact",
           "promotion"
@@ -128744,6 +130714,14 @@
       "CreatePromotionDto": {
         "type": "object",
         "properties": {
+          "payWith": {
+            "enum": [
+              "card",
+              "stars"
+            ],
+            "type": "string",
+            "description": "How to pay: the web card checkout (default) or the star balance."
+          },
           "days": {
             "type": "integer",
             "minimum": 1,
@@ -128856,6 +130834,10 @@
             "type": "integer",
             "description": "Charged amount."
           },
+          "paidStars": {
+            "type": "integer",
+            "description": "Stars paid (0 = by card)."
+          },
           "startsAt": {
             "type": "string",
             "nullable": true,
@@ -128922,6 +130904,7 @@
           "days",
           "priceCentsPerDay",
           "totalCents",
+          "paidStars",
           "impressions",
           "reach",
           "clicks",
@@ -129087,6 +131070,10 @@
             "type": "integer",
             "description": "Charged amount."
           },
+          "paidStars": {
+            "type": "integer",
+            "description": "Stars paid (0 = by card)."
+          },
           "startsAt": {
             "type": "string",
             "nullable": true,
@@ -129195,6 +131182,7 @@
           "days",
           "priceCentsPerDay",
           "totalCents",
+          "paidStars",
           "impressions",
           "reach",
           "clicks",
@@ -129850,6 +131838,857 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/SaveBidPacksDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "StarPackDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{1,39}$"
+          },
+          "stars": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000000
+          },
+          "priceCents": {
+            "type": "integer",
+            "minimum": 50,
+            "maximum": 10000000,
+            "description": "US cents"
+          }
+        },
+        "required": [
+          "id",
+          "stars",
+          "priceCents"
+        ]
+      },
+      "StarsOverviewDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "balance": {
+            "type": "integer"
+          },
+          "packs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StarPackDto"
+            }
+          },
+          "giftConvertPercent": {
+            "type": "integer",
+            "description": "Percent of a gift price a receiver gets turning it to stars."
+          },
+          "starCents": {
+            "type": "integer",
+            "description": "Cents one star is worth (Boost price conversion)."
+          },
+          "reactionStars": {
+            "type": "integer",
+            "description": "Stars a premium reaction costs."
+          },
+          "premiumReactions": {
+            "description": "Reactions charged in stars.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "freeReactions": {
+            "description": "Reactions free for everyone.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "enabled",
+          "balance",
+          "packs",
+          "giftConvertPercent",
+          "starCents",
+          "reactionStars",
+          "premiumReactions",
+          "freeReactions"
+        ]
+      },
+      "StarsOverviewEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/StarsOverviewDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "StarLedgerItemDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "delta": {
+            "type": "integer"
+          },
+          "balanceAfter": {
+            "type": "integer"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "topup",
+              "gift_sent",
+              "gift_converted",
+              "sticker_pack",
+              "boost",
+              "boost_refund",
+              "reaction",
+              "admin_grant",
+              "refund"
+            ]
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "delta",
+          "balanceAfter",
+          "kind",
+          "createdAt"
+        ]
+      },
+      "StarLedgerItemListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StarLedgerItemDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "StarsBuyDto": {
+        "type": "object",
+        "properties": {
+          "purchaseId": {
+            "type": "string"
+          },
+          "checkoutUrl": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "purchaseId",
+          "checkoutUrl"
+        ]
+      },
+      "StarsBuyEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/StarsBuyDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "StarsPurchaseDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending_payment",
+              "paid",
+              "canceled"
+            ]
+          },
+          "stars": {
+            "type": "integer"
+          },
+          "balance": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "status",
+          "stars",
+          "balance"
+        ]
+      },
+      "StarsPurchaseEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/StarsPurchaseDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "GiftDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string",
+            "nullable": true,
+            "description": "Starter gift code: the app shows the translation gift.<code>."
+          },
+          "priceStars": {
+            "type": "integer"
+          },
+          "url": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "code",
+          "priceStars",
+          "url"
+        ]
+      },
+      "GiftListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GiftDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "GiftSendDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "gift": {
+            "$ref": "#/components/schemas/GiftDto"
+          },
+          "senderId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "senderName": {
+            "type": "string",
+            "nullable": true
+          },
+          "anonymous": {
+            "type": "boolean"
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          },
+          "shown": {
+            "type": "boolean"
+          },
+          "convertedStars": {
+            "type": "integer",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "gift",
+          "anonymous",
+          "shown",
+          "createdAt"
+        ]
+      },
+      "SendProfileGiftDto": {
+        "type": "object",
+        "properties": {
+          "recipientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "anonymous": {
+            "type": "boolean",
+            "description": "Hide who gave it from the receiver."
+          }
+        },
+        "required": [
+          "recipientId"
+        ]
+      },
+      "GiftSendEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/GiftSendDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "GiftSendListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GiftSendDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "SetGiftShownDto": {
+        "type": "object",
+        "properties": {
+          "shown": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "shown"
+        ]
+      },
+      "ConvertGiftResultDto": {
+        "type": "object",
+        "properties": {
+          "stars": {
+            "type": "integer"
+          },
+          "balance": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "stars",
+          "balance"
+        ]
+      },
+      "ConvertGiftResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ConvertGiftResultDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "StarsAdminSettingsDto": {
+        "type": "object",
+        "properties": {
+          "packs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StarPackDto"
+            }
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "giftConvertPercent": {
+            "type": "integer"
+          },
+          "giftsPerDayMax": {
+            "type": "integer"
+          },
+          "starCents": {
+            "type": "integer",
+            "description": "US cents one star is worth when a Boost is paid in stars."
+          },
+          "reactionStars": {
+            "type": "integer",
+            "description": "Stars one premium reaction costs."
+          },
+          "premiumReactions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "packs",
+          "enabled",
+          "giftConvertPercent",
+          "giftsPerDayMax",
+          "starCents",
+          "reactionStars",
+          "premiumReactions"
+        ]
+      },
+      "StarsAdminSettingsEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/StarsAdminSettingsDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "SaveStarsSettingsDto": {
+        "type": "object",
+        "properties": {
+          "packs": {
+            "maxItems": 12,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StarPackDto"
+            }
+          },
+          "giftConvertPercent": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "giftsPerDayMax": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000
+          },
+          "starCents": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000
+          },
+          "reactionStars": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000
+          },
+          "premiumReactions": {
+            "maxItems": 24,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 16
+            }
+          }
+        },
+        "required": [
+          "packs",
+          "giftConvertPercent",
+          "giftsPerDayMax"
+        ]
+      },
+      "AdminGiftDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string",
+            "nullable": true
+          },
+          "priceStars": {
+            "type": "integer"
+          },
+          "fileId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "url": {
+            "type": "string",
+            "nullable": true
+          },
+          "position": {
+            "type": "integer"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "hidden"
+            ]
+          },
+          "sentCount": {
+            "type": "integer"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "code",
+          "priceStars",
+          "fileId",
+          "url",
+          "position",
+          "status",
+          "sentCount",
+          "createdAt"
+        ]
+      },
+      "AdminGiftListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminGiftDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "CreateGiftDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "priceStars": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000000
+          },
+          "fileId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "A clean `sticker` file uploaded by this admin."
+          }
+        },
+        "required": [
+          "title",
+          "priceStars",
+          "fileId"
+        ]
+      },
+      "AdminGiftEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminGiftDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "UpdateGiftDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "priceStars": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000000
+          },
+          "position": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "hidden"
+            ]
+          }
+        }
+      },
+      "StarsKindTotalDto": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "stars": {
+            "type": "integer"
+          },
+          "count": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kind",
+          "stars",
+          "count"
+        ]
+      },
+      "StarsTopGiftDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "sent": {
+            "type": "integer"
+          },
+          "stars": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "title",
+          "sent",
+          "stars"
+        ]
+      },
+      "StarsReportDto": {
+        "type": "object",
+        "properties": {
+          "days": {
+            "type": "integer"
+          },
+          "starsSold": {
+            "type": "integer",
+            "description": "Stars bought in the period."
+          },
+          "revenueCents": {
+            "type": "integer",
+            "description": "US cents paid for them."
+          },
+          "purchases": {
+            "type": "integer"
+          },
+          "starsSpent": {
+            "type": "integer",
+            "description": "Stars spent in the period (gifts, sticker packs)."
+          },
+          "outstandingStars": {
+            "type": "integer",
+            "description": "Stars users hold now — what we still owe in goods."
+          },
+          "debtStars": {
+            "type": "integer",
+            "description": "Stars owed after refunded top-ups that were already spent."
+          },
+          "debtUsers": {
+            "type": "integer"
+          },
+          "giftsSent": {
+            "type": "integer"
+          },
+          "starsConverted": {
+            "type": "integer",
+            "description": "Stars handed back to receivers (the rest is our fee)."
+          },
+          "byKind": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StarsKindTotalDto"
+            }
+          },
+          "topGifts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StarsTopGiftDto"
+            }
+          }
+        },
+        "required": [
+          "days",
+          "starsSold",
+          "revenueCents",
+          "purchases",
+          "starsSpent",
+          "outstandingStars",
+          "debtStars",
+          "debtUsers",
+          "giftsSent",
+          "starsConverted",
+          "byKind",
+          "topGifts"
+        ]
+      },
+      "StarsReportEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/StarsReportDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "StarsDebtDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "debt": {
+            "type": "integer",
+            "description": "Stars still owed."
+          },
+          "balance": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "userId",
+          "debt",
+          "balance"
+        ]
+      },
+      "StarsDebtListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StarsDebtDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "StarsBalanceDto": {
+        "type": "object",
+        "properties": {
+          "balance": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "balance"
+        ]
+      },
+      "GrantStarsDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "amount": {
+            "type": "integer",
+            "description": "Positive adds, negative takes back (never below zero)."
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 120
+          }
+        },
+        "required": [
+          "userId",
+          "amount",
+          "reason"
+        ]
+      },
+      "StarsBalanceEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/StarsBalanceDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"
@@ -132382,9 +135221,20 @@
               "voice",
               "call",
               "attachment",
-              "sticker"
+              "sticker",
+              "gift"
             ],
             "type": "string"
+          },
+          "gift": {
+            "nullable": true,
+            "description": "Owner 2026-10-20: the gift of a gift message.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/GiftSendDto"
+              }
+            ]
           },
           "sticker": {
             "nullable": true,
@@ -132786,7 +135636,8 @@
           "text",
           "voice",
           "attachment",
-          "sticker"
+          "sticker",
+          "gift"
         ]
       },
       "SendMessageDto": {
@@ -132805,6 +135656,11 @@
                 "$ref": "#/components/schemas/SendMessageType"
               }
             ]
+          },
+          "giftId": {
+            "type": "string",
+            "description": "Owner 2026-10-20: a gift message (type=gift) paid in stars; `body` is\nthe optional note (≤200).",
+            "format": "uuid"
           },
           "stickerId": {
             "type": "string",

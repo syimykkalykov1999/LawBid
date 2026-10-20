@@ -16,6 +16,7 @@ import { withTxRetry } from '../../prisma/tx-retry.util';
 import { AuditLogService } from '../admin-access/audit-log.service';
 import type { AdminActor } from '../admin-auth/admin-auth.decorators';
 import { ReferralsService } from '../referrals/referrals.service';
+import { StarsService } from '../stars/stars.service';
 import { RefundsService } from '../admin-billing/refunds.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PromotionDeliveryService } from './promotion-delivery.service';
@@ -67,6 +68,7 @@ export class AdminPromotionsService {
     @Optional() private readonly refunds?: RefundsService,
     @Optional() private readonly delivery?: PromotionDeliveryService,
     @Optional() private readonly notifications?: NotificationsService,
+    @Optional() private readonly stars?: StarsService,
   ) {}
 
   getSettings(): Promise<PromotionSettings> {
@@ -416,6 +418,45 @@ export class AdminPromotionsService {
     });
     this.delivery?.invalidate();
     let note: string | null = null;
+    if (row.paid_stars > 0 && this.stars) {
+      const back = this.refundAmount(
+        row,
+        refund,
+        row.paid_stars,
+        row.refunded_stars,
+      );
+      if (back > 0) {
+        const done = await withTxRetry(this.prisma, async (tx) => {
+          const ok = await this.stars!.credit(
+            tx,
+            row.user_id,
+            back,
+            'boost_refund',
+            `boost_refund:${row.id}`,
+            { refId: row.id },
+          );
+          if (ok) {
+            await tx.casePromotion.update({
+              where: { id: row.id },
+              data: {
+                refunded_stars: { increment: back },
+                ...(back >= row.paid_stars ? { status: 'refunded' } : {}),
+              },
+            });
+          }
+          return ok;
+        });
+        const fresh = await this.prisma.casePromotion.findUniqueOrThrow({
+          where: { id: row.id },
+        });
+        return {
+          promotion: (await this.present([fresh]))[0],
+          note: done ? null : 'The stars were already returned.',
+        };
+      }
+      note = 'This promotion was paid with stars: none were returned.';
+      return { promotion: (await this.present([row]))[0], note };
+    }
     const amount = this.refundAmount(row, refund);
     if (row.payment_id && amount > 0 && this.refunds) {
       await this.refunds.refund(admin, {
@@ -439,8 +480,13 @@ export class AdminPromotionsService {
   }
 
   /** Cents to give back: all, or the share of impressions not delivered. */
-  private refundAmount(p: CasePromotion, mode: PromotionRefundMode): number {
-    const left = Math.max(0, p.total_cents - p.refunded_cents);
+  private refundAmount(
+    p: CasePromotion,
+    mode: PromotionRefundMode,
+    total = p.total_cents,
+    already = p.refunded_cents,
+  ): number {
+    const left = Math.max(0, total - already);
     if (mode === 'full') return left;
     if (mode !== 'unspent') return 0;
     if (!p.target_impressions) {
@@ -448,15 +494,12 @@ export class AdminPromotionsService {
       if (!p.starts_at || !p.ends_at) return left;
       const span = p.ends_at.getTime() - p.starts_at.getTime();
       const rest = Math.max(0, p.ends_at.getTime() - Date.now());
-      return Math.min(
-        left,
-        Math.floor((p.total_cents * rest) / Math.max(1, span)),
-      );
+      return Math.min(left, Math.floor((total * rest) / Math.max(1, span)));
     }
     const undelivered = Math.max(0, p.target_impressions - p.impressions);
     return Math.min(
       left,
-      Math.floor((p.total_cents * undelivered) / p.target_impressions),
+      Math.floor((total * undelivered) / p.target_impressions),
     );
   }
 
