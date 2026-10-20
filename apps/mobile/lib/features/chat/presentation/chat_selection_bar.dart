@@ -137,6 +137,18 @@ class _ChatSelectionBarState extends ConsumerState<ChatSelectionBar> {
     );
   }
 
+  /// Owner 2026-10-20: «mark read» for the chats picked (groups keep their own
+  /// read marks).
+  Future<void> _readAll() => _each(
+        (c) async {
+          final last = c.lastMessage;
+          if (c.unreadCount > 0 && last != null) {
+            await ref.read(chatRepositoryProvider).read(c.id, last.id);
+          }
+        },
+        done: 'notif.markAllRead',
+      );
+
   Future<void> _delete() async {
     final t = ref.read(translatorProvider);
     final n = _picked.length + _pickedGroups.length;
@@ -238,6 +250,12 @@ class _ChatSelectionBarState extends ConsumerState<ChatSelectionBar> {
               AppIcons.notificationsOffOutlined,
               t.t('chat.select.mute'),
               _mute,
+            ),
+            action(
+              'select-read',
+              AppIcons.doneAllRounded,
+              t.t('notif.markAllRead'),
+              _readAll,
             ),
             action(
               'select-delete',

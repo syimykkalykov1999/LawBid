@@ -122,6 +122,30 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         ),
         body: Column(
           children: [
+            // Owner 2026-10-20 (Telegram sections): a small caption so it is
+            // clear what the list is.
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: Padding(
+                padding: const EdgeInsetsDirectional.fromSTEB(
+                  AppSpacing.screenSide,
+                  AppSpacing.sm,
+                  AppSpacing.screenSide,
+                  AppSpacing.xs,
+                ),
+                child: Text(
+                  t.t('channel.title'),
+                  key: const ValueKey('channels-caption'),
+                  style: Theme.of(context)
+                      .extension<AppTypographyTokens>()!
+                      .caption
+                      .copyWith(
+                        color: colors.textSecondary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+              ),
+            ),
             if (_searchOpen)
               ListSearchField(
                 fieldKey: const ValueKey('channels-search'),

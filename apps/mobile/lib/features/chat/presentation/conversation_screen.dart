@@ -28,6 +28,7 @@ import 'package:lawbid/features/calls/presentation/call_log_entry.dart';
 import 'package:lawbid/features/case_payments/presentation/chat_payment_bar.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
+import 'package:lawbid/features/chat/application/chat_text_drafts.dart';
 import 'package:lawbid/features/chat/application/presence_providers.dart';
 import 'package:lawbid/features/chat/application/voice_player.dart';
 import 'package:lawbid/features/chat/application/voice_recorder.dart';
@@ -121,11 +122,22 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // Owner 2026-10-20: an unsent text comes back, and the chats list shows
+    // it as a draft.
+    final draft =
+        ref.read(chatTextDraftsProvider.notifier).of(widget.conversationId);
+    if (draft != null) _text.text = draft;
+    _text.addListener(_saveDraft);
   }
+
+  void _saveDraft() => ref
+      .read(chatTextDraftsProvider.notifier)
+      .set(widget.conversationId, _text.text);
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _text.removeListener(_saveDraft);
     _text.dispose();
     _focus.dispose();
     super.dispose();

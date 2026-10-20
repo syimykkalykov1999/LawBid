@@ -6,6 +6,7 @@ import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
@@ -19,6 +20,7 @@ import 'package:lawbid/features/channels/application/channels_providers.dart';
 import 'package:lawbid/features/channels/channels_routes.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/application/chat_selection.dart';
+import 'package:lawbid/features/chat/application/chat_text_drafts.dart';
 import 'package:lawbid/features/chat/application/presence_providers.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
@@ -660,10 +662,13 @@ String messagePreview(Translator t, ChatMessage m, {String? me}) {
   if (m.kind == MessageKind.place) return '📍 ${m.body}';
   // OQ-047: "📎 File" / "📷 Photo" (+ caption).
   if (m.kind == MessageKind.attachment) {
-    final photo = m.attachment?.isImage ?? false;
+    final a = m.attachment;
+    final photo = a?.isImage ?? false;
     final label = photo
         ? '📷 ${t.t('chat.attach.photo')}'
-        : '📎 ${t.t('chat.attach.label')}';
+        : (a?.isVideo ?? false)
+            ? '🎥 ${t.t('chat.attach.video')}'
+            : '📄 ${t.t('chat.attach.label')}';
     return m.body.isEmpty ? label : '$label · ${m.body}';
   }
   return m.body.replaceAll(kContactMask, t.t('chat.masked'));
@@ -911,6 +916,8 @@ class ConversationRow extends ConsumerWidget {
     final c = conversation;
     final typing =
         ref.watch(listTypingProvider.select((ids) => ids.contains(c.id)));
+    // Owner 2026-10-20: an unsent text shows as a red «Drafts: …».
+    final draft = ref.watch(chatTextDraftsProvider.select((m) => m[c.id]));
     final who = counterpartName(t, c);
     final last = c.lastMessage;
     final unread = c.unreadCount > 0;
@@ -967,7 +974,7 @@ class ConversationRow extends ConsumerWidget {
           }),
         ),
     ];
-    return AppPressable(
+    final row = AppPressable(
       key: ValueKey('chat-organize-${c.id}'),
       onTap: picking != null
           ? () => ref.read(chatSelectionProvider.notifier).toggle(c.id)
@@ -1091,6 +1098,7 @@ class ConversationRow extends ConsumerWidget {
                             // Owner 2026-10-01: ✓ sent / ✓✓ read on my last
                             // message, "typing…" while the other side types.
                             if (!typing &&
+                                draft == null &&
                                 last != null &&
                                 last.senderId == me) ...[
                               AppIcon(
@@ -1119,30 +1127,51 @@ class ConversationRow extends ConsumerWidget {
                                         fontStyle: FontStyle.italic,
                                       ),
                                     )
-                                  : (c.matchedMessage?.isNotEmpty ?? false)
+                                  : draft != null && highlight.isEmpty
                                       ? Text.rich(
-                                          key: ValueKey('chat-match-${c.id}'),
-                                          boldWords(
-                                            c.matchedMessage!,
-                                            highlight,
-                                            secondary,
+                                          key: ValueKey('chat-draft-${c.id}'),
+                                          TextSpan(
+                                            children: [
+                                              TextSpan(
+                                                text:
+                                                    '${t.t('mine.tab.drafts')}: ',
+                                                style: TextStyle(
+                                                  color: colors.dangerText,
+                                                ),
+                                              ),
+                                              TextSpan(text: draft),
+                                            ],
                                           ),
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
+                                          style: secondary,
                                         )
-                                      : Text(
-                                          last == null
-                                              ? ''
-                                              : '${last.senderId == me ? '${t.t('chat.you')}: ' : ''}'
-                                                  '${messagePreview(t, last, me: me)}',
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: unread
-                                              ? secondary.copyWith(
-                                                  color: colors.text,
-                                                )
-                                              : secondary,
-                                        ),
+                                      : (c.matchedMessage?.isNotEmpty ?? false)
+                                          ? Text.rich(
+                                              key: ValueKey(
+                                                'chat-match-${c.id}',
+                                              ),
+                                              boldWords(
+                                                c.matchedMessage!,
+                                                highlight,
+                                                secondary,
+                                              ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            )
+                                          : Text(
+                                              last == null
+                                                  ? ''
+                                                  : '${last.senderId == me ? '${t.t('chat.you')}: ' : ''}'
+                                                      '${messagePreview(t, last, me: me)}',
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: unread
+                                                  ? secondary.copyWith(
+                                                      color: colors.text,
+                                                    )
+                                                  : secondary,
+                                            ),
                             ),
                             if (c.muted) ...[
                               const SizedBox(width: AppSpacing.sm),
@@ -1171,6 +1200,101 @@ class ConversationRow extends ConsumerWidget {
                     ),
                   ),
                 ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (!canOrganize) return row;
+    // Owner 2026-10-20 (Telegram): swipe right pins, swipe left mutes; the
+    // row springs back (the action is done, the row stays in the list).
+    Future<void> act(Future<Conversation> Function() call, String done) async {
+      try {
+        await call();
+        refreshChatFolders(ref);
+        if (context.mounted) showAppSnackBar(context, t.t(done));
+      } on Object catch (e) {
+        if (context.mounted) showAppSnackBar(context, errorText(t, e));
+      }
+    }
+
+    final repo = ref.read(chatRepositoryProvider);
+    return Dismissible(
+      key: ValueKey('chat-swipe-${c.id}'),
+      confirmDismiss: (dir) async {
+        if (dir == DismissDirection.startToEnd) {
+          unawaited(
+            act(
+              () => repo.organize(c.id, pinned: !c.pinned),
+              c.pinned ? 'chat.organize.unpinned' : 'chat.organize.pinned',
+            ),
+          );
+        } else {
+          unawaited(
+            act(
+              () => repo.mute(
+                c.id,
+                c.muted ? null : DateTime.now().add(const Duration(days: 3650)),
+              ),
+              c.muted ? 'chat.select.unmuted' : 'chat.select.muted',
+            ),
+          );
+        }
+        return false;
+      },
+      background: _SwipeBackground(
+        key: ValueKey('chat-swipe-pin-${c.id}'),
+        icon: c.pinned ? AppIcons.pushPinOutlined : AppIcons.pushPin,
+        label: t.t(c.pinned ? 'chat.organize.unpin' : 'chat.organize.pin'),
+        alignEnd: false,
+      ),
+      secondaryBackground: _SwipeBackground(
+        key: ValueKey('chat-swipe-mute-${c.id}'),
+        icon: AppIcons.notificationsOffOutlined,
+        label: t.t(c.muted ? 'chat.unmute' : 'chat.mute'),
+        alignEnd: true,
+      ),
+      child: row,
+    );
+  }
+}
+
+/// The coloured strip behind a swiped chat row.
+class _SwipeBackground extends StatelessWidget {
+  const _SwipeBackground({
+    required this.icon,
+    required this.label,
+    required this.alignEnd,
+    super.key,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool alignEnd;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    final fg = alignEnd ? AppColorsDark.text : colors.onAccent;
+    return ColoredBox(
+      color: alignEnd ? colors.navy : colors.gold,
+      child: Align(
+        alignment: alignEnd
+            ? AlignmentDirectional.centerEnd
+            : AlignmentDirectional.centerStart,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AppIcon(icon, color: fg),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: type.caption.copyWith(color: fg),
               ),
             ],
           ),

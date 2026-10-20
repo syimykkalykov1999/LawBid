@@ -5,6 +5,8 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
+    show showConfirmSheet;
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 
@@ -205,6 +207,60 @@ class _OrganizeSheetState extends ConsumerState<_OrganizeSheet> {
                             ? 'chat.organize.unpinned'
                             : 'chat.organize.pinned',
                       ),
+            ),
+            // Owner 2026-10-20: the long-press menu has the usual quick
+            // actions — mute, mark read, delete.
+            AppListRow(
+              key: const ValueKey('organize-mute'),
+              icon: AppIcons.notificationsOffOutlined,
+              label: t.t(c.muted ? 'chat.unmute' : 'chat.mute'),
+              onTap: _busy
+                  ? null
+                  : () => _run(
+                        () => repo.mute(
+                          c.id,
+                          c.muted
+                              ? null
+                              : DateTime.now().add(const Duration(days: 3650)),
+                        ),
+                        done: c.muted
+                            ? 'chat.select.unmuted'
+                            : 'chat.select.muted',
+                      ),
+            ),
+            if (c.unreadCount > 0 && c.lastMessage != null)
+              AppListRow(
+                key: const ValueKey('organize-read'),
+                icon: AppIcons.doneAllRounded,
+                label: t.t('notif.markAllRead'),
+                onTap: _busy
+                    ? null
+                    : () => _run(() async {
+                          await repo.read(c.id, c.lastMessage!.id);
+                          return c;
+                        }),
+              ),
+            AppListRow(
+              key: const ValueKey('organize-delete'),
+              icon: AppIcons.deleteOutlineRounded,
+              label: t.t('chat.select.delete'),
+              onTap: _busy
+                  ? null
+                  : () async {
+                      final ok = await showConfirmSheet(
+                        context,
+                        t: t,
+                        title: t.t('chat.select.deleteTitle', {'count': '1'}),
+                        message: t.t('chat.select.deleteMessage'),
+                        confirmLabel: t.t('chat.select.delete'),
+                        destructive: true,
+                      );
+                      if (!ok || !mounted) return;
+                      await _run(
+                        () => repo.organize(c.id, hidden: true),
+                        done: 'chat.select.deleted',
+                      );
+                    },
             ),
             if (c.folder != ChatFolder.primary)
               AppListRow(
