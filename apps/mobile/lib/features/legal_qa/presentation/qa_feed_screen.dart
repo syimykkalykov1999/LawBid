@@ -9,9 +9,8 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/legal_qa/application/legal_qa_providers.dart';
 import 'package:lawbid/features/legal_qa/domain/qa_models.dart';
 import 'package:lawbid/features/legal_qa/legal_qa_routes.dart';
+import 'package:lawbid/features/legal_qa/presentation/qa_filter_sheet.dart';
 import 'package:lawbid/features/legal_qa/presentation/qa_widgets.dart';
-import 'package:lawbid/features/onboarding/domain/us_states.dart';
-import 'package:lawbid/features/onboarding/presentation/widgets/option_picker_sheet.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 
 /// Owner 2026-10-20 — «Вопрос юристу»: all questions, unanswered, solved
@@ -42,39 +41,13 @@ class _QaFeedScreenState extends ConsumerState<QaFeedScreen> {
     });
   }
 
-  Future<void> _pickArea() async {
-    final t = ref.read(translatorProvider);
-    final r = await pickQaArea(
+  Future<void> _openFilters(bool attorney) async {
+    final r = await showQaFilterSheet(
       context,
-      ref,
-      title: t.t('qa.area'),
-      current: _query.practiceAreaId,
+      current: _query,
+      attorney: attorney,
     );
-    if (r == null || !mounted) return;
-    setState(
-      () => _query = r.id.isEmpty
-          ? _query.copyWith(clearPractice: true)
-          : _query.copyWith(practiceAreaId: r.id, practiceLabel: r.label),
-    );
-  }
-
-  Future<void> _pickState() async {
-    final t = ref.read(translatorProvider);
-    final picked = await OptionPickerSheet.show(
-      context,
-      title: t.t('qa.state'),
-      options: [
-        for (final s in kRegions)
-          PickerOption(value: s.code, label: s.name, sublabel: s.code),
-      ],
-      initial: {if (_query.stateCode != null) _query.stateCode!},
-    );
-    if (picked == null || !mounted) return;
-    setState(
-      () => _query = picked.isEmpty
-          ? _query.copyWith(clearState: true)
-          : _query.copyWith(stateCode: picked.first),
-    );
+    if (r != null && mounted) setState(() => _query = r.copyWith(q: _query.q));
   }
 
   @override
@@ -84,14 +57,7 @@ class _QaFeedScreenState extends ConsumerState<QaFeedScreen> {
     final attorney = ref.watch(actsAsAttorneyProvider);
     final async = ref.watch(questionsProvider(_query));
     final notifier = ref.read(questionsProvider(_query).notifier);
-    final stateName = _query.stateCode ?? t.t('qa.allStates');
-    final areaName = _query.practiceLabel ?? t.t('qa.allAreas');
-    final tabs = [
-      (QaFilter.all, t.t('qa.tab.all')),
-      (QaFilter.unanswered, t.t('qa.tab.unanswered')),
-      (QaFilter.solved, t.t('qa.tab.solved')),
-      if (!attorney) (QaFilter.mine, t.t('qa.tab.mine')),
-    ];
+    final active = _query.filter != QaFilter.all || _query.activeFilters > 0;
 
     return Scaffold(
       backgroundColor: colors.bg,
@@ -126,7 +92,12 @@ class _QaFeedScreenState extends ConsumerState<QaFeedScreen> {
                 controller: _search,
                 hintText: t.t('qa.search'),
                 semanticLabel: t.t('qa.search'),
-                leading: AppIcon(
+                leading: _FilterButton(
+                  active: active,
+                  label: t.t('search.filters'),
+                  onTap: () => unawaited(_openFilters(attorney)),
+                ),
+                trailing: AppIcon(
                   AppIcons.searchRounded,
                   color: colors.textSecondary,
                 ),
@@ -134,63 +105,6 @@ class _QaFeedScreenState extends ConsumerState<QaFeedScreen> {
                 onChanged: _onSearch,
               ),
             ),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.screenSide,
-              ),
-              child: Row(
-                children: [
-                  for (final (f, label) in tabs) ...[
-                    AppChip(
-                      label: label,
-                      selected: _query.filter == f,
-                      onTap: () =>
-                          setState(() => _query = _query.copyWith(filter: f)),
-                    ),
-                    const SizedBox(width: AppSpacing.sm),
-                  ],
-                ],
-              ),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.screenSide,
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: AppChip(
-                      label: areaName,
-                      expand: true,
-                      selected: _query.practiceAreaId != null,
-                      trailing: AppIcon(
-                        AppIcons.expandMoreRounded,
-                        size: 18,
-                        color: colors.textSecondary,
-                      ),
-                      onTap: _pickArea,
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  Expanded(
-                    child: AppChip(
-                      label: stateName,
-                      expand: true,
-                      selected: _query.stateCode != null,
-                      trailing: AppIcon(
-                        AppIcons.expandMoreRounded,
-                        size: 18,
-                        color: colors.textSecondary,
-                      ),
-                      onTap: _pickState,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: AppSpacing.sm),
             Expanded(
               child: async.when(
                 loading: () => Center(
@@ -251,6 +165,53 @@ class _QaFeedScreenState extends ConsumerState<QaFeedScreen> {
                       ),
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The filter button at the start of the search field; a dot shows that a
+/// filter is on.
+class _FilterButton extends StatelessWidget {
+  const _FilterButton({
+    required this.active,
+    required this.label,
+    required this.onTap,
+  });
+
+  final bool active;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    return Semantics(
+      button: true,
+      label: label,
+      excludeSemantics: true,
+      child: GestureDetector(
+        key: const ValueKey('qa-filter-button'),
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            AppIcon(AppIcons.tuneRounded, color: colors.text),
+            if (active)
+              PositionedDirectional(
+                top: -2,
+                end: -2,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: colors.accent,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const SizedBox.square(dimension: 8),
+                ),
+              ),
           ],
         ),
       ),

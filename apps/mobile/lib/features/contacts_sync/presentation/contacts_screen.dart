@@ -18,6 +18,7 @@ import 'package:lawbid/features/contacts_sync/application/contacts_background_sy
 import 'package:lawbid/features/contacts_sync/application/contacts_sync_providers.dart';
 import 'package:lawbid/features/contacts_sync/application/phone_contacts.dart';
 import 'package:lawbid/features/contacts_sync/presentation/contact_rows.dart';
+import 'package:lawbid/features/contacts_sync/presentation/contacts_section.dart';
 import 'package:lawbid/features/contacts_sync/presentation/contacts_states.dart';
 import 'package:lawbid/features/contacts_sync/presentation/invite_contact.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
@@ -177,6 +178,9 @@ class _BodyState extends ConsumerState<_Body> {
               ],
               if (ref.watch(currentUserRoleProvider) == UserRole.client)
                 const SliverToBoxAdapter(child: _FindByPhoneSwitch()),
+              // Owner 2026-10-20: the «disable and delete contacts» link lives
+              // here, not under the Search field.
+              const SliverToBoxAdapter(child: ContactsSection()),
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(

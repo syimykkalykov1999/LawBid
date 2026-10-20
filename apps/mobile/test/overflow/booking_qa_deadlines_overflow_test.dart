@@ -252,6 +252,7 @@ void main() {
         ),
     'deadline calculator, statute of limitations': () =>
         const DeadlineCalculatorScreen(kind: 'statute_of_limitations'),
+    'questions filter sheet': () => const QaFeedScreen(),
     'booking sheet': () => Builder(
           builder: (context) => Center(
             child: ElevatedButton(
@@ -314,6 +315,13 @@ void main() {
                 );
                 await tester.pump();
                 await tester.pump(const Duration(milliseconds: 400));
+                if (screen == 'questions filter sheet') {
+                  await tester
+                      .tap(find.byKey(const ValueKey('qa-filter-button')));
+                  await tester.pump();
+                  await tester.pump(const Duration(milliseconds: 600));
+                  expect(find.byType(AppButton), findsWidgets);
+                }
                 if (screen == 'booking sheet') {
                   await tester.tap(find.byType(ElevatedButton));
                   await tester.pump();

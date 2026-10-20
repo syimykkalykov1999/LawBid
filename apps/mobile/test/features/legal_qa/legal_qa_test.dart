@@ -186,9 +186,14 @@ void main() {
   testWidgets('the unanswered tab re-queries with its filter', (tester) async {
     final repo = _Repo();
     await pump(tester, const QaFeedScreen(), repo);
+    // The filters sit behind the button inside the search field.
+    expect(find.text('Без ответа'), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('qa-filter-button')));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Без ответа'));
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.text('Показать результаты'));
+    await tester.pumpAndSettle();
     expect(repo.queries.last.filter, QaFilter.unanswered);
   });
 

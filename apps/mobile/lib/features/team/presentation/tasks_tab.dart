@@ -621,8 +621,8 @@ class _TasksTabState extends ConsumerState<TasksTab> {
                   assistant: assistant,
                   // Owner 2026-10-20: booking and the deadline calculator
                   // live one tap from the planner.
-                  consultations: !assistant &&
-                      ref.watch(consultationsFlagProvider),
+                  consultations:
+                      !assistant && ref.watch(consultationsFlagProvider),
                   deadlines: !assistant &&
                       ref
                           .watch(featureFlagsControllerProvider)
@@ -1025,10 +1025,10 @@ class _TaskList extends ConsumerWidget {
                                           ),
                                         )
                                     : () => showTaskSheet(
-                                      context,
-                                      task: task,
-                                      listKey: listKey,
-                                    ),
+                                          context,
+                                          task: task,
+                                          listKey: listKey,
+                                        ),
                         onMarkTap: choosing ||
                                 !task.canComplete ||
                                 task.status == TaskStatus.cancelled

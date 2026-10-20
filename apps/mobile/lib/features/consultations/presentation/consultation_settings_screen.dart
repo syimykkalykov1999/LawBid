@@ -386,12 +386,11 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
                     spacing: AppSpacing.xs,
                     runSpacing: AppSpacing.xs,
                     children: [
-                      for (final w in _windows
-                          .where((w) => w.weekday == d)
-                          .toList()
-                        ..sort(
-                          (a, b) => a.startMinute.compareTo(b.startMinute),
-                        ))
+                      for (final w
+                          in _windows.where((w) => w.weekday == d).toList()
+                            ..sort(
+                              (a, b) => a.startMinute.compareTo(b.startMinute),
+                            ))
                         AppChip(
                           key: ValueKey('consult-win-$d-${w.startMinute}'),
                           height: 44,

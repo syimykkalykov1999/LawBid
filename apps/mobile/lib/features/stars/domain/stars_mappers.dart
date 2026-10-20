@@ -3,8 +3,7 @@ import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// DTO → model for gifts (the chat mapper uses it too).
 abstract final class StarsMappers {
-  static Gift gift(api.GiftDto d) =>
-      Gift(
+  static Gift gift(api.GiftDto d) => Gift(
         id: d.id,
         title: d.title,
         priceStars: d.priceStars,
