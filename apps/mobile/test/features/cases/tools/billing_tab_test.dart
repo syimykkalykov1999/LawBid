@@ -236,4 +236,49 @@ Future<void> main() async {
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });
+
+  testWidgets(
+      'summary keeps duration and amount together; a tap edits an entry',
+      (tester) async {
+    tester.view
+      ..physicalSize = const Size(360, 1400)
+      ..devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          translatorProvider.overrideWithValue(const StaticTranslatorEn()),
+          l10nFormatsProvider.overrideWithValue(L10nFormats(AppLanguage.en)),
+          caseBillingProvider('c').overrideWith(
+            (ref) async => _dto(attorney: true),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light(),
+          home: const Scaffold(
+            body: SingleChildScrollView(
+              child: BillingTab(caseId: 'c', isAttorney: true),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    // 95 min unbilled: one run "1 h 35 min · $237.50" on the value side.
+    expect(
+      find.byWidgetPredicate(
+        (w) =>
+            w is Text &&
+            (w.data ?? '').replaceAll(RegExp('[\u2068\u2069]'), '') ==
+                '1 h 35 min · \$237.50',
+      ),
+      findsWidgets,
+    );
+    await tester.tap(find.textContaining('Call with the court clerk'));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.text('Save'), findsWidgets);
+    expect(tester.takeException(), isNull);
+  });
 }

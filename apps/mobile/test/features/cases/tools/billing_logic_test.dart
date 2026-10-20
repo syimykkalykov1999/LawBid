@@ -116,6 +116,9 @@ void main() {
       expect(plain(durationText(ar, 60 ~/ 60)), '١ د');
       expect(plain(durationText(ar, 120 ~/ 60)), '٢ د');
       expect(plain(durationText(ar, 125)), '٢ س ٥ د');
+      expect(plain(durationText(ar, 65)), '١ س ٥ د');
+      expect(plain(durationText(ru, 65)), '1 ч 5 мин');
+      expect(plain(durationText(ar, 120)), '٢ س ٠ د');
     });
   });
 }

@@ -711,9 +711,9 @@ class _UnbilledCard extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.xs),
           line(
-            '${t.t('billing.time')} · '
-            '${isolate(durationText(t, u.minutes.toInt()))}',
-            money(u.timeCents),
+            t.t('billing.time'),
+            '${isolate(durationText(t, u.minutes.toInt()))} · '
+            '${isolate(money(u.timeCents))}',
           ),
           line(t.t('billing.expenses'), money(u.expensesCents)),
           line(t.t('billing.total'), money(u.totalCents), bold: true),
