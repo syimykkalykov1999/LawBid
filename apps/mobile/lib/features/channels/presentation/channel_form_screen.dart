@@ -279,147 +279,155 @@ class _FormState extends ConsumerState<_Form> {
         builder: (context, _) => Column(
           children: [
             Expanded(
-              child: ListView(
+              // Not a lazy ListView: with the keyboard open the description
+              // sits outside the built window, and «next» on the @username
+              // found nothing to focus, so the typing stayed in it.
+              child: SingleChildScrollView(
                 padding: const EdgeInsets.all(AppSpacing.screenSide),
-                children: [
-                  Center(
-                    child: Semantics(
-                      button: true,
-                      label: t.t('channel.form.avatar'),
-                      child: InkWell(
-                        key: const ValueKey('channel-avatar'),
-                        onTap: _saving ? null : _avatarSheet,
-                        customBorder: const CircleBorder(),
-                        child: Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            if (_avatarBytes != null)
-                              ClipOval(
-                                child: Image.memory(
-                                  _avatarBytes!,
-                                  width: AppSizes.profileAvatar,
-                                  height: AppSizes.profileAvatar,
-                                  fit: BoxFit.cover,
-                                ),
-                              )
-                            else
-                              ChannelAvatar(
-                                title: _title.text,
-                                url: url,
-                                size: AppSizes.profileAvatar,
-                              ),
-                            if (_avatarUploading)
-                              CircularProgressIndicator(
-                                strokeWidth: 3,
-                                color: colors.gold,
-                              ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  Center(
-                    child: TextButton(
-                      onPressed: _saving ? null : _avatarSheet,
-                      child: Text(t.t('channel.form.avatarChange')),
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  AppTextField(
-                    key: const ValueKey('channel-title'),
-                    controller: _title,
-                    label: t.t('channel.form.title'),
-                    hintText: t.t('channel.form.titleHint'),
-                    maxLength: kChannelTitleMax,
-                    textCapitalization: TextCapitalization.sentences,
-                    textInputAction: TextInputAction.next,
-                    enabled: !_saving,
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
-                  AppTextField(
-                    key: const ValueKey('channel-username'),
-                    controller: _username,
-                    label: t.t('channel.form.username'),
-                    hintText: t.t('channel.form.usernameHint'),
-                    helperText: _canRename
-                        ? t.t('channel.form.usernameHelp')
-                        : t.t('channel.form.usernameLocked'),
-                    errorText: _usernameError(t),
-                    leading: Text(
-                      '@',
-                      style: type.body.copyWith(color: colors.textSecondary),
-                    ),
-                    keyboardType: TextInputType.text,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.allow(
-                        RegExp('[A-Za-z0-9_@]'),
-                      ),
-                      LengthLimitingTextInputFormatter(33),
-                    ],
-                    enabled: !_saving && _canRename,
-                    textInputAction: TextInputAction.next,
-                    onChanged: (_) => setState(() {
-                      _touchedUsername = true;
-                      _usernameTaken = false;
-                    }),
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
-                  AppTextField(
-                    key: const ValueKey('channel-description'),
-                    controller: _description,
-                    label: t.t('channel.form.description'),
-                    hintText: t.t('channel.form.descriptionHint'),
-                    maxLines: 4,
-                    maxLength: kChannelDescriptionMax,
-                    textCapitalization: TextCapitalization.sentences,
-                    enabled: !_saving,
-                    minHeight: 96,
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
-                  MergeSemantics(
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Center(
+                      child: Semantics(
+                        button: true,
+                        label: t.t('channel.form.avatar'),
+                        child: InkWell(
+                          key: const ValueKey('channel-avatar'),
+                          onTap: _saving ? null : _avatarSheet,
+                          customBorder: const CircleBorder(),
+                          child: Stack(
+                            alignment: Alignment.center,
                             children: [
-                              Text(
-                                t.t('channel.form.comments'),
-                                style: type.body.copyWith(color: colors.text),
-                              ),
-                              Text(
-                                t.t('channel.form.commentsHint'),
-                                style: type.caption
-                                    .copyWith(color: colors.textSecondary),
-                              ),
+                              if (_avatarBytes != null)
+                                ClipOval(
+                                  child: Image.memory(
+                                    _avatarBytes!,
+                                    width: AppSizes.profileAvatar,
+                                    height: AppSizes.profileAvatar,
+                                    fit: BoxFit.cover,
+                                  ),
+                                )
+                              else
+                                ChannelAvatar(
+                                  title: _title.text,
+                                  url: url,
+                                  size: AppSizes.profileAvatar,
+                                ),
+                              if (_avatarUploading)
+                                CircularProgressIndicator(
+                                  strokeWidth: 3,
+                                  color: colors.gold,
+                                ),
                             ],
                           ),
                         ),
-                        Switch(
-                          key: const ValueKey('channel-comments-switch'),
-                          value: _comments,
-                          activeThumbColor: colors.onAccent,
-                          activeTrackColor: colors.gold,
-                          onChanged: _saving
-                              ? null
-                              : (v) => setState(() => _comments = v),
+                      ),
+                    ),
+                    Center(
+                      child: TextButton(
+                        onPressed: _saving ? null : _avatarSheet,
+                        child: Text(t.t('channel.form.avatarChange')),
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    AppTextField(
+                      key: const ValueKey('channel-title'),
+                      controller: _title,
+                      label: t.t('channel.form.title'),
+                      hintText: t.t('channel.form.titleHint'),
+                      maxLength: kChannelTitleMax,
+                      textCapitalization: TextCapitalization.sentences,
+                      textInputAction: TextInputAction.next,
+                      enabled: !_saving,
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+                    AppTextField(
+                      key: const ValueKey('channel-username'),
+                      controller: _username,
+                      label: t.t('channel.form.username'),
+                      hintText: t.t('channel.form.usernameHint'),
+                      helperText: _canRename
+                          ? t.t('channel.form.usernameHelp')
+                          : t.t('channel.form.usernameLocked'),
+                      errorText: _usernameError(t),
+                      leading: Text(
+                        '@',
+                        style: type.body.copyWith(color: colors.textSecondary),
+                      ),
+                      keyboardType: TextInputType.text,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(
+                          RegExp('[A-Za-z0-9_@]'),
                         ),
+                        LengthLimitingTextInputFormatter(33),
                       ],
+                      enabled: !_saving && _canRename,
+                      textInputAction: TextInputAction.next,
+                      onChanged: (_) => setState(() {
+                        _touchedUsername = true;
+                        _usernameTaken = false;
+                      }),
                     ),
-                  ),
-                  if (editing != null && editing.isOwner) ...[
-                    const SizedBox(height: AppSpacing.xl),
-                    AppButton(
-                      key: const ValueKey('channel-form-delete'),
-                      label: t.t('channel.delete'),
-                      variant: AppButtonVariant.secondary,
-                      height: AppSizes.touchTarget,
-                      icon: AppIcons.deleteOutlineRounded,
-                      isEnabled: !_saving,
-                      onPressed: _delete,
+                    const SizedBox(height: AppSpacing.lg),
+                    AppTextField(
+                      key: const ValueKey('channel-description'),
+                      controller: _description,
+                      label: t.t('channel.form.description'),
+                      hintText: t.t('channel.form.descriptionHint'),
+                      maxLines: 4,
+                      maxLength: kChannelDescriptionMax,
+                      textCapitalization: TextCapitalization.sentences,
+                      enabled: !_saving,
+                      minHeight: 96,
                     ),
+                    const SizedBox(height: AppSpacing.lg),
+                    MergeSemantics(
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  t.t('channel.form.comments'),
+                                  style: type.body.copyWith(color: colors.text),
+                                ),
+                                Text(
+                                  t.t('channel.form.commentsHint'),
+                                  style: type.caption
+                                      .copyWith(color: colors.textSecondary),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Switch(
+                            key: const ValueKey('channel-comments-switch'),
+                            value: _comments,
+                            activeThumbColor: colors.onAccent,
+                            activeTrackColor: colors.gold,
+                            onChanged: _saving
+                                ? null
+                                : (v) => setState(() => _comments = v),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (editing != null && editing.isOwner) ...[
+                      const SizedBox(height: AppSpacing.xl),
+                      AppButton(
+                        key: const ValueKey('channel-form-delete'),
+                        label: t.t('channel.delete'),
+                        variant: AppButtonVariant.secondary,
+                        height: AppSizes.touchTarget,
+                        icon: AppIcons.deleteOutlineRounded,
+                        isEnabled: !_saving,
+                        onPressed: _delete,
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
             SafeArea(

@@ -10,6 +10,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/features/channels/application/channel_compose.dart';
 import 'package:lawbid/features/channels/domain/channel_models.dart';
 import 'package:lawbid/features/channels/presentation/channel_composer_screen.dart';
+import 'package:lawbid/features/channels/presentation/channel_form_screen.dart';
 import 'package:lawbid/features/channels/presentation/channel_pickers.dart';
 import 'package:lawbid/features/channels/presentation/channel_screen.dart';
 import 'package:lawbid/features/channels/presentation/channel_widgets.dart'
@@ -33,10 +34,11 @@ void main() {
     Widget screen,
     FakeChannelsRepository repo, {
     List<Override> extra = const [],
+    Size size = const Size(390, 1600),
   }) async {
     tester.view
       ..devicePixelRatio = 1
-      ..physicalSize = const Size(390, 1600);
+      ..physicalSize = size;
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
       ProviderScope(
@@ -46,6 +48,41 @@ void main() {
     );
     await tester.pumpAndSettle();
   }
+
+  group('channel form', () {
+    testWidgets('next on the @username moves the focus to the description',
+        (tester) async {
+      // A short screen (keyboard open): the description is far below.
+      await pump(
+        tester,
+        const ChannelFormScreen(),
+        FakeChannelsRepository(),
+        size: const Size(360, 420),
+      );
+
+      bool focused(String key) => tester
+          .widget<EditableText>(
+            find.descendant(
+              of: find.byKey(ValueKey(key)),
+              matching: find.byType(EditableText),
+            ),
+          )
+          .focusNode
+          .hasFocus;
+
+      await tester.tap(find.byKey(const ValueKey('channel-username')));
+      await tester.pump();
+      await tester.enterText(
+        find.byKey(const ValueKey('channel-username')),
+        'tax_news',
+      );
+      await tester.testTextInput.receiveAction(TextInputAction.next);
+      await tester.pumpAndSettle();
+
+      expect(focused('channel-description'), isTrue);
+      expect(focused('channel-username'), isFalse);
+    });
+  });
 
   group('channels list', () {
     testWidgets('no subscriptions is a plain empty state, not an error',

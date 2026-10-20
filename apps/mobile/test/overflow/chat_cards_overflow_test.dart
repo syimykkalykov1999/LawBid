@@ -92,8 +92,10 @@ class _SavedRepo implements ChatExtrasRepository {
       CursorPage(
         items: [
           for (final (i, m) in [
-            _msg('m1', MessageKind.text,
-                'https://lawbid.dev/lawyer/${'x' * 60}',
+            _msg(
+              'm1',
+              MessageKind.text,
+              'https://lawbid.dev/lawyer/${'x' * 60}',
             ),
             _msg(
               'm2',
@@ -207,8 +209,8 @@ void main() {
               body: ListView(
                 children: [
                   bubble(
-                      mine: true,
-                      child: const ContactCardBody(card: _card, mine: true),
+                    mine: true,
+                    child: const ContactCardBody(card: _card, mine: true),
                   ),
                   bubble(
                     mine: false,
