@@ -86,6 +86,14 @@ class MainActivity : FlutterFragmentActivity() {
                     )
                     result.success(null)
                 }
+                // The app's own page in the phone's settings (permissions).
+                "openAppSettings" -> {
+                    startActivity(
+                        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                            .setData(android.net.Uri.fromParts("package", packageName, null)),
+                    )
+                    result.success(null)
+                }
                 "showTest" -> {
                     if (!notificationsAllowed()) {
                         result.success(false)

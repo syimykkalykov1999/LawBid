@@ -122,7 +122,6 @@ dependencies:
   video_compress: ^3.1.4
   device_info_plus: ^12.4.0
   phone_numbers_parser: ^9.0.28
-  permission_handler: ^13.0.2
 dev_dependencies:
   flutter_test:
     sdk: flutter

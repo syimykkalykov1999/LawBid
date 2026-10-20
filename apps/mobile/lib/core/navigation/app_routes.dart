@@ -149,7 +149,7 @@ abstract final class AppRoutes {
 
   /// Owner 2026-10-20: phone-book contacts on LawBid + invites, pushed on
   /// the ROOT navigator like [blockedUsers].
-  static const contacts = '/profile/settings/contacts';
+  static const contacts = '/profile/settings/phone-contacts';
 
   static const dataExport = '/profile/settings/data-export';
   // Owner 2026-10-02: About LawBid + the website link.
