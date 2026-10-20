@@ -12,6 +12,7 @@ import 'package:lawbid/features/legal_qa/legal_qa_routes.dart';
 import 'package:lawbid/features/legal_qa/presentation/qa_filter_sheet.dart';
 import 'package:lawbid/features/legal_qa/presentation/qa_widgets.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
+import 'package:lawbid/shared/presentation/flip_search_bar.dart';
 
 /// Owner 2026-10-20 — «Вопрос юристу»: all questions, unanswered, solved
 /// and mine; search, topic and state; «Ask» for clients.
@@ -24,13 +25,21 @@ class QaFeedScreen extends ConsumerStatefulWidget {
 
 class _QaFeedScreenState extends ConsumerState<QaFeedScreen> {
   final _search = TextEditingController();
+  final _focus = FocusNode();
   Timer? _debounce;
   QuestionsQuery _query = const QuestionsQuery();
+
+  @override
+  void initState() {
+    super.initState();
+    _search.addListener(() => _onSearch(_search.text));
+  }
 
   @override
   void dispose() {
     _debounce?.cancel();
     _search.dispose();
+    _focus.dispose();
     super.dispose();
   }
 
@@ -88,10 +97,15 @@ class _QaFeedScreenState extends ConsumerState<QaFeedScreen> {
                 AppSpacing.screenSide,
                 AppSpacing.sm,
               ),
-              child: AppTextField(
+              // Owner 2026-10-20: the compact 36 px field (as in Channels).
+              child: FlipSearchBar(
                 controller: _search,
-                hintText: t.t('qa.search'),
+                focusNode: _focus,
+                hints: [t.t('qa.search')],
                 semanticLabel: t.t('qa.search'),
+                cancelLabel: t.t('common.cancel'),
+                clearLabel: t.t('search.clear'),
+                showCancel: false,
                 leading: _FilterButton(
                   active: active,
                   label: t.t('search.filters'),
@@ -101,8 +115,7 @@ class _QaFeedScreenState extends ConsumerState<QaFeedScreen> {
                   AppIcons.searchRounded,
                   color: colors.textSecondary,
                 ),
-                textInputAction: TextInputAction.search,
-                onChanged: _onSearch,
+                onSubmitted: _onSearch,
               ),
             ),
             Expanded(

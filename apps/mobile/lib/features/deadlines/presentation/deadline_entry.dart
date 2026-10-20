@@ -23,7 +23,8 @@ class DeadlineMineEntry extends ConsumerWidget {
         bottom: AppSpacing.sm,
       ),
       child: Align(
-        alignment: AlignmentDirectional.centerStart,
+        // Owner 2026-10-20: at the end (right) edge, mirrored in RTL.
+        alignment: AlignmentDirectional.centerEnd,
         child: Semantics(
           button: true,
           label: t.t('deadline.title'),
