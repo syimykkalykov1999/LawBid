@@ -49,6 +49,11 @@ variable "database_backup_retention_days" {
   type    = number
   default = 14
 }
+variable "turn_enabled" {
+  type        = bool
+  default     = false
+  description = "coturn relay for calls on a small EC2 (modules/turn, ≈ $7–8/month); docs/runbooks/TURN.md."
+}
 variable "domain" { type = string }
 variable "api_host" { type = string }
 variable "admin_host" { type = string }
@@ -259,6 +264,16 @@ module "network" {
   nat_per_az          = var.nat_per_az
   interface_endpoints = var.interface_endpoints
   tags                = local.tags
+}
+
+module "turn" {
+  count     = var.turn_enabled ? 1 : 0
+  source    = "../turn"
+  name      = local.name
+  vpc_id    = module.network.vpc_id
+  subnet_id = module.network.public_subnet_ids[0]
+  realm     = var.domain
+  tags      = local.tags
 }
 
 module "s3" {
@@ -551,6 +566,9 @@ resource "aws_route53_record" "hosts" {
   }
 }
 
+output "turn_url" { value = one(module.turn[*].turn_url) }
+output "turn_public_ip" { value = one(module.turn[*].public_ip) }
+output "turn_secret_parameter" { value = one(module.turn[*].secret_parameter) }
 output "alb_dns_name" { value = module.alb.dns_name }
 output "cluster_name" { value = module.ecs.cluster_name }
 output "migrate_task_definition_arn" { value = module.ecs.migrate_task_definition_arn }

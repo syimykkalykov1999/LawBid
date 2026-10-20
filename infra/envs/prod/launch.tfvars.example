@@ -19,6 +19,7 @@ alert_emails      = ["REPLACE@gmail.com"] # a mailbox the owner reads (lawbid.de
 # Subscription prices and all third-party keys are set in the admin.
 
 # --- size (full-size default → launch) -----------------------------------
+turn_enabled     = true # coturn for calls (≈ $7–8/month, docs/runbooks/TURN.md)
 min_tasks        = 1    # 2 → 1: one api + one worker task; autoscaling adds more
 # api_max_tasks / worker_max_tasks are the HARD cap the app never exceeds.
 # The real ceiling is set by the app itself every 5 minutes from the
