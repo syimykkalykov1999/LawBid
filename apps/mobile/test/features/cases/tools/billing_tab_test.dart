@@ -15,6 +15,7 @@ api.CaseBillingDto _dto({
   required bool attorney,
   bool noRate = false,
   bool oneMinute = false,
+  bool twoOneMinuteEntries = false,
 }) =>
     api.CaseBillingDto(
       role: attorney
@@ -46,7 +47,7 @@ api.CaseBillingDto _dto({
               api.TimeEntryDto(
                 id: 'e1',
                 workedOn: DateTime(2026, 10, 19),
-                minutes: oneMinute ? 1 : 95,
+                minutes: oneMinute || twoOneMinuteEntries ? 1 : 95,
                 runningSince: null,
                 note: 'Call with the court clerk about the hearing date',
                 rateCents: 15000,
@@ -68,11 +69,11 @@ api.CaseBillingDto _dto({
               ),
             ]
           : const [],
-      unbilled: const api.BillingTotalsDto(
-        minutes: 95,
-        timeCents: 23750,
+      unbilled: api.BillingTotalsDto(
+        minutes: twoOneMinuteEntries ? 2 : 95,
+        timeCents: twoOneMinuteEntries ? 500 : 23750,
         expensesCents: 4500,
-        totalCents: 28250,
+        totalCents: twoOneMinuteEntries ? 5000 : 28250,
       ),
       invoices: [
         api.InvoiceDto(
@@ -280,5 +281,43 @@ Future<void> main() async {
     await tester.pump(const Duration(seconds: 1));
     expect(find.text('Save'), findsWidgets);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('two 1-minute entries: the summary reads 2 min, not hours',
+      (tester) async {
+    tester.view
+      ..physicalSize = const Size(360, 1400)
+      ..devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          translatorProvider.overrideWithValue(const StaticTranslatorEn()),
+          l10nFormatsProvider.overrideWithValue(L10nFormats(AppLanguage.en)),
+          caseBillingProvider('c').overrideWith(
+            (ref) async => _dto(attorney: true, twoOneMinuteEntries: true),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light(),
+          home: const Scaffold(
+            body: SingleChildScrollView(
+              child: BillingTab(caseId: 'c', isAttorney: true),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    expect(
+      find.byWidgetPredicate(
+        (w) =>
+            w is Text &&
+            (w.data ?? '').replaceAll(RegExp('[\u2068\u2069]'), '') ==
+                r'2 min · $5.00',
+      ),
+      findsOneWidget,
+    );
   });
 }
