@@ -92,7 +92,7 @@ class GroupInfoSettings extends ConsumerWidget {
               key: const ValueKey('group-set-post'),
               icon: AppIcons.chatBubbleOutlineRounded,
               label: t.t('group.info.settings.whoPost'),
-              trailingText: _who(t, detail.whoCanPost),
+              subtitle: _who(t, detail.whoCanPost),
               onTap: () => _pickWho(
                 context,
                 t,
@@ -108,7 +108,7 @@ class GroupInfoSettings extends ConsumerWidget {
               key: const ValueKey('group-set-add'),
               icon: AppIcons.personAddAlt1Rounded,
               label: t.t('group.info.settings.whoAdd'),
-              trailingText: _who(t, detail.whoCanAdd),
+              subtitle: _who(t, detail.whoCanAdd),
               onTap: () => _pickWho(
                 context,
                 t,
@@ -124,7 +124,7 @@ class GroupInfoSettings extends ConsumerWidget {
               key: const ValueKey('group-set-edit'),
               icon: AppIcons.editOutlined,
               label: t.t('group.info.settings.whoEdit'),
-              trailingText: _who(t, detail.whoCanEditInfo),
+              subtitle: _who(t, detail.whoCanEditInfo),
               onTap: () => _pickWho(
                 context,
                 t,
@@ -141,7 +141,7 @@ class GroupInfoSettings extends ConsumerWidget {
               key: const ValueKey('group-set-call'),
               icon: AppIcons.callOutlined,
               label: t.t('group.info.settings.whoCall'),
-              trailingText: _who(t, detail.whoCanCall),
+              subtitle: _who(t, detail.whoCanCall),
               onTap: () => _pickWho(
                 context,
                 t,
@@ -166,7 +166,7 @@ class GroupInfoSettings extends ConsumerWidget {
                 _ => AppIcons.lockOutlineRounded,
               },
               label: t.t('group.info.settings.type'),
-              trailingText: typeLabel,
+              subtitle: typeLabel,
               onTap: () => showGroupTypeSheet(
                 context,
                 detail: detail,
