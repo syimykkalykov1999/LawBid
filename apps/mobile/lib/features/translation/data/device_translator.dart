@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -128,11 +130,17 @@ String? mlKitCode(String raw) {
 /// Translate. Free, offline after a one-time download of each language
 /// (about 30 MB), the text never leaves the device.
 class DeviceTranslator {
-  DeviceTranslator({TranslationEngine? engine, bool? supported})
-      : _engine = engine ?? MlKitTranslationEngine(),
+  DeviceTranslator({
+    TranslationEngine? engine,
+    bool? supported,
+    this.downloadTimeout = const Duration(minutes: 4),
+  })  : _engine = engine ?? MlKitTranslationEngine(),
         _supported = supported ?? _platformHasMlKit;
 
   final TranslationEngine _engine;
+
+  /// How long one language model may take to download.
+  final Duration downloadTimeout;
   final bool _supported;
 
   static bool get _platformHasMlKit =>
@@ -194,8 +202,12 @@ class DeviceTranslator {
         }
         var got = false;
         try {
-          got = await _engine.downloadModel(code);
+          // A download that never ends (no data, Play services busy) must
+          // end in a message and a retry, not in a spinner for ever.
+          got = await _engine.downloadModel(code).timeout(downloadTimeout);
         } on PlatformException {
+          got = false;
+        } on TimeoutException {
           got = false;
         }
         if (!got) {
