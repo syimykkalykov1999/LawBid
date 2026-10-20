@@ -209,10 +209,9 @@ void main() {
           );
           await tester.tap(find.text('open'));
           await tester.pumpAndSettle();
-          expect(
-            find.byKey(const ValueKey('case-preview-more')),
-            findsOneWidget,
-          );
+          // The «learn more» link to the in-app guide went with the guide
+          // screen (2026-10-20); the preview itself must be on screen.
+          expect(find.byType(AttorneyViewPreview), findsOneWidget);
           expect(tester.takeException(), isNull);
         });
 
