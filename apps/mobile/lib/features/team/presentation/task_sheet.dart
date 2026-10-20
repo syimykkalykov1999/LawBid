@@ -11,6 +11,7 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/time/local_now.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
+import 'package:lawbid/features/team/presentation/action_group.dart';
 import 'package:lawbid/features/team/presentation/task_links.dart';
 import 'package:lawbid/features/team/presentation/task_pickers.dart';
 import 'package:lawbid/features/team/presentation/task_widgets.dart';
@@ -832,49 +833,50 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
             ),
             const SizedBox(height: AppSpacing.md),
           ],
-          if (active && canComplete) ...[
-            if (task.status == TaskStatus.open) ...[
-              AppButton(
-                key: const ValueKey('task-take'),
-                label: t.t('tasks.take'),
-                icon: AppIcons.playArrowRounded,
-                variant: AppButtonVariant.secondary,
-                isLoading: _busy,
-                onPressed: () => _set(TaskStatus.taken),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-            ],
-            AppButton(
-              key: const ValueKey('task-done'),
-              label: t.t('tasks.done'),
-              icon: AppIcons.checkRounded,
-              isLoading: _busy,
-              onPressed: () => _finish(true),
+          // Owner 2026-10-20: grouped rows, not one full-width line each.
+          if (active && canComplete)
+            ActionGroup(
+              actions: [
+                if (task.status == TaskStatus.open)
+                  GroupAction(
+                    keyName: 'task-take',
+                    label: t.t('tasks.take'),
+                    isLoading: _busy,
+                    onPressed: () => _set(TaskStatus.taken),
+                  ),
+                GroupAction(
+                  keyName: 'task-done',
+                  label: t.t('tasks.done'),
+                  variant: AppButtonVariant.primary,
+                  isLoading: _busy,
+                  onPressed: () => _finish(true),
+                ),
+                GroupAction(
+                  keyName: 'task-not-done',
+                  label: t.t('tasks.notDone'),
+                  isLoading: _busy,
+                  onPressed: () => _finish(false),
+                ),
+              ],
             ),
-            const SizedBox(height: AppSpacing.sm),
-            AppButton(
-              key: const ValueKey('task-not-done'),
-              label: t.t('tasks.notDone'),
-              icon: AppIcons.closeRounded,
-              variant: AppButtonVariant.secondary,
-              isLoading: _busy,
-              onPressed: () => _finish(false),
-            ),
-          ],
           // Owner 2026-10-01: every card is editable and deletable — the
           // owner any; an assistant edits with the tasks duty and deletes
           // only the tasks they set.
-          if (task.canEdit && canPlan && task.status != TaskStatus.cancelled)
+          if ((task.canEdit &&
+                  canPlan &&
+                  task.status != TaskStatus.cancelled) ||
+              task.canDelete ||
+              (active && canComplete))
             Padding(
-              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: AppButton(
-                      key: const ValueKey('task-edit'),
+              padding: const EdgeInsets.only(top: AppSpacing.sm),
+              child: ActionGroup(
+                actions: [
+                  if (task.canEdit &&
+                      canPlan &&
+                      task.status != TaskStatus.cancelled)
+                    GroupAction(
+                      keyName: 'task-edit',
                       label: t.t('tasks.edit'),
-                      icon: AppIcons.editOutlined,
-                      variant: AppButtonVariant.secondary,
                       onPressed: _busy
                           ? null
                           : () async {
@@ -885,19 +887,19 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
                               );
                             },
                     ),
-                  ),
-                  if (task.canDelete) ...[
-                    const SizedBox(width: AppSpacing.sm),
-                    Expanded(
-                      child: AppButton(
-                        key: const ValueKey('task-delete'),
-                        label: t.t('tasks.delete'),
-                        icon: AppIcons.deleteOutlineRounded,
-                        variant: AppButtonVariant.secondary,
-                        onPressed: _busy ? null : _delete,
-                      ),
+                  if (task.canDelete)
+                    GroupAction(
+                      keyName: 'task-delete',
+                      label: t.t('tasks.delete'),
+                      onPressed: _busy ? null : _delete,
                     ),
-                  ],
+                  if (active && canComplete)
+                    GroupAction(
+                      keyName: 'task-cancel',
+                      label: t.t('tasks.cancel'),
+                      onPressed:
+                          _busy ? null : () => _set(TaskStatus.cancelled),
+                    ),
                 ],
               ),
             ),
@@ -926,17 +928,6 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
               variant: AppButtonVariant.secondary,
               isLoading: _busy,
               onPressed: () => _archiveOp(TaskBulkAction.unarchive),
-            ),
-          ],
-          if (active && canComplete) ...[
-            const SizedBox(height: AppSpacing.sm),
-            TextButton(
-              key: const ValueKey('task-cancel'),
-              onPressed: _busy ? null : () => _set(TaskStatus.cancelled),
-              child: Text(
-                t.t('tasks.cancel'),
-                style: TextStyle(color: colors.dangerText),
-              ),
             ),
           ],
         ],

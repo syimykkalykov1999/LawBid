@@ -1062,10 +1062,9 @@ class _Bubble extends ConsumerWidget {
           switch (m.delivery) {
             DeliveryState.sending => AppIcons.scheduleRounded,
             DeliveryState.failed => AppIcons.errorOutlineRounded,
-            DeliveryState.sent =>
-              seen || delivered
-                  ? AppIcons.doneAllRounded
-                  : AppIcons.doneRounded,
+            DeliveryState.sent => seen || delivered
+                ? AppIcons.doneAllRounded
+                : AppIcons.doneRounded,
           },
           size: 15,
           color: failed

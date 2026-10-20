@@ -260,6 +260,7 @@ class OutboxSender with WidgetsBindingObserver {
         c == 429 ||
         c >= 500;
   }
+
   final _sent = StreamController<ChatMessage>.broadcast();
 
   /// Messages the server accepted (for threads whose socket is down).
@@ -1269,8 +1270,8 @@ class ChatThread extends Notifier<ChatThreadState> {
             state = state.copyWith(
               conversation: c.withReceipts(
                 readId: last,
-                readAt: DateTime.tryParse('${data['readAt']}') ??
-                    DateTime.now(),
+                readAt:
+                    DateTime.tryParse('${data['readAt']}') ?? DateTime.now(),
                 // Reading it means it got there.
                 deliveredId: last,
               ),
