@@ -31,7 +31,6 @@ import 'package:lawbid/features/chat/presentation/chat_swipe.dart';
 import 'package:lawbid/features/chat/presentation/chats_filter_row.dart';
 import 'package:lawbid/features/groups/application/chat_list_merge.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
-import 'package:lawbid/features/groups/group_routes.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_chat_tile.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_invite_card.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
@@ -425,7 +424,6 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
           children: [
             const SizedBox(height: AppSpacing.sm),
             const AppSheetHandle(),
-            if (organize) ..._groupMenuRows(ctx, t),
             if (organize)
               AppListRow(
                 key: const ValueKey('chats-menu-select'),
@@ -443,31 +441,9 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
     switch (pick) {
       case 'select':
         ref.read(chatSelectionProvider.notifier).start();
-      case 'new':
-        unawaited(context.push(GroupRoutes.create));
-      case 'find':
-        unawaited(context.push(GroupRoutes.find));
     }
   }
 }
-
-/// «New group» and «Find groups» rows (the ⋮ menu and the compose button).
-List<Widget> _groupMenuRows(BuildContext ctx, Translator t) => [
-      AppListRow(
-        key: const ValueKey('menu-new-group'),
-        icon: AppIcons.groupAddOutlined,
-        label: t.t('group.new'),
-        showChevron: false,
-        onTap: () => Navigator.of(ctx).pop('new'),
-      ),
-      AppListRow(
-        key: const ValueKey('menu-find-groups'),
-        icon: AppIcons.searchRounded,
-        label: t.t('group.find'),
-        showChevron: false,
-        onTap: () => Navigator.of(ctx).pop('find'),
-      ),
-    ];
 
 /// Three compact segments with a gliding gold-bordered indicator.
 /// Public for its test only.

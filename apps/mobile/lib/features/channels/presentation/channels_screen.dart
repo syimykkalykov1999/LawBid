@@ -13,10 +13,11 @@ import 'package:lawbid/features/channels/channels_routes.dart';
 import 'package:lawbid/features/channels/domain/channel_models.dart';
 import 'package:lawbid/features/channels/presentation/channel_widgets.dart';
 import 'package:lawbid/features/channels/presentation/channels_groups.dart';
+import 'package:lawbid/features/chat/application/chat_selection.dart';
+import 'package:lawbid/features/chat/presentation/chat_selection_bar.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
+import 'package:lawbid/features/groups/group_routes.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_chat_tile.dart';
-import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
-import 'package:lawbid/shared/domain/user_role.dart';
 import 'package:lawbid/shared/presentation/list_search_field.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
@@ -39,6 +40,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   ChannelScope _tab = ChannelScope.subscribed;
   String _query = '';
   bool _searchOpen = false;
+
+  /// «Groups | Channels» of each list (a tab, or the search).
+  final _kinds = <String, _Kind>{};
+  String get _listKey => _query.isNotEmpty ? 'search' : _tab.name;
   late final _pages = PageController(initialPage: _order.indexOf(_tab));
 
   @override
@@ -47,16 +52,23 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     super.dispose();
   }
 
+  /// Owner 2026-10-21: what is picked stays on the list in view — another
+  /// tab, kind or search starts the picking over.
+  void _clearPicked() => ref.read(chatSelectionProvider.notifier).clear();
+
   void _pick(ChannelScope v) {
+    _clearPicked();
     setState(() => _tab = v);
     if (!_pages.hasClients) return;
-    final motion = context.reduceMotion
-        ? Duration.zero
-        : const Duration(milliseconds: 260);
+    // Reduced motion: a jump (a zero-length animation asserts).
+    if (context.reduceMotion) {
+      _pages.jumpToPage(_order.indexOf(v));
+      return;
+    }
     unawaited(
       _pages.animateToPage(
         _order.indexOf(v),
-        duration: motion,
+        duration: const Duration(milliseconds: 260),
         curve: Curves.easeOutCubic,
       ),
     );
@@ -64,6 +76,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
 
   void _typed(String raw) {
     // The hint shows «@username»; a typed or pasted «@» is dropped.
+    _clearPicked();
     setState(() => _query = raw.trim().replaceFirst(RegExp('^@+'), ''));
   }
 
@@ -71,102 +84,242 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   Widget build(BuildContext context) {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final canCreate = ref.watch(currentUserRoleProvider) == UserRole.attorney;
     final searching = _query.isNotEmpty;
+    final selection = ref.watch(chatSelectionProvider);
+    final picks = selection == null ? null : _selectable();
     return ChannelsGate(
-      child: Scaffold(
-        backgroundColor: colors.bg,
-        appBar: AppTopBar(
-          leading: AppBackButton(
-            semanticLabel: t.t('common.back'),
-            onPressed: () => context.canPop()
-                ? context.pop()
-                : Navigator.of(context).maybePop(),
-          ),
-          // Owner 2026-10-20: no word «Channels»: the tabs stand in the middle
-          // of the bar on the arrow's line, the magnifier and «+» at the right.
-          title: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 300),
-              child: PillTabs<ChannelScope>(
-                value: _tab,
-                tabs: [
-                  (ChannelScope.managed, t.t('channel.tab.mine')),
-                  (ChannelScope.subscribed, t.t('channel.tab.subscribed')),
-                  (ChannelScope.discover, t.t('channel.tab.discover')),
-                ],
-                onChanged: _pick,
-              ),
-            ),
-          ),
-          actions: [
-            AppIconButton(
-              key: const ValueKey('channels-search-open'),
-              compact: true,
-              icon: AppIcon(
-                _searchOpen ? AppIcons.closeRounded : AppIcons.searchRounded,
-                size: 22,
-                color: colors.text,
-              ),
-              semanticLabel: t.t('channel.search.hint'),
-              onPressed: () => setState(() {
-                _searchOpen = !_searchOpen;
-                if (!_searchOpen) _query = '';
-              }),
-            ),
-            if (canCreate)
-              AppIconButton(
-                key: const ValueKey('channels-create'),
-                compact: true,
-                icon: AppIcon(AppIcons.addRounded, color: colors.text),
-                semanticLabel: t.t('channel.create'),
-                onPressed: () => context.push(ChannelsRoutes.newChannel),
-              ),
-          ],
-        ),
-        body: Column(
-          children: [
-            if (_searchOpen)
-              ListSearchField(
-                fieldKey: const ValueKey('channels-search'),
-                hintKey: 'channel.search.hint',
-                initial: _query,
-                onChanged: _typed,
-              ),
-            Expanded(
-              child: searching
-                  ? _ScopeList(
-                      scope: ChannelScope.discover,
-                      query: _query,
-                      empty: _empty(t, true, canCreate, _tab),
-                    )
-                  : PageView(
-                      controller: _pages,
-                      // Owner 2026-10-21: Mine · Following · Discover change
-                      // by a tap only; the swipe belongs to Groups | Channels.
-                      physics: const NeverScrollableScrollPhysics(),
-                      onPageChanged: (i) => setState(() => _tab = _order[i]),
-                      children: [
-                        for (final scope in _order)
-                          _ScopeList(
-                            key: ValueKey('channels-page-${scope.name}'),
-                            scope: scope,
-                            query: '',
-                            empty: _empty(t, false, canCreate, scope),
+      child: PopScope(
+        // Telegram: «back» first leaves the picking.
+        canPop: selection == null,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop) ref.read(chatSelectionProvider.notifier).stop();
+        },
+        child: Scaffold(
+          backgroundColor: colors.bg,
+          appBar: selection != null && picks != null
+              ? _selectionBar(t, colors, selection, picks)
+              : AppTopBar(
+                  leading: AppBackButton(
+                    semanticLabel: t.t('common.back'),
+                    onPressed: () => context.canPop()
+                        ? context.pop()
+                        : Navigator.of(context).maybePop(),
+                  ),
+                  // Owner 2026-10-20: no word «Channels»: the tabs stand in
+                  // the middle of the bar on the arrow's line, the magnifier
+                  // and «+» at the right.
+                  title: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 300),
+                      child: PillTabs<ChannelScope>(
+                        value: _tab,
+                        tabs: [
+                          (ChannelScope.managed, t.t('channel.tab.mine')),
+                          (
+                            ChannelScope.subscribed,
+                            t.t('channel.tab.subscribed')
                           ),
-                      ],
+                          (ChannelScope.discover, t.t('channel.tab.discover')),
+                        ],
+                        onChanged: _pick,
+                      ),
                     ),
-            ),
-          ],
+                  ),
+                  actions: [
+                    AppIconButton(
+                      key: const ValueKey('channels-search-open'),
+                      compact: true,
+                      icon: AppIcon(
+                        _searchOpen
+                            ? AppIcons.closeRounded
+                            : AppIcons.searchRounded,
+                        size: 22,
+                        color: colors.text,
+                      ),
+                      semanticLabel: t.t('channel.search.hint'),
+                      onPressed: () => setState(() {
+                        _searchOpen = !_searchOpen;
+                        if (!_searchOpen) _query = '';
+                      }),
+                    ),
+                    // Owner 2026-10-21 (п.24): «+» for every role — a
+                    // group or a channel.
+                    AppIconButton(
+                      key: const ValueKey('channels-create'),
+                      compact: true,
+                      icon: AppIcon(AppIcons.addRounded, color: colors.text),
+                      semanticLabel: t.t('channel.create'),
+                      onPressed: () => _create(t),
+                    ),
+                  ],
+                ),
+          body: Column(
+            children: [
+              if (_searchOpen)
+                ListSearchField(
+                  fieldKey: const ValueKey('channels-search'),
+                  hintKey: 'channel.search.hint',
+                  initial: _query,
+                  onChanged: _typed,
+                ),
+              Expanded(
+                child: searching
+                    ? _ScopeList(
+                        scope: ChannelScope.discover,
+                        query: _query,
+                        empty: _empty(t, true, _tab),
+                        kind: _kinds['search'] ?? _Kind.groups,
+                        onKind: (k) => _kinds['search'] = k,
+                        onClear: _clearPicked,
+                      )
+                    : PageView(
+                        controller: _pages,
+                        // Owner 2026-10-21: Mine · Following · Discover
+                        // change by a tap only; the swipe belongs to
+                        // Groups | Channels.
+                        physics: const NeverScrollableScrollPhysics(),
+                        onPageChanged: (i) => setState(() => _tab = _order[i]),
+                        children: [
+                          for (final scope in _order)
+                            _ScopeList(
+                              key: ValueKey('channels-page-${scope.name}'),
+                              scope: scope,
+                              query: '',
+                              empty: _empty(t, false, scope),
+                              kind: _kinds[scope.name] ?? _Kind.groups,
+                              onKind: (k) => _kinds[scope.name] = k,
+                              onClear: _clearPicked,
+                            ),
+                        ],
+                      ),
+              ),
+            ],
+          ),
+          bottomNavigationBar: picks == null
+              ? null
+              : ChatSelectionBar(
+                  chats: const [],
+                  groups: picks.groups,
+                  channels: picks.channels,
+                ),
         ),
       ),
     );
   }
 
+  /// The rows of the list in view that can be picked: my groups, or the
+  /// channels I follow (a channel I do not follow has nothing to organize).
+  ({List<api.GroupDto> groups, List<Channel> channels}) _selectable() {
+    final searching = _query.isNotEmpty;
+    final scope = searching ? ChannelScope.discover : _tab;
+    final recommended = scope == ChannelScope.discover && !searching;
+    if ((_kinds[_listKey] ?? _Kind.groups) == _Kind.groups) {
+      final q = _query.toLowerCase();
+      return (
+        groups: recommended
+            ? const <api.GroupDto>[]
+            : [
+                for (final g in ref.watch(groupsProvider).value?.items ??
+                    const <api.GroupDto>[])
+                  if (q.isEmpty || g.title.toLowerCase().contains(q)) g,
+              ],
+        channels: const <Channel>[],
+      );
+    }
+    final channels = recommended
+        ? ref.watch(recommendedChannelsProvider).value?.items
+        : ref.watch(channelListProvider((scope: scope, query: _query))).value;
+    return (
+      groups: const <api.GroupDto>[],
+      channels: [
+        for (final c in channels ?? const <Channel>[])
+          if (c.isSubscribed) c,
+      ],
+    );
+  }
+
+  /// Owner 2026-10-21 (Telegram): «Selected: N», «All» and «×» in the bar.
+  PreferredSizeWidget _selectionBar(
+    Translator t,
+    AppColorTokens colors,
+    Set<String> selection,
+    ({List<api.GroupDto> groups, List<Channel> channels}) picks,
+  ) {
+    final ids = [
+      for (final g in picks.groups) g.id,
+      for (final c in picks.channels) c.id,
+    ];
+    final all = ids.isNotEmpty && ids.every(selection.contains);
+    final notifier = ref.read(chatSelectionProvider.notifier);
+    return AppTopBar(
+      leading: AppIconButton(
+        key: const ValueKey('select-cancel'),
+        icon: AppIcon(AppIcons.closeRounded, color: colors.text),
+        semanticLabel: t.t('common.cancel'),
+        onPressed: notifier.stop,
+      ),
+      title: Text(
+        t.t('chat.select.count', {'count': '${selection.length}'}),
+        key: const ValueKey('select-count'),
+      ),
+      actions: [
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 108),
+          child: TextButton(
+            key: const ValueKey('select-all'),
+            onPressed: () => all ? notifier.clear() : notifier.setAll(ids),
+            child: Text(
+              t.t(all ? 'chat.select.none' : 'chat.select.all'),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Owner 2026-10-21 (п.22b): «+» makes a group or a channel.
+  Future<void> _create(Translator t) async {
+    final pick = await showAppBottomSheet<String>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: AppSpacing.sm),
+            const AppSheetHandle(),
+            AppListRow(
+              key: const ValueKey('channels-new-group'),
+              icon: AppIcons.groupAddOutlined,
+              label: t.t('group.new'),
+              showChevron: false,
+              onTap: () => Navigator.of(ctx).pop('group'),
+            ),
+            AppListRow(
+              key: const ValueKey('channels-new-channel'),
+              icon: AppIcons.campaignOutlined,
+              label: t.t('channel.create'),
+              showChevron: false,
+              onTap: () => Navigator.of(ctx).pop('channel'),
+            ),
+            const SizedBox(height: AppSpacing.md),
+          ],
+        ),
+      ),
+    );
+    if (!mounted) return;
+    switch (pick) {
+      case 'group':
+        unawaited(context.push(GroupRoutes.create));
+      case 'channel':
+        unawaited(context.push(ChannelsRoutes.newChannel));
+    }
+  }
+
   Widget _empty(
     Translator t,
     bool searching,
-    bool canCreate,
     ChannelScope tab,
   ) {
     if (searching) {
@@ -179,12 +332,10 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
       ChannelScope.managed => ChannelsEmpty(
           title: t.t('channel.empty.mine.title'),
           message: t.t('channel.empty.mine'),
-          action: canCreate
-              ? AppButton(
-                  label: t.t('channel.create'),
-                  onPressed: () => context.push(ChannelsRoutes.newChannel),
-                )
-              : null,
+          action: AppButton(
+            label: t.t('channel.create'),
+            onPressed: () => context.push(ChannelsRoutes.newChannel),
+          ),
         ),
       ChannelScope.subscribed => ChannelsEmpty(
           title: t.t('channel.empty.subscribed.title'),
@@ -210,6 +361,9 @@ class _ScopeList extends ConsumerStatefulWidget {
     required this.scope,
     required this.query,
     required this.empty,
+    required this.kind,
+    required this.onKind,
+    required this.onClear,
     super.key,
   });
 
@@ -217,13 +371,25 @@ class _ScopeList extends ConsumerStatefulWidget {
   final String query;
   final Widget empty;
 
+  /// «Groups | Channels» to start on, and where a change is told.
+  final _Kind kind;
+  final ValueChanged<_Kind> onKind;
+
+  /// Drops what is picked (the list in view changed).
+  final VoidCallback onClear;
+
   @override
   ConsumerState<_ScopeList> createState() => _ScopeListState();
 }
 
 class _ScopeListState extends ConsumerState<_ScopeList> {
-  _Kind _kind = _Kind.groups;
-  final _pages = PageController();
+  late _Kind _kind = widget.kind;
+  late final _pages = PageController(initialPage: _kind.index);
+
+  void _changed(_Kind v) {
+    if (v != _kind) widget.onClear();
+    widget.onKind(v);
+  }
 
   @override
   void dispose() {
@@ -232,15 +398,18 @@ class _ScopeListState extends ConsumerState<_ScopeList> {
   }
 
   void _pick(_Kind v) {
+    _changed(v);
     setState(() => _kind = v);
     if (!_pages.hasClients) return;
-    final motion = context.reduceMotion
-        ? Duration.zero
-        : const Duration(milliseconds: 260);
+    // Reduced motion: a jump (a zero-length animation asserts).
+    if (context.reduceMotion) {
+      _pages.jumpToPage(v.index);
+      return;
+    }
     unawaited(
       _pages.animateToPage(
         v.index,
-        duration: motion,
+        duration: const Duration(milliseconds: 260),
         curve: Curves.easeOutCubic,
       ),
     );
@@ -255,6 +424,8 @@ class _ScopeListState extends ConsumerState<_ScopeList> {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final recommended = scope == ChannelScope.discover && query.isEmpty;
     final key = (scope: scope, query: query);
+    final picking = ref.watch(chatSelectionProvider);
+    final selection = ref.read(chatSelectionProvider.notifier);
 
     // Channels.
     final channels = recommended
@@ -392,7 +563,10 @@ class _ScopeListState extends ConsumerState<_ScopeList> {
         Expanded(
           child: PageView(
             controller: _pages,
-            onPageChanged: (i) => setState(() => _kind = _Kind.values[i]),
+            onPageChanged: (i) {
+              _changed(_Kind.values[i]);
+              setState(() => _kind = _Kind.values[i]);
+            },
             children: [
               list(_Kind.groups, groupRows),
               list(_Kind.channels, [
@@ -400,7 +574,19 @@ class _ScopeListState extends ConsumerState<_ScopeList> {
                   ChannelRow(
                     key: ValueKey('channel-row-${c.id}'),
                     channel: c,
-                    onTap: () => context.push(ChannelsRoutes.channel(c.id)),
+                    // Owner 2026-10-21: a channel I follow is picked like a
+                    // chat (long press, then taps).
+                    picked: picking == null || !c.isSubscribed
+                        ? null
+                        : picking.contains(c.id),
+                    onTap: picking != null && c.isSubscribed
+                        ? () => selection.toggle(c.id)
+                        : () => context.push(ChannelsRoutes.channel(c.id)),
+                    onLongPress: picking == null && c.isSubscribed
+                        ? () => selection
+                          ..start()
+                          ..toggle(c.id)
+                        : null,
                   ),
               ]),
             ],
