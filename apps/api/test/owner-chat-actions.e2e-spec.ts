@@ -415,6 +415,16 @@ describe('Chat message actions (e2e, owner 2026-10-20)', () => {
     await post(stranger, stranger.client, {
       forwardFromId: voice.body.data.id,
     }).expect(404);
+
+    // Owner 2026-10-21: a disappearing message stays where it was sent.
+    await prisma.message.update({
+      where: { id: doc.body.data.id },
+      data: { expires_at: new Date(Date.now() + 3600_000) },
+    });
+    const gone = await post(b, b.client, {
+      forwardFromId: doc.body.data.id,
+    }).expect(403);
+    expect(gone.body.error.code).toBe('FORWARD_NOT_ALLOWED');
   });
 
   it('reports when the other side last read ("read at")', async () => {
