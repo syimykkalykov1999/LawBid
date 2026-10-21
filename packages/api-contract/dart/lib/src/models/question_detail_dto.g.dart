@@ -14,6 +14,8 @@ QuestionDetailDto _$QuestionDetailDtoFromJson(Map<String, dynamic> json) =>
       isAnonymous: json['isAnonymous'] as bool,
       isMine: json['isMine'] as bool,
       answerCount: (json['answerCount'] as num).toInt(),
+      closed: json['closed'] as bool,
+      answersEnough: json['answersEnough'] as bool,
       canAnswer: json['canAnswer'] as bool,
       createdAt: json['createdAt'] as String,
       answers: (json['answers'] as List<dynamic>)
@@ -45,6 +47,8 @@ Map<String, dynamic> _$QuestionDetailDtoToJson(QuestionDetailDto instance) =>
       'author': ?instance.author?.toJson(),
       'isMine': instance.isMine,
       'answerCount': instance.answerCount,
+      'closed': instance.closed,
+      'answersEnough': instance.answersEnough,
       'bestAnswerId': ?instance.bestAnswerId,
       'myAnswerId': ?instance.myAnswerId,
       'canAnswer': instance.canAnswer,

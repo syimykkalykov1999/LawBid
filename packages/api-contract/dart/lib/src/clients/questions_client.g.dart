@@ -27,6 +27,7 @@ class _QuestionsClient implements QuestionsClient {
     String? practiceAreaId,
     String? stateCode,
     QuestionFilter? filter,
+    QuestionScope? scope,
     String? cursor,
     Map<String, dynamic>? extras,
   }) async {
@@ -38,6 +39,7 @@ class _QuestionsClient implements QuestionsClient {
       r'practiceAreaId': practiceAreaId,
       r'stateCode': stateCode,
       r'filter': filter?.toJson(),
+      r'scope': scope?.toJson(),
       r'cursor': cursor,
     };
     queryParameters.removeWhere((k, v) => v == null);
@@ -174,6 +176,30 @@ class _QuestionsClient implements QuestionsClient {
           .compose(
             _dio.options,
             '/questions/${id}',
+            queryParameters: queryParameters,
+            data: _data,
+          )
+          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
+    );
+    await _dio.fetch<void>(_options);
+  }
+
+  @override
+  Future<void> closeQuestion({
+    required String id,
+    Map<String, dynamic>? extras,
+  }) async {
+    final _extra = <String, dynamic>{};
+    _extra.addAll(extras ?? <String, dynamic>{});
+    final queryParameters = <String, dynamic>{};
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{};
+    const Map<String, dynamic>? _data = null;
+    final _options = _setStreamType<void>(
+      Options(method: 'PUT', headers: _headers, extra: _extra)
+          .compose(
+            _dio.options,
+            '/questions/${id}/close',
             queryParameters: queryParameters,
             data: _data,
           )

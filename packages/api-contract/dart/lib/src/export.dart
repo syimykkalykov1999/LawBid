@@ -1944,6 +1944,7 @@ export 'models/qa_state_dto.dart';
 export 'models/qa_person_dto.dart';
 export 'models/question_dto.dart';
 export 'models/question_filter.dart';
+export 'models/question_scope.dart';
 export 'models/question_list_envelope.dart';
 export 'models/ask_question_dto.dart';
 export 'models/question_envelope.dart';

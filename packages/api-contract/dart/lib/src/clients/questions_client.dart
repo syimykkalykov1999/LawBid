@@ -14,6 +14,7 @@ import '../models/question_detail_envelope.dart';
 import '../models/question_envelope.dart';
 import '../models/question_filter.dart';
 import '../models/question_list_envelope.dart';
+import '../models/question_scope.dart';
 
 part 'questions_client.g.dart';
 
@@ -21,7 +22,9 @@ part 'questions_client.g.dart';
 abstract class QuestionsClient {
   factory QuestionsClient(Dio dio, {String? baseUrl}) = _QuestionsClient;
 
-  /// Public questions to lawyers (search, filters)
+  /// Public questions to lawyers (search, filters).
+  ///
+  /// [scope] - Attorneys only: «mine» keeps questions of my practice areas (with parent/child areas) and of states where I hold a verified licence; a question without an area or state stays. No areas set — same as «all».
   @GET('/questions')
   Future<QuestionListEnvelope> listQuestions({
     @Query('limit') int? limit = 20,
@@ -29,6 +32,7 @@ abstract class QuestionsClient {
     @Query('practiceAreaId') String? practiceAreaId,
     @Query('stateCode') String? stateCode,
     @Query('filter') QuestionFilter? filter,
+    @Query('scope') QuestionScope? scope,
     @Query('cursor') String? cursor,
     @Extras() Map<String, dynamic>? extras,
   });
@@ -56,6 +60,13 @@ abstract class QuestionsClient {
   /// Delete my question
   @DELETE('/questions/{id}')
   Future<void> deleteQuestion({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Close my question
+  @PUT('/questions/{id}/close')
+  Future<void> closeQuestion({
     @Path('id') required String id,
     @Extras() Map<String, dynamic>? extras,
   });
