@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
@@ -5,6 +7,7 @@ import 'package:lawbid/features/calls/data/call_history_repository.dart';
 import 'package:lawbid/features/calls/data/calls_repository.dart';
 import 'package:lawbid/features/calls/domain/call_history_models.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
+import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 
 final callHistoryRepositoryProvider = Provider<CallHistoryRepository>(
@@ -63,12 +66,26 @@ class CallHistoryController
   }
 }
 
-/// Group calls running now in my groups; the tab re-reads it every few
-/// seconds while it is open (and on pull-to-refresh).
+/// Group calls running now in my groups. Owner 2026-10-21: the «+» of the
+/// chats glows green while one runs, so it is read while something watches
+/// it: when a call event comes over the socket and every half minute (the
+/// server tells only the people it rings, a group member learns of a running
+/// call by asking), and the tab asks again on pull-to-refresh.
 final ongoingGroupCallsProvider =
-    FutureProvider.autoDispose<List<OngoingGroupCall>>(
-  (ref) => ref.watch(callHistoryRepositoryProvider).ongoing(),
-);
+    FutureProvider.autoDispose<List<OngoingGroupCall>>((ref) {
+  final events = ref.watch(realtimeEventsProvider).listen((e) {
+    if (e.name.startsWith('call:')) ref.invalidateSelf();
+  });
+  final poll = Timer.periodic(
+    const Duration(seconds: 30),
+    (_) => ref.invalidateSelf(),
+  );
+  ref.onDispose(() {
+    unawaited(events.cancel());
+    poll.cancel();
+  });
+  return ref.watch(callHistoryRepositoryProvider).ongoing();
+});
 
 /// «Join» / «Return» on a running group call. Returns the API error code
 /// (or [kMicDenied]), null when it worked or the call had just ended.
