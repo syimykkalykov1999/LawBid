@@ -161,3 +161,12 @@ GET /moderation/notices added the new `legal_answer` enum value to the `data/ite
 GET /moderation/notices added the new `legal_question` enum value to the `data/items/targetType` response property for the response status `200`
 GET /reports/mine added the new `legal_answer` enum value to the `data/items/targetType` response property for the response status `200`
 GET /reports/mine added the new `legal_question` enum value to the `data/items/targetType` response property for the response status `200`
+# 2026-10-21 (owner: yes): notification categories gain channels and groups; an extension, the generated clients map unknown values to $unknown
+GET /notification-settings added the new `channels` enum value to the `data/categories/items/category` response property for the response status `200`
+GET /notification-settings added the new `groups` enum value to the `data/categories/items/category` response property for the response status `200`
+PUT /notification-settings added the new `channels` enum value to the `data/categories/items/category` response property for the response status `200`
+PUT /notification-settings added the new `groups` enum value to the `data/categories/items/category` response property for the response status `200`
+PUT /notification-settings/quiet-hours added the new `channels` enum value to the `data/categories/items/category` response property for the response status `200`
+PUT /notification-settings/quiet-hours added the new `groups` enum value to the `data/categories/items/category` response property for the response status `200`
+GET /notifications added the new `channels` enum value to the `data/items/category` response property for the response status `200`
+GET /notifications added the new `groups` enum value to the `data/items/category` response property for the response status `200`
