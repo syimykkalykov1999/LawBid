@@ -60,8 +60,8 @@ export const CALL_MAX_ACTIVE_MS = 12 * 60 * 60 * 1000;
 export const CALL_SILENT_MS = 90 * 1000;
 const LIVE: CallStatus[] = ['ringing', 'active'];
 /** Mesh calls: every member sends audio to every other — a safe size. */
-export const GROUP_MAX_AUDIO = 6;
-export const GROUP_MAX_VIDEO = 4;
+export const GROUP_MAX_AUDIO = 9;
+export const GROUP_MAX_VIDEO = 6;
 const IN_CALL = ['joined', 'invited'];
 /** A vote to remove a member runs this long, then the count decides. */
 export const CALL_VOTE_MS = 30_000;

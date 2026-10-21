@@ -223,6 +223,11 @@ const kRemovedFromCall = 'REMOVED_FROM_CALL';
 /// switch it on again).
 const kNoticeMutedByHost = 'MUTED_BY_HOST';
 
+/// Owner 2026-10-21: how a vote to remove a member ended; the notice reads
+/// `VOTE_PASSED:<userId>`.
+const kNoticeVotePassed = 'VOTE_PASSED';
+const kNoticeVoteFailed = 'VOTE_FAILED';
+
 /// The link must come up this fast after pick-up, else "failed".
 const kCallConnectTimeout = Duration(seconds: 25);
 
@@ -590,13 +595,30 @@ class CallController extends Notifier<CallSession> {
   }
 
   /// Hang up / cancel.
-  Future<void> hangUp({CallEndReason reason = CallEndReason.hangup}) async {
+  Future<void> hangUp({
+    CallEndReason reason = CallEndReason.hangup,
+    // Group call, host: end it for everyone, not just leave (Telegram).
+    bool forAll = false,
+  }) async {
     final call = state.call;
     final wasActive = state.phase == CallPhase.active;
     // The server hears it first: the media closing sends the other phone a
     // "link lost" before anything else, and it must not beat the hang-up
     // (it showed "Reconnecting…" for seconds on a video call).
-    final ending = call == null ? null : _endQuietly(call.id, reason);
+    final gid = call?.groupId;
+    if (call != null && call.group && gid != null && !forAll && wasActive) {
+      ref.read(groupRejoinProvider.notifier).set(
+            GroupRejoin(
+              groupId: gid,
+              title: state.peer?.displayName ?? '',
+              avatarUrl: state.peer?.avatarUrl,
+            ),
+          );
+    } else if (forAll) {
+      ref.read(groupRejoinProvider.notifier).set(null);
+    }
+    final ending =
+        call == null ? null : _endQuietly(call.id, reason, forAll: forAll);
     _finish(
       switch (reason) {
         CallEndReason.noAnswer => CallStatus.missed,
@@ -667,6 +689,7 @@ class CallController extends Notifier<CallSession> {
       return null;
     }
     _reset();
+    ref.read(groupRejoinProvider.notifier).set(null);
     final gen = _gen;
     state = CallSession(
       phase: CallPhase.connecting,
@@ -736,6 +759,19 @@ class CallController extends Notifier<CallSession> {
   Future<String?> removeMember(String userId) =>
       _groupAction((id) => _repo.removeMember(id, userId));
 
+  /// Nobody runs the call: propose to remove [userId] (members vote).
+  Future<String?> proposeRemoval(String userId) =>
+      _groupAction((id) => _repo.startVote(id, userId));
+
+  /// A ballot in the open vote.
+  Future<String?> castVote({required bool favor}) {
+    final vote = state.call?.vote;
+    if (vote == null) return Future.value('CALL_STATE_CONFLICT');
+    return _groupAction(
+      (id) => _repo.castVote(id, vote.id, favor: favor),
+    );
+  }
+
   Future<String?> _groupAction(Future<AppCall> Function(String id) run) async {
     final call = state.call;
     if (call == null || state.phase != CallPhase.active) {
@@ -757,6 +793,16 @@ class CallController extends Notifier<CallSession> {
     final call = state.call;
     if (call == null || call.id != fresh.id) return;
     _applyMembers(fresh.hostId, fresh.participants, group: fresh.group);
+    final now = state.call;
+    if (now != null) {
+      state = state.copyWith(
+        call: now.copyWith(
+          moderated: fresh.moderated,
+          vote: fresh.vote,
+          clearVote: fresh.vote == null,
+        ),
+      );
+    }
   }
 
   void _applyMembers(
@@ -876,6 +922,7 @@ class CallController extends Notifier<CallSession> {
     final call = state.call;
     if (call == null || !state.busy) return;
     state = state.copyWith(errorCode: kRemovedFromCall);
+    ref.read(groupRejoinProvider.notifier).set(null);
     _finish(CallStatus.ended, call: call);
   }
 
@@ -1296,6 +1343,20 @@ class CallController extends Notifier<CallSession> {
         final m = CallMappers.participantsFromEvent(data);
         if (m == null || m.callId != state.call?.id || !state.busy) return;
         _applyMembers(m.hostId, m.members);
+      case 'call:vote':
+        final v = CallMappers.voteFromEvent(data);
+        final call = state.call;
+        if (v == null || call == null || v.callId != call.id || !state.busy) {
+          return;
+        }
+        state = state.copyWith(
+          call: call.copyWith(vote: v.vote, clearVote: v.vote == null),
+          notice: switch (v.result) {
+            'passed' => '$kNoticeVotePassed:${v.targetId}',
+            'failed' => '$kNoticeVoteFailed:${v.targetId}',
+            _ => null,
+          },
+        );
       case 'call:muted':
         if (data is! Map || data['callId'] != state.call?.id) return;
         if (data['muted'] == true && state.busy) {
@@ -1360,7 +1421,11 @@ class CallController extends Notifier<CallSession> {
     }
   }
 
-  Future<void> _endQuietly(String callId, CallEndReason reason) async {
+  Future<void> _endQuietly(
+    String callId,
+    CallEndReason reason, {
+    bool forAll = false,
+  }) async {
     // The request must get through even when the network is out for a
     // while (owner 2026-10-20: a hung-up video call stayed "live" on the
     // server): retried with growing pauses for about a minute, and it keeps
@@ -1369,7 +1434,7 @@ class CallController extends Notifier<CallSession> {
     final repo = _repo;
     for (var i = 0; i < 9; i++) {
       try {
-        await repo.end(callId, reason);
+        await repo.end(callId, reason, forAll: forAll);
         return;
       } on ApiException catch (e) {
         final code = e.statusCode;
@@ -1452,6 +1517,34 @@ class CallController extends Notifier<CallSession> {
 /// while TURN is not configured, so the button never leads nowhere).
 final videoCallsEnabledProvider = Provider<bool>(
   (ref) => ref.watch(featureFlagsControllerProvider).isEnabled('video_calls'),
+);
+
+/// Owner 2026-10-21: the group call this person left but that may still be
+/// running — the app offers a way back (WhatsApp).
+@immutable
+class GroupRejoin {
+  const GroupRejoin({
+    required this.groupId,
+    required this.title,
+    this.avatarUrl,
+  });
+
+  final String groupId;
+  final String title;
+  final String? avatarUrl;
+}
+
+class GroupRejoinNotifier extends Notifier<GroupRejoin?> {
+  @override
+  GroupRejoin? build() => null;
+
+  // ignore: use_setters_to_change_properties
+  void set(GroupRejoin? value) => state = value;
+}
+
+final groupRejoinProvider =
+    NotifierProvider<GroupRejoinNotifier, GroupRejoin?>(
+  GroupRejoinNotifier.new,
 );
 
 final callControllerProvider =

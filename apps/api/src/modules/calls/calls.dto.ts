@@ -102,7 +102,7 @@ export class StartGroupCallDto {
   })
   @IsOptional()
   @IsArray()
-  @ArrayMaxSize(5)
+  @ArrayMaxSize(8)
   @IsUUID('all', { each: true })
   userIds?: string[];
 }

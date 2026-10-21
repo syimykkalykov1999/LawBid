@@ -8,7 +8,7 @@ import 'package:lawbid/features/groups/presentation/widgets/group_avatar.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// Mesh calls: audio 6, video 4 people (the host included).
-int groupCallRingMax({required bool video}) => (video ? 4 : 6) - 1;
+int groupCallRingMax({required bool video}) => (video ? 6 : 9) - 1;
 
 /// A short, translated reason a group call did not start.
 String groupCallError(Translator t, String code) => switch (code) {
@@ -214,19 +214,26 @@ class GroupCallJoinBar extends ConsumerWidget {
               const SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: Text(
-                  t.t('call.ongoing'),
+                  running.members > 0
+                      ? '${t.t('call.ongoing')} · ${running.members}'
+                      : t.t('call.ongoing'),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: type.body.copyWith(color: colors.text),
                 ),
               ),
               const SizedBox(width: AppSpacing.sm),
-              Text(
-                t.t('group.call.join'),
-                maxLines: 1,
-                style: type.body.copyWith(
-                  color: colors.gold,
-                  fontWeight: FontWeight.w600,
+              Flexible(
+                child: Text(
+                  t.t(
+                    running.returning ? 'call.returnToCall' : 'group.call.join',
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: type.body.copyWith(
+                    color: colors.gold,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ],

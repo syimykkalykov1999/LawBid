@@ -27,8 +27,10 @@ AppCall _call(
   required bool outgoing,
   bool video = false,
   List<CallMember> members = const [],
+  String? groupId,
 }) =>
     AppCall(
+      groupId: groupId,
       group: members.isNotEmpty,
       hostId: members.isEmpty ? null : 'p1',
       participants: members,
@@ -128,6 +130,7 @@ class _FakeRepo implements CallsRepository {
       CallStatus.active,
       outgoing: false,
       members: acceptMembers,
+      groupId: acceptMembers.isEmpty ? null : 'grp',
     );
   }
 
@@ -141,9 +144,33 @@ class _FakeRepo implements CallsRepository {
   bool Function()? mediaClosed;
   bool? closedAtEnd;
   int endFailures = 0;
+  final endedForAll = <String>[];
+  final votesStarted = <String>[];
+  final ballots = <bool>[];
 
   @override
-  Future<AppCall> end(String callId, CallEndReason reason) async {
+  Future<AppCall> startVote(String callId, String userId) async {
+    votesStarted.add(userId);
+    return _call(callId, CallStatus.active, outgoing: true);
+  }
+
+  @override
+  Future<AppCall> castVote(
+    String callId,
+    String voteId, {
+    required bool favor,
+  }) async {
+    ballots.add(favor);
+    return _call(callId, CallStatus.active, outgoing: true);
+  }
+
+  @override
+  Future<AppCall> end(
+    String callId,
+    CallEndReason reason, {
+    bool forAll = false,
+  }) async {
+    if (forAll) endedForAll.add(callId);
     closedAtEnd = mediaClosed?.call();
     if (endFailures > 0) {
       endFailures--;
@@ -1012,7 +1039,13 @@ void main() {
       h.emit(
         'call:incoming',
         _event(
-          _call('g1', CallStatus.active, outgoing: false, members: ringing),
+          _call(
+            'g1',
+            CallStatus.active,
+            outgoing: false,
+            members: ringing,
+            groupId: 'grp',
+          ),
         ),
       );
       await _settle();
@@ -1199,6 +1232,63 @@ void main() {
       expect(h.repo.removeCalls, ['p2']);
       h.repo.inviteError = 'CALL_IN_PROGRESS';
       expect(await h.c.invite(username: 'busy'), 'CALL_IN_PROGRESS');
+    });
+
+    test('host: "end for everyone" is sent as forAll; plain leave is not',
+        () async {
+      final h = await joined();
+      h.media.onState!(CallMediaState.connected);
+      await h.c.hangUp(forAll: true);
+      await _settle();
+      expect(h.repo.endedForAll, ['g1']);
+      expect(h.container.read(groupRejoinProvider), isNull);
+    });
+
+    test('leaving a running group call offers the way back', () async {
+      final h = await joined();
+      h.media.onState!(CallMediaState.connected);
+      await h.c.hangUp();
+      await _settle();
+      expect(h.repo.endedForAll, isEmpty);
+      expect(h.container.read(groupRejoinProvider)?.groupId, 'grp');
+    });
+
+    test('vote to remove: shown, answered, and its end announced', () async {
+      final h = await joined();
+      h.media.onState!(CallMediaState.connected);
+      h.emit('call:vote', {
+        'callId': 'g1',
+        'result': 'open',
+        'targetId': 'p2',
+        'vote': {
+          'id': 'v1',
+          'targetId': 'p2',
+          'startedById': 'p1',
+          'forCount': 1,
+          'againstCount': 0,
+          'voters': 2,
+          'expiresAt': DateTime.now()
+              .add(const Duration(seconds: 30))
+              .toUtc()
+              .toIso8601String(),
+          'myBallot': null,
+        },
+      });
+      await _settle();
+      expect(h.s.call?.vote?.id, 'v1');
+      expect(await h.c.castVote(favor: true), isNull);
+      expect(h.repo.ballots, [true]);
+      expect(await h.c.proposeRemoval('p1'), isNull);
+      expect(h.repo.votesStarted, ['p1']);
+      h.emit('call:vote', {
+        'callId': 'g1',
+        'result': 'passed',
+        'targetId': 'p2',
+        'vote': null,
+      });
+      await _settle();
+      expect(h.s.call?.vote, isNull);
+      expect(h.s.notice, '$kNoticeVotePassed:p2');
     });
   });
 }

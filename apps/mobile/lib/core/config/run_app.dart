@@ -102,8 +102,16 @@ Future<void> runLawBid(AppFlavor flavor) async {
                   groupId,
                 );
             if (call == null) return null;
+            final me = ref.read(callMyIdProvider);
+            final mine =
+                call.participants.where((m) => m.userId == me).firstOrNull;
+            // Taken out by the host / a vote: no way back into this call.
+            if (mine?.status == CallMemberStatus.removed) return null;
             return GroupRunningCall(
               video: call.video,
+              members: call.participants.where((m) => m.joined).length,
+              returning: mine != null &&
+                  (mine.joined || mine.status == CallMemberStatus.left),
               join: (title, avatarUrl) =>
                   ref.read(callControllerProvider.notifier).joinGroupCall(
                         call,

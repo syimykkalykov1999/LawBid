@@ -254,6 +254,8 @@ class _MemberTile extends StatelessWidget {
 class CallNoticeBanner extends ConsumerStatefulWidget {
   const CallNoticeBanner({required this.notice, super.key});
 
+  /// `MUTED_BY_HOST`, `VOTE_PASSED:<userId>` or `VOTE_FAILED:<userId>`.
+
   final String notice;
 
   @override
@@ -283,6 +285,24 @@ class _CallNoticeBannerState extends ConsumerState<CallNoticeBanner> {
     final t = ref.watch(translatorProvider);
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final parts = widget.notice.split(':');
+    final voteKey = switch (parts.first) {
+      kNoticeVotePassed => 'call.vote.passed',
+      kNoticeVoteFailed => 'call.vote.failed',
+      _ => null,
+    };
+    final who = parts.length > 1
+        ? ref
+                .watch(callControllerProvider)
+                .call
+                ?.participants
+                .where((m) => m.userId == parts[1])
+                .firstOrNull
+                ?.name ??
+            ''
+        : '';
+    final text =
+        voteKey == null ? t.t('call.mutedByHost') : t.t(voteKey, {'name': who});
     return Semantics(
       liveRegion: true,
       child: DecoratedBox(
@@ -299,14 +319,16 @@ class _CallNoticeBannerState extends ConsumerState<CallNoticeBanner> {
             mainAxisSize: MainAxisSize.min,
             children: [
               AppIcon(
-                AppIcons.micOffRounded,
+                voteKey == null
+                    ? AppIcons.micOffRounded
+                    : AppIcons.groups2Rounded,
                 size: 16,
                 color: colors.iconTint,
               ),
               const SizedBox(width: AppSpacing.xs),
               Flexible(
                 child: FitText(
-                  t.t('call.mutedByHost'),
+                  text,
                   style: type.caption.copyWith(color: Colors.white),
                 ),
               ),
@@ -370,6 +392,14 @@ class _MembersSheet extends ConsumerWidget {
                       isMe: m.userId == me,
                       isHost: m.userId == call.hostId,
                       canManage: iAmHost && m.userId != me,
+                      canPropose: !call.moderated &&
+                          call.vote == null &&
+                          m.joined &&
+                          m.userId != me &&
+                          s.phase == CallPhase.active,
+                      onPropose: () => unawaited(
+                        _run(context, t, c.proposeRemoval(m.userId)),
+                      ),
                       muted: m.userId == me ? s.muted : m.muted,
                       onMute: () =>
                           unawaited(_run(context, t, c.muteMember(m.userId))),
@@ -438,6 +468,8 @@ class _MemberRow extends StatelessWidget {
     required this.isMe,
     required this.isHost,
     required this.canManage,
+    required this.canPropose,
+    required this.onPropose,
     required this.muted,
     required this.onMute,
     required this.onRemove,
@@ -447,6 +479,8 @@ class _MemberRow extends StatelessWidget {
   final bool isMe;
   final bool isHost;
   final bool canManage;
+  final bool canPropose;
+  final VoidCallback onPropose;
   final bool muted;
   final VoidCallback onMute;
   final VoidCallback onRemove;
@@ -522,6 +556,12 @@ class _MemberRow extends StatelessWidget {
                   icon: AppIcons.closeRounded,
                   label: t.t('common.remove'),
                   onTap: onRemove,
+                )
+              else if (canPropose)
+                _RowButton(
+                  icon: AppIcons.closeRounded,
+                  label: t.t('call.vote.kick'),
+                  onTap: onPropose,
                 ),
             ],
           ),
