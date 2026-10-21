@@ -21,7 +21,12 @@ class CrashReporter {
 
   static const _queueKey = 'crash.queue.v1';
   static const _maxQueue = 20;
-  static const _batch = 10;
+
+  /// One report per request, each cut to ~6 KB: the load balancer's firewall
+  /// refuses bodies over 8 KB (a batch of ten answered 403 and stayed queued).
+  static const _batch = 1;
+  static const _maxMessage = 500;
+  static const _maxStack = 5000;
   static const _delay = Duration(seconds: 20);
 
   static CrashReporter? instance;
@@ -92,9 +97,8 @@ class CrashReporter {
       if (!_seen.add(key)) return;
       final queue = _read()
         ..add({
-          'message':
-              message.length > 2000 ? message.substring(0, 2000) : message,
-          'stack': trace.length > 20000 ? trace.substring(0, 20000) : trace,
+          'message': _clip(message, _maxMessage),
+          'stack': _clip(trace, _maxStack),
           'fatal': fatal,
           'route': _route,
         });
@@ -169,6 +173,9 @@ class CrashReporter {
             for (final r in take)
               {
                 ...r,
+                // Reports queued by an older build can be longer.
+                'message': _clip('${r['message']}', _maxMessage),
+                'stack': _clip('${r['stack']}', _maxStack),
                 'platform': kIsWeb ? 'web' : Platform.operatingSystem,
                 'appVersion': AppVersion.current,
                 'build': '1',
@@ -188,4 +195,7 @@ class CrashReporter {
       // Stays in the queue for the next start.
     }
   }
+
+  static String _clip(String text, int max) =>
+      text.length > max ? text.substring(0, max) : text;
 }

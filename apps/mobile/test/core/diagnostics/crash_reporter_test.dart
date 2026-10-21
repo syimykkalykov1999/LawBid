@@ -57,6 +57,17 @@ void main() {
     expect(jsonDecode(prefs.getString('crash.queue.v1')!), isEmpty);
   });
 
+  test('one report per request, cut so the body stays under 8 KB', () async {
+    CrashReporter.instance!
+      ..report(StateError('a'), StackTrace.fromString('x' * 30000))
+      ..report(StateError('b'), StackTrace.fromString('y' * 30000));
+    await CrashReporter.instance!.flush();
+
+    expect(adapter.requests, hasLength(1));
+    expect(jsonEncode(adapter.requests.single.data).length, lessThan(8000));
+    expect(jsonDecode(prefs.getString('crash.queue.v1')!), hasLength(1));
+  });
+
   test('the same error in one session is reported once', () async {
     final trace = StackTrace.fromString('#0 f (a.dart:1:1)');
     CrashReporter.instance!
