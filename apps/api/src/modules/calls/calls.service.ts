@@ -661,9 +661,11 @@ export class CallsService {
     for (const id of wanted) {
       if (invitees.length >= this.capacity(video) - 1) break;
       // Blocked, "who can call me" closed or already talking: skipped.
+      // Owner 2026-10-21 (inbox 20, WhatsApp): the group itself is the
+      // accepted «Request» — members ring without a 1:1 chat.
       try {
         await this.blocks.assertNotBlocked(user.sub, id);
-        await this.assertMayCall(user.sub, id);
+        await this.privacy?.assertAllowed(user.sub, id, 'call');
       } catch {
         continue;
       }
@@ -1128,7 +1130,9 @@ export class CallsService {
     });
     const rows = await this.rowsOf(call.id);
     const joined = rows.filter((r) => r.status === 'joined');
-    if (joined.length < 2) {
+    // Like [endIfAlone]: while someone still rings the call stays, so the
+    // one who left can come back (inbox 20b).
+    if (joined.length < 2 && !rows.some((r) => r.status === 'invited')) {
       return this.finish(call, 'ended', user.sub);
     }
     await this.push.enqueueCallEnded({

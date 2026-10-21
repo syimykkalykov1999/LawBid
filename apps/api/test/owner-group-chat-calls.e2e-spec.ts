@@ -101,6 +101,13 @@ describe('Group chat calls (e2e)', () => {
       cy.id,
     ]);
     const gid = g.body.data.id as string;
+    // Inbox 20: a new group lets every member call; this one is admins-only.
+    expect(g.body.data.whoCanCall).toBe('all');
+    await api()
+      .patch(`/api/v1/groups/${gid}`)
+      .set(auth(owner.id))
+      .send({ whoCanCall: 'admins' })
+      .expect(200);
 
     // Nobody in the group: 404. A plain member may not start (admins only).
     await api()
@@ -202,7 +209,7 @@ describe('Group chat calls (e2e)', () => {
     await api().get(`/api/v1/groups/${gid}/call`).set(auth(cy.id)).expect(404);
   });
 
-  it('rings only the group members the starter is connected to (strangers wait for Requests)', async () => {
+  it('rings every member, even without a 1:1 chat (inbox 20: the group is the accepted request)', async () => {
     const owner = await person('GOwn');
     const friend = await person('GFriend');
     const stranger = await person('GStranger', { known: false });
@@ -228,7 +235,7 @@ describe('Group chat calls (e2e)', () => {
       started.body as { data: { participants: { userId: string }[] } }
     ).data.participants.map((p) => p.userId);
     expect(ids).toContain(friend.id);
-    expect(ids).not.toContain(stranger.id);
+    expect(ids).toContain(stranger.id);
   });
 
   it('limits the size, drops a removed member, lets the call outlive its host', async () => {
@@ -323,6 +330,11 @@ describe('Group chat calls (e2e)', () => {
       .expect(201);
     await acceptInvites(api, auth, g.body.data.id as string, [ann.id, bob.id]);
     const gid = g.body.data.id as string;
+    await api()
+      .patch(`/api/v1/groups/${gid}`)
+      .set(auth(owner.id))
+      .send({ whoCanCall: 'admins' })
+      .expect(200);
     const started = await api()
       .post(`/api/v1/groups/${gid}/calls`)
       .set(auth(owner.id))

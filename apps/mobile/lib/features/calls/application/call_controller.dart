@@ -1523,6 +1523,10 @@ class CallController extends Notifier<CallSession> {
         }
       case 'call:ended':
         final call = CallMappers.fromEvent(data);
+        // The «Join» row of a call that is over goes at once (inbox 20).
+        if (call != null && ref.read(callInviteProvider)?.callId == call.id) {
+          ref.read(callInviteProvider.notifier).set(null);
+        }
         if (call == null || call.id != state.call?.id) return;
         unawaited(ref.read(systemCallUiProvider).dismiss(call.id));
         if (state.phase != CallPhase.ended) _finish(call.status, call: call);

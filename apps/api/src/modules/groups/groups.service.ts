@@ -4,8 +4,6 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
-  HttpException,
-  HttpStatus,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -84,7 +82,6 @@ import {
 
 const GROUPS_PAGE = 30;
 const MESSAGES_PAGE = 30;
-const GROUPS_PER_DAY = 10;
 const INVITE_RETRY_MS = 24 * 3600 * 1000;
 const FANOUT_CHUNK = 50;
 const TOPICS_MAX = 100;
@@ -355,19 +352,7 @@ export class GroupsService {
     user: RequestUser,
     dto: CreateGroupDto,
   ): Promise<GroupDetailDto> {
-    const since = new Date(Date.now() - 24 * 3600 * 1000);
-    const made = await this.prisma.chatGroup.count({
-      where: { created_by: user.sub, created_at: { gte: since } },
-    });
-    if (made >= GROUPS_PER_DAY) {
-      throw new HttpException(
-        {
-          code: ErrorCode.RATE_LIMITED,
-          message: 'Too many groups created today.',
-        },
-        HttpStatus.TOO_MANY_REQUESTS,
-      );
-    }
+    // Owner 2026-10-21 (inbox 21): no cap on groups per person.
     if (dto.avatarFileId) {
       await this.files.assertAttachable(user.sub, dto.avatarFileId, ['avatar']);
     }
@@ -407,6 +392,8 @@ export class GroupsService {
           username_lower: handle,
           join_approval: type === 'closed' && !!dto.joinApproval,
           invite_enabled: type !== 'private',
+          // Owner 2026-10-21 (inbox 20, WhatsApp): any member starts a call.
+          who_can_call: 'all',
           title,
           description: dto.description?.trim() || null,
           avatar_file_id: dto.avatarFileId ?? null,

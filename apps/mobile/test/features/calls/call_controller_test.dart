@@ -706,6 +706,24 @@ void main() {
     expect(h.container.read(callInviteProvider)?.callId, 'c4');
   });
 
+  test('the «Join» prompt goes when that call ends (inbox 20)', () async {
+    final h = _Harness();
+    addTearDown(h.dispose);
+    h.emit(
+      'call:invite',
+      _event(_call('c4', CallStatus.active, outgoing: false)),
+    );
+    await _settle();
+    h.emit(
+        'call:ended', _event(_call('c9', CallStatus.ended, outgoing: false)));
+    await _settle();
+    expect(h.container.read(callInviteProvider)?.callId, 'c4');
+    h.emit(
+        'call:ended', _event(_call('c4', CallStatus.ended, outgoing: false)));
+    await _settle();
+    expect(h.container.read(callInviteProvider), isNull);
+  });
+
   test('ringing in: accept answers the offer', () async {
     final h = _Harness();
     addTearDown(h.dispose);

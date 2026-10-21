@@ -297,7 +297,8 @@ describe('Group chats and polls (e2e)', () => {
     await api().get(`/api/v1/groups/${id}`).set(bearer(bob.id)).expect(404);
     expect(await groupsSvc.activeMemberIds(id)).not.toContain(bob.id);
     expect(await groupsSvc.canStartCall(ann.id, id)).toBe(true);
-    expect(await groupsSvc.canStartCall(cy.id, id)).toBe(false);
+    // Inbox 20: a new group lets every member start a call.
+    expect(await groupsSvc.canStartCall(cy.id, id)).toBe(true);
     sub.unsubscribe();
   });
 
