@@ -15,6 +15,7 @@ import {
 } from '../../common/pagination/cursor.util';
 import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { ongoingCalls } from '../../common/calls/ongoing-call';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { BlocksService } from '../blocks/blocks.service';
 import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
@@ -1124,6 +1125,14 @@ export class ChannelsService {
     ]);
     const subBy = new Map(subs.map((s) => [s.channel_id, s]));
     const roleBy = new Map(roles.map((r) => [r.channel_id, r.role]));
+    // Inbox 20e: a running call shows to subscribers and admins only.
+    const calls = await ongoingCalls(
+      this.prisma,
+      (fileIds) => this.files.avatarUrlsMany(fileIds),
+      {
+        channelIds: ids.filter((id) => subBy.has(id) || roleBy.has(id)),
+      },
+    );
     return rows.flatMap((r) => {
       const owner = briefs.get(r.owner_id);
       if (!owner) return [];
@@ -1152,6 +1161,7 @@ export class ChannelsService {
           myRole: role,
           lastPostAt: r.last_post_at ? r.last_post_at.toISOString() : null,
           createdAt: r.created_at.toISOString(),
+          ongoingCall: calls.get(r.id) ?? null,
         },
       ];
     });

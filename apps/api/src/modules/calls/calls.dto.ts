@@ -247,6 +247,15 @@ export class CallDto {
   })
   groupId!: string | null;
 
+  @ApiPropertyOptional({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description:
+      'Owner 2026-10-21 (inbox 20e): the channel the call belongs to (else null).',
+  })
+  channelId?: string | null;
+
   @ApiProperty({ format: 'uuid' })
   callerId!: string;
 

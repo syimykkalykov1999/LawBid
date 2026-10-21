@@ -690,6 +690,7 @@ erDiagram
     String id PK
     String conversation_id FK "nullable"
     String group_id "nullable"
+    String channel_id "nullable"
     String caller_id FK
     String callee_id FK
     enum_CallStatus status

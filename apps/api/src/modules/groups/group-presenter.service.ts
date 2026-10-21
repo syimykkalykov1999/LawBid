@@ -9,6 +9,7 @@ import type {
   ChatGroupPollOption,
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { ongoingCalls } from '../../common/calls/ongoing-call';
 import { UNREAD_CAP } from '../notifications/badges.service';
 import { unreadMessagesSql } from './group-unread.sql';
 import { isImageMime } from '../files/files.policy';
@@ -373,7 +374,7 @@ export class GroupPresenter {
         ? [r.group.id]
         : [],
     );
-    const [msgRows, avatars, unread, pending] = await Promise.all([
+    const [msgRows, avatars, unread, pending, calls] = await Promise.all([
       this.prisma.chatGroupMessage.findMany({
         where: { id: { in: messageIds }, deleted_at: {} },
       }),
@@ -389,6 +390,12 @@ export class GroupPresenter {
             _count: { _all: true },
           })
         : Promise.resolve([]),
+      // Inbox 20e: the running call shows in the row and in the chat.
+      ongoingCalls(this.prisma, (ids) => this.files.avatarUrlsMany(ids), {
+        groupIds: rows.flatMap((r) =>
+          r.me && r.me.left_at === null ? [r.group.id] : [],
+        ),
+      }),
     ]);
     const pendingOf = new Map(pending.map((p) => [p.group_id, p._count._all]));
     const msgs = await this.messages(msgRows, viewerId);
@@ -461,6 +468,7 @@ export class GroupPresenter {
         unreadMentions: stats?.mentions ?? 0,
         mutedUntil: me?.muted_until ?? null,
         callsMuted: me?.calls_muted ?? false,
+        ongoingCall: calls.get(g.id) ?? null,
         pinned: me?.pinned_at != null,
         createdAt: g.created_at,
         updatedAt: g.updated_at,

@@ -19,6 +19,7 @@ import { ErrorCode } from '../../common/errors/error-code.enum';
 import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
 import { SecretsService } from '../../common/secrets/secrets.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { CALL_SILENT_MS } from '../../common/calls/ongoing-call';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { BlocksService } from '../blocks/blocks.service';
 import { caseWorkOngoing } from '../blocks/block-guard';
@@ -56,8 +57,9 @@ export const CALL_RING_TIMEOUT_MS = 65_000;
  * read it every ~8 s (heartbeat), so silence means both are gone. Owner
  * 2026-10-21: no cap on how long people talk (days are fine) — only
  * silence ends a call — and a dead-zone gap of a few minutes must not
- * (the app waits 150 s for the network before it gives up). */
-export const CALL_SILENT_MS = 180 * 1000;
+ * (the app waits 150 s for the network before it gives up). Lives in
+ * common/calls (the group / channel lists read it too). */
+export { CALL_SILENT_MS };
 const LIVE: CallStatus[] = ['ringing', 'active'];
 
 /** Owner 2026-10-21: a network that blocks UDP (offices, some mobile
@@ -74,9 +76,13 @@ export function withTcpFallback(urls: string[]): string[] {
   return out;
 }
 
-/** Mesh calls: every member sends audio to every other — a safe size. */
+/** Mesh calls: every member sends audio to every other — a safe size.
+ * Owner 2026-10-21 (inbox 20d): video holds nine like audio. More people
+ * (hundreds) need an SFU media server, not mesh. */
 export const GROUP_MAX_AUDIO = 9;
-export const GROUP_MAX_VIDEO = 6;
+export const GROUP_MAX_VIDEO = 9;
+/** The channels feature switch (ChannelsService.assertEnabled). */
+const CHANNELS_FLAG = 'channels';
 const IN_CALL = ['joined', 'invited'];
 /** A vote to remove a member runs this long, then the count decides. */
 export const CALL_VOTE_MS = 30_000;
@@ -396,7 +402,10 @@ export class CallsService {
       const row = await this.rowOf(call.id, user.sub);
       if (dto.forAll) {
         // "End call for everyone": the host only.
-        if (this.hostOf(call, await this.rowsOf(call.id)) !== user.sub) {
+        if (
+          (await this.hostFor(call, await this.rowsOf(call.id))) !== user.sub &&
+          !(await this.isCallAdmin(call, user.sub))
+        ) {
           throw new ForbiddenException({
             code: ErrorCode.FORBIDDEN,
             message: 'Only the host can end the call for everyone.',
@@ -425,6 +434,16 @@ export class CallsService {
   async get(user: RequestUser, id: string): Promise<CallDto> {
     await this.sweep();
     const call = await this.load(user, id);
+    if (call.channel_id && LIVE.includes(call.status)) {
+      // The channel was deleted or closed by moderation: its call is over.
+      const ch = await this.prisma.channel.findFirst({
+        where: { id: call.channel_id },
+        select: { status: true },
+      });
+      if (!ch || ch.status === 'banned') {
+        return this.finish(call, 'ended', user.sub);
+      }
+    }
     if (LIVE.includes(call.status)) {
       // The app asks every few seconds while it is in the call: a heartbeat.
       const now = new Date();
@@ -578,6 +597,7 @@ export class CallsService {
           data: { status: 'left', left_at: now },
         });
       }
+      await this.announceGroupCall(call);
       if (
         call.conversation_id &&
         (outcome === 'missed' || outcome === 'canceled')
@@ -600,7 +620,7 @@ export class CallsService {
 
   // --- Calls from a group chat (owner 2026-10-20) ---------------------------
 
-  /** Audio / video of one call: audio 6, video 4 (mesh). */
+  /** Audio / video of one call: 9 / 9 (mesh). */
   private capacity(video: boolean): number {
     return video ? GROUP_MAX_VIDEO : GROUP_MAX_AUDIO;
   }
@@ -617,7 +637,8 @@ export class CallsService {
     if (!groups) throw notFound();
     const video = dto.video === true;
     const m = await groups.assertMember(user.sub, groupId);
-    if (!(m.group.who_can_call === 'all' || m.admin)) {
+    // The same right as the button (GroupDto.canCall, canStartCall).
+    if (!(m.group.who_can_call === 'all' || m.can('calls'))) {
       throw new ForbiddenException({
         code: ErrorCode.GROUP_FORBIDDEN,
         message: 'Only admins can start a call in this group.',
@@ -725,6 +746,186 @@ export class CallsService {
     });
   }
 
+  // --- Calls of a channel (owner 2026-10-21, inbox 20e) ---------------------
+  // Telegram «Видеочат»: the call belongs to the channel; its owner / admins
+  // start and end it, subscribers come and go freely. Nobody is rung (a
+  // channel may have thousands of subscribers): the channel and its row in
+  // the list show the running call (ChannelDto.ongoingCall).
+
+  /** The viewer's role in the channel (owner / admin), else null. */
+  private async channelRole(
+    userId: string,
+    channelId: string,
+  ): Promise<string | null> {
+    const row = await this.prisma.channelAdmin.findUnique({
+      where: { channel_id_user_id: { channel_id: channelId, user_id: userId } },
+      select: { role: true },
+    });
+    return row?.role ?? null;
+  }
+
+  /** 404 unless the channel is open to [userId]; 403 unless they subscribe
+   * to it or run it. Returns their role (null for a subscriber). */
+  private async assertChannelReader(
+    userId: string,
+    channelId: string,
+  ): Promise<string | null> {
+    if (!(await this.flags.isEnabled(CHANNELS_FLAG, true))) {
+      throw new ForbiddenException({
+        code: ErrorCode.FEATURE_DISABLED,
+        message: 'Channels are not available yet.',
+      });
+    }
+    const missing = () =>
+      new NotFoundException({
+        code: ErrorCode.NOT_FOUND,
+        message: 'Channel not found.',
+      });
+    const ch = await this.prisma.channel.findFirst({
+      where: { id: channelId },
+      select: { id: true, owner_id: true, status: true },
+    });
+    if (!ch) throw missing();
+    const role = await this.channelRole(userId, ch.id);
+    if (ch.status === 'banned' && !role) throw missing();
+    if (await this.blocks.isBlockedEitherWay(userId, ch.owner_id)) {
+      throw missing();
+    }
+    if (!role) {
+      const sub = await this.prisma.channelSubscription.findUnique({
+        where: { channel_id_user_id: { channel_id: ch.id, user_id: userId } },
+        select: { user_id: true },
+      });
+      if (!sub) {
+        throw new ForbiddenException({
+          code: ErrorCode.FORBIDDEN,
+          message: 'Subscribe to the channel to join its call.',
+        });
+      }
+    }
+    return role;
+  }
+
+  /** The running call of a channel, else null. */
+  private async runningChannelCall(channelId: string): Promise<Call | null> {
+    return this.prisma.call.findFirst({
+      where: { channel_id: channelId, status: 'active' },
+      orderBy: { created_at: 'desc' },
+    });
+  }
+
+  /** POST /channels/:id/calls — the owner / an admin starts the channel's
+   * call (or joins the one running). Nobody is rung. */
+  async startChannelCall(
+    user: RequestUser,
+    channelId: string,
+    dto: StartCallDto = {},
+  ): Promise<CallDto> {
+    const video = dto.video === true;
+    const role = await this.assertChannelReader(user.sub, channelId);
+    await this.sweep();
+    const running = await this.runningChannelCall(channelId);
+    if (running) return this.joinCall(user, running.id);
+    if (!role) {
+      throw new ForbiddenException({
+        code: ErrorCode.FORBIDDEN,
+        message: 'Only channel admins can start a call.',
+      });
+    }
+    if (
+      this.entitlements &&
+      !(await this.entitlements.has(user.sub, video ? 'video_calls' : 'calls'))
+    ) {
+      throw new ForbiddenException({
+        code: ErrorCode.ENTITLEMENT_REQUIRED,
+        message: 'Your plan does not include calls.',
+      });
+    }
+    if (video && !(await this.videoConfig()).available) {
+      throw new ForbiddenException({
+        code: ErrorCode.FEATURE_DISABLED,
+        message: 'Video calls are not available yet.',
+      });
+    }
+    const mine = await this.liveCallOf(user.sub);
+    if (mine) {
+      throw new ConflictException({
+        code: ErrorCode.CALL_IN_PROGRESS,
+        message: 'You are already in a call.',
+        details: { callId: mine.id },
+      });
+    }
+    const now = new Date();
+    const call = await this.prisma.$transaction(async (tx) => {
+      const c = await tx.call.create({
+        data: {
+          channel_id: channelId,
+          caller_id: user.sub,
+          callee_id: user.sub,
+          status: 'active',
+          answered_at: now,
+          video,
+          is_group: true,
+        },
+      });
+      await tx.callParticipant.create({
+        data: {
+          call_id: c.id,
+          user_id: user.sub,
+          status: 'joined',
+          joined_at: now,
+        },
+      });
+      return c;
+    });
+    await this.broadcastParticipants(call.id);
+    return this.toDto(call, user.sub);
+  }
+
+  /** GET /channels/:id/call — the call running in this channel (the bar
+   * «Call in progress · Join»), 404 CALL_NOT_FOUND when there is none. */
+  async channelCall(user: RequestUser, channelId: string): Promise<CallDto> {
+    await this.assertChannelReader(user.sub, channelId);
+    await this.sweep();
+    const call = await this.runningChannelCall(channelId);
+    if (!call) throw notFound();
+    if (call.updated_at.getTime() < Date.now() - CALL_SILENT_MS) {
+      await this.finish(call, 'ended', null);
+      throw notFound();
+    }
+    return this.toDto(call, user.sub);
+  }
+
+  /** Too few people left for the call to go on: a channel's call lives
+   * while anyone is in it (Telegram), any other while two or more are. */
+  private tooFew(call: Call, joined: number): boolean {
+    return call.channel_id ? joined < 1 : joined < 2;
+  }
+
+  /** May end the call for everyone besides the host: an admin of the group
+   * / channel it belongs to (Telegram: admins run the video chat). */
+  private async isCallAdmin(call: Call, userId: string): Promise<boolean> {
+    if (call.channel_id) {
+      return (await this.channelRole(userId, call.channel_id)) !== null;
+    }
+    if (call.group_id && this.groups) {
+      return (await this.groups.adminIds(call.group_id)).includes(userId);
+    }
+    return false;
+  }
+
+  /** The group's members hear that its call changed (the row in the list
+   * and the bar in the chat refresh). Channels are read, not told: they may
+   * have thousands of subscribers. */
+  private async announceGroupCall(call: Call): Promise<void> {
+    if (!call.group_id || !this.groups) return;
+    const ids = await this.groups.activeMemberIds(call.group_id);
+    this.realtime.toUsers(ids, 'group:update', {
+      groupId: call.group_id,
+      kind: 'call',
+    });
+  }
+
   /** GET /groups/:id/call — the call running in this group (the chat shows
    * "Join"), 404 CALL_NOT_FOUND when there is none. */
   async groupCall(user: RequestUser, groupId: string): Promise<CallDto> {
@@ -750,6 +951,8 @@ export class CallsService {
     if (call.group_id) {
       if (!groups) throw notFound();
       await groups.assertMember(user.sub, call.group_id);
+    } else if (call.channel_id) {
+      await this.assertChannelReader(user.sub, call.channel_id);
     } else if (!call.is_group || !(await this.rowOf(call.id, user.sub))) {
       // Owner 2026-10-21 (WhatsApp): a call made a group by adding people —
       // whoever was in it (or asked in) may come back while it runs.
@@ -847,7 +1050,7 @@ export class CallsService {
     const joined = (await this.rowsOf(call.id)).filter(
       (r) => r.status === 'joined',
     );
-    if (joined.length < 2) {
+    if (this.tooFew(call, joined.length)) {
       await this.finish(call, 'ended', null);
       return;
     }
@@ -903,9 +1106,10 @@ export class CallsService {
     const ids = [...new Set([...this.audience(call, rows), ...extra])];
     this.realtime.toUsers(ids, 'call:participants', {
       callId,
-      hostId: this.hostOf(call, rows),
+      hostId: await this.hostFor(call, rows),
       participants: await this.participantDtos(rows),
     });
+    await this.announceGroupCall(call);
   }
 
   /** Turns a two-person call into a group call (idempotent). */
@@ -1027,7 +1231,7 @@ export class CallsService {
     });
     this.realtime.toUsers(
       [targetId],
-      call.group_id ? 'call:invite' : 'call:incoming',
+      call.group_id || call.channel_id ? 'call:invite' : 'call:incoming',
       { call: await this.toDto(call, targetId) },
     );
     await this.push.enqueueCall({ recipientId: targetId, callId: call.id });
@@ -1132,7 +1336,10 @@ export class CallsService {
     const joined = rows.filter((r) => r.status === 'joined');
     // Like [endIfAlone]: while someone still rings the call stays, so the
     // one who left can come back (inbox 20b).
-    if (joined.length < 2 && !rows.some((r) => r.status === 'invited')) {
+    if (
+      this.tooFew(call, joined.length) &&
+      !rows.some((r) => r.status === 'invited')
+    ) {
       return this.finish(call, 'ended', user.sub);
     }
     await this.push.enqueueCallEnded({
@@ -1151,7 +1358,7 @@ export class CallsService {
     const call = await this.load(user, id);
     if (!call.is_group || call.status !== 'active') throw conflict();
     const rows = await this.rowsOf(call.id);
-    if (this.hostOf(call, rows) !== user.sub) {
+    if ((await this.hostFor(call, rows)) !== user.sub) {
       throw new ForbiddenException({
         code: ErrorCode.FORBIDDEN,
         message: 'Only the host can do this.',
@@ -1225,7 +1432,7 @@ export class CallsService {
     const joined = (await this.rowsOf(call.id)).filter(
       (r) => r.status === 'joined',
     );
-    if (joined.length < 2) {
+    if (this.tooFew(call, joined.length)) {
       await this.finish(call, 'ended', byUserId);
       return;
     }
@@ -1243,6 +1450,13 @@ export class CallsService {
       rows.filter((r) => r.status === 'joined').map((r) => r.user_id),
     );
     if (joined.has(call.caller_id)) return true;
+    if (call.channel_id) {
+      const admins = await this.prisma.channelAdmin.findMany({
+        where: { channel_id: call.channel_id },
+        select: { user_id: true },
+      });
+      return admins.some((a) => joined.has(a.user_id));
+    }
     if (!call.group_id || !this.groups) return false;
     const admins = await this.groups.adminIds(call.group_id);
     return admins.some((a) => joined.has(a));
@@ -1538,7 +1752,7 @@ export class CallsService {
       const joined = (await this.rowsOf(call.id)).filter(
         (r) => r.status === 'joined',
       );
-      if (joined.length < 2) {
+      if (this.tooFew(call, joined.length)) {
         await this.finish(call, 'ended', null);
       } else {
         await this.broadcastParticipants(call.id, [row.user_id]);
@@ -1550,10 +1764,15 @@ export class CallsService {
    * is over (like WhatsApp: "no answer"). */
   private async endIfAlone(callId: string): Promise<void> {
     const call = await this.prisma.call.findUnique({ where: { id: callId } });
-    if (!call?.group_id || call.status !== 'active') return;
+    if (!(call?.group_id || call?.channel_id) || call.status !== 'active') {
+      return;
+    }
     const rows = await this.rowsOf(callId);
     const joined = rows.filter((r) => r.status === 'joined').length;
-    if (joined < 2 && !rows.some((r) => r.status === 'invited')) {
+    if (
+      this.tooFew(call, joined) &&
+      !rows.some((r) => r.status === 'invited')
+    ) {
       await this.finish(call, 'ended', null);
     }
   }
@@ -1671,7 +1890,11 @@ export class CallsService {
 
   /** Who can mute / remove others: the caller while they are in the call,
    * else whoever joined first. Null for a plain two-person call. */
-  private hostOf(call: Call, rows: CallParticipant[]): string | null {
+  private hostOf(
+    call: Call,
+    rows: CallParticipant[],
+    admins?: Set<string>,
+  ): string | null {
     if (!call.is_group) return null;
     const joined = rows
       .filter((r) => r.status === 'joined')
@@ -1679,7 +1902,24 @@ export class CallsService {
         (a, b) => (a.joined_at?.getTime() ?? 0) - (b.joined_at?.getTime() ?? 0),
       );
     if (joined.some((r) => r.user_id === call.caller_id)) return call.caller_id;
+    // A channel's call is hosted by its admins only (Telegram).
+    if (admins) {
+      return joined.find((r) => admins.has(r.user_id))?.user_id ?? null;
+    }
     return joined[0]?.user_id ?? null;
+  }
+
+  /** [hostOf] with the channel's admins loaded for a channel's call. */
+  private async hostFor(
+    call: Call,
+    rows: CallParticipant[],
+  ): Promise<string | null> {
+    if (!call.channel_id) return this.hostOf(call, rows);
+    const admins = await this.prisma.channelAdmin.findMany({
+      where: { channel_id: call.channel_id },
+      select: { user_id: true },
+    });
+    return this.hostOf(call, rows, new Set(admins.map((a) => a.user_id)));
   }
 
   /** Everyone who should hear about the call: both original members of a
@@ -1726,6 +1966,7 @@ export class CallsService {
       id: call.id,
       conversationId: call.conversation_id,
       groupId: call.group_id,
+      channelId: call.channel_id,
       callerId: call.caller_id,
       calleeId: call.callee_id,
       status: call.status,
@@ -1746,7 +1987,7 @@ export class CallsService {
         kind: peer?.role === 'attorney' ? 'attorney' : 'client',
       },
       group: call.is_group,
-      hostId: this.hostOf(call, rows),
+      hostId: await this.hostFor(call, rows),
       participants: await this.participantDtos(rows),
       moderated: call.is_group ? await this.isModerated(call, rows) : true,
       vote: await this.openVoteDtoOf(call, rows, viewerId),

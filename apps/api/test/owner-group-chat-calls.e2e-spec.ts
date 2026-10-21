@@ -674,4 +674,114 @@ describe('Group chat calls (e2e)', () => {
     await api().get(`/api/v1/calls/${callId}`).set(auth(a.id)).expect(200);
     expect(await rowOf(d.id)).toBe('removed');
   });
+
+  it('the group and its list row show the running call; starting needs the «calls» right', async () => {
+    const [owner, adm, ann, bob] = await Promise.all([
+      person('LOwn'),
+      person('LAdm'),
+      person('LAnn'),
+      person('LBob'),
+    ]);
+    const g = await api()
+      .post('/api/v1/groups')
+      .set(auth(owner.id))
+      .send({
+        title: 'Live',
+        type: 'closed',
+        memberIds: [adm.id, ann.id, bob.id],
+      })
+      .expect(201);
+    const gid = g.body.data.id as string;
+    await acceptInvites(api, auth, gid, [adm.id, ann.id, bob.id]);
+    await api()
+      .patch(`/api/v1/groups/${gid}`)
+      .set(auth(owner.id))
+      .send({ whoCanCall: 'admins' })
+      .expect(200);
+    // An admin without the «calls» checkbox: no button, and no call either.
+    await api()
+      .put(`/api/v1/groups/${gid}/members/${adm.id}/role`)
+      .set(auth(owner.id))
+      .send({ role: 'admin', rights: ['pin'] })
+      .expect(200);
+    const detail = await api()
+      .get(`/api/v1/groups/${gid}`)
+      .set(auth(adm.id))
+      .expect(200);
+    expect(detail.body.data.canCall).toBe(false);
+    await api()
+      .post(`/api/v1/groups/${gid}/calls`)
+      .set(auth(adm.id))
+      .send({})
+      .expect(403);
+
+    const started = await api()
+      .post(`/api/v1/groups/${gid}/calls`)
+      .set(auth(owner.id))
+      .send({ userIds: [] })
+      .expect(201);
+    const callId = started.body.data.id as string;
+    await api()
+      .post(`/api/v1/calls/${callId}/join`)
+      .set(auth(ann.id))
+      .expect(200);
+    const list = await api()
+      .get('/api/v1/groups')
+      .set(auth(bob.id))
+      .expect(200);
+    const row = (
+      list.body.data as {
+        id: string;
+        ongoingCall: {
+          id: string;
+          participantCount: number;
+          participants: { userId: string }[];
+        } | null;
+      }[]
+    ).find((x) => x.id === gid);
+    expect(row?.ongoingCall?.id).toBe(callId);
+    expect(row?.ongoingCall?.participantCount).toBe(2);
+    expect(row?.ongoingCall?.participants.map((p) => p.userId)).toEqual([
+      owner.id,
+      ann.id,
+    ]);
+    // Bob joins and leaves freely; the call goes on.
+    await api()
+      .post(`/api/v1/calls/${callId}/join`)
+      .set(auth(bob.id))
+      .expect(200);
+    await api()
+      .post(`/api/v1/calls/${callId}/end`)
+      .set(auth(bob.id))
+      .send({})
+      .expect(200);
+    const one = await api()
+      .get(`/api/v1/groups/${gid}`)
+      .set(auth(bob.id))
+      .expect(200);
+    expect(one.body.data.ongoingCall.participantCount).toBe(2);
+    // A group admin (with the right) may end it for all without hosting.
+    await api()
+      .put(`/api/v1/groups/${gid}/members/${adm.id}/role`)
+      .set(auth(owner.id))
+      .send({ role: 'admin' })
+      .expect(200);
+    await api()
+      .post(`/api/v1/calls/${callId}/join`)
+      .set(auth(adm.id))
+      .expect(200);
+    await api()
+      .post(`/api/v1/calls/${callId}/end`)
+      .set(auth(adm.id))
+      .send({ forAll: true })
+      .expect(200);
+    expect(
+      (await prisma.call.findUniqueOrThrow({ where: { id: callId } })).status,
+    ).toBe('ended');
+    const after = await api()
+      .get(`/api/v1/groups/${gid}`)
+      .set(auth(bob.id))
+      .expect(200);
+    expect(after.body.data.ongoingCall).toBeNull();
+  });
 });

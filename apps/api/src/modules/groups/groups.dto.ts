@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
+import { OngoingCallDto } from '../../common/calls/ongoing-call';
 import {
   ArrayMaxSize,
   ArrayMinSize,
@@ -905,6 +906,14 @@ export class GroupDto {
 
   @ApiProperty({ description: 'Group calls ring silently for me.' })
   callsMuted!: boolean;
+
+  @ApiPropertyOptional({
+    type: OngoingCallDto,
+    nullable: true,
+    description:
+      'Owner 2026-10-21 (Telegram «Видеочат»): the call running in the group now (members only).',
+  })
+  ongoingCall?: OngoingCallDto | null;
 
   @ApiProperty()
   pinned!: boolean;

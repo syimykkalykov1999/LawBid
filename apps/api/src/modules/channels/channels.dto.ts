@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
+import { OngoingCallDto } from '../../common/calls/ongoing-call';
 import {
   ArrayMaxSize,
   IsArray,
@@ -102,6 +103,14 @@ export class ChannelDto {
 
   @ApiProperty({ format: 'date-time' })
   createdAt!: string;
+
+  @ApiPropertyOptional({
+    type: OngoingCallDto,
+    nullable: true,
+    description:
+      'Owner 2026-10-21 (Telegram «Видеочат»): the call running in the channel now (subscribers and admins).',
+  })
+  ongoingCall?: OngoingCallDto | null;
 }
 
 export class ChannelListQueryDto {
