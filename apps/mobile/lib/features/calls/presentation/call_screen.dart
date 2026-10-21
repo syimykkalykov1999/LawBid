@@ -53,18 +53,30 @@ class _CallScreenState extends ConsumerState<CallScreen>
   late final CallScreenVisible _visible =
       ref.read(callScreenVisibleProvider.notifier);
 
-  /// Closes this screen (the call is over).
+  bool _closing = false;
+
+  /// Closes this screen (the call is over). Once, and only this route:
+  /// «ended» then «idle» both close, and a second pop while the screen
+  /// slides away took the chat under it too (device test 2026-10-21).
   void _close() {
-    if (!mounted) return;
+    if (!mounted || _closing) return;
+    _closing = true;
     final nav = Navigator.of(context);
-    unawaited(nav.maybePop());
+    final route = ModalRoute.of(context);
+    if (route == null || route.isCurrent) {
+      unawaited(nav.maybePop());
+    } else if (route.isActive) {
+      nav.removeRoute(route);
+    }
     // A screen that is still here a moment after the call is over (device
     // test 2026-10-21: frozen, buttons dead) goes regardless.
     Future<void>.delayed(const Duration(milliseconds: 600), () {
       if (!mounted) return;
       final phase = ref.read(callControllerProvider).phase;
-      if (phase == CallPhase.ended || phase == CallPhase.idle) {
-        nav.pop();
+      if ((phase == CallPhase.ended || phase == CallPhase.idle) &&
+          route != null &&
+          route.isActive) {
+        nav.removeRoute(route);
       }
     });
   }
