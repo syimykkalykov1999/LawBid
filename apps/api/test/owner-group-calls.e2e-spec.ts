@@ -466,4 +466,60 @@ describe('Group calls (e2e)', () => {
     const done = await prisma.call.findUniqueOrThrow({ where: { id: callId } });
     expect(done.status).toBe('ended');
   });
+
+  it('a call made a group: whoever left comes back while it runs; a stranger cannot; looking does not keep it alive', async () => {
+    const client = await prisma.user.create({
+      data: { role: 'client', first_name: 'Ella', last_name: 'Group' },
+    });
+    const a1 = await attorney('Fred');
+    const a2 = await attorney('Gina');
+    const a3 = await attorney('Hugo');
+    const conv1 = await chatBetween(client.id, a1.id);
+    await chatBetween(client.id, a2.id);
+    const cAuth = auth(client.id, 'client');
+    const a1Auth = auth(a1.id, 'attorney');
+    const a2Auth = auth(a2.id, 'attorney');
+
+    const started = await api()
+      .post(`/api/v1/conversations/${conv1}/calls`)
+      .set(a1Auth)
+      .expect(201);
+    const callId = started.body.data.id as string;
+    await api().post(`/api/v1/calls/${callId}/accept`).set(cAuth).expect(200);
+    await api()
+      .post(`/api/v1/calls/${callId}/participants`)
+      .set(cAuth)
+      .send({ userId: a2.id })
+      .expect(200);
+    await api().post(`/api/v1/calls/${callId}/accept`).set(a2Auth).expect(200);
+
+    // a1 leaves; the call goes on with two.
+    await api()
+      .post(`/api/v1/calls/${callId}/end`)
+      .set(a1Auth)
+      .send({})
+      .expect(200);
+    // Looking at it (the «Return» bar) is not a heartbeat for the call.
+    const before = await prisma.call.findUniqueOrThrow({
+      where: { id: callId },
+    });
+    await new Promise((r) => setTimeout(r, 20));
+    await api().get(`/api/v1/calls/${callId}`).set(a1Auth).expect(200);
+    const looked = await prisma.call.findUniqueOrThrow({
+      where: { id: callId },
+    });
+    expect(looked.updated_at.getTime()).toBe(before.updated_at.getTime());
+
+    // a1 comes back.
+    const back = await api()
+      .post(`/api/v1/calls/${callId}/join`)
+      .set(a1Auth)
+      .expect(200);
+    expect(parts(back).find((p) => p.userId === a1.id)?.status).toBe('joined');
+    // A stranger to the call cannot walk in.
+    await api()
+      .post(`/api/v1/calls/${callId}/join`)
+      .set(auth(a3.id, 'attorney'))
+      .expect(404);
+  });
 });

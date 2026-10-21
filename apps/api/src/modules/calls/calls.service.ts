@@ -428,16 +428,21 @@ export class CallsService {
     if (LIVE.includes(call.status)) {
       // The app asks every few seconds while it is in the call: a heartbeat.
       const now = new Date();
-      await this.prisma.call.updateMany({
-        where: { id: call.id, status: { in: LIVE } },
-        data: { updated_at: now },
-      });
       // A group call has one heartbeat per person: whoever's app died (swiped
       // away, no network) is dropped on their own silence, not kept by the
-      // others' heartbeats.
-      if (call.is_group) {
-        await this.prisma.callParticipant.updateMany({
-          where: { call_id: call.id, user_id: user.sub, status: 'joined' },
+      // others' heartbeats. Someone who left and only looks (the «Return»
+      // bar) keeps nothing alive.
+      const inIt =
+        !call.is_group ||
+        (
+          await this.prisma.callParticipant.updateMany({
+            where: { call_id: call.id, user_id: user.sub, status: 'joined' },
+            data: { updated_at: now },
+          })
+        ).count > 0;
+      if (inIt) {
+        await this.prisma.call.updateMany({
+          where: { id: call.id, status: { in: LIVE } },
           data: { updated_at: now },
         });
       }
@@ -739,8 +744,15 @@ export class CallsService {
   async joinCall(user: RequestUser, id: string): Promise<CallDto> {
     const groups = this.groups;
     const call = await this.prisma.call.findUnique({ where: { id } });
-    if (!groups || !call?.group_id) throw notFound();
-    await groups.assertMember(user.sub, call.group_id);
+    if (!call) throw notFound();
+    if (call.group_id) {
+      if (!groups) throw notFound();
+      await groups.assertMember(user.sub, call.group_id);
+    } else if (!call.is_group || !(await this.rowOf(call.id, user.sub))) {
+      // Owner 2026-10-21 (WhatsApp): a call made a group by adding people —
+      // whoever was in it (or asked in) may come back while it runs.
+      throw notFound();
+    }
     await this.sweep();
     const fresh = await this.prisma.call.findUniqueOrThrow({ where: { id } });
     if (fresh.status !== 'active') throw conflict();

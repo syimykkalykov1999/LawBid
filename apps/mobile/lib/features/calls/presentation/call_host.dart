@@ -133,8 +133,13 @@ class CallHost extends ConsumerWidget {
             invite != null &&
             !(invite.groupId != null && _inChatOf(invite.groupId!))) {
           top = CallInviteBar(key: ValueKey(invite.callId), invite: invite);
-        } else if (!s.busy && rejoin != null && !_inChatOf(rejoin.groupId)) {
-          top = CallRejoinBar(key: ValueKey(rejoin.groupId), rejoin: rejoin);
+        } else if (!s.busy &&
+            rejoin != null &&
+            !(rejoin.groupId != null && _inChatOf(rejoin.groupId!))) {
+          top = CallRejoinBar(
+            key: ValueKey(rejoin.groupId ?? rejoin.callId),
+            rejoin: rejoin,
+          );
         } else {
           top = null;
         }

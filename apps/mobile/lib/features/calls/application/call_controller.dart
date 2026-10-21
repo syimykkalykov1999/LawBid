@@ -657,15 +657,12 @@ class CallController extends Notifier<CallSession> {
         ? 0
         : call.participants.where((m) => m.joined && m.userId != me).length;
     // The way back is only offered into a call that goes on without us.
-    if (call != null &&
-        call.group &&
-        gid != null &&
-        !forAll &&
-        wasActive &&
-        othersIn > 0) {
+    // A call made a group by adding people comes back by its id (WhatsApp).
+    if (call != null && call.group && !forAll && wasActive && othersIn > 0) {
       ref.read(groupRejoinProvider.notifier).set(
             GroupRejoin(
               groupId: gid,
+              callId: gid == null ? call.id : null,
               title: state.peer?.displayName ?? '',
               avatarUrl: state.peer?.avatarUrl,
             ),
@@ -1748,10 +1745,14 @@ class GroupRejoin {
   const GroupRejoin({
     required this.groupId,
     required this.title,
+    this.callId,
     this.avatarUrl,
   });
 
-  final String groupId;
+  /// The chat group whose call it is; null for a call made a group by
+  /// adding people — then [callId] says which.
+  final String? groupId;
+  final String? callId;
   final String title;
   final String? avatarUrl;
 }

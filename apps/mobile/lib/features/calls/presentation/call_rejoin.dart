@@ -43,13 +43,21 @@ class _CallRejoinBarState extends ConsumerState<CallRejoinBar> {
 
   Future<void> _refresh() async {
     try {
-      final call = await ref
-          .read(callsRepositoryProvider)
-          .groupCall(widget.rejoin.groupId);
+      final r = widget.rejoin;
+      final repo = ref.read(callsRepositoryProvider);
+      final gid = r.groupId;
+      final cid = r.callId;
+      final call = gid != null
+          ? await repo.groupCall(gid)
+          : cid != null
+              ? await repo.get(cid)
+              : null;
       if (!mounted) return;
       final me = ref.read(callMyIdProvider);
       final mine = call?.participants.where((m) => m.userId == me).firstOrNull;
-      if (call == null || mine?.status == CallMemberStatus.removed) {
+      if (call == null ||
+          call.status != CallStatus.active ||
+          mine?.status == CallMemberStatus.removed) {
         // Over, or we were taken out: nothing to return to.
         ref.read(groupRejoinProvider.notifier).set(null);
         return;
@@ -67,7 +75,7 @@ class _CallRejoinBarState extends ConsumerState<CallRejoinBar> {
     final code = await ref.read(callControllerProvider.notifier).joinGroupCall(
           call,
           peer: CallPeer(
-            id: r.groupId,
+            id: r.groupId ?? call.peer.id,
             isAttorney: false,
             displayName: r.title,
             avatarUrl: r.avatarUrl,

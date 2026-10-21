@@ -123,6 +123,7 @@ class _FakeRepo implements CallsRepository {
   }
 
   List<CallMember> acceptMembers = const [];
+  String? acceptGroupId = 'grp';
 
   @override
   Future<AppCall> accept(String callId) async {
@@ -132,7 +133,7 @@ class _FakeRepo implements CallsRepository {
       CallStatus.active,
       outgoing: false,
       members: acceptMembers,
-      groupId: acceptMembers.isEmpty ? null : 'grp',
+      groupId: acceptMembers.isEmpty ? null : acceptGroupId,
     );
   }
 
@@ -1058,10 +1059,11 @@ void main() {
               : null,
         );
 
-    Future<_Harness> joined() async {
+    Future<_Harness> joined({String? groupId = 'grp'}) async {
       // Added to a running call: p1 and p2 are in it, we ring.
       final h = _Harness();
       addTearDown(h.dispose);
+      h.repo.acceptGroupId = groupId;
       final ringing = [
         m('p1', CallMemberStatus.joined),
         m('p2', CallMemberStatus.joined, at: 1),
@@ -1080,7 +1082,7 @@ void main() {
             CallStatus.active,
             outgoing: false,
             members: ringing,
-            groupId: 'grp',
+            groupId: groupId,
           ),
         ),
       );
@@ -1306,6 +1308,17 @@ void main() {
       await _settle();
       expect(h.repo.endedForAll, isEmpty);
       expect(h.container.read(groupRejoinProvider)?.groupId, 'grp');
+    });
+
+    test('leaving a call made a group by adding people offers the way back',
+        () async {
+      final h = await joined(groupId: null);
+      h.media.onState!(CallMediaState.connected);
+      await h.c.hangUp();
+      await _settle();
+      final r = h.container.read(groupRejoinProvider);
+      expect(r?.groupId, isNull);
+      expect(r?.callId, 'g1');
     });
 
     test('the last one out is offered no way back into a finished call',
