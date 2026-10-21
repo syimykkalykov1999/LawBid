@@ -61,6 +61,12 @@ void _openFromPayload(Ref ref, String? payload) {
 /// task list (every create / edit / done / delete / move refreshes it) and
 /// to the interface language, and re-arms. Watched for the whole signed-in
 /// session by `sessionServicesProvider`; a no-op off Android.
+/// A reminder that was not in the list before: the first list read after
+/// sign-in ([before] null) only learns what exists and never counts.
+@visibleForTesting
+bool reminderAdded(Set<String>? before, Set<String> now) =>
+    before != null && now.difference(before).isNotEmpty;
+
 final taskReminderSyncProvider = Provider<void>((ref) {
   if (!TaskReminderScheduler.supported) return;
   if (ref.watch(currentUserIdProvider) == null) return;
@@ -68,7 +74,8 @@ final taskReminderSyncProvider = Provider<void>((ref) {
   var ready = false;
   // Reminders already seen; one that appears later is a new one → permission.
   Set<String>? known;
-  // The exact-alarm screen was opened: the next return re-reads at once.
+  // The exact-alarm screen was opened (by a new reminder): the next return
+  // re-reads at once.
   var recheck = false;
   Future<void> ensureReady() async {
     if (ready) return;
@@ -98,14 +105,14 @@ final taskReminderSyncProvider = Provider<void>((ref) {
       );
       unawaited(_reportArmed(ref, slots));
       final now = {for (final s in slots) '${s.taskId}@${s.at}'};
-      final added = known != null && now.difference(known!).isNotEmpty;
+      final added = reminderAdded(known, now);
       known = now;
+      // Owner 2026-10-21 (Telegram / WhatsApp): the phone's «Alarms &
+      // reminders» screen opens only when the person adds a reminder, never
+      // on sign-in or at start; refused → inexact alarms, no more asking.
       if (added) {
-        unawaited(_ensureReminderPermission(ref));
-      } else if (slots.isNotEmpty) {
-        // Once per install: the «Alarms & reminders» switch (Android 12+).
         unawaited(
-          _askExactAlarms(ref).then((opened) {
+          _ensureReminderPermission(ref).then((opened) {
             if (opened) recheck = true;
           }),
         );
@@ -181,15 +188,15 @@ Future<void> _reportArmed(Ref ref, List<ReminderSlot> slots) async {
 /// if they stay off the person is told that the reminder cannot reach them,
 /// with a way to the phone's settings. Shown on the app-wide messenger, so
 /// it needs no screen of its own (the team feature does not import this).
-Future<void> _ensureReminderPermission(Ref ref) async {
+Future<bool> _ensureReminderPermission(Ref ref) async {
   final system = ref.read(systemNotificationsProvider);
   if (!await system.enabled() && !await system.request()) {
     await _tellNotificationsOff(ref, system);
-    return;
+    return false;
   }
-  if (await _askExactAlarms(ref)) {
-    ref.invalidate(tasksProvider((done: false, mine: false)));
-  }
+  final opened = await _askExactAlarms(ref);
+  if (opened) ref.invalidate(tasksProvider((done: false, mine: false)));
+  return opened;
 }
 
 /// Android 12+: an alarm at the minute needs the person's «Alarms & reminders»
