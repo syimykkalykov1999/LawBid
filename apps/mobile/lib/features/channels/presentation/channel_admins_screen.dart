@@ -8,6 +8,7 @@ import 'package:lawbid/features/channels/application/channels_providers.dart';
 import 'package:lawbid/features/channels/domain/channel_models.dart';
 import 'package:lawbid/features/channels/presentation/channel_actions.dart';
 import 'package:lawbid/features/channels/presentation/channel_widgets.dart';
+import 'package:lawbid/shared/people/people_suggest_list.dart';
 
 /// Owner 2026-10-20: the owner's team screen — who administers the channel,
 /// add by @username, remove.
@@ -32,9 +33,9 @@ class _ChannelAdminsScreenState extends ConsumerState<ChannelAdminsScreen> {
     super.dispose();
   }
 
-  Future<void> _add() async {
+  Future<void> _add([String? username]) async {
     final t = ref.read(translatorProvider);
-    final name = normalizeChannelUsername(_text.text);
+    final name = normalizeChannelUsername(username ?? _text.text);
     if (name.isEmpty || _adding) return;
     setState(() {
       _adding = true;
@@ -110,6 +111,23 @@ class _ChannelAdminsScreenState extends ConsumerState<ChannelAdminsScreen> {
               textInputAction: TextInputAction.done,
               onChanged: (_) => setState(() => _error = null),
               onSubmitted: (_) => _add(),
+            ),
+            // Owner 2026-10-21 (inbox 25b): people of the whole app by
+            // name or @username while typing; a tap adds them.
+            ValueListenableBuilder<TextEditingValue>(
+              valueListenable: _text,
+              builder: (context, v, _) => PeopleSuggestList(
+                key: const ValueKey('channel-admin-suggest'),
+                query: v.text,
+                scrollable: false,
+                inset: 0,
+                enabled: !_adding,
+                excludeIds: {
+                  for (final a in admins.value ?? const <ChannelAdmin>[])
+                    a.user.id,
+                },
+                onPick: (p) => _add(p.username),
+              ),
             ),
             const SizedBox(height: AppSpacing.sm),
             ValueListenableBuilder<TextEditingValue>(

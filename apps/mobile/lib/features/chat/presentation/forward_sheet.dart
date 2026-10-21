@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -12,6 +14,7 @@ import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/domain/forward.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
+import 'package:lawbid/shared/people/people_suggest_list.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// Owner 2026-10-21 (Telegram / WhatsApp «Переслать»): «Forward to…» for
@@ -94,6 +97,11 @@ class _ForwardTargetSheetState extends ConsumerState<ForwardTargetSheet> {
   final _query = TextEditingController();
   final _picked = <ForwardTarget>[];
 
+  /// Owner 2026-10-21 (inbox 25b, Instagram): people found in the whole
+  /// app, without a chat with me yet — their chat is opened on «Send».
+  final _people = <String, SuggestedPerson>{};
+  bool _opening = false;
+
   @override
   void dispose() {
     _query.dispose();
@@ -108,11 +116,45 @@ class _ForwardTargetSheetState extends ConsumerState<ForwardTargetSheet> {
     return q.isEmpty || title.toLowerCase().contains(q);
   }
 
+  int get _count => _picked.length + _people.length;
+
   void _toggle(ForwardTarget target) => setState(() {
-        if (!_picked.remove(target) && _picked.length < kForwardMaxTargets) {
+        if (!_picked.remove(target) && _count < kForwardMaxTargets) {
           _picked.add(target);
         }
       });
+
+  void _togglePerson(SuggestedPerson p) => setState(() {
+        if (_people.remove(p.id) == null && _count < kForwardMaxTargets) {
+          _people[p.id] = p;
+        }
+      });
+
+  /// Opens (or starts) the chats of the picked people, then pops every
+  /// target. A refusal (blocked, privacy) stays on the sheet with a toast.
+  Future<void> _send() async {
+    if (_opening) return;
+    final targets = List<ForwardTarget>.of(_picked);
+    if (_people.isNotEmpty) {
+      setState(() => _opening = true);
+      try {
+        final repo = ref.read(chatRepositoryProvider);
+        for (final p in _people.values) {
+          final conv = await repo.startDirect(p.id);
+          final target = ForwardTarget(ForwardTargetKind.conversation, conv.id);
+          if (!targets.contains(target)) targets.add(target);
+        }
+      } on Object catch (e) {
+        if (mounted) {
+          setState(() => _opening = false);
+          showAppSnackBar(context, errorText(ref.read(translatorProvider), e));
+        }
+        return;
+      }
+      if (!mounted) return;
+    }
+    Navigator.of(context).pop(targets);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -163,8 +205,14 @@ class _ForwardTargetSheetState extends ConsumerState<ForwardTargetSheet> {
             enabled: true,
           ),
     ];
+    final searching =
+        peopleSuggestQuery(_query.text).length >= peopleSuggestMinChars;
     final loading = chatsAsync.isLoading && chats.isEmpty && groups.isEmpty;
-    final empty = !loading && chats.isEmpty && groups.isEmpty && mine.isEmpty;
+    final empty = !loading &&
+        !searching &&
+        chats.isEmpty &&
+        groups.isEmpty &&
+        mine.isEmpty;
 
     Widget header(String label) => Padding(
           padding: const EdgeInsetsDirectional.fromSTEB(
@@ -254,6 +302,20 @@ class _ForwardTargetSheetState extends ConsumerState<ForwardTargetSheet> {
                             ...section(t.t('chat.forward.chats'), chats),
                             ...section(t.t('chat.forward.groups'), groups),
                             ...section(t.t('chat.forward.channels'), mine),
+                            PeopleSuggestList(
+                              key: const ValueKey('forward-people'),
+                              query: _query.text,
+                              scrollable: false,
+                              title: t.t('search.tab.people'),
+                              excludeIds: {
+                                for (final c in chatsAsync.value?.items ??
+                                    const <Conversation>[])
+                                  if (c.isDirect && c.counterpart.id != null)
+                                    c.counterpart.id!,
+                              },
+                              selectedIds: _people.keys.toSet(),
+                              onPick: _togglePerson,
+                            ),
                           ],
                         ),
             ),
@@ -266,14 +328,12 @@ class _ForwardTargetSheetState extends ConsumerState<ForwardTargetSheet> {
               ),
               child: AppButton(
                 key: const ValueKey('forward-send'),
-                label: _picked.isEmpty
+                label: _count == 0
                     ? t.t('chat.forward.send')
                     : '${t.t('chat.forward.send')} · '
-                        '${context.digits(_picked.length)}',
-                onPressed: _picked.isEmpty
-                    ? null
-                    : () => Navigator.of(context)
-                        .pop(List<ForwardTarget>.of(_picked)),
+                        '${context.digits(_count)}',
+                isLoading: _opening,
+                onPressed: _count == 0 ? null : () => unawaited(_send()),
               ),
             ),
           ],
