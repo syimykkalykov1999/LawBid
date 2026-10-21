@@ -26,6 +26,10 @@ export const QUESTION_FILTERS = [
 ] as const;
 export type QuestionFilter = (typeof QUESTION_FILTERS)[number];
 
+/** Attorney feed: «Мои» = my practice areas and licensed states. */
+export const QUESTION_SCOPES = ['all', 'mine'] as const;
+export type QuestionScope = (typeof QUESTION_SCOPES)[number];
+
 export class AskQuestionDto {
   @ApiProperty({ minLength: 5, maxLength: 160 })
   @Transform(trim)
@@ -89,6 +93,17 @@ export class QuestionsQueryDto {
   @IsOptional()
   @IsIn(QUESTION_FILTERS)
   filter?: QuestionFilter;
+
+  @ApiPropertyOptional({
+    enum: QUESTION_SCOPES,
+    enumName: 'QuestionScope',
+    default: 'all',
+    description:
+      'Attorneys only: «mine» keeps questions of my practice areas (with parent/child areas) and of states where I hold a verified licence; a question without an area or state stays. No areas set — same as «all».',
+  })
+  @IsOptional()
+  @IsIn(QUESTION_SCOPES)
+  scope?: QuestionScope;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -188,6 +203,10 @@ export class QuestionDto {
   author!: QaPersonDto | null;
   @ApiProperty() isMine!: boolean;
   @ApiProperty({ type: 'integer' }) answerCount!: number;
+  @ApiProperty({ description: 'Closed by the author or after 30 days.' })
+  closed!: boolean;
+  @ApiProperty({ description: 'The question has the most answers (10).' })
+  answersEnough!: boolean;
   @ApiPropertyOptional({ type: String, nullable: true, format: 'uuid' })
   bestAnswerId!: string | null;
   @ApiPropertyOptional({ type: String, nullable: true, format: 'uuid' })

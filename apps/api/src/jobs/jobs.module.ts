@@ -9,6 +9,7 @@ import { RewardsModule } from '../modules/rewards/rewards.module';
 import { SupportModule } from '../modules/support/support.module';
 import { LegalExportsCoreModule } from '../modules/admin-data-requests/legal-exports-core.module';
 import { StorageCoreModule } from '../modules/storage/storage.module';
+import { LegalQaSweepJob } from '../modules/legal-qa/legal-qa-sweep.job';
 import { ConsultationsCoreModule } from '../modules/consultations/consultations-core.module';
 import { TreasuryCoreModule } from '../modules/treasury/treasury.module';
 import { FileReleaseService } from '../modules/files/storage/file-release.service';
@@ -114,6 +115,8 @@ export class JobsModule {
           useClass: HttpDisposableDomainsFetcher,
         },
         SessionsCleanupJob,
+        // Owner 2026-10-21: `legal-qa.sweep`.
+        LegalQaSweepJob,
         OtpCleanupJob,
         DisposableDomainsRefreshJob,
         ReviewReminderJob,
