@@ -329,8 +329,9 @@ class _Body extends ConsumerWidget {
         const SizedBox(height: AppSpacing.lg),
         // Owner 2026-10-21: «Решён» on the «Ответы» row, at the end.
         Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Expanded(
+            Flexible(
               child: Text(
                 t.t('qa.answersTitle'),
                 style: type.titleMedium.copyWith(color: colors.text),

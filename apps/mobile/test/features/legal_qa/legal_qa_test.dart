@@ -343,10 +343,19 @@ void main() {
       final title = tester.getRect(find.text('Ответы'));
       final solved = tester.getRect(find.text('Решён'));
       expect(solved.center.dy, closeTo(title.center.dy, 4));
+      // At the far end of the row.
+      final badge = tester.getRect(
+        find.ancestor(
+          of: find.text('Решён'),
+          matching: find.byType(QaBestBadge),
+        ),
+      );
       if (dir == TextDirection.ltr) {
         expect(solved.left, greaterThan(title.right));
+        expect(badge.right, closeTo(360 - AppSpacing.screenSide, 1));
       } else {
         expect(solved.right, lessThan(title.left));
+        expect(badge.left, closeTo(AppSpacing.screenSide, 1));
       }
     });
   }
