@@ -74,6 +74,7 @@ class Conversation {
     this.pinnedAt,
     this.blocked = false,
     this.matchedMessage,
+    this.disappearAfterS,
   });
 
   /// The same chat with the other side's receipts moved (a socket event):
@@ -109,11 +110,16 @@ class Conversation {
         note: note,
         pinnedAt: pinnedAt,
         matchedMessage: matchedMessage,
+        disappearAfterS: disappearAfterS,
       );
 
   /// Owner 2026-10-18: in a search by text, the message that matched —
   /// shown instead of the last-message preview.
   final String? matchedMessage;
+
+  /// Owner 2026-10-21 (WhatsApp): seconds a new message lives here
+  /// (86400 / 604800 / 7776000); null = disappearing messages are off.
+  final int? disappearAfterS;
 
   /// Audit 2026-10-04: either side blocked the other. An accepted case
   /// chat that is not closed keeps working (see [blockedHere]).
@@ -417,6 +423,7 @@ class ChatMessage {
     this.replyTo,
     this.reactions = const [],
     this.pinned = false,
+    this.expiresAt,
   });
 
   /// Owner 2026-10-20: set for [MessageKind.gift]; the note is [body].
@@ -438,6 +445,14 @@ class ChatMessage {
   final ReplyPreview? replyTo;
   final List<MessageReaction> reactions;
   final bool pinned;
+
+  /// Owner 2026-10-21: disappearing messages — the app hides the message
+  /// from this time on (the server deletes it a little later).
+  final DateTime? expiresAt;
+
+  /// Gone by the clock: hidden from lists and previews.
+  bool isExpired([DateTime? now]) =>
+      expiresAt != null && !expiresAt!.isAfter(now ?? DateTime.now());
 
   /// Owner 2026-10-01: set for [MessageKind.sticker].
   final ChatSticker? sticker;
@@ -500,6 +515,7 @@ class ChatMessage {
         replyTo: replyTo ?? this.replyTo,
         reactions: reactions ?? this.reactions,
         pinned: pinned ?? this.pinned,
+        expiresAt: expiresAt,
         delivery: delivery ?? this.delivery,
         failedCode: failedCode ?? this.failedCode,
         voice: voice ?? this.voice,

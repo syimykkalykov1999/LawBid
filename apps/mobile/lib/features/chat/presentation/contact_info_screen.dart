@@ -16,9 +16,11 @@ import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/application/presence_providers.dart';
 import 'package:lawbid/features/chat/data/chat_repository.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
+import 'package:lawbid/features/chat/domain/disappearing.dart';
 import 'package:lawbid/features/chat/presentation/attachment_widgets.dart';
 import 'package:lawbid/features/chat/presentation/chat_folders.dart';
 import 'package:lawbid/features/chat/presentation/chat_video.dart';
+import 'package:lawbid/features/chat/presentation/disappearing_sheet.dart';
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_info_sheets.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
@@ -201,6 +203,19 @@ class _ContactInfoScreenState extends ConsumerState<ContactInfoScreen> {
     final t = ref.read(translatorProvider);
     try {
       await _thread.setCallsMuted(!c.callsMuted);
+    } on Object catch (e) {
+      if (mounted) showAppSnackBar(context, errorText(t, e));
+    }
+  }
+
+  /// Owner 2026-10-21: WhatsApp's «Disappearing messages» (direct chats).
+  Future<void> _disappearing(Conversation c) async {
+    final t = ref.read(translatorProvider);
+    final picked =
+        await pickDisappearing(context, t, current: c.disappearAfterS);
+    if (picked == null || !mounted) return;
+    try {
+      await _thread.setDisappearing(picked == 0 ? null : picked);
     } on Object catch (e) {
       if (mounted) showAppSnackBar(context, errorText(t, e));
     }
@@ -418,6 +433,16 @@ class _ContactInfoScreenState extends ConsumerState<ContactInfoScreen> {
                 showChevron: false,
                 onTap: () => _mute(c),
               ),
+              if (c.caseId == null && !c.myRequestPending)
+                AppListRow(
+                  key: const ValueKey('contact-disappearing'),
+                  icon: AppIcons.timerOutlined,
+                  label: t.t('dm.title'),
+                  subtitle: t.t('dm.hint'),
+                  trailingText: disappearValue(t, c.disappearAfterS),
+                  showChevron: false,
+                  onTap: () => _disappearing(c),
+                ),
               AppListRow(
                 key: const ValueKey('contact-calls-mute'),
                 icon: AppIcons.notificationsOffOutlined,

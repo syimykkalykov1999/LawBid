@@ -23,7 +23,12 @@ extension GroupMessageDtoX on api.GroupMessageDto {
         editedAt: editedAt,
         deleted: deleted,
         createdAt: createdAt,
+        expiresAt: expiresAt,
       );
+
+  /// Owner 2026-10-21: disappearing messages — gone by the clock.
+  bool isExpired([DateTime? now]) =>
+      expiresAt != null && !expiresAt!.isAfter(now ?? DateTime.now());
 
   bool get isSystem => type == api.GroupMessageDtoType.system;
   bool get isPoll => type == api.GroupMessageDtoType.poll;

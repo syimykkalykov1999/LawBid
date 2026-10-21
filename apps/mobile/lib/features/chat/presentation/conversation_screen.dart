@@ -34,6 +34,7 @@ import 'package:lawbid/features/chat/application/voice_player.dart';
 import 'package:lawbid/features/chat/application/voice_recorder.dart';
 import 'package:lawbid/features/chat/data/voice_files.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
+import 'package:lawbid/features/chat/domain/disappearing.dart';
 import 'package:lawbid/features/chat/domain/message_groups.dart';
 import 'package:lawbid/features/chat/presentation/attachment_widgets.dart';
 import 'package:lawbid/features/chat/presentation/chat_album.dart';
@@ -656,14 +657,30 @@ class _Header extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    counterpartName(t, c),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: type.body.copyWith(
-                      color: colors.text,
-                      fontWeight: FontWeight.w600,
-                    ),
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          counterpartName(t, c),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: type.body.copyWith(
+                            color: colors.text,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      // Owner 2026-10-21: disappearing messages are on.
+                      if (c.disappearAfterS != null) ...[
+                        const SizedBox(width: AppSpacing.xs),
+                        Icon(
+                          AppIcons.timerOutlined,
+                          key: const ValueKey('chat-header-timer'),
+                          size: 14,
+                          color: colors.textSecondary,
+                        ),
+                      ],
+                    ],
                   ),
                   if (presence != null)
                     Text(
@@ -797,7 +814,17 @@ class _MessageList extends ConsumerWidget {
                 )
               else if (m.kind == MessageKind.system)
                 _SystemMessage(
-                  text: systemLineText(t, m.body, formats: f),
+                  text: isDisappearLine(m.body)
+                      ? disappearLineText(
+                          t,
+                          m.body,
+                          name: m.senderId == me
+                              ? t.t('chat.you')
+                              : (state.conversation?.counterpart.displayName ??
+                                  state.conversation?.counterpart.username ??
+                                  ''),
+                        )
+                      : systemLineText(t, m.body, formats: f),
                   // Owner 2026-10-19: a tap opens what the line is about.
                   target: _systemTarget(
                     m.body,

@@ -749,14 +749,30 @@ class _Header extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    detail.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: type.body.copyWith(
-                      color: colors.text,
-                      fontWeight: FontWeight.w600,
-                    ),
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          detail.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: type.body.copyWith(
+                            color: colors.text,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      // Owner 2026-10-21: disappearing messages are on.
+                      if (detail.disappearAfterS != null) ...[
+                        const SizedBox(width: AppSpacing.xs),
+                        Icon(
+                          AppIcons.timerOutlined,
+                          key: const ValueKey('group-header-timer'),
+                          size: 14,
+                          color: colors.textSecondary,
+                        ),
+                      ],
+                    ],
                   ),
                   Text(
                     subtitle,

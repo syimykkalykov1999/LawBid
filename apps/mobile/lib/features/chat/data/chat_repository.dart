@@ -166,6 +166,10 @@ abstract interface class ChatRepository {
 
   /// Owner 2026-10-21: calls of this chat ring silently (or not).
   Future<Conversation> muteCalls(String id, {required bool muted});
+
+  /// Owner 2026-10-21: the disappearing-messages timer for new messages
+  /// (86400 / 604800 / 7776000 seconds); null switches it off.
+  Future<Conversation> setDisappearing(String id, int? afterS);
 }
 
 class ApiChatRepository implements ChatRepository {
@@ -701,6 +705,22 @@ class ApiChatRepository implements ChatRepository {
       );
 
   @override
+  Future<Conversation> setDisappearing(String id, int? afterS) async =>
+      ChatMappers.conversation(
+        (await guardApiCall(
+          () => _chat.setDisappearing(
+            id: id,
+            body: api.SetDisappearingDto(
+              afterS: afterS == null
+                  ? null
+                  : api.SetDisappearingDtoAfterS.fromJson(afterS),
+            ),
+          ),
+        ))
+            .data,
+      );
+
+  @override
   Future<Conversation> mute(String id, DateTime? until) async =>
       ChatMappers.conversation(
         (await guardApiCall(
@@ -771,6 +791,10 @@ bool isWebmVoice(List<int> bytes) =>
     bytes[3] == 0xA3;
 
 abstract final class ChatMappers {
+  /// Disappearing messages: already past its time (the preview is blank).
+  static bool _gone(api.MessageDto d) =>
+      d.expiresAt != null && !d.expiresAt!.isAfter(DateTime.now());
+
   static ChatMessage message(api.MessageDto d) => ChatMessage(
         id: d.id,
         conversationId: d.conversationId,
@@ -811,6 +835,7 @@ abstract final class ChatMappers {
         forwarded: d.forwarded,
         forwardedFrom: d.forwardedFrom,
         pinned: d.pinned,
+        expiresAt: d.expiresAt,
         replyTo: d.replyTo == null
             ? null
             : ReplyPreview(
@@ -886,7 +911,9 @@ abstract final class ChatMappers {
           online: d.counterpart.online,
           lastSeenAt: d.counterpart.lastSeenAt,
         ),
-        lastMessage: d.lastMessage == null ? null : message(d.lastMessage!),
+        lastMessage: d.lastMessage == null || _gone(d.lastMessage!)
+            ? null
+            : message(d.lastMessage!),
         lastMessageAt: d.lastMessageAt,
         unreadCount: d.unreadCount.toInt(),
         mutedUntil: d.mutedUntil,
@@ -911,6 +938,7 @@ abstract final class ChatMappers {
         note: d.note,
         pinnedAt: d.pinnedAt,
         matchedMessage: d.matchedMessage,
+        disappearAfterS: d.disappearAfterS?.toInt(),
       );
 
   /// A realtime `message:new` payload (same shape as MessageDto).

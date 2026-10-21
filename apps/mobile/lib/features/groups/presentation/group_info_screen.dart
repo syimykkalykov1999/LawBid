@@ -14,6 +14,8 @@ import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
+import 'package:lawbid/features/chat/domain/disappearing.dart';
+import 'package:lawbid/features/chat/presentation/disappearing_sheet.dart';
 import 'package:lawbid/features/groups/application/group_call_port.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
 import 'package:lawbid/features/groups/domain/group_message_ext.dart';
@@ -834,6 +836,41 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
               ],
             ),
           ),
+        // Owner 2026-10-21 (WhatsApp): disappearing messages; the people who
+        // may edit the group info change it, the others just see it.
+        SliverToBoxAdapter(
+          child: GroupInfoSection(
+            children: [
+              AppListRow(
+                dense: true,
+                key: const ValueKey('group-disappearing'),
+                icon: AppIcons.timerOutlined,
+                label: t.t('dm.title'),
+                trailingText: disappearValue(t, d.disappearAfterS?.toInt()),
+                showChevron: false,
+                onTap: d.canEditInfo
+                    ? () async {
+                        final picked = await pickDisappearing(
+                          context,
+                          t,
+                          current: d.disappearAfterS?.toInt(),
+                        );
+                        if (picked == null || !mounted) return;
+                        final error = await _update(
+                          api.UpdateGroupDto(
+                            disappearAfterS:
+                                api.UpdateGroupDtoDisappearAfterS.fromJson(
+                              picked,
+                            ),
+                          ),
+                        );
+                        if (error != null) _toast(error);
+                      }
+                    : null,
+              ),
+            ],
+          ),
+        ),
         if (groupShowsLink(d))
           SliverToBoxAdapter(
             child: GroupInfoLink(
