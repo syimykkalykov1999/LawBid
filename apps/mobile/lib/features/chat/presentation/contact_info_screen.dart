@@ -28,7 +28,7 @@ import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 
-enum _ChatMute { hour, eightHours, week, forever, off }
+enum _ChatMute { hour, eightHours, days2, forever, off }
 
 /// Owner 2026-10-18: online / last seen of the other side, live while the
 /// chat is open (null = not shown: hidden status, anonymous client).
@@ -174,8 +174,8 @@ class _ContactInfoScreenState extends ConsumerState<ContactInfoScreen> {
           label: t.t('group.info.mute.hours8'),
         ),
         GroupChoice(
-          value: _ChatMute.week,
-          label: t.t('group.info.mute.week'),
+          value: _ChatMute.days2,
+          label: t.t('group.info.mute.days2'),
         ),
         GroupChoice(
           value: _ChatMute.forever,
@@ -188,7 +188,7 @@ class _ContactInfoScreenState extends ConsumerState<ContactInfoScreen> {
     final until = switch (pick) {
       _ChatMute.hour => now.add(const Duration(hours: 1)),
       _ChatMute.eightHours => now.add(const Duration(hours: 8)),
-      _ChatMute.week => now.add(const Duration(days: 7)),
+      _ChatMute.days2 => now.add(const Duration(days: 2)),
       _ChatMute.forever => now.add(const Duration(days: 3650)),
       _ChatMute.off => null,
     };

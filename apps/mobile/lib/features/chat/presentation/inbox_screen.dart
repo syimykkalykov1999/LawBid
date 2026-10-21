@@ -46,6 +46,7 @@ import 'package:lawbid/features/team/presentation/team_inbox_tab.dart';
 import 'package:lawbid/features/team/team_routes.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 import 'package:lawbid/shared/presentation/collapsing_header.dart';
+import 'package:lawbid/shared/presentation/mute_for_sheet.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
 // OQ-048: [team] — assistants' approval requests and activity (attorney).
@@ -1360,15 +1361,15 @@ class ConversationRow extends ConsumerWidget {
           c.pinned ? 'chat.organize.unpinned' : 'chat.organize.pinned',
         ),
       ),
-      onMute: () => unawaited(
-        act(
-          () => repo.mute(
-            c.id,
-            c.muted ? null : DateTime.now().add(const Duration(days: 3650)),
-          ),
+      // Owner 2026-10-21 (inbox 27): off for a picked time, on at once.
+      onMute: () => unawaited(() async {
+        final until = c.muted ? null : await pickMuteUntil(context, t);
+        if (!c.muted && until == null || !context.mounted) return;
+        await act(
+          () => repo.mute(c.id, until),
           c.muted ? 'chat.select.unmuted' : 'chat.select.muted',
-        ),
-      ),
+        );
+      }()),
       child: row,
     );
   }

@@ -9,6 +9,7 @@ import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
     show showConfirmSheet;
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
+import 'package:lawbid/shared/presentation/mute_for_sheet.dart';
 
 /// Owner 2026-10-01: small Instagram-like sub-tabs inside Chats —
 /// All · Primary · General · Waiting · Requests (with counts).
@@ -226,19 +227,21 @@ class _OrganizeSheetState extends ConsumerState<_OrganizeSheet> {
               key: const ValueKey('organize-mute'),
               icon: AppIcons.notificationsOffOutlined,
               label: t.t(c.muted ? 'chat.unmute' : 'chat.mute'),
+              // Owner 2026-10-21 (inbox 27): off for 1 h · 8 h · 2 days ·
+              // forever; on at once.
               onTap: _busy
                   ? null
-                  : () => _run(
-                        () => repo.mute(
-                          c.id,
-                          c.muted
-                              ? null
-                              : DateTime.now().add(const Duration(days: 3650)),
-                        ),
+                  : () async {
+                      final until =
+                          c.muted ? null : await pickMuteUntil(context, t);
+                      if (!c.muted && until == null || !mounted) return;
+                      await _run(
+                        () => repo.mute(c.id, until),
                         done: c.muted
                             ? 'chat.select.unmuted'
                             : 'chat.select.muted',
-                      ),
+                      );
+                    },
             ),
             if (c.unreadCount > 0 && c.lastMessage != null)
               AppListRow(

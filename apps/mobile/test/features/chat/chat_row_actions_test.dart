@@ -8,8 +8,10 @@ import 'package:lawbid/features/chat/application/presence_providers.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/chat/data/chat_repository.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
+import 'package:lawbid/features/chat/presentation/archive_screen.dart';
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
+import 'package:lawbid/features/groups/presentation/widgets/group_chat_tile.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
@@ -117,18 +119,22 @@ void main() {
     List<api.GroupDto> groups = const [],
     Map<String, bool> typing = const {},
     bool groupTiles = false,
+    List<api.GroupDto> archivedGroups = const [],
+    Widget? body,
   }) async {
     tester.view
       ..devicePixelRatio = 1
       ..physicalSize = const Size(390, 800);
     addTearDown(tester.view.reset);
     final repo = _Chats(conv, archivedCount: archivedCount);
-    final groupRepo = FakeGroupRepository(groups);
+    final groupRepo = FakeGroupRepository(groups)
+      ..archivedItems = archivedGroups;
     lastGroups = groupRepo;
     await tester.pumpWidget(
       uxApp(
         Scaffold(
-          body: groupTiles ? const GroupTilesList() : const ConversationsView(),
+          body: body ??
+              (groupTiles ? const GroupTilesList() : const ConversationsView()),
         ),
         size: const Size(390, 800),
         theme: AppTheme.light(),
@@ -176,6 +182,12 @@ void main() {
       const Offset(-200, 0),
     );
     await tester.pumpAndSettle();
+    // Owner 2026-10-21 (inbox 27): how long — 1 h · 8 h · 2 days · forever.
+    expect(find.byKey(const ValueKey('mute-for-hour')), findsOneWidget);
+    expect(find.byKey(const ValueKey('mute-for-hours8')), findsOneWidget);
+    expect(find.byKey(const ValueKey('mute-for-days2')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('mute-for-forever')));
+    await tester.pumpAndSettle();
     expect(repo.calls, contains('mute on'));
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(minutes: 5));
@@ -188,6 +200,10 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('organize-mute')), findsOneWidget);
     expect(find.byKey(const ValueKey('organize-delete')), findsOneWidget);
+    // Owner 2026-10-21 (inbox 22e): a chat's menu has no group actions.
+    for (final k in ['group-menu-leave', 'group-menu-hide', 'group-menu-pin']) {
+      expect(find.byKey(ValueKey(k)), findsNothing, reason: k);
+    }
     await tester.tap(find.byKey(const ValueKey('organize-read')));
     await tester.pumpAndSettle();
     expect(repo.calls, contains('read m1'));
@@ -219,6 +235,35 @@ void main() {
     await tester.pump(const Duration(minutes: 5));
   });
 
+  // Owner 2026-10-21 (inbox 22c): the Chats archive holds chats only —
+  // archived groups live in the Groups archive of the Channels screen.
+  testWidgets('the Chats archive shows no archived group', (tester) async {
+    await pump(
+      tester,
+      _conv(last: _msg()),
+      archivedGroups: [listGroup('g1')],
+      body: const ArchiveScreen(),
+    );
+    expect(find.text('Anna Petrova'), findsOneWidget);
+    expect(find.byType(GroupChatTile), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(minutes: 5));
+  });
+
+  testWidgets("a chat's menu mute asks how long; on again at once",
+      (tester) async {
+    final repo = await pump(tester, _conv(last: _msg()));
+    await tester.longPress(find.byKey(const ValueKey('chat-organize-c1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('organize-mute')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('mute-for-hour')));
+    await tester.pumpAndSettle();
+    expect(repo.calls, contains('mute on'));
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(minutes: 5));
+  });
+
   testWidgets('a group row swipes like a chat and archives from its menu',
       (tester) async {
     await pump(
@@ -239,6 +284,8 @@ void main() {
       Offset(rect.right - 8, rect.center.dy),
       const Offset(-200, 0),
     );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('mute-for-days2')));
     await tester.pumpAndSettle();
     expect(lastGroups.updates.any((u) => u.contains('muted=true')), isTrue);
     await tester.longPress(find.byKey(const ValueKey('group-tile-g1')));
