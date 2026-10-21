@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_callkit_incoming/entities/entities.dart';
 import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -52,6 +53,14 @@ class CallkitSystemUi implements SystemCallUi {
       await FlutterCallkitIncoming.endAllCalls();
     } on Object {
       // No plugin.
+    }
+    // The plugin's own notifications can outlive its calls (a ghost whose
+    // call it no longer knows): sweep what is left of ours in the shade.
+    try {
+      await const MethodChannel('lawbid/call_service')
+          .invokeMethod<void>('clear');
+    } on Object {
+      // Not Android / no host.
     }
   }
 
