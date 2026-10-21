@@ -675,6 +675,7 @@ erDiagram
     String last_delivered_message_id "nullable"
     DateTime last_delivered_at "nullable"
     DateTime muted_until "nullable"
+    Boolean calls_muted
     enum_ChatFolder folder "nullable"
     DateTime waiting_since "nullable"
     String note "nullable"
@@ -813,6 +814,7 @@ erDiagram
     String left_reason "nullable"
     String last_read_message_id "nullable"
     DateTime muted_until "nullable"
+    Boolean calls_muted
     DateTime pinned_at "nullable"
     DateTime hidden_at "nullable"
     DateTime archived_at "nullable"
