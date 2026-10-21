@@ -1164,6 +1164,8 @@ export 'models/story_viewer_dto.dart';
 export 'models/story_viewer_list_envelope.dart';
 export 'models/channel_status.dart';
 export 'models/channel_role.dart';
+export 'models/ongoing_call_person_dto.dart';
+export 'models/ongoing_call_dto.dart';
 export 'models/channel_dto.dart';
 export 'models/channel_list_envelope.dart';
 export 'models/create_channel_dto.dart';

@@ -28,6 +28,9 @@ ChannelDto _$ChannelDtoFromJson(Map<String, dynamic> json) => ChannelDto(
   lastPostAt: json['lastPostAt'] == null
       ? null
       : DateTime.parse(json['lastPostAt'] as String),
+  ongoingCall: json['ongoingCall'] == null
+      ? null
+      : OngoingCallDto.fromJson(json['ongoingCall'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$ChannelDtoToJson(ChannelDto instance) =>
@@ -49,4 +52,5 @@ Map<String, dynamic> _$ChannelDtoToJson(ChannelDto instance) =>
       'myRole': ?instance.myRole?.toJson(),
       'lastPostAt': ?instance.lastPostAt?.toIso8601String(),
       'createdAt': instance.createdAt.toIso8601String(),
+      'ongoingCall': ?instance.ongoingCall?.toJson(),
     };

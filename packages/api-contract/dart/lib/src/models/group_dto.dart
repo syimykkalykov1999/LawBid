@@ -9,50 +9,52 @@ import 'group_message_dto.dart';
 import 'group_role.dart';
 import 'group_type.dart';
 import 'group_who.dart';
+import 'ongoing_call_dto.dart';
 
 part 'group_dto.g.dart';
 
 @JsonSerializable()
 class GroupDto {
   const GroupDto({
-    required this.whoCanAdd,
+    required this.myRights,
     required this.title,
     required this.createdAt,
     required this.pinned,
     required this.callsMuted,
     required this.memberCount,
     required this.type,
-    required this.unreadMentions,
+    required this.whoCanPost,
     required this.joinApproval,
     required this.topicsEnabled,
-    required this.unreadCount,
+    required this.unreadMentions,
     required this.pendingRequests,
     required this.inviteEnabled,
-    required this.whoCanPost,
     required this.id,
+    required this.whoCanAdd,
     required this.whoCanEditInfo,
     required this.whoCanCall,
     required this.whoCanMedia,
     required this.whoCanPoll,
     required this.whoCanPin,
-    required this.myRights,
+    required this.canCall,
     required this.showServiceMessages,
     required this.isAdmin,
-    required this.canCall,
+    required this.updatedAt,
     required this.canPost,
     required this.canAdd,
-    required this.updatedAt,
     required this.canEditInfo,
+    required this.unreadCount,
     this.disappearAfterS,
     this.myRole,
     this.inviteLink,
     this.pinnedMessage,
     this.lastMessage,
     this.lastMessageAt,
-    this.generalTopicId,
     this.username,
+    this.generalTopicId,
     this.mutedUntil,
     this.avatarFullUrl,
+    this.ongoingCall,
     this.avatarUrl,
     this.description,
     this.protectContent,
@@ -129,6 +131,9 @@ class GroupDto {
 
   /// Group calls ring silently for me.
   final bool callsMuted;
+
+  /// Owner 2026-10-21 (Telegram «Видеочат»): the call running in the group now (members only).
+  final OngoingCallDto? ongoingCall;
   final bool pinned;
   final DateTime createdAt;
   final DateTime updatedAt;
