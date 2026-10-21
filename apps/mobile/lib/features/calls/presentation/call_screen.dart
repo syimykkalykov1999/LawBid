@@ -275,7 +275,15 @@ class _CallScreenState extends ConsumerState<CallScreen>
         child: PopScope(
           // Back minimises a live call (it goes on; the app shows the green
           // "Return to call" bar) — it never drops it. A ringing call stays.
-          canPop: s.phase != CallPhase.incoming,
+          // In a group video one person big: back returns to everyone first
+          // (device test 2026-10-21: it minimised the call).
+          canPop: s.phase != CallPhase.incoming &&
+              !(group && s.video && layout.focusId != null),
+          onPopInvokedWithResult: (didPop, _) {
+            if (!didPop && layout.focusId != null) {
+              ref.read(callVideoLayoutProvider.notifier).clearFocus();
+            }
+          },
           child: Scaffold(
             backgroundColor: colors.navy,
             body: DecoratedBox(
