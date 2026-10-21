@@ -2,6 +2,7 @@
     xmlns:tools="http://schemas.android.com/tools">
     <!-- Store release 2026-10-06: release builds must declare network
          access themselves (the template only adds it to debug/profile). -->
+    <uses-permission android:name="android.permission.VIBRATE"/>
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Android 13+: without it the system never asks and no push is shown. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />

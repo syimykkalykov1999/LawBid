@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/callkit_bridge.dart';
@@ -42,5 +44,29 @@ void main() {
     expect(systemEndHangsUp(active, 'b2'), isTrue);
     expect(systemEndHangsUp(active, 'other'), isFalse);
     expect(systemEndHangsUp(const CallSession(), 'b2'), isFalse);
+  });
+
+  test('Android: after a call the shade is swept of the plugin leftovers',
+      () async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+    final seen = <String>[];
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+      const MethodChannel('lawbid/call_service'),
+      (call) async {
+        seen.add(call.method);
+        return null;
+      },
+    );
+    addTearDown(
+      () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+        const MethodChannel('lawbid/call_service'),
+        null,
+      ),
+    );
+    await const CallkitSystemUi().endAll();
+    expect(seen, ['clear']);
   });
 }
