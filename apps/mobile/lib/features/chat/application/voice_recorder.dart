@@ -17,44 +17,73 @@ const kVoiceBars = 48;
 /// A finished recording.
 typedef VoiceRecording = ({String path, int durationMs, List<int> waveform});
 
-/// Records a voice note (AAC in .m4a, mono, 16 kHz, 32 kbit/s), sampling the level
-/// every 80 ms for the live meter and the stored waveform. In a browser the
-/// note is AAC in MP4 where the browser can (Safari) and Opus in WebM
-/// otherwise (Chrome, Firefox); `stop` then gives a blob: URL, not a file.
-class VoiceRecorder {
+/// How often the recorder samples the microphone level.
+const kVoiceSamplePeriod = Duration(milliseconds: 50);
+
+/// What the live recording strip and clock read: the raw level stream, the
+/// levels so far and a monotonic recording time (pauses not counted).
+abstract interface class VoiceLevelSource {
+  /// 0…1, one value per [kVoiceSamplePeriod] while recording.
+  Stream<double> get levels;
+
+  /// Every level recorded so far (the strip starts from them).
+  List<double> get samples;
+
+  /// Recording time; never goes back while one recording runs.
+  Duration get elapsed;
+}
+
+/// Records a voice note (AAC in .m4a, mono, 16 kHz, 32 kbit/s), sampling the
+/// level every 50 ms for the live meter and the stored waveform. In a
+/// browser the note is AAC in MP4 where the browser can (Safari) and Opus in
+/// WebM otherwise (Chrome, Firefox); `stop` then gives a blob: URL, not a
+/// file.
+class VoiceRecorder implements VoiceLevelSource {
   VoiceRecorder() : _rec = AudioRecorder();
 
   final AudioRecorder _rec;
   final _levels = StreamController<double>.broadcast();
   StreamSubscription<Amplitude>? _ampSub;
   final List<double> _samples = [];
-  DateTime? _startedAt;
   Timer? _cap;
 
-  /// Time recorded before the last pause (pauses are not counted).
-  Duration _before = Duration.zero;
+  /// Owner inbox 32: the time comes from a monotonic stopwatch (stopped on
+  /// pause), not from wall-clock differences that can jump.
+  final Stopwatch _clock = Stopwatch();
+  bool _active = false;
   bool _paused = false;
+
+  /// A start in flight: a second press joins it instead of restarting the
+  /// microphone (that reset the clock and the bars mid-note).
+  Future<bool>? _starting;
 
   /// WhatsApp: the tail of the last word is not cut when the finger lifts.
   static const _tail = Duration(milliseconds: 150);
 
   /// 0…1 while recording (for the pulsing mic and the live bars).
+  @override
   Stream<double> get levels => _levels.stream;
 
-  bool get recording => _startedAt != null;
+  @override
+  List<double> get samples => List.unmodifiable(_samples);
+
+  bool get recording => _active;
 
   bool get paused => _paused;
 
-  Duration get elapsed => _startedAt == null || _paused
-      ? _before
-      : _before + DateTime.now().difference(_startedAt!);
+  @override
+  Duration get elapsed => _clock.elapsed;
 
   /// Asks for the microphone once; false when refused.
   Future<bool> hasPermission() => _rec.hasPermission();
 
   /// Starts; [onCap] fires when the 15-minute limit is reached.
-  Future<bool> start({void Function()? onCap}) async {
-    if (recording) return true;
+  Future<bool> start({void Function()? onCap}) {
+    if (recording) return Future.value(true);
+    return _starting ??= _start(onCap).whenComplete(() => _starting = null);
+  }
+
+  Future<bool> _start(void Function()? onCap) async {
     if (!await _rec.hasPermission()) return false;
     var encoder = AudioEncoder.aacLc;
     var path = '';
@@ -75,20 +104,22 @@ class VoiceRecorder {
       path: path,
     );
     _samples.clear();
-    _before = Duration.zero;
     _paused = false;
-    _startedAt = DateTime.now();
+    _active = true;
+    _clock
+      ..reset()
+      ..start();
     _onCap = onCap;
-    _listen();
+    await _listen();
     _armCap();
     return true;
   }
 
   void Function()? _onCap;
 
-  void _listen() {
-    _ampSub =
-        _rec.onAmplitudeChanged(const Duration(milliseconds: 80)).listen((a) {
+  Future<void> _listen() async {
+    await _ampSub?.cancel();
+    _ampSub = _rec.onAmplitudeChanged(kVoiceSamplePeriod).listen((a) {
       // dBFS −60…0 → 0…1.
       final v = ((a.current + 60) / 60).clamp(0.0, 1.0);
       _samples.add(v);
@@ -101,11 +132,19 @@ class VoiceRecorder {
     _cap = Timer(kVoiceMaxDuration - elapsed, () => _onCap?.call());
   }
 
+  void _halt() {
+    _cap?.cancel();
+    _clock
+      ..stop()
+      ..reset();
+    _active = false;
+    _paused = false;
+  }
+
   /// Lock mode: pause (the file stays open; the meter freezes).
   Future<void> pause() async {
     if (!recording || _paused) return;
-    _before = elapsed;
-    _startedAt = DateTime.now();
+    _clock.stop();
     _paused = true;
     _cap?.cancel();
     await _ampSub?.cancel();
@@ -118,8 +157,8 @@ class VoiceRecorder {
     if (!recording || !_paused) return;
     await _rec.resume();
     _paused = false;
-    _startedAt = DateTime.now();
-    _listen();
+    _clock.start();
+    await _listen();
     _armCap();
   }
 
@@ -133,10 +172,7 @@ class VoiceRecorder {
     if (!_paused) await Future<void>.delayed(_tail);
     final took = elapsed;
     await _ampSub?.cancel();
-    _cap?.cancel();
-    _startedAt = null;
-    _before = Duration.zero;
-    _paused = false;
+    _halt();
     final path = await _rec.stop();
     if (path == null || took < kVoiceMinDuration) return null;
     return (
@@ -150,10 +186,7 @@ class VoiceRecorder {
   /// Throws the recording away (swipe to cancel).
   Future<void> cancel() async {
     await _ampSub?.cancel();
-    _cap?.cancel();
-    _startedAt = null;
-    _before = Duration.zero;
-    _paused = false;
+    _halt();
     await _rec.cancel();
   }
 
