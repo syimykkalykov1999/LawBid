@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/features/calls/domain/call_history_models.dart';
 import 'package:lawbid/features/channels/application/channels_providers.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
@@ -148,4 +149,55 @@ void main() {
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(minutes: 5));
   });
+
+  // Owner 2026-10-21: the «+» glows green while a group call runs.
+  for (final live in [false, true]) {
+    for (final MapEntry(key: name, value: (t, dir)) in cases.entries) {
+      testWidgets('«+» ${live ? 'glows' : 'is plain'} at 360 dp ($name, x1.1)',
+          (tester) async {
+        useNarrowPhone(tester);
+        await tester.pumpWidget(
+          uxApp(
+            Directionality(textDirection: dir, child: const InboxScreen()),
+            theme: AppTheme.light(),
+            size: const Size(360, 780),
+            textScale: 1.1,
+            disableAnimations: true,
+            overrides: uxOverrides(
+              translator: t,
+              ongoingCalls: live
+                  ? const [
+                      OngoingGroupCall(
+                        id: 'k',
+                        groupId: 'g',
+                        groupTitle: 'Firm',
+                        video: false,
+                        joined: 3,
+                        mine: false,
+                      ),
+                    ]
+                  : const [],
+              extra: [
+                chatRepositoryProvider.overrideWithValue(_Chats()),
+                groupRepositoryProvider
+                    .overrideWithValue(FakeGroupRepository()),
+                currentUserIdProvider.overrideWithValue('me'),
+                currentUserRoleProvider.overrideWithValue(UserRole.attorney),
+                channelsEnabledProvider.overrideWithValue(true),
+                realtimeClientProvider.overrideWithValue(null),
+              ],
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        expect(
+          find.byKey(const ValueKey('chats-new-chat-live')),
+          live ? findsOneWidget : findsNothing,
+        );
+        await tester.pumpWidget(const SizedBox());
+        await tester.pump(const Duration(minutes: 5));
+      });
+    }
+  }
 }

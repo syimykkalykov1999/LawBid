@@ -225,6 +225,7 @@ void main() {
     List<dynamic> extra = const [],
   }) async {
     useNarrowPhone(tester);
+    final theRepo = repo ?? _Repo(pages(), running: running);
     await tester.pumpWidget(
       uxApp(
         Directionality(textDirection: dir, child: child),
@@ -234,13 +235,12 @@ void main() {
         disableAnimations: true,
         overrides: uxOverrides(
           translator: t ?? const StaticTranslatorEn(),
+          ongoingCalls: theRepo.running,
           extra: [
             sharedPreferencesProvider.overrideWithValue(prefs),
             phoneContactsProvider
                 .overrideWith((_) async => const PhoneContacts()),
-            callHistoryRepositoryProvider.overrideWithValue(
-              repo ?? _Repo(pages(), running: running),
-            ),
+            callHistoryRepositoryProvider.overrideWithValue(theRepo),
             ...extra.cast(),
           ],
         ),

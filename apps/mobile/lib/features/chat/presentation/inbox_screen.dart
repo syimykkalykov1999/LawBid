@@ -12,6 +12,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/text/bidi.dart';
+import 'package:lawbid/features/calls/application/call_history_providers.dart';
 import 'package:lawbid/features/calls/presentation/call_log_entry.dart'
     show callLogKey;
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
@@ -276,16 +277,8 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                                 // opens Contacts (who is on LawBid: chat,
                                 // call, video, invite).
                                 if (tab == InboxTab.chats)
-                                  AppIconButton(
-                                    key: const ValueKey('chats-new-chat'),
-                                    compact: true,
-                                    icon: AppIcon(
-                                      AppIcons.addRounded,
-                                      color: colors.iconTint,
-                                    ),
-                                    semanticLabel: t.t('phoneContacts.title'),
-                                    onPressed: () =>
-                                        context.push(AppRoutes.contacts),
+                                  _NewChatButton(
+                                    label: t.t('phoneContacts.title'),
                                   ),
                                 // Owner 2026-10-02: the notification filter /
                                 // settings sit up here, left of the bell, in
@@ -1724,6 +1717,46 @@ class _Bell extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Owner 2026-10-20 (WhatsApp): «new chat» — opens Contacts (who is on
+/// LawBid: chat, call, video, invite).
+///
+/// Owner 2026-10-21: while a group call runs that this person can join or
+/// return to, the «+» glows green and opens the «Calls» section, where the
+/// running calls are listed on top.
+class _NewChatButton extends ConsumerWidget {
+  const _NewChatButton({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final live =
+        (ref.watch(ongoingGroupCallsProvider).value ?? const []).isNotEmpty;
+    return AppIconButton(
+      key: const ValueKey('chats-new-chat'),
+      compact: true,
+      icon: live
+          ? DecoratedBox(
+              key: const ValueKey('chats-new-chat-live'),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: colors.success,
+              ),
+              child: const Padding(
+                padding: EdgeInsets.all(2),
+                child: AppIcon(AppIcons.addRounded, color: Colors.white),
+              ),
+            )
+          : AppIcon(AppIcons.addRounded, color: colors.iconTint),
+      semanticLabel: label,
+      onPressed: () => context.push(
+        live ? '${AppRoutes.contacts}?tab=calls' : AppRoutes.contacts,
       ),
     );
   }

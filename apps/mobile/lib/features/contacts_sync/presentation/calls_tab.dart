@@ -109,21 +109,15 @@ class CallsTab extends ConsumerStatefulWidget {
 
 class _CallsTabState extends ConsumerState<CallsTab> {
   final _scroll = ScrollController();
-  Timer? _poll;
 
   @override
   void initState() {
     super.initState();
     _scroll.addListener(_nearEnd);
-    // A call may start while the tab is open: read the running ones again.
-    _poll = Timer.periodic(const Duration(seconds: 15), (_) {
-      if (mounted) ref.invalidate(ongoingGroupCallsProvider);
-    });
   }
 
   @override
   void dispose() {
-    _poll?.cancel();
     _scroll
       ..removeListener(_nearEnd)
       ..dispose();

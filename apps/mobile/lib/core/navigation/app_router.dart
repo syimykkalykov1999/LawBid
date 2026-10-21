@@ -485,8 +485,12 @@ GoRouter appRouter(Ref ref) {
       GoRoute(
         path: AppRoutes.contacts,
         parentNavigatorKey: _rootNavigatorKey,
-        pageBuilder: (context, state) =>
-            AppPageTransitions.push(state, const ContactsScreen()),
+        pageBuilder: (context, state) => AppPageTransitions.push(
+          state,
+          ContactsScreen(
+            initialCalls: state.uri.queryParameters['tab'] == 'calls',
+          ),
+        ),
       ),
       GoRoute(
         path: AppRoutes.blockedUsers,
