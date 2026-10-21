@@ -6414,6 +6414,9 @@ model LegalQuestion {
   /// The answer the author marked as the best (bare uuid).
   best_answer_id   String?       @db.Uuid
   deleted_at       DateTime?     @db.Timestamptz
+  /// Closed by the author, or by the nightly sweep (no answer in 30 days):
+  /// gone from the attorneys' feed, no more answers.
+  closed_at        DateTime?     @db.Timestamptz
   created_at       DateTime      @default(now()) @db.Timestamptz
   updated_at       DateTime      @updatedAt @db.Timestamptz
 
@@ -6423,6 +6426,7 @@ model LegalQuestion {
   @@index([practice_area_id, created_at(sort: Desc)])
   @@index([state_code, created_at(sort: Desc)])
   @@index([author_id, created_at(sort: Desc)])
+  @@index([closed_at, deleted_at])
   @@map("legal_questions")
 }
 

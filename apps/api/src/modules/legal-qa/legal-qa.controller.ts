@@ -99,6 +99,17 @@ export class LegalQaController {
     return this.qa.get(user, p.id);
   }
 
+  @Put(':id/close')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Close my question' })
+  @ApiErrors({ 404: [E.NOT_FOUND] })
+  closeQuestion(
+    @CurrentUser() user: RequestUser,
+    @Param() p: QuestionIdParamDto,
+  ) {
+    return this.qa.close(user, p.id);
+  }
+
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete my question' })
@@ -117,6 +128,7 @@ export class LegalQaController {
     400: [E.VALIDATION_ERROR],
     403: [E.FORBIDDEN, E.ATTORNEY_NOT_VERIFIED, E.USER_BLOCKED],
     404: [E.NOT_FOUND],
+    409: [E.QA_ANSWERS_ENOUGH, E.QA_QUESTION_CLOSED],
     429: [E.RATE_LIMITED],
   })
   answerQuestion(

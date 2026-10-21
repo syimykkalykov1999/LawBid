@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   Logger,
@@ -35,6 +36,9 @@ import {
 } from './legal-qa.dto';
 
 const PAGE = 20;
+
+/** Owner 2026-10-21: one question takes at most this many attorney answers. */
+export const MAX_ANSWERS = 10;
 const QUESTION_INCLUDE = {
   practice_area: {
     select: { id: true, code: true, i18n_key: true, name_en: true },
@@ -133,9 +137,17 @@ export class LegalQaService {
     } else {
       where.push({ status: 'published' });
       if (hidden.length > 0) where.push({ author_id: { notIn: hidden } });
+      // A closed question stays in its author's own feed only.
+      where.push({
+        OR: [{ closed_at: null }, { author_id: user.sub }],
+      });
     }
     if (filter === 'unanswered') where.push({ answer_count: 0 });
     if (filter === 'solved') where.push({ best_answer_id: { not: null } });
+    if (q.scope === 'mine' && filter !== 'mine') {
+      const mine = await this.myPracticeWhere(user);
+      if (mine) where.push(mine);
+    }
     if (q.stateCode) where.push({ state_code: q.stateCode });
     if (q.practiceAreaId) {
       where.push({
@@ -185,8 +197,12 @@ export class LegalQaService {
         { created_at: 'asc' },
       ],
     });
-    const visible = answers.filter(
-      (a) => a.attorney_id === user.sub || !hidden.has(a.attorney_id),
+    // Owner 2026-10-21: an attorney sees only their own answer, so nobody
+    // copies a colleague; every client sees all of them (and likes them).
+    const visible = answers.filter((a) =>
+      user.role === 'attorney'
+        ? a.attorney_id === user.sub
+        : !hidden.has(a.attorney_id),
     );
     return { ...question, answers: await this.presentAnswers(visible, user) };
   }
@@ -235,6 +251,28 @@ export class LegalQaService {
     });
   }
 
+  /** The author closes the question: attorneys no longer see or answer it. */
+  async close(user: RequestUser, id: string): Promise<void> {
+    const r = await this.prisma.legalQuestion.updateMany({
+      where: { id, author_id: user.sub, deleted_at: null, closed_at: null },
+      data: { closed_at: new Date() },
+    });
+    if (r.count === 0) {
+      const own = await this.prisma.legalQuestion.findFirst({
+        where: { id, author_id: user.sub, deleted_at: null },
+        select: { id: true },
+      });
+      if (!own) throw this.notFound();
+    }
+  }
+
+  private closed(): ConflictException {
+    return new ConflictException({
+      code: ErrorCode.QA_QUESTION_CLOSED,
+      message: 'The question is closed.',
+    });
+  }
+
   // --- answers ----------------------------------------------------------------
 
   async answer(
@@ -246,7 +284,13 @@ export class LegalQaService {
     await this.assertVerifiedAttorney(user);
     const q = await this.loadVisible(user, id);
     if (q.author_id === user.sub) throw this.forbidden();
+    if (q.closed_at) throw this.closed();
     await this.blocks.assertNotBlocked(user.sub, q.author_id);
+    if (
+      q.answer_count >= MAX_ANSWERS &&
+      !(await this.hasLiveAnswer(id, user.sub))
+    )
+      throw this.answersEnough();
     await this.limits.consume('answer_create', user.sub);
     const text = maskContactInfo(body).text;
     let announce = false;
@@ -256,12 +300,9 @@ export class LegalQaService {
         where: withDeleted({ question_id: id, attorney_id: user.sub }),
       });
       if (!existing) {
+        await this.takeSlot(tx, id);
         const created = await tx.legalAnswer.create({
           data: { question_id: id, attorney_id: user.sub, body: text },
-        });
-        await tx.legalQuestion.update({
-          where: { id },
-          data: { answer_count: { increment: 1 } },
         });
         announce = true;
         return created;
@@ -280,10 +321,7 @@ export class LegalQaService {
         data: { body: text, status: 'published', deleted_at: null },
       });
       if (!wasLive) {
-        await tx.legalQuestion.update({
-          where: { id },
-          data: { answer_count: { increment: 1 } },
-        });
+        await this.takeSlot(tx, id);
         announce = true;
       }
       return updated;
@@ -324,6 +362,9 @@ export class LegalQaService {
     id: string,
     answerId: string,
   ): Promise<AnswerDto> {
+    // Owner 2026-10-21: attorneys do not see each other's answers, so only
+    // clients like them.
+    if (user.role === 'attorney') throw this.forbidden();
     const a = await this.publishedAnswer(user, id, answerId);
     if (a.attorney_id === user.sub) throw this.forbidden();
     await this.blocks.assertNotBlocked(user.sub, a.attorney_id);
@@ -453,6 +494,7 @@ export class LegalQaService {
       FROM legal_questions q
       WHERE q.status = 'published' AND q.deleted_at IS NULL
         AND q.answer_count = 0
+        AND q.closed_at IS NULL
         AND q.created_at > now() - interval '24 hours'
         AND q.author_id <> ${user.sub}::UUID
         AND (q.state_code IS NULL OR EXISTS (
@@ -585,7 +627,14 @@ export class LegalQaService {
         bestAnswerId: r.best_answer_id,
         myAnswerId: mine.get(r.id) ?? null,
         canAnswer:
-          verified && !isMine && r.status === 'published' && !mine.has(r.id),
+          verified &&
+          !isMine &&
+          r.status === 'published' &&
+          !r.closed_at &&
+          !mine.has(r.id) &&
+          (r.answer_count < MAX_ANSWERS || mine.has(r.id)),
+        closed: r.closed_at !== null,
+        answersEnough: r.answer_count >= MAX_ANSWERS,
         createdAt: r.created_at.toISOString(),
       };
     });
@@ -727,6 +776,80 @@ export class LegalQaService {
   }
 
   /** The area and everything below it (a category covers its topics). */
+  /**
+   * The attorney's own slice of the feed — the same rule as the fresh-count
+   * card (`summary`): a question without an area or state is for everyone;
+   * otherwise its area is one of mine, a parent or a child of one, and its
+   * state is one where my licence is verified. Null when there is nothing to
+   * narrow by (not an attorney, an assistant, no areas set).
+   */
+  private async myPracticeWhere(
+    user: RequestUser,
+  ): Promise<Prisma.LegalQuestionWhereInput | null> {
+    if (user.role !== 'attorney' || user.assistant) return null;
+    const mine = await this.prisma.attorneyPracticeArea.findMany({
+      where: { attorney_id: user.sub },
+      select: { practice_area_id: true },
+    });
+    if (mine.length === 0) return null;
+    const ids = mine.map((m) => m.practice_area_id);
+    const related = await this.prisma.practiceArea.findMany({
+      where: { OR: [{ id: { in: ids } }, { parent_id: { in: ids } }] },
+      select: { id: true, parent_id: true },
+    });
+    const areas = new Set<string>(ids);
+    for (const r of related) {
+      areas.add(r.id);
+      if (ids.includes(r.id) && r.parent_id) areas.add(r.parent_id);
+    }
+    const licences = await this.prisma.attorneyLicense.findMany({
+      where: { attorney_id: user.sub, license_status: 'verified' },
+      select: { state_code: true },
+    });
+    const states = licences.map((l) => l.state_code);
+    return {
+      AND: [
+        {
+          OR: [
+            { practice_area_id: null },
+            { practice_area_id: { in: [...areas] } },
+          ],
+        },
+        { OR: [{ state_code: null }, { state_code: { in: states } }] },
+      ],
+    };
+  }
+
+  /** Counts one more answer unless the question already has the maximum. */
+  private async takeSlot(
+    tx: Prisma.TransactionClient,
+    id: string,
+  ): Promise<void> {
+    const r = await tx.legalQuestion.updateMany({
+      where: { id, answer_count: { lt: MAX_ANSWERS } },
+      data: { answer_count: { increment: 1 } },
+    });
+    if (r.count === 0) throw this.answersEnough();
+  }
+
+  private async hasLiveAnswer(
+    id: string,
+    attorneyId: string,
+  ): Promise<boolean> {
+    const a = await this.prisma.legalAnswer.findFirst({
+      where: { question_id: id, attorney_id: attorneyId, status: 'published' },
+      select: { id: true },
+    });
+    return a !== null;
+  }
+
+  private answersEnough(): ConflictException {
+    return new ConflictException({
+      code: ErrorCode.QA_ANSWERS_ENOUGH,
+      message: 'Enough answers.',
+    });
+  }
+
   private async areaFamily(id: string): Promise<string[]> {
     const rows = await this.prisma.practiceArea.findMany({
       where: { OR: [{ id }, { parent_id: id }] },

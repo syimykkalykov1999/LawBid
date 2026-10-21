@@ -495,4 +495,9 @@ export enum ErrorCode {
   CONSULTATION_NOT_AVAILABLE = 'CONSULTATION_NOT_AVAILABLE',
   // 409: the booking is not in a state that allows this action.
   CONSULTATION_STATE_CONFLICT = 'CONSULTATION_STATE_CONFLICT',
+  // Owner 2026-10-21: «Вопрос юристу».
+  // 409: the question already has the most answers an attorney can add.
+  QA_ANSWERS_ENOUGH = 'QA_ANSWERS_ENOUGH',
+  // 409: the author closed the question (or it was closed after 30 days).
+  QA_QUESTION_CLOSED = 'QA_QUESTION_CLOSED',
 }

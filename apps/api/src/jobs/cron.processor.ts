@@ -34,6 +34,7 @@ import { OpsMetricsJob } from './handlers/ops-metrics.job';
 import { OpsGuardJob } from './handlers/ops-guard.job';
 import { HEAVY_CRON_JOBS } from '../common/ops/ops.constants';
 import { OpsStateService } from '../common/ops/ops-state.service';
+import { LegalQaSweepJob } from '../modules/legal-qa/legal-qa-sweep.job';
 import { ConsultationRemindersJob } from '../modules/consultations/consultation-reminders.job';
 import {
   TaskArchivePurgeJob,
@@ -120,6 +121,7 @@ export class CronProcessor {
     @Optional() private readonly legalExports?: LegalExportBuilder,
     @Optional() private readonly legalRetention?: LegalRetentionService,
     @Optional() private readonly disappearing?: DisappearingSweepService,
+    @Optional() private readonly legalQaSweep?: LegalQaSweepJob,
   ) {}
 
   async process(name: string): Promise<unknown> {
@@ -200,6 +202,8 @@ export class CronProcessor {
         return this.promotions.expire();
       case CRON_JOBS.starsSweep:
         return this.stars.sweepPending();
+      case CRON_JOBS.legalQaSweep:
+        return this.legalQaSweep?.run() ?? null;
       case CRON_JOBS.consultationsSweep:
         return this.consultationSweep?.run() ?? null;
       case CRON_JOBS.taskReminders:
