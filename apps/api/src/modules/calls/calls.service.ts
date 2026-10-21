@@ -57,7 +57,7 @@ export const CALL_RING_TIMEOUT_MS = 65_000;
  * 2026-10-21: no cap on how long people talk (days are fine) — only
  * silence ends a call — and a dead-zone gap of a few minutes must not
  * (the app waits 150 s for the network before it gives up). */
-export const CALL_SILENT_MS = 240 * 1000;
+export const CALL_SILENT_MS = 180 * 1000;
 const LIVE: CallStatus[] = ['ringing', 'active'];
 
 /** Owner 2026-10-21: a network that blocks UDP (offices, some mobile
