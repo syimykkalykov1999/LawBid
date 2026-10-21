@@ -50,6 +50,22 @@ class GroupRepository {
   Future<api.GroupJoinResultDto> join(String code) async =>
       (await guardApiCall(() => _c.joinGroup(code: code))).data;
 
+  // --- invitations (owner 2026-10-21) ---------------------------------------
+
+  /// Invitations waiting for my answer (the cards in Requests).
+  Future<List<api.GroupInviteDto>> invites() async =>
+      (await guardApiCall(_c.listMyGroupInvitations)).data;
+
+  /// Look inside the group behind an invitation before answering.
+  Future<api.GroupInvitePreviewDetailDto> invitePreview(String id) async =>
+      (await guardApiCall(() => _c.previewGroupInvitation(inviteId: id))).data;
+
+  Future<api.GroupJoinResultDto> acceptInvite(String id) async =>
+      (await guardApiCall(() => _c.acceptGroupInvitation(inviteId: id))).data;
+
+  Future<void> declineInvite(String id) =>
+      guardApiCall(() => _c.declineGroupInvitation(inviteId: id));
+
   // --- group management -----------------------------------------------------
 
   Future<api.GroupDetailDto> create(api.CreateGroupDto body) async =>

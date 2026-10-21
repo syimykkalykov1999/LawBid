@@ -46,6 +46,10 @@ String? notificationRoute({
   final bidId = s('bidId');
   final postId = s('postId');
   switch (type) {
+    // Owner 2026-10-21: a group invitation opens its card (look, then answer).
+    case 'group_invite':
+      final inviteId = s('inviteId');
+      return inviteId == null ? ChatRoutes.inbox : GroupRoutes.invite(inviteId);
     // Owner 2026-10-20: a group message opens the group.
     case 'new_message' || 'group_call' when s('groupId') != null:
       return GroupRoutes.group(s('groupId')!);

@@ -18,6 +18,7 @@ import 'package:lawbid/features/groups/presentation/create_group_screen.dart';
 import 'package:lawbid/features/groups/presentation/find_groups_screen.dart';
 import 'package:lawbid/features/groups/presentation/group_conversation_screen.dart';
 import 'package:lawbid/features/groups/presentation/group_info_screen.dart';
+import 'package:lawbid/features/groups/presentation/group_invite_screen.dart';
 import 'package:lawbid/features/groups/presentation/join_group_screen.dart';
 import 'package:lawbid/features/groups/presentation/poll/create_poll_sheet.dart';
 import 'package:lawbid/features/groups/presentation/poll/poll_bubble.dart';
@@ -545,6 +546,76 @@ void main() {
           await tester.tap(find.text(people[1].displayName!).first);
           await tester.tap(find.text(people[2].displayName!).first);
           await tester.pump();
+          expect(tester.takeException(), isNull);
+          await settle(tester);
+        });
+
+        // 7b. Owner 2026-10-21: group invitations. The card inside Requests
+        // (long title, long inviter), the screen with a look inside an open
+        // group and with a closed one, and «Invited» in the members list.
+        testWidgets('requests with group invitation cards', (tester) async {
+          final repo = FakeGroupRepository(
+            const [],
+            null,
+            const [],
+            const [],
+            const [],
+            const [],
+            null,
+            const [],
+            [groupInvite(), groupInvite(id: 'i2', longName: false)],
+          );
+          await pump(
+            tester,
+            const Scaffold(body: MessageRequestsView()),
+            repo,
+          );
+          await tester.pumpAndSettle();
+          expect(
+            find.byKey(const ValueKey('group-invite-i1')),
+            findsOneWidget,
+          );
+          expect(tester.takeException(), isNull);
+          await scrollThrough(tester);
+          await settle(tester);
+        });
+
+        for (final readable in [true, false]) {
+          testWidgets('group invitation screen (readable $readable)',
+              (tester) async {
+            final repo = FakeGroupRepository(
+              const [],
+              null,
+              const [],
+              const [],
+              const [],
+              const [],
+              null,
+              const [],
+              const [],
+              groupInvitePeek(readable: readable),
+            );
+            await pump(tester, const GroupInviteScreen(inviteId: 'i1'), repo);
+            expect(
+              find.byKey(const ValueKey('group-invite-screen-accept')),
+              findsOneWidget,
+            );
+            expect(tester.takeException(), isNull);
+            await scrollThrough(tester);
+            await settle(tester);
+          });
+        }
+
+        testWidgets('group info with invited people', (tester) async {
+          final repo = FakeGroupRepository(
+            const [],
+            groupDetail(withInvited: true),
+            const [],
+            topics(),
+            joinRequests(),
+          );
+          await pump(tester, const GroupInfoScreen(groupId: 'g1'), repo);
+          await scrollThrough(tester);
           expect(tester.takeException(), isNull);
           await settle(tester);
         });

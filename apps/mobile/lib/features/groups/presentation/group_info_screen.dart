@@ -30,6 +30,7 @@ import 'package:lawbid/features/groups/presentation/widgets/group_info_section.d
 import 'package:lawbid/features/groups/presentation/widgets/group_info_settings.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_info_sheets.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_info_topics.dart';
+import 'package:lawbid/features/groups/presentation/widgets/group_invited_tile.dart';
 import 'package:lawbid/features/groups/presentation/widgets/people_picker.dart';
 import 'package:lawbid/features/notifications/application/call_mute.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
@@ -311,8 +312,11 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
     final t = ref.read(translatorProvider);
     final picked = await showPeoplePicker(
       context,
-      excludeIds: {for (final m in d.members) m.userId},
-      titleKey: 'group.info.addMembers',
+      excludeIds: {
+        for (final m in d.members) m.userId,
+        for (final m in d.invited) m.userId,
+      },
+      titleKey: 'group.inv.addTitle',
     );
     if (picked == null || picked.isEmpty || !mounted) return;
     final d2 = await _change(
@@ -321,13 +325,14 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
           .addMembers(_id, [for (final p in picked) p.userId]),
     );
     if (mounted && d2 != null) {
-      // The member list is the truth: someone already in, or refused by
-      // their privacy settings, never shows up there.
-      final added = (d2.members.length - d.members.length).clamp(0, 1 << 20);
-      final skipped = picked.length - added;
+      // Owner 2026-10-21: nobody is put in; the people are invited. The
+      // invited list is the truth: someone already in, or refused by their
+      // privacy settings, never shows up there.
+      final sent = (d2.invited.length - d.invited.length).clamp(0, 1 << 20);
+      final skipped = d2.notAdded?.length ?? 0;
       _toast(
         [
-          if (added > 0) t.plural('group.info.added', added),
+          if (sent > 0) t.t('group.inv.toast', {'count': context.digits(sent)}),
           if (skipped > 0)
             t.t('group.info.notAdded', {'count': context.digits(skipped)}),
         ].join('. '),
@@ -722,7 +727,7 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
         action(
           key: const ValueKey('group-action-add'),
           icon: AppIcons.personAddAlt1Rounded,
-          label: t.t('group.info.add'),
+          label: t.t('group.inv.add'),
           onTap: () => _addMembers(d),
         ),
       if (d.canCall && ref.watch(groupCallPortProvider) != null) ...[
@@ -975,6 +980,50 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
             ),
           ),
         ),
+        if (d.invited.isNotEmpty) ...[
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.screenSide,
+                AppSpacing.xl,
+                AppSpacing.screenSide,
+                AppSpacing.sm,
+              ),
+              child: Text(
+                t.t('group.inv.sent', {
+                  'count': context.digits(d.invited.length),
+                }),
+                key: const ValueKey('group-invited-title'),
+                style: Theme.of(context)
+                    .extension<AppTypographyTokens>()!
+                    .bodySmall
+                    .copyWith(
+                      color: colors.textSecondary,
+                      fontWeight: FontWeight.w600,
+                    ),
+              ),
+            ),
+          ),
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.screenSide,
+            ),
+            sliver: DecoratedSliver(
+              decoration: BoxDecoration(
+                color: colors.surface,
+                borderRadius: BorderRadius.circular(AppRadii.card),
+                border: Border.all(color: colors.border),
+              ),
+              sliver: SliverList.builder(
+                itemCount: d.invited.length,
+                itemBuilder: (context, i) => GroupInvitedTile(
+                  key: ValueKey('invited-${d.invited[i].userId}'),
+                  person: d.invited[i],
+                ),
+              ),
+            ),
+          ),
+        ],
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.only(top: AppSpacing.xl),
