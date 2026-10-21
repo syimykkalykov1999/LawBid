@@ -90,7 +90,7 @@ class RealtimeClient {
           .disableAutoConnect()
           .enableReconnection()
           .setReconnectionDelay(1000)
-          .setReconnectionDelayMax(30000)
+          .setReconnectionDelayMax(10000)
           .setRandomizationFactor(0.5)
           .build(),
     );
