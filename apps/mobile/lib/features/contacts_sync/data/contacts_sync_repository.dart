@@ -74,8 +74,11 @@ class ApiContactsSyncRepository implements ContactsSyncRepository {
 
   final Dio _dio;
 
-  /// Same cap as the server (CONTACT_HASHES_MAX).
-  static const chunkSize = 2000;
+  /// The load balancer's firewall refuses bodies over 8 KB (a hash is ~68
+  /// bytes in JSON): 100 hashes stay near 7 KB. Prod 2026-10-21: 2000 per
+  /// request answered 403 before the API saw it. The server's own cap
+  /// (CONTACT_HASHES_MAX) is higher.
+  static const chunkSize = 100;
 
   @override
   Future<ContactsSyncStatus> status() async {
