@@ -52,7 +52,10 @@ export class ApnsVoipSender {
   async ringCall(userId: string, call: VoipCallPayload): Promise<string[]> {
     try {
       const auth = await this.providerToken();
-      if (!auth) return [];
+      if (!auth) {
+        this.logger.warn({ callId: call.callId }, 'apns skipped: no key');
+        return [];
+      }
       const devices = await this.tokens.activeDevices(userId);
       const rang: string[] = [];
       for (const device of devices) {
@@ -60,6 +63,10 @@ export class ApnsVoipSender {
           rang.push(device.sessionId);
         }
       }
+      this.logger.info(
+        { callId: call.callId, devices: devices.length, rang: rang.length },
+        'apns voip ring done',
+      );
       return rang;
     } catch (err) {
       this.logger.warn({ err }, 'apns voip push failed');

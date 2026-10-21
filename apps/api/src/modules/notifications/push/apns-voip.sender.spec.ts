@@ -6,7 +6,7 @@ import type { VoipTokensService } from './voip-tokens.service';
 
 /** Owner 2026-10-17: iPhone calls as VoIP pushes straight to Apple. */
 describe('ApnsVoipSender', () => {
-  const logger = { warn: jest.fn() } as unknown as PinoLogger;
+  const logger = { warn: jest.fn(), info: jest.fn() } as unknown as PinoLogger;
   const call = {
     callId: '7f0c1e2a-1111-4222-8333-944455556666',
     conversationId: 'c',
