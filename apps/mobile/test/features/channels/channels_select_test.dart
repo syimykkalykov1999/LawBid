@@ -169,9 +169,15 @@ void main() {
       expect(enabled(k), isFalse, reason: k);
     }
 
+    // Muting asks for how long (1 hour · 8 hours · 2 days · forever).
     await tester.tap(find.byKey(const ValueKey('select-mute')));
     await tester.pumpAndSettle();
-    expect(channels.calls, contains('mute:true'));
+    for (final label in ['For 1 hour', 'For 8 hours', 'For 2 days']) {
+      expect(find.text(label), findsOneWidget, reason: label);
+    }
+    await tester.tap(find.text('Forever'));
+    await tester.pumpAndSettle();
+    expect(channels.calls, contains('organize:muted=true'));
     expect(find.byType(ChatSelectionBar), findsNothing);
     await end(tester);
   });

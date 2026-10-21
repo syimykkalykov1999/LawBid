@@ -106,6 +106,28 @@ class ChannelController extends AsyncNotifier<Channel> {
     }
   }
 
+  /// Owner 2026-10-21 (inbox 27): mute for [span] (a very long one = for
+  /// good); null unmutes.
+  Future<void> setMutedFor(Duration? span) async {
+    final c = state.value;
+    if (c == null) return;
+    final forever = span != null && span.inDays >= 3000;
+    state = AsyncData(c.copyWith(isMuted: span != null));
+    try {
+      final next = await _repo.organize(
+        c,
+        muted: span == null || forever ? span != null : null,
+        mutedUntil:
+            span == null || forever ? null : DateTime.now().toUtc().add(span),
+      );
+      if (ref.mounted) state = AsyncData(next);
+      _refreshLists();
+    } on Object {
+      if (ref.mounted) state = AsyncData(c);
+      rethrow;
+    }
+  }
+
   /// Puts a saved channel (edit form) in place of the shown one.
   // ignore: use_setters_to_change_properties
   void replace(Channel next) {

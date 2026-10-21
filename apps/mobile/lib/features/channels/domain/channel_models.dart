@@ -114,6 +114,7 @@ class Channel {
   /// Owner 2026-10-21 (inbox 20e, Telegram «Видеочат»): the call running in
   /// the channel now (subscribers and admins see it).
   final OngoingCallSummary? ongoingCall;
+
   /// Owner 2026-10-21 (inbox 22c, 27): my pin, my Archive of channels, and
   /// a timed mute («forever» is just [isMuted]).
   final bool isPinned;

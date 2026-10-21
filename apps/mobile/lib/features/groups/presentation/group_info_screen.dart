@@ -38,8 +38,6 @@ import 'package:lawbid_api/lawbid_api.dart' as api;
 
 enum _MemberAction { makeAdmin, rights, removeAdmin, transfer, remove }
 
-enum _Mute { hour, eightHours, week, forever, off }
-
 /// Owner 2026-10-20: «Group info» (Telegram + WhatsApp): photo, title,
 /// description, mute, the admin settings, the invite link, join requests,
 /// members, topics and the leave / delete zone, on one scrollable screen.
@@ -254,39 +252,14 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
   Future<void> _openMute(api.GroupDetailDto d) async {
     final t = ref.read(translatorProvider);
     final muted = _isMuted(d);
-    final pick = await showGroupChoiceSheet<_Mute>(
-      context,
-      title: t.t('group.info.mute.title'),
-      choices: [
-        if (muted)
-          GroupChoice(
-            value: _Mute.off,
-            label: t.t('group.info.mute.off'),
-            icon: AppIcons.notificationsActiveOutlined,
-          ),
-        GroupChoice(value: _Mute.hour, label: t.t('group.info.mute.hour')),
-        GroupChoice(
-          value: _Mute.eightHours,
-          label: t.t('group.info.mute.hours8'),
-        ),
-        GroupChoice(value: _Mute.week, label: t.t('group.info.mute.week')),
-        GroupChoice(
-          value: _Mute.forever,
-          label: t.t('group.info.mute.forever'),
-        ),
-      ],
-    );
+    final pick = await pickMute(context, t, muted: muted);
     if (pick == null || !mounted) return;
     final now = DateTime.now().toUtc();
     // The API has no «null» for this field, so «unmute» is a time already
     // gone (the server only compares it with now).
-    final until = switch (pick) {
-      _Mute.hour => now.add(const Duration(hours: 1)),
-      _Mute.eightHours => now.add(const Duration(hours: 8)),
-      _Mute.week => now.add(const Duration(days: 7)),
-      _Mute.forever => DateTime.utc(2100),
-      _Mute.off => now.subtract(const Duration(minutes: 1)),
-    };
+    final span = muteDuration(pick);
+    final until =
+        span == null ? now.subtract(const Duration(minutes: 1)) : now.add(span);
     try {
       final g = await ref
           .read(groupRepositoryProvider)
@@ -296,7 +269,7 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
       _refresh();
       _toast(
         t.t(
-          pick == _Mute.off
+          pick == MuteChoice.off
               ? 'group.info.mute.unmuted'
               : 'group.info.mute.muted',
         ),

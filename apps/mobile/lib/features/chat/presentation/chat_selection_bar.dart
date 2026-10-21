@@ -12,6 +12,7 @@ import 'package:lawbid/features/chat/application/chat_selection.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/groups/application/chat_list_merge.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
+import 'package:lawbid/features/groups/presentation/widgets/group_info_sheets.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// Bulk actions on the picked chats: pin · move · mute · delete (from my
@@ -130,18 +131,37 @@ class _ChatSelectionBarState extends ConsumerState<ChatSelectionBar> {
     );
   }
 
-  Future<void> _mute() {
+  /// Owner 2026-10-21 (inbox 27, Telegram): muting asks for how long
+  /// (1 hour · 8 hours · 2 days · forever); all muted → unmute at once.
+  Future<void> _mute() async {
     final unmute = _picked.every((c) => c.muted) &&
         _pickedGroups.every(isGroupMuted) &&
         _pickedChannels.every((c) => c.isMuted);
-    return _each(
+    Duration? span;
+    if (!unmute) {
+      final pick = await pickMute(
+        context,
+        ref.read(translatorProvider),
+        muted: false,
+      );
+      if (pick == null || !mounted) return;
+      span = muteDuration(pick);
+    }
+    final forever = span != null && span.inDays >= 3000;
+    await _each(
       (c) => ref.read(chatRepositoryProvider).mute(
             c.id,
-            unmute ? null : DateTime.now().add(const Duration(days: 3650)),
+            span == null ? null : DateTime.now().add(span),
           ),
-      groupCall: (g) => updateMyGroup(ref, g.id, muted: !unmute),
-      channelCall: (c) =>
-          ref.read(channelsRepositoryProvider).mute(c, muted: !unmute),
+      groupCall: (g) => unmute
+          ? updateMyGroup(ref, g.id, muted: false)
+          : updateMyGroup(ref, g.id, mutedFor: span),
+      channelCall: (c) => ref.read(channelsRepositoryProvider).organize(
+            c,
+            muted: unmute || forever ? !unmute : null,
+            mutedUntil:
+                unmute || forever ? null : DateTime.now().toUtc().add(span!),
+          ),
       done: unmute ? 'chat.select.unmuted' : 'chat.select.muted',
     );
   }

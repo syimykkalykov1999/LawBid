@@ -38,7 +38,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
     ChannelScope.discover,
   ];
 
-  ChannelScope _tab = ChannelScope.subscribed;
+  ChannelScope _tab = ChannelScope.managed;
   String _query = '';
   bool _searchOpen = false;
 
