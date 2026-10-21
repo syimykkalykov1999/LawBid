@@ -4502,7 +4502,7 @@
 "qa.deleteA.title":"Antwort löschen?",
 "qa.deleteQ.msg":"Die Frage und ihre Antworten werden gelöscht.",
 "qa.deleteQ.title":"Frage löschen?",
-"qa.disclaimer":"Eine Antwort ist eine allgemeine Information, keine Rechtsberatung und kein Mandat.",
+"qa.disclaimer":"Eine Antwort ist die allgemeine Meinung eines Anwalts, keine Rechtsberatung. Fragen Sie mehrere Anwälte und entscheiden Sie nicht nur anhand einer Antwort.",
 "qa.edit":"Bearbeiten",
 "qa.empty.attorney":"Ändern Sie den Filter oder schauen Sie später vorbei.",
 "qa.empty.message":"Stellen Sie die erste Frage oder ändern Sie den Filter.",
