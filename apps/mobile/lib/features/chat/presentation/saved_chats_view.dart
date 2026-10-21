@@ -152,6 +152,7 @@ class _SavedTile extends ConsumerWidget {
             MessageKind.call ||
             MessageKind.sticker ||
             MessageKind.gift ||
+            MessageKind.post ||
             MessageKind.attachment ||
             MessageKind.contact:
         final link = _url.firstMatch(m.body)?.group(0);

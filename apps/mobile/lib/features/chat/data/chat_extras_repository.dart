@@ -103,6 +103,27 @@ class ChatExtrasRepository {
             .data,
       );
 
+  /// Owner 2026-10-21 (Instagram «Поделиться»): sends post [postId] as a
+  /// card.
+  Future<ChatMessage> sendPost(
+    String conversationId,
+    String clientMessageId,
+    String postId,
+  ) async =>
+      ChatMappers.message(
+        (await guardApiCall(
+          () => _chat.sendMessage(
+            id: conversationId,
+            body: api.SendMessageDto(
+              clientMessageId: clientMessageId,
+              type: api.SendMessageType.post,
+              postId: postId,
+            ),
+          ),
+        ))
+            .data,
+      );
+
   /// Shares an address (opens in the phone's maps).
   Future<ChatMessage> sendPlace(
     String conversationId,

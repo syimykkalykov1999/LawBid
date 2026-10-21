@@ -791,6 +791,28 @@ bool isWebmVoice(List<int> bytes) =>
     bytes[3] == 0xA3;
 
 abstract final class ChatMappers {
+  /// Owner 2026-10-21 (Instagram «Поделиться»): a shared post's card.
+  static SharedPostCard postCard(api.SharedPostCardDto d) {
+    final a = d.author;
+    final name = [a?.firstName, a?.lastName]
+        .whereType<String>()
+        .where((x) => x.trim().isNotEmpty)
+        .join(' ');
+    return SharedPostCard(
+      id: d.id,
+      available: d.available,
+      authorId: a?.id,
+      authorName: name.isEmpty ? a?.username : name,
+      authorUsername: a?.username,
+      authorAvatarUrl: a?.avatarUrl,
+      authorVerified: a?.verifiedBadge ?? false,
+      title: d.title,
+      excerpt: d.excerpt,
+      thumbnailUrl: d.thumbnailUrl,
+      isVideo: d.isVideo,
+    );
+  }
+
   /// Disappearing messages: already past its time (the preview is blank).
   static bool _gone(api.MessageDto d) =>
       d.expiresAt != null && !d.expiresAt!.isAfter(DateTime.now());
@@ -809,8 +831,10 @@ abstract final class ChatMappers {
           api.MessageDtoType.gift => MessageKind.gift,
           api.MessageDtoType.contact => MessageKind.contact,
           api.MessageDtoType.place => MessageKind.place,
+          api.MessageDtoType.post => MessageKind.post,
           _ => MessageKind.text,
         },
+        post: d.post == null ? null : postCard(d.post!),
         contact: d.contact == null
             ? null
             : ContactCard(

@@ -85,6 +85,7 @@ String kindLabel(Translator t, MessageKind kind) => switch (kind) {
       MessageKind.sticker => t.t('stickers.label'),
       MessageKind.attachment => t.t('chat.attach.label'),
       MessageKind.call => t.t('call.button'),
+      MessageKind.post => t.t('chat.post.label'),
       _ => '',
     };
 

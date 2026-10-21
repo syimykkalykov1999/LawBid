@@ -40,6 +40,7 @@ import 'package:lawbid/features/chat/presentation/attachment_widgets.dart';
 import 'package:lawbid/features/chat/presentation/chat_album.dart';
 import 'package:lawbid/features/chat/presentation/chat_cards.dart';
 import 'package:lawbid/features/chat/presentation/chat_folders.dart';
+import 'package:lawbid/features/chat/presentation/chat_post_card.dart';
 import 'package:lawbid/features/chat/presentation/chat_translation.dart';
 import 'package:lawbid/features/chat/presentation/contact_info_screen.dart';
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart';
@@ -1315,6 +1316,9 @@ class _Bubble extends ConsumerWidget {
                         ContactCardBody(card: m.contact!, mine: mine)
                       else if (m.kind == MessageKind.place)
                         PlaceCardBody(address: m.body, mine: mine)
+                      // Owner 2026-10-21 (Instagram): a shared post.
+                      else if (m.kind == MessageKind.post && m.post != null)
+                        PostCardBody(card: m.post!, mine: mine)
                       else
                         _MessageText(
                           message: m,
@@ -1372,6 +1376,8 @@ class _Bubble extends ConsumerWidget {
             '${t.t('card.contact')}: ${m.contact?.displayName ?? ''}'
           else if (m.kind == MessageKind.place)
             '${t.t('card.place')}: ${m.body}'
+          else if (m.kind == MessageKind.post)
+            t.t('chat.post.label')
           else
             m.body.replaceAll(kContactMask, t.t('chat.masked')),
           if (m.editedAt != null && !m.revoked) t.t('chat.edited'),
@@ -1381,7 +1387,8 @@ class _Bubble extends ConsumerWidget {
         excludeSemantics: m.kind != MessageKind.voice &&
             m.kind != MessageKind.attachment &&
             m.kind != MessageKind.contact &&
-            m.kind != MessageKind.place,
+            m.kind != MessageKind.place &&
+            m.kind != MessageKind.post,
         onLongPress: interactive && !selecting ? menu : null,
         child: bubble,
       ),

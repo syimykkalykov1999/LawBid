@@ -669,6 +669,8 @@ String messagePreview(Translator t, ChatMessage m, {String? me}) {
     return '👤 ${m.contact?.displayName ?? t.t('card.contact')}';
   }
   if (m.kind == MessageKind.place) return '📍 ${m.body}';
+  // Owner 2026-10-21 (Instagram): "📰 Post".
+  if (m.kind == MessageKind.post) return '📰 ${t.t('chat.post.label')}';
   // OQ-047: "📎 File" / "📷 Photo" (+ caption).
   if (m.kind == MessageKind.attachment) {
     final a = m.attachment;

@@ -213,6 +213,39 @@ enum MessageKind {
   gift,
   contact,
   place,
+  // Owner 2026-10-21 (Instagram «Поделиться»): a post sent as a card.
+  post,
+}
+
+/// Owner 2026-10-21 (Instagram «Поделиться»): a post shared in a chat —
+/// the card opens /post/:id. [available] false = deleted or hidden since.
+@immutable
+class SharedPostCard {
+  const SharedPostCard({
+    required this.id,
+    required this.available,
+    this.authorId,
+    this.authorName,
+    this.authorUsername,
+    this.authorAvatarUrl,
+    this.authorVerified = false,
+    this.title,
+    this.excerpt,
+    this.thumbnailUrl,
+    this.isVideo = false,
+  });
+
+  final String id;
+  final bool available;
+  final String? authorId;
+  final String? authorName;
+  final String? authorUsername;
+  final String? authorAvatarUrl;
+  final bool authorVerified;
+  final String? title;
+  final String? excerpt;
+  final String? thumbnailUrl;
+  final bool isVideo;
 }
 
 /// Owner 2026-10-20: an attorney shared in a chat — the public profile only
@@ -416,6 +449,7 @@ class ChatMessage {
     this.sticker,
     this.gift,
     this.contact,
+    this.post,
     this.editedAt,
     this.revoked = false,
     this.forwarded = false,
@@ -432,6 +466,9 @@ class ChatMessage {
   /// Owner 2026-10-20: set for [MessageKind.contact] (null when that
   /// attorney is gone).
   final ContactCard? contact;
+
+  /// Owner 2026-10-21: set for [MessageKind.post].
+  final SharedPostCard? post;
 
   /// Edited at (the bubble says "edited").
   final DateTime? editedAt;
@@ -525,6 +562,7 @@ class ChatMessage {
         sticker: sticker,
         gift: gift,
         contact: contact,
+        post: post,
       );
 }
 
