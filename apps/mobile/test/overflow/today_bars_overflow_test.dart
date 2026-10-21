@@ -8,6 +8,7 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/data/calls_repository.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
+import 'package:lawbid/features/calls/presentation/call_invite_bar.dart';
 import 'package:lawbid/features/calls/presentation/call_rejoin.dart';
 import 'package:lawbid/features/chat/application/voice_player.dart';
 import 'package:lawbid/features/chat/presentation/voice_widgets.dart';
@@ -73,7 +74,7 @@ void main() {
   for (final id in AppThemeId.values) {
     for (final scale in [1.0, 1.1]) {
       for (final e in locales.entries) {
-        for (final bar in ['rejoin', 'voice mini player']) {
+        for (final bar in ['rejoin', 'voice mini player', 'invite']) {
           testWidgets('$bar: ${id.name} ${e.key} x$scale', (t) async {
             useNarrowPhone(t);
             final (tr, dir) = e.value;
@@ -95,6 +96,16 @@ void main() {
                             rejoin: GroupRejoin(
                               groupId: 'g',
                               title: 'Maximilian-Alexander Montgomery',
+                            ),
+                          )
+                        else if (bar == 'invite')
+                          const CallInviteBar(
+                            invite: CallInvite(
+                              callId: 'c',
+                              who: 'Maximilian-Alexander Montgomery',
+                              title: 'Maximilian-Alexander Montgomery',
+                              groupId: 'g',
+                              video: true,
                             ),
                           )
                         else
