@@ -37,12 +37,13 @@ class GroupDto {
     required this.whoCanPin,
     required this.myRights,
     required this.showServiceMessages,
+    required this.isAdmin,
     required this.canPost,
     required this.canAdd,
-    required this.canEditInfo,
     required this.updatedAt,
-    required this.isAdmin,
     required this.canCall,
+    required this.canEditInfo,
+    this.myRole,
     this.inviteLink,
     this.pinnedMessage,
     this.lastMessage,
@@ -53,7 +54,7 @@ class GroupDto {
     this.avatarFullUrl,
     this.avatarUrl,
     this.description,
-    this.myRole,
+    this.disappearAfterS,
   });
 
   factory GroupDto.fromJson(Map<String, Object?> json) =>
@@ -95,6 +96,9 @@ class GroupDto {
 
   /// Service lines (joined, left, renamed…) are shown to everyone.
   final bool showServiceMessages;
+
+  /// Disappearing messages: seconds a new message lives (86400 / 604800 / 7776000); null = off.
+  final num? disappearAfterS;
 
   /// What I may do here (derived from the above).
   final bool canPost;

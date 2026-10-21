@@ -33,6 +33,7 @@ class ConversationDto {
     this.caseTitle,
     this.lastMessage,
     this.lastMessageAt,
+    this.disappearAfterS,
     this.mutedUntil,
     this.counterpartLastReadMessageId,
     this.counterpartLastReadAt,
@@ -57,6 +58,9 @@ class ConversationDto {
   final MessageDto? lastMessage;
   final DateTime? lastMessageAt;
   final num unreadCount;
+
+  /// Disappearing messages: seconds a new message lives (86400 / 604800 / 7776000); null = off.
+  final num? disappearAfterS;
   final DateTime? mutedUntil;
 
   /// Calls of this chat ring silently for me.

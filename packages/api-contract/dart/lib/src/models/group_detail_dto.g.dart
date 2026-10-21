@@ -9,7 +9,9 @@ part of 'group_detail_dto.dart';
 GroupDetailDto _$GroupDetailDtoFromJson(
   Map<String, dynamic> json,
 ) => GroupDetailDto(
-  whoCanAdd: GroupWho.fromJson(json['whoCanAdd'] as String),
+  myRights: (json['myRights'] as List<dynamic>)
+      .map((e) => GroupDetailDtoMyRights.fromJson(e as String))
+      .toList(),
   title: json['title'] as String,
   members: (json['members'] as List<dynamic>)
       .map((e) => GroupMemberDto.fromJson(e as Map<String, dynamic>))
@@ -18,30 +20,29 @@ GroupDetailDto _$GroupDetailDtoFromJson(
   createdAt: DateTime.parse(json['createdAt'] as String),
   memberCount: json['memberCount'] as num,
   type: GroupType.fromJson(json['type'] as String),
-  pinned: json['pinned'] as bool,
+  whoCanPost: GroupWho.fromJson(json['whoCanPost'] as String),
   joinApproval: json['joinApproval'] as bool,
   topicsEnabled: json['topicsEnabled'] as bool,
-  callsMuted: json['callsMuted'] as bool,
+  pinned: json['pinned'] as bool,
   pendingRequests: json['pendingRequests'] as num,
-  unreadMentions: json['unreadMentions'] as num,
-  whoCanPost: GroupWho.fromJson(json['whoCanPost'] as String),
+  callsMuted: json['callsMuted'] as bool,
   id: json['id'] as String,
+  whoCanAdd: GroupWho.fromJson(json['whoCanAdd'] as String),
   whoCanEditInfo: GroupWho.fromJson(json['whoCanEditInfo'] as String),
   whoCanCall: GroupWho.fromJson(json['whoCanCall'] as String),
   whoCanMedia: GroupWho.fromJson(json['whoCanMedia'] as String),
   whoCanPoll: GroupWho.fromJson(json['whoCanPoll'] as String),
   whoCanPin: GroupWho.fromJson(json['whoCanPin'] as String),
-  myRights: (json['myRights'] as List<dynamic>)
-      .map((e) => GroupDetailDtoMyRights.fromJson(e as String))
-      .toList(),
+  isAdmin: json['isAdmin'] as bool,
   showServiceMessages: json['showServiceMessages'] as bool,
+  unreadCount: json['unreadCount'] as num,
   canPost: json['canPost'] as bool,
   canAdd: json['canAdd'] as bool,
   canEditInfo: json['canEditInfo'] as bool,
   canCall: json['canCall'] as bool,
-  unreadCount: json['unreadCount'] as num,
-  isAdmin: json['isAdmin'] as bool,
   inviteEnabled: json['inviteEnabled'] as bool,
+  unreadMentions: json['unreadMentions'] as num,
+  inviteLink: json['inviteLink'] as String?,
   pinnedMessage: json['pinnedMessage'] == null
       ? null
       : GroupMessageDto.fromJson(json['pinnedMessage'] as Map<String, dynamic>),
@@ -51,21 +52,21 @@ GroupDetailDto _$GroupDetailDtoFromJson(
   lastMessageAt: json['lastMessageAt'] == null
       ? null
       : DateTime.parse(json['lastMessageAt'] as String),
-  notAdded: (json['notAdded'] as List<dynamic>?)
-      ?.map((e) => e as String)
-      .toList(),
-  myRole: json['myRole'] == null
-      ? null
-      : GroupRole.fromJson(json['myRole'] as String),
+  disappearAfterS: json['disappearAfterS'] as num?,
+  username: json['username'] as String?,
   mutedUntil: json['mutedUntil'] == null
       ? null
       : DateTime.parse(json['mutedUntil'] as String),
+  myRole: json['myRole'] == null
+      ? null
+      : GroupRole.fromJson(json['myRole'] as String),
   generalTopicId: json['generalTopicId'] as String?,
-  username: json['username'] as String?,
   avatarFullUrl: json['avatarFullUrl'] as String?,
   avatarUrl: json['avatarUrl'] as String?,
   description: json['description'] as String?,
-  inviteLink: json['inviteLink'] as String?,
+  notAdded: (json['notAdded'] as List<dynamic>?)
+      ?.map((e) => e as String)
+      .toList(),
 );
 
 Map<String, dynamic> _$GroupDetailDtoToJson(GroupDetailDto instance) =>
@@ -92,6 +93,7 @@ Map<String, dynamic> _$GroupDetailDtoToJson(GroupDetailDto instance) =>
       'whoCanPin': instance.whoCanPin.toJson(),
       'myRights': instance.myRights.map((e) => e.toJson()).toList(),
       'showServiceMessages': instance.showServiceMessages,
+      'disappearAfterS': ?instance.disappearAfterS,
       'canPost': instance.canPost,
       'canAdd': instance.canAdd,
       'canEditInfo': instance.canEditInfo,

@@ -38,6 +38,7 @@ class MessageDto {
     this.attachment,
     this.call,
     this.clientMessageId,
+    this.expiresAt,
     this.editedAt,
     this.forwardedFrom,
     this.replyTo,
@@ -75,6 +76,9 @@ class MessageDto {
   /// Only on the viewer's own messages (outbox matching).
   final String? clientMessageId;
   final DateTime createdAt;
+
+  /// Disappearing messages: when the message goes; the app hides it from this time on. Null = stays.
+  final DateTime? expiresAt;
   final DateTime? editedAt;
 
   /// Deleted for everyone: the app shows "Message deleted"; body and media are empty.

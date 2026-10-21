@@ -42,6 +42,9 @@ GroupMessageDto _$GroupMessageDtoFromJson(
   editedAt: json['editedAt'] == null
       ? null
       : DateTime.parse(json['editedAt'] as String),
+  expiresAt: json['expiresAt'] == null
+      ? null
+      : DateTime.parse(json['expiresAt'] as String),
 );
 
 Map<String, dynamic> _$GroupMessageDtoToJson(GroupMessageDto instance) =>
@@ -65,4 +68,5 @@ Map<String, dynamic> _$GroupMessageDtoToJson(GroupMessageDto instance) =>
       'editedAt': ?instance.editedAt?.toIso8601String(),
       'deleted': instance.deleted,
       'createdAt': instance.createdAt.toIso8601String(),
+      'expiresAt': ?instance.expiresAt?.toIso8601String(),
     };
