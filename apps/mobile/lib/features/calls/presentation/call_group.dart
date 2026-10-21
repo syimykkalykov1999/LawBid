@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -517,6 +518,17 @@ class _MembersSheet extends ConsumerWidget {
     if (call == null) return const SizedBox.shrink();
     final members = CallGroupGrid.visibleMembers(call, me);
     final iAmHost = call.hostId != null && call.hostId == me;
+    // Owner 2026-10-21 (inbox 20f, Telegram): who speaks and whose camera is
+    // off show in the list too.
+    final media = c.media;
+    final camerasOff = ref.watch(callCamerasOffProvider);
+    bool cameraOff(CallMember m) {
+      if (!s.video || !m.joined) return false;
+      if (m.userId == me) return !s.cameraOn;
+      return camerasOff.contains(m.userId) ||
+          media?.remoteStreams.value[m.userId] == null;
+    }
+
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(
@@ -544,6 +556,9 @@ class _MembersSheet extends ConsumerWidget {
                       member: m,
                       isMe: m.userId == me,
                       isHost: m.userId == call.hostId,
+                      speaking: media?.speaking,
+                      speakerId: m.userId == me ? kSelfSpeaker : m.userId,
+                      cameraOff: cameraOff(m),
                       canManage: iAmHost && m.userId != me,
                       canPropose: call.vote == null &&
                           m.joined &&
@@ -619,6 +634,9 @@ class _MemberRow extends StatelessWidget {
     required this.member,
     required this.isMe,
     required this.isHost,
+    required this.speaking,
+    required this.speakerId,
+    required this.cameraOff,
     required this.canManage,
     required this.canPropose,
     required this.onPropose,
@@ -630,6 +648,13 @@ class _MemberRow extends StatelessWidget {
   final CallMember member;
   final bool isMe;
   final bool isHost;
+
+  /// Who speaks now (the media's voice levels); null before the media opens.
+  final ValueListenable<Set<String>>? speaking;
+  final String speakerId;
+
+  /// A video call and this person's picture is off.
+  final bool cameraOff;
   final bool canManage;
   final bool canPropose;
   final VoidCallback onPropose;
@@ -639,16 +664,30 @@ class _MemberRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final speaking = this.speaking;
+    if (speaking == null) return _row(context, talking: false);
+    return ValueListenableBuilder<Set<String>>(
+      valueListenable: speaking,
+      builder: (context, now, _) =>
+          _row(context, talking: member.joined && now.contains(speakerId)),
+    );
+  }
+
+  Widget _row(BuildContext context, {required bool talking}) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     return Consumer(
       builder: (context, ref, _) {
         final t = ref.watch(translatorProvider);
+        final parts = [
+          if (isHost) t.t('call.host'),
+          if (talking) t.t('call.speaking'),
+        ];
         final sub = member.ringing
             ? t.t('call.status.calling')
-            : isHost
-                ? t.t('call.host')
-                : null;
+            : parts.isEmpty
+                ? null
+                : parts.join(' · ');
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
           child: Row(
@@ -682,12 +721,25 @@ class _MemberRow extends StatelessWidget {
                       FitText(
                         sub,
                         alignment: AlignmentDirectional.centerStart,
-                        style:
-                            type.caption.copyWith(color: colors.textSecondary),
+                        style: type.caption.copyWith(
+                          color: talking
+                              ? colors.goldAccent
+                              : colors.textSecondary,
+                        ),
                       ),
                   ],
                 ),
               ),
+              if (cameraOff)
+                Padding(
+                  padding: const EdgeInsetsDirectional.only(end: AppSpacing.xs),
+                  child: AppIcon(
+                    AppIcons.videocamOffOutlined,
+                    key: ValueKey('call-member-camera-off-${member.userId}'),
+                    size: 20,
+                    color: colors.textSecondary,
+                  ),
+                ),
               if (member.joined && muted)
                 Padding(
                   padding: const EdgeInsetsDirectional.only(end: AppSpacing.xs),

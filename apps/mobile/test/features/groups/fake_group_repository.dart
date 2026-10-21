@@ -519,6 +519,7 @@ api.GroupDto listGroup(
   api.GroupType type = api.GroupType.private,
   int minutes = 0,
   bool canPost = true,
+  api.OngoingCallDto? ongoingCall,
 }) =>
     api.GroupDto(
       id: id,
@@ -556,6 +557,7 @@ api.GroupDto listGroup(
       unreadMentions: mentions,
       mutedUntil: muted ? DateTime.now().add(const Duration(days: 365)) : null,
       callsMuted: false,
+      ongoingCall: ongoingCall,
       pinned: pinned,
       createdAt: _at,
       updatedAt: _at.add(Duration(minutes: minutes)),

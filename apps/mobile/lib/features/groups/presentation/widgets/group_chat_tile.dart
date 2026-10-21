@@ -11,8 +11,10 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/chat/application/chat_selection.dart';
 import 'package:lawbid/features/chat/presentation/chat_swipe.dart';
 import 'package:lawbid/features/groups/application/chat_list_merge.dart';
+import 'package:lawbid/features/groups/domain/ongoing_call.dart';
 import 'package:lawbid/features/groups/group_routes.dart';
 import 'package:lawbid/features/groups/presentation/group_message_text.dart';
+import 'package:lawbid/features/groups/presentation/widgets/group_call_ui.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
@@ -59,6 +61,8 @@ class GroupChatTile extends ConsumerWidget {
     final secondary = type.bodySmall.copyWith(color: colors.textSecondary);
     final hot = unread > 0 && !muted;
     final title = g.title.trim().isEmpty ? '?' : g.title.trim();
+    // Inbox 20e (Telegram): a running call takes the last message's place.
+    final call = OngoingCallSummary.fromDto(g.ongoingCall);
     final row = AppPressable(
       key: ValueKey('group-tile-${g.id}'),
       onTap: picking != null
@@ -148,20 +152,24 @@ class GroupChatTile extends ConsumerWidget {
                         Row(
                           children: [
                             Expanded(
-                              child: Text(
-                                last == null
-                                    ? t.t('group.empty.preview')
-                                    : groupMessagePreview(
-                                        t,
-                                        last,
-                                        withSender: true,
-                                      ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: unread > 0
-                                    ? secondary.copyWith(color: colors.text)
-                                    : secondary,
-                              ),
+                              child: call != null
+                                  ? OngoingCallLine(call: call)
+                                  : Text(
+                                      last == null
+                                          ? t.t('group.empty.preview')
+                                          : groupMessagePreview(
+                                              t,
+                                              last,
+                                              withSender: true,
+                                            ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: unread > 0
+                                          ? secondary.copyWith(
+                                              color: colors.text,
+                                            )
+                                          : secondary,
+                                    ),
                             ),
                             if (muted) ...[
                               const SizedBox(width: AppSpacing.sm),
