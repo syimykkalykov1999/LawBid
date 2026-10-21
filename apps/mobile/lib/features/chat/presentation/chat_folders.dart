@@ -119,7 +119,7 @@ class ChatFolderPills extends ConsumerWidget {
 }
 
 /// Owner 2026-10-01: the chat's own menu (the button at its top right) —
-/// pin to the top, move to Primary / General, "waiting for my answer"
+/// pin to the top, move to «Waiting», "waiting for my answer"
 /// with a note that shows right in the list ("send him the documents").
 Future<void> showChatOrganizeSheet(
   BuildContext context,
@@ -192,8 +192,6 @@ class _OrganizeSheetState extends ConsumerState<_OrganizeSheet> {
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final c = widget.conversation;
     final repo = ref.read(chatRepositoryProvider);
-    // Only "move to Primary" is offered; the General folder is not shown.
-    const other = ChatFolder.primary;
     return Padding(
       padding: EdgeInsets.fromLTRB(
         AppSpacing.screenSide,
@@ -293,36 +291,19 @@ class _OrganizeSheetState extends ConsumerState<_OrganizeSheet> {
                       );
                     },
             ),
-            if (c.folder != ChatFolder.primary)
+            // Owner 2026-10-21: no «Primary» any more; the chat moves to the
+            // folders that exist. «Cases» holds the case chats by itself.
+            if (!c.waiting)
               AppListRow(
                 key: const ValueKey('organize-move'),
-                icon: AppIcons.starOutlineRounded,
+                icon: AppIcons.hourglassEmptyRounded,
                 label: t.t('chat.organize.moveTo', {
-                  'folder': t.t('chat.folder.${other.name}'),
+                  'folder': t.t('chat.folder.waiting'),
                 }),
-                subtitle: c.folderAuto ? t.t('chat.organize.autoHint') : null,
                 onTap: _busy
                     ? null
                     : () => _run(
-                          // Audit 2026-10-04: as in the bulk move, moving
-                          // takes the "waiting" mark off.
-                          () => repo.organize(
-                            c.id,
-                            folder: other,
-                            waiting: false,
-                          ),
-                          done: 'chat.organize.moved',
-                        ),
-              ),
-            if (!c.folderAuto)
-              AppListRow(
-                key: const ValueKey('organize-auto'),
-                icon: AppIcons.autoModeRounded,
-                label: t.t('chat.organize.auto'),
-                onTap: _busy
-                    ? null
-                    : () => _run(
-                          () => repo.organize(c.id, resetFolder: true),
+                          () => repo.organize(c.id, waiting: true),
                           done: 'chat.organize.moved',
                         ),
               ),

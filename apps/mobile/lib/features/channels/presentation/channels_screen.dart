@@ -12,9 +12,13 @@ import 'package:lawbid/features/channels/application/channels_providers.dart';
 import 'package:lawbid/features/channels/channels_routes.dart';
 import 'package:lawbid/features/channels/domain/channel_models.dart';
 import 'package:lawbid/features/channels/presentation/channel_widgets.dart';
+import 'package:lawbid/features/channels/presentation/channels_groups.dart';
+import 'package:lawbid/features/groups/application/group_providers.dart';
+import 'package:lawbid/features/groups/presentation/widgets/group_chat_tile.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 import 'package:lawbid/shared/presentation/list_search_field.dart';
+import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// Owner 2026-10-20: the channels screen — the ones I run, the ones I
 /// follow, and discover / search (title or @username).
@@ -217,7 +221,8 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   }
 }
 
-/// One page of the channels screen: the list of a scope (or of a search).
+/// One page of the channels screen: «Channels» and «Groups» sections of a
+/// scope (or of a search). Owner 2026-10-21: groups live here, not in Chats.
 class _ScopeList extends ConsumerWidget {
   const _ScopeList({
     required this.scope,
@@ -233,74 +238,136 @@ class _ScopeList extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translatorProvider);
-    // Owner 2026-10-20: «Discover» opens with «Recommended» and never ends
-    // — ranked for me first, then popular, then newest.
-    if (scope == ChannelScope.discover && query.isEmpty) {
-      final colors = Theme.of(context).extension<AppColorTokens>()!;
-      final notifier = ref.read(recommendedChannelsProvider.notifier);
-      return PagedListBody<Channel>(
-        value: ref.watch(recommendedChannelsProvider),
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final recommended = scope == ChannelScope.discover && query.isEmpty;
+    final key = (scope: scope, query: query);
+
+    // Channels.
+    final channels = recommended
+        ? ref.watch(recommendedChannelsProvider).whenData((p) => p.items)
+        : ref.watch(channelListProvider(key));
+
+    // Groups: mine (Mine, Following), recommended (Discover), or the typed
+    // words among mine and the public ones.
+    final myGroups = ref.watch(groupsProvider);
+    final List<Widget> groupRows;
+    var groupsLoading = false;
+    if (recommended) {
+      final reco = ref.watch(recommendedGroupsProvider);
+      groupsLoading = reco.isLoading && !reco.hasValue;
+      groupRows = [
+        for (final g
+            in reco.value?.items ?? const <api.GroupInvitePreviewDto>[])
+          GroupPreviewRow(key: ValueKey('group-reco-${g.id}'), group: g),
+      ];
+    } else if (query.isNotEmpty) {
+      final q = query.toLowerCase();
+      final mine = [
+        for (final g in myGroups.value?.items ?? const <api.GroupDto>[])
+          if (g.title.toLowerCase().contains(q)) g,
+      ];
+      final found = ref.watch(groupSearchProvider(query)).value ?? const [];
+      groupRows = [
+        for (final g in mine)
+          GroupChatTile(key: ValueKey('group-row-${g.id}'), group: g),
+        for (final g in found)
+          if (!mine.any((m) => m.id == g.id))
+            GroupPreviewRow(key: ValueKey('group-found-${g.id}'), group: g),
+      ];
+    } else {
+      groupsLoading = myGroups.isLoading && !myGroups.hasValue;
+      groupRows = [
+        for (final g in myGroups.value?.items ?? const <api.GroupDto>[])
+          GroupChatTile(key: ValueKey('group-row-${g.id}'), group: g),
+      ];
+    }
+
+    final channelRows = channels.value ?? const <Channel>[];
+    if (channels.hasError && channelRows.isEmpty && groupRows.isEmpty) {
+      return CasesErrorView(
+        error: channels.error!,
         t: t,
-        itemKey: (c) => c.id,
-        itemBuilder: (context, c, _) => ChannelRow(
-          key: ValueKey('channel-row-${c.id}'),
-          channel: c,
-          onTap: () => context.push(ChannelsRoutes.channel(c.id)),
-        ),
-        skeleton: const CasesListSkeleton(),
-        header: Text(
-          t.t('reco.title'),
-          key: const ValueKey('channels-reco-title'),
-          style: Theme.of(context)
-              .extension<AppTypographyTokens>()!
-              .caption
-              .copyWith(
-                color: colors.textSecondary,
-                fontWeight: FontWeight.w600,
-              ),
-        ),
-        empty: empty,
-        onRefresh: notifier.refresh,
-        onLoadMore: () => unawaited(notifier.loadMore()),
-        onRetryMore: () => unawaited(notifier.retryLoadMore()),
+        onRetry: () => ref.invalidate(channelListProvider(key)),
       );
     }
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final key = (scope: scope, query: query);
-    final list = ref.watch(channelListProvider(key));
+    if ((channels.isLoading && !channels.hasValue || groupsLoading) &&
+        channelRows.isEmpty &&
+        groupRows.isEmpty) {
+      return const CasesListSkeleton();
+    }
+    if (channelRows.isEmpty && groupRows.isEmpty) return empty;
 
     Future<void> refresh() async {
       ref.invalidate(channelListProvider(key));
-      await ref.read(channelListProvider(key).future);
+      if (recommended) {
+        await ref.read(recommendedChannelsProvider.notifier).refresh();
+        await ref.read(recommendedGroupsProvider.notifier).refresh();
+      } else {
+        await ref.read(groupsProvider.notifier).refresh();
+      }
     }
 
-    return switch (list) {
-      AsyncData(:final value) when value.isEmpty => empty,
-      AsyncData(:final value) => RefreshIndicator(
-          color: colors.gold,
-          backgroundColor: colors.sheet,
-          onRefresh: refresh,
-          child: ListView.separated(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.only(
-              top: AppSpacing.sm,
-              bottom: AppSpacing.xxl,
-            ),
-            itemCount: value.length,
-            separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.xs),
-            itemBuilder: (context, i) => ChannelRow(
-              key: ValueKey('channel-row-${value[i].id}'),
-              channel: value[i],
-              onTap: () => context.push(ChannelsRoutes.channel(value[i].id)),
-            ),
-          ),
+    // Discover never ends: the next pages of both lists come near the end.
+    bool more(ScrollNotification n) {
+      if (recommended && n.metrics.extentAfter < 400) {
+        unawaited(ref.read(recommendedChannelsProvider.notifier).loadMore());
+        unawaited(ref.read(recommendedGroupsProvider.notifier).loadMore());
+      }
+      return false;
+    }
+
+    return RefreshIndicator(
+      color: colors.gold,
+      backgroundColor: colors.sheet,
+      onRefresh: refresh,
+      child: NotificationListener<ScrollNotification>(
+        onNotification: more,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
+          children: [
+            if (recommended)
+              Padding(
+                padding: const EdgeInsetsDirectional.fromSTEB(
+                  AppSpacing.screenSide,
+                  AppSpacing.sm,
+                  AppSpacing.screenSide,
+                  0,
+                ),
+                child: Text(
+                  t.t('reco.title'),
+                  key: const ValueKey('channels-reco-title'),
+                  style: Theme.of(context)
+                      .extension<AppTypographyTokens>()!
+                      .caption
+                      .copyWith(
+                        color: colors.textSecondary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+              ),
+            if (channelRows.isNotEmpty) ...[
+              SectionCaption(
+                t.t('channel.title'),
+                key: const ValueKey('channels-section-channels'),
+              ),
+              for (final c in channelRows)
+                ChannelRow(
+                  key: ValueKey('channel-row-${c.id}'),
+                  channel: c,
+                  onTap: () => context.push(ChannelsRoutes.channel(c.id)),
+                ),
+            ],
+            if (groupRows.isNotEmpty) ...[
+              SectionCaption(
+                t.t('channel.section.groups'),
+                key: const ValueKey('channels-section-groups'),
+              ),
+              ...groupRows,
+            ],
+          ],
         ),
-      AsyncError(:final error) => CasesErrorView(
-          error: error,
-          t: t,
-          onRetry: () => ref.invalidate(channelListProvider(key)),
-        ),
-      _ => const CasesListSkeleton(),
-    };
+      ),
+    );
   }
 }

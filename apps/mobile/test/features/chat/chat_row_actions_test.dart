@@ -116,6 +116,7 @@ void main() {
     int archivedCount = 0,
     List<api.GroupDto> groups = const [],
     Map<String, bool> typing = const {},
+    bool groupTiles = false,
   }) async {
     tester.view
       ..devicePixelRatio = 1
@@ -126,7 +127,9 @@ void main() {
     lastGroups = groupRepo;
     await tester.pumpWidget(
       uxApp(
-        const Scaffold(body: ConversationsView()),
+        Scaffold(
+          body: groupTiles ? const GroupTilesList() : const ConversationsView(),
+        ),
         size: const Size(390, 800),
         theme: AppTheme.light(),
         disableAnimations: true,
@@ -222,6 +225,7 @@ void main() {
       tester,
       _conv(last: _msg()),
       groups: [listGroup('g1', unread: 2)],
+      groupTiles: true,
     );
     final row = find.byKey(const ValueKey('chat-swipe-g1'));
     final rect = tester.getRect(row);
