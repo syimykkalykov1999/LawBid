@@ -93,8 +93,9 @@ export const FILE_05_SETTINGS = {
   'rate_limit.follow_per_day': 200,
   'rate_limit.message_per_minute': 60,
   'rate_limit.search_per_minute': 30,
-  // Owner 2026-10-13: address-book uploads (each up to 2000 hashes).
-  'rate_limit.contacts_sync_per_day': 10,
+  // Owner 2026-10-13: address-book uploads. The phone sends 100 hashes per
+  // request (the firewall's 8 KB body limit): 60 cover the 5000 hashes a day.
+  'rate_limit.contacts_sync_per_day': 60,
   'rate_limit.report_per_day': 20,
   'notifications.retention_days': 180,
 } as const;
