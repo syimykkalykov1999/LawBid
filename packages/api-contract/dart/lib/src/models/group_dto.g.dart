@@ -32,12 +32,12 @@ GroupDto _$GroupDtoFromJson(Map<String, dynamic> json) => GroupDto(
       .toList(),
   showServiceMessages: json['showServiceMessages'] as bool,
   isAdmin: json['isAdmin'] as bool,
-  protectContent: json['protectContent'] as bool,
+  canCall: json['canCall'] as bool,
   canPost: json['canPost'] as bool,
   canAdd: json['canAdd'] as bool,
   updatedAt: DateTime.parse(json['updatedAt'] as String),
-  canCall: json['canCall'] as bool,
   canEditInfo: json['canEditInfo'] as bool,
+  disappearAfterS: json['disappearAfterS'] as num?,
   myRole: json['myRole'] == null
       ? null
       : GroupRole.fromJson(json['myRole'] as String),
@@ -59,7 +59,7 @@ GroupDto _$GroupDtoFromJson(Map<String, dynamic> json) => GroupDto(
   avatarFullUrl: json['avatarFullUrl'] as String?,
   avatarUrl: json['avatarUrl'] as String?,
   description: json['description'] as String?,
-  disappearAfterS: json['disappearAfterS'] as num?,
+  protectContent: json['protectContent'] as bool?,
 );
 
 Map<String, dynamic> _$GroupDtoToJson(GroupDto instance) => <String, dynamic>{
@@ -86,7 +86,7 @@ Map<String, dynamic> _$GroupDtoToJson(GroupDto instance) => <String, dynamic>{
   'myRights': instance.myRights.map((e) => e.toJson()).toList(),
   'showServiceMessages': instance.showServiceMessages,
   'disappearAfterS': ?instance.disappearAfterS,
-  'protectContent': instance.protectContent,
+  'protectContent': ?instance.protectContent,
   'canPost': instance.canPost,
   'canAdd': instance.canAdd,
   'canEditInfo': instance.canEditInfo,

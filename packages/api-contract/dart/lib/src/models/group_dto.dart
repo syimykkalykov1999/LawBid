@@ -38,12 +38,12 @@ class GroupDto {
     required this.myRights,
     required this.showServiceMessages,
     required this.isAdmin,
-    required this.protectContent,
+    required this.canCall,
     required this.canPost,
     required this.canAdd,
     required this.updatedAt,
-    required this.canCall,
     required this.canEditInfo,
+    this.disappearAfterS,
     this.myRole,
     this.inviteLink,
     this.pinnedMessage,
@@ -55,7 +55,7 @@ class GroupDto {
     this.avatarFullUrl,
     this.avatarUrl,
     this.description,
-    this.disappearAfterS,
+    this.protectContent,
   });
 
   factory GroupDto.fromJson(Map<String, Object?> json) =>
@@ -102,7 +102,7 @@ class GroupDto {
   final num? disappearAfterS;
 
   /// Restrict saving content: no forwarding, copying or saving of the messages; sharing sends the link.
-  final bool protectContent;
+  final bool? protectContent;
 
   /// What I may do here (derived from the above).
   final bool canPost;

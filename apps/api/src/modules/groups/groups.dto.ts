@@ -750,7 +750,8 @@ export class GroupMessageDto {
   })
   expiresAt!: Date | null;
 
-  @ApiProperty({ description: 'Forwarded («Forwarded from …»).' })
+  // Optional in the contract: builds that predate it read a missing field.
+  @ApiPropertyOptional({ description: 'Forwarded («Forwarded from …»).' })
   forwarded!: boolean;
 
   @ApiPropertyOptional({
@@ -852,7 +853,7 @@ export class GroupDto {
   })
   disappearAfterS!: number | null;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     description:
       'Restrict saving content: no forwarding, copying or saving of the messages; sharing sends the link.',
   })

@@ -28,12 +28,13 @@ GroupDetailDto _$GroupDetailDtoFromJson(
       .map((e) => GroupDetailDtoMyRights.fromJson(e as String))
       .toList(),
   isAdmin: json['isAdmin'] as bool,
-  protectContent: json['protectContent'] as bool,
   canPost: json['canPost'] as bool,
   canAdd: json['canAdd'] as bool,
   canEditInfo: json['canEditInfo'] as bool,
   canCall: json['canCall'] as bool,
   inviteEnabled: json['inviteEnabled'] as bool,
+  callsMuted: json['callsMuted'] as bool,
+  unreadMentions: json['unreadMentions'] as num,
   pinned: json['pinned'] as bool,
   invited: (json['invited'] as List<dynamic>)
       .map((e) => GroupPersonDto.fromJson(e as Map<String, dynamic>))
@@ -42,10 +43,9 @@ GroupDetailDto _$GroupDetailDtoFromJson(
       .map((e) => GroupMemberDto.fromJson(e as Map<String, dynamic>))
       .toList(),
   createdAt: DateTime.parse(json['createdAt'] as String),
-  updatedAt: DateTime.parse(json['updatedAt'] as String),
-  unreadMentions: json['unreadMentions'] as num,
-  callsMuted: json['callsMuted'] as bool,
   unreadCount: json['unreadCount'] as num,
+  updatedAt: DateTime.parse(json['updatedAt'] as String),
+  inviteLink: json['inviteLink'] as String?,
   pinnedMessage: json['pinnedMessage'] == null
       ? null
       : GroupMessageDto.fromJson(json['pinnedMessage'] as Map<String, dynamic>),
@@ -55,10 +55,10 @@ GroupDetailDto _$GroupDetailDtoFromJson(
   lastMessageAt: json['lastMessageAt'] == null
       ? null
       : DateTime.parse(json['lastMessageAt'] as String),
-  inviteLink: json['inviteLink'] as String?,
   notAdded: (json['notAdded'] as List<dynamic>?)
       ?.map((e) => e as String)
       .toList(),
+  protectContent: json['protectContent'] as bool?,
   mutedUntil: json['mutedUntil'] == null
       ? null
       : DateTime.parse(json['mutedUntil'] as String),
@@ -98,7 +98,7 @@ Map<String, dynamic> _$GroupDetailDtoToJson(GroupDetailDto instance) =>
       'myRights': instance.myRights.map((e) => e.toJson()).toList(),
       'showServiceMessages': instance.showServiceMessages,
       'disappearAfterS': ?instance.disappearAfterS,
-      'protectContent': instance.protectContent,
+      'protectContent': ?instance.protectContent,
       'canPost': instance.canPost,
       'canAdd': instance.canAdd,
       'canEditInfo': instance.canEditInfo,

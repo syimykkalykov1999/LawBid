@@ -63,7 +63,7 @@ export class ChannelDto {
 
   /** Owner 2026-10-21 (Telegram): restrict saving content — no
    * forwarding, copying or saving of the posts; sharing sends the link. */
-  @ApiProperty()
+  @ApiPropertyOptional()
   protectContent!: boolean;
 
   /** Hidden / banned are only reported to the channel's admins. */

@@ -21,7 +21,6 @@ GroupMessageDto _$GroupMessageDtoFromJson(
   mentionsMe: json['mentionsMe'] as bool,
   deleted: json['deleted'] as bool,
   createdAt: DateTime.parse(json['createdAt'] as String),
-  forwarded: json['forwarded'] as bool,
   topicId: json['topicId'] as String?,
   sender: json['sender'] == null
       ? null
@@ -46,6 +45,7 @@ GroupMessageDto _$GroupMessageDtoFromJson(
   expiresAt: json['expiresAt'] == null
       ? null
       : DateTime.parse(json['expiresAt'] as String),
+  forwarded: json['forwarded'] as bool?,
   forwardedFrom: json['forwardedFrom'] as String?,
 );
 
@@ -71,6 +71,6 @@ Map<String, dynamic> _$GroupMessageDtoToJson(GroupMessageDto instance) =>
       'deleted': instance.deleted,
       'createdAt': instance.createdAt.toIso8601String(),
       'expiresAt': ?instance.expiresAt?.toIso8601String(),
-      'forwarded': instance.forwarded,
+      'forwarded': ?instance.forwarded,
       'forwardedFrom': ?instance.forwardedFrom,
     };

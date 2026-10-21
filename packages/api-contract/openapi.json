@@ -139371,7 +139371,6 @@
           "title",
           "username",
           "commentsEnabled",
-          "protectContent",
           "status",
           "subscriberCount",
           "postCount",
@@ -154145,8 +154144,7 @@
           "mentions",
           "mentionsMe",
           "deleted",
-          "createdAt",
-          "forwarded"
+          "createdAt"
         ]
       },
       "GroupDto": {
@@ -154384,7 +154382,6 @@
           "whoCanPin",
           "myRights",
           "showServiceMessages",
-          "protectContent",
           "canPost",
           "canAdd",
           "canEditInfo",
@@ -154737,7 +154734,6 @@
           "whoCanPin",
           "myRights",
           "showServiceMessages",
-          "protectContent",
           "canPost",
           "canAdd",
           "canEditInfo",

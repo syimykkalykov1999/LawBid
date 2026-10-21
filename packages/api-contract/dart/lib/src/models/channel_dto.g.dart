@@ -11,7 +11,6 @@ ChannelDto _$ChannelDtoFromJson(Map<String, dynamic> json) => ChannelDto(
   title: json['title'] as String,
   username: json['username'] as String,
   commentsEnabled: json['commentsEnabled'] as bool,
-  protectContent: json['protectContent'] as bool,
   status: ChannelStatus.fromJson(json['status'] as String),
   subscriberCount: (json['subscriberCount'] as num).toInt(),
   postCount: (json['postCount'] as num).toInt(),
@@ -21,6 +20,7 @@ ChannelDto _$ChannelDtoFromJson(Map<String, dynamic> json) => ChannelDto(
   createdAt: DateTime.parse(json['createdAt'] as String),
   description: json['description'] as String?,
   avatarUrl: json['avatarUrl'] as String?,
+  protectContent: json['protectContent'] as bool?,
   myRole: json['myRole'] == null
       ? null
       : ChannelRole.fromJson(json['myRole'] as String),
@@ -37,7 +37,7 @@ Map<String, dynamic> _$ChannelDtoToJson(ChannelDto instance) =>
       'description': ?instance.description,
       'avatarUrl': ?instance.avatarUrl,
       'commentsEnabled': instance.commentsEnabled,
-      'protectContent': instance.protectContent,
+      'protectContent': ?instance.protectContent,
       'status': instance.status.toJson(),
       'subscriberCount': instance.subscriberCount,
       'postCount': instance.postCount,

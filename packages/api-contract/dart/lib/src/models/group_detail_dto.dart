@@ -34,25 +34,25 @@ class GroupDetailDto {
     required this.whoCanPin,
     required this.myRights,
     required this.isAdmin,
-    required this.protectContent,
     required this.canPost,
     required this.canAdd,
     required this.canEditInfo,
     required this.canCall,
     required this.inviteEnabled,
+    required this.callsMuted,
+    required this.unreadMentions,
     required this.pinned,
     required this.invited,
     required this.members,
     required this.createdAt,
-    required this.updatedAt,
-    required this.unreadMentions,
-    required this.callsMuted,
     required this.unreadCount,
+    required this.updatedAt,
+    this.inviteLink,
     this.pinnedMessage,
     this.lastMessage,
     this.lastMessageAt,
-    this.inviteLink,
     this.notAdded,
+    this.protectContent,
     this.mutedUntil,
     this.disappearAfterS,
     this.myRole,
@@ -107,7 +107,7 @@ class GroupDetailDto {
   final num? disappearAfterS;
 
   /// Restrict saving content: no forwarding, copying or saving of the messages; sharing sends the link.
-  final bool protectContent;
+  final bool? protectContent;
 
   /// What I may do here (derived from the above).
   final bool canPost;

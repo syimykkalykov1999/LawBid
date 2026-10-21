@@ -25,7 +25,6 @@ class GroupMessageDto {
     required this.mentionsMe,
     required this.deleted,
     required this.createdAt,
-    required this.forwarded,
     this.topicId,
     this.sender,
     this.systemKind,
@@ -36,6 +35,7 @@ class GroupMessageDto {
     this.poll,
     this.editedAt,
     this.expiresAt,
+    this.forwarded,
     this.forwardedFrom,
   });
 
@@ -80,7 +80,7 @@ class GroupMessageDto {
   final DateTime? expiresAt;
 
   /// Forwarded («Forwarded from …»).
-  final bool forwarded;
+  final bool? forwarded;
 
   /// The first author (or channel) of a forwarded message.
   final String? forwardedFrom;
