@@ -715,11 +715,15 @@ void main() {
     );
     await _settle();
     h.emit(
-        'call:ended', _event(_call('c9', CallStatus.ended, outgoing: false)));
+      'call:ended',
+      _event(_call('c9', CallStatus.ended, outgoing: false)),
+    );
     await _settle();
     expect(h.container.read(callInviteProvider)?.callId, 'c4');
     h.emit(
-        'call:ended', _event(_call('c4', CallStatus.ended, outgoing: false)));
+      'call:ended',
+      _event(_call('c4', CallStatus.ended, outgoing: false)),
+    );
     await _settle();
     expect(h.container.read(callInviteProvider), isNull);
   });
