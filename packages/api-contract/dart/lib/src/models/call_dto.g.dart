@@ -20,6 +20,9 @@ CallDto _$CallDtoFromJson(Map<String, dynamic> json) => CallDto(
       .toList(),
   createdAt: DateTime.parse(json['createdAt'] as String),
   hostId: json['hostId'] as String?,
+  vote: json['vote'] == null
+      ? null
+      : CallVoteDto.fromJson(json['vote'] as Map<String, dynamic>),
   answeredAt: json['answeredAt'] == null
       ? null
       : DateTime.parse(json['answeredAt'] as String),
@@ -29,6 +32,7 @@ CallDto _$CallDtoFromJson(Map<String, dynamic> json) => CallDto(
   durationSec: (json['durationSec'] as num?)?.toInt(),
   video: json['video'] as bool? ?? false,
   group: json['group'] as bool? ?? false,
+  moderated: json['moderated'] as bool? ?? false,
 );
 
 Map<String, dynamic> _$CallDtoToJson(CallDto instance) => <String, dynamic>{
@@ -44,6 +48,8 @@ Map<String, dynamic> _$CallDtoToJson(CallDto instance) => <String, dynamic>{
   'group': instance.group,
   'hostId': ?instance.hostId,
   'participants': instance.participants.map((e) => e.toJson()).toList(),
+  'moderated': instance.moderated,
+  'vote': ?instance.vote?.toJson(),
   'createdAt': instance.createdAt.toIso8601String(),
   'answeredAt': ?instance.answeredAt?.toIso8601String(),
   'endedAt': ?instance.endedAt?.toIso8601String(),

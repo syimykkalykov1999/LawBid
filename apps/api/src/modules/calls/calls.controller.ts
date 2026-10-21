@@ -24,11 +24,14 @@ import {
   CallIdParamDto,
   CallMuteDto,
   CallParticipantParamDto,
+  CallVoteParamDto,
+  CastCallVoteDto,
   EndCallDto,
   IceServersDto,
   InviteCallDto,
   GroupCallParamDto,
   StartCallDto,
+  StartCallVoteDto,
   StartGroupCallDto,
   VideoCallConfigDto,
 } from './calls.dto';
@@ -250,6 +253,43 @@ export class CallsController {
     @Param() p: CallParticipantParamDto,
   ): Promise<CallDto> {
     return this.calls.removeParticipant(user, p.id, p.userId);
+  }
+
+  @Post('calls/:id/votes')
+  @HttpCode(200)
+  @ApiOperation({
+    summary:
+      'Propose to remove a member (only while nobody who runs the call is in it)',
+  })
+  @ApiEnvelopeResponse(CallDto)
+  @ApiErrors({
+    403: [ErrorCode.FORBIDDEN],
+    404: [ErrorCode.CALL_NOT_FOUND],
+    409: [ErrorCode.CALL_STATE_CONFLICT],
+  })
+  startVote(
+    @CurrentUser() user: RequestUser,
+    @Param() p: CallIdParamDto,
+    @Body() dto: StartCallVoteDto,
+  ): Promise<CallDto> {
+    return this.calls.startVote(user, p.id, dto.targetId);
+  }
+
+  @Post('calls/:id/votes/:voteId')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Vote for / against removing the member' })
+  @ApiEnvelopeResponse(CallDto)
+  @ApiErrors({
+    403: [ErrorCode.FORBIDDEN],
+    404: [ErrorCode.CALL_NOT_FOUND],
+    409: [ErrorCode.CALL_STATE_CONFLICT],
+  })
+  castVote(
+    @CurrentUser() user: RequestUser,
+    @Param() p: CallVoteParamDto,
+    @Body() dto: CastCallVoteDto,
+  ): Promise<CallDto> {
+    return this.calls.castVote(user, p.id, p.voteId, dto.favor);
   }
 
   @Post('calls/:id/mute-state')

@@ -38,6 +38,30 @@ export class VideoCallConfigDto {
   reason!: 'flag_off' | 'provider_not_configured' | null;
 }
 
+/** POST /calls/:id/votes — propose to remove a member. */
+export class StartCallVoteDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID('all')
+  targetId!: string;
+}
+
+/** POST /calls/:id/votes/:voteId — a ballot. */
+export class CastCallVoteDto {
+  @ApiProperty({ description: 'true = for removing, false = against.' })
+  @IsBoolean()
+  favor!: boolean;
+}
+
+export class CallVoteParamDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID('all')
+  id!: string;
+
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID('all')
+  voteId!: string;
+}
+
 export class CallIdParamDto {
   @ApiProperty({ format: 'uuid' })
   @IsUUID('all')
@@ -54,6 +78,14 @@ export class EndCallDto {
   @IsOptional()
   @IsIn(['hangup', 'no_answer', 'failed'])
   reason?: 'hangup' | 'no_answer' | 'failed';
+
+  @ApiPropertyOptional({
+    description:
+      'Group call, host only: end the call for everyone (like Telegram "End call for everyone"). Without it a host who hangs up just leaves, the call goes on for the others.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  forAll?: boolean;
 }
 
 /** POST /groups/:id/calls — start a call from a group chat. */
@@ -163,6 +195,40 @@ export class CallParticipantDto {
 }
 
 /** OQ-041: an in-app audio call. */
+/** The open vote to remove a member from a group call (owner 2026-10-21). */
+export class CallVoteDto {
+  @ApiProperty({ format: 'uuid' })
+  id!: string;
+
+  @ApiProperty({ format: 'uuid' })
+  targetId!: string;
+
+  @ApiProperty({ format: 'uuid' })
+  startedById!: string;
+
+  @ApiProperty({ type: 'integer' })
+  forCount!: number;
+
+  @ApiProperty({ type: 'integer' })
+  againstCount!: number;
+
+  @ApiProperty({
+    type: 'integer',
+    description: 'How many members vote (in the call, minus the candidate).',
+  })
+  voters!: number;
+
+  @ApiProperty()
+  expiresAt!: Date;
+
+  @ApiProperty({
+    type: Boolean,
+    nullable: true,
+    description: "The viewer's ballot (null = not voted).",
+  })
+  myBallot!: boolean | null;
+}
+
 export class CallDto {
   @ApiProperty({ format: 'uuid' })
   id!: string;
@@ -234,6 +300,16 @@ export class CallDto {
 
   @ApiProperty({ type: CallParticipantDto, isArray: true })
   participants!: CallParticipantDto[];
+
+  @ApiProperty({
+    default: false,
+    description:
+      'Somebody who runs the call (the starter or a group admin) is in it: members cannot vote to remove anyone then.',
+  })
+  moderated!: boolean;
+
+  @ApiPropertyOptional({ type: CallVoteDto, nullable: true })
+  vote!: CallVoteDto | null;
 
   @ApiProperty()
   createdAt!: Date;

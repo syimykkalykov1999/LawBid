@@ -11,6 +11,7 @@ import { ConfigService } from '@nestjs/config';
 import type {
   Call,
   CallParticipant,
+  CallVote,
   CallStatus,
   Conversation,
 } from '@prisma/client';
@@ -33,6 +34,7 @@ import { GroupsService } from '../groups/groups.service';
 import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
 import type {
   CallDto,
+  CallVoteDto,
   CallParticipantDto,
   EndCallDto,
   InviteCallDto,
@@ -61,6 +63,8 @@ const LIVE: CallStatus[] = ['ringing', 'active'];
 export const GROUP_MAX_AUDIO = 6;
 export const GROUP_MAX_VIDEO = 4;
 const IN_CALL = ['joined', 'invited'];
+/** A vote to remove a member runs this long, then the count decides. */
+export const CALL_VOTE_MS = 30_000;
 // coturn checks the login on every refresh of a relay too: it must outlive
 // the longest call, or a relayed call drops when it expires.
 const TURN_TTL_SEC = 13 * 60 * 60;
@@ -375,6 +379,16 @@ export class CallsService {
     if (call.is_group) {
       // Hanging up a group call = leaving it (it goes on for the others).
       const row = await this.rowOf(call.id, user.sub);
+      if (dto.forAll) {
+        // "End call for everyone": the host only.
+        if (this.hostOf(call, await this.rowsOf(call.id)) !== user.sub) {
+          throw new ForbiddenException({
+            code: ErrorCode.FORBIDDEN,
+            message: 'Only the host can end the call for everyone.',
+          });
+        }
+        return this.finish(call, 'ended', user.sub);
+      }
       if (row?.status === 'joined') return this.leaveGroup(user, call, row);
       if (row?.status === 'invited') return this.declineInvite(user, call, row);
       return this.toDto(call, user.sub);
@@ -493,6 +507,7 @@ export class CallsService {
     }
     await this.sweepInvites(now);
     await this.sweepSilentMembers(now);
+    await this.sweepVotes(now);
     return stale.length;
   }
 
@@ -1142,22 +1157,271 @@ export class CallsService {
     if (!row || !IN_CALL.includes(row.status) || targetId === user.sub) {
       throw notFound();
     }
+    await this.kick(call, row, user.sub);
+    return this.toDto(
+      await this.prisma.call.findUniqueOrThrow({ where: { id: call.id } }),
+      user.sub,
+    );
+  }
+
+  /** Takes a member out of the call for good: `removed` bars them from
+   * joining, accepting or being invited again until a new call (the host's
+   * removal and a vote both end here). */
+  private async kick(
+    call: Call,
+    row: CallParticipant,
+    byUserId: string | null,
+  ): Promise<void> {
     await this.prisma.callParticipant.update({
       where: { id: row.id },
       data: { status: 'removed', left_at: new Date() },
     });
-    this.realtime.toUsers([targetId], 'call:removed', { callId: call.id });
+    this.realtime.toUsers([row.user_id], 'call:removed', { callId: call.id });
     await this.push.enqueueCallEnded({
-      recipientId: targetId,
+      recipientId: row.user_id,
       callId: call.id,
       ended: true,
     });
     const joined = (await this.rowsOf(call.id)).filter(
       (r) => r.status === 'joined',
     );
-    if (joined.length < 2) return this.finish(call, 'ended', user.sub);
-    await this.broadcastParticipants(call.id, [targetId]);
-    return this.toDto(call, user.sub);
+    if (joined.length < 2) {
+      await this.finish(call, 'ended', byUserId);
+      return;
+    }
+    await this.broadcastParticipants(call.id, [row.user_id]);
+  }
+
+  // --- Vote to remove a member (owner 2026-10-21) ---------------------------
+
+  /** Somebody who runs the call is in it: the starter or a group admin. */
+  private async isModerated(
+    call: Call,
+    rows: CallParticipant[],
+  ): Promise<boolean> {
+    const joined = new Set(
+      rows.filter((r) => r.status === 'joined').map((r) => r.user_id),
+    );
+    if (joined.has(call.caller_id)) return true;
+    if (!call.group_id || !this.groups) return false;
+    const admins = await this.groups.adminIds(call.group_id);
+    return admins.some((a) => joined.has(a));
+  }
+
+  private async openVoteDtoOf(
+    call: Call,
+    rows: CallParticipant[],
+    viewerId: string,
+  ): Promise<CallVoteDto | null> {
+    if (!call.is_group || call.status !== 'active') return null;
+    const vote = await this.openVoteOf(call.id);
+    return vote ? this.voteDto(vote, rows, viewerId) : null;
+  }
+
+  private openVoteOf(callId: string) {
+    return this.prisma.callVote.findFirst({
+      where: { call_id: callId, status: 'open' },
+      orderBy: { created_at: 'desc' },
+    });
+  }
+
+  /** Counts a vote among the people who can vote now (in the call, not the
+   * candidate). Passes when "for" is strictly more than "against". */
+  private tally(vote: CallVote, rows: CallParticipant[]) {
+    const ballots = (vote.ballots ?? {}) as Record<string, boolean>;
+    const voters = rows
+      .filter((r) => r.status === 'joined' && r.user_id !== vote.target_id)
+      .map((r) => r.user_id);
+    let forCount = 0;
+    let againstCount = 0;
+    for (const v of voters) {
+      if (ballots[v] === true) forCount++;
+      else if (ballots[v] === false) againstCount++;
+    }
+    return { voters, forCount, againstCount, ballots };
+  }
+
+  private voteDto(
+    vote: CallVote,
+    rows: CallParticipant[],
+    viewerId: string,
+  ): CallVoteDto {
+    const t = this.tally(vote, rows);
+    return {
+      id: vote.id,
+      targetId: vote.target_id,
+      startedById: vote.started_by_id,
+      forCount: t.forCount,
+      againstCount: t.againstCount,
+      voters: t.voters.length,
+      expiresAt: vote.expires_at,
+      myBallot: viewerId in t.ballots ? t.ballots[viewerId] : null,
+    };
+  }
+
+  /** The outcome if it is already settled (everyone voted, or the rest can
+   * no longer change it), or — at the deadline — by the count. */
+  private verdict(
+    vote: CallVote,
+    rows: CallParticipant[],
+    now: Date,
+  ): 'passed' | 'failed' | null {
+    const t = this.tally(vote, rows);
+    const undecided = t.voters.length - t.forCount - t.againstCount;
+    if (t.forCount > t.againstCount + undecided) return 'passed';
+    if (t.forCount + undecided <= t.againstCount) return 'failed';
+    if (undecided === 0 || vote.expires_at <= now) {
+      return t.forCount > t.againstCount ? 'passed' : 'failed';
+    }
+    return null;
+  }
+
+  /** `call:vote` to everyone in the call, each with their own ballot. */
+  private async broadcastVote(
+    call: Call,
+    vote: CallVote,
+    result: 'open' | 'passed' | 'failed',
+    extra: string[] = [],
+  ): Promise<void> {
+    const rows = await this.rowsOf(call.id);
+    const ids = [
+      ...new Set([
+        ...rows.filter((r) => r.status === 'joined').map((r) => r.user_id),
+        ...extra,
+      ]),
+    ];
+    for (const uid of ids) {
+      this.realtime.toUsers([uid], 'call:vote', {
+        callId: call.id,
+        result,
+        targetId: vote.target_id,
+        vote: result === 'open' ? this.voteDto(vote, rows, uid) : null,
+      });
+    }
+  }
+
+  /** Ends the vote when it is settled; removes the member if it passed. */
+  private async settleVote(call: Call, vote: CallVote): Promise<void> {
+    const rows = await this.rowsOf(call.id);
+    const result = this.verdict(vote, rows, new Date());
+    if (!result) return;
+    const { count } = await this.prisma.callVote.updateMany({
+      where: { id: vote.id, status: 'open' },
+      data: { status: result },
+    });
+    if (count === 0) return;
+    const target = rows.find((r) => r.user_id === vote.target_id);
+    if (result === 'passed' && target && IN_CALL.includes(target.status)) {
+      await this.kick(call, target, null);
+    }
+    await this.broadcastVote(call, vote, result, [vote.target_id]);
+  }
+
+  /** POST /calls/:id/votes — a member proposes to remove another. */
+  async startVote(
+    user: RequestUser,
+    id: string,
+    targetId: string,
+  ): Promise<CallDto> {
+    await this.sweep();
+    const call = await this.load(user, id);
+    if (!call.is_group || call.status !== 'active') throw conflict();
+    const rows = await this.rowsOf(call.id);
+    const me = rows.find((r) => r.user_id === user.sub);
+    const target = rows.find((r) => r.user_id === targetId);
+    if (me?.status !== 'joined') throw notFound();
+    if (!target || target.status !== 'joined' || targetId === user.sub) {
+      throw notFound();
+    }
+    if (await this.isModerated(call, rows)) {
+      throw new ForbiddenException({
+        code: ErrorCode.FORBIDDEN,
+        message: 'The host or an admin is in the call: ask them.',
+      });
+    }
+    if (await this.openVoteOf(call.id)) throw conflict();
+    // Two people left besides the candidate or fewer: nobody to outvote.
+    if (rows.filter((r) => r.status === 'joined').length < 3) throw conflict();
+    const vote = await this.prisma.callVote.create({
+      data: {
+        call_id: call.id,
+        target_id: targetId,
+        started_by_id: user.sub,
+        // The proposer is "for".
+        ballots: { [user.sub]: true },
+        expires_at: new Date(Date.now() + CALL_VOTE_MS),
+      },
+    });
+    await this.broadcastVote(call, vote, 'open', [targetId]);
+    await this.settleVote(call, vote);
+    return this.toDto(
+      await this.prisma.call.findUniqueOrThrow({ where: { id: call.id } }),
+      user.sub,
+    );
+  }
+
+  /** POST /calls/:id/votes/:voteId — a ballot (changeable until it ends). */
+  async castVote(
+    user: RequestUser,
+    id: string,
+    voteId: string,
+    favor: boolean,
+  ): Promise<CallDto> {
+    const call = await this.load(user, id);
+    if (!call.is_group || call.status !== 'active') throw conflict();
+    const vote = await this.prisma.callVote.findFirst({
+      where: { id: voteId, call_id: call.id },
+    });
+    if (!vote) throw notFound();
+    if (vote.status !== 'open') throw conflict();
+    const rows = await this.rowsOf(call.id);
+    const me = rows.find((r) => r.user_id === user.sub);
+    if (me?.status !== 'joined' || user.sub === vote.target_id) {
+      throw new ForbiddenException({
+        code: ErrorCode.FORBIDDEN,
+        message: 'You cannot vote on this.',
+      });
+    }
+    // Atomic: two ballots at once must both count.
+    const fresh = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT 1 FROM call_votes WHERE id = ${vote.id}::uuid FOR UPDATE`;
+      const cur = await tx.callVote.findUniqueOrThrow({
+        where: { id: vote.id },
+      });
+      if (cur.status !== 'open') return cur;
+      const ballots = { ...((cur.ballots ?? {}) as Record<string, boolean>) };
+      ballots[user.sub] = favor;
+      return tx.callVote.update({ where: { id: cur.id }, data: { ballots } });
+    });
+    if (fresh.status === 'open') {
+      await this.broadcastVote(call, fresh, 'open', [fresh.target_id]);
+      await this.settleVote(call, fresh);
+    }
+    return this.toDto(
+      await this.prisma.call.findUniqueOrThrow({ where: { id: call.id } }),
+      user.sub,
+    );
+  }
+
+  /** Votes past their deadline are counted (cron + call reads). */
+  private async sweepVotes(now: Date): Promise<void> {
+    const due = await this.prisma.callVote.findMany({
+      where: { status: 'open', expires_at: { lte: now } },
+      take: 100,
+    });
+    for (const vote of due) {
+      const call = await this.prisma.call.findUnique({
+        where: { id: vote.call_id },
+      });
+      if (!call || call.status !== 'active') {
+        await this.prisma.callVote.updateMany({
+          where: { id: vote.id, status: 'open' },
+          data: { status: 'failed' },
+        });
+        continue;
+      }
+      await this.settleVote(call, vote);
+    }
   }
 
   /** POST /calls/:id/mute-state — a member tells the others their own
@@ -1448,6 +1712,8 @@ export class CallsService {
       group: call.is_group,
       hostId: this.hostOf(call, rows),
       participants: await this.participantDtos(rows),
+      moderated: call.is_group ? await this.isModerated(call, rows) : true,
+      vote: await this.openVoteDtoOf(call, rows, viewerId),
       createdAt: call.created_at,
       answeredAt: call.answered_at,
       endedAt: call.ended_at,

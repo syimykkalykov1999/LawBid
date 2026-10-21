@@ -7,10 +7,12 @@ import 'package:retrofit/retrofit.dart';
 
 import '../models/call_envelope.dart';
 import '../models/call_mute_dto.dart';
+import '../models/cast_call_vote_dto.dart';
 import '../models/end_call_dto.dart';
 import '../models/ice_servers_envelope.dart';
 import '../models/invite_call_dto.dart';
 import '../models/start_call_dto.dart';
+import '../models/start_call_vote_dto.dart';
 import '../models/start_group_call_dto.dart';
 import '../models/video_call_config_envelope.dart';
 
@@ -113,6 +115,23 @@ abstract class CallsClient {
   Future<CallEnvelope> removeFromCall({
     @Path('id') required String id,
     @Path('userId') required String userId,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Propose to remove a member (only while nobody who runs the call is in it)
+  @POST('/calls/{id}/votes')
+  Future<CallEnvelope> startVote({
+    @Path('id') required String id,
+    @Body() required StartCallVoteDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Vote for / against removing the member
+  @POST('/calls/{id}/votes/{voteId}')
+  Future<CallEnvelope> castVote({
+    @Path('id') required String id,
+    @Path('voteId') required String voteId,
+    @Body() required CastCallVoteDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

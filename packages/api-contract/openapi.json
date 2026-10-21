@@ -86338,6 +86338,249 @@
         ]
       }
     },
+    "/calls/{id}/votes": {
+      "post": {
+        "operationId": "startVote",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartCallVoteDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CallEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: CALL_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: CALL_STATE_CONFLICT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Propose to remove a member (only while nobody who runs the call is in it)",
+        "tags": [
+          "calls"
+        ]
+      }
+    },
+    "/calls/{id}/votes/{voteId}": {
+      "post": {
+        "operationId": "castVote",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "voteId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CastCallVoteDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CallEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: CALL_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: CALL_STATE_CONFLICT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Vote for / against removing the member",
+        "tags": [
+          "calls"
+        ]
+      }
+    },
     "/calls/{id}/mute-state": {
       "post": {
         "operationId": "muteState",
@@ -151631,6 +151874,52 @@
           "mutedByHost"
         ]
       },
+      "CallVoteDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "targetId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "startedById": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "forCount": {
+            "type": "integer"
+          },
+          "againstCount": {
+            "type": "integer"
+          },
+          "voters": {
+            "type": "integer",
+            "description": "How many members vote (in the call, minus the candidate)."
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "myBallot": {
+            "type": "boolean",
+            "nullable": true,
+            "description": "The viewer's ballot (null = not voted)."
+          }
+        },
+        "required": [
+          "id",
+          "targetId",
+          "startedById",
+          "forCount",
+          "againstCount",
+          "voters",
+          "expiresAt",
+          "myBallot"
+        ]
+      },
       "CallDto": {
         "type": "object",
         "properties": {
@@ -151694,6 +151983,20 @@
               "$ref": "#/components/schemas/CallParticipantDto"
             }
           },
+          "moderated": {
+            "type": "boolean",
+            "default": false,
+            "description": "Somebody who runs the call (the starter or a group admin) is in it: members cannot vote to remove anyone then."
+          },
+          "vote": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CallVoteDto"
+              }
+            ]
+          },
           "createdAt": {
             "format": "date-time",
             "type": "string"
@@ -151725,6 +152028,7 @@
           "peer",
           "group",
           "participants",
+          "moderated",
           "createdAt"
         ]
       },
@@ -151893,6 +152197,10 @@
                 "$ref": "#/components/schemas/CallEndReason"
               }
             ]
+          },
+          "forAll": {
+            "type": "boolean",
+            "description": "Group call, host only: end the call for everyone (like Telegram \"End call for everyone\"). Without it a host who hangs up just leaves, the call goes on for the others."
           }
         }
       },
@@ -151919,6 +152227,30 @@
         },
         "required": [
           "muted"
+        ]
+      },
+      "StartCallVoteDto": {
+        "type": "object",
+        "properties": {
+          "targetId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "targetId"
+        ]
+      },
+      "CastCallVoteDto": {
+        "type": "object",
+        "properties": {
+          "favor": {
+            "type": "boolean",
+            "description": "true = for removing, false = against."
+          }
+        },
+        "required": [
+          "favor"
         ]
       },
       "GroupType": {
