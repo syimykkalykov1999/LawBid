@@ -68,6 +68,8 @@ export const NOTIFICATION_CATEGORY: Record<
   assistant_task: 'cases',
   assistant_joined: 'system',
   assistant_result: 'messages',
+  // Owner 2026-10-21 (inbox 30).
+  assistant_bid_draft: 'bids',
   // Owner 2026-10-05: the planner.
   task_reminder: 'cases',
   task_assigned: 'cases',
@@ -158,6 +160,7 @@ export const NOTIFICATION_IMPORTANT: Record<NotificationType, boolean> = {
   group_invite: true,
   assistant_request: true,
   assistant_task: true,
+  assistant_bid_draft: true,
   assistant_joined: false,
   assistant_result: true,
   task_reminder: true,

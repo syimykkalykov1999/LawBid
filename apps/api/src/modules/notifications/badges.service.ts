@@ -1,7 +1,12 @@
 import { unreadMessagesSql } from '../groups/group-unread.sql';
 import { Inject, Injectable } from '@nestjs/common';
-import type { NotificationCategory } from '@prisma/client';
-import { DEFAULT_PUSH, LOCKED_CATEGORIES } from './notification-rules';
+import type { NotificationCategory, NotificationType } from '@prisma/client';
+import {
+  ALWAYS_PUSH,
+  DEFAULT_PUSH,
+  LOCKED_CATEGORIES,
+} from './notification-rules';
+import { TYPE_TOPIC, readTopics, topicOn } from './notification-topics';
 import type Redis from 'ioredis';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
@@ -125,6 +130,46 @@ export class BadgesService {
     return muted;
   }
 
+  /**
+   * Owner 2026-10-21 (inbox 30): the user's switches per kind of
+   * notification. `on(topic)` — the effective value (a finer switch not set
+   * yet follows its old category); `raw` — only what the user set.
+   */
+  async topicSwitches(userId: string): Promise<{
+    on: (topic: string) => boolean;
+    /** The switch itself, whatever its parent says. */
+    own: (topic: string) => boolean;
+    raw: Record<string, boolean>;
+  }> {
+    const [rows, u] = await Promise.all([
+      this.prisma.notificationSetting.findMany({
+        where: { user_id: userId },
+        select: { category: true, push_enabled: true },
+      }),
+      this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { notif_topics: true },
+      }),
+    ]);
+    const set = new Map(rows.map((r) => [r.category, r.push_enabled]));
+    const categoryOn = (c: NotificationCategory) =>
+      LOCKED_CATEGORIES.has(c) || (set.get(c) ?? DEFAULT_PUSH[c]);
+    const raw = readTopics(u?.notif_topics);
+    return {
+      on: (t) => topicOn(t, raw, categoryOn),
+      own: (t) => topicOn(t, raw, categoryOn, true),
+      raw,
+    };
+  }
+
+  /** Types switched off (never counted on a badge, never pushed). */
+  private async mutedTypes(userId: string): Promise<string[]> {
+    const { on } = await this.topicSwitches(userId);
+    return (Object.keys(TYPE_TOPIC) as NotificationType[]).filter(
+      (t) => !ALWAYS_PUSH.has(t) && !on(TYPE_TOPIC[t]),
+    );
+  }
+
   /** Settings → Notifications changed: recount both badges. */
   async settingsChanged(userId: string): Promise<void> {
     await this.rebuild(userId);
@@ -188,12 +233,13 @@ export class BadgesService {
 
   /** Partial index notifications_user_unread_idx; stops at the cap. */
   private async countNotifications(userId: string): Promise<number> {
-    const muted = [...(await this.mutedCategories(userId))].map(String);
+    // Owner 2026-10-21 (inbox 30): per kind of notification.
+    const muted = await this.mutedTypes(userId);
     const [row] = await this.prisma.$queryRaw<{ n: bigint }[]>`
       SELECT count(*) AS n FROM (
         SELECT 1 FROM notifications
         WHERE user_id = ${userId}::UUID AND read_at IS NULL
-          AND NOT (category::TEXT = ANY(${muted}::TEXT[]))
+          AND NOT (type::TEXT = ANY(${muted}::TEXT[]))
         LIMIT ${NOTIFS_CAP}) x`;
     return Number(row?.n ?? 0);
   }

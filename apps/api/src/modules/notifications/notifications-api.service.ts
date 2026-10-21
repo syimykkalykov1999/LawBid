@@ -27,9 +27,11 @@ import {
   type NotificationGroup,
   type NotificationSettingsDto,
   type QuietHoursDto,
+  type TopicSettingDto,
   NewCaseAlertsDto,
   UpdateNewCaseAlertsDto,
 } from './notifications-api.dto';
+import { TOPICS, TOPIC_BY_KEY, readTopics } from './notification-topics';
 import { notificationTypesOf } from './notifications.service';
 
 const PAGE = 20;
@@ -152,12 +154,13 @@ export class NotificationsApiService {
   }
 
   async settings(userId: string): Promise<NotificationSettingsDto> {
-    const [rows, qh, iconBadge] = await Promise.all([
+    const [rows, qh, iconBadge, switches] = await Promise.all([
       this.prisma.notificationSetting.findMany({ where: { user_id: userId } }),
       this.prisma.notificationQuietHours.findUnique({
         where: { user_id: userId },
       }),
       this.badges.iconBadgeOn(userId),
+      this.badges.topicSwitches(userId),
     ]);
     const byCat = new Map(rows.map((r) => [r.category, r]));
     return {
@@ -181,7 +184,65 @@ export class NotificationsApiService {
           }
         : null,
       iconBadge,
+      // Owner 2026-10-21 (inbox 30): the parent switch's own value, so the
+      // nested ones keep theirs while it is off.
+      topics: TOPICS.map((d) => ({
+        topic: d.key,
+        block: d.block,
+        pushEnabled: switches.own(d.key),
+        locked: d.locked === true,
+        attorneyOnly: d.attorneyOnly === true,
+        ...(d.parent ? { parent: d.parent } : {}),
+      })),
     };
+  }
+
+  /** Owner 2026-10-21 (inbox 30): turn kinds of notifications on / off.
+   * A topic of an old category writes that category's switch (email kept);
+   * the rest live in users.notif_topics. */
+  async updateTopics(
+    userId: string,
+    items: TopicSettingDto[],
+  ): Promise<NotificationSettingsDto> {
+    for (const item of items) {
+      if (TOPIC_BY_KEY.get(item.topic)?.locked && !item.pushEnabled) {
+        throw invalid('items', 'System notifications can not be turned off.');
+      }
+    }
+    const u = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { notif_topics: true },
+    });
+    const topics = readTopics(u?.notif_topics);
+    let changed = false;
+    for (const item of items) {
+      const def = TOPIC_BY_KEY.get(item.topic);
+      if (!def || def.locked) continue;
+      if (def.category) {
+        await this.prisma.notificationSetting.upsert({
+          where: {
+            user_id_category: { user_id: userId, category: def.category },
+          },
+          create: {
+            user_id: userId,
+            category: def.category,
+            push_enabled: item.pushEnabled,
+          },
+          update: { push_enabled: item.pushEnabled },
+        });
+      } else {
+        topics[item.topic] = item.pushEnabled;
+        changed = true;
+      }
+    }
+    if (changed) {
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: { notif_topics: topics },
+      });
+    }
+    await this.badges.settingsChanged(userId);
+    return this.settings(userId);
   }
 
   /** Owner 2026-10-21 (inbox 29): «Счётчик на иконке в меню» on/off; the

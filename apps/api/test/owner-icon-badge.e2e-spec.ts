@@ -106,4 +106,71 @@ describe('App icon badge switch (e2e)', () => {
       .send({ enabled: 'nope' })
       .expect(400);
   });
+
+  // Owner 2026-10-21 (inbox 30): a switch per kind of notification.
+  it('kinds keep the old category choice, switch alone, system locked', async () => {
+    const me = await prisma.user.create({
+      data: { role: 'client', first_name: 'Topic', last_name: 'Switch' },
+    });
+    type Topic = { topic: string; pushEnabled: boolean; locked: boolean };
+    const topics = async () => {
+      const r = await api()
+        .get('/api/v1/notification-settings')
+        .set(bearer(me.id))
+        .expect(200);
+      return Object.fromEntries(
+        (r.body.data.topics as Topic[]).map((t) => [t.topic, t]),
+      );
+    };
+    // An earlier «Feed and follows» off carries over to its kinds.
+    await api()
+      .put('/api/v1/notification-settings')
+      .set(bearer(me.id))
+      .send({
+        items: [{ category: 'social', pushEnabled: false, emailEnabled: true }],
+      })
+      .expect(200);
+    let t = await topics();
+    expect(t.likes.pushEnabled).toBe(false);
+    expect(t.comments.pushEnabled).toBe(false);
+    expect(t.bidNew.pushEnabled).toBe(true);
+    expect(t.security.locked).toBe(true);
+
+    await api()
+      .put('/api/v1/notification-settings/topics')
+      .set(bearer(me.id))
+      .send({
+        items: [
+          { topic: 'comments', pushEnabled: true },
+          { topic: 'messages', pushEnabled: false },
+          { topic: 'assistants', pushEnabled: false },
+        ],
+      })
+      .expect(200);
+    t = await topics();
+    expect(t.comments.pushEnabled).toBe(true);
+    expect(t.likes.pushEnabled).toBe(false);
+    expect(t.messages.pushEnabled).toBe(false);
+    // The nested switches keep their own value under an off parent.
+    expect(t.assistants.pushEnabled).toBe(false);
+    expect(t.assistantTasks.pushEnabled).toBe(true);
+    // A topic of an old category is that category's switch.
+    const row = await prisma.notificationSetting.findUnique({
+      where: { user_id_category: { user_id: me.id, category: 'messages' } },
+    });
+    expect(row?.push_enabled).toBe(false);
+    const switches = await badges.topicSwitches(me.id);
+    expect(switches.on('assistantTasks')).toBe(false);
+
+    await api()
+      .put('/api/v1/notification-settings/topics')
+      .set(bearer(me.id))
+      .send({ items: [{ topic: 'security', pushEnabled: false }] })
+      .expect(400);
+    await api()
+      .put('/api/v1/notification-settings/topics')
+      .set(bearer(me.id))
+      .send({ items: [{ topic: 'nope', pushEnabled: false }] })
+      .expect(400);
+  });
 });

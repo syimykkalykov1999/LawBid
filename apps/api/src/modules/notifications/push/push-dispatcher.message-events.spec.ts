@@ -59,6 +59,8 @@ function setup(opts: { lastReadAt?: Date } = {}) {
     {
       get: () => Promise.resolve({ total: 3 }),
       forIcon: () => Promise.resolve(3),
+      topicSwitches: () =>
+        Promise.resolve({ on: () => true, own: () => true, raw: {} }),
     } as never,
     { isViewing: () => Promise.resolve(false) } as never,
     { setContext: () => undefined } as never,

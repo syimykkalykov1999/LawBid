@@ -14,6 +14,11 @@ import {
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
+import {
+  TOPIC_BLOCKS,
+  TOPIC_KEYS,
+  type TopicBlock,
+} from './notification-topics';
 
 export const CATEGORIES = [
   'messages',
@@ -173,6 +178,29 @@ export class CategorySettingViewDto extends CategorySettingDto {
   locked!: boolean;
 }
 
+/** Owner 2026-10-21 (inbox 30): one switch of Settings → Notifications. */
+export class TopicSettingViewDto {
+  @ApiProperty({ enum: TOPIC_KEYS, enumName: 'NotificationTopic' })
+  topic!: string;
+
+  @ApiProperty({ enum: TOPIC_BLOCKS, enumName: 'NotificationTopicBlock' })
+  block!: TopicBlock;
+
+  @ApiProperty()
+  pushEnabled!: boolean;
+
+  @ApiProperty({ description: "Can't be turned off." })
+  locked!: boolean;
+
+  @ApiProperty({ description: 'Shown to attorneys only.' })
+  attorneyOnly!: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Needs this switch on too (shown nested under it).',
+  })
+  parent?: string;
+}
+
 /** Owner 2026-10-20: the device's IANA time zone. */
 export class TimezoneDto {
   @ApiProperty({ example: 'America/New_York' })
@@ -221,6 +249,32 @@ export class NotificationSettingsDto {
       'Owner 2026-10-21: the unread number on the app icon (default true).',
   })
   iconBadge!: boolean;
+
+  @ApiProperty({
+    type: [TopicSettingViewDto],
+    description:
+      'Owner 2026-10-21: a switch per kind of notification, in screen order.',
+  })
+  topics!: TopicSettingViewDto[];
+}
+
+export class TopicSettingDto {
+  @ApiProperty({ enum: TOPIC_KEYS, enumName: 'NotificationTopic' })
+  @IsIn(TOPIC_KEYS)
+  topic!: string;
+
+  @ApiProperty()
+  @IsBoolean()
+  pushEnabled!: boolean;
+}
+
+export class UpdateTopicSettingsDto {
+  @ApiProperty({ type: [TopicSettingDto] })
+  @IsArray()
+  @ArrayMaxSize(TOPIC_KEYS.length)
+  @ValidateNested({ each: true })
+  @Type(() => TopicSettingDto)
+  items!: TopicSettingDto[];
 }
 
 /** Owner 2026-10-21 (inbox 29): «Счётчик на иконке в меню». */

@@ -20,6 +20,7 @@ import '../models/read_notifications_result_envelope.dart';
 import '../models/timezone_dto.dart';
 import '../models/update_new_case_alerts_dto.dart';
 import '../models/update_notification_settings_dto.dart';
+import '../models/update_topic_settings_dto.dart';
 import '../models/voip_token_dto.dart';
 
 part 'notifications_client.g.dart';
@@ -92,6 +93,13 @@ abstract class NotificationsClient {
   @PUT('/notification-settings/quiet-hours')
   Future<NotificationSettingsEnvelope> setQuietHours({
     @Body() required QuietHoursDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Kinds of notifications on/off; locked stay on
+  @PUT('/notification-settings/topics')
+  Future<NotificationSettingsEnvelope> updateNotificationTopics({
+    @Body() required UpdateTopicSettingsDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

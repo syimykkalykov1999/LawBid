@@ -27,6 +27,7 @@ import {
   QUIET_EXEMPT,
   quietHoursEnd,
 } from '../notification-rules';
+import { topicOf } from '../notification-topics';
 import { NotificationTemplateService } from './notification-template.service';
 import { fillTemplate } from './notification-templates';
 import { PushQueueService } from './push-queue.service';
@@ -391,9 +392,12 @@ export class PushDispatcher
     if (data.push === false) return 'no_push';
     // Audit 2026-10-02: read in the app while quiet hours held it → no push.
     if (data.deferred && n.read_at) return 'no_push';
+    // Owner 2026-10-21 (inbox 30): the switch of this very kind.
     if (
       !ALWAYS_PUSH.has(n.type) &&
-      !(await this.pushAllowed(n.user_id, n.category))
+      !(await this.badges.topicSwitches(n.user_id)).on(
+        topicOf(n.type, n.payload as Record<string, unknown> | null),
+      )
     ) {
       return 'disabled';
     }
@@ -610,8 +614,13 @@ export class PushDispatcher
     if (await this.realtime.isViewing(data.recipientId, data.groupId)) {
       return 'viewing';
     }
-    // Owner 2026-10-21: groups have their own switch (Telegram).
-    if (!(await this.pushAllowed(data.recipientId, 'groups'))) {
+    // Owner 2026-10-21: groups have their own switch (Telegram); an
+    // @mention follows «Mentions» (inbox 30).
+    const sw = await this.badges.topicSwitches(data.recipientId);
+    if (
+      !(mentioned && sw.on('chatMentions')) &&
+      !(sw.on('groups') && !(mentioned && muted))
+    ) {
       return 'disabled';
     }
     if (!data.deferred) {
@@ -720,6 +729,15 @@ export class PushDispatcher
       return 'viewing';
     }
     if (!(await this.pushAllowed(data.recipientId, 'messages'))) {
+      return 'disabled';
+    }
+    // Owner 2026-10-21 (inbox 30): «Reactions» off silences reactions to
+    // my messages too (not set yet = as before).
+    if (
+      data.event === 'reaction' &&
+      (await this.badges.topicSwitches(data.recipientId)).raw.reactions ===
+        false
+    ) {
       return 'disabled';
     }
     if (!data.deferred) {

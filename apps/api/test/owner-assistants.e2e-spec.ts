@@ -452,6 +452,17 @@ describe('Assistants (e2e, OQ-048)', () => {
       amountCents: 150000,
       preparedBy: 'Sam H.',
     });
+    // Owner 2026-10-21 (inbox 30): the attorney hears of it once.
+    await api()
+      .put(`/api/v1/cases/${kase.id}/bid-draft`)
+      .set(asst.auth)
+      .send({ feeType: 'fixed', amountCents: 160000, message: 'Draft text' })
+      .expect(200);
+    expect(
+      await prisma.notification.count({
+        where: { user_id: att.id, type: 'assistant_bid_draft' },
+      }),
+    ).toBe(1);
 
     // Chat: labelled "assistant" messages; files need the "files" duty.
     const conv = await prisma.conversation.create({
