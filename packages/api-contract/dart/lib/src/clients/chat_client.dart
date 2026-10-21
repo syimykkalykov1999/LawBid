@@ -18,6 +18,7 @@ import '../models/message_envelope.dart';
 import '../models/message_list_envelope.dart';
 import '../models/message_translation_envelope.dart';
 import '../models/messages_filter.dart';
+import '../models/mute_calls_dto.dart';
 import '../models/mute_conversation_dto.dart';
 import '../models/organize_conversation_dto.dart';
 import '../models/pins_envelope.dart';
@@ -170,6 +171,14 @@ abstract class ChatClient {
   Future<ConversationEnvelope> muteConversation({
     @Path('id') required String id,
     @Body() required MuteConversationDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Calls of this chat ring silently (or not)
+  @PATCH('/conversations/{id}/calls-mute')
+  Future<ConversationEnvelope> muteChatCalls({
+    @Path('id') required String id,
+    @Body() required MuteCallsDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

@@ -19,6 +19,7 @@ import 'package:lawbid/features/chat/data/chat_repository.dart';
 import 'package:lawbid/features/chat/data/realtime_client.dart';
 import 'package:lawbid/features/chat/data/voice_files.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
+import 'package:lawbid/features/notifications/application/call_mute.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
 import 'package:lawbid/features/notifications/data/notifications_repository.dart'
     show NotifCategory;
@@ -58,6 +59,14 @@ class ConversationsNotifier extends PagedNotifier<Conversation> {
 
   @override
   Future<PaginatedList<Conversation>> build() {
+    // Owner 2026-10-21: remember which chats have their calls muted.
+    listenSelf((_, AsyncValue<PaginatedList<Conversation>> next) {
+      for (final c in next.value?.items ?? const <Conversation>[]) {
+        ref
+            .read(callMutedChatsProvider.notifier)
+            .mark(c.id, muted: c.callsMuted);
+      }
+    });
     // New messages, closed chats, a reconnect: re-read the first page
     // (debounced, so a burst of events is one request).
     final sub = ref.watch(realtimeEventsProvider).listen((e) {
@@ -1213,6 +1222,27 @@ class ChatThread extends Notifier<ChatThreadState> {
     if (!ref.mounted) return;
     state = state.copyWith(conversation: updated);
     // Audit 2026-10-04: the lists show the mute mark at once.
+    ref
+      ..invalidate(conversationsProvider)
+      ..invalidate(folderConversationsProvider);
+  }
+
+  /// Owner 2026-10-21 (WhatsApp): mute for an hour, 8 hours, a week, always.
+  Future<void> setMutedUntil(DateTime? until) async {
+    final updated = await _repo.mute(id, until);
+    if (!ref.mounted) return;
+    state = state.copyWith(conversation: updated);
+    ref
+      ..invalidate(conversationsProvider)
+      ..invalidate(folderConversationsProvider);
+  }
+
+  // ignore: avoid_positional_boolean_parameters
+  Future<void> setCallsMuted(bool muted) async {
+    final updated = await _repo.muteCalls(id, muted: muted);
+    if (!ref.mounted) return;
+    ref.read(callMutedChatsProvider.notifier).mark(id, muted: muted);
+    state = state.copyWith(conversation: updated);
     ref
       ..invalidate(conversationsProvider)
       ..invalidate(folderConversationsProvider);

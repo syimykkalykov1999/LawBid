@@ -83925,6 +83925,103 @@
         ]
       }
     },
+    "/conversations/{id}/calls-mute": {
+      "patch": {
+        "operationId": "muteChatCalls",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MuteCallsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: CONVERSATION_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Calls of this chat ring silently (or not)",
+        "tags": [
+          "chat"
+        ]
+      }
+    },
     "/conversations/{id}/messages/{messageId}": {
       "patch": {
         "operationId": "editChatMessage",
@@ -150987,6 +151084,10 @@
             "type": "string",
             "nullable": true
           },
+          "callsMuted": {
+            "type": "boolean",
+            "description": "Calls of this chat ring silently for me."
+          },
           "counterpartLastReadMessageId": {
             "type": "string",
             "nullable": true,
@@ -151069,6 +151170,7 @@
           "contactsUnlocked",
           "counterpart",
           "unreadCount",
+          "callsMuted",
           "updatedAt",
           "folder",
           "folderAuto",
@@ -151540,6 +151642,18 @@
             "description": "ISO time; null unmutes."
           }
         }
+      },
+      "MuteCallsDto": {
+        "type": "object",
+        "properties": {
+          "muted": {
+            "type": "boolean",
+            "description": "Calls of this chat ring silently for me."
+          }
+        },
+        "required": [
+          "muted"
+        ]
       },
       "EditMessageDto": {
         "type": "object",
@@ -152770,6 +152884,10 @@
             "type": "string",
             "nullable": true
           },
+          "callsMuted": {
+            "type": "boolean",
+            "description": "Group calls ring silently for me."
+          },
           "pinned": {
             "type": "boolean"
           },
@@ -152807,6 +152925,7 @@
           "inviteEnabled",
           "unreadCount",
           "unreadMentions",
+          "callsMuted",
           "pinned",
           "createdAt",
           "updatedAt"
@@ -153088,6 +153207,10 @@
             "type": "string",
             "nullable": true
           },
+          "callsMuted": {
+            "type": "boolean",
+            "description": "Group calls ring silently for me."
+          },
           "pinned": {
             "type": "boolean"
           },
@@ -153138,6 +153261,7 @@
           "inviteEnabled",
           "unreadCount",
           "unreadMentions",
+          "callsMuted",
           "pinned",
           "createdAt",
           "updatedAt",
@@ -153670,6 +153794,10 @@
             "format": "date-time",
             "description": "Mute until; null unmutes."
           },
+          "callsMuted": {
+            "type": "boolean",
+            "description": "Group calls ring silently for me."
+          },
           "pinned": {
             "type": "boolean",
             "description": "Pin the chat to the top of my list."
@@ -154179,6 +154307,8 @@
           "category": {
             "enum": [
               "messages",
+              "groups",
+              "channels",
               "calls",
               "following",
               "new_cases",
@@ -154332,6 +154462,8 @@
           "category": {
             "enum": [
               "messages",
+              "groups",
+              "channels",
               "calls",
               "following",
               "new_cases",
@@ -154426,6 +154558,8 @@
           "category": {
             "enum": [
               "messages",
+              "groups",
+              "channels",
               "calls",
               "following",
               "new_cases",

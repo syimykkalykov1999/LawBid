@@ -330,6 +330,7 @@ api.GroupDetailDto groupDetail({
 }) {
   final canPost = !readOnly;
   return api.GroupDetailDto(
+    callsMuted: false,
     id: id,
     title: _longTitle,
     description: _longDescription,
@@ -490,6 +491,7 @@ api.GroupDto listGroup(
       unreadCount: unread,
       unreadMentions: mentions,
       mutedUntil: muted ? DateTime.now().add(const Duration(days: 365)) : null,
+      callsMuted: false,
       pinned: pinned,
       createdAt: _at,
       updatedAt: _at.add(Duration(minutes: minutes)),

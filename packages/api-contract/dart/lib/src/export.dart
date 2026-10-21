@@ -1630,6 +1630,7 @@ export 'models/delivered_conversation_dto.dart';
 export 'models/delivered_result_envelope.dart';
 export 'models/organize_conversation_dto.dart';
 export 'models/mute_conversation_dto.dart';
+export 'models/mute_calls_dto.dart';
 export 'models/edit_message_dto.dart';
 export 'models/delete_scope.dart';
 export 'models/react_message_dto.dart';

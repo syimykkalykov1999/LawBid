@@ -15,41 +15,42 @@ part 'group_dto.g.dart';
 @JsonSerializable()
 class GroupDto {
   const GroupDto({
-    required this.whoCanPoll,
+    required this.whoCanPost,
     required this.title,
+    required this.createdAt,
+    required this.pinned,
+    required this.callsMuted,
     required this.memberCount,
     required this.type,
+    required this.unreadMentions,
     required this.joinApproval,
     required this.topicsEnabled,
+    required this.unreadCount,
     required this.pendingRequests,
+    required this.inviteEnabled,
     required this.id,
-    required this.whoCanPost,
     required this.whoCanAdd,
     required this.whoCanEditInfo,
     required this.whoCanCall,
     required this.whoCanMedia,
-    required this.canEditInfo,
+    required this.whoCanPoll,
     required this.whoCanPin,
     required this.myRights,
     required this.showServiceMessages,
     required this.canPost,
     required this.canAdd,
+    required this.canEditInfo,
     required this.updatedAt,
-    required this.canCall,
     required this.isAdmin,
-    required this.unreadCount,
-    required this.unreadMentions,
-    required this.createdAt,
-    required this.inviteEnabled,
-    required this.pinned,
-    this.generalTopicId,
+    required this.canCall,
     this.inviteLink,
     this.pinnedMessage,
     this.lastMessage,
     this.lastMessageAt,
+    this.generalTopicId,
     this.username,
-    this.avatarFullUrl,
     this.mutedUntil,
+    this.avatarFullUrl,
     this.avatarUrl,
     this.description,
     this.myRole,
@@ -117,6 +118,9 @@ class GroupDto {
   /// Unread messages that @mention me.
   final num unreadMentions;
   final DateTime? mutedUntil;
+
+  /// Group calls ring silently for me.
+  final bool callsMuted;
   final bool pinned;
   final DateTime createdAt;
   final DateTime updatedAt;

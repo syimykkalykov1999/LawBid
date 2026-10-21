@@ -8,6 +8,7 @@ import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/chat/data/realtime_client.dart';
 import 'package:lawbid/features/groups/data/group_repository.dart';
 import 'package:lawbid/features/groups/domain/group_message_ext.dart';
+import 'package:lawbid/features/notifications/application/call_mute.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
@@ -32,6 +33,14 @@ class GroupsNotifier extends PagedNotifier<api.GroupDto> {
 
   @override
   Future<PaginatedList<api.GroupDto>> build() {
+    // Owner 2026-10-21: remember which groups have their calls muted.
+    listenSelf((_, AsyncValue<PaginatedList<api.GroupDto>> next) {
+      for (final g in next.value?.items ?? const <api.GroupDto>[]) {
+        ref
+            .read(callMutedChatsProvider.notifier)
+            .mark(g.id, muted: g.callsMuted);
+      }
+    });
     final sub = ref.watch(realtimeEventsProvider).listen((e) {
       if (e.name == 'group:message' ||
           e.name == 'group:update' ||

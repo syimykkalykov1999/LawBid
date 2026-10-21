@@ -60,6 +60,7 @@ class Conversation {
     this.lastMessage,
     this.lastMessageAt,
     this.mutedUntil,
+    this.callsMuted = false,
     this.counterpartLastReadId,
     this.counterpartLastDeliveredId,
     this.counterpartLastReadAt,
@@ -94,6 +95,7 @@ class Conversation {
         lastMessageAt: lastMessageAt,
         unreadCount: unreadCount,
         mutedUntil: mutedUntil,
+        callsMuted: callsMuted,
         counterpartLastReadId: readId ?? counterpartLastReadId,
         counterpartLastReadAt: readAt ?? counterpartLastReadAt,
         counterpartLastDeliveredId: deliveredId ?? counterpartLastDeliveredId,
@@ -167,6 +169,9 @@ class Conversation {
   final DateTime? lastMessageAt;
   final int unreadCount;
   final DateTime? mutedUntil;
+
+  /// Owner 2026-10-21: calls of this chat ring silently for me.
+  final bool callsMuted;
   final String? counterpartLastReadId;
 
   /// The newest of my messages that reached the other device (two grey

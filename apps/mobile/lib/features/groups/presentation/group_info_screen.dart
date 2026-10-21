@@ -28,6 +28,7 @@ import 'package:lawbid/features/groups/presentation/widgets/group_info_settings.
 import 'package:lawbid/features/groups/presentation/widgets/group_info_sheets.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_info_topics.dart';
 import 'package:lawbid/features/groups/presentation/widgets/people_picker.dart';
+import 'package:lawbid/features/notifications/application/call_mute.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
@@ -54,6 +55,9 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
 
   /// My own mute as the server answered it, until the provider catches up.
   ({DateTime? until})? _mute;
+
+  /// My «mute calls» as the server answered it, until the provider catches up.
+  bool? _callsMuted;
 
   bool _photoBusy = false;
 
@@ -217,6 +221,25 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
   }
 
   // --- mute -----------------------------------------------------------------
+
+  Future<void> _setCallsMuted(
+    api.GroupDetailDto d, {
+    required bool muted,
+  }) async {
+    final t = ref.read(translatorProvider);
+    setState(() => _callsMuted = muted);
+    ref.read(callMutedChatsProvider.notifier).mark(_id, muted: muted);
+    try {
+      await ref
+          .read(groupRepositoryProvider)
+          .updateMine(_id, api.UpdateGroupMeDto(callsMuted: muted));
+      if (mounted) _refresh();
+    } on Object catch (e) {
+      if (!mounted) return;
+      setState(() => _callsMuted = !muted);
+      _toast(errorText(t, e));
+    }
+  }
 
   DateTime? _mutedUntil(api.GroupDetailDto d) =>
       _mute != null ? _mute!.until : d.mutedUntil;
@@ -779,6 +802,21 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
             ),
           ),
         ),
+        if (ref.watch(groupCallPortProvider) != null)
+          SliverToBoxAdapter(
+            child: GroupInfoSection(
+              children: [
+                GroupInfoSwitchRow(
+                  key: const ValueKey('group-calls-muted'),
+                  icon: AppIcons.notificationsOffOutlined,
+                  label: t.t('mute.calls'),
+                  subtitle: t.t('mute.callsNote'),
+                  value: _callsMuted ?? d.callsMuted,
+                  onChanged: (v) => _setCallsMuted(d, muted: v),
+                ),
+              ],
+            ),
+          ),
         if (d.hasRight('invite') && closedWithApproval)
           SliverToBoxAdapter(
             child: GroupInfoSection(

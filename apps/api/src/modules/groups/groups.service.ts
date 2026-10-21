@@ -1463,6 +1463,7 @@ export class GroupsService {
       data.muted_until =
         dto.mutedUntil === null ? null : new Date(dto.mutedUntil);
     }
+    if (dto.callsMuted !== undefined) data.calls_muted = dto.callsMuted;
     if (dto.pinned !== undefined)
       data.pinned_at = dto.pinned ? new Date() : null;
     if (dto.hidden !== undefined)

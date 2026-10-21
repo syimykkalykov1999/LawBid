@@ -10,6 +10,7 @@ part 'update_group_me_dto.g.dart';
 class UpdateGroupMeDto {
   const UpdateGroupMeDto({
     this.mutedUntil,
+    this.callsMuted,
     this.pinned,
     this.hidden,
     this.archived,
@@ -20,6 +21,9 @@ class UpdateGroupMeDto {
 
   /// Mute until; null unmutes.
   final DateTime? mutedUntil;
+
+  /// Group calls ring silently for me.
+  final bool? callsMuted;
 
   /// Pin the chat to the top of my list.
   final bool? pinned;

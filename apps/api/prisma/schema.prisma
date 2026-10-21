@@ -594,6 +594,9 @@ enum NotificationCategory {
   social
   system
   marketing
+  // Owner 2026-10-21 (Telegram): groups and channels get their own switch.
+  groups
+  channels
 
   @@map("notification_category")
 }
@@ -2381,6 +2384,8 @@ model ConversationParticipant {
   last_delivered_message_id String?      @db.Uuid
   last_delivered_at         DateTime?    @db.Timestamptz
   muted_until               DateTime?    @db.Timestamptz
+  /// Owner 2026-10-21 (WhatsApp / Telegram): calls of this chat ring silently.
+  calls_muted               Boolean      @default(false)
   /// Owner 2026-10-01: my folder for this chat; null = automatic (a case
   /// chat is Primary, a direct chat General).
   folder                    ChatFolder?
@@ -2707,6 +2712,8 @@ model ChatGroupMember {
   left_reason          String?       @db.VarChar(12)
   last_read_message_id String?       @db.Uuid
   muted_until          DateTime?     @db.Timestamptz
+  /// Owner 2026-10-21: calls of this group ring silently for me.
+  calls_muted          Boolean       @default(false)
   pinned_at            DateTime?     @db.Timestamptz
   hidden_at            DateTime?     @db.Timestamptz
   /// Telegram's admin checkboxes (info, delete, ban, invite, pin, calls,

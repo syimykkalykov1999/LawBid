@@ -44,6 +44,8 @@ export const DEFAULT_PUSH: Record<NotificationCategory, boolean> = {
   social: true,
   system: true,
   marketing: false,
+  groups: true,
+  channels: true,
 };
 
 /** §9.5 "Email: только для категории system". security_new_device is

@@ -1435,6 +1435,23 @@ export class ChatService {
     return dto;
   }
 
+  /** Owner 2026-10-21: «mute calls» of this chat only (messages untouched). */
+  async muteCalls(
+    user: RequestUser,
+    id: string,
+    muted: boolean,
+  ): Promise<ConversationDto> {
+    const conv = await this.load(user, id);
+    await this.prisma.conversationParticipant.update({
+      where: {
+        conversation_id_user_id: { conversation_id: id, user_id: user.sub },
+      },
+      data: { calls_muted: muted },
+    });
+    const [dto] = await this.present([conv], user.sub);
+    return dto;
+  }
+
   private sideOf(user: RequestUser): 'client_id' | 'attorney_id' | null {
     return user.role === 'client'
       ? 'client_id'
@@ -1850,6 +1867,7 @@ export class ChatService {
             last_read_at: true,
             last_delivered_message_id: true,
             muted_until: true,
+            calls_muted: true,
             folder: true,
             waiting_since: true,
             note: true,
@@ -1948,6 +1966,7 @@ export class ChatService {
         lastMessageAt: c.last_message_at,
         unreadCount: unreadOf.get(c.id) ?? 0,
         mutedUntil: partOf.get(`${c.id}:${viewerId}`)?.muted_until ?? null,
+        callsMuted: partOf.get(`${c.id}:${viewerId}`)?.calls_muted ?? false,
         counterpartLastReadMessageId: seenHidden
           ? null
           : (partOf.get(`${c.id}:${otherId}`)?.last_read_message_id ?? null),
