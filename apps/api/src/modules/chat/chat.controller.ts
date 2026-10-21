@@ -28,6 +28,7 @@ import {
   MessagesQueryDto,
   MuteCallsDto,
   MuteConversationDto,
+  SetDisappearingDto,
   ReadConversationDto,
   DeliveredConversationDto,
   DeliveredResultDto,
@@ -304,5 +305,24 @@ export class ChatController {
     @Body() dto: MuteCallsDto,
   ): Promise<ConversationDto> {
     return this.chat.muteCalls(user, p.id, dto.muted);
+  }
+
+  @Patch(':id/disappearing')
+  @ApiOperation({
+    summary:
+      'Disappearing messages: 24 h / 7 d / 90 d for new messages; null = off',
+  })
+  @ApiEnvelopeResponse(ConversationDto)
+  @ApiErrors({
+    400: [ErrorCode.VALIDATION_ERROR],
+    403: [ErrorCode.FORBIDDEN],
+    404: [ErrorCode.CONVERSATION_NOT_FOUND],
+  })
+  setDisappearing(
+    @CurrentUser() user: RequestUser,
+    @Param() p: ConversationIdParamDto,
+    @Body() dto: SetDisappearingDto,
+  ): Promise<ConversationDto> {
+    return this.chat.setDisappearing(user, p.id, dto.afterS ?? null);
   }
 }

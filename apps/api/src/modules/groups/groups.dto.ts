@@ -210,6 +210,18 @@ export class UpdateGroupDto {
   @IsIn(GROUP_WHO)
   whoCanCall?: GroupWhoName;
 
+  @ApiPropertyOptional({
+    type: Number,
+    nullable: true,
+    enum: [0, 86400, 604800, 7776000],
+    description:
+      'Disappearing messages: seconds a new message lives; 0 (or null) = off. Allowed for admins, and for everyone while «edit group info» is open to all (WhatsApp).',
+  })
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsIn([0, 86_400, 604_800, 7_776_000])
+  disappearAfterS?: number | null;
+
   @ApiPropertyOptional({ enum: GROUP_WHO, description: 'Admins only.' })
   @IsOptional()
   @IsIn(GROUP_WHO)
@@ -675,7 +687,7 @@ export class GroupMessageDto {
     type: String,
     nullable: true,
     description:
-      'System messages: created | added | removed | left | joined | renamed | photo | description | promoted | demoted | pinned | poll_closed.',
+      'System messages: created | added | removed | left | joined | renamed | photo | description | promoted | demoted | pinned | poll_closed | disappearing (systemText = seconds, "0" = off).',
   })
   systemKind!: string | null;
 
@@ -715,6 +727,14 @@ export class GroupMessageDto {
 
   @ApiProperty()
   createdAt!: Date;
+
+  @ApiPropertyOptional({
+    type: Date,
+    nullable: true,
+    description:
+      'Disappearing messages: when the message goes; the app hides it from this time on. Null = stays.',
+  })
+  expiresAt!: Date | null;
 }
 
 export class GroupDto {
@@ -799,6 +819,14 @@ export class GroupDto {
       'Service lines (joined, left, renamed…) are shown to everyone.',
   })
   showServiceMessages!: boolean;
+
+  @ApiPropertyOptional({
+    type: Number,
+    nullable: true,
+    description:
+      'Disappearing messages: seconds a new message lives (86400 / 604800 / 7776000); null = off.',
+  })
+  disappearAfterS!: number | null;
 
   @ApiProperty({ description: 'What I may do here (derived from the above).' })
   canPost!: boolean;

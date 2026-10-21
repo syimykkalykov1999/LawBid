@@ -95,6 +95,7 @@
   "modules/channels/channels.service.ts -> feature-flags/services/feature-flags.service",
   "modules/chat/chat-actions.service.ts -> cases/domain/contact-detector",
   "modules/chat/chat.service.ts -> cases/domain/contact-detector",
+  "modules/chat/disappearing-sweep.service.ts -> files/storage/file-release.service",
   "modules/client-fraud/client-fraud.service.ts -> auth/providers/email/email-provider.interface",
   "modules/client-fraud/client-fraud.service.ts -> auth/providers/provider.tokens",
   "modules/client-fraud/client-fraud.service.ts -> auth/services/session-revocation.service",

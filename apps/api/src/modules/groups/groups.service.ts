@@ -64,6 +64,12 @@ import {
   type UpdateGroupMeDto,
 } from './groups.dto';
 
+import {
+  DISAPPEAR_OPTIONS_S,
+  expiresAtFor,
+  notExpired,
+} from '../chat/disappearing';
+
 const GROUPS_PAGE = 30;
 const MESSAGES_PAGE = 30;
 const GROUPS_PER_DAY = 10;
@@ -283,18 +289,19 @@ export class GroupsService {
             ? { OR: [{ topic_id: topic.id }, { topic_id: null }] }
             : { topic_id: topic.id }
           : {}),
-        ...(c
-          ? {
-              AND: [
+        AND: [
+          notExpired(),
+          ...(c
+            ? [
                 {
                   OR: [
                     { created_at: { lt: c.createdAt } },
                     { created_at: c.createdAt, id: { lt: c.id } },
                   ],
                 },
-              ],
-            }
-          : {}),
+              ]
+            : []),
+        ],
       },
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
       take: limit + 1,
@@ -438,6 +445,27 @@ export class GroupsService {
       dto.description !== undefined ||
       dto.avatarFileId !== undefined;
     if (settings && !m.can('info')) throw forbidden();
+    // Owner 2026-10-21 (WhatsApp): the disappearing timer follows «edit group
+    // info» — admins always, everyone while it is open to all.
+    const disappearing =
+      dto.disappearAfterS !== undefined &&
+      (dto.disappearAfterS || null) !== m.group.disappear_after_s;
+    if (
+      dto.disappearAfterS !== undefined &&
+      !(m.can('info') || m.group.who_can_edit_info === 'all')
+    ) {
+      throw forbidden();
+    }
+    if (
+      dto.disappearAfterS &&
+      !(DISAPPEAR_OPTIONS_S as readonly number[]).includes(dto.disappearAfterS)
+    ) {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_ERROR,
+        message: 'Unsupported disappearing-messages timer.',
+        details: { field: 'disappearAfterS' },
+      });
+    }
     if (dto.inviteEnabled !== undefined && !m.can('invite')) throw forbidden();
     if (info && !(m.can('info') || m.group.who_can_edit_info === 'all')) {
       throw forbidden();
@@ -464,6 +492,7 @@ export class GroupsService {
           ? { disconnect: true }
           : { connect: { id: dto.avatarFileId } };
     }
+    if (disappearing) data.disappear_after_s = dto.disappearAfterS || null;
     if (dto.whoCanPost) data.who_can_post = dto.whoCanPost;
     if (dto.whoCanAdd) data.who_can_add = dto.whoCanAdd;
     if (dto.whoCanEditInfo) data.who_can_edit_info = dto.whoCanEditInfo;
@@ -553,6 +582,19 @@ export class GroupsService {
       }
       if (describedChanged) {
         out.push(await this.system(tx, id, 'description', user.sub, []));
+      }
+      if (disappearing) {
+        // The line never expires itself; the text is the new timer ("0" off).
+        out.push(
+          await this.system(
+            tx,
+            id,
+            'disappearing',
+            user.sub,
+            [],
+            String(dto.disappearAfterS || 0),
+          ),
+        );
       }
       const last = out[out.length - 1];
       if (last) {
@@ -1261,6 +1303,8 @@ export class GroupsService {
             topic_id: topic && !topic.is_general ? topic.id : null,
             reply_to_id: dto.replyToId ?? null,
             mention_ids: mentions,
+            // Owner 2026-10-21: disappearing messages.
+            expires_at: expiresAtFor(m.group.disappear_after_s),
             file_id: attachment ? dto.fileId : null,
             file_name: attachment ? dto.fileName : null,
           },

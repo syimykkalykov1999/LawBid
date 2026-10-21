@@ -54,6 +54,7 @@ import { ClientReviewsCoreModule } from '../modules/client-reviews/client-review
 import { CaseLifecycleModule } from '../modules/cases/lifecycle/case-lifecycle.module';
 import { BidsModule } from '../modules/bids/bids.module';
 import { SubscriptionsModule } from '../modules/subscriptions/subscriptions.module';
+import { DisappearingSweepService } from '../modules/chat/disappearing-sweep.service';
 import { DemoCoreModule } from '../modules/demo/demo.module';
 
 /**
@@ -140,6 +141,8 @@ export class JobsModule {
         TaskArchivePurgeJob,
         S3StorageService,
         FileReleaseService,
+        // Owner 2026-10-21: `chat.disappearing`.
+        DisappearingSweepService,
         CronProcessor,
         JobsRunner,
       ],

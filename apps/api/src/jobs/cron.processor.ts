@@ -57,6 +57,7 @@ import { StorageCleanupService } from '../modules/storage/storage-cleanup.servic
 import { DataRetentionService } from '../modules/storage/data-retention.service';
 import { StorageStatsService } from '../modules/storage/storage-stats.service';
 import { EconomyService } from '../common/economy/economy.service';
+import { DisappearingSweepService } from '../modules/chat/disappearing-sweep.service';
 import { TreasuryService } from '../modules/treasury/treasury.service';
 
 /** Routes a `cron` queue job to its handler by job name. The return value
@@ -118,6 +119,7 @@ export class CronProcessor {
     @Optional() private readonly consultationSweep?: ConsultationRemindersJob,
     @Optional() private readonly legalExports?: LegalExportBuilder,
     @Optional() private readonly legalRetention?: LegalRetentionService,
+    @Optional() private readonly disappearing?: DisappearingSweepService,
   ) {}
 
   async process(name: string): Promise<unknown> {
@@ -186,6 +188,8 @@ export class CronProcessor {
         return this.opsMetrics.queueDepths();
       case CRON_JOBS.opsBusinessMetrics:
         return this.opsMetrics.businessCounters();
+      case CRON_JOBS.disappearingSweep:
+        return this.disappearing?.run() ?? null;
       case CRON_JOBS.callsSweep:
         return this.calls.sweep();
       case CRON_JOBS.reviewAppealsSweep:

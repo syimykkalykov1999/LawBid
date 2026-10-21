@@ -355,6 +355,20 @@ export class DeliveredResultDto {
   lastDeliveredMessageId!: string | null;
 }
 
+export class SetDisappearingDto {
+  @ApiPropertyOptional({
+    type: Number,
+    nullable: true,
+    enum: [86400, 604800, 7776000],
+    description:
+      'Seconds a new message lives: 86400 (24 h), 604800 (7 d) or 7776000 (90 d); absent or null = off.',
+  })
+  // Absent or null = off (generated clients drop null fields).
+  @IsOptional()
+  @IsIn([86_400, 604_800, 7_776_000])
+  afterS?: number | null;
+}
+
 export class MuteConversationDto {
   @ApiPropertyOptional({
     type: String,
@@ -636,6 +650,14 @@ export class MessageDto {
   @ApiProperty()
   createdAt!: Date;
 
+  @ApiPropertyOptional({
+    type: Date,
+    nullable: true,
+    description:
+      'Disappearing messages: when the message goes; the app hides it from this time on. Null = stays.',
+  })
+  expiresAt!: Date | null;
+
   @ApiPropertyOptional({ type: Date, nullable: true })
   editedAt!: Date | null;
 
@@ -740,6 +762,14 @@ export class ConversationDto {
 
   @ApiProperty()
   unreadCount!: number;
+
+  @ApiPropertyOptional({
+    type: Number,
+    nullable: true,
+    description:
+      'Disappearing messages: seconds a new message lives (86400 / 604800 / 7776000); null = off.',
+  })
+  disappearAfterS!: number | null;
 
   @ApiPropertyOptional({ type: Date, nullable: true })
   mutedUntil!: Date | null;
