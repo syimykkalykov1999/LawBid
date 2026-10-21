@@ -593,6 +593,29 @@ void main() {
     await h.c.hangUp();
   });
 
+  test('an offer that nobody heard is renewed until an answer comes', () async {
+    final h = _Harness();
+    addTearDown(h.dispose);
+    await h.c.call('conv', peer: _peer);
+    h.emit(
+      'call:accepted',
+      _event(_call('c1', CallStatus.active, outgoing: true)),
+    );
+    await _settle();
+    expect(h.media.iceRestarts, 0);
+    // The callee's socket was not in its room yet: no answer for 3 s.
+    await Future<void>.delayed(const Duration(milliseconds: 3300));
+    expect(h.media.iceRestarts, 1);
+    h.emit('call:signal', {
+      'callId': 'c1',
+      'data': {'type': 'answer', 'sdp': 'a'},
+    });
+    await _settle();
+    await Future<void>.delayed(const Duration(milliseconds: 3300));
+    expect(h.media.iceRestarts, 1);
+    await h.c.hangUp();
+  });
+
   test('hanging up reaches the server before the media closes', () async {
     final h = _Harness();
     addTearDown(h.dispose);
