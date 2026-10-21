@@ -59379,7 +59379,7 @@
             "bearer": []
           }
         ],
-        "summary": "Create a channel (verified attorneys)",
+        "summary": "Create a channel (verified attorneys and clients)",
         "tags": [
           "channels"
         ]

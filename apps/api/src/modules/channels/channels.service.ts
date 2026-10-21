@@ -210,7 +210,7 @@ export class ChannelsService {
   async create(user: RequestUser, dto: CreateChannelDto): Promise<ChannelDto> {
     await this.assertEnabled();
     const me = user.sub;
-    await this.assertVerifiedAttorney(me);
+    await this.assertCanPublish(me);
     const handle = await this.usernames.assertAvailable(
       dto.username,
       'channel',
@@ -1040,28 +1040,6 @@ export class ChannelsService {
       throw forbidden('Only channel admins can do this.');
     }
     return { channel, role };
-  }
-
-  /** Verified attorney (channels are for attorneys and their companies). */
-  private async assertVerifiedAttorney(userId: string): Promise<void> {
-    const me = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        role: true,
-        status: true,
-        attorney_profile: { select: { verification_status: true } },
-      },
-    });
-    if (
-      me?.status !== 'active' ||
-      me.role !== 'attorney' ||
-      me.attorney_profile?.verification_status !== 'verified'
-    ) {
-      throw new ForbiddenException({
-        code: ErrorCode.POST_NOT_ALLOWED,
-        message: 'Only verified attorneys can create channels.',
-      });
-    }
   }
 
   /** The same bar as a feed post: a verified attorney, or a client with a
