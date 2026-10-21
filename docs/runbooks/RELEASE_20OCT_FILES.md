@@ -1,7 +1,8 @@
-# Файлы, изменённые после 60ae65d8 (до 82214075)
+# Файлы, изменённые после 60ae65d8 (до головы claude/release-20oct)
 
-`git diff --name-status 60ae65d8..82214075` — 225 файлов (A — новый, M — изменён, D — удалён).
+`git diff --name-status 60ae65d8..origin/claude/release-20oct` — 227 файлов (A — новый, M — изменён, D — удалён).
 
+- M .github/workflows/mobile-ci.yml
 - A apps/api/prisma/migrations/20261021050200_legal_question_closed/migration.sql
 - A apps/api/prisma/migrations/20261021060000_message_forward/migration.sql
 - A apps/api/prisma/migrations/20261021060100_protect_content/migration.sql
@@ -163,6 +164,7 @@
 - M apps/mobile/test/overflow/calls_tab_overflow_test.dart
 - A apps/mobile/test/overflow/forward_overflow_test.dart
 - M docs/db/ERD.md
+- A docs/runbooks/RELEASE_20OCT_FILES.md
 - M docs/runbooks/RELEASE_20OCT_HANDOFF.md
 - M docs/runbooks/RELEASE_20OCT_JOURNAL.md
 - M packages/api-contract/dart/lib/src/clients/calls_client.dart
