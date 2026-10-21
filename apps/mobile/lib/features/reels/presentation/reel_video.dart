@@ -10,6 +10,7 @@ import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart
 import 'package:lawbid/core/design_system/widgets/display/pinch_to_zoom.dart';
 import 'package:lawbid/core/media/audio_takeover.dart';
 import 'package:lawbid/core/media/playback_visibility.dart';
+import 'package:lawbid/features/reels/application/played_view_gate.dart';
 import 'package:lawbid/features/reels/application/reels_providers.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
@@ -87,6 +88,7 @@ class ReelVideo extends StatefulWidget {
     this.backdrop = true,
     this.zoomable = false,
     this.onProgress,
+    this.onViewed,
     super.key,
   });
 
@@ -112,12 +114,17 @@ class ReelVideo extends StatefulWidget {
   /// 0..1 while playing (the thin bar under a reel).
   final ValueChanged<double>? onProgress;
 
+  /// Owner 2026-10-20: called once after 3 s of real, unbroken playback.
+  final VoidCallback? onViewed;
+
   @override
   State<ReelVideo> createState() => _ReelVideoState();
 }
 
 class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
   VideoPlayerController? _c;
+  late final PlayedViewGate _viewGate =
+      PlayedViewGate(() => widget.onViewed?.call());
   bool _ready = false;
   bool _failed = false;
 
@@ -320,6 +327,15 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
     final clip = _clip;
     if (c == null || clip == null || !c.value.isInitialized) return;
     final pos = c.value.position;
+    _viewGate.playing(
+      value: _ready &&
+          _rendered &&
+          c.value.isPlaying &&
+          !c.value.isBuffering &&
+          widget.active &&
+          !widget.paused &&
+          playbackVisible,
+    );
     if (!_rendered && _ready && c.value.isPlaying && pos != _openedAt) {
       setState(() => _rendered = true);
     }
@@ -363,6 +379,7 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
     final c = _c;
     if (c == null || !_ready) return;
     final play = widget.active && !widget.paused && playbackVisible;
+    if (!play) _viewGate.playing(value: false);
     // Exactly one reel is heard: the one playing. It starts silent and the
     // sound rises; before a pause it falls first (no click either way).
     if (play && !c.value.isPlaying) {
@@ -407,6 +424,7 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
     _vol = 0;
     _lastPos = Duration.zero;
     _endFaded = false;
+    _viewGate.playing(value: false);
     c?.removeListener(_tick);
     // Silent before it goes (a playing player cut off clicks).
     if (c != null) {
@@ -423,6 +441,7 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
   @override
   void dispose() {
     _close();
+    _viewGate.dispose();
     super.dispose();
   }
 
@@ -510,8 +529,6 @@ class _InlineReelState extends State<InlineReel> {
   /// Owner 2026-10-19 (Instagram): held down = paused, let go = plays on.
   bool _held = false;
 
-  Timer? _viewTimer;
-
   /// Owner 2026-10-19 (smooth scroll): a reel the finger flings past opens
   /// no player — it opens once the card stays on screen a moment.
   Timer? _settle;
@@ -519,32 +536,23 @@ class _InlineReelState extends State<InlineReel> {
 
   void _apply({required bool visible, required bool near}) {
     if (!mounted || (visible == _visible && near == _near)) return;
-    final viewChanged = visible != _visible;
     setState(() {
       _visible = visible;
       _near = near;
     });
-    if (viewChanged) _trackView();
   }
 
-  /// Owner 2026-10-12: a reel counts as viewed after a few seconds on
-  /// screen (once per viewer; the server dedups).
-  /// Owner 2026-10-18: after ~2 s; the server counts one view per viewer
-  /// per 24 h.
-  void _trackView() {
-    _viewTimer?.cancel();
-    if (!_visible) return;
-    _viewTimer = Timer(const Duration(seconds: 2), () {
-      if (!mounted || !_visible) return;
-      ProviderScope.containerOf(context)
-          .read(socialActionsProvider)
-          .recordView(widget.post);
-    });
+  /// Owner 2026-10-20: counted after 3 s of real playback (ReelVideo's
+  /// onViewed); the server counts one view per viewer per 24 h.
+  void _viewed() {
+    if (!mounted) return;
+    ProviderScope.containerOf(context)
+        .read(socialActionsProvider)
+        .recordView(widget.post);
   }
 
   @override
   void dispose() {
-    _viewTimer?.cancel();
     _settle?.cancel();
     super.dispose();
   }
@@ -589,6 +597,7 @@ class _InlineReelState extends State<InlineReel> {
                 muted: ref.watch(reelsMutedProvider),
                 paused: _held,
                 zoomable: true,
+                onViewed: _viewed,
               ),
             ),
             if (!video.ready)

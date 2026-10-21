@@ -8,8 +8,11 @@ import 'package:lawbid/core/connectivity/network_interface_monitor.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/static_translator.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/features/calls/application/call_history_providers.dart';
+import 'package:lawbid/features/calls/domain/call_history_models.dart';
 import 'package:lawbid/features/contacts_sync/application/contacts_sync_providers.dart';
 import 'package:lawbid/features/contacts_sync/data/contacts_sync_repository.dart';
+import 'package:lawbid/features/stories/application/stories_providers.dart';
 
 import '../features/cases/cases_fakes.dart';
 import '../features/social/social_fakes.dart';
@@ -86,6 +89,8 @@ List<Override> uxOverrides({
   Translator translator = const StaticTranslatorEn(),
   FakeCasesRepository? cases,
   List<Override> extra = const [],
+  bool storiesTray = true,
+  List<OngoingGroupCall> ongoingCalls = const [],
 }) =>
     [
       translatorProvider.overrideWithValue(translator),
@@ -93,10 +98,15 @@ List<Override> uxOverrides({
           .overrideWithValue(monitor ?? FakeNetworkMonitor()),
       reachabilityProbeProvider.overrideWithValue((probe ?? FakeProbe()).call),
       ...casesOverrides(repo: cases),
+      // The feed's stories tray: no network in tests.
+      if (storiesTray) storyTrayProvider.overrideWith((ref) async => const []),
       ...socialOverrides(social, search),
       ...legalOverrides(),
       contactsSyncRepositoryProvider.overrideWithValue(_NoContactsSync()),
       contactsSyncActionsProvider.overrideWith(_AskedActions.new),
+      // Owner 2026-10-21: the «+» of the chats asks for running group calls
+      // every half minute; a test has no network and no pending timers.
+      ongoingGroupCallsProvider.overrideWith((ref) async => ongoingCalls),
       ...extra,
     ];
 

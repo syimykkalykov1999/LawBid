@@ -64,4 +64,27 @@ void main() {
     await t.pump();
     expect(t.getSize(find.byType(PostBodyText)).height, greaterThan(before));
   });
+
+  testWidgets('a caption of one emoji keeps the normal caption size',
+      (t) async {
+    Future<double> sizeOf(String body) async {
+      await t.pumpWidget(
+        uxApp(
+          Scaffold(body: PostBodyText(body: body)),
+          theme: AppTheme.dark(),
+          overrides: uxOverrides(translator: const StaticTranslatorRu()),
+        ),
+      );
+      await t.pump();
+      final rich = t.widget<RichText>(
+        find.descendant(
+          of: find.byType(PostBodyText),
+          matching: find.byType(RichText),
+        ),
+      );
+      return rich.text.style!.fontSize!;
+    }
+
+    expect(await sizeOf('\u{1F601}'), await sizeOf('Privet'));
+  });
 }

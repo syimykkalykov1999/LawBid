@@ -600,7 +600,7 @@ class _MineCardFrame extends StatelessWidget {
                     AppIcon(
                       practiceGlyph(artCode),
                       size: 15,
-                      color: colors.goldLight,
+                      color: colors.iconTint,
                     ),
                     const SizedBox(width: AppSpacing.xs),
                     Flexible(
@@ -672,7 +672,7 @@ class _MineMeta extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        AppIcon(icon, size: 15, color: colors.goldDark),
+        AppIcon(icon, size: 15, color: colors.iconTint),
         const SizedBox(width: AppSpacing.xs),
         Flexible(
           child: Text(
@@ -861,9 +861,9 @@ class BidInfoNote extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(AppSpacing.md),
         decoration: BoxDecoration(
-          color: colors.goldTint,
+          color: colors.iconTintFill,
           borderRadius: BorderRadius.circular(AppRadii.field),
-          border: Border.all(color: colors.goldStroke),
+          border: Border.all(color: colors.iconTint),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -871,7 +871,7 @@ class BidInfoNote extends StatelessWidget {
             AppIcon(
               AppIcons.infoOutlineRounded,
               size: AppSizes.iconSm,
-              color: colors.goldDark,
+              color: colors.iconTint,
             ),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
@@ -1066,7 +1066,7 @@ class WorkCard extends StatelessWidget {
           AppIcon(
             AppIcons.paymentsOutlined,
             size: AppSizes.iconSm,
-            color: colors.goldDark,
+            color: colors.iconTint,
           ),
           const SizedBox(width: AppSpacing.xs),
           Expanded(child: MoneyText(terms)),

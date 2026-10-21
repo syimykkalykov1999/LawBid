@@ -1,0 +1,79 @@
+import type { PrismaService } from '../../prisma/prisma.service';
+
+/** What a page of messages needs besides the rows themselves (owner
+ * 2026-10-20): reactions, the quoted message of each reply, pins. Fetched
+ * for the whole page in three queries; per-viewer parts (`mine`) are
+ * derived in ChatService.toMessage. */
+export interface MessageExtras {
+  reactions: Map<string, { emoji: string; userId: string }[]>;
+  replyTargets: Map<
+    string,
+    {
+      id: string;
+      sender_id: string | null;
+      type: string;
+      body_display: string;
+      revoked_at: Date | null;
+    }
+  >;
+  pinned: Set<string>;
+}
+
+export async function loadMessageExtras(
+  prisma: PrismaService,
+  rows: { id: string; reply_to_id: string | null }[],
+): Promise<MessageExtras> {
+  const ids = rows.map((r) => r.id);
+  const replyIds = [
+    ...new Set(rows.flatMap((r) => (r.reply_to_id ? [r.reply_to_id] : []))),
+  ];
+  if (ids.length === 0) {
+    return { reactions: new Map(), replyTargets: new Map(), pinned: new Set() };
+  }
+  const [reactions, targets, pins] = await Promise.all([
+    prisma.messageReaction.findMany({
+      where: { message_id: { in: ids } },
+      select: { message_id: true, user_id: true, emoji: true },
+      orderBy: { created_at: 'asc' },
+    }),
+    replyIds.length
+      ? prisma.message.findMany({
+          where: { id: { in: replyIds } },
+          select: {
+            id: true,
+            sender_id: true,
+            type: true,
+            body_display: true,
+            revoked_at: true,
+          },
+        })
+      : Promise.resolve([]),
+    prisma.messagePin.findMany({
+      where: { message_id: { in: ids } },
+      select: { message_id: true },
+    }),
+  ]);
+  const byMessage = new Map<string, { emoji: string; userId: string }[]>();
+  for (const r of reactions) {
+    const list = byMessage.get(r.message_id) ?? [];
+    list.push({ emoji: r.emoji, userId: r.user_id });
+    byMessage.set(r.message_id, list);
+  }
+  return {
+    reactions: byMessage,
+    replyTargets: new Map(targets.map((t) => [t.id, t])),
+    pinned: new Set(pins.map((p) => p.message_id)),
+  };
+}
+
+/** One person, one emoji: "👍", "❤️", "😂" … A single grapheme made of
+ * emoji code points (no letters or digits). */
+export function isSingleEmoji(text: string): boolean {
+  const t = text.trim();
+  if (!t || [...t].length > 12) return false;
+  const seg = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+  if ([...seg.segment(t)].length !== 1) return false;
+  return /\p{Extended_Pictographic}|\p{Regional_Indicator}|^[#*0-9]️?⃣$/u.test(
+    t,
+  );
+}

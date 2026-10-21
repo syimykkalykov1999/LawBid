@@ -47,21 +47,19 @@ abstract final class SocialFormat {
     return at.year == n.year ? f.dayMonth(at) : f.date(at);
   }
 
-  /// 1 234 / 12.5K / 3.4M — compact counters under posts.
-  /// Owner 2026-09-30 (OQ-037): compact counters everywhere — 999,
-  /// 1.3K, 12K, 500K, 1.3M, 2B (one decimal only below 10 of the unit,
-  /// never a trailing ".0").
+  /// Instagram's counters (owner 2026-10-20): up to 9 999 in full, then
+  /// 10K … 99.9K with one decimal, 100K … 999K whole, 1M+ (1.2M, 12M),
+  /// never a trailing ".0", always rounded down (999 999 is "999K").
   static String count(L10nFormats f, int n) {
-    if (n < 1000) return f.number(n);
-    // Round down, so 999 999 never shows as "1000K": two significant
-    // digits below 10 of the unit (1.3K), whole units above (12K).
+    if (n < 10000) return f.number(n);
+    // Round down, so 999 999 never shows as "1000K".
     double floor1(double v) => (v * 10).floorToDouble() / 10;
     final (double v, int unit) = n < 1000000
-        ? (floor1(n / 1000), 1000)
+        ? (n < 100000 ? floor1(n / 1000) : (n ~/ 1000).toDouble(), 1000)
         : n < 1000000000
             ? (floor1(n / 1000000), 1000000)
             : (floor1(n / 1000000000), 1000000000);
-    final whole = v < 10 ? v : v.floorToDouble();
+    final whole = unit == 1000 || v < 10 ? v : v.floorToDouble();
     // Owner 2026-10-14: localized — 1.2K / 1,2 тыс. / 1,2 Mio. / ١٫٢ ألف.
     return f
         .digits(NumberFormat.compact(locale: f.locale).format(whole * unit));

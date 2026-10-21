@@ -590,10 +590,15 @@ class TaskItem {
     this.canEdit = true,
     this.casePracticeCode,
     this.boardTask,
+    this.consultationId,
   });
 
   /// The case's leaf practice code (the card's colour).
   final String? casePracticeCode;
+
+  /// Owner 2026-10-20: the booked consultation this entry mirrors (a tap
+  /// opens it; its time is fixed there).
+  final String? consultationId;
 
   /// Set for a task of a case's workspace (not the planner's own).
   final BoardCaseTask? boardTask;
@@ -697,6 +702,7 @@ class TaskItem {
         purgeAt: purgeAt,
         canComplete: canComplete,
         canEdit: canEdit,
+        consultationId: consultationId,
         casePracticeCode: casePracticeCode,
         boardTask: boardTask,
       );

@@ -153,6 +153,11 @@ variable "worker_spot" {
   default     = false
   description = "Worker on Fargate Spot (one task stays on regular Fargate)."
 }
+variable "api_spot" {
+  type        = bool
+  default     = false
+  description = "Extra API tasks (above the first) on Fargate Spot, up to 70 % cheaper."
+}
 variable "night_scale_down" {
   type        = bool
   default     = false
@@ -460,6 +465,7 @@ module "ecs" {
   clamav_image                     = var.clamav_image
   cpu_architecture                 = var.cpu_architecture
   worker_spot                      = var.worker_spot
+  api_spot                         = var.api_spot
   night_scale_down                 = var.night_scale_down
   night_min_tasks                  = var.night_min_tasks
   tags                             = local.tags

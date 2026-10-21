@@ -172,9 +172,9 @@ class RequestCard extends StatelessWidget {
     Widget chip(String label, {bool gold = false, IconData? icon}) => Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           decoration: BoxDecoration(
-            color: gold ? colors.goldTint : colors.navy,
+            color: gold ? colors.iconTintFill : colors.navy,
             borderRadius: BorderRadius.circular(AppRadii.pill),
-            border: gold ? Border.all(color: colors.goldStroke) : null,
+            border: gold ? Border.all(color: colors.iconTint) : null,
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -183,7 +183,7 @@ class RequestCard extends StatelessWidget {
                 AppIcon(
                   icon,
                   size: 13,
-                  color: gold ? colors.goldDark : colors.gold,
+                  color: gold ? colors.iconTint : colors.iconTint,
                 ),
                 const SizedBox(width: 4),
               ],
@@ -240,9 +240,9 @@ class RequestCard extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: colors.navy,
                   borderRadius: BorderRadius.circular(AppRadii.field),
-                  border: Border.all(color: colors.goldStroke),
+                  border: Border.all(color: colors.iconTint),
                 ),
-                child: AppIcon(kindIcon, color: colors.gold, size: 22),
+                child: AppIcon(kindIcon, color: colors.iconTint, size: 22),
               ),
               const SizedBox(width: AppSpacing.md),
               Expanded(
@@ -361,10 +361,10 @@ class RequestCard extends StatelessWidget {
                           fit: BoxFit.cover,
                           errorBuilder: (_, __, ___) => Container(
                             width: 72,
-                            color: colors.goldTint,
+                            color: colors.iconTintFill,
                             child: AppIcon(
                               AppIcons.imageOutlined,
-                              color: colors.gold,
+                              color: colors.iconTint,
                             ),
                           ),
                         ),
@@ -490,11 +490,11 @@ class ActivityRow extends StatelessWidget {
             decoration: BoxDecoration(
               color: colors.navy,
               borderRadius: BorderRadius.circular(AppRadii.field),
-              border: Border.all(color: colors.goldStroke),
+              border: Border.all(color: colors.iconTint),
             ),
             child: AppIcon(
               activityIcon(entry.action),
-              color: colors.gold,
+              color: colors.iconTint,
               size: 20,
             ),
           ),
@@ -580,7 +580,7 @@ class AssistantBanner extends StatelessWidget {
         horizontal: AppSpacing.screenSide,
         vertical: AppSpacing.sm,
       ),
-      color: colors.goldTint,
+      color: colors.iconTintFill,
       child: Row(
         // Owner 2026-10-01: centred.
         mainAxisAlignment: MainAxisAlignment.center,
@@ -588,7 +588,7 @@ class AssistantBanner extends StatelessWidget {
           AppIcon(
             AppIcons.supportAgentRounded,
             size: AppSizes.iconSm,
-            color: colors.gold,
+            color: colors.iconTint,
           ),
           const SizedBox(width: AppSpacing.sm),
           Flexible(
@@ -663,7 +663,7 @@ class _LiabilityDialogState extends State<_LiabilityDialog> {
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     return AppAlertDialog(
       backgroundColor: colors.sheet,
-      icon: AppIcon(AppIcons.gavelRounded, color: colors.gold),
+      icon: AppIcon(AppIcons.gavelRounded, color: colors.iconTint),
       title: Text(t.t('liability.title')),
       content: SingleChildScrollView(
         child: Column(

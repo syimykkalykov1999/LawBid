@@ -138,6 +138,8 @@ interface Section {
   count?: CountKey;
   /** Short hint for the command palette. */
   hint?: string;
+  /** Hidden from the menu while this feature flag is off (owner 2026-10-20). */
+  flag?: string;
 }
 
 /** Owner 2026-10-05: the menu is 9 sections; each opens on its first
@@ -193,10 +195,13 @@ export const GROUPS: readonly SectionGroup[] = [
       { href: '/review-appeals', label: 'Обжалования отзывов', icon: 'scales', area: 'moderation', count: 'appeals' },
       { href: '/moderation-appeals', label: 'Обжалования решений', icon: 'scales', area: 'moderation', hint: 'автор просит вернуть скрытый пост, комментарий или сообщение' },
       { href: '/moderation-journal', label: 'Журнал решений', icon: 'article', area: 'moderation', hint: 'кто, когда и почему скрыл, удалил, предупредил' },
+      { href: '/legal-qa', label: 'Вопросы юристу', icon: 'article', area: 'moderation', hint: 'публичные вопросы и ответы адвокатов' },
+      { href: '/group-chats', label: 'Группы', icon: 'users-three', area: 'moderation', hint: 'групповые чаты, участники' },
       { href: '/sanctions', label: 'Санкции', icon: 'prohibit', area: 'sanctions', hint: 'блокировки и баны' },
       { href: '/content', label: 'Посты и отзывы', icon: 'article', area: 'content', hint: 'посты, комментарии, отзывы' },
       { href: '/media', label: 'Рилсы и стикеры', icon: 'film-strip', area: 'media', hint: 'видео, наборы стикеров' },
       { href: '/document-templates', label: 'Шаблоны документов', icon: 'file-text', area: 'content', hint: 'PDF и Word для приложения' },
+      { href: '/form-templates', label: 'Формы документов', icon: 'file-text', area: 'formTemplates', hint: 'тексты с полями для документов в кейсе' },
       { href: '/search', label: 'Поиск', icon: 'magnifying-glass', area: 'content', hint: 'синонимы, что не нашлось, чему научился' },
     ],
   },
@@ -207,6 +212,7 @@ export const GROUPS: readonly SectionGroup[] = [
     items: [
       { href: '/cases', label: 'Кейсы', icon: 'briefcase', area: 'cases', hint: 'кейсы, споры, «не могу связаться»' },
       { href: '/bids', label: 'Ставки', icon: 'gavel', area: 'cases' },
+      { href: '/deadlines', label: 'Сроки', icon: 'scales', area: 'cases', hint: 'сроки судов, давность, выходные суда', flag: 'deadline_calculator' },
       { href: '/promotions', label: 'Продвижение', icon: 'rocket-launch', area: 'money', hint: 'платное продвижение постов и кейсов, как в Instagram' },
     ],
   },
@@ -227,6 +233,7 @@ export const GROUPS: readonly SectionGroup[] = [
       { href: '/partners', label: 'Партнёры', icon: 'handshake', area: 'money', hint: 'блогеры и агенты: плата за адвокатов и клиентов' },
       { href: '/country-partners', label: 'Партнёры стран', icon: 'globe', area: 'moneyOwner', hint: 'главный партнёр страны: команда, процент, цели' },
       { href: '/payroll', label: 'Зарплаты', icon: 'wallet', area: 'payroll', hint: 'сотрудники, массовая выплата' },
+      { href: '/stars', label: 'Звёзды', icon: 'star', area: 'moneyOwner', hint: 'пакеты звёзд, подарки, цены наборов стикеров, отчёт' },
       { href: '/treasury', label: 'Прибыль и резерв', icon: 'bank', area: 'money', hint: 'расходы отдельно, на карту — чистая прибыль' },
     ],
   },
@@ -286,6 +293,8 @@ function opens(me: AccessSubject, s: Section): boolean {
   // Owner 2026-10-06: the partner team's own page.
   if (s.area === 'partner') return !!me.countryPartnerId;
   if (s.area === 'super') return me.role === 'super_admin';
+  // Document forms: the API lets only the super admin and moderators in.
+  if (s.area === 'formTemplates') return me.role === 'super_admin' || me.role === 'moderator';
   // Owner-only money pages (prices, plans, analytics, payments to attorneys,
   // country partners, admin sessions); the deputy reads them.
   if (s.area === 'moneyOwner') return me.role === 'super_admin' || me.canManageAdmins === true;
@@ -297,8 +306,13 @@ function opens(me: AccessSubject, s: Section): boolean {
   return can(me, s.area);
 }
 
-export function groupsFor(me: AccessSubject): SectionGroup[] {
-  return GROUPS.map((g) => ({ ...g, items: g.items.filter((s) => opens(me, s)) })).filter((g) => g.items.length > 0);
+/** A section tied to a feature flag is hidden while that flag is in [off]. */
+function shown(me: AccessSubject, s: Section, off?: ReadonlySet<string>): boolean {
+  return !(s.flag && off?.has(s.flag)) && opens(me, s);
+}
+
+export function groupsFor(me: AccessSubject, off?: ReadonlySet<string>): SectionGroup[] {
+  return GROUPS.map((g) => ({ ...g, items: g.items.filter((s) => shown(me, s, off)) })).filter((g) => g.items.length > 0);
 }
 
 /** The menu section a page belongs to. */
@@ -308,9 +322,9 @@ export function groupFor(pathname: string): SectionGroup | undefined {
 }
 
 /** The tabs of [pathname]'s section this admin may open (empty if none). */
-export function tabsFor(me: AccessSubject, pathname: string): Section[] {
+export function tabsFor(me: AccessSubject, pathname: string, off?: ReadonlySet<string>): Section[] {
   const g = groupFor(pathname);
-  return g ? g.items.filter((s) => opens(me, s)) : [];
+  return g ? g.items.filter((s) => shown(me, s, off)) : [];
 }
 
 export function sectionsFor(me: AccessSubject): Section[] {

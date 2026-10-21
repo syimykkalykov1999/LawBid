@@ -415,25 +415,11 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
   /// Owner 2026-10-19 (Instagram): paused while the finger is held down.
   bool _held = false;
   final _progress = ValueNotifier<double>(0);
-  Timer? _viewTimer;
 
-  @override
-  void initState() {
-    super.initState();
-    _trackView();
-  }
-
-  /// Owner 2026-10-12: a reel counts as viewed after a few seconds as the
-  /// current one (once per viewer; the server dedups).
-  /// Owner 2026-10-18: after ~2 s; the server counts one view per viewer
-  /// per 24 h.
-  void _trackView() {
-    _viewTimer?.cancel();
-    if (!widget.active) return;
-    _viewTimer = Timer(const Duration(seconds: 2), () {
-      if (!mounted || !widget.active) return;
-      ref.read(socialActionsProvider).recordView(widget.post);
-    });
+  /// Owner 2026-10-20 (Instagram): a view is 3 s of real playback
+  /// (ReelVideo's onViewed); the server counts one per viewer per 24 h.
+  void _viewed() {
+    if (mounted) ref.read(socialActionsProvider).recordView(widget.post);
   }
 
   @override
@@ -441,12 +427,10 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
     super.didUpdateWidget(old);
     // Coming back to a reel resumes it.
     if (widget.active && !old.active) _paused = false;
-    if (widget.active != old.active) _trackView();
   }
 
   @override
   void dispose() {
-    _viewTimer?.cancel();
     _progress.dispose();
     super.dispose();
   }
@@ -473,8 +457,11 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
     // Owner 2026-10-13: «Смотреть» only when the reel has attachments; with
     // none the strip goes and the author, text and rail drop down.
     final more = p.hasInner && ref.watch(innerCardsEnabledProvider);
-    final moreSpace = (more ? kReelMoreButtonSpace : AppSpacing.md) +
-        (widget.embedded ? kReelNavClearance : 0);
+    // Owner 2026-10-20 (Instagram): the bottom block stands 12 dp above the
+    // nav bar (the shell already reports the bar as the bottom padding), the
+    // author drops to the bottom when there is no caption and rises by
+    // exactly the caption's height when there is one.
+    final moreSpace = more ? kReelMoreButtonSpace : AppSpacing.md;
     Future<void> run(Future<Object?> Function() a) async {
       final e = await a();
       if (e != null && context.mounted) {
@@ -572,6 +559,7 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                     paused: _paused || _held || covered,
                     zoomable: true,
                     onProgress: (v) => _progress.value = v,
+                    onViewed: _viewed,
                   ),
                 if (video != null && !video.ready)
                   Center(
@@ -648,7 +636,9 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                 ),
                 PositionedDirectional(
                   end: AppSpacing.md,
-                  bottom: moreSpace +
+                  // The rail's last item keeps its own 12 dp: its icon ends at
+                  // the same line as the author block.
+                  bottom: moreSpace -
                       AppSpacing.md +
                       MediaQuery.paddingOf(context).bottom,
                   child: Column(
@@ -736,9 +726,7 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                   // Owner 2026-10-15: the text and «Follow» reach out to the
                   // right, 8 dp short of the icon column.
                   end: 60,
-                  bottom: moreSpace +
-                      AppSpacing.sm +
-                      MediaQuery.paddingOf(context).bottom,
+                  bottom: moreSpace + MediaQuery.paddingOf(context).bottom,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
@@ -847,9 +835,7 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
           PositionedDirectional(
             start: AppSpacing.lg,
             end: AppSpacing.lg,
-            bottom:
-                (widget.embedded ? kReelNavTop + kReelNavGap : AppSpacing.md) +
-                    MediaQuery.paddingOf(context).bottom,
+            bottom: AppSpacing.md + MediaQuery.paddingOf(context).bottom,
             child: ReelMoreButton(
               label: t.t(reelMoreLabelKey(p)),
               onTap: () => _openInside(p),
@@ -1047,15 +1033,16 @@ class _ReelCaption extends StatelessWidget {
     if (text.trim().isEmpty) return const SizedBox.shrink();
     return LayoutBuilder(
       builder: (context, box) {
+        // Measured with the style the Text draws (DefaultTextStyle merged).
+        final base = DefaultTextStyle.of(context).style.merge(style);
         final painter = TextPainter(
-          text: TextSpan(text: text, style: style),
+          text: TextSpan(text: text, style: base),
           maxLines: 2,
           textDirection: Directionality.of(context),
           textScaler: MediaQuery.textScalerOf(context),
         )..layout(maxWidth: box.maxWidth);
         if (!painter.didExceedMaxLines) return Text(text, style: style);
         // "… more" ends the second line, never a third one.
-        final base = DefaultTextStyle.of(context).style.merge(style);
         bool fits(int n) {
           final shown =
               n >= text.length ? text : '${text.substring(0, n).trimRight()}…';

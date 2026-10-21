@@ -3,9 +3,12 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/request_flags.dart';
+import 'package:lawbid/features/chat/data/chat_list_cache.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
+import 'package:lawbid/features/chat/domain/forward.dart';
 import 'package:lawbid/features/profile/data/avatar_upload_repository.dart'
     show sha256Hex;
+import 'package:lawbid/features/stars/domain/stars_mappers.dart';
 import 'package:lawbid/features/stickers/data/stickers_repository.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
@@ -23,6 +26,21 @@ typedef ChatStorageSummary = ({
 });
 
 /// docs/05 §8 chats for the app. Throws [ApiException].
+/// Owner 2026-10-20: pinned messages and the server's action rules.
+class ChatPins {
+  const ChatPins({
+    required this.items,
+    required this.editWindowMin,
+    required this.deleteForAllHours,
+    required this.maxPins,
+  });
+
+  final List<ChatMessage> items;
+  final int editWindowMin;
+  final int deleteForAllHours;
+  final int maxPins;
+}
+
 abstract interface class ChatRepository {
   Future<CursorPage<Conversation>> conversations({
     String? cursor,
@@ -46,10 +64,11 @@ abstract interface class ChatRepository {
     String? note,
     bool? pinned,
     bool? hidden,
+    bool? archived,
   });
 
-  /// Badges of the Waiting and Requests folders.
-  Future<({int waiting, int requests})> folderCounts();
+  /// Badges of the Waiting and Requests folders, and the Archive's size.
+  Future<({int waiting, int requests, int cases, int archived})> folderCounts();
 
   /// OQ-043: the direct chat with [userId] ("Message" on a profile).
   Future<Conversation> startDirect(String userId);
@@ -60,7 +79,13 @@ abstract interface class ChatRepository {
 
   /// Catch-up after a reconnect (§8.5), oldest first.
   Future<List<ChatMessage>> messagesAfter(String id, String afterId);
-  Future<ChatMessage> send(String id, String clientMessageId, String body);
+  Future<ChatMessage> send(
+    String id,
+    String clientMessageId,
+    String body, {
+    String? replyToId,
+    bool forwarded = false,
+  });
 
   /// OQ-040: presign → upload → confirm → clean scan of an m4a note.
   Future<String> uploadVoice(Uint8List bytes);
@@ -91,6 +116,25 @@ abstract interface class ChatRepository {
     String? caption,
   });
 
+  /// Owner 2026-10-20: passes message [sourceId] on to chat [id]; the server
+  /// copies a voice note / file as a reference to the same stored object
+  /// (nothing is uploaded again).
+  Future<ChatMessage> forward(
+    String id,
+    String clientMessageId,
+    String sourceId,
+  );
+
+  /// Owner 2026-10-21 (Telegram «Переслать»): [sources] (oldest first) into
+  /// every chat of [targets] in one request — direct / case chats, groups,
+  /// channels. A retry with the same [requestId] sends nothing twice; a
+  /// chat that refuses a message reports it in its result.
+  Future<List<ForwardResult>> forwardBatch(
+    String requestId,
+    List<ForwardSource> sources,
+    List<ForwardTarget> targets,
+  );
+
   /// Owner 2026-10-01: a sticker message.
   Future<ChatMessage> sendSticker(
     String id,
@@ -110,14 +154,43 @@ abstract interface class ChatRepository {
   /// Owner 2026-10-04: one message translated into [target] (app language).
   Future<String> translate(String id, String messageId, String target);
   Future<void> read(String id, String lastReadMessageId);
+
+  /// Owner 2026-10-20: this device has the messages up to [messageId]
+  /// (the sender's two grey ticks).
+  Future<void> delivered(String id, String messageId);
+
+  /// Owner 2026-10-20: edit a text message inside the window.
+  Future<ChatMessage> editMessage(String id, String messageId, String body);
+
+  /// Delete for me (`all` false) or for everyone inside the window.
+  Future<void> deleteMessage(String id, String messageId, {required bool all});
+
+  /// One emoji per person; null removes it.
+  Future<ChatMessage> react(String id, String messageId, String? emoji);
+  Future<ChatMessage> setPinned(
+    String id,
+    String messageId, {
+    required bool pinned,
+  });
+  Future<ChatPins> pins(String id);
   Future<Conversation> mute(String id, DateTime? until);
+
+  /// Owner 2026-10-21: calls of this chat ring silently (or not).
+  Future<Conversation> muteCalls(String id, {required bool muted});
+
+  /// Owner 2026-10-21: the disappearing-messages timer for new messages
+  /// (86400 / 604800 / 7776000 seconds); null switches it off.
+  Future<Conversation> setDisappearing(String id, int? afterS);
 }
 
 class ApiChatRepository implements ChatRepository {
-  ApiChatRepository(Dio dio, {Dio? storageDio})
+  ApiChatRepository(Dio dio, {Dio? storageDio, this.listCache})
       : _chat = api.ChatClient(dio),
         _files = api.FilesClient(dio),
         _storage = storageDio ?? dio;
+
+  /// Owner 2026-10-20: keeps the first page of the plain chat list.
+  final ChatListCache? listCache;
 
   final api.ChatClient _chat;
   final api.FilesClient _files;
@@ -310,6 +383,88 @@ class ApiChatRepository implements ChatRepository {
       );
 
   @override
+  Future<ChatMessage> forward(
+    String id,
+    String clientMessageId,
+    String sourceId,
+  ) async =>
+      ChatMappers.message(
+        (await guardApiCall(
+          () => _chat.sendMessage(
+            id: id,
+            body: api.SendMessageDto(
+              clientMessageId: clientMessageId,
+              forwardFromId: sourceId,
+            ),
+          ),
+        ))
+            .data,
+      );
+
+  @override
+  Future<List<ForwardResult>> forwardBatch(
+    String requestId,
+    List<ForwardSource> sources,
+    List<ForwardTarget> targets,
+  ) async {
+    final res = await guardApiCall(
+      () => _chat.forward(
+        body: api.ForwardMessagesDto(
+          requestId: requestId,
+          sources: [
+            for (final s in sources)
+              api.ForwardSourceDto(
+                kind: switch (s.kind) {
+                  ForwardSourceKind.message => api.ForwardSourceKind.message,
+                  ForwardSourceKind.groupMessage =>
+                    api.ForwardSourceKind.groupMessage,
+                  ForwardSourceKind.channelPost =>
+                    api.ForwardSourceKind.channelPost,
+                  ForwardSourceKind.groupLink =>
+                    api.ForwardSourceKind.groupLink,
+                  ForwardSourceKind.channelLink =>
+                    api.ForwardSourceKind.channelLink,
+                },
+                id: s.id,
+              ),
+          ],
+          targets: [
+            for (final t in targets)
+              api.ForwardTargetDto(
+                kind: switch (t.kind) {
+                  ForwardTargetKind.conversation =>
+                    api.ForwardTargetKind.conversation,
+                  ForwardTargetKind.group => api.ForwardTargetKind.group,
+                  ForwardTargetKind.channel => api.ForwardTargetKind.channel,
+                },
+                id: t.id,
+                topicId: t.topicId,
+              ),
+          ],
+        ),
+      ),
+    );
+    return [
+      for (final r in res.data.results)
+        ForwardResult(
+          target: ForwardTarget(
+            switch (r.target.kind) {
+              api.ForwardTargetKind.group => ForwardTargetKind.group,
+              api.ForwardTargetKind.channel => ForwardTargetKind.channel,
+              _ => ForwardTargetKind.conversation,
+            },
+            r.target.id,
+            topicId: r.target.topicId,
+          ),
+          sourceId: r.sourceId,
+          sent: r.status == api.ForwardStatus.sent,
+          code: r.code,
+          messageId: r.messageId,
+        ),
+    ];
+  }
+
+  @override
   Future<ChatMessage> sendSticker(
     String id,
     String clientMessageId, {
@@ -433,6 +588,12 @@ class ApiChatRepository implements ChatRepository {
             : api.ConversationFolder.fromJson(f.name),
       ),
     );
+    if (cursor == null &&
+        updatedSince == null &&
+        (query == null || query.isEmpty) &&
+        f == ChatListFolder.all) {
+      listCache?.save(env);
+    }
     return CursorPage(
       items: env.data.map(ChatMappers.conversation).toList(),
       nextCursor: env.meta?.nextCursor,
@@ -448,6 +609,7 @@ class ApiChatRepository implements ChatRepository {
     String? note,
     bool? pinned,
     bool? hidden,
+    bool? archived,
   }) async =>
       ChatMappers.conversation(
         (await guardApiCall(
@@ -465,6 +627,7 @@ class ApiChatRepository implements ChatRepository {
               note: note,
               pinned: pinned,
               hidden: hidden,
+              archived: archived,
             ),
           ),
         ))
@@ -472,9 +635,15 @@ class ApiChatRepository implements ChatRepository {
       );
 
   @override
-  Future<({int waiting, int requests})> folderCounts() async {
+  Future<({int waiting, int requests, int cases, int archived})>
+      folderCounts() async {
     final d = (await guardApiCall(_chat.folderCounts)).data;
-    return (waiting: d.waiting.toInt(), requests: d.requests.toInt());
+    return (
+      waiting: d.waiting.toInt(),
+      requests: d.requests.toInt(),
+      cases: d.cases.toInt(),
+      archived: d.archived.toInt(),
+    );
   }
 
   @override
@@ -504,8 +673,10 @@ class ApiChatRepository implements ChatRepository {
   Future<ChatMessage> send(
     String id,
     String clientMessageId,
-    String body,
-  ) async =>
+    String body, {
+    String? replyToId,
+    bool forwarded = false,
+  }) async =>
       ChatMappers.message(
         (await guardApiCall(
           () => _chat.sendMessage(
@@ -513,6 +684,8 @@ class ApiChatRepository implements ChatRepository {
             body: api.SendMessageDto(
               clientMessageId: clientMessageId,
               body: body,
+              replyToId: replyToId,
+              forwarded: forwarded ? true : null,
             ),
           ),
         ))
@@ -520,11 +693,105 @@ class ApiChatRepository implements ChatRepository {
       );
 
   @override
+  Future<ChatMessage> editMessage(
+    String id,
+    String messageId,
+    String body,
+  ) async =>
+      ChatMappers.message(
+        (await guardApiCall(
+          () => _chat.editChatMessage(
+            id: id,
+            messageId: messageId,
+            body: api.EditMessageDto(body: body),
+          ),
+        ))
+            .data,
+      );
+
+  @override
+  Future<void> deleteMessage(
+    String id,
+    String messageId, {
+    required bool all,
+  }) =>
+      guardApiCall(
+        () => _chat.deleteChatMessage(
+          id: id,
+          messageId: messageId,
+          scope: all ? api.DeleteScope.all : api.DeleteScope.me,
+        ),
+      );
+
+  @override
+  Future<ChatMessage> react(String id, String messageId, String? emoji) async =>
+      ChatMappers.message(
+        (await guardApiCall(
+          () => _chat.reactToChatMessage(
+            id: id,
+            messageId: messageId,
+            body: api.ReactMessageDto(emoji: emoji),
+          ),
+        ))
+            .data,
+      );
+
+  @override
+  Future<ChatMessage> setPinned(
+    String id,
+    String messageId, {
+    required bool pinned,
+  }) async =>
+      ChatMappers.message(
+        (await guardApiCall(
+          () => pinned
+              ? _chat.pinChatMessage(id: id, messageId: messageId)
+              : _chat.unpinChatMessage(id: id, messageId: messageId),
+        ))
+            .data,
+      );
+
+  @override
+  Future<ChatPins> pins(String id) async {
+    final d = (await guardApiCall(() => _chat.listChatPins(id: id))).data;
+    return ChatPins(
+      items: d.items.map(ChatMappers.message).toList(),
+      editWindowMin: d.editWindowMin.toInt(),
+      deleteForAllHours: d.deleteForAllHours.toInt(),
+      maxPins: d.maxPins.toInt(),
+    );
+  }
+
+  @override
   Future<void> read(String id, String lastReadMessageId) => guardApiCall(
         () => _chat.readConversation(
           id: id,
           body: api.ReadConversationDto(lastReadMessageId: lastReadMessageId),
         ),
+      );
+
+  @override
+  Future<void> delivered(String id, String messageId) => guardApiCall(
+        () => _chat.deliveredConversation(
+          id: id,
+          body: api.DeliveredConversationDto(lastDeliveredMessageId: messageId),
+        ),
+      );
+
+  @override
+  Future<Conversation> setDisappearing(String id, int? afterS) async =>
+      ChatMappers.conversation(
+        (await guardApiCall(
+          () => _chat.setDisappearing(
+            id: id,
+            body: api.SetDisappearingDto(
+              afterS: afterS == null
+                  ? null
+                  : api.SetDisappearingDtoAfterS.fromJson(afterS),
+            ),
+          ),
+        ))
+            .data,
       );
 
   @override
@@ -536,6 +803,18 @@ class ApiChatRepository implements ChatRepository {
             body: api.MuteConversationDto(
               until: until?.toUtc().toIso8601String(),
             ),
+          ),
+        ))
+            .data,
+      );
+
+  @override
+  Future<Conversation> muteCalls(String id, {required bool muted}) async =>
+      ChatMappers.conversation(
+        (await guardApiCall(
+          () => _chat.muteChatCalls(
+            id: id,
+            body: api.MuteCallsDto(muted: muted),
           ),
         ))
             .data,
@@ -586,6 +865,32 @@ bool isWebmVoice(List<int> bytes) =>
     bytes[3] == 0xA3;
 
 abstract final class ChatMappers {
+  /// Owner 2026-10-21 (Instagram «Поделиться»): a shared post's card.
+  static SharedPostCard postCard(api.SharedPostCardDto d) {
+    final a = d.author;
+    final name = [a?.firstName, a?.lastName]
+        .whereType<String>()
+        .where((x) => x.trim().isNotEmpty)
+        .join(' ');
+    return SharedPostCard(
+      id: d.id,
+      available: d.available,
+      authorId: a?.id,
+      authorName: name.isEmpty ? a?.username : name,
+      authorUsername: a?.username,
+      authorAvatarUrl: a?.avatarUrl,
+      authorVerified: a?.verifiedBadge ?? false,
+      title: d.title,
+      excerpt: d.excerpt,
+      thumbnailUrl: d.thumbnailUrl,
+      isVideo: d.isVideo,
+    );
+  }
+
+  /// Disappearing messages: already past its time (the preview is blank).
+  static bool _gone(api.MessageDto d) =>
+      d.expiresAt != null && !d.expiresAt!.isAfter(DateTime.now());
+
   static ChatMessage message(api.MessageDto d) => ChatMessage(
         id: d.id,
         conversationId: d.conversationId,
@@ -597,14 +902,61 @@ abstract final class ChatMappers {
           api.MessageDtoType.call => MessageKind.call,
           api.MessageDtoType.attachment => MessageKind.attachment,
           api.MessageDtoType.sticker => MessageKind.sticker,
+          api.MessageDtoType.gift => MessageKind.gift,
+          api.MessageDtoType.contact => MessageKind.contact,
+          api.MessageDtoType.place => MessageKind.place,
+          api.MessageDtoType.post => MessageKind.post,
           _ => MessageKind.text,
         },
+        post: d.post == null ? null : postCard(d.post!),
+        contact: d.contact == null
+            ? null
+            : ContactCard(
+                userId: d.contact!.userId,
+                username: d.contact!.username,
+                displayName: d.contact!.displayName,
+                avatarUrl: d.contact!.avatarUrl,
+                verified: d.contact!.verifiedBadge,
+                firmNames: [...d.contact!.firmNames],
+                practiceKeys: [...d.contact!.practiceKeys],
+                licensedStates: [...d.contact!.licensedStates],
+              ),
         sticker:
             d.sticker == null ? null : StickersRepository.sticker(d.sticker!),
+        gift: d.gift == null ? null : StarsMappers.send(d.gift!),
         body: d.body,
         contactMasked: d.contactMasked,
         clientMessageId: d.clientMessageId,
         createdAt: d.createdAt,
+        editedAt: d.editedAt,
+        revoked: d.revoked,
+        forwarded: d.forwarded,
+        forwardedFrom: d.forwardedFrom,
+        pinned: d.pinned,
+        expiresAt: d.expiresAt,
+        replyTo: d.replyTo == null
+            ? null
+            : ReplyPreview(
+                id: d.replyTo!.id,
+                senderId: d.replyTo!.senderId,
+                kind: switch (d.replyTo!.type) {
+                  api.ReplyPreviewDtoType.voice => MessageKind.voice,
+                  api.ReplyPreviewDtoType.attachment => MessageKind.attachment,
+                  api.ReplyPreviewDtoType.sticker => MessageKind.sticker,
+                  api.ReplyPreviewDtoType.call => MessageKind.call,
+                  _ => MessageKind.text,
+                },
+                snippet: d.replyTo!.snippet,
+                revoked: d.replyTo!.revoked,
+              ),
+        reactions: [
+          for (final r in d.reactions)
+            MessageReaction(
+              emoji: r.emoji,
+              count: r.count,
+              mine: r.mine,
+            ),
+        ],
         callLog: d.call == null
             ? null
             : CallLog(
@@ -657,11 +1009,16 @@ abstract final class ChatMappers {
           online: d.counterpart.online,
           lastSeenAt: d.counterpart.lastSeenAt,
         ),
-        lastMessage: d.lastMessage == null ? null : message(d.lastMessage!),
+        lastMessage: d.lastMessage == null || _gone(d.lastMessage!)
+            ? null
+            : message(d.lastMessage!),
         lastMessageAt: d.lastMessageAt,
         unreadCount: d.unreadCount.toInt(),
         mutedUntil: d.mutedUntil,
+        callsMuted: d.callsMuted,
         counterpartLastReadId: d.counterpartLastReadMessageId,
+        counterpartLastDeliveredId: d.counterpartLastDeliveredMessageId,
+        counterpartLastReadAt: d.counterpartLastReadAt,
         updatedAt: d.updatedAt,
         isDirect: d.kind == api.ConversationKind.direct,
         request: switch (d.requestStatus) {
@@ -679,6 +1036,7 @@ abstract final class ChatMappers {
         note: d.note,
         pinnedAt: d.pinnedAt,
         matchedMessage: d.matchedMessage,
+        disappearAfterS: d.disappearAfterS?.toInt(),
       );
 
   /// A realtime `message:new` payload (same shape as MessageDto).

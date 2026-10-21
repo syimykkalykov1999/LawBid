@@ -41,14 +41,14 @@ class DemoSettingsCard extends ConsumerWidget {
       decoration: BoxDecoration(
         color: colors.goldTint,
         borderRadius: BorderRadius.circular(AppRadii.card),
-        border: Border.all(color: colors.goldStroke),
+        border: Border.all(color: colors.iconTint),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             children: [
-              AppIcon(AppIcons.warningAmberRounded, color: colors.goldDark),
+              AppIcon(AppIcons.warningAmberRounded, color: colors.iconTint),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: Text(

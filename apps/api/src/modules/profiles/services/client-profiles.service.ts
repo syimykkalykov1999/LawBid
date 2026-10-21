@@ -168,7 +168,7 @@ export class ClientProfilesService {
         { nextChangeAt: current.usernameNextChangeAt },
       );
     }
-    if ((await this.usernames.reserved()).has(lower)) {
+    if (await this.usernames.isReserved(lower)) {
       throw usernameError(
         ErrorCode.USERNAME_RESERVED,
         HttpStatus.BAD_REQUEST,
@@ -180,6 +180,12 @@ export class ClientProfilesService {
         if (
           lower !== current.username.toLowerCase() &&
           (await this.usernames.isTaken(tx, lower, userId))
+        ) {
+          throw usernameTaken();
+        }
+        if (
+          lower !== current.username.toLowerCase() &&
+          (await this.usernames.blocker(tx, lower, userId))
         ) {
           throw usernameTaken();
         }

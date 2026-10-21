@@ -18,6 +18,16 @@ enum ReportTargetType {
   user('user'),
   @JsonValue('sticker_pack')
   stickerPack('sticker_pack'),
+  @JsonValue('story')
+  story('story'),
+  @JsonValue('channel')
+  channel('channel'),
+  @JsonValue('channel_post')
+  channelPost('channel_post'),
+  @JsonValue('legal_question')
+  legalQuestion('legal_question'),
+  @JsonValue('legal_answer')
+  legalAnswer('legal_answer'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

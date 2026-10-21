@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -10,6 +9,8 @@ import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/presentation/widgets/attorney_profile_view.dart';
 import 'package:lawbid/features/profile/presentation/widgets/profile_handle_bar.dart';
+import 'package:lawbid/features/stars/presentation/gift_widgets.dart'
+    show GiftHeaderButton;
 
 /// Loads `GET /attorneys/:username` and renders every screen state:
 /// skeleton, error + Retry, offline, "Profile unavailable" (404 — unknown,
@@ -126,6 +127,10 @@ class AttorneyProfileScreen extends ConsumerWidget {
         ),
         // Owner 2026-09-30: "⋯" (Block / Report) opposite the @username.
         actions: [
+          // Owner 2026-10-21: their gifts behind an icon up here.
+          if (ref.watch(publicAttorneyProfileProvider(username)).value
+              case final p? when !(p.isBlocked || p.hasBlockedMe))
+            GiftHeaderButton(userId: p.id, isMe: p.isSelf),
           if (ref.watch(publicAttorneyProfileProvider(username)).value
               case final p? when !p.isSelf)
             AppIconButton(

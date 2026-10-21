@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/config/app_environment.dart';
+import 'package:lawbid/core/deeplinks/deep_link.dart';
 
 /// The native halves of deep linking (docs/01_FOUNDATION_AUTH.md §12): the
 /// Dart parser is useless unless the OS actually hands the app these URLs.
@@ -17,7 +18,7 @@ void main() {
     expect(manifest, contains('<data android:scheme="lawbid" />'));
     expect(manifest, contains('android:autoVerify="true"'));
     expect(manifest, contains(r'<data android:host="${deepLinkHost}" />'));
-    for (final p in ['/case/', '/lawyer/', '/post/']) {
+    for (final p in ['/case/', '/lawyer/', '/post/', '/g/', '/c/']) {
       expect(manifest, contains('<data android:pathPrefix="$p" />'));
     }
     expect(manifest, contains('<data android:path="/auth/email-code" />'));
@@ -77,6 +78,7 @@ void main() {
         '/u/*',
         '/q/*',
         '/g/*',
+        '/c/*',
         '/auth/email-code',
       },
     );
@@ -92,6 +94,41 @@ void main() {
     expect(packages, {'com.lawbid.lawbid'});
     for (final e in assetlinks.cast<Map<String, dynamic>>()) {
       expect(e['relation'], ['delegate_permission/common.handle_all_urls']);
+    }
+  });
+
+  test('every path the phone hands over is one the app understands', () {
+    // Owner 2026-10-20: a QR code / link the OS opens in the app must land on
+    // a screen, not on the home tab: each published path parses.
+    const samples = {
+      '/r/*': 'r/ABCD1234',
+      '/case/*': 'case/7b1f2c3d-0000-4000-8000-000000000001',
+      '/lawyer/*': 'lawyer/jane_doe',
+      '/post/*': 'post/7b1f2c3d-0000-4000-8000-000000000002',
+      '/u/*': 'u/jane_doe',
+      '/q/*': 'q/Xk3_aB-9Qz1LmN4pR7sT0w',
+      '/g/*': 'g/Xk3_aB-9Qz1LmN4pR7sT0w',
+      '/c/*': 'c/tax_news',
+    };
+    final aasa =
+        jsonDecode(read('../../docs/deeplinks/apple-app-site-association'))
+            as Map<String, dynamic>;
+    final details =
+        ((aasa['applinks'] as Map<String, dynamic>)['details'] as List).single
+            as Map<String, dynamic>;
+    final published = (details['components'] as List)
+        .map((c) => (c as Map<String, dynamic>)['/'] as String)
+        .where((p) => p.endsWith('*'));
+    for (final path in published) {
+      final sample = samples[path];
+      expect(sample, isNotNull, reason: 'no sample for $path');
+      for (final url in ['https://lawbid.dev/$sample', 'lawbid://$sample']) {
+        expect(
+          parseDeepLink(Uri.parse(url), host: 'lawbid.dev'),
+          isNotNull,
+          reason: url,
+        );
+      }
     }
   });
 }

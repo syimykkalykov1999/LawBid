@@ -2,6 +2,7 @@ import AVFoundation
 import Flutter
 import PushKit
 import UIKit
+import UserNotifications
 import flutter_callkit_incoming
 
 @main
@@ -19,6 +20,9 @@ import flutter_callkit_incoming
     registry.desiredPushTypes = [.voIP]
     voipRegistry = registry
     configureAudioSessionOnce()
+    // Planner reminders armed by flutter_local_notifications show while the
+    // app is open too.
+    UNUserNotificationCenter.current().delegate = self
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
@@ -98,7 +102,7 @@ import flutter_callkit_incoming
       "conversationId": (p["conversationId"] as? String) ?? "",
     ]
     data.handleType = "generic"
-    data.supportsVideo = false
+    data.supportsVideo = video
     data.maximumCallGroups = 1
     data.maximumCallsPerCallGroup = 1
     data.supportsDTMF = false

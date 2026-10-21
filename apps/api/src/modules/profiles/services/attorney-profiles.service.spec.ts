@@ -7,6 +7,7 @@ import {
 } from './attorney-profiles.service';
 import type { PracticeAreasService } from './practice-areas.service';
 import type { FilesService } from '../../files/files.service';
+import { isValidHandle } from '../../usernames/username-rules';
 
 const DAY = 24 * 60 * 60 * 1000;
 const now = new Date('2026-09-27T12:00:00Z');
@@ -82,7 +83,46 @@ describe('AttorneyProfilesService', () => {
       isTaken: jest.fn((_db: unknown, _lower: string, except?: string) =>
         Promise.resolve(holder !== null && holder.user_id !== except),
       ),
-      suggest: jest.fn(() => Promise.resolve(['anna.kim2026', 'anna_kim'])),
+      suggest: jest.fn<Promise<string[]>, [unknown, unknown, string?]>(() =>
+        Promise.resolve(['anna.kim2026', 'anna_kim']),
+      ),
+      isReserved: jest.fn((lower: string) =>
+        Promise.resolve(['admin', 'lawbid'].includes(lower)),
+      ),
+      blocker: jest.fn(() => Promise.resolve(false)),
+    };
+    // The shared policy, reduced to what these tests decide: shape, reserved
+    // words, taken (via the registry stub) and the ideas.
+    const policy = {
+      check: jest.fn(
+        async (
+          raw: string,
+          _kind: string,
+          asker: { userId?: string },
+          seeds: { firstName?: string; lastName?: string },
+        ) => {
+          const lower = raw.trim().toLowerCase();
+          let reason: string | null = null;
+          if (!isValidHandle(lower, 'user')) reason = 'invalid';
+          else if (await usernames.isReserved(lower)) reason = 'reserved';
+          else if (await usernames.isTaken({}, lower, asker.userId)) {
+            reason = 'taken';
+          }
+          return {
+            username: lower,
+            available: reason === null,
+            reason,
+            suggestions:
+              reason === null
+                ? []
+                : await usernames.suggest(
+                    {},
+                    { ...seeds, typed: lower },
+                    asker.userId,
+                  ),
+          };
+        },
+      ),
     };
     const svc = new AttorneyProfilesService(
       prisma as unknown as PrismaService,
@@ -95,6 +135,9 @@ describe('AttorneyProfilesService', () => {
         relation: () =>
           Promise.resolve({ isBlocked: false, hasBlockedMe: false }),
       } as never,
+      undefined,
+      undefined,
+      policy as never,
     );
     // getOwn is covered by e2e; here only the write path matters.
     jest.spyOn(svc, 'getOwn').mockResolvedValue({} as never);
@@ -212,6 +255,7 @@ describe('AttorneyProfilesService', () => {
         attorneyProfile: { findUnique: jest.fn(() => Promise.resolve(row)) },
         follow: { findUnique: jest.fn(() => Promise.resolve(null)) },
         firmMember: { findFirst: jest.fn(() => Promise.resolve(null)) },
+        legalAnswer: { count: jest.fn(() => Promise.resolve(0)) },
       };
       return new AttorneyProfilesService(
         prisma as unknown as PrismaService,

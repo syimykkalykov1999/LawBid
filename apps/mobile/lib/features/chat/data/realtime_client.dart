@@ -39,7 +39,11 @@ class RealtimeClient {
 
   static const _serverEvents = [
     'message:new',
+    // Owner 2026-10-20: edited, deleted for all, reaction, pin.
+    'message:updated',
     'message:read',
+    // Owner 2026-10-20: the message reached the other device (grey ticks).
+    'message:delivered',
     // OQ-040: the other side played a voice note.
     'message:listened',
     // OQ-041: in-app calls.
@@ -47,12 +51,24 @@ class RealtimeClient {
     'call:accepted',
     'call:ended',
     'call:signal',
+    // Group calls: member list, host muted you, host removed you.
+    'call:participants',
+    'call:muted',
+    'call:removed',
+    'call:vote',
+    'call:invite',
     'typing',
     'notification:new',
     'badge:update',
     'conversation:update',
     // Owner 2026-10-01: a chat partner came online / left.
     'presence:update',
+    // Owner 2026-10-20: group chats and polls.
+    'group:message',
+    'group:update',
+    'group:invite',
+    'group:member_removed',
+    'poll:update',
   ];
 
   Stream<RealtimeEvent> get events => _events.stream;
@@ -76,7 +92,7 @@ class RealtimeClient {
           .disableAutoConnect()
           .enableReconnection()
           .setReconnectionDelay(1000)
-          .setReconnectionDelayMax(30000)
+          .setReconnectionDelayMax(10000)
           .setRandomizationFactor(0.5)
           .build(),
     );
@@ -183,23 +199,34 @@ class RealtimeClient {
     }
   }
 
-  void typing(String conversationId, {required bool active}) {
+  /// [voice]: «recording a voice message…» instead of «typing…» (owner
+  /// 2026-10-20); the server relays it as `kind: text | voice`.
+  void typing(
+    String conversationId, {
+    required bool active,
+    bool voice = false,
+  }) {
     if (!connected) return;
     _socket!.emit(
       active ? 'typing:start' : 'typing:stop',
-      {'conversationId': conversationId},
+      {'conversationId': conversationId, if (voice) 'kind': 'voice'},
     );
   }
 
   /// OQ-041: WebRTC signaling (offer / answer / ICE) to the other member
-  /// of a live call; false when the socket is down or the server refused.
-  Future<bool> callSignal(String callId, Map<String, Object?> data) {
+  /// of a live call (group calls: to [to], or all the others when null);
+  /// false when the socket is down or the server refused.
+  Future<bool> callSignal(
+    String callId,
+    Map<String, Object?> data, {
+    String? to,
+  }) {
     final s = _socket;
     if (s == null || !s.connected) return Future.value(false);
     final done = Completer<bool>();
     s.emitWithAck(
       'call:signal',
-      {'callId': callId, 'data': data},
+      {'callId': callId, 'data': data, if (to != null) 'to': to},
       ack: (Object? r) {
         if (!done.isCompleted) done.complete(r is Map && r['ok'] == true);
       },

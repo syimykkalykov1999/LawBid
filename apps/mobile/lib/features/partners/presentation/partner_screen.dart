@@ -163,7 +163,7 @@ class PartnerScreen extends ConsumerWidget {
                         r.isAttorney
                             ? AppIcons.gavelRounded
                             : AppIcons.personOutlineRounded,
-                        color: colors.goldDark,
+                        color: colors.iconTint,
                       ),
                       title: Text(
                         r.name ?? t.t('partner.referred.anonymous'),

@@ -111,8 +111,10 @@ void main() {
         makeTask('s1', dueAt: DateTime.now().add(const Duration(hours: 1))),
       ];
       await pump(tester, const TasksTab());
-      await tester.drag(
-        find.byKey(const ValueKey('task-s1')),
+      final rect = tester.getRect(find.byKey(const ValueKey('task-s1')));
+      // Owner 2026-10-20: the actions start at the two edges of the card.
+      await tester.dragFrom(
+        Offset(rect.left + 8, rect.center.dy),
         const Offset(500, 0),
       );
       await tester.pumpAndSettle();
@@ -124,8 +126,10 @@ void main() {
         makeTask('s2', dueAt: DateTime.now().add(const Duration(hours: 1))),
       ];
       await pump(tester, const TasksTab());
-      await tester.drag(
-        find.byKey(const ValueKey('task-s2')),
+      final rect = tester.getRect(find.byKey(const ValueKey('task-s2')));
+      // Owner 2026-10-20: the actions start at the two edges of the card.
+      await tester.dragFrom(
+        Offset(rect.right - 8, rect.center.dy),
         const Offset(-500, 0),
       );
       await tester.pumpAndSettle();

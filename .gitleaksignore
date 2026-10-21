@@ -26,3 +26,6 @@ ac627bb4e800fc525c963e5bcd26efd5233e9c0d:apps/mobile/lib/features/cases/presenta
 # ("i18n_key: 'practice.family_law.e2e_ct_divorce'"), not a secret. Pinned to
 # this one commit, file and line; everything else is still scanned.
 27afdfc21fc8798d4751daec514eab2df333d898:apps/api/test/owner-contingency.e2e-spec.ts:generic-api-key:88
+# Owner 2026-10-20: a chat-folder i18n key in the chat-actions e2e fixture
+# ("i18n_key: '...'"), not a secret. Pinned to this one commit, file and line.
+7ccfb3f85fccdafb2945c37801f61981b519bc47:apps/api/test/owner-chat-actions.e2e-spec.ts:generic-api-key:94

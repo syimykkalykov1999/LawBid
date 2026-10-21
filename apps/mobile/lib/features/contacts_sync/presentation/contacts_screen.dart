@@ -9,6 +9,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
+import 'package:lawbid/features/calls/application/call_history_providers.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
@@ -17,37 +18,114 @@ import 'package:lawbid/features/chat/presentation/open_direct_chat.dart';
 import 'package:lawbid/features/contacts_sync/application/contacts_background_sync.dart';
 import 'package:lawbid/features/contacts_sync/application/contacts_sync_providers.dart';
 import 'package:lawbid/features/contacts_sync/application/phone_contacts.dart';
+import 'package:lawbid/features/contacts_sync/presentation/calls_tab.dart';
 import 'package:lawbid/features/contacts_sync/presentation/contact_rows.dart';
+import 'package:lawbid/features/contacts_sync/presentation/contacts_section.dart';
 import 'package:lawbid/features/contacts_sync/presentation/contacts_states.dart';
 import 'package:lawbid/features/contacts_sync/presentation/invite_contact.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
+import 'package:lawbid/shared/people/people_suggest_list.dart';
 
 /// Owner 2026-10-20: "Contacts" like WhatsApp — the phone-book people who
 /// are on LawBid (with message / call / video) and the rest to invite.
 /// A browser cannot read the phone book: "Available in the app".
-class ContactsScreen extends ConsumerWidget {
-  const ContactsScreen({super.key});
+///
+/// Owner 2026-10-21: two sections under a segmented switch — «Contacts» and
+/// «Calls» (history and the group calls running now, like WhatsApp).
+class ContactsScreen extends ConsumerStatefulWidget {
+  const ContactsScreen({this.initialCalls = false, super.key});
+
+  /// Opens on the «Calls» section.
+  final bool initialCalls;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ContactsScreen> createState() => _ContactsScreenState();
+}
+
+class _ContactsScreenState extends ConsumerState<ContactsScreen> {
+  late bool _calls = widget.initialCalls;
+  late final PageController _pages =
+      PageController(initialPage: _calls ? 1 : 0);
+
+  @override
+  void dispose() {
+    _pages.dispose();
+    super.dispose();
+  }
+
+  /// A tap on the segment slides to the section; a swipe lands here too.
+  void _show(bool calls, {bool slide = true}) {
+    if (calls == _calls) return;
+    ref.read(callLogSelectionProvider.notifier).stop();
+    setState(() => _calls = calls);
+    if (!slide || !_pages.hasClients) return;
+    if (context.reduceMotion) {
+      _pages.jumpToPage(calls ? 1 : 0);
+    } else {
+      unawaited(
+        _pages.animateToPage(
+          calls ? 1 : 0,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOutCubic,
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
-    return Scaffold(
-      backgroundColor: colors.bg,
-      appBar: AppTopBar(
-        leading: AppBackButton(
-          semanticLabel: t.t('common.back'),
-          onPressed: () => Navigator.of(context).maybePop(),
+    final picked = ref.watch(callLogSelectionProvider);
+    // Owner 2026-10-21: the segment sits small in the middle of the top bar
+    // (Telegram); a slot on the right keeps it centred on both sections.
+    final bar = picked != null
+        ? CallLogSelectionBar(picked: picked)
+        : AppTopBar(
+            leading: AppBackButton(
+              semanticLabel: t.t('common.back'),
+              onPressed: () => Navigator.of(context).maybePop(),
+            ),
+            title: ContactsCallsSegment(
+              calls: _calls,
+              contactsLabel: t.t('phoneContacts.title'),
+              callsLabel: t.t('calls.title'),
+              onChanged: _show,
+            ),
+            actions: [
+              if (_calls)
+                const CallLogMenuButton()
+              else
+                const SizedBox(width: AppSizes.hitTarget),
+            ],
+          );
+    return PopScope(
+      // Back first ends picking (WhatsApp).
+      canPop: picked == null,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) ref.read(callLogSelectionProvider.notifier).stop();
+      },
+      child: Scaffold(
+        backgroundColor: colors.bg,
+        appBar: bar,
+        // Owner 2026-10-21: the two sections slide like the other tabs of
+        // the app (the same on Android and iOS).
+        body: PageView(
+          controller: _pages,
+          onPageChanged: (i) => _show(i == 1, slide: false),
+          children: [
+            if (kIsWeb)
+              AppEmptyState(
+                icon: AppIcons.contactPhoneOutlined,
+                message: t.t('phoneContacts.webOnly'),
+              )
+            else
+              _Body(t: t),
+            const CallsTab(),
+          ],
         ),
-        title: Text(t.t('phoneContacts.title')),
       ),
-      body: kIsWeb
-          ? AppEmptyState(
-              icon: AppIcons.contactPhoneOutlined,
-              message: t.t('phoneContacts.webOnly'),
-            )
-          : _Body(t: t),
     );
   }
 }
@@ -160,6 +238,18 @@ class _BodyState extends ConsumerState<_Body> {
                     trailing: _Actions(contact: onLawBid[i]),
                   ),
                 ),
+              // Owner 2026-10-21 (inbox 25b, Instagram): anyone in the app
+              // by name or @username, under my contacts.
+              SliverToBoxAdapter(
+                child: PeopleSuggestList(
+                  key: const ValueKey('contacts-suggest'),
+                  query: _query,
+                  scrollable: false,
+                  title: t.t('search.tab.people'),
+                  excludeIds: {for (final c in data.onLawBid) c.userId},
+                  onPick: (p) => _openPerson(context, ref, p),
+                ),
+              ),
               if (invite.isNotEmpty) ...[
                 SliverToBoxAdapter(
                   child: ContactsSectionTitle(
@@ -177,6 +267,9 @@ class _BodyState extends ConsumerState<_Body> {
               ],
               if (ref.watch(currentUserRoleProvider) == UserRole.client)
                 const SliverToBoxAdapter(child: _FindByPhoneSwitch()),
+              // Owner 2026-10-20: the «disable and delete contacts» link lives
+              // here, not under the Search field.
+              const SliverToBoxAdapter(child: ContactsSection()),
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(
@@ -220,6 +313,17 @@ void _openProfile(BuildContext context, WidgetRef ref, LawBidContact c) {
       c.person.isAttorney
           ? AppRoutes.lawyer(username)
           : AppRoutes.client(username),
+    ),
+  );
+}
+
+/// A person found in the whole app: their profile.
+void _openPerson(BuildContext context, WidgetRef ref, SuggestedPerson p) {
+  unawaited(
+    context.push(
+      p.isAttorney
+          ? AppRoutes.lawyer(p.username)
+          : AppRoutes.client(p.username),
     ),
   );
 }

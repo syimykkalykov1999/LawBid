@@ -102,6 +102,11 @@ variable "worker_spot" {
   default     = false
   description = "Run the worker on Fargate Spot (up to 70 % cheaper): one task stays on regular Fargate, the rest are Spot (weight 1:3). Safe for the queue: an interrupted job is retried."
 }
+variable "api_spot" {
+  type        = bool
+  default     = false
+  description = "Run extra API tasks on Fargate Spot (up to 70 % cheaper): the first task stays on regular Fargate (base 1), tasks added by autoscaling are Spot (weight 1:3). A Spot interruption gives 2 minutes: the ALB drains the task and the app reconnects through the other tasks."
+}
 variable "night_scale_down" {
   type        = bool
   default     = false
@@ -380,11 +385,20 @@ resource "aws_ecs_service" "api" {
   cluster                           = aws_ecs_cluster.this.id
   task_definition                   = aws_ecs_task_definition.api.arn
   desired_count                     = var.min_tasks
-  launch_type                       = "FARGATE"
+  launch_type                       = var.api_spot ? null : "FARGATE"
   platform_version                  = "LATEST"
   health_check_grace_period_seconds = 60
   enable_execute_command            = false
   propagate_tags                    = "SERVICE"
+
+  dynamic "capacity_provider_strategy" {
+    for_each = var.api_spot ? { FARGATE = { base = 1, weight = 1 }, FARGATE_SPOT = { base = 0, weight = 3 } } : {}
+    content {
+      capacity_provider = capacity_provider_strategy.key
+      base              = capacity_provider_strategy.value.base
+      weight            = capacity_provider_strategy.value.weight
+    }
+  }
 
   network_configuration {
     subnets          = var.private_subnet_ids

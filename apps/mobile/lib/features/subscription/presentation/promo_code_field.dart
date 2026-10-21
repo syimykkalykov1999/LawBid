@@ -135,7 +135,7 @@ class _PromoCodeFieldState extends State<PromoCodeField> {
           onPressed: () => setState(() => _open = true),
           icon: AppIcon(
             AppIcons.sellOutlined,
-            color: colors.goldDark,
+            color: colors.iconTint,
             size: 18,
           ),
           label: Text(

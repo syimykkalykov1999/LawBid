@@ -17,6 +17,7 @@ import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/navigation/shell/shell_layout.dart';
 import 'package:lawbid/core/navigation/shell/web_media_width.dart';
 import 'package:lawbid/core/navigation/shell/web_page_frame.dart';
+import 'package:lawbid/core/text/bidi.dart';
 import 'package:lawbid/core/text/tidy_text.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
@@ -78,7 +79,11 @@ class PostVideoCaption extends ConsumerWidget {
     required this.post,
     required this.line,
     required this.onMore,
+    this.author,
   });
+
+  /// Owner 2026-10-21 (Instagram): the author's username, bold, first.
+  final String? author;
 
   /// Owner 2026-10-18: «ещё» even for a short line when the post has files.
   bool get _force => post.attachments.isNotEmpty;
@@ -92,8 +97,21 @@ class PostVideoCaption extends ConsumerWidget {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    final oneLine = line.replaceAll(RegExp(r'\s+'), ' ').trim();
-    if (oneLine.isEmpty) return const SizedBox.shrink();
+    final text = line.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (text.isEmpty) return const SizedBox.shrink();
+    final lead =
+        author == null || author!.isEmpty ? '' : '${ltrIsolate(author!)} ';
+    final oneLine = '$lead$text';
+    List<InlineSpan> led(String shown) =>
+        lead.isNotEmpty && shown.startsWith(lead)
+            ? [
+                TextSpan(
+                  text: lead,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                TextSpan(text: shown.substring(lead.length)),
+              ]
+            : [TextSpan(text: shown)];
     final more = t.t('post.more');
     // Measured with the same style the Text draws (DefaultTextStyle merged),
     // or «ещё» can fall to a third line and be clipped (owner 2026-10-15).
@@ -160,13 +178,17 @@ class PostVideoCaption extends ConsumerWidget {
                 },
               );
               if (shownOrNull == null) {
-                return Text(oneLine, maxLines: 2, style: base);
+                return Text.rich(
+                  TextSpan(children: led(oneLine)),
+                  maxLines: 2,
+                  style: base,
+                );
               }
               final shown = shownOrNull;
               return Text.rich(
                 TextSpan(
                   children: [
-                    TextSpan(text: shown),
+                    ...led(shown),
                     TextSpan(
                       text: '  $more',
                       style: TextStyle(color: colors.textSecondary),
@@ -585,6 +607,7 @@ class PostCard extends ConsumerWidget {
               line: title.isNotEmpty && !text.startsWith(title)
                   ? '$title $text'
                   : text,
+              author: p.author.username,
               onMore: () => showPostTextSheet(context, p),
             )
           else
@@ -594,6 +617,7 @@ class PostCard extends ConsumerWidget {
             FeedCaption(
               // A new text (translation) starts collapsed again.
               key: ValueKey('${p.id}:${title.hashCode}:${text.hashCode}'),
+              author: p.author.username,
               title: title,
               text: text,
               hashtags: hashtags,
@@ -631,8 +655,10 @@ class PostCard extends ConsumerWidget {
     final m = _trailingTags.firstMatch(trimmed);
     if (m == null) return (trimmed, const []);
     final tags = [
-      for (final x
-          in RegExp(r'#[\p{L}\p{N}_]+', unicode: true).allMatches(m.group(0)!))
+      for (final x in RegExp(
+        r'#[\p{L}\p{N}_]+',
+        unicode: true,
+      ).allMatches(m.group(0)!))
         x.group(0)!,
     ];
     return (trimmed.substring(0, m.start).trim(), tags);
@@ -709,10 +735,12 @@ class PostCard extends ConsumerWidget {
                     body: title,
                     expanded: true,
                     mentions: p.mentions,
-                    style: typography.titleLarge.copyWith(
-                      fontFamily: typography.body.fontFamily,
+                    // Owner 2026-10-20 (Instagram): the title is bold in
+                    // the caption's own size, never bigger.
+                    style: typography.body.copyWith(
                       color: colors.text,
                       fontWeight: FontWeight.w700,
+                      height: 1.45,
                     ),
                   ),
                   if (rest.isNotEmpty)
@@ -722,6 +750,7 @@ class PostCard extends ConsumerWidget {
                         body: rest,
                         expanded: true,
                         mentions: p.mentions,
+                        large: true,
                       ),
                     ),
                 ],
@@ -780,30 +809,6 @@ class PostCard extends ConsumerWidget {
         // Owner 2026-10-07: the comment button opens the comments sheet.
         if (fromProfile) PostPromoRow(post: p),
         PostActionsBar(post: p, run: run, boost: false, reactions: false),
-        if (p.likeCount > 0 && showLikeCount(ref, p))
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.lg,
-              0,
-              AppSpacing.lg,
-              AppSpacing.xs,
-            ),
-            child: Text(
-              SocialFormat.plural(
-                t,
-                ref.watch(l10nFormatsProvider),
-                'post.likes',
-                p.likeCount,
-              ),
-              style: Theme.of(context)
-                  .extension<AppTypographyTokens>()!
-                  .bodySmall
-                  .copyWith(
-                    color: colors.text,
-                    fontWeight: FontWeight.w600,
-                  ),
-            ),
-          ),
         if (p.pendingReview)
           Padding(
             padding: const EdgeInsets.fromLTRB(
@@ -932,7 +937,9 @@ class _InstagramPost extends ConsumerWidget {
           onMore: inDetail ? null : open,
           forceMore: !inDetail && p.attachments.isNotEmpty,
           mentions: p.mentions,
-          large: !hasMedia,
+          // Owner 2026-10-20 (Instagram): one caption size with or
+          // without media.
+          large: true,
         );
 
     return Column(
@@ -987,7 +994,6 @@ class _InstagramPost extends ConsumerWidget {
         PostActionsBar(
           post: p,
           run: run,
-          showCounts: false,
           showTime: true,
           boost: !inDetail,
           reactions: !inDetail,
@@ -995,24 +1001,6 @@ class _InstagramPost extends ConsumerWidget {
           // Owner 2026-10-07: the comment button opens the comments sheet,
           // inside the post too.
         ),
-        if (p.likeCount > 0 && showLikeCount(ref, p))
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.lg,
-              0,
-              AppSpacing.lg,
-              AppSpacing.xs,
-            ),
-            child: Text(
-              SocialFormat.plural(t, f, 'post.likes', p.likeCount),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: type.bodySmall.copyWith(
-                color: colors.text,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
         if (hasMedia && caption.isNotEmpty)
           Padding(
             padding: side,
@@ -1152,7 +1140,9 @@ class _ThreadsPost extends ConsumerWidget {
           onMore: inDetail ? null : open,
           forceMore: !inDetail && p.attachments.isNotEmpty,
           mentions: p.mentions,
-          large: inDetail,
+          // Owner 2026-10-20 (Instagram): the same size in the feed and
+          // inside.
+          large: true,
         );
 
     Widget action(Widget icon, int count, {VoidCallback? onCountTap}) => Row(
@@ -1167,8 +1157,10 @@ class _ThreadsPost extends ConsumerWidget {
                   padding: const EdgeInsetsDirectional.only(end: AppSpacing.sm),
                   child: Text(
                     SocialFormat.count(f, count),
+                    // The same number look as the post bar's (_Count).
                     style: type.bodySmall.copyWith(
-                      color: colors.textSecondary,
+                      color: colors.text,
+                      fontWeight: FontWeight.w500,
                       fontSize: 13,
                     ),
                   ),
@@ -1261,10 +1253,7 @@ class _ThreadsPost extends ConsumerWidget {
               SizedBox(
                 width: 48,
                 height: 28,
-                child: OverflowBox(
-                  maxHeight: 48,
-                  child: menuButton,
-                ),
+                child: OverflowBox(maxHeight: 48, child: menuButton),
               )
             else
               menuButton,
@@ -1346,7 +1335,7 @@ class _ThreadsPost extends ConsumerWidget {
             // The first icon's edge on the avatar's edge (the icon sits 7 in
             // its 34-wide touch area).
             child: Transform.translate(
-              offset: const Offset(-7, 0),
+              offset: const Offset(-6, 0),
               child: Row(
                 children: [
                   action(
@@ -1355,20 +1344,21 @@ class _ThreadsPost extends ConsumerWidget {
                       activeIcon: AppIcons.favoriteRounded,
                       icon: AppIcons.favoriteBorderRounded,
                       activeColor: colors.danger,
-                      size: 22,
-                      extent: 34,
+                      extent: 38,
                       label: t.t(p.likedByMe ? 'post.unlike' : 'post.like'),
                       onTap: () => run(() => actions.toggleLike(p)),
                     ),
-                    0,
+                    // Owner 2026-10-20: the same «icon + number» as posts;
+                    // a tap on the number opens who liked.
+                    showLikeCount(ref, p) ? p.likeCount : 0,
+                    onCountTap: () => showLikersList(context, p.id),
                   ),
                   action(
                     BounceIcon(
                       active: false,
                       activeIcon: AppIcons.modeCommentOutlined,
                       icon: AppIcons.modeCommentOutlined,
-                      size: 22,
-                      extent: 34,
+                      extent: 38,
                       label: t.t('post.comments'),
                       // In the open thread the replies are right below:
                       // no sheet.
@@ -1388,10 +1378,10 @@ class _ThreadsPost extends ConsumerWidget {
                       activeIcon: AppIcons.autoModeRounded,
                       icon: AppIcons.autoModeRounded,
                       activeColor: colors.success,
-                      size: 22,
-                      extent: 34,
-                      label:
-                          t.t(p.repostedByMe ? 'post.unrepost' : 'post.repost'),
+                      extent: 38,
+                      label: t.t(
+                        p.repostedByMe ? 'post.unrepost' : 'post.repost',
+                      ),
                       onTap: () => showRepostSheet(context, ref, p),
                     ),
                     p.repostCount,
@@ -1403,12 +1393,11 @@ class _ThreadsPost extends ConsumerWidget {
                       active: false,
                       activeIcon: AppIcons.sendOutlined,
                       icon: AppIcons.sendOutlined,
-                      size: 22,
-                      extent: 34,
+                      extent: 38,
                       label: t.t('post.share'),
                       onTap: () => sharePost(context, ref, p),
                     ),
-                    0,
+                    p.shareCount,
                   ),
                 ],
               ),
@@ -1437,8 +1426,8 @@ class _ThreadsPost extends ConsumerWidget {
           activeIcon: AppIcons.bookmarkRounded,
           icon: AppIcons.bookmarkBorderRounded,
           activeColor: colors.gold,
-          size: 24,
-          extent: 34,
+          size: 28,
+          extent: 38,
           label: t.t(p.savedByMe ? 'post.unsave' : 'post.save'),
           onTap: () => run(() => actions.toggleSave(p)),
         ),
@@ -1985,10 +1974,7 @@ class AuthorHeader extends ConsumerWidget {
           ConstrainedBox(
             constraints: BoxConstraints(maxWidth: followMaxWidth),
             child: onDark
-                ? ReelFollowButton(
-                    attorneyId: a.id,
-                    initial: a.isFollowing,
-                  )
+                ? ReelFollowButton(attorneyId: a.id, initial: a.isFollowing)
                 : FollowButton(
                     attorneyId: a.id,
                     initial: a.isFollowing,
@@ -2203,6 +2189,10 @@ class PostBodyText extends ConsumerStatefulWidget {
 
   final double height;
   final bool expanded;
+
+  /// The regular caption size ([AppTypographyTokens.body]) — every post
+  /// caption passes it (owner 2026-10-20, Instagram); without it the
+  /// smaller comment size.
   final bool large;
 
   @override
@@ -2212,8 +2202,10 @@ class PostBodyText extends ConsumerStatefulWidget {
 class _PostBodyTextState extends ConsumerState<PostBodyText> {
   /// Pasted runs of empty lines collapse to one (owner 2026-10-07).
   String get _body => tidyText(widget.body);
-  static final _token =
-      RegExp(r'(#[\p{L}\p{N}_]+|@[A-Za-z0-9._]+)', unicode: true);
+  static final _token = RegExp(
+    r'(#[\p{L}\p{N}_]+|@[A-Za-z0-9._]+)',
+    unicode: true,
+  );
   late bool _expanded = widget.expanded;
   final _recognizers = <TapGestureRecognizer>[];
 
@@ -2264,8 +2256,10 @@ class _PostBodyTextState extends ConsumerState<PostBodyText> {
         spans.add(
           TextSpan(
             text: token,
-            style:
-                TextStyle(color: colors.goldDark, fontWeight: FontWeight.w600),
+            style: TextStyle(
+              color: colors.goldDark,
+              fontWeight: FontWeight.w600,
+            ),
             recognizer: r,
           ),
         );
@@ -2321,8 +2315,10 @@ class _PostBodyTextState extends ConsumerState<PostBodyText> {
       return const SizedBox.shrink();
     }
     final style = widget.style ??
-        (widget.large ? type.body : type.bodySmall)
-            .copyWith(color: colors.text, height: widget.height);
+        (widget.large ? type.body : type.bodySmall).copyWith(
+          color: colors.text,
+          height: widget.height,
+        );
     final text = Text.rich(
       TextSpan(children: _spans(colors), style: style),
       maxLines: _expanded ? null : widget.collapsedLines,
@@ -2730,7 +2726,6 @@ class PostActionsBar extends ConsumerWidget {
     required this.post,
     required this.run,
     this.showTime = false,
-    this.showCounts = true,
     this.boost = true,
     this.reactions = true,
     super.key,
@@ -2743,10 +2738,6 @@ class PostActionsBar extends ConsumerWidget {
   /// Owner 2026-10-07: «Продвигать» only on the cards in a list, never
   /// inside the open post.
   final bool boost;
-
-  /// Owner 2026-10-06: Instagram-style posts show bare icons; the likes
-  /// count sits on its own line below.
-  final bool showCounts;
 
   final Post post;
   final Future<void> Function(Future<Object?> Function()) run;
@@ -2775,9 +2766,42 @@ class PostActionsBar extends ConsumerWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  if (!reactions) ...[
+                    if (post.likeCount > 0 && showLikeCount(ref, post))
+                      _Stat(
+                        icon: AppIcons.favoriteRounded,
+                        value: post.likeCount,
+                        color: colors.danger,
+                        onTap: () => showLikersList(context, post.id),
+                      ),
+                    if (post.commentCount > 0)
+                      _Stat(
+                        icon: AppIcons.modeCommentOutlined,
+                        value: post.commentCount,
+                        color: colors.textSecondary,
+                        onTap: () => showCommentsSheet(
+                          context,
+                          postId: post.id,
+                          commentsEnabled: post.commentsEnabled,
+                        ),
+                      ),
+                    if (post.repostCount > 0)
+                      _Stat(
+                        icon: AppIcons.autoModeRounded,
+                        value: post.repostCount,
+                        color: colors.textSecondary,
+                        onTap: () => showRepostersList(context, post.id),
+                      ),
+                    if (post.shareCount > 0)
+                      _Stat(
+                        icon: AppIcons.sendOutlined,
+                        value: post.shareCount,
+                        color: colors.textSecondary,
+                        onTap: () => sharePost(context, ref, post),
+                      ),
+                  ],
                   if (reactions) ...[
                     BounceIcon(
-                      size: _kBarIcon,
                       extent: _kBarExtent,
                       active: post.likedByMe,
                       activeIcon: AppIcons.favoriteRounded,
@@ -2786,10 +2810,15 @@ class PostActionsBar extends ConsumerWidget {
                       label: t.t(post.likedByMe ? 'post.unlike' : 'post.like'),
                       onTap: () => run(() => actions.toggleLike(post)),
                     ),
-                    // Owner 2026-10-15 (Instagram): no count next to like or
-                    // send; the comments keep theirs.
+                    // Owner 2026-10-20: «иконка + счётчик справа», no text
+                    // line under the post; a tap on the number opens the
+                    // people who liked. The author may hide the counter.
+                    if (post.likeCount > 0 && showLikeCount(ref, post))
+                      _Count(
+                        post.likeCount,
+                        onTap: () => showLikersList(context, post.id),
+                      ),
                     BounceIcon(
-                      size: _kBarIcon,
                       extent: _kBarExtent,
                       active: false,
                       activeIcon: AppIcons.modeCommentOutlined,
@@ -2801,10 +2830,27 @@ class PostActionsBar extends ConsumerWidget {
                         commentsEnabled: post.commentsEnabled,
                       ),
                     ),
-                    if (showCounts && (showTime || post.commentCount > 0))
-                      _Count(post.commentCount),
+                    // A zero shows no number (Instagram), like likes / shares.
+                    if (post.commentCount > 0) _Count(post.commentCount),
+                    // Owner 2026-10-21: photo and video posts get the repost
+                    // and its number too — the same row as a text post.
                     BounceIcon(
-                      size: _kBarIcon,
+                      extent: _kBarExtent,
+                      active: post.repostedByMe,
+                      activeIcon: AppIcons.autoModeRounded,
+                      icon: AppIcons.autoModeRounded,
+                      activeColor: colors.success,
+                      label: t.t(
+                        post.repostedByMe ? 'post.unrepost' : 'post.repost',
+                      ),
+                      onTap: () => showRepostSheet(context, ref, post),
+                    ),
+                    if (post.repostCount > 0)
+                      _Count(
+                        post.repostCount,
+                        onTap: () => showRepostersList(context, post.id),
+                      ),
+                    BounceIcon(
                       extent: _kBarExtent,
                       active: false,
                       activeIcon: AppIcons.sendOutlined,
@@ -2812,6 +2858,7 @@ class PostActionsBar extends ConsumerWidget {
                       label: t.t('post.share'),
                       onTap: () => sharePost(context, ref, post),
                     ),
+                    if (post.shareCount > 0) _Count(post.shareCount),
                   ],
                 ],
               ),
@@ -2836,34 +2883,71 @@ class PostActionsBar extends ConsumerWidget {
 }
 
 class _Count extends ConsumerWidget {
-  const _Count(this.value);
+  const _Count(this.value, {this.onTap});
 
   final int value;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final f = ref.watch(l10nFormatsProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    final text = Text(
+      SocialFormat.count(f, value),
+      maxLines: 1,
+      style: type.bodySmall.copyWith(
+        color: colors.text,
+        fontWeight: FontWeight.w500,
+        fontSize: 13,
+      ),
+    );
     return Padding(
       padding: const EdgeInsetsDirectional.only(end: AppSpacing.sm),
-      child: Text(
-        SocialFormat.count(f, value),
-        style: type.bodySmall.copyWith(
-          color: colors.text,
-          fontWeight: FontWeight.w500,
-          fontSize: 13,
-        ),
+      child: onTap == null ? text : AppPressable(onTap: onTap, child: text),
+    );
+  }
+}
+
+/// «Иконка + счётчик» (read-only icon) for the open post, where the like
+/// and comment buttons are not shown.
+class _Stat extends StatelessWidget {
+  const _Stat({
+    required this.icon,
+    required this.value,
+    required this.color,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final int value;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(end: AppSpacing.xs),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: _kBarExtent,
+            height: _kBarExtent,
+            child: Center(child: AppIcon(icon, size: _kBarIcon, color: color)),
+          ),
+          _Count(value, onTap: onTap),
+        ],
       ),
     );
   }
 }
 
-/// Owner 2026-10-14: Instagram-size icons in the action bar (22).
-const double _kBarIcon = 22;
+/// Owner 2026-10-20: bigger, solid icons in the action bar (was 22).
+const double _kBarIcon = 26;
 
 /// Owner 2026-10-15: the touch area of a bar icon, as in a brief's row.
-const double _kBarExtent = 34;
+const double _kBarExtent = 38;
 
 /// The bar's side padding that puts the first icon's edge on the text's
 /// edge (lg) given [_kBarExtent].
@@ -2907,8 +2991,10 @@ class _BounceIconState extends State<BounceIcon>
   late final Animation<double> _scale = TweenSequence<double>([
     TweenSequenceItem(tween: Tween<double>(begin: 1, end: 1.28), weight: 40),
     TweenSequenceItem(
-      tween: Tween<double>(begin: 1.28, end: 1)
-          .chain(CurveTween(curve: Curves.elasticOut)),
+      tween: Tween<double>(
+        begin: 1.28,
+        end: 1,
+      ).chain(CurveTween(curve: Curves.elasticOut)),
       weight: 60,
     ),
   ]).animate(_c);
@@ -3116,6 +3202,38 @@ class _FeedCarouselState extends State<_FeedCarousel> {
                 onDoubleTap: widget.onDoubleTap,
                 onPage: (i) => setState(() => _page = i),
               ),
+              // Owner 2026-10-21 (Instagram): the dots sit on the photo's
+              // bottom, so the icons come right under the picture.
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 8,
+                child: IgnorePointer(
+                  child: ExcludeSemantics(
+                    child: Row(
+                      key: const ValueKey('feed-carousel-dots'),
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        for (var i = 0; i < count; i++)
+                          Container(
+                            margin: const EdgeInsets.symmetric(horizontal: 2),
+                            width: 6,
+                            height: 6,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: i == _page
+                                  ? colors.gold
+                                  : Colors.white.withValues(alpha: 0.7),
+                              boxShadow: [
+                                BoxShadow(color: colors.shadow, blurRadius: 2),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
               Positioned(
                 top: 10,
                 right: 10,
@@ -3144,26 +3262,6 @@ class _FeedCarouselState extends State<_FeedCarousel> {
                 ),
               ),
             ],
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.only(top: 8),
-          child: ExcludeSemantics(
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                for (var i = 0; i < count; i++)
-                  Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 2),
-                    width: 6,
-                    height: 6,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: i == _page ? colors.gold : colors.border,
-                    ),
-                  ),
-              ],
-            ),
           ),
         ),
       ],
@@ -3274,6 +3372,7 @@ class FeedCaption extends ConsumerStatefulWidget {
     required this.text,
     required this.hashtags,
     required this.onOpen,
+    this.author,
     this.onExpand,
     this.inPlaceOnly = false,
     this.onMore,
@@ -3296,6 +3395,10 @@ class FeedCaption extends ConsumerStatefulWidget {
   final String text;
   final List<String> hashtags;
   final VoidCallback onOpen;
+
+  /// Owner 2026-10-21 (Instagram): the author's username, bold, opens the
+  /// caption's first line (the title's, or the text's when no title).
+  final String? author;
 
   /// The text opened in place (the card gives up its fixed height).
   final VoidCallback? onExpand;
@@ -3378,14 +3481,8 @@ class FeedCaptionState extends ConsumerState<FeedCaption> {
     final scaler = MediaQuery.textScalerOf(context);
     return cachedCaptionFit<bool>(
       ('feedOver', text, measured, width, maxLines, direction, scaler),
-      () => captionOverflows(
-        text,
-        measured,
-        width,
-        maxLines,
-        direction,
-        scaler,
-      ),
+      () =>
+          captionOverflows(text, measured, width, maxLines, direction, scaler),
     );
   }
 
@@ -3397,14 +3494,7 @@ class FeedCaptionState extends ConsumerState<FeedCaption> {
     final scaler = MediaQuery.textScalerOf(context);
     return cachedCaptionFit<int>(
       ('feedLines', text, measured, width, direction, scaler),
-      () => captionLineCount(
-        text,
-        measured,
-        width,
-        direction,
-        scaler,
-        cap: 5,
-      ),
+      () => captionLineCount(text, measured, width, direction, scaler, cap: 5),
     );
   }
 
@@ -3413,21 +3503,39 @@ class FeedCaptionState extends ConsumerState<FeedCaption> {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    final titleStyle = type.titleMedium.copyWith(
+    // Owner 2026-10-20 (Instagram): the caption is the regular body size
+    // everywhere (emoji too); the title is the same size, only bold.
+    final titleStyle = type.body.copyWith(
       color: colors.text,
-      fontSize: 14,
       fontWeight: FontWeight.w600,
-      height: 1.25,
+      height: 1.3,
     );
-    final bodyStyle = type.bodySmall.copyWith(
-      color: colors.text.withValues(alpha: 0.8),
-      fontSize: 13.5,
-      height: 1.4,
+    final bodyStyle = type.body.copyWith(
+      color: colors.text,
+      height: 1.45,
     );
     final moreStyle = bodyStyle.copyWith(
       color: colors.textSecondary,
       fontWeight: FontWeight.w500,
     );
+    final lead = widget.author == null || widget.author!.isEmpty
+        ? ''
+        : '${ltrIsolate(widget.author!)} ';
+    // The username rides on the first line: the title's, else the text's.
+    final title = widget.title.isNotEmpty ? '$lead${widget.title}' : '';
+    final text = widget.title.isEmpty && widget.text.trim().isNotEmpty
+        ? '$lead${widget.text}'
+        : widget.text;
+    List<InlineSpan> led(String shown) =>
+        lead.isNotEmpty && shown.startsWith(lead)
+            ? [
+                TextSpan(
+                  text: lead,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                TextSpan(text: shown.substring(lead.length)),
+              ]
+            : [TextSpan(text: shown)];
     final hasText = widget.text.trim().isNotEmpty;
     final hasTags = widget.hashtags.isNotEmpty;
     for (final r in _tagTaps) {
@@ -3469,10 +3577,10 @@ class FeedCaptionState extends ConsumerState<FeedCaption> {
           // at the end of the text whenever there is text and anything is
           // cut (the title or the text); at the end of the title's line
           // when there is no text; none when everything fits.
-          final titleCut = widget.title.isNotEmpty &&
+          final titleCut = title.isNotEmpty &&
               !_expanded &&
               _overflows(
-                widget.title,
+                title,
                 titleStyle,
                 outer.maxWidth,
                 context,
@@ -3494,7 +3602,7 @@ class FeedCaptionState extends ConsumerState<FeedCaption> {
               // No text: «ещё» ends the title's own line.
               _more.onTap = openMore;
               final cut = _fit(
-                widget.title,
+                title,
                 '… $moreLabel',
                 titleStyle,
                 outer.maxWidth - 4,
@@ -3506,10 +3614,10 @@ class FeedCaptionState extends ConsumerState<FeedCaption> {
                   TextSpan(
                     style: titleStyle,
                     children: [
-                      TextSpan(
-                        text: cut >= widget.title.length
-                            ? '${widget.title} '
-                            : '${widget.title.substring(0, cut).trimRight()}… ',
+                      ...led(
+                        cut >= title.length
+                            ? '$title '
+                            : '${title.substring(0, cut).trimRight()}… ',
                       ),
                       TextSpan(
                         text: moreLabel,
@@ -3523,8 +3631,8 @@ class FeedCaptionState extends ConsumerState<FeedCaption> {
             }
             return AppPressable(
               onTap: widget.onOpen,
-              child: Text(
-                widget.title,
+              child: Text.rich(
+                TextSpan(children: led(title)),
                 maxLines: _expanded ? null : _titleLines,
                 overflow:
                     _expanded ? TextOverflow.visible : TextOverflow.ellipsis,
@@ -3536,14 +3644,18 @@ class FeedCaptionState extends ConsumerState<FeedCaption> {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (widget.title.isNotEmpty) titleWidget(),
+              if (title.isNotEmpty) titleWidget(),
               if (hasText)
                 LayoutBuilder(
                   builder: (context, box) {
                     // Owner 2026-10-18 (speed): counted up to 5 lines and
                     // cached (only "> 2" and "> 4" are asked below).
-                    final lines =
-                        _lines(widget.text, bodyStyle, box.maxWidth, context);
+                    final lines = _lines(
+                      text,
+                      bodyStyle,
+                      box.maxWidth,
+                      context,
+                    );
                     final collapsed = (lines > 2 ||
                             hasTags ||
                             widget.forceMore ||
@@ -3563,18 +3675,18 @@ class FeedCaptionState extends ConsumerState<FeedCaption> {
                     };
                     final cut = collapsed
                         ? _fit(
-                            widget.text,
+                            text,
                             '… $moreLabel',
                             bodyStyle,
                             box.maxWidth - 4,
                             context,
                           )
-                        : widget.text.length;
+                        : text.length;
                     final shown = !collapsed
-                        ? widget.text
-                        : cut < widget.text.length
-                            ? '${widget.text.substring(0, cut).trimRight()}… '
-                            : '${widget.text} ';
+                        ? text
+                        : cut < text.length
+                            ? '${text.substring(0, cut).trimRight()}… '
+                            : '$text ';
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -3586,7 +3698,7 @@ class FeedCaptionState extends ConsumerState<FeedCaption> {
                               TextSpan(
                                 style: bodyStyle,
                                 children: [
-                                  TextSpan(text: shown),
+                                  ...led(shown),
                                   if (collapsed)
                                     TextSpan(
                                       text: moreLabel,
@@ -3701,10 +3813,8 @@ class _FeedFill extends StatefulWidget {
   const _FeedFill({required this.height, required this.builder});
 
   final double? height;
-  final Widget Function({
-    required bool fill,
-    required VoidCallback onExpand,
-  }) builder;
+  final Widget Function({required bool fill, required VoidCallback onExpand})
+      builder;
 
   @override
   State<_FeedFill> createState() => _FeedFillState();

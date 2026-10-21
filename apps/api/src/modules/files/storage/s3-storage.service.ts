@@ -103,6 +103,12 @@ export class S3StorageService implements OnModuleDestroy {
     }
   }
 
+  /** True when storage keys are present (loads them first). */
+  async ready(): Promise<boolean> {
+    await this.refresh();
+    return this.configured;
+  }
+
   get configured(): boolean {
     return this.client !== undefined;
   }

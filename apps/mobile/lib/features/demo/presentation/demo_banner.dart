@@ -73,7 +73,7 @@ class _Banner extends ConsumerWidget {
               AppIcon(
                 AppIcons.warningAmberRounded,
                 size: 16,
-                color: colors.gold,
+                color: colors.iconTint,
               ),
               const SizedBox(width: AppSpacing.sm),
               // The text yields; the two buttons keep their place.
@@ -103,7 +103,7 @@ class _Banner extends ConsumerWidget {
                 icon: AppIcon(
                   AppIcons.logoutRounded,
                   size: 18,
-                  color: colors.gold,
+                  color: colors.iconTint,
                 ),
                 semanticLabel: t.t('demo.banner.exit'),
                 isLoading: busy,

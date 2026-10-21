@@ -425,14 +425,14 @@ class ContractCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
-        color: colors.goldTint,
+        color: colors.iconTintFill,
         borderRadius: BorderRadius.circular(AppRadii.card),
-        border: Border.all(color: colors.goldStroke),
+        border: Border.all(color: colors.iconTint),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          AppIcon(AppIcons.giftOutlined, color: colors.goldDark, size: 28),
+          AppIcon(AppIcons.giftOutlined, color: colors.iconTint, size: 28),
           const SizedBox(width: AppSpacing.md),
           Expanded(
             child: Column(

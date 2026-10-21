@@ -350,7 +350,7 @@ class TemplateCard extends ConsumerWidget {
                     Text(
                       t.t('templates.lawyersOnly'),
                       style: type.caption.copyWith(
-                        color: colors.gold,
+                        color: colors.goldText,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -486,7 +486,7 @@ class _TemplateSheetState extends ConsumerState<TemplateSheet> {
                   children: [
                     AppIcon(
                       AppIcons.lockOutlineRounded,
-                      color: colors.gold,
+                      color: colors.iconTint,
                       size: 20,
                     ),
                     const SizedBox(width: AppSpacing.sm),

@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -14,6 +15,8 @@ import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/time/local_now.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
 import 'package:lawbid/features/cases/workspace/workspace_data.dart';
+import 'package:lawbid/features/consultations/application/consultations_providers.dart';
+import 'package:lawbid/features/consultations/consultations_routes.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
@@ -24,6 +27,7 @@ import 'package:lawbid/features/team/presentation/task_sheet.dart';
 import 'package:lawbid/features/team/presentation/task_widgets.dart';
 import 'package:lawbid/features/team/presentation/team_widgets.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
+import 'package:lawbid/shared/presentation/edge_swipe.dart';
 
 /// Owner 2026-10-05: «Сегодня» (by time of day), «Все» (by day),
 /// «Архив» (finished — kept a year, then removed) and an assistant's
@@ -616,6 +620,14 @@ class _TasksTabState extends ConsumerState<TasksTab> {
                   showViews: widget.showViews,
                   attorneySide: _attorneySide,
                   assistant: assistant,
+                  // Owner 2026-10-20: booking and the deadline calculator
+                  // live one tap from the planner.
+                  consultations:
+                      !assistant && ref.watch(consultationsFlagProvider),
+                  deadlines: !assistant &&
+                      ref
+                          .watch(featureFlagsControllerProvider)
+                          .isEnabled('deadline_calculator'),
                   onScope: (scope) => setState(() {
                     _view = TasksView.all;
                     _picked.clear();
@@ -1007,11 +1019,17 @@ class _TaskList extends ConsumerWidget {
                                 : () => onPick(task))
                             : task.boardTask != null
                                 ? () => onOpenCase(task)
-                                : () => showTaskSheet(
-                                      context,
-                                      task: task,
-                                      listKey: listKey,
-                                    ),
+                                : task.consultationId != null
+                                    ? () => context.push(
+                                          ConsultationsRoutes.detail(
+                                            task.consultationId!,
+                                          ),
+                                        )
+                                    : () => showTaskSheet(
+                                          context,
+                                          task: task,
+                                          listKey: listKey,
+                                        ),
                         onMarkTap: choosing ||
                                 !task.canComplete ||
                                 task.status == TaskStatus.cancelled
@@ -1145,7 +1163,12 @@ class _TopChips extends StatelessWidget {
     required this.assistant,
     required this.onScope,
     required this.onView,
+    this.consultations = false,
+    this.deadlines = false,
   });
+
+  final bool consultations;
+  final bool deadlines;
 
   final Translator t;
   final TaskFilter filter;
@@ -1191,6 +1214,20 @@ class _TopChips extends StatelessWidget {
             () => onView(TasksView.results),
           ),
       ],
+      if (consultations)
+        (
+          'consultations',
+          t.t('consult.chip'),
+          false,
+          () => context.push(ConsultationsRoutes.list),
+        ),
+      if (deadlines)
+        (
+          'deadlines',
+          t.t('consult.chip.deadlines'),
+          false,
+          () => context.push('/deadlines'),
+        ),
     ];
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
@@ -1283,27 +1320,20 @@ class _SwipeRow extends StatelessWidget {
       colors.goldTint,
       start: false,
     );
-    return Dismissible(
+    final rightBg =
+        bg(AppIcons.checkRounded, rightLabel, colors.gold, start: true);
+    void fire(VoidCallback? call) {
+      unawaited(HapticFeedback.mediumImpact());
+      // The card stays; the list updates from the server.
+      call?.call();
+    }
+
+    return EdgeSwipe(
       key: ValueKey('dismiss-${task.id}'),
-      direction: right && left
-          ? DismissDirection.horizontal
-          : right
-              ? DismissDirection.startToEnd
-              : DismissDirection.endToStart,
-      background: right
-          ? bg(AppIcons.checkRounded, rightLabel, colors.gold, start: true)
-          : leftBg,
-      secondaryBackground: right && left ? leftBg : null,
-      confirmDismiss: (d) async {
-        unawaited(HapticFeedback.mediumImpact());
-        if (d == DismissDirection.startToEnd) {
-          onRight?.call();
-        } else {
-          onLeft?.call();
-        }
-        // The card stays; the list updates from the server.
-        return false;
-      },
+      onStart: right ? () => fire(onRight) : null,
+      onEnd: left ? () => fire(onLeft) : null,
+      startBackground: right ? rightBg : leftBg,
+      endBackground: leftBg,
       child: child,
     );
   }
@@ -1512,7 +1542,7 @@ class _ArchiveNote extends StatelessWidget {
         key: const ValueKey('tasks-archive-note'),
         padding: const EdgeInsets.all(AppSpacing.sm),
         decoration: BoxDecoration(
-          color: colors.goldTint,
+          color: colors.iconTintFill,
           borderRadius: BorderRadius.circular(AppRadii.field),
         ),
         child: Row(
@@ -1521,7 +1551,7 @@ class _ArchiveNote extends StatelessWidget {
             AppIcon(
               AppIcons.infoOutlineRounded,
               size: 18,
-              color: colors.goldDark,
+              color: colors.iconTint,
             ),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
@@ -1589,7 +1619,11 @@ class _ResultsList extends ConsumerWidget {
               t: t,
               formats: formats,
               now: now,
-              onTap: () => showTaskSheet(context, task: task, listKey: listKey),
+              onTap: () => task.consultationId != null
+                  ? context.push(
+                      ConsultationsRoutes.detail(task.consultationId!),
+                    )
+                  : showTaskSheet(context, task: task, listKey: listKey),
             ),
           ),
       ],

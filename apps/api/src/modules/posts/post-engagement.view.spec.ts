@@ -136,3 +136,47 @@ describe('PostEventsService', () => {
     });
   });
 });
+
+/** Owner 2026-10-20: one share per user and post per 24 h counts. */
+describe('PostEngagementService share dedup', () => {
+  function setup(existing: boolean) {
+    const create = jest.fn().mockResolvedValue({});
+    const bump = jest.fn().mockResolvedValue(undefined);
+    const consume = jest.fn().mockResolvedValue(undefined);
+    const prisma = {
+      post: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'p1', author_id: 'a' }),
+      },
+      postShare: {
+        findFirst: jest
+          .fn()
+          .mockResolvedValue(existing ? { post_id: 'p1' } : null),
+        create,
+      },
+    };
+    const service = new PostEngagementService(
+      prisma as never,
+      { consume } as never,
+      { bump } as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+    return { service, create, bump };
+  }
+
+  it('a first share in 24 h counts', async () => {
+    const { service, create, bump } = setup(false);
+    await service.share('me', 'p1');
+    expect(create).toHaveBeenCalled();
+    expect(bump).toHaveBeenCalledWith('post', 'p1', 'share_count', 1);
+  });
+
+  it('a repeat within 24 h adds nothing', async () => {
+    const { service, create, bump } = setup(true);
+    await service.share('me', 'p1');
+    expect(create).not.toHaveBeenCalled();
+    expect(bump).not.toHaveBeenCalled();
+  });
+});

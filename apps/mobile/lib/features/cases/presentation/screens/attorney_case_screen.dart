@@ -478,7 +478,7 @@ class _BodyState extends ConsumerState<_Body> {
                   color: colors.chip,
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: AppIcon(icon, color: colors.goldDark),
+                child: AppIcon(icon, color: colors.iconTint),
               ),
               const SizedBox(width: AppSpacing.md),
               Expanded(
@@ -612,7 +612,7 @@ class _OwnBidCard extends ConsumerWidget {
                   ),
                   AppIcon(
                     AppIcons.chevronRightRounded,
-                    color: colors.goldDark,
+                    color: colors.iconTint,
                     size: AppSizes.iconSm,
                   ),
                 ],

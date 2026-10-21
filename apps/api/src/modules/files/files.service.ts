@@ -761,7 +761,8 @@ export class FilesService {
    * another purpose (a document template → the user's chat or case
    * attachment). Same bytes as an already-scanned file, so the copy is
    * clean at once; the target purpose's types, size limit, upload rate
-   * limit and storage budget still apply.
+   * limit (only when the bytes are really copied) and storage budget
+   * still apply.
    */
   async copyForUser(
     sourceFileId: string,
@@ -789,21 +790,6 @@ export class FilesService {
     const maxBytes = await this.maxBytes(purpose);
     if (Number(src.size_bytes) > maxBytes) throw this.tooLarge(maxBytes);
     const bucket = this.storage.bucket(rule.bucket);
-    const limit = await this.rateLimit.consumeFixedWindow(
-      ['files-presign', 'user', userId],
-      this.config.getOrThrow<number>('FILES_PRESIGN_LIMIT_PER_USER_PER_HOUR'),
-      3600,
-    );
-    if (!limit.allowed) {
-      throw new HttpException(
-        {
-          code: ErrorCode.RATE_LIMITED,
-          message: 'Too many uploads. Try again later.',
-          details: { retryAfterSeconds: limit.retryAfterSeconds },
-        },
-        HttpStatus.TOO_MANY_REQUESTS,
-      );
-    }
     if (!QUOTA_FREE_PURPOSES.includes(purpose)) {
       await this.assertQuota(userId, Number(src.size_bytes));
     }
@@ -830,6 +816,23 @@ export class FilesService {
       });
       return this.get(userId, fileId);
     }
+    // Owner 2026-10-21: only a real copy counts as an upload (forwarding
+    // one file into many chats used to hit the upload limit).
+    const limit = await this.rateLimit.consumeFixedWindow(
+      ['files-presign', 'user', userId],
+      this.config.getOrThrow<number>('FILES_PRESIGN_LIMIT_PER_USER_PER_HOUR'),
+      3600,
+    );
+    if (!limit.allowed) {
+      throw new HttpException(
+        {
+          code: ErrorCode.RATE_LIMITED,
+          message: 'Too many uploads. Try again later.',
+          details: { retryAfterSeconds: limit.retryAfterSeconds },
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
     await this.costGuard.consume('storage');
     const data = await this.storage.read(src.s3_bucket, src.s3_key);
     const key = `${demoKeyPrefix()}${purpose}/${userId}/${fileId}`;
@@ -850,6 +853,55 @@ export class FilesService {
       },
     });
     return this.get(userId, fileId);
+  }
+
+  /**
+   * Owner 2026-10-20 (case tools): a file the server itself made (an
+   * invoice, a signed PDF, a document built from a template) saved as a
+   * clean file of [userId] — there is nothing to scan: the bytes never
+   * came from outside. The global storage budget still applies; the user's
+   * own storage cap does not (a document the app produced for them).
+   */
+  async storeGenerated(
+    userId: string,
+    purpose: FilePurpose,
+    data: Buffer,
+    mime: FileMime,
+  ): Promise<File> {
+    const rule = PURPOSE_RULES[purpose];
+    const fileId = randomUUID();
+    const bucket = this.storage.bucket(rule.bucket);
+    await this.costGuard.consume('storage');
+    const key = `${demoKeyPrefix()}${purpose}/${userId}/${fileId}`;
+    await this.storage.put(bucket, key, data, mime);
+    const sha256 = createHash('sha256').update(data).digest('hex');
+    return this.prisma.file.create({
+      data: {
+        id: fileId,
+        owner_user_id: userId,
+        purpose,
+        s3_bucket: bucket,
+        s3_key: key,
+        mime,
+        size_bytes: BigInt(data.length),
+        sha256,
+        source_sha256: sha256,
+        scan_status: 'clean',
+      },
+    });
+  }
+
+  /** The bytes of a live, clean file (server-side reads: hashing a PDF
+   * before it is signed, merging it into the signed copy). */
+  async readClean(fileId: string): Promise<{ file: File; data: Buffer }> {
+    const file = await this.prisma.file.findUnique({ where: { id: fileId } });
+    if (!file || file.deleted_at !== null || file.scan_status !== 'clean') {
+      throw new NotFoundException({
+        code: ErrorCode.NOT_FOUND,
+        message: 'File not found.',
+      });
+    }
+    return { file, data: await this.storage.read(file.s3_bucket, file.s3_key) };
   }
 
   /**

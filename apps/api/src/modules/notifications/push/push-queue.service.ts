@@ -74,14 +74,26 @@ export class PushQueueService
     recipientId: string;
     conversationId: string;
     messageId: string;
+    groupId?: string;
+    event?: 'reaction' | 'edit';
+    actorId?: string;
+    emoji?: string;
   }): Promise<void> {
     if (demoContext.isDemo()) return;
     if (!this.queue) return;
     try {
+      // A reaction pushes once per person, emoji and message; an edit once
+      // per message — toggling or editing again never re-alerts.
+      const jobId =
+        data.event === 'reaction'
+          ? `r-${data.messageId}-${data.actorId}-${data.emoji}`
+          : data.event === 'edit'
+            ? `e-${data.messageId}`
+            : `m-${data.messageId}`;
       await this.queue.add(
         PUSH_JOB,
         { kind: 'message', ...data },
-        { ...MESSAGE_JOB_OPTS, jobId: `m-${data.messageId}` },
+        { ...MESSAGE_JOB_OPTS, jobId },
       );
     } catch (error) {
       this.logger.warn(

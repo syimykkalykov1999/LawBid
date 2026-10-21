@@ -59,8 +59,7 @@ void main() {
     const StaticTranslatorRu(),
   ]) {
     testWidgets(
-        'video post bar at 360dp: no views, no like/send counts, date shown, no Boost',
-        (
+        'video post bar at 360dp: like and comment counters, date, no Boost', (
       t,
     ) async {
       t.view.physicalSize = const Size(360, 740);
@@ -82,11 +81,11 @@ void main() {
       );
       await t.pump();
       expect(t.takeException(), isNull);
-      // Owner 2026-10-15: no views counter on feed cards; no count next to
-      // like or send, the comment count stays.
+      // Owner 2026-10-20: no views counter on feed cards; the like and
+      // comment and send counters sit right of their icons.
       expect(find.byIcon(AppIcons.visibilityOutlined), findsNothing);
-      expect(find.text('215K'), findsNothing);
-      expect(find.text('15K'), findsNothing);
+      expect(find.text('215K'), findsOneWidget);
+      expect(find.text('15.4K'), findsOneWidget);
       expect(find.text('1.2M'), findsOneWidget);
       expect(find.byType(BoostButton), findsNothing);
       expect(
@@ -99,10 +98,10 @@ void main() {
         ),
         findsOneWidget,
       );
-      // Instagram size: 22dp icons, the bookmark 24.
+      // Owner 2026-10-20: 26dp icons, the bookmark 28.
       final like = t.getSize(find.byIcon(AppIcons.favoriteBorderRounded)).width;
       final save = t.getSize(find.byIcon(AppIcons.bookmarkBorderRounded)).width;
-      expect(like, 22);
+      expect(like, 26);
       expect(save, greaterThan(like));
       expect(save - like, lessThanOrEqualTo(3));
     });

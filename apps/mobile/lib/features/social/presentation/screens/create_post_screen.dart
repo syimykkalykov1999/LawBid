@@ -394,7 +394,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                       constraints: const BoxConstraints(minHeight: 52),
                       child: Row(
                         children: [
-                          AppIcon(icon, color: colors.goldDark),
+                          AppIcon(icon, color: colors.iconTint),
                           const SizedBox(width: AppSpacing.md),
                           Expanded(
                             child: Text(
@@ -992,7 +992,7 @@ class _KindToggle extends StatelessWidget {
                     AppIcon(
                       icon,
                       size: 18,
-                      color: selected ? colors.goldLight : colors.text,
+                      color: selected ? colors.iconTint : colors.text,
                     ),
                     const SizedBox(width: AppSpacing.xs),
                     Flexible(
@@ -1078,7 +1078,7 @@ class _PracticeField extends StatelessWidget {
               AppIcon(
                 empty ? AppIcons.searchRounded : icon,
                 size: 20,
-                color: colors.goldDark,
+                color: colors.iconTint,
               ),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
@@ -1346,7 +1346,7 @@ class _VideoSummary extends StatelessWidget {
               constraints: const BoxConstraints(minHeight: 44),
               child: Row(
                 children: [
-                  AppIcon(icon, color: tint ?? colors.goldDark, size: 20),
+                  AppIcon(icon, color: tint ?? colors.iconTint, size: 20),
                   const SizedBox(width: AppSpacing.sm),
                   Expanded(
                     child: Text(

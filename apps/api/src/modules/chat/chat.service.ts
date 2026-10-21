@@ -3,7 +3,14 @@ import {
   textLimit,
 } from '../../common/app-settings/text-limits.service';
 import { StickersService } from '../stickers/stickers.service';
+import { StarsService } from '../stars/stars.service';
+import type { GiftSendDto } from '../stars/stars.dto';
 import type { StickerDto } from '../stickers/stickers.dto';
+import {
+  SharedPostCardsService,
+  type SharedPostCardDto,
+} from '../posts/shared-post-cards.service';
+import { postNotFound } from '../posts/posts.service';
 import {
   BadRequestException,
   ConflictException,
@@ -18,6 +25,7 @@ import {
   type ChatPairKind,
   type Conversation,
   type Message,
+  type SavedChatKind,
 } from '@prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
@@ -32,6 +40,7 @@ import {
   typedWords,
 } from '../../common/search/name-match.sql';
 import { PrismaService } from '../../prisma/prisma.service';
+import { randomUUID } from 'node:crypto';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { BlocksService } from '../blocks/blocks.service';
@@ -50,8 +59,11 @@ import {
   type ChatAttachmentDto,
   type ConversationDto,
   type ConversationPage,
+  type ContactCardDto,
   type MessageDto,
   type MessagePage,
+  type ReactionDto,
+  type ReplyPreviewDto,
   type SendMessageDto,
   ChatFolderCountsDto,
   type ChatStorageDto,
@@ -59,11 +71,31 @@ import {
   OrganizeConversationDto,
 } from './chat.dto';
 import { MessageBodyCipher } from '../../common/secrets/message-body-cipher';
+import { loadMessageExtras, type MessageExtras } from './chat-message-extras';
+import { expiresAtFor, notExpired } from './disappearing';
 import { touchClientActive } from '../cases/cases.public';
+import {
+  type ForwardContent,
+  forwardName,
+  forwardNotAllowed,
+  forwardPartId,
+  unsupportedInTarget,
+} from '../../common/forward/forward-content';
 
 const CONVERSATIONS_PAGE = 20;
 const MESSAGES_PAGE = 30;
 const CATCH_UP_MAX = 100;
+/** A shared place is an address, not a letter. */
+const PLACE_MAX_CHARS = 200;
+const URL_RE = /(?:https?:\/\/|www\.)[^\s<>"]+/i;
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** A file name for a forwarded post photo (photo.jpg / photo.png…). */
+function photoName(mime: string | null | undefined): string {
+  const ext = (mime ?? '').split('/')[1]?.replace('jpeg', 'jpg') || 'jpg';
+  return `photo.${ext}`;
+}
 
 /** ~80 characters of [text] around the first typed word. */
 function snippetAround(text: string, words: string[]): string {
@@ -129,6 +161,7 @@ export class ChatService {
     private readonly blocks: BlocksService,
     private readonly presence: PresenceService,
     private readonly stickers: StickersService,
+    private readonly stars: StarsService,
     // Scaling TZ point 11: message texts encrypted at rest.
     @Optional() private readonly cipher?: MessageBodyCipher,
     // Owner 2026-10-05 (docs/CLIENT_FRAUD.md): a restricted account cannot
@@ -138,6 +171,8 @@ export class ChatService {
     @Optional() private readonly textLimits?: TextLimitsService,
     // Owner 2026-10-20: "who can write to me first" (Settings → Privacy).
     @Optional() private readonly privacy?: PrivacySettingsService,
+    // Owner 2026-10-21 (Instagram «Поделиться»): posts sent as cards.
+    @Optional() private readonly postCards?: SharedPostCardsService,
   ) {}
 
   /**
@@ -150,11 +185,26 @@ export class ChatService {
     folder: ConversationFolderName,
   ): Prisma.ConversationWhereInput[] {
     // Owner 2026-10-02: chats I removed from my list stay out of every folder.
+    // Owner 2026-10-20: archived ones live only in the «archive» folder.
+    const hiddenOut: Prisma.ConversationWhereInput = {
+      NOT: {
+        participants: { some: { user_id: me, hidden_at: { not: null } } },
+      },
+    };
+    if (folder === 'archive') {
+      return [
+        hiddenOut,
+        {
+          participants: { some: { user_id: me, archived_at: { not: null } } },
+        },
+      ];
+    }
     return [
       ...this.folderWhereInner(me, folder),
+      hiddenOut,
       {
         NOT: {
-          participants: { some: { user_id: me, hidden_at: { not: null } } },
+          participants: { some: { user_id: me, archived_at: { not: null } } },
         },
       },
     ];
@@ -200,6 +250,9 @@ export class ChatService {
         ];
       case 'waiting':
         return [notRequest, mine({ waiting_since: { not: null } })];
+      // Owner 2026-10-21: «Cases» — only the chats tied to a case.
+      case 'cases':
+        return [notRequest, { case_id: { not: null } }];
       default:
         return [notRequest];
     }
@@ -372,6 +425,9 @@ export class ChatService {
       ...(dto.hidden !== undefined
         ? { hidden_at: dto.hidden ? new Date() : null }
         : {}),
+      ...(dto.archived !== undefined
+        ? { archived_at: dto.archived ? new Date() : null }
+        : {}),
       ...(dto.pinned !== undefined
         ? {
             pinned_at: dto.pinned ? (current?.pinned_at ?? new Date()) : null,
@@ -390,25 +446,55 @@ export class ChatService {
       update: data,
     });
     // A hidden chat leaves the unread badge (and comes back when unhidden).
-    if (dto.hidden !== undefined) await this.badges.chatsChanged(user.sub);
+    // The write is done: a failing badge refresh (Redis / socket blip) must
+    // not turn into a 500 «something went wrong» on a chat that did move.
+    if (dto.hidden !== undefined || dto.archived !== undefined)
+      await this.badges.chatsChanged(user.sub).catch(() => undefined);
     return this.get(user, id);
   }
 
   /** Owner 2026-10-01: badges of the Waiting and Requests folders. */
   async folderCounts(user: RequestUser): Promise<ChatFolderCountsDto> {
-    if (!this.sideOf(user)) return { waiting: 0, requests: 0 };
-    const [waiting, requests] = await Promise.all([
-      this.prisma.conversation.count({
-        where: {
-          AND: [
-            { OR: [{ client_id: user.sub }, { attorney_id: user.sub }] },
-            ...this.folderWhere(user.sub, 'waiting'),
-          ],
-        },
-      }),
-      this.requestsCount(user),
-    ]);
-    return { waiting, requests: requests.count };
+    if (!this.sideOf(user)) {
+      return { waiting: 0, requests: 0, cases: 0, archived: 0 };
+    }
+    const [waiting, requests, casesAwaiting, archivedChats, archivedGroups] =
+      await Promise.all([
+        this.prisma.conversation.count({
+          where: {
+            AND: [
+              { OR: [{ client_id: user.sub }, { attorney_id: user.sub }] },
+              ...this.folderWhere(user.sub, 'waiting'),
+            ],
+          },
+        }),
+        this.requestsCount(user),
+        this.casesAwaitingCount(user.sub),
+        this.prisma.conversation.count({
+          where: {
+            AND: [
+              { OR: [{ client_id: user.sub }, { attorney_id: user.sub }] },
+              ...this.folderWhere(user.sub, 'archive'),
+              { last_message_at: { not: null } },
+            ],
+          },
+        }),
+        this.prisma.chatGroupMember.count({
+          where: {
+            user_id: user.sub,
+            left_at: null,
+            hidden_at: null,
+            archived_at: { not: null },
+            group: { deleted_at: null, last_message_at: { not: null } },
+          },
+        }),
+      ]);
+    return {
+      waiting,
+      requests: requests.count,
+      cases: casesAwaiting,
+      archived: archivedChats + archivedGroups,
+    };
   }
 
   async get(user: RequestUser, id: string): Promise<ConversationDto> {
@@ -464,9 +550,15 @@ export class ChatService {
         where: {
           conversation_id: id,
           deleted_at: null,
-          OR: [
-            { created_at: { gt: anchor.created_at } },
-            { created_at: anchor.created_at, id: { gt: anchor.id } },
+          hidden_for: { none: { user_id: user.sub } },
+          AND: [
+            notExpired(),
+            {
+              OR: [
+                { created_at: { gt: anchor.created_at } },
+                { created_at: anchor.created_at, id: { gt: anchor.id } },
+              ],
+            },
           ],
         },
         orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
@@ -483,15 +575,21 @@ export class ChatService {
       where: {
         conversation_id: id,
         deleted_at: null,
+        hidden_for: { none: { user_id: user.sub } },
         ...(only ? { type: only } : {}),
-        ...(c
-          ? {
-              OR: [
-                { created_at: { lt: c.createdAt } },
-                { created_at: c.createdAt, id: { lt: c.id } },
-              ],
-            }
-          : {}),
+        AND: [
+          notExpired(),
+          ...(c
+            ? [
+                {
+                  OR: [
+                    { created_at: { lt: c.createdAt } },
+                    { created_at: c.createdAt, id: { lt: c.id } },
+                  ],
+                },
+              ]
+            : []),
+        ],
       },
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
       take: MESSAGES_PAGE + 1,
@@ -514,11 +612,270 @@ export class ChatService {
     id: string,
     dto: SendMessageDto,
   ): Promise<MessageDto> {
+    if (!dto.forwardFromId) return this.sendContent(user, id, dto);
+    // A retry of a forward must not copy the file twice.
+    const existing = await this.findOwn(id, user.sub, dto.clientMessageId);
+    if (existing) {
+      return this.toMessage(
+        existing,
+        user.sub,
+        undefined,
+        await this.mediaLinks([existing]),
+      );
+    }
+    return this.sendContent(user, id, await this.forwardContent(user, dto));
+  }
+
+  /**
+   * Owner 2026-10-20: the content of the message to forward as a send
+   * request — text, sticker, or a voice note / file copied as a new file row
+   * over the same stored object (FilesService.copyForUser: no upload, same
+   * type, size and quota rules).
+   */
+  private async forwardContent(
+    user: RequestUser,
+    dto: SendMessageDto,
+  ): Promise<SendMessageDto & { forwardedFromName?: string }> {
+    const content = await this.forwardSource(user, dto.forwardFromId!);
+    return this.forwardDto(user, content, dto.clientMessageId, dto.replyToId);
+  }
+
+  /**
+   * Owner 2026-10-21 (Telegram «Переслать»): a message of a chat I take
+   * part in as forward content — 404 when I cannot read it, 403
+   * FORWARD_NOT_ALLOWED for a disappearing message (it stays where it was
+   * sent). A message that was already forwarded keeps the first author.
+   */
+  async forwardSource(user: RequestUser, id: string): Promise<ForwardContent> {
+    const src = await this.prisma.message.findFirst({
+      where: {
+        id,
+        deleted_at: null,
+        revoked_at: null,
+        hidden_for: { none: { user_id: user.sub } },
+      },
+    });
+    if (!src) throw notFound();
+    // Only from a chat the forwarder takes part in.
+    await this.load(user, src.conversation_id);
+    if (src.type === 'system' || src.type === 'call') {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_ERROR,
+        message: 'This message cannot be forwarded.',
+        details: { field: 'forwardFromId' },
+      });
+    }
+    if (src.expires_at) throw forwardNotAllowed();
+    const text = this.openBody(src.body_display);
+    // Telegram: "Forwarded from <name>". A message that was already
+    // forwarded keeps the first author's name.
+    const author = src.sender_id
+      ? await this.prisma.user.findUnique({
+          where: { id: src.sender_id },
+          select: { first_name: true, last_name: true },
+        })
+      : null;
+    const fromName =
+      src.forwarded_from_name ??
+      forwardName(author?.first_name, author?.last_name);
+    switch (src.type) {
+      case 'sticker':
+        return {
+          kind: 'sticker',
+          text: '',
+          stickerId: src.sticker_id ?? undefined,
+          fromName,
+        };
+      case 'voice':
+      case 'attachment': {
+        if (!src.file_id) throw notFound();
+        if (src.type === 'voice') {
+          return {
+            kind: 'voice',
+            text: '',
+            fileId: src.file_id,
+            durationMs: src.duration_ms ?? 0,
+            waveform: src.waveform,
+            fromName,
+          };
+        }
+        const file = await this.prisma.file.findUnique({
+          where: { id: src.file_id },
+          select: { mime: true },
+        });
+        return {
+          kind: 'attachment',
+          text,
+          fileId: src.file_id,
+          fileName: src.file_name ?? 'file',
+          mime: file?.mime,
+          fromName,
+        };
+      }
+      // Owner 2026-10-21: a shared attorney card stays a card (it used to
+      // arrive as a text with the attorney's id).
+      case 'contact':
+        return { kind: 'contact', text: '', contactUserId: text, fromName };
+      case 'place':
+        return { kind: 'place', text, fromName };
+      case 'gift':
+        return { kind: 'gift', text: '', fromName };
+      // Owner 2026-10-21: a shared feed post — a card in a chat, its link
+      // in a group or a channel.
+      case 'post':
+        return {
+          kind: 'text',
+          text: `${(process.env.WEB_APP_URL ?? 'https://lawbid.dev').replace(/\/+$/, '')}/post/${text}`,
+          postId: text,
+          fromName,
+        };
+      default:
+        return { kind: 'text', text, fromName };
+    }
+  }
+
+  /**
+   * Owner 2026-10-21: [content] forwarded into chat [id] through the normal
+   * send (the same checks, sockets and pushes). A channel post with photos
+   * makes one message per photo (the caption on the first, an album in the
+   * app). A retry with the same [clientMessageId] copies nothing again.
+   * [silent]: no push (only the last message of a batch rings).
+   */
+  async sendForwarded(
+    user: RequestUser,
+    id: string,
+    clientMessageId: string,
+    content: ForwardContent,
+    opts: { silent?: boolean } = {},
+  ): Promise<MessageDto> {
+    const photos = content.kind === 'post' ? (content.photoFileIds ?? []) : [];
+    const parts: ForwardContent[] =
+      photos.length > 0
+        ? photos.map((fileId, i) => ({
+            kind: 'attachment',
+            text:
+              i === 0
+                ? [content.text, content.postLink].filter(Boolean).join('\n')
+                : '',
+            fileId,
+            fromName: content.fromName,
+          }))
+        : [content];
+    let first: MessageDto | null = null;
+    for (const [i, part] of parts.entries()) {
+      const cmid = forwardPartId(clientMessageId, i);
+      const existing = await this.findOwn(id, user.sub, cmid);
+      const sent = existing
+        ? this.toMessage(
+            existing,
+            user.sub,
+            undefined,
+            await this.mediaLinks([existing]),
+          )
+        : await this.sendContent(
+            user,
+            id,
+            await this.forwardDto(user, part, cmid),
+            { silent: opts.silent || i < parts.length - 1 },
+          );
+      first ??= sent;
+    }
+    return first!;
+  }
+
+  /** [content] as a send request; a file is copied for [user] first. */
+  private async forwardDto(
+    user: RequestUser,
+    content: ForwardContent,
+    clientMessageId: string,
+    replyToId?: string,
+  ): Promise<SendMessageDto & { forwardedFromName?: string }> {
+    const base = {
+      clientMessageId,
+      forwarded: !content.own,
+      replyToId,
+      forwardedFromName: content.fromName ?? undefined,
+    };
+    // Owner 2026-10-21: a shared feed post stays a card in a chat.
+    if (content.postId)
+      return { ...base, type: 'post', postId: content.postId };
+    switch (content.kind) {
+      case 'sticker':
+        return { ...base, type: 'sticker', stickerId: content.stickerId };
+      case 'contact':
+        return {
+          ...base,
+          type: 'contact',
+          contactUserId: content.contactUserId,
+        };
+      case 'place':
+        return { ...base, type: 'place', body: content.text };
+      // A gift is paid once, by its giver.
+      case 'gift':
+        throw unsupportedInTarget();
+      case 'voice':
+        return {
+          ...base,
+          type: 'voice',
+          fileId: (
+            await this.files.copyForUser(
+              content.fileId!,
+              user.sub,
+              'chat_voice',
+            )
+          ).id,
+          durationMs: content.durationMs ?? 0,
+          waveform: content.waveform,
+        };
+      case 'attachment': {
+        const copy = await this.files.copyForUser(
+          content.fileId!,
+          user.sub,
+          'chat_attachment',
+        );
+        return {
+          ...base,
+          type: 'attachment',
+          body: content.text,
+          fileId: copy.id,
+          fileName: content.fileName ?? photoName(copy.mime),
+        };
+      }
+      default:
+        return {
+          ...base,
+          body: [content.text, content.postLink].filter(Boolean).join('\n'),
+        };
+    }
+  }
+
+  private async sendContent(
+    user: RequestUser,
+    id: string,
+    dto: SendMessageDto & { forwardedFromName?: string },
+    opts: { silent?: boolean } = {},
+  ): Promise<MessageDto> {
     const voice = dto.type === 'voice';
     const attachment = dto.type === 'attachment';
     // Owner 2026-10-01: a sticker carries no text.
     const sticker = dto.type === 'sticker';
-    const body = voice || sticker ? '' : (dto.body ?? '').trim();
+    // Owner 2026-10-20: a gift paid in stars (`body` is its note), a shared
+    // attorney card (the body is the attorney's id) and a place (the body is
+    // the address).
+    const gift = dto.type === 'gift';
+    const contact = dto.type === 'contact';
+    const place = dto.type === 'place';
+    // Owner 2026-10-21 (Instagram «Поделиться»): a post card (the body is
+    // the post's id; the app draws the card, the note goes as a text).
+    const post = dto.type === 'post';
+    const body =
+      voice || sticker
+        ? ''
+        : contact
+          ? (dto.contactUserId ?? '')
+          : post
+            ? (dto.postId ?? '')
+            : (dto.body ?? '').trim();
     await this.fraud?.assertNotRestricted(user.sub);
     // OQ-048: an assistant sends documents/photos only with "files".
     if (
@@ -540,6 +897,21 @@ export class ChatService {
           details: { fields: ['fileId', 'fileName'] },
         });
       }
+    } else if (gift) {
+      if (!dto.giftId) {
+        throw new BadRequestException({
+          code: ErrorCode.VALIDATION_ERROR,
+          message: 'A gift message needs giftId.',
+          details: { field: 'giftId' },
+        });
+      }
+      // An assistant never spends the attorney's stars.
+      if (user.assistant) {
+        throw new ForbiddenException({
+          code: ErrorCode.ASSISTANT_NOT_ALLOWED,
+          message: 'Assistants cannot give gifts.',
+        });
+      }
     } else if (sticker) {
       if (!dto.stickerId) {
         throw new BadRequestException({
@@ -547,6 +919,32 @@ export class ChatService {
           message: 'A sticker message needs stickerId.',
           details: { field: 'stickerId' },
         });
+      }
+    } else if (contact) {
+      if (!dto.contactUserId) {
+        throw new BadRequestException({
+          code: ErrorCode.VALIDATION_ERROR,
+          message: 'A contact card needs contactUserId.',
+          details: { field: 'contactUserId' },
+        });
+      }
+      if (!(await this.sharableAttorney(user.sub, dto.contactUserId))) {
+        throw new BadRequestException({
+          code: ErrorCode.VALIDATION_ERROR,
+          message: 'Only an attorney profile can be shared.',
+          details: { field: 'contactUserId' },
+        });
+      }
+    } else if (post) {
+      if (!dto.postId) {
+        throw new BadRequestException({
+          code: ErrorCode.VALIDATION_ERROR,
+          message: 'A post card needs postId.',
+          details: { field: 'postId' },
+        });
+      }
+      if (!(await this.sharablePost(user.sub, dto.postId))) {
+        throw postNotFound();
       }
     } else if (voice) {
       if (!dto.fileId || dto.durationMs === undefined) {
@@ -561,6 +959,13 @@ export class ChatService {
         code: ErrorCode.VALIDATION_ERROR,
         message: 'Empty message.',
         details: { field: 'body' },
+      });
+    }
+    if (place && [...body].length > PLACE_MAX_CHARS) {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_ERROR,
+        message: `An address is at most ${PLACE_MAX_CHARS} characters.`,
+        details: { field: 'body', max: PLACE_MAX_CHARS },
       });
     }
     const maxChars = await textLimit(
@@ -668,6 +1073,7 @@ export class ChatService {
       await this.files.assertChatRoom(id, dto.fileId!);
     }
     if (sticker) await this.stickers.useForMessage(user.sub, dto.stickerId!);
+    if (gift) await this.stars.assertMayGift(user.sub);
     if (voice) {
       await this.files.assertAttachable(user.sub, dto.fileId!, ['chat_voice']);
       // One note, one message: a file is never re-sent elsewhere.
@@ -683,14 +1089,28 @@ export class ChatService {
       }
     }
 
+    // Owner 2026-10-20: a reply quotes a message of this same chat.
+    let replyToId: string | null = null;
+    if (dto.replyToId) {
+      const quoted = await this.prisma.message.findFirst({
+        where: { id: dto.replyToId, conversation_id: id },
+        select: { id: true },
+      });
+      if (!quoted) throw notFound();
+      replyToId = quoted.id;
+    }
     let message: Message;
     try {
       message = await withTxRetry(this.prisma, async (tx) => {
         // Serializes with the file-04 transactions that close the chat or
         // unlock contacts.
         const [locked] = await tx.$queryRaw<
-          { status: string; contacts_unlocked: boolean }[]
-        >`SELECT status, contacts_unlocked FROM conversations
+          {
+            status: string;
+            contacts_unlocked: boolean;
+            disappear_after_s: number | null;
+          }[]
+        >`SELECT status, contacts_unlocked, disappear_after_s FROM conversations
             WHERE id = ${id}::UUID FOR UPDATE`;
         if (!locked || locked.status === 'closed') throw closed();
         if (attachment && !locked.contacts_unlocked) {
@@ -700,9 +1120,20 @@ export class ChatService {
           });
         }
         const masked =
-          voice || locked.contacts_unlocked
+          voice || contact || post || locked.contacts_unlocked
             ? { text: body, masked: false }
             : maskContactInfo(body);
+        const giftNote = gift && masked.text ? masked.text.slice(0, 200) : null;
+        const given = gift
+          ? await this.stars.giveGift(tx, {
+              giftId: dto.giftId!,
+              senderId: user.sub,
+              recipientId:
+                user.sub === conv.client_id ? conv.attorney_id : conv.client_id,
+              conversationId: id,
+              note: giftNote,
+            })
+          : null;
         const m = await tx.message.create({
           data: {
             conversation_id: id,
@@ -715,11 +1146,24 @@ export class ChatService {
                 ? 'attachment'
                 : sticker
                   ? 'sticker'
-                  : 'text',
-            body_original: this.seal(body),
-            body_display: this.seal(masked.text),
+                  : gift
+                    ? 'gift'
+                    : contact
+                      ? 'contact'
+                      : place
+                        ? 'place'
+                        : post
+                          ? 'post'
+                          : 'text',
+            body_original: this.seal(gift ? '' : body),
+            body_display: this.seal(gift ? '' : masked.text),
             contact_masked: masked.masked,
             client_message_id: dto.clientMessageId,
+            reply_to_id: replyToId,
+            // Owner 2026-10-21: disappearing messages.
+            expires_at: expiresAtFor(locked.disappear_after_s),
+            forwarded: dto.forwarded === true,
+            forwarded_from_name: dto.forwardedFromName ?? null,
             ...(voice
               ? {
                   file_id: dto.fileId,
@@ -733,7 +1177,9 @@ export class ChatService {
                   }
                 : sticker
                   ? { sticker_id: dto.stickerId }
-                  : {}),
+                  : given
+                    ? { gift_send_id: given.send.id }
+                    : {}),
           },
         });
         await tx.conversation.update({
@@ -750,7 +1196,7 @@ export class ChatService {
           where: {
             conversation_id_user_id: { conversation_id: id, user_id: user.sub },
           },
-          data: { last_read_message_id: m.id },
+          data: { last_read_message_id: m.id, last_read_at: new Date() },
         });
         return m;
       });
@@ -793,7 +1239,8 @@ export class ChatService {
     const pendingRequest =
       conv.request_status === 'pending' && conv.requested_by === user.sub;
     if (!pendingRequest) await this.badges.messageArrived(other);
-    if (!pendingRequest || requestFirst) {
+    // Owner 2026-10-21: a forwarded batch rings once (its last message).
+    if ((!pendingRequest || requestFirst) && !opts.silent) {
       await this.notifications.emit({
         type: 'new_message',
         recipientId: other,
@@ -940,16 +1387,51 @@ export class ChatService {
   }
 
   /** GET /conversations/requests/count (OQ-043): requests waiting for me. */
+  /**
+   * Owner 2026-10-21: case chats waiting for my answer — the last message
+   * is the other side's (a system line or a deleted message does not count).
+   */
+  private async casesAwaitingCount(me: string): Promise<number> {
+    const rows = await this.prisma.$queryRaw<{ n: bigint }[]>`
+      SELECT count(*) AS n
+      FROM conversations c
+      JOIN conversation_participants cp
+        ON cp.conversation_id = c.id AND cp.user_id = ${me}::UUID
+      WHERE (c.client_id = ${me}::UUID OR c.attorney_id = ${me}::UUID)
+        AND c.case_id IS NOT NULL
+        AND cp.hidden_at IS NULL AND cp.archived_at IS NULL
+        AND (c.request_status IN ('none', 'accepted')
+             OR c.requested_by = ${me}::UUID)
+        AND (SELECT m.sender_id FROM messages m
+             WHERE m.conversation_id = c.id AND m.deleted_at IS NULL
+             ORDER BY m.created_at DESC, m.id DESC LIMIT 1)
+            IS DISTINCT FROM ${me}::UUID
+        AND (SELECT m.sender_id FROM messages m
+             WHERE m.conversation_id = c.id AND m.deleted_at IS NULL
+             ORDER BY m.created_at DESC, m.id DESC LIMIT 1) IS NOT NULL`;
+    return Number(rows[0]?.n ?? 0);
+  }
+
   async requestsCount(user: RequestUser): Promise<{ count: number }> {
-    const count = await this.prisma.conversation.count({
-      where: {
-        OR: [{ client_id: user.sub }, { attorney_id: user.sub }],
-        request_status: 'pending',
-        requested_by: { not: user.sub },
-        last_message_at: { not: null },
-      },
-    });
-    return { count };
+    const [chats, invites] = await Promise.all([
+      this.prisma.conversation.count({
+        where: {
+          OR: [{ client_id: user.sub }, { attorney_id: user.sub }],
+          request_status: 'pending',
+          requested_by: { not: user.sub },
+          last_message_at: { not: null },
+        },
+      }),
+      // Owner 2026-10-21: group invitations wait in Requests too.
+      this.prisma.chatGroupInvite.count({
+        where: {
+          invitee_id: user.sub,
+          status: 'pending',
+          group: { deleted_at: null },
+        },
+      }),
+    ]);
+    return { count: chats + invites };
   }
 
   /** POST /conversations/:id/request/accept | decline (OQ-043). */
@@ -1008,7 +1490,7 @@ export class ChatService {
         where: {
           conversation_id_user_id: { conversation_id: id, user_id: user.sub },
         },
-        select: { last_read_message_id: true },
+        select: { last_read_message_id: true, last_delivered_message_id: true },
       });
       const current = me.last_read_message_id
         ? await tx.message.findUnique({
@@ -1023,7 +1505,16 @@ export class ChatService {
         where: {
           conversation_id_user_id: { conversation_id: id, user_id: user.sub },
         },
-        data: { last_read_message_id: target.id },
+        data: {
+          last_read_message_id: target.id,
+          last_read_at: new Date(),
+          // Reading it means it got there (the grey ticks never lag the blue).
+          ...(await this.deliveredPatch(
+            tx,
+            me.last_delivered_message_id,
+            target,
+          )),
+        },
       });
       return { lastReadMessageId: target.id, moved: true };
     });
@@ -1034,10 +1525,112 @@ export class ChatService {
       this.realtime.toUsers([other], 'message:read', {
         conversationId: id,
         lastReadMessageId: result.lastReadMessageId,
+        readAt: new Date().toISOString(),
       });
       await this.badges.chatsChanged(user.sub);
     }
     return { lastReadMessageId: result.lastReadMessageId };
+  }
+
+  /** Best effort, never blocks or fails the list. */
+  private async deliverListed(
+    viewerId: string,
+    convs: { id: string; last_message_id: string | null }[],
+    messageOf: Map<string, { id: string; sender_id: string | null }>,
+    partOf: Map<string, { last_delivered_message_id: string | null }>,
+  ): Promise<void> {
+    let n = 0;
+    for (const c of convs) {
+      const m = c.last_message_id ? messageOf.get(c.last_message_id) : null;
+      if (!m || m.sender_id === null || m.sender_id === viewerId) continue;
+      if (
+        partOf.get(`${c.id}:${viewerId}`)?.last_delivered_message_id === m.id
+      ) {
+        continue;
+      }
+      if (++n > 20) return;
+      try {
+        await this.delivered({ sub: viewerId } as RequestUser, c.id, m.id);
+      } catch {
+        // The list is what matters.
+      }
+    }
+  }
+
+  /** The delivered pointer moves forward only: the patch to set it to
+   * [target], or nothing when it is already at or past it. */
+  private async deliveredPatch(
+    tx: Pick<PrismaService, 'message'>,
+    currentId: string | null,
+    target: { id: string; created_at: Date },
+  ): Promise<{ last_delivered_message_id?: string; last_delivered_at?: Date }> {
+    const current = currentId
+      ? await tx.message.findUnique({
+          where: { id: currentId },
+          select: { id: true, created_at: true },
+        })
+      : null;
+    if (current && !isAfter(target, current)) return {};
+    return {
+      last_delivered_message_id: target.id,
+      last_delivered_at: new Date(),
+    };
+  }
+
+  /**
+   * POST /conversations/:id/delivered — this person's device has the messages
+   * up to [lastDeliveredMessageId] (WhatsApp's two grey ticks). Forward only,
+   * idempotent; the sender hears `message:delivered`.
+   */
+  async delivered(
+    user: RequestUser,
+    id: string,
+    lastDeliveredMessageId: string,
+  ): Promise<{ lastDeliveredMessageId: string | null }> {
+    const conv = await this.load(user, id);
+    const target = await this.prisma.message.findFirst({
+      where: { id: lastDeliveredMessageId, conversation_id: id },
+      select: { id: true, created_at: true },
+    });
+    if (!target) {
+      throw new NotFoundException({
+        code: ErrorCode.NOT_FOUND,
+        message: 'Message not found.',
+      });
+    }
+    const result = await withTxRetry(this.prisma, async (tx) => {
+      const me = await tx.conversationParticipant.findUniqueOrThrow({
+        where: {
+          conversation_id_user_id: { conversation_id: id, user_id: user.sub },
+        },
+        select: { last_delivered_message_id: true },
+      });
+      const patch = await this.deliveredPatch(
+        tx,
+        me.last_delivered_message_id,
+        target,
+      );
+      if (patch.last_delivered_message_id === undefined) {
+        return { id: me.last_delivered_message_id, moved: false };
+      }
+      await tx.conversationParticipant.update({
+        where: {
+          conversation_id_user_id: { conversation_id: id, user_id: user.sub },
+        },
+        data: patch,
+      });
+      return { id: target.id, moved: true };
+    });
+    if (result.moved) {
+      const other =
+        user.sub === conv.client_id ? conv.attorney_id : conv.client_id;
+      this.realtime.toUsers([other], 'message:delivered', {
+        conversationId: id,
+        lastDeliveredMessageId: result.id,
+        deliveredAt: new Date().toISOString(),
+      });
+    }
+    return { lastDeliveredMessageId: result.id };
   }
 
   /** PATCH /conversations/:id/mute (§8.4): push off until `until`. */
@@ -1057,6 +1650,87 @@ export class ChatService {
     return dto;
   }
 
+  /** Owner 2026-10-21: «mute calls» of this chat only (messages untouched). */
+  async muteCalls(
+    user: RequestUser,
+    id: string,
+    muted: boolean,
+  ): Promise<ConversationDto> {
+    const conv = await this.load(user, id);
+    await this.prisma.conversationParticipant.update({
+      where: {
+        conversation_id_user_id: { conversation_id: id, user_id: user.sub },
+      },
+      data: { calls_muted: muted },
+    });
+    const [dto] = await this.present([conv], user.sub);
+    return dto;
+  }
+
+  /**
+   * PATCH …/disappearing (owner 2026-10-21, WhatsApp): either side of a
+   * direct chat switches the timer for new messages (null = off). Case chats
+   * keep their history (the case journal and the attorney's file rely on it),
+   * and a chat that is only a request cannot change it yet. A service line
+   * «X turned on disappearing messages: 7 days» is posted for both sides.
+   */
+  async setDisappearing(
+    user: RequestUser,
+    id: string,
+    afterS: number | null,
+  ): Promise<ConversationDto> {
+    const conv = await this.load(user, id);
+    if (conv.case_id !== null || conv.request_status === 'pending') {
+      throw new ForbiddenException({
+        code: ErrorCode.FORBIDDEN,
+        message: 'Disappearing messages are not available in this chat.',
+      });
+    }
+    if (conv.status === 'closed') throw closed();
+    if (conv.disappear_after_s === afterS) {
+      return (await this.present([conv], user.sub))[0];
+    }
+    const body = afterS ? `disappear:${afterS}` : 'disappear_off';
+    const { message, updated } = await withTxRetry(this.prisma, async (tx) => {
+      const updated = await tx.conversation.update({
+        where: { id },
+        data: { disappear_after_s: afterS },
+      });
+      // The line carries the actor (sender); it never expires itself.
+      const message = await tx.message.create({
+        data: {
+          conversation_id: id,
+          sender_id: user.sub,
+          type: 'system',
+          body_original: body,
+          body_display: body,
+          client_message_id: `system:disappear:${randomUUID()}`,
+        },
+      });
+      await tx.conversation.update({
+        where: { id },
+        data: {
+          last_message_at: message.created_at,
+          last_message_id: message.id,
+        },
+      });
+      await tx.conversationParticipant.updateMany({
+        where: { conversation_id: id, hidden_at: { not: null } },
+        data: { hidden_at: null },
+      });
+      return { message, updated };
+    });
+    for (const uid of [updated.client_id, updated.attorney_id]) {
+      this.realtime.toUsers([uid], 'message:new', {
+        message: this.toMessage(message, uid, updated),
+      });
+      this.realtime.toUsers([uid], 'conversation:update', {
+        conversationId: id,
+      });
+    }
+    return (await this.present([updated], user.sub))[0];
+  }
+
   private sideOf(user: RequestUser): 'client_id' | 'attorney_id' | null {
     return user.role === 'client'
       ? 'client_id'
@@ -1071,7 +1745,92 @@ export class ChatService {
   }
 
   /** The conversation if the caller takes part in it, else 404. */
-  private async load(user: RequestUser, id: string): Promise<Conversation> {
+  /**
+   * Owner 2026-10-20 («Сохранённое»): what kind of saved item message [id]
+   * is, for a reader of its chat. 404 when the person is not in the chat or
+   * the message is gone; 400 for a message that is not worth saving (a
+   * system line, a call, a sticker).
+   */
+  async savableKind(user: RequestUser, id: string): Promise<SavedChatKind> {
+    const m = await this.prisma.message.findFirst({
+      where: { id, deleted_at: null },
+    });
+    if (!m) throw notFound();
+    await this.load(user, m.conversation_id);
+    switch (m.type) {
+      case 'voice':
+        return 'voice';
+      case 'contact':
+        return 'contact';
+      case 'place':
+        return 'place';
+      case 'attachment': {
+        const f = m.file_id
+          ? (await this.files.attachmentUrls([m.file_id])).get(m.file_id)
+          : undefined;
+        const mime = f?.mime ?? '';
+        return isImageMime(mime) || mime.startsWith('video/')
+          ? 'media'
+          : 'file';
+      }
+      case 'text':
+        return URL_RE.test(this.openBody(m.body_display)) ? 'link' : 'text';
+      default:
+        throw new BadRequestException({
+          code: ErrorCode.VALIDATION_ERROR,
+          message: 'This message cannot be saved.',
+          details: { field: 'messageId' },
+        });
+    }
+  }
+
+  /**
+   * The messages [ids] as [user] reads them, each with its chat — newest
+   * order of [ids] kept. A message of a chat the person is not in (or a
+   * deleted one) is left out.
+   */
+  async messagesWithChats(
+    user: RequestUser,
+    ids: string[],
+  ): Promise<{ message: MessageDto; chat: ConversationDto }[]> {
+    if (ids.length === 0) return [];
+    const rows = await this.prisma.message.findMany({
+      where: { id: { in: ids }, deleted_at: null },
+    });
+    const convs = new Map<string, Conversation>();
+    for (const convId of new Set(rows.map((r) => r.conversation_id))) {
+      try {
+        convs.set(convId, await this.load(user, convId));
+      } catch {
+        // Not in that chat any more: its messages stay unseen.
+      }
+    }
+    const readable = rows.filter((r) => convs.has(r.conversation_id));
+    const [urls, chats] = await Promise.all([
+      this.mediaLinks(readable),
+      this.present([...convs.values()], user.sub),
+    ]);
+    const chatOf = new Map(chats.map((c) => [c.id, c]));
+    const byId = new Map(readable.map((r) => [r.id, r]));
+    const out: { message: MessageDto; chat: ConversationDto }[] = [];
+    for (const id of ids) {
+      const r = byId.get(id);
+      const chat = r ? chatOf.get(r.conversation_id) : undefined;
+      if (!r || !chat) continue;
+      out.push({
+        message: this.toMessage(
+          r,
+          user.sub,
+          convs.get(r.conversation_id),
+          urls,
+        ),
+        chat,
+      });
+    }
+    return out;
+  }
+
+  async load(user: RequestUser, id: string): Promise<Conversation> {
     const conv = await this.prisma.conversation.findUnique({ where: { id } });
     if (
       !conv ||
@@ -1083,17 +1842,34 @@ export class ChatService {
   }
 
   /** Signed links for the voice notes and attachments among [rows]. */
-  private async mediaLinks(rows: Message[]): Promise<MediaLinks> {
+  async mediaLinks(rows: Message[]): Promise<MediaLinks> {
     const ids = (type: Message['type']) =>
       rows.flatMap((m) => (m.type === type && m.file_id ? [m.file_id] : []));
-    const [voice, attachments, stickers] = await Promise.all([
-      this.files.voiceUrls(ids('voice')),
-      this.files.attachmentUrls(ids('attachment')),
-      this.stickers.forMessages(
-        rows.flatMap((m) => (m.sticker_id ? [m.sticker_id] : [])),
-      ),
-    ]);
-    return { voice, attachments, stickers };
+    const [voice, attachments, stickers, gifts, contacts, posts] =
+      await Promise.all([
+        this.files.voiceUrls(ids('voice')),
+        this.files.attachmentUrls(ids('attachment')),
+        this.stickers.forMessages(
+          rows.flatMap((m) => (m.sticker_id ? [m.sticker_id] : [])),
+        ),
+        this.stars.forMessages(
+          rows.flatMap((m) => (m.gift_send_id ? [m.gift_send_id] : [])),
+        ),
+        this.contactCards(
+          rows.flatMap((m) =>
+            m.type === 'contact' ? [this.openBody(m.body_display)] : [],
+          ),
+        ),
+        // Owner 2026-10-21: the cards of shared posts, in one batch.
+        this.postCards?.cards(
+          rows.flatMap((m) => {
+            const postId = this.openBody(m.body_display);
+            return m.type === 'post' && UUID_RE.test(postId) ? [postId] : [];
+          }),
+        ) ?? Promise.resolve(new Map<string, SharedPostCardDto>()),
+      ]);
+    const extras = await loadMessageExtras(this.prisma, rows);
+    return { voice, attachments, stickers, gifts, contacts, posts, extras };
   }
 
   private findOwn(id: string, senderId: string, clientMessageId: string) {
@@ -1108,6 +1884,101 @@ export class ChatService {
     });
   }
 
+  private openBody(stored: string): string {
+    return this.cipher?.open(stored) ?? stored;
+  }
+
+  /** Owner 2026-10-20: only an attorney's public profile can be shared. */
+  private async sharableAttorney(
+    viewerId: string,
+    userId: string,
+  ): Promise<boolean> {
+    // Not a person the sender blocked or who blocked the sender.
+    if ((await this.blocks.hiddenIds(viewerId)).has(userId)) return false;
+    const u = await this.prisma.user.findFirst({
+      where: {
+        id: userId,
+        status: 'active',
+        role: 'attorney',
+        attorney_profile: { isNot: null },
+      },
+      select: { id: true },
+    });
+    return u !== null;
+  }
+
+  /** Owner 2026-10-21 (Instagram «Поделиться»): a post the sender can see
+   * whose author did not block them (nor they the author). */
+  private async sharablePost(
+    viewerId: string,
+    postId: string,
+  ): Promise<boolean> {
+    const authorId = await this.postCards?.sharableAuthor(viewerId, postId);
+    if (!authorId) return false;
+    if (authorId === viewerId) return true;
+    return !(await this.blocks.hiddenIds(viewerId)).has(authorId);
+  }
+
+  /** The public cards of the attorneys shared in a page of messages. */
+  private async contactCards(
+    ids: string[],
+  ): Promise<Map<string, ContactCardDto>> {
+    const unique = [...new Set(ids)].filter((x) => UUID_RE.test(x));
+    if (unique.length === 0) return new Map();
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: unique }, role: 'attorney', status: 'active' },
+      select: {
+        id: true,
+        first_name: true,
+        last_name: true,
+        avatar_file_id: true,
+        attorney_profile: {
+          select: {
+            username: true,
+            firm_names: true,
+            trust_badge: true,
+            licenses: {
+              where: { license_status: 'verified' },
+              select: { state_code: true },
+            },
+            practice_areas: {
+              select: {
+                practice_area: { select: { i18n_key: true, sort: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+    const avatars = await this.files.avatarUrlsMany(
+      users.map((u) => u.avatar_file_id),
+    );
+    const out = new Map<string, ContactCardDto>();
+    for (const u of users) {
+      const p = u.attorney_profile;
+      if (!p) continue;
+      out.set(u.id, {
+        userId: u.id,
+        username: p.username,
+        displayName: fullName(u.first_name, u.last_name) ?? p.username,
+        avatarUrl: u.avatar_file_id
+          ? (avatars.get(u.avatar_file_id)?.url256 ?? null)
+          : null,
+        verifiedBadge: p.trust_badge,
+        firmNames: p.firm_names,
+        practiceKeys: p.practice_areas
+          .map((a) => a.practice_area)
+          .sort((a, b) => a.sort - b.sort)
+          .slice(0, 6)
+          .map((a) => a.i18n_key),
+        licensedStates: [
+          ...new Set(p.licenses.map((l) => l.state_code)),
+        ].sort(),
+      });
+    }
+    return out;
+  }
+
   private seal(text: string): string {
     return this.cipher?.seal(text) ?? text;
   }
@@ -1115,7 +1986,7 @@ export class ChatService {
   /** Security review (docs/05): while contacts are locked the attorney
    * must not learn the client's user id — their messages come with
    * senderId null (the app treats "not mine" the same). */
-  private toMessage(
+  toMessage(
     m: Message,
     viewerId: string,
     conv?: Pick<
@@ -1130,14 +2001,58 @@ export class ChatService {
       viewerId === conv.attorney_id &&
       !conv.contacts_unlocked &&
       m.sender_id === conv.client_id;
+    const revoked = m.revoked_at !== null;
+    const extras = media?.extras;
+    const target = m.reply_to_id
+      ? extras?.replyTargets.get(m.reply_to_id)
+      : undefined;
+    const reactionRows = extras?.reactions.get(m.id) ?? [];
+    const reactions: ReactionDto[] = [];
+    for (const r of reactionRows) {
+      const have = reactions.find((x) => x.emoji === r.emoji);
+      if (have) {
+        have.count += 1;
+        have.mine ||= r.userId === viewerId;
+      } else {
+        reactions.push({
+          emoji: r.emoji,
+          count: 1,
+          mine: r.userId === viewerId,
+        });
+      }
+    }
     return {
       id: m.id,
       conversationId: m.conversation_id,
       senderId: hideSender ? null : m.sender_id,
       sentByAssistant: m.sent_by_name,
       type: m.type,
+      editedAt: m.edited_at,
+      revoked,
+      forwarded: m.forwarded && !revoked,
+      forwardedFrom: m.forwarded && !revoked ? m.forwarded_from_name : null,
+      replyTo:
+        target && !revoked
+          ? {
+              id: target.id,
+              senderId: target.sender_id,
+              type: target.type as ReplyPreviewDto['type'],
+              revoked: target.revoked_at !== null,
+              snippet:
+                target.revoked_at || target.type !== 'text'
+                  ? ''
+                  : [
+                      ...(this.cipher?.open(target.body_display) ??
+                        target.body_display),
+                    ]
+                      .slice(0, 120)
+                      .join(''),
+            }
+          : null,
+      reactions: revoked ? [] : reactions,
+      pinned: !revoked && (extras?.pinned.has(m.id) ?? false),
       voice:
-        m.type === 'voice'
+        m.type === 'voice' && !revoked
           ? {
               url: m.file_id ? (media?.voice.get(m.file_id) ?? null) : null,
               durationMs: m.duration_ms ?? 0,
@@ -1145,10 +2060,17 @@ export class ChatService {
               listened: m.listened_at !== null,
             }
           : null,
-      attachment: m.type === 'attachment' ? this.attachmentOf(m, media) : null,
+      attachment:
+        m.type === 'attachment' && !revoked
+          ? this.attachmentOf(m, media)
+          : null,
       sticker:
-        m.type === 'sticker' && m.sticker_id
+        m.type === 'sticker' && m.sticker_id && !revoked
           ? (media?.stickers.get(m.sticker_id) ?? null)
+          : null,
+      gift:
+        m.type === 'gift' && m.gift_send_id
+          ? (media?.gifts.get(m.gift_send_id) ?? null)
           : null,
       call:
         m.type === 'call'
@@ -1157,10 +2079,21 @@ export class ChatService {
               durationSec: Math.round((m.duration_ms ?? 0) / 1000),
             }
           : null,
-      body: this.cipher?.open(m.body_display) ?? m.body_display,
+      contact:
+        m.type === 'contact'
+          ? (media?.contacts.get(this.openBody(m.body_display)) ?? null)
+          : null,
+      post:
+        m.type === 'post' && !revoked
+          ? (media?.posts.get(this.openBody(m.body_display)) ?? null)
+          : null,
+      body: revoked
+        ? ''
+        : (this.cipher?.open(m.body_display) ?? m.body_display),
       contactMasked: m.contact_masked,
       clientMessageId: m.sender_id === viewerId ? m.client_message_id : null,
       createdAt: m.created_at,
+      expiresAt: m.expires_at,
     };
   }
 
@@ -1235,7 +2168,10 @@ export class ChatService {
             conversation_id: true,
             user_id: true,
             last_read_message_id: true,
+            last_read_at: true,
+            last_delivered_message_id: true,
             muted_until: true,
+            calls_muted: true,
             folder: true,
             waiting_since: true,
             note: true,
@@ -1265,6 +2201,9 @@ export class ChatService {
       participants.map((p) => [`${p.conversation_id}:${p.user_id}`, p]),
     );
     const unreadOf = new Map(unread.map((r) => [r.id, Number(r.n)]));
+    // Opening the app (the list loads) is a pull of the inbox: whatever sits
+    // there has reached this device, the sender's ticks turn grey-double.
+    void this.deliverListed(viewerId, convs, messageOf, partOf);
     const avatars = await this.files.avatarUrlsMany(
       users.map((u) => u.avatar_file_id),
     );
@@ -1330,10 +2269,18 @@ export class ChatService {
         lastMessage: last ? this.toMessage(last, viewerId, c) : null,
         lastMessageAt: c.last_message_at,
         unreadCount: unreadOf.get(c.id) ?? 0,
+        disappearAfterS: c.disappear_after_s,
         mutedUntil: partOf.get(`${c.id}:${viewerId}`)?.muted_until ?? null,
+        callsMuted: partOf.get(`${c.id}:${viewerId}`)?.calls_muted ?? false,
         counterpartLastReadMessageId: seenHidden
           ? null
           : (partOf.get(`${c.id}:${otherId}`)?.last_read_message_id ?? null),
+        // Delivery is not "seen": the setting that hides reading leaves it.
+        counterpartLastDeliveredMessageId:
+          partOf.get(`${c.id}:${otherId}`)?.last_delivered_message_id ?? null,
+        counterpartLastReadAt: seenHidden
+          ? null
+          : (partOf.get(`${c.id}:${otherId}`)?.last_read_at ?? null),
         kind: c.case_id ? 'case' : 'direct',
         requestStatus: c.request_status,
         requestedByMe: c.requested_by === viewerId,
@@ -1357,9 +2304,13 @@ export class ChatService {
 
 /** OQ-047: links of a page's voice notes and attachments. */
 interface MediaLinks {
+  extras?: MessageExtras;
   voice: Map<string, string>;
   stickers: Map<string, StickerDto>;
+  gifts: Map<string, GiftSendDto>;
   attachments: Awaited<ReturnType<FilesService['attachmentUrls']>>;
+  contacts: Map<string, ContactCardDto>;
+  posts: Map<string, SharedPostCardDto>;
 }
 
 /** A display name: no path, no control characters, ≤200 chars. */

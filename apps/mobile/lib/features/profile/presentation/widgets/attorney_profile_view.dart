@@ -19,7 +19,10 @@ import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
     show showConfirmSheet;
 import 'package:lawbid/features/cases/presentation/widgets/offer_case_sheet.dart';
 import 'package:lawbid/features/chat/presentation/open_direct_chat.dart';
+import 'package:lawbid/features/consultations/application/consultations_providers.dart';
+import 'package:lawbid/features/consultations/presentation/booking_sheet.dart';
 import 'package:lawbid/features/feed/application/news_flag.dart';
+import 'package:lawbid/features/legal_qa/presentation/qa_banners.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
@@ -35,6 +38,8 @@ import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart'
     show showReportSheet;
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/social/social_routes.dart';
+import 'package:lawbid/features/stars/presentation/gift_widgets.dart';
+import 'package:lawbid/features/stories/presentation/story_avatar_ring.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/features/translation/data/content_translation_repository.dart';
@@ -99,6 +104,12 @@ Future<void> showAttorneyMoreSheet(
         mainAxisSize: MainAxisSize.min,
         children: [
           const AppSheetHandle(),
+          GiftMenuRow(
+            userId: p.id,
+            sheet: sheet,
+            screen: context,
+            blocked: p.isBlocked || p.hasBlockedMe,
+          ),
           BlockListRow(
             userId: p.id,
             displayName: p.fullName.isEmpty ? atHandle(p.username) : p.fullName,
@@ -326,6 +337,7 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
           _AboutSection(profile: p),
           const SizedBox(height: AppSpacing.md),
           _ChipRows(profile: p),
+          // Owner 2026-10-21: the gifts moved to an icon in the top bar.
           const SizedBox(height: AppSpacing.sm),
           // Instagram order: buttons right above the tabs — Follow |
           // Message | share icon (owner request).
@@ -366,6 +378,29 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
                     : p.fullName,
                 licensedStateCodes: {for (final s in p.licensedStates) s.code},
                 practiceIds: {for (final x in p.practices) x.id},
+              ),
+            ),
+          ],
+          // Owner 2026-10-20: book a consultation (flag `consultations`,
+          // the attorney switched booking on).
+          if (!p.isSelf &&
+              !(p.isBlocked || p.hasBlockedMe) &&
+              p.consultationEnabled &&
+              ref.watch(consultationsFlagProvider) &&
+              ref.watch(currentUserRoleProvider) == UserRole.client) ...[
+            const SizedBox(height: AppSpacing.sm),
+            AppButton(
+              key: const ValueKey('profile-book-consultation'),
+              label: t.t('consult.book'),
+              icon: AppIcons.eventAvailableRounded,
+              variant: AppButtonVariant.secondary,
+              height: 40,
+              onPressed: () => showConsultationBooking(
+                context,
+                attorneyId: p.id,
+                attorneyName: p.fullName.trim().isEmpty
+                    ? atHandle(p.username)
+                    : p.fullName,
               ),
             ),
           ],
@@ -413,13 +448,19 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
       items = state.items;
       status = state.status;
     }
+    const side = EdgeInsets.symmetric(horizontal: AppSpacing.screenSide);
     final reviewsPage = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const SizedBox(height: AppSpacing.sm),
         if (!p.isSelf)
           Padding(
-            padding: const EdgeInsets.only(bottom: AppSpacing.md),
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.screenSide,
+              0,
+              AppSpacing.screenSide,
+              AppSpacing.md,
+            ),
             child: Builder(
               builder: (context) {
                 final mineAsync = ref.watch(myAttorneyReviewProvider(p.id));
@@ -453,9 +494,12 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
           ),
         summary.when(
           skipLoadingOnReload: true,
-          loading: () => const AppSkeleton(
-            height: AppSizes.stateMedallion + AppSpacing.xxl,
-            borderRadius: AppRadii.card,
+          loading: () => const Padding(
+            padding: side,
+            child: AppSkeleton(
+              height: AppSizes.stateMedallion + AppSpacing.xxl,
+              borderRadius: AppRadii.card,
+            ),
           ),
           error: (_, __) => const SizedBox.shrink(),
           // No reviews: the tab's "New — no reviews" state says it all.
@@ -464,6 +508,7 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
               : Padding(
                   padding: const EdgeInsets.only(bottom: AppSpacing.md),
                   child: ReviewSummaryPanel(
+                    flat: true,
                     summary: s,
                     selectedStars: _stars,
                     sort: _sort,
@@ -475,9 +520,21 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
                   ),
                 ),
         ),
-        if (reviewsState != null) reviewsState,
+        // Owner 2026-10-20: inside the rating tab, under the rating block —
+        // the attorney's own call to answer questions and their numbers.
+        if (p.isSelf)
+          Padding(
+            padding: side,
+            child: QaProfileRow(
+              answers: p.qaAnswers,
+              best: p.qaBest,
+              isSelf: p.isSelf,
+            ),
+          ),
+        if (reviewsState != null) Padding(padding: side, child: reviewsState),
         for (final review in items) ...[
           ReviewCard(
+            flat: true,
             review: review,
             // Owner 2026-10-01 (Google-style): anyone but the author flags;
             // the author edits / deletes; the attorney replies; others vote.
@@ -490,7 +547,6 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
             onHelpful:
                 review.isMine || p.isSelf ? null : () => _helpful(t, review),
           ),
-          const SizedBox(height: AppSpacing.md),
         ],
         if (items.isNotEmpty)
           AppPaginationFooter(
@@ -520,23 +576,17 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
       initialPage: tabs.indexOf(_tab).clamp(0, tabs.length - 1),
       onPage: (i) => setState(() => _picked = tabs[i]),
       header: header,
-      tabBar: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenSide),
-        child: _Tabs(
-          tabs: tabs,
-          selected: _tab,
-          onChanged: (tab) => setState(() => _picked = tab),
-        ),
+      // Owner 2026-10-20 (Instagram): the tab bar and every tab run edge to
+      // edge (the rating tab pads its own content).
+      tabBar: _Tabs(
+        tabs: tabs,
+        selected: _tab,
+        onChanged: (tab) => setState(() => _picked = tab),
       ),
-      // Owner 2026-10-12: the Briefs & reposts tab runs edge to edge.
-      pagePadding: (i) => tabs[i] == AttorneyProfileTab.reposts
-          ? const EdgeInsets.only(top: AppSpacing.sm, bottom: AppSpacing.xxl)
-          : const EdgeInsets.fromLTRB(
-              AppSpacing.screenSide,
-              2,
-              AppSpacing.screenSide,
-              AppSpacing.xxl,
-            ),
+      pagePadding: (i) => EdgeInsets.only(
+        top: tabs[i] == AttorneyProfileTab.reposts ? AppSpacing.sm : 0,
+        bottom: AppSpacing.xxl,
+      ),
       onNearEnd: (i) {
         if (tabs[i] == AttorneyProfileTab.reviews) {
           ref.read(reviewsListProvider(_reviewsKey).notifier).loadMore();
@@ -659,17 +709,23 @@ class _HeaderCard extends ConsumerWidget {
           shape: BoxShape.circle,
           border: Border.all(color: colors.bg, width: 2),
         ),
-        child: ProfileAvatar(
+        child: StoryAvatarRing(
+          userId: profile.id,
+          photoUrl: profile.avatarUrl,
+          photoCloseLabel: t.t('common.close'),
           size: _avatar,
-          url: profile.avatarUrl,
-          initials: initialsOf(
-            profile.firstName,
-            profile.lastName,
-            fallback: profile.username,
+          child: ProfileAvatar(
+            size: _avatar,
+            url: profile.avatarUrl,
+            initials: initialsOf(
+              profile.firstName,
+              profile.lastName,
+              fallback: profile.username,
+            ),
+            heroTag: attorneyAvatarHeroTag(profile.username),
+            semanticLabel: t.t('profile.avatar.label'),
+            viewerCloseLabel: t.t('common.close'),
           ),
-          heroTag: attorneyAvatarHeroTag(profile.username),
-          semanticLabel: t.t('profile.avatar.label'),
-          viewerCloseLabel: t.t('common.close'),
         ),
       ),
     );
@@ -928,7 +984,7 @@ class _ChipRows extends ConsumerWidget {
                 child: AppIcon(
                   icon,
                   size: AppSizes.iconSm,
-                  color: colors.goldDark,
+                  color: colors.iconTint,
                 ),
               ),
               const SizedBox(width: AppSpacing.sm),

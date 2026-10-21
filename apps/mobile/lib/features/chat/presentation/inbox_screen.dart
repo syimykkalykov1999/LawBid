@@ -1,36 +1,52 @@
 // ignore_for_file: lines_longer_than_80_chars
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/text/bidi.dart';
+import 'package:lawbid/features/calls/application/call_history_providers.dart';
 import 'package:lawbid/features/calls/presentation/call_log_entry.dart'
     show callLogKey;
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
+import 'package:lawbid/features/channels/application/channels_providers.dart';
+import 'package:lawbid/features/channels/channels_routes.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/application/chat_selection.dart';
+import 'package:lawbid/features/chat/application/chat_text_drafts.dart';
 import 'package:lawbid/features/chat/application/presence_providers.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/presentation/chat_folders.dart';
 import 'package:lawbid/features/chat/presentation/chat_selection_bar.dart';
+import 'package:lawbid/features/chat/presentation/chat_swipe.dart';
+import 'package:lawbid/features/chat/presentation/chats_filter_row.dart';
+import 'package:lawbid/features/groups/application/chat_list_merge.dart';
+import 'package:lawbid/features/groups/application/group_providers.dart';
+import 'package:lawbid/features/groups/presentation/widgets/group_chat_tile.dart';
+import 'package:lawbid/features/groups/presentation/widgets/group_invite_card.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
 import 'package:lawbid/features/notifications/presentation/notifications_view.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
+import 'package:lawbid/features/stories/presentation/stories_tray.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/features/team/presentation/team_inbox_tab.dart';
 import 'package:lawbid/features/team/team_routes.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
-import 'package:lawbid/shared/presentation/list_search_field.dart';
+import 'package:lawbid/shared/presentation/collapsing_header.dart';
+import 'package:lawbid_api/lawbid_api.dart' as api;
 
 // OQ-048: [team] — assistants' approval requests and activity (attorney).
 enum InboxTab { chats, notifications, requests, team }
@@ -38,6 +54,10 @@ enum InboxTab { chats, notifications, requests, team }
 /// The screen behind the Chats icon (docs/05 §8.1, §9.1). Owner
 /// 2026-09-30: three compact tabs — Chats · Notifications · Requests — in
 /// one centered row on the level of the back arrow, each with its count.
+/// Both sides of the header's middle are as wide as the widest icon group, so
+/// the segments stay centred on the screen.
+const _headerSide = EdgeInsets.symmetric(horizontal: 116);
+
 class InboxScreen extends ConsumerStatefulWidget {
   const InboxScreen({this.initialTab = InboxTab.chats, super.key});
 
@@ -59,22 +79,28 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
   /// Owner 2026-10-18: the search box of the chats list ('' = none).
   String _query = '';
 
-  /// The chats of the folder on screen (Select all, the bulk bar).
-  List<Conversation> _visibleChats() {
+  /// The rows of the folder on screen (Select all, the bulk bar): direct
+  /// chats and, in «All», my groups.
+  List<ChatListEntry> _visibleEntries() {
     if (_folder == ChatListFolder.requests) return const [];
     if (_query.isNotEmpty) {
       return ref
               .watch(
-                searchConversationsProvider((folder: _folder, q: _query)),
+                mergedChatSearchProvider((folder: _folder, q: _query)),
               )
               .value
               ?.items ??
           const [];
     }
-    final provider = _folder == ChatListFolder.all
-        ? conversationsProvider
-        : folderConversationsProvider(_folder);
-    return ref.watch(provider).value?.items ?? const [];
+    if (_folder == ChatListFolder.all) {
+      return ref.watch(mergedChatListProvider).value?.items ?? const [];
+    }
+    return [
+      for (final c
+          in ref.watch(folderConversationsProvider(_folder)).value?.items ??
+              const <Conversation>[])
+        DirectChatEntry(c),
+    ];
   }
 
   @override
@@ -84,7 +110,15 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
     final badges = ref.watch(badgesProvider);
     final selection = ref.watch(chatSelectionProvider);
     final selecting = selection != null;
-    final chats = selecting ? _visibleChats() : const <Conversation>[];
+    final entries = selecting ? _visibleEntries() : const <ChatListEntry>[];
+    final chats = [
+      for (final e in entries)
+        if (e is DirectChatEntry) e.conversation,
+    ];
+    final groups = [
+      for (final e in entries)
+        if (e is GroupChatEntry) e.group,
+    ];
     final requests = ref.watch(messageRequestsCountProvider).value ?? 0;
     final showTeam = ref.watch(currentUserRoleProvider) == UserRole.attorney;
     final teamPending =
@@ -102,13 +136,19 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
           children: [
             SizedBox(
               height: AppSizes.touchTarget + AppSpacing.md,
+              // Owner 2026-10-20: the segments stay in the exact centre of the
+              // screen whatever the icons at the sides; they shrink, never
+              // the icons.
               child: Stack(
+                // The middle is centred in both directions, not top-left.
                 alignment: Alignment.center,
                 children: [
                   Align(
-                    alignment: Alignment.centerLeft,
+                    alignment: AlignmentDirectional.centerStart,
                     child: Padding(
-                      padding: const EdgeInsets.only(left: AppSpacing.xs),
+                      padding: const EdgeInsetsDirectional.only(
+                        start: AppSpacing.xs,
+                      ),
                       child: selecting
                           ? SizedBox.square(
                               dimension: AppSizes.touchTarget,
@@ -124,9 +164,15 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                                     .stop,
                               ),
                             )
-                          : AppBackButton(
-                              semanticLabel: t.t('common.back'),
-                              onPressed: () => Navigator.of(context).maybePop(),
+                          : Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                AppBackButton(
+                                  semanticLabel: t.t('common.back'),
+                                  onPressed: () =>
+                                      Navigator.of(context).maybePop(),
+                                ),
+                              ],
                             ),
                     ),
                   ),
@@ -136,23 +182,25 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                   // count ellipsizes, the segments shrink on narrow phones.
                   if (selecting)
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 112),
-                      child: Text(
-                        t.t(
-                          'chat.select.count',
-                          {'count': '${selection.length}'},
+                      padding: _headerSide,
+                      child: Center(
+                        child: Text(
+                          t.t(
+                            'chat.select.count',
+                            {'count': '${selection.length}'},
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context)
+                              .extension<AppTypographyTokens>()!
+                              .titleMedium
+                              .copyWith(color: colors.text),
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context)
-                            .extension<AppTypographyTokens>()!
-                            .titleMedium
-                            .copyWith(color: colors.text),
                       ),
                     )
                   else
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 96),
+                      padding: _headerSide,
                       child: FittedBox(
                         fit: BoxFit.scaleDown,
                         child: InboxTabsBar(
@@ -176,9 +224,10 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                       ),
                     ),
                   Align(
-                    alignment: Alignment.centerRight,
+                    alignment: AlignmentDirectional.centerEnd,
                     child: Padding(
-                      padding: const EdgeInsets.only(right: AppSpacing.xs),
+                      padding:
+                          const EdgeInsetsDirectional.only(end: AppSpacing.xs),
                       child: selecting
                           ? ConstrainedBox(
                               constraints: const BoxConstraints(maxWidth: 108),
@@ -187,16 +236,16 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                                 onPressed: () {
                                   final n =
                                       ref.read(chatSelectionProvider.notifier);
-                                  chats.every(
-                                    (c) => selection.contains(c.id),
+                                  entries.every(
+                                    (e) => selection.contains(e.id),
                                   )
                                       ? n.clear()
-                                      : n.setAll(chats.map((c) => c.id));
+                                      : n.setAll(entries.map((e) => e.id));
                                 },
                                 child: Text(
-                                  chats.isNotEmpty &&
-                                          chats.every(
-                                            (c) => selection.contains(c.id),
+                                  entries.isNotEmpty &&
+                                          entries.every(
+                                            (e) => selection.contains(e.id),
                                           )
                                       ? t.t('chat.select.none')
                                       : t.t('chat.select.all'),
@@ -217,19 +266,57 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                                     _folder != ChatListFolder.requests)
                                   AppIconButton(
                                     key: const ValueKey('chats-menu'),
+                                    compact: true,
                                     icon: AppIcon(
                                       AppIcons.moreVertRounded,
                                       color: colors.text,
                                     ),
                                     semanticLabel: t.t('chat.select.menu'),
-                                    onPressed: () => _showChatsMenu(context, t),
+                                    onPressed: () =>
+                                        _showChatsMenu(context, t, tab),
+                                  ),
+                                // Owner 2026-10-20 (WhatsApp): «new chat» —
+                                // opens Contacts (who is on LawBid: chat,
+                                // call, video, invite).
+                                // Owner 2026-10-21: the magnifier up here,
+                                // the «+» in the folders row (swapped).
+                                if (tab == InboxTab.chats)
+                                  AppIconButton(
+                                    key: const ValueKey('chat-search-top'),
+                                    compact: true,
+                                    icon: AppIcon(
+                                      AppIcons.searchRounded,
+                                      size: 22,
+                                      color: colors.text,
+                                    ),
+                                    semanticLabel: t.t('chat.search.hint'),
+                                    onPressed: ref
+                                        .read(chatSearchOpenProvider.notifier)
+                                        .open,
                                   ),
                                 // Owner 2026-10-02: the notification filter /
                                 // settings sit up here, left of the bell, in
                                 // the same place as the chats' ⋮.
+                                // Owner 2026-10-20: «mark all read» up here, next to
+                                // the filter and the bell, close together.
+                                if (tab == InboxTab.notifications &&
+                                    badges.notifications > 0)
+                                  AppIconButton(
+                                    key: const ValueKey('notif-mark-all'),
+                                    compact: true,
+                                    icon: AppIcon(
+                                      AppIcons.doneAllRounded,
+                                      color: colors.text,
+                                    ),
+                                    semanticLabel: t.t('notif.markAllRead'),
+                                    onPressed: () => ref
+                                        .read(notificationsProvider.notifier)
+                                        .markRead(),
+                                  ),
                                 if (tab == InboxTab.notifications)
                                   AppIconButton(
                                     key: const ValueKey('notif-filter'),
+                                    compact: true,
                                     icon: AppIcon(
                                       AppIcons.tuneRounded,
                                       color: colors.text,
@@ -298,27 +385,6 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                             // Audit 2026-10-04: an Inbox tab target switches the
                             // tab here instead of pushing a second Inbox.
                             onInboxTab: (v) => setState(() => _tab = v),
-                            // Owner 2026-10-01: on the same line as All ·
-                            // Assistants.
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                // An icon, not a words button: in Russian the
-                                // text squeezed the last filter chip.
-                                if (badges.notifications > 0)
-                                  AppIconButton(
-                                    key: const ValueKey('notif-mark-all'),
-                                    icon: AppIcon(
-                                      AppIcons.doneAllRounded,
-                                      color: colors.text,
-                                    ),
-                                    semanticLabel: t.t('notif.markAllRead'),
-                                    onPressed: () => ref
-                                        .read(notificationsProvider.notifier)
-                                        .markRead(),
-                                  ),
-                              ],
-                            ),
                           ),
                         InboxTab.requests => const SizedBox.shrink(),
                         InboxTab.team => const TeamInboxTab(),
@@ -335,7 +401,7 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                 },
               ),
             ),
-            if (selecting) ChatSelectionBar(chats: chats),
+            if (selecting) ChatSelectionBar(chats: chats, groups: groups),
           ],
         ),
       ),
@@ -343,8 +409,14 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
   }
 
   /// The vertical ⋮ menu of the chats list: "Select chats".
-  Future<void> _showChatsMenu(BuildContext context, Translator t) async {
-    final pick = await showAppBottomSheet<bool>(
+  Future<void> _showChatsMenu(
+    BuildContext context,
+    Translator t,
+    InboxTab tab,
+  ) async {
+    final organize =
+        !ref.read(isAssistantProvider) && _folder != ChatListFolder.requests;
+    final pick = await showAppBottomSheet<String>(
       context: context,
       builder: (ctx) => SafeArea(
         child: Column(
@@ -352,19 +424,24 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
           children: [
             const SizedBox(height: AppSpacing.sm),
             const AppSheetHandle(),
-            AppListRow(
-              key: const ValueKey('chats-menu-select'),
-              icon: AppIcons.checkCircleOutlineRounded,
-              label: t.t('chat.select.start'),
-              showChevron: false,
-              onTap: () => Navigator.of(ctx).pop(true),
-            ),
+            if (organize)
+              AppListRow(
+                key: const ValueKey('chats-menu-select'),
+                icon: AppIcons.checkCircleOutlineRounded,
+                label: t.t('chat.select.start'),
+                showChevron: false,
+                onTap: () => Navigator.of(ctx).pop('select'),
+              ),
             const SizedBox(height: AppSpacing.md),
           ],
         ),
       ),
     );
-    if (pick ?? false) ref.read(chatSelectionProvider.notifier).start();
+    if (!context.mounted) return;
+    switch (pick) {
+      case 'select':
+        ref.read(chatSelectionProvider.notifier).start();
+    }
   }
 }
 
@@ -542,6 +619,10 @@ class CountPill extends StatelessWidget {
 /// contacts (§8.2, §8.3).
 String messagePreview(Translator t, ChatMessage m, {String? me}) {
   if (m.kind == MessageKind.system) return systemLineText(t, m.body);
+  // Owner 2026-10-20: deleted for everyone.
+  if (m.revoked) {
+    return '🚫 ${t.t(m.senderId != null && m.senderId == me ? 'chat.deletedMine' : 'chat.deleted')}';
+  }
   // OQ-041: "📞 Missed call".
   if (m.kind == MessageKind.call && m.callLog != null) {
     return '📞 ${t.t(callLogKey(m.callLog!.outcome, outgoing: m.senderId != null && m.senderId == me))}';
@@ -557,12 +638,24 @@ String messagePreview(Translator t, ChatMessage m, {String? me}) {
   if (m.kind == MessageKind.sticker) {
     return '${m.sticker?.emoji ?? ''} ${t.t('stickers.label')}'.trim();
   }
+  // Owner 2026-10-20: "🎁 Gift".
+  if (m.kind == MessageKind.gift) return '🎁 ${t.t('stars.chat.label')}';
+  // Owner 2026-10-20: "👤 Contact" / "📍 address".
+  if (m.kind == MessageKind.contact) {
+    return '👤 ${m.contact?.displayName ?? t.t('card.contact')}';
+  }
+  if (m.kind == MessageKind.place) return '📍 ${m.body}';
+  // Owner 2026-10-21 (Instagram): "📰 Post".
+  if (m.kind == MessageKind.post) return '📰 ${t.t('chat.post.label')}';
   // OQ-047: "📎 File" / "📷 Photo" (+ caption).
   if (m.kind == MessageKind.attachment) {
-    final photo = m.attachment?.isImage ?? false;
+    final a = m.attachment;
+    final photo = a?.isImage ?? false;
     final label = photo
         ? '📷 ${t.t('chat.attach.photo')}'
-        : '📎 ${t.t('chat.attach.label')}';
+        : (a?.isVideo ?? false)
+            ? '🎥 ${t.t('chat.attach.video')}'
+            : '📄 ${t.t('chat.attach.label')}';
     return m.body.isEmpty ? label : '$label · ${m.body}';
   }
   return m.body.replaceAll(kContactMask, t.t('chat.masked'));
@@ -597,34 +690,51 @@ class ConversationsView extends ConsumerWidget {
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final attorney = ref.watch(actsAsAttorneyProvider);
     final searching = query.isNotEmpty;
+    final archived = ref.watch(
+      chatFolderCountsProvider.select((c) => c.value?.archived ?? 0),
+    );
     Widget body;
     if (searching) {
       final key = (folder: folder, q: query);
-      final provider = searchConversationsProvider(key);
-      final value = ref.watch(provider);
-      final n = ref.read(provider.notifier);
-      body = PagedListBody<Conversation>(
-        value: value,
+      body = PagedListBody<ChatListEntry>(
+        value: ref.watch(mergedChatSearchProvider(key)),
         t: t,
-        itemKey: (c) => c.id,
+        itemKey: (e) => e.id,
         edgeToEdge: true,
-        itemBuilder: (context, c, _) =>
-            ConversationRow(conversation: c, highlight: query),
+        itemBuilder: (context, e, _) => _entryRow(e, highlight: query),
         empty: AppEmptyState(
           icon: AppIcons.searchRounded,
           title: t.t('chat.search.empty.title'),
           message: t.t('chat.search.empty.hint'),
         ),
-        onRefresh: n.refresh,
-        onLoadMore: n.loadMore,
-        onRetryMore: n.retryLoadMore,
+        onRefresh: () => refreshChatList(ref, search: key),
+        onLoadMore: () => loadMoreChatList(ref, search: key),
+        onRetryMore: () => retryChatListMore(ref, search: key),
       );
     } else if (folder == ChatListFolder.requests) {
       body = const MessageRequestsView();
+    } else if (folder == ChatListFolder.all) {
+      // Direct chats and groups in ONE list: pinned first, then by the
+      // newest activity.
+      body = PagedListBody<ChatListEntry>(
+        value: ref.watch(mergedChatListProvider),
+        t: t,
+        itemKey: (e) => e.id,
+        edgeToEdge: true,
+        itemBuilder: (context, e, _) => _entryRow(e),
+        // Owner 2026-10-20 (Telegram): «Archive (N)» leads the list.
+        header: archived > 0 ? _ArchiveRow(count: archived) : null,
+        empty: AppEmptyState(
+          icon: AppIcons.forumOutlined,
+          title: t.t('chat.empty.title'),
+          message: t.t(attorney ? 'chat.empty.attorney' : 'chat.empty.client'),
+        ),
+        onRefresh: () => refreshChatList(ref),
+        onLoadMore: () => loadMoreChatList(ref),
+        onRetryMore: () => retryChatListMore(ref),
+      );
     } else {
-      final provider = folder == ChatListFolder.all
-          ? conversationsProvider
-          : folderConversationsProvider(folder);
+      final provider = folderConversationsProvider(folder);
       final value = ref.watch(provider);
       final n = ref.read(provider.notifier);
       body = PagedListBody<Conversation>(
@@ -632,7 +742,10 @@ class ConversationsView extends ConsumerWidget {
         t: t,
         itemKey: (c) => c.id,
         edgeToEdge: true,
-        itemBuilder: (context, c, _) => ConversationRow(conversation: c),
+        itemBuilder: (context, c, _) => ConversationRow(
+          conversation: c,
+          showAwaiting: folder == ChatListFolder.cases,
+        ),
         header: folder == ChatListFolder.waiting
             ? Padding(
                 padding: const EdgeInsets.only(bottom: AppSpacing.md),
@@ -663,24 +776,126 @@ class ConversationsView extends ConsumerWidget {
         onRetryMore: n.retryLoadMore,
       );
     }
-    return Column(
-      children: [
-        if (onQuery != null)
-          ListSearchField(
-            fieldKey: const ValueKey('chat-search'),
-            hintKey: 'chat.search.hint',
-            initial: query,
-            onChanged: onQuery!,
-          ),
-        if (onFolder != null) ...[
-          ChatFolderPills(value: folder, onChanged: onFolder!),
-          const SizedBox(height: AppSpacing.sm),
-        ],
-        Expanded(child: body),
-      ],
+    final filters = onQuery != null && onFolder != null
+        ? ChatsFilterRow(
+            folder: folder,
+            onFolder: onFolder!,
+            query: query,
+            onQuery: onQuery!,
+            trailing: _NewChatButton(label: t.t('phoneContacts.title')),
+            openSignal: ref.watch(chatSearchOpenProvider),
+            // Owner 2026-10-20: the channels' door at the start of the row.
+            leading: ref.watch(channelsEnabledProvider)
+                ? _ChannelsDoor(
+                    unread: ref.watch(unreadGroupsProvider),
+                    child: AppIconButton(
+                      key: const ValueKey('inbox-channels'),
+                      compact: true,
+                      icon: AppIcon(
+                        AppIcons.campaignOutlined,
+                        size: 22,
+                        color: colors.text,
+                      ),
+                      semanticLabel: t.t('channel.title'),
+                      onPressed: () => context.push(ChannelsRoutes.list),
+                    ),
+                  )
+                : null,
+          )
+        : onFolder != null
+            ? Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                child: ChatFolderPills(value: folder, onChanged: onFolder!),
+              )
+            : null;
+    // Owner 2026-10-20 (Telegram): the stories strip under the folders,
+    // hidden by default; two separate pulls open it.
+    return CollapsingHeader(
+      collapsible: const StoriesTray(),
+      hint: const StoriesChevron(),
+      pinned: filters,
+      body: body,
     );
   }
 }
+
+/// Owner 2026-10-21: the magnifier in the top bar opens the search of the
+/// folders row (each tap is a new number).
+final chatSearchOpenProvider =
+    NotifierProvider.autoDispose<_SearchOpen, int>(_SearchOpen.new);
+
+class _SearchOpen extends Notifier<int> {
+  @override
+  int build() => 0;
+
+  void open() => state++;
+}
+
+/// «Archive (N)» at the top of the Chats list; opens the Archive screen.
+class _ArchiveRow extends ConsumerWidget {
+  const _ArchiveRow({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    return AppPressable(
+      key: const ValueKey('chats-archive-row'),
+      onTap: () => context.push(ChatRoutes.archive),
+      child: Semantics(
+        button: true,
+        label: '${t.t('settings.archive')}, $count',
+        excludeSemantics: true,
+        // The list gives its header the side padding already.
+        child: Row(
+          children: [
+            Container(
+              width: 54,
+              height: 54,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: colors.chip,
+                shape: BoxShape.circle,
+              ),
+              child: AppIcon(
+                AppIcons.inventory2Outlined,
+                color: colors.textSecondary,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Text(
+                t.t('settings.archive'),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: type.body.copyWith(
+                  color: colors.text,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Text(
+              context.digits(count),
+              key: const ValueKey('chats-archive-count'),
+              style: type.bodySmall.copyWith(color: colors.textSecondary),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+Widget _entryRow(ChatListEntry e, {String highlight = ''}) => switch (e) {
+      DirectChatEntry(:final conversation) =>
+        ConversationRow(conversation: conversation, highlight: highlight),
+      GroupChatEntry(:final group) =>
+        GroupChatTile(group: group, highlight: highlight),
+    };
 
 /// OQ-043: message requests sent to me — open one to accept or delete.
 class MessageRequestsView extends ConsumerWidget {
@@ -693,25 +908,38 @@ class MessageRequestsView extends ConsumerWidget {
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final value = ref.watch(messageRequestsProvider);
     final n = ref.read(messageRequestsProvider.notifier);
+    final invites =
+        ref.watch(groupInvitesProvider).value ?? const <api.GroupInviteDto>[];
     return PagedListBody<Conversation>(
       value: value,
       t: t,
       itemKey: (c) => c.id,
       edgeToEdge: true,
       itemBuilder: (context, c, _) => ConversationRow(conversation: c),
+      // Owner 2026-10-21: group invitations wait here too, above the chats.
       header: Padding(
         padding: const EdgeInsets.only(bottom: AppSpacing.md),
-        child: Text(
-          t.t('chat.requests.explain'),
-          style: type.bodySmall.copyWith(color: colors.textSecondary),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              t.t('chat.requests.explain'),
+              style: type.bodySmall.copyWith(color: colors.textSecondary),
+            ),
+            for (final invite in invites) GroupInviteCard(invite: invite),
+          ],
         ),
       ),
-      empty: AppEmptyState(
-        icon: AppIcons.markEmailReadOutlined,
-        message: t.t('chat.requests.empty'),
-      ),
+      empty: invites.isNotEmpty
+          ? const SizedBox.shrink()
+          : AppEmptyState(
+              icon: AppIcons.markEmailReadOutlined,
+              message: t.t('chat.requests.empty'),
+            ),
       onRefresh: () async {
-        ref.invalidate(messageRequestsCountProvider);
+        ref
+          ..invalidate(messageRequestsCountProvider)
+          ..invalidate(groupInvitesProvider);
         await n.refresh();
       },
       onLoadMore: n.loadMore,
@@ -751,13 +979,25 @@ TextSpan boldWords(String text, String query, TextStyle style) {
 /// note) opens on long-press.
 class ConversationRow extends ConsumerWidget {
   // ignore: use_key_in_widget_constructors
-  const ConversationRow({required this.conversation, this.highlight = ''});
+  const ConversationRow({
+    required this.conversation,
+    this.highlight = '',
+    this.inArchive = false,
+    this.showAwaiting = false,
+  });
 
   final Conversation conversation;
 
   /// Owner 2026-10-18: the typed chat search — the words of it are bold in
   /// the matched message.
   final String highlight;
+
+  /// Shown on the Archive screen: the menu offers «Unarchive».
+  final bool inArchive;
+
+  /// Owner 2026-10-21 («Cases»): mark the chat whose last message is the other
+  /// side's — it waits for my answer.
+  final bool showAwaiting;
 
   static const double _avatar = 54;
 
@@ -771,7 +1011,11 @@ class ConversationRow extends ConsumerWidget {
     final me = ref.watch(currentUserIdProvider);
     final c = conversation;
     final typing =
-        ref.watch(listTypingProvider.select((ids) => ids.contains(c.id)));
+        ref.watch(listTypingProvider.select((m) => m.containsKey(c.id)));
+    final typingVoice =
+        ref.watch(listTypingProvider.select((m) => m[c.id] ?? false));
+    // Owner 2026-10-20: an unsent text shows as a red «Drafts: …».
+    final draft = ref.watch(chatTextDraftsProvider.select((m) => m[c.id]));
     final who = counterpartName(t, c);
     final last = c.lastMessage;
     final unread = c.unreadCount > 0;
@@ -781,7 +1025,8 @@ class ConversationRow extends ConsumerWidget {
     final canOrganize = !c.awaitingMyAnswer &&
         picking == null &&
         !ref.watch(isAssistantProvider);
-    void organize() => showChatOrganizeSheet(context, ref, c);
+    void organize() =>
+        showChatOrganizeSheet(context, ref, c, inArchive: inArchive);
     final read = last != null && c.counterpartLastReadId == last.id;
     final secondary = type.bodySmall.copyWith(color: colors.textSecondary);
     // Owner 2026-10-18: no @username under the chat (WhatsApp/Telegram);
@@ -794,7 +1039,8 @@ class ConversationRow extends ConsumerWidget {
             ? AppIcons.scheduleSendOutlined
             : AppIcons.personOutlineRounded);
     final hasNote = c.note != null && c.note!.trim().isNotEmpty;
-    // Owner 2026-10-19: the time sits in the row's bottom right corner.
+    // Owner 2026-10-20 (Telegram / WhatsApp): the time sits top right on the
+    // title's line, at the same height in every row whatever the preview.
     final time = c.lastMessageAt == null
         ? null
         : ConstrainedBox(
@@ -827,7 +1073,7 @@ class ConversationRow extends ConsumerWidget {
           }),
         ),
     ];
-    return AppPressable(
+    final row = AppPressable(
       key: ValueKey('chat-organize-${c.id}'),
       onTap: picking != null
           ? () => ref.read(chatSelectionProvider.notifier).toggle(c.id)
@@ -855,7 +1101,7 @@ class ConversationRow extends ConsumerWidget {
                         ? AppIcons.checkCircleRounded
                         : AppIcons.radioButtonUncheckedRounded,
                     key: ValueKey('chat-pick-${c.id}'),
-                    color: picked ? colors.goldAccent : colors.textSecondary,
+                    color: picked ? colors.iconTint : colors.textSecondary,
                   ),
                 ),
                 const SizedBox(width: AppSpacing.md),
@@ -939,6 +1185,37 @@ class ConversationRow extends ConsumerWidget {
                                 onTap: () => showChatNoteSheet(context, ref, c),
                               ),
                             ],
+                            if (showAwaiting &&
+                                picking == null &&
+                                last != null &&
+                                last.senderId != me &&
+                                last.kind != MessageKind.system) ...[
+                              const SizedBox(width: AppSpacing.sm),
+                              Container(
+                                key: ValueKey('chat-awaiting-${c.id}'),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 1,
+                                ),
+                                decoration: BoxDecoration(
+                                  border: Border.all(color: colors.gold),
+                                  borderRadius:
+                                      BorderRadius.circular(AppRadii.pill),
+                                ),
+                                child: Text(
+                                  t.t('chat.awaitsMe'),
+                                  maxLines: 1,
+                                  style: type.caption.copyWith(
+                                    color: colors.text,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
+                            if (time != null) ...[
+                              const SizedBox(width: AppSpacing.sm),
+                              time,
+                            ],
                           ],
                         ),
                         const SizedBox(height: 2),
@@ -947,6 +1224,7 @@ class ConversationRow extends ConsumerWidget {
                             // Owner 2026-10-01: ✓ sent / ✓✓ read on my last
                             // message, "typing…" while the other side types.
                             if (!typing &&
+                                draft == null &&
                                 last != null &&
                                 last.senderId == me) ...[
                               AppIcon(
@@ -966,7 +1244,11 @@ class ConversationRow extends ConsumerWidget {
                             Expanded(
                               child: typing
                                   ? Text(
-                                      t.t('chat.typing'),
+                                      t.t(
+                                        typingVoice
+                                            ? 'chat.recordingVoice'
+                                            : 'chat.typing',
+                                      ),
                                       key: ValueKey('chat-typing-${c.id}'),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
@@ -975,30 +1257,51 @@ class ConversationRow extends ConsumerWidget {
                                         fontStyle: FontStyle.italic,
                                       ),
                                     )
-                                  : (c.matchedMessage?.isNotEmpty ?? false)
+                                  : draft != null && highlight.isEmpty
                                       ? Text.rich(
-                                          key: ValueKey('chat-match-${c.id}'),
-                                          boldWords(
-                                            c.matchedMessage!,
-                                            highlight,
-                                            secondary,
+                                          key: ValueKey('chat-draft-${c.id}'),
+                                          TextSpan(
+                                            children: [
+                                              TextSpan(
+                                                text:
+                                                    '${t.t('mine.tab.drafts')}: ',
+                                                style: TextStyle(
+                                                  color: colors.dangerText,
+                                                ),
+                                              ),
+                                              TextSpan(text: draft),
+                                            ],
                                           ),
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
+                                          style: secondary,
                                         )
-                                      : Text(
-                                          last == null
-                                              ? ''
-                                              : '${last.senderId == me ? '${t.t('chat.you')}: ' : ''}'
-                                                  '${messagePreview(t, last, me: me)}',
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: unread
-                                              ? secondary.copyWith(
-                                                  color: colors.text,
-                                                )
-                                              : secondary,
-                                        ),
+                                      : (c.matchedMessage?.isNotEmpty ?? false)
+                                          ? Text.rich(
+                                              key: ValueKey(
+                                                'chat-match-${c.id}',
+                                              ),
+                                              boldWords(
+                                                c.matchedMessage!,
+                                                highlight,
+                                                secondary,
+                                              ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            )
+                                          : Text(
+                                              last == null
+                                                  ? ''
+                                                  : '${last.senderId == me ? '${t.t('chat.you')}: ' : ''}'
+                                                      '${messagePreview(t, last, me: me)}',
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: unread
+                                                  ? secondary.copyWith(
+                                                      color: colors.text,
+                                                    )
+                                                  : secondary,
+                                            ),
                             ),
                             if (c.muted) ...[
                               const SizedBox(width: AppSpacing.sm),
@@ -1020,24 +1323,9 @@ class ConversationRow extends ConsumerWidget {
                               const SizedBox(width: AppSpacing.sm),
                               CountPill(count: c.unreadCount),
                             ],
-                            if (metas.isEmpty && time != null) ...[
-                              const SizedBox(width: AppSpacing.sm),
-                              time,
-                            ],
                           ],
                         ),
-                        for (var m = 0; m < metas.length; m++)
-                          if (m == metas.length - 1 && time != null)
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                Expanded(child: metas[m]),
-                                const SizedBox(width: AppSpacing.sm),
-                                time,
-                              ],
-                            )
-                          else
-                            metas[m],
+                        ...metas,
                       ],
                     ),
                   ),
@@ -1047,6 +1335,41 @@ class ConversationRow extends ConsumerWidget {
           ),
         ),
       ),
+    );
+    if (!canOrganize) return row;
+    // Owner 2026-10-20 (Telegram): swipe right pins, swipe left mutes; the
+    // row springs back (the action is done, the row stays in the list).
+    Future<void> act(Future<Conversation> Function() call, String done) async {
+      try {
+        await call();
+        refreshChatFolders(ref);
+        if (context.mounted) showAppSnackBar(context, t.t(done));
+      } on Object catch (e) {
+        if (context.mounted) showAppSnackBar(context, errorText(t, e));
+      }
+    }
+
+    final repo = ref.read(chatRepositoryProvider);
+    return ChatSwipe(
+      id: c.id,
+      pinned: c.pinned,
+      muted: c.muted,
+      onPin: () => unawaited(
+        act(
+          () => repo.organize(c.id, pinned: !c.pinned),
+          c.pinned ? 'chat.organize.unpinned' : 'chat.organize.pinned',
+        ),
+      ),
+      onMute: () => unawaited(
+        act(
+          () => repo.mute(
+            c.id,
+            c.muted ? null : DateTime.now().add(const Duration(days: 3650)),
+          ),
+          c.muted ? 'chat.select.unmuted' : 'chat.select.muted',
+        ),
+      ),
+      child: row,
     );
   }
 }
@@ -1140,7 +1463,7 @@ class _ChatNoteSheet extends ConsumerWidget {
                             AppIcon(
                               AppIcons.stickyNote2Outlined,
                               size: 16,
-                              color: colors.goldDark,
+                              color: colors.iconTint,
                             ),
                             const SizedBox(width: 6),
                             Text(
@@ -1237,7 +1560,7 @@ class _ReadNoteChip extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
           decoration: BoxDecoration(
-            color: colors.goldTint,
+            color: colors.iconTintFill,
             borderRadius: BorderRadius.circular(AppRadii.pill),
             border: Border.all(color: colors.gold.withValues(alpha: 0.5)),
           ),
@@ -1247,7 +1570,7 @@ class _ReadNoteChip extends StatelessWidget {
               AppIcon(
                 AppIcons.stickyNote2Outlined,
                 size: 13,
-                color: colors.goldDark,
+                color: colors.iconTint,
               ),
               const SizedBox(width: 4),
               Text(
@@ -1331,12 +1654,12 @@ class CounterpartAvatar extends StatelessWidget {
         height: size,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: colors.goldTint,
-          border: Border.all(color: colors.goldStroke),
+          color: colors.iconTintFill,
+          border: Border.all(color: colors.iconTint),
         ),
         child: AppIcon(
           AppIcons.personOutlineRounded,
-          color: colors.goldDark,
+          color: colors.iconTint,
           size: size * 0.5,
         ),
       );
@@ -1399,8 +1722,9 @@ class _Bell extends StatelessWidget {
       child: AppPressable(
         key: const ValueKey('inbox-bell'),
         onTap: onTap,
-        child: SizedBox.square(
-          dimension: AppSizes.touchTarget,
+        child: SizedBox(
+          width: 40,
+          height: AppSizes.touchTarget,
           child: Stack(
             alignment: Alignment.center,
             children: [
@@ -1408,7 +1732,7 @@ class _Bell extends StatelessWidget {
                 selected
                     ? AppIcons.notificationsRounded
                     : AppIcons.notificationsNoneRounded,
-                color: selected ? colors.gold : colors.text,
+                color: selected ? colors.iconTint : colors.text,
                 size: 28,
               ),
               if (count > 0)
@@ -1417,6 +1741,89 @@ class _Bell extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Owner 2026-10-20 (WhatsApp): «new chat» — opens Contacts (who is on
+/// LawBid: chat, call, video, invite).
+///
+/// Owner 2026-10-21: while a group call runs that this person can join or
+/// return to, the «+» glows green and opens the «Calls» section, where the
+/// running calls are listed on top.
+class _NewChatButton extends ConsumerWidget {
+  const _NewChatButton({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final live =
+        (ref.watch(ongoingGroupCallsProvider).value ?? const []).isNotEmpty;
+    return AppIconButton(
+      key: const ValueKey('chats-new-chat'),
+      compact: true,
+      icon: live
+          ? DecoratedBox(
+              key: const ValueKey('chats-new-chat-live'),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: colors.success,
+              ),
+              child: const Padding(
+                padding: EdgeInsets.all(2),
+                child: AppIcon(AppIcons.addRounded, color: Colors.white),
+              ),
+            )
+          : AppIcon(AppIcons.addRounded, color: colors.iconTint),
+      semanticLabel: label,
+      onPressed: () => context.push(
+        live ? '${AppRoutes.contacts}?tab=calls' : AppRoutes.contacts,
+      ),
+    );
+  }
+}
+
+/// The «Channels» door of Chats with a small count of groups that have
+/// something unread (owner 2026-10-21: groups live inside Channels).
+class _ChannelsDoor extends ConsumerWidget {
+  const _ChannelsDoor({required this.unread, required this.child});
+
+  final int unread;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (unread <= 0) return child;
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        child,
+        PositionedDirectional(
+          top: 0,
+          end: 0,
+          child: IgnorePointer(
+            child: Container(
+              key: const ValueKey('inbox-channels-unread'),
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+              decoration: BoxDecoration(
+                color: colors.gold,
+                borderRadius: BorderRadius.circular(AppRadii.pill),
+              ),
+              child: Text(
+                context.digits(unread),
+                style: type.caption.copyWith(
+                  color: AppColorsLight.navy,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

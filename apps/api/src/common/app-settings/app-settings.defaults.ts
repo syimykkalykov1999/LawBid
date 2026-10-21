@@ -40,6 +40,37 @@ export const FILE_03_SETTINGS = {
     'verifier',
     'www',
   ],
+  // Owner 2026-10-20 (Telegram): a freed @username waits this long for its
+  // old holder; look-alikes of known brands are refused; a handle one
+  // character away from one with at least this many followers / subscribers /
+  // members is refused as a look-alike.
+  'profile.username_hold_days': 30,
+  'profile.username_brand_list': [
+    'telegram',
+    'whatsapp',
+    'instagram',
+    'facebook',
+    'google',
+    'apple',
+    'microsoft',
+    'amazon',
+    'paypal',
+    'stripe',
+    'twitter',
+    'youtube',
+    'tiktok',
+    'linkedin',
+    'uscis',
+    'irs',
+    'fbi',
+    'police',
+    'court',
+    'courts',
+    'justice',
+    'lawyer',
+    'attorney',
+  ],
+  'profile.username_similar_min_audience': 1000,
   'review.edit_window_days': 14,
   'review.reminder_after_days': 7,
   // Voice messages and other files outside «Загрузки и файлы» (bug 17).
@@ -96,6 +127,17 @@ export const OWNER_MEDIA_SETTINGS = {
   'stickers.recent_max': 30,
   'rate_limit.sticker_pack_create_per_day': 5,
   'rate_limit.sticker_add_per_hour': 60,
+  // Owner 2026-10-20: stories (24 h) and channels.
+  'stories.max_active_per_user': 30,
+  'stories.max_video_sec': 15,
+  'stories.ttl_hours': 24,
+  'rate_limit.story_create_per_day': 50,
+  'channels.max_owned': 5,
+  'channels.max_admins': 10,
+  'channels.max_post_media': 10,
+  'rate_limit.channel_create_per_day': 3,
+  'rate_limit.channel_post_per_hour': 30,
+  'rate_limit.channel_comment_per_hour': 60,
   'files.sticker_max_size_mb': 1,
   // Owner 2026-10-05: a reel may be cut from a longer video (trim); the
   // played part stays ≤ video.max_duration_sec.
@@ -530,6 +572,15 @@ export const OWNER_RATE_LIMIT_SETTINGS = {
  * - auto_retention: technical logs older than N days are removed;
  * - growth alert: one log alert (CloudWatch → e-mail) when files or the
  *   database grew more than `growth_alert_percent` in a day. */
+/** Owner 2026-10-20 (WhatsApp): how long a sent message can still be edited
+ * and deleted for everyone. 0 = never. */
+export const OWNER_CHAT_ACTION_SETTINGS = {
+  'chat.edit_window_min': 15,
+  'chat.delete_for_all_hours': 48,
+  /** Pinned messages per chat (WhatsApp: 3). */
+  'chat.max_pins': 3,
+};
+
 export const OWNER_STORAGE_SETTINGS = {
   'storage.dedup': true,
   'storage.auto_cleanup': true,
@@ -546,6 +597,14 @@ export const OWNER_STORAGE_SETTINGS = {
   'storage.retention_post_views_days': 365,
   'storage.retention_app_events_days': 90,
   'storage.growth_alert_percent': 20,
+  // Owner 2026-10-20 (government requests): evidence archives are built one at
+  // a time by the worker; the file is removed after `export_ttl_days` (the
+  // S3 lifecycle rule is the second net); deleted content is scrubbed after
+  // `deleted_retention_days` unless a legal hold covers it.
+  'legal.export_ttl_days': 30,
+  'legal.export_max_rows': 50000,
+  'legal.export_link_days': 7,
+  'legal.deleted_retention_days': 90,
 };
 
 /** Owner 2026-10-05: zero-maintenance operations (admin Система →
@@ -623,6 +682,35 @@ export const OWNER_POST_ATTACHMENT_SETTINGS = {
   attachments_keep_after_cancel: true,
 };
 
+/** Owner 2026-10-20: booking a consultation and «Вопрос юристу». */
+export const OWNER_BOOKING_QA_SETTINGS = {
+  /** Bookings one client may make in a day. */
+  'rate_limit.consultation_book_per_day': 10,
+  /** Questions one client may ask in a day. */
+  'rate_limit.question_per_day': 3,
+  /** Answers (and edits) one attorney may post in an hour. */
+  'rate_limit.answer_per_hour': 30,
+  /** Pending + confirmed upcoming consultations one client may hold. */
+  'consultations.max_active_per_client': 5,
+  /** Owner 2026-10-20: a push to attorneys about every new question is OFF
+   * (it would nag them); they open «Вопрос юристу» themselves and see a
+   * badge. When on, a new question alerts at most `qa.alert_max_attorneys`
+   * attorneys of its practice area and state (those who turned on «Новые
+   * кейсы»). */
+  'qa.push_attorneys': false,
+  /** The compact «new questions» card among an attorney's feed posts. */
+  'qa.banner_enabled': true,
+  /** Hours between two showings of that card to one attorney. */
+  'qa.banner_interval_hours': 24,
+  /** The card appears from this many new unanswered questions. */
+  'qa.banner_min_new': 1,
+  /** The «answer questions, win clients» call on an attorney's profile. */
+  'qa.profile_cta_enabled': true,
+  'qa.alert_max_attorneys': 500,
+  /** Whether a client may ask a question anonymously. */
+  'qa.allow_anonymous': true,
+};
+
 import { OWNER_TEXT_LIMIT_SETTINGS } from './text-limits';
 
 export const APP_SETTINGS = {
@@ -654,11 +742,13 @@ export const APP_SETTINGS = {
   ...OWNER_COUNTRY_SETTINGS,
   ...OWNER_RATE_LIMIT_SETTINGS,
   ...OWNER_STORAGE_SETTINGS,
+  ...OWNER_CHAT_ACTION_SETTINGS,
   ...OWNER_FRAUD_SETTINGS,
   ...OWNER_OPS_SETTINGS,
   ...OWNER_TREASURY_SETTINGS,
   ...OWNER_FEED_SETTINGS,
   ...OWNER_POST_ATTACHMENT_SETTINGS,
+  ...OWNER_BOOKING_QA_SETTINGS,
   ...OWNER_TEXT_LIMIT_SETTINGS,
 };
 

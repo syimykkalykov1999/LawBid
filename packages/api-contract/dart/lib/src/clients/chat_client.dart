@@ -10,16 +10,26 @@ import '../models/chat_storage_envelope.dart';
 import '../models/conversation_envelope.dart';
 import '../models/conversation_folder.dart';
 import '../models/conversation_list_envelope.dart';
+import '../models/delete_scope.dart';
+import '../models/delivered_conversation_dto.dart';
+import '../models/delivered_result_envelope.dart';
+import '../models/edit_message_dto.dart';
+import '../models/forward_messages_dto.dart';
+import '../models/forward_response_envelope.dart';
 import '../models/message_envelope.dart';
 import '../models/message_list_envelope.dart';
 import '../models/message_translation_envelope.dart';
 import '../models/messages_filter.dart';
+import '../models/mute_calls_dto.dart';
 import '../models/mute_conversation_dto.dart';
 import '../models/organize_conversation_dto.dart';
+import '../models/pins_envelope.dart';
+import '../models/react_message_dto.dart';
 import '../models/read_conversation_dto.dart';
 import '../models/read_result_envelope.dart';
 import '../models/requests_count_envelope.dart';
 import '../models/send_message_dto.dart';
+import '../models/set_disappearing_dto.dart';
 import '../models/start_direct_chat_dto.dart';
 import '../models/translate_message_dto.dart';
 
@@ -35,7 +45,7 @@ abstract class ChatClient {
   ///
   /// [updatedSince] - Only conversations changed since (ISO time) — catch-up after a reconnect (§8.5).
   ///
-  /// [folder] - Owner 2026-10-01: all · primary (case chats by default) · general · waiting (marked "waiting for my answer") · requests (OQ-043, message requests sent to me).
+  /// [folder] - Owner 2026-10-01: all · primary (case chats by default) · general · waiting (marked "waiting for my answer") · requests (OQ-043, message requests sent to me) · cases (Owner 2026-10-21: only the chats tied to a case) · archive (Owner 2026-10-20: my archived chats; every other folder leaves them out).
   ///
   /// [q] - Owner 2026-10-18: search my chats — the other person's name (any alphabet, typos, word order) or @username, the case title, or the words of any message. Items then carry matchedMessage.
   @GET('/conversations')
@@ -143,6 +153,14 @@ abstract class ChatClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
+  /// The device received messages up to this one (two grey ticks)
+  @POST('/conversations/{id}/delivered')
+  Future<DeliveredResultEnvelope> deliveredConversation({
+    @Path('id') required String id,
+    @Body() required DeliveredConversationDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
   /// My folder (primary/general/auto), "waiting for my answer", a pinned note, pin to top
   @PATCH('/conversations/{id}/organize')
   Future<ConversationEnvelope> organizeConversation({
@@ -156,6 +174,81 @@ abstract class ChatClient {
   Future<ConversationEnvelope> muteConversation({
     @Path('id') required String id,
     @Body() required MuteConversationDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Calls of this chat ring silently (or not)
+  @PATCH('/conversations/{id}/calls-mute')
+  Future<ConversationEnvelope> muteChatCalls({
+    @Path('id') required String id,
+    @Body() required MuteCallsDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Disappearing messages: 24 h / 7 d / 90 d for new messages; null = off
+  @PATCH('/conversations/{id}/disappearing')
+  Future<ConversationEnvelope> setDisappearing({
+    @Path('id') required String id,
+    @Body() required SetDisappearingDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Edit your text message within the edit window
+  @PATCH('/conversations/{id}/messages/{messageId}')
+  Future<MessageEnvelope> editChatMessage({
+    @Path('id') required String id,
+    @Path('messageId') required String messageId,
+    @Body() required EditMessageDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Delete a message for me or (within the window) for everyone.
+  ///
+  /// [scope] - me: only for the viewer; all: for everyone (time window).
+  @DELETE('/conversations/{id}/messages/{messageId}')
+  Future<void> deleteChatMessage({
+    @Path('id') required String id,
+    @Path('messageId') required String messageId,
+    @Query('scope') required DeleteScope scope,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// React with one emoji (null removes it)
+  @PUT('/conversations/{id}/messages/{messageId}/reaction')
+  Future<MessageEnvelope> reactToChatMessage({
+    @Path('id') required String id,
+    @Path('messageId') required String messageId,
+    @Body() required ReactMessageDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Pin a message to the top of the chat
+  @POST('/conversations/{id}/messages/{messageId}/pin')
+  Future<MessageEnvelope> pinChatMessage({
+    @Path('id') required String id,
+    @Path('messageId') required String messageId,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Unpin a message
+  @DELETE('/conversations/{id}/messages/{messageId}/pin')
+  Future<MessageEnvelope> unpinChatMessage({
+    @Path('id') required String id,
+    @Path('messageId') required String messageId,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// The chat's pinned messages
+  @GET('/conversations/{id}/pins')
+  Future<PinsEnvelope> listChatPins({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Forward messages / posts into chats, groups and channels (idempotent on requestId)
+  @POST('/messages/forward')
+  Future<ForwardResponseEnvelope> forward({
+    @Body() required ForwardMessagesDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 }

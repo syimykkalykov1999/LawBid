@@ -151,6 +151,8 @@ export const USERNAME_UNAVAILABLE_REASONS = [
   'invalid',
   'reserved',
   'taken',
+  'held',
+  'similar',
 ] as const;
 export type UsernameUnavailableReason =
   (typeof USERNAME_UNAVAILABLE_REASONS)[number];
@@ -192,6 +194,15 @@ export class RatingDto {
 
   @ApiProperty()
   count!: number;
+}
+
+/** Owner 2026-10-20: «Ответов: N, лучших: M» from «Вопрос юристу». */
+export class QaStatsDto {
+  @ApiProperty({ description: 'Published answers to public questions.' })
+  answers!: number;
+
+  @ApiProperty({ description: 'Of them chosen as the best answer.' })
+  best!: number;
 }
 
 export class ProfileCountersDto {
@@ -382,6 +393,9 @@ export class PublicAttorneyProfileDto {
   @ApiProperty({ type: RatingDto })
   rating!: RatingDto;
 
+  @ApiProperty({ type: QaStatsDto })
+  qa!: QaStatsDto;
+
   @ApiProperty({ type: ProfileCountersDto })
   counters!: ProfileCountersDto;
 
@@ -392,6 +406,10 @@ export class PublicAttorneyProfileDto {
     description: 'The viewer follows this attorney (docs/05 §6.2).',
   })
   isFollowing!: boolean;
+
+  /** Owner 2026-10-20: the attorney takes consultation bookings now. */
+  @ApiProperty()
+  consultationEnabled!: boolean;
 
   /** OQ-028: the viewer blocked this user. */
   @ApiProperty()

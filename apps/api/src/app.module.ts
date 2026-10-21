@@ -22,6 +22,9 @@ import { CountersModule } from './modules/counters/counters.module';
 import { ModerationModule } from './modules/moderation/moderation.module';
 import { PostsModule } from './modules/posts/posts.module';
 import { StickersModule } from './modules/stickers/stickers.module';
+import { StoriesModule } from './modules/stories/stories.module';
+import { UsernamesModule } from './modules/usernames/usernames.module';
+import { ChannelsModule } from './modules/channels/channels.module';
 import { FeedModule } from './modules/feed/feed.module';
 import { CommentsModule } from './modules/comments/comments.module';
 import { CaseCommentsModule } from './modules/case-comments/case-comments.module';
@@ -39,6 +42,7 @@ import { ReferralsModule } from './modules/referrals/referrals.module';
 import { CasePaymentsModule } from './modules/case-payments/case-payments.module';
 import { PromotionsModule } from './modules/promotions/promotions.module';
 import { BidPacksModule } from './modules/bid-packs/bid-packs.module';
+import { StarsModule } from './modules/stars/stars.module';
 import { FirmsModule } from './modules/firms/firms.module';
 import { PartnersModule } from './modules/partners/partners.module';
 import { LegalModule } from './modules/legal/legal.module';
@@ -47,7 +51,13 @@ import { OutreachModule } from './modules/outreach/outreach.module';
 import { ClientBadgeModule } from './modules/client-badge/client-badge.module';
 import { SearchModule } from './modules/search/search.module';
 import { ContactsSyncModule } from './modules/contacts-sync/contacts-sync.module';
+import { DeadlinesModule } from './modules/deadlines/deadlines.module';
+import { LegalQaModule } from './modules/legal-qa/legal-qa.module';
+import { ConsultationsModule } from './modules/consultations/consultations.module';
 import { ChatModule } from './modules/chat/chat.module';
+import { GroupsModule } from './modules/groups/groups.module';
+import { ForwardModule } from './modules/forward/forward.module';
+import { ChatSavedModule } from './modules/chat-saved/chat-saved.module';
 import { TranslationModule } from './modules/translation/translation.module';
 import { CallsModule } from './modules/calls/calls.module';
 import { MentionsModule } from './modules/mentions/mentions.module';
@@ -93,6 +103,7 @@ import { DocumentTemplatesModule } from './modules/document-templates/document-t
 import { AdminBillingModule } from './modules/admin-billing/admin-billing.module';
 import { AdminPayrollModule } from './modules/admin-payroll/admin-payroll.module';
 import { CountryPartnersModule } from './modules/country-partners/country-partners.module';
+import { CaseToolsModule } from './modules/cases/tools/case-tools.module';
 import { SupportModule } from './modules/support/support.module';
 import { StorageModule } from './modules/storage/storage.module';
 import { TreasuryModule } from './modules/treasury/treasury.module';
@@ -257,6 +268,9 @@ const isDev =
     // docs/05 §3 (stage 5.2).
     PostsModule,
     StickersModule,
+    StoriesModule,
+    ChannelsModule,
+    UsernamesModule,
     FeedModule,
     CommentsModule,
     CaseCommentsModule,
@@ -285,6 +299,7 @@ const isDev =
     OutreachModule,
     PromotionsModule,
     BidPacksModule,
+    StarsModule,
     FirmsModule,
     // Owner 2026-10-05: client → attorney payments via Stripe Connect.
     CasePaymentsModule,
@@ -293,6 +308,7 @@ const isDev =
     RealtimeModule,
     RealtimeGatewayModule,
     ChatModule,
+    ChatSavedModule,
     TranslationModule,
     CallsModule,
     MentionsModule,
@@ -324,11 +340,21 @@ const isDev =
     ClientFraudModule,
     // Owner 2026-10-06: Деньги → Партнёры стран.
     CountryPartnersModule,
+    // Owner 2026-10-20: group chats and polls.
+    GroupsModule,
+    // Owner 2026-10-21 (Telegram «Переслать»): one forward into many chats.
+    ForwardModule,
+    // Owner 2026-10-20: time, expenses, invoice, e-signature, document forms.
+    CaseToolsModule,
     // BullMQ `cron` queue (session/OTP cleanup, disposable-domain refresh).
     // Runs in this process while JOBS_ENABLED (default true); src/worker.ts
     // runs the same module as the dedicated worker service.
     JobsModule.register({ mode: 'api' }),
     ...(isDev ? [DevModule] : []),
+    // Owner 2026-10-20: booking, «Вопрос юристу», deadline calculator.
+    ConsultationsModule,
+    LegalQaModule,
+    DeadlinesModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },

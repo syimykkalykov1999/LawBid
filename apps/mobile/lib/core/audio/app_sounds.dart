@@ -16,6 +16,11 @@ abstract interface class AppSounds {
   Future<void> startRingback();
   Future<void> stopRingback();
 
+  /// The call's audio session (WebRTC) opens a moment after the ringback
+  /// began and may have silenced it: make sure it still plays — and loud
+  /// enough (owner 2026-10-20: no ringback heard).
+  Future<void> keepRingback();
+
   /// Audit 2026-10-02: the phone's own ringtone while the app is open on
   /// Android (iOS CallKit rings by itself).
   Future<void> startRingtone();
@@ -32,6 +37,8 @@ class NoAppSounds implements AppSounds {
   Future<void> startRingback() async {}
   @override
   Future<void> stopRingback() async {}
+  @override
+  Future<void> keepRingback() async {}
   @override
   Future<void> startRingtone() async {}
   @override
@@ -82,10 +89,27 @@ class JustAudioAppSounds implements AppSounds {
       );
       await p.setAsset('assets/sounds/ringback.wav');
       await p.setLoopMode(LoopMode.one);
-      await p.setVolume(0.5);
+      await p.setVolume(1);
       unawaited(p.play());
     } on Object catch (e) {
       debugPrint('ringback: $e');
+    }
+  }
+
+  @override
+  Future<void> keepRingback() async {
+    try {
+      final p = _loop;
+      if (p == null || p.playing == false) return;
+      await p.setVolume(1);
+      // The audio session changed under it: playing in name only.
+      if (p.processingState == ProcessingState.idle ||
+          p.processingState == ProcessingState.completed) {
+        await p.seek(Duration.zero);
+      }
+      unawaited(p.play());
+    } on Object catch (e) {
+      debugPrint('ringback keep: $e');
     }
   }
 

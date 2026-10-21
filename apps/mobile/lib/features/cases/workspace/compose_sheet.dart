@@ -807,7 +807,7 @@ class _ComposeSheetState extends ConsumerState<_ComposeSheet> {
                                 color: _lines.isNotEmpty &&
                                         _focused < _lines.length &&
                                         _lines[_focused].check
-                                    ? colors.goldDark
+                                    ? colors.iconTint
                                     : colors.text,
                               ),
                             ),
@@ -826,7 +826,7 @@ class _ComposeSheetState extends ConsumerState<_ComposeSheet> {
                               icon: AppIcon(
                                 AppIcons.eventOutlined,
                                 color: _due != null
-                                    ? colors.goldDark
+                                    ? colors.iconTint
                                     : colors.text,
                               ),
                             ),
@@ -836,7 +836,7 @@ class _ComposeSheetState extends ConsumerState<_ComposeSheet> {
                               icon: AppIcon(
                                 AppIcons.notificationsActiveOutlined,
                                 color: _remind != null
-                                    ? colors.goldDark
+                                    ? colors.iconTint
                                     : colors.text,
                               ),
                             ),
@@ -848,7 +848,7 @@ class _ComposeSheetState extends ConsumerState<_ComposeSheet> {
                               icon: AppIcon(
                                 AppIcons.workOutlineRounded,
                                 color: _caseId != null
-                                    ? colors.goldDark
+                                    ? colors.iconTint
                                     : colors.text,
                               ),
                             ),
@@ -858,7 +858,7 @@ class _ComposeSheetState extends ConsumerState<_ComposeSheet> {
                               icon: AppIcon(
                                 AppIcons.flagOutlined,
                                 color: _priority != TaskPriority.normal
-                                    ? colors.goldDark
+                                    ? colors.iconTint
                                     : colors.text,
                               ),
                             ),
@@ -870,7 +870,7 @@ class _ComposeSheetState extends ConsumerState<_ComposeSheet> {
                                 icon: AppIcon(
                                   AppIcons.personAddAlt1Rounded,
                                   color: _assigneeId != null
-                                      ? colors.goldDark
+                                      ? colors.iconTint
                                       : colors.text,
                                 ),
                               ),

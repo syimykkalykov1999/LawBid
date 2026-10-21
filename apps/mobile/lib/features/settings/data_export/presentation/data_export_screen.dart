@@ -128,7 +128,7 @@ class _ExportBody extends ConsumerWidget {
                           child: AppIcon(
                             AppIcons.checkRounded,
                             size: AppSizes.iconSm,
-                            color: colors.gold,
+                            color: colors.iconTint,
                           ),
                         ),
                       ),

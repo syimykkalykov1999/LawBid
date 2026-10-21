@@ -49,6 +49,8 @@ export const NOTIFICATION_CATEGORY: Record<
   post_like: 'social',
   // Owner 2026-10-07: Threads-style reposts.
   post_repost: 'social',
+  // Owner 2026-10-20: a gift on the profile.
+  gift_received: 'social',
   post_comment: 'social',
   case_comment: 'bids',
   // OQ-041: a call nobody answered (own category, owner 2026-09-30).
@@ -57,6 +59,10 @@ export const NOTIFICATION_CATEGORY: Record<
   mention: 'social',
   // Owner 2026-09-30, opt-in.
   followed_post: 'following',
+  // Owner 2026-10-20: a post in a channel I subscribed to.
+  channel_post: 'channels',
+  // Owner 2026-10-21: an invitation to a group.
+  group_invite: 'groups',
   // OQ-048: the attorney's team.
   assistant_request: 'messages',
   assistant_task: 'cases',
@@ -100,6 +106,10 @@ export const NOTIFICATION_CATEGORY: Record<
   moderation_notice: 'system',
   security_new_device: 'system',
   security_phone_changed: 'system',
+  // Owner 2026-10-20: booking and «Вопрос юристу».
+  consultation_update: 'cases',
+  legal_question_new: 'new_cases',
+  legal_answer_update: 'cases',
 };
 
 /**
@@ -138,11 +148,14 @@ export const NOTIFICATION_IMPORTANT: Record<NotificationType, boolean> = {
   new_follower: false,
   post_like: false,
   post_repost: false,
+  gift_received: true,
   post_comment: false,
   case_comment: false,
   missed_call: true,
   mention: false,
   followed_post: false,
+  channel_post: false,
+  group_invite: true,
   assistant_request: true,
   assistant_task: true,
   assistant_joined: false,
@@ -182,6 +195,9 @@ export const NOTIFICATION_IMPORTANT: Record<NotificationType, boolean> = {
   moderation_notice: true,
   security_new_device: false,
   security_phone_changed: true,
+  consultation_update: true,
+  legal_question_new: false,
+  legal_answer_update: true,
 };
 
 /** The types of one bell tab. */
@@ -262,6 +278,15 @@ export class NotificationsService {
           recipientId: input.recipientId,
           conversationId: p.conversationId,
           messageId: p.messageId,
+          ...(typeof p.groupId === 'string' ? { groupId: p.groupId } : {}),
+          // Owner 2026-10-20: a reaction / edit of an earlier message.
+          ...(p.event === 'reaction' || p.event === 'edit'
+            ? {
+                event: p.event,
+                actorId: typeof p.actorId === 'string' ? p.actorId : undefined,
+                emoji: typeof p.emoji === 'string' ? p.emoji : undefined,
+              }
+            : {}),
         });
       }
       return null;

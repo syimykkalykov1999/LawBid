@@ -10,8 +10,8 @@ void main() {
   final tabs = [
     const AppTabConfig(
       key: AppTabKey.feed,
-      icon: AppIcons.articleOutlined,
-      activeIcon: AppIcons.article,
+      icon: AppIcons.homeOutlined,
+      activeIcon: AppIcons.homeRounded,
       label: 'Лента',
     ),
     const AppTabConfig(

@@ -16,11 +16,11 @@ import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
-import 'package:lawbid/features/contacts_sync/presentation/contacts_section.dart';
 import 'package:lawbid/features/feed/application/feed_topics.dart';
 import 'package:lawbid/features/feed/presentation/widgets/feed_chrome.dart';
 import 'package:lawbid/features/feed/presentation/widgets/topic_filter_bar.dart'
     show topicName;
+import 'package:lawbid/features/legal_qa/presentation/qa_search_button.dart';
 import 'package:lawbid/features/practice/practice_matches.dart';
 import 'package:lawbid/features/search/application/search_providers.dart';
 import 'package:lawbid/features/search/data/search_repository.dart';
@@ -258,8 +258,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           final button = AppIconButton(
             icon: AppIcon(
               cancel ? AppIcons.closeRounded : AppIcons.searchRounded,
-              color: cancel ? colors.textSecondary : colors.goldDark,
+              color: cancel ? colors.textSecondary : colors.iconTint,
             ),
+            compact: true,
             semanticLabel: cancel ? t.t('common.cancel') : t.t('search.open'),
             onPressed: cancel
                 ? () {
@@ -271,16 +272,21 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           // Owner 2026-10-20 (WeChat): the QR scanner sits in the field
           // while nothing is typed; the phone only (the website shows its
           // own sign-in code instead).
-          if (kIsWeb || _focused || value.text.isNotEmpty) return button;
+          if (_focused || value.text.isNotEmpty) return button;
+          // Owner 2026-10-20: «?» (ask an attorney), the scanner and the
+          // magnifier sit close together at the right edge.
           return Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              AppIconButton(
-                key: const ValueKey('search-scan-qr'),
-                icon: AppIcon(AppIcons.scan, color: colors.text),
-                semanticLabel: t.t('qr.scan.title'),
-                onPressed: () => context.push(AppRoutes.qrScan),
-              ),
+              const QaSearchButton(),
+              if (!kIsWeb)
+                AppIconButton(
+                  compact: true,
+                  key: const ValueKey('search-scan-qr'),
+                  icon: AppIcon(AppIcons.scan, color: colors.text),
+                  semanticLabel: t.t('qr.scan.title'),
+                  onPressed: () => context.push(AppRoutes.qrScan),
+                ),
               button,
             ],
           );
@@ -318,14 +324,19 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 // Owner 2026-09-30: the sections on top, the field under them.
                 tabsRow,
                 ChromeCollapse(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      AppSpacing.screenSide,
-                      AppSpacing.xs,
-                      AppSpacing.screenSide,
-                      AppSpacing.xs,
-                    ),
-                    child: field,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(
+                          AppSpacing.screenSide,
+                          AppSpacing.xs,
+                          AppSpacing.screenSide,
+                          AppSpacing.xs,
+                        ),
+                        child: field,
+                      ),
+                    ],
                   ),
                 ),
                 if (_focused && _suggestQ.isNotEmpty)
@@ -735,7 +746,6 @@ class _BeforeTyping extends ConsumerWidget {
     // ignore: omit_local_variable_types
     final List<Widget> explore = switch (tab) {
       SearchTab.attorneys => [
-          const SliverToBoxAdapter(child: ContactsSection()),
           const SliverToBoxAdapter(child: RecommendedAttorneys()),
         ],
       SearchTab.cases when !attorney => [
@@ -1074,7 +1084,7 @@ class _RecentHistory extends ConsumerWidget {
                   child: Text(
                     t.t('search.recent.clear'),
                     style: type.body.copyWith(
-                      color: colors.gold,
+                      color: colors.goldText,
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
                     ),

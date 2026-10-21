@@ -3,7 +3,7 @@
 // can draw, written to apps/mobile/test/l10n/longest_strings.json.
 // Usage: node scripts/gen-longest-strings.mjs
 // Also writes test/l10n/lang_<code>.json for the languages whose real text
-// the overflow tests pump as is (Nepali, Arabic: other scripts, the longest
+// the overflow tests pump as is (Nepali, Arabic, Marathi, German: the longest
 // texts by owner's measure).
 import ExcelJS from 'exceljs';
 import fs from 'node:fs';

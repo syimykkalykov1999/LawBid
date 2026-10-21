@@ -2,14 +2,12 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
-import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_cover.dart';
@@ -17,6 +15,8 @@ import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart'
     show CountPill;
 import 'package:lawbid/features/feed/presentation/widgets/feed_chrome.dart';
+import 'package:lawbid/features/legal_qa/application/legal_qa_providers.dart';
+import 'package:lawbid/features/legal_qa/presentation/qa_search_button.dart';
 import 'package:lawbid/features/onboarding/domain/us_states.dart';
 import 'package:lawbid/features/onboarding/presentation/widgets/option_picker_sheet.dart';
 import 'package:lawbid/features/practice/practice_options.dart';
@@ -564,7 +564,7 @@ class _MineSearchBarState extends ConsumerState<MineSearchBar> {
                   : AppIconButton(
                       icon: AppIcon(
                         AppIcons.searchRounded,
-                        color: colors.goldDark,
+                        color: colors.iconTint,
                       ),
                       semanticLabel: t.t(widget.hintKey),
                       onPressed: _focus.requestFocus,
@@ -640,22 +640,15 @@ class _MineChipsSearchRowState extends ConsumerState<MineChipsSearchRow> {
                   )
                 : chips,
           ),
-          // Owner 2026-10-18: «Справочник» in the empty space before the
-          // search.
-          if (!open)
-            AppIconButton(
-              key: const ValueKey('mine-guide-open'),
-              compact: true,
-              icon:
-                  AppIcon(AppIcons.infoOutlineRounded, color: colors.goldDark),
-              semanticLabel: t.t('guide.title'),
-              onPressed: () => context.push(AppRoutes.guide),
-            ),
+          // Owner 2026-10-20: the «?» — the same door to «Вопрос юристу» as
+          // the «Вопрос юристу · N новых» line (no «how it works» screens).
+          if (!open && ref.watch(legalQaEnabledProvider))
+            const QaSearchButton(),
           if (!open)
             AppIconButton(
               key: const ValueKey('mine-search-open'),
               compact: true,
-              icon: AppIcon(AppIcons.searchRounded, color: colors.goldDark),
+              icon: AppIcon(AppIcons.searchRounded, color: colors.iconTint),
               semanticLabel: t.t(widget.hintKey),
               onPressed: () => setState(() => _open = true),
             ),

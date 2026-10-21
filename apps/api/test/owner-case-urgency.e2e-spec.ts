@@ -306,7 +306,10 @@ describe('Case urgency: levels and dates (e2e, owner 2026-10-05)', () => {
     });
 
     const job = app.get(CaseDeadlineReminderJob);
-    const first = await job.run();
+    // Owner 2026-10-20: each person is reminded in their local morning
+    // (09:00–21:00); users here have no zone, so noon UTC.
+    const noon = new Date(`${dayFromNow(0)}T12:00:00Z`);
+    const first = await job.run(noon);
     expect(first.ran).toBe(true);
     const soon = await prisma.notification.findMany({
       where: {
@@ -326,7 +329,7 @@ describe('Case urgency: levels and dates (e2e, owner 2026-10-05)', () => {
     });
     expect(passed.map((x) => x.user_id)).toEqual([client.id]);
 
-    await job.run();
+    await job.run(noon);
     expect(
       await prisma.notification.count({
         where: {

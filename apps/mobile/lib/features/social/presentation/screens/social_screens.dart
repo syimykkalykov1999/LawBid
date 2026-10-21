@@ -8,6 +8,7 @@ import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/feed/application/feed_topics.dart';
 import 'package:lawbid/features/feed/presentation/widgets/feed_chrome.dart';
+import 'package:lawbid/features/legal_qa/presentation/qa_banners.dart';
 import 'package:lawbid/features/practice/practice_options.dart'
     as practice_options;
 import 'package:lawbid/features/practice/practice_options.dart' as practices;
@@ -77,9 +78,13 @@ class PostsFeedView extends ConsumerWidget {
             skeleton: const PostListSkeleton(),
             itemKey: (p) => p.id,
             prefetch: prefetchPost,
-            itemBuilder: (context, p, _) => PostImpressionTracker(
-              post: p,
-              child: PostCard(post: p, feedHeight: height),
+            itemBuilder: (context, p, i) => withQaBanner(
+              i,
+              value.value?.items.length ?? 0,
+              PostImpressionTracker(
+                post: p,
+                child: PostCard(post: p, feedHeight: height),
+              ),
             ),
             // §2.3: "Пока в ленте пусто" + recommended attorneys to follow.
             empty: ListView(
@@ -122,19 +127,24 @@ class LatestPostsView extends ConsumerWidget {
       builder: (context, box) {
         final height =
             feedChromeCardHeight(context) ?? feedCardHeight(box.maxHeight);
+        final posts = _withoutDeleted(
+          ref.watch(latestPostsProvider(stateCode)),
+          ref.watch(deletedPostsProvider),
+        );
         return PagedListBody<Post>(
-          value: _withoutDeleted(
-            ref.watch(latestPostsProvider(stateCode)),
-            ref.watch(deletedPostsProvider),
-          ),
+          value: posts,
           t: t,
           edgeToEdge: true,
           skeleton: const PostListSkeleton(),
           itemKey: (p) => p.id,
           prefetch: prefetchPost,
-          itemBuilder: (context, p, _) => PostImpressionTracker(
-            post: p,
-            child: PostCard(post: p, feedHeight: height),
+          itemBuilder: (context, p, i) => withQaBanner(
+            i,
+            posts.value?.items.length ?? 0,
+            PostImpressionTracker(
+              post: p,
+              child: PostCard(post: p, feedHeight: height),
+            ),
           ),
           empty: AppEmptyState(
             icon: AppIcons.mapOutlined,
@@ -189,19 +199,24 @@ class FilteredPostsView extends ConsumerWidget {
       builder: (context, box) {
         final height =
             feedChromeCardHeight(context) ?? feedCardHeight(box.maxHeight);
+        final posts = _withoutDeleted(
+          ref.watch(filteredPostsProvider(key)),
+          ref.watch(deletedPostsProvider),
+        );
         return PagedListBody<Post>(
-          value: _withoutDeleted(
-            ref.watch(filteredPostsProvider(key)),
-            ref.watch(deletedPostsProvider),
-          ),
+          value: posts,
           t: t,
           edgeToEdge: true,
           skeleton: const PostListSkeleton(),
           itemKey: (p) => p.id,
           prefetch: prefetchPost,
-          itemBuilder: (context, p, _) => PostImpressionTracker(
-            post: p,
-            child: PostCard(post: p, feedHeight: height),
+          itemBuilder: (context, p, i) => withQaBanner(
+            i,
+            posts.value?.items.length ?? 0,
+            PostImpressionTracker(
+              post: p,
+              child: PostCard(post: p, feedHeight: height),
+            ),
           ),
           empty: AppEmptyState(
             icon: newsOnly ? AppIcons.newspaperRounded : AppIcons.tagRounded,
@@ -608,6 +623,44 @@ class _FollowListScreenState extends ConsumerState<FollowListScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Owner 2026-10-20: people who liked a post (avatar, name, follow).
+class LikersScreen extends ConsumerWidget {
+  const LikersScreen({required this.postId, super.key});
+
+  final String postId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final value = ref.watch(postLikersProvider(postId));
+    final n = ref.read(postLikersProvider(postId).notifier);
+    return Scaffold(
+      backgroundColor: colors.bg,
+      appBar: AppTopBar(
+        leading: AppBackButton(
+          semanticLabel: t.t('common.back'),
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
+        title: Text(t.t('post.stats.likes')),
+      ),
+      body: PagedListBody<PersonRow>(
+        value: value,
+        t: t,
+        itemKey: (r) => r.id,
+        itemBuilder: (context, r, _) => PersonTile(row: r),
+        empty: AppEmptyState(
+          icon: AppIcons.favoriteRounded,
+          message: t.t('post.likers.empty'),
+        ),
+        onRefresh: n.refresh,
+        onLoadMore: n.loadMore,
+        onRetryMore: n.retryLoadMore,
       ),
     );
   }

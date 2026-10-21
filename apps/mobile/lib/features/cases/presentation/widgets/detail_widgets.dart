@@ -84,7 +84,7 @@ class InfoRow extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            AppIcon(icon, size: AppSizes.iconSm, color: colors.goldDark),
+            AppIcon(icon, size: AppSizes.iconSm, color: colors.iconTint),
             const SizedBox(width: AppSpacing.md),
             Expanded(
               child: Column(

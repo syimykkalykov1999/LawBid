@@ -312,7 +312,7 @@ class _BidBody extends StatelessWidget {
                 onPressed: () => context.push(AppRoutes.caseDetail(bid.caseId)),
                 icon: AppIcon(
                   AppIcons.descriptionOutlined,
-                  color: colors.goldDark,
+                  color: colors.iconTint,
                 ),
                 label: Text(
                   t.t('cases.bid.openCase'),
@@ -576,7 +576,7 @@ class _CounterSheetState extends State<_CounterSheet> {
                 Container(
                   padding: const EdgeInsets.all(AppSpacing.md),
                   decoration: BoxDecoration(
-                    color: colors.goldTint,
+                    color: colors.iconTintFill,
                     borderRadius: BorderRadius.circular(AppRadii.field),
                   ),
                   child: Row(
@@ -585,7 +585,7 @@ class _CounterSheetState extends State<_CounterSheet> {
                       AppIcon(
                         AppIcons.gavelRounded,
                         size: AppSizes.iconSm,
-                        color: colors.goldDark,
+                        color: colors.iconTint,
                       ),
                       const SizedBox(width: AppSpacing.sm),
                       Expanded(

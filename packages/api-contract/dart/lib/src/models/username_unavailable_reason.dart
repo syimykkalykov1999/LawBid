@@ -13,6 +13,10 @@ enum UsernameUnavailableReason {
   reserved('reserved'),
   @JsonValue('taken')
   taken('taken'),
+  @JsonValue('held')
+  held('held'),
+  @JsonValue('similar')
+  similar('similar'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

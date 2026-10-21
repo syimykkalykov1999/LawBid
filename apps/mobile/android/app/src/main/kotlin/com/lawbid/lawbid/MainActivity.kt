@@ -8,6 +8,10 @@ import android.content.pm.PackageManager
 import androidx.core.app.NotificationManagerCompat
 import android.content.Intent
 import android.media.AudioAttributes
+import android.media.AudioManager
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import android.media.Ringtone
 import android.media.RingtoneManager
 import android.os.Build
@@ -38,10 +42,24 @@ class MainActivity : FlutterFragmentActivity() {
     private var pendingPermission: MethodChannel.Result? = null
     private var callChannel: MethodChannel? = null
     private var pendingCallAction: String? = null
+    private var pipActive = false
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         createChannels()
+        // Owner 2026-10-20: a video call goes to a floating window when the
+        // person leaves the app (Home / another app), like WhatsApp.
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "lawbid/call_pip",
+        ).setMethodCallHandler { call, result ->
+            if (call.method == "setActive") {
+                pipActive = call.argument<Boolean>("active") == true
+                result.success(null)
+            } else {
+                result.notImplemented()
+            }
+        }
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
             "lawbid/notification_sounds",
@@ -126,6 +144,20 @@ class MainActivity : FlutterFragmentActivity() {
             when (call.method) {
                 "start" -> {
                     ringtone?.stop()
+                    stopVibration()
+                    // Like a phone call: silent = nothing, vibrate = buzz only.
+                    val mode = (getSystemService(AUDIO_SERVICE) as? AudioManager)?.ringerMode
+                    if (mode == AudioManager.RINGER_MODE_SILENT) {
+                        ringtone = null
+                        result.success(null)
+                        return@setMethodCallHandler
+                    }
+                    startVibration()
+                    if (mode == AudioManager.RINGER_MODE_VIBRATE) {
+                        ringtone = null
+                        result.success(null)
+                        return@setMethodCallHandler
+                    }
                     ringtone = RingtoneManager.getRingtone(
                         this,
                         RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE),
@@ -142,6 +174,7 @@ class MainActivity : FlutterFragmentActivity() {
                 "stop" -> {
                     ringtone?.stop()
                     ringtone = null
+                    stopVibration()
                     result.success(null)
                 }
                 else -> result.notImplemented()
@@ -185,6 +218,18 @@ class MainActivity : FlutterFragmentActivity() {
                     }
                     "stop" -> {
                         stopService(Intent(this, CallForegroundService::class.java))
+                        // The service may be gone already (or never got to
+                        // run): its notification must be too.
+                        try {
+                            getSystemService(NotificationManager::class.java)
+                                ?.cancel(CallForegroundService.NOTIFICATION_ID)
+                        } catch (e: Exception) {
+                        }
+                        clearCallNotifications()
+                        result.success(null)
+                    }
+                    "clear" -> {
+                        clearCallNotifications()
                         result.success(null)
                     }
                     "pendingAction" -> {
@@ -214,9 +259,83 @@ class MainActivity : FlutterFragmentActivity() {
         }
     }
 
+    private var vibrator: Vibrator? = null
+
+    private fun startVibration() {
+        try {
+            val v = if (Build.VERSION.SDK_INT >= 31) {
+                (getSystemService(VIBRATOR_MANAGER_SERVICE) as VibratorManager).defaultVibrator
+            } else {
+                @Suppress("DEPRECATION")
+                getSystemService(VIBRATOR_SERVICE) as Vibrator
+            }
+            vibrator = v
+            val pattern = longArrayOf(0L, 1000L, 1000L)
+            if (Build.VERSION.SDK_INT >= 26) {
+                v.vibrate(VibrationEffect.createWaveform(pattern, 0))
+            } else {
+                @Suppress("DEPRECATION")
+                v.vibrate(pattern, 0)
+            }
+        } catch (e: Exception) {
+            // no vibrator
+        }
+    }
+
+    private fun stopVibration() {
+        try {
+            vibrator?.cancel()
+        } catch (e: Exception) {
+            // already gone
+        }
+        vibrator = null
+    }
+
+    /** After a call: no ringing / ongoing notification of any call (ours or
+     * the call plugin's) may stay in the shade. */
+    private fun clearCallNotifications() {
+        val nm = getSystemService(NotificationManager::class.java) ?: return
+        val channels = setOf(
+            "callkit_incoming_channel_id_v2",
+            "callkit_incoming_channel_id",
+            "callkit_ongoing_channel_id",
+            CallForegroundService.CHANNEL,
+        )
+        try {
+            for (n in nm.activeNotifications) {
+                if (Build.VERSION.SDK_INT >= 26 && n.notification.channelId in channels) {
+                    nm.cancel(n.tag, n.id)
+                }
+            }
+        } catch (e: Exception) {
+            // listing not allowed: nothing to clear
+        }
+    }
+
+    override fun onDestroy() {
+        stopVibration()
+        super.onDestroy()
+    }
+
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
         CallBridge.channel = null
         super.cleanUpFlutterEngine(flutterEngine)
+    }
+
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        if (pipActive && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            try {
+                enterPictureInPictureMode(
+                    android.app.PictureInPictureParams.Builder()
+                        .setAspectRatio(android.util.Rational(9, 16))
+                        .build(),
+                )
+            } catch (e: Exception) {
+                // PiP not allowed on this device: the call goes on in the
+                // background with its notification.
+            }
+        }
     }
 
     override fun onNewIntent(intent: Intent) {

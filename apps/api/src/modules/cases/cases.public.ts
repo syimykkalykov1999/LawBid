@@ -11,3 +11,4 @@ export {
   PERCENT_BPS_MIN,
 } from './domain/contingency';
 export { budgetFilterSql } from './queries/budget-filter.sql';
+export { maskContactInfo } from './domain/contact-detector';

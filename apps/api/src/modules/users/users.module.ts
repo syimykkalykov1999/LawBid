@@ -1,3 +1,4 @@
+import { UsernamesModule } from '../usernames/usernames.module';
 import { Module } from '@nestjs/common';
 import { AnalyticsModule } from '../analytics/analytics.module';
 import { AuthModule } from '../auth/auth.module';
@@ -24,6 +25,7 @@ import { UsernameRegistry } from './services/username-registry.service';
 @Module({
   // FeatureFlagsModule: «Вход и письма по почте» (contacts, onboarding).
   imports: [
+    UsernamesModule,
     AuthModule,
     AnalyticsModule,
     FeatureFlagsModule,

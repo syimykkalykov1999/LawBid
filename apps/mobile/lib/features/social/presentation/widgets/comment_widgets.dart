@@ -846,7 +846,9 @@ class _CommentComposerState extends ConsumerState<CommentComposer> {
                         return AppIconButton(
                           icon: AppIcon(
                             AppIcons.arrowUpwardRounded,
-                            color: enabled ? colors.gold : colors.textSecondary,
+                            color: enabled
+                                ? colors.iconTint
+                                : colors.textSecondary,
                           ),
                           isLoading: _sending,
                           semanticLabel: _isCase

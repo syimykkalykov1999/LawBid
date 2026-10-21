@@ -255,7 +255,7 @@ class _DocCard extends StatelessWidget {
                     AppIcon(
                       AppIcons.descriptionOutlined,
                       size: AppSizes.iconSm,
-                      color: colors.goldDark,
+                      color: colors.iconTint,
                     ),
                     const SizedBox(width: AppSpacing.sm),
                     Flexible(

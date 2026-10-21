@@ -10,6 +10,8 @@ import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_parts.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
+import 'package:lawbid/features/cases/tools/billing_tab.dart';
+import 'package:lawbid/features/cases/tools/signing_tab.dart';
 import 'package:lawbid/features/cases/workspace/compose_sheet.dart';
 import 'package:lawbid/features/cases/workspace/file_actions.dart';
 import 'package:lawbid/features/cases/workspace/tasks_tab.dart';
@@ -113,6 +115,8 @@ class _CaseWorkspaceBodyState extends ConsumerState<CaseWorkspaceBody> {
           CaseTabItem(t.t('cases.tab.tasks'), count: open),
           CaseTabItem(t.t('cases.tab.updates'), count: fresh),
           CaseTabItem(t.t('cases.tab.activity')),
+          CaseTabItem(t.t('cases.tab.time')),
+          CaseTabItem(t.t('cases.tab.docs')),
         ];
         final shift = wide ? 1 : 0;
         // Owner 2026-10-19 (Instagram): the case header scrolls away, the
@@ -133,7 +137,15 @@ class _CaseWorkspaceBodyState extends ConsumerState<CaseWorkspaceBody> {
                   caseId: widget.caseId,
                   isAttorney: widget.isAttorney,
                 ),
-              _ => ActivityTab(caseId: widget.caseId),
+              4 => ActivityTab(caseId: widget.caseId),
+              5 => BillingTab(
+                  caseId: widget.caseId,
+                  isAttorney: widget.isAttorney,
+                ),
+              _ => SigningTab(
+                  caseId: widget.caseId,
+                  isAttorney: widget.isAttorney,
+                ),
             };
         final scale = MediaQuery.textScalerOf(context).scale(1);
         final main = ProfileTabPages(
@@ -382,7 +394,7 @@ class _FileRow extends StatelessWidget {
                       color: colors.chip,
                       child: AppIcon(
                         AppIcons.descriptionOutlined,
-                        color: colors.goldDark,
+                        color: colors.iconTint,
                       ),
                     ),
             ),

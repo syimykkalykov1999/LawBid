@@ -26,6 +26,13 @@ export const REPORT_TARGET_TYPES = [
   'client_review',
   // Owner 2026-10-02: user sticker packs.
   'sticker_pack',
+  // Owner 2026-10-20: stories, channels and channel posts.
+  'story',
+  'channel',
+  'channel_post',
+  // Owner 2026-10-20: «Вопрос юристу».
+  'legal_question',
+  'legal_answer',
 ] as const;
 export type ReportTargetName = (typeof REPORT_TARGET_TYPES)[number];
 

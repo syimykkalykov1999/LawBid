@@ -102,13 +102,13 @@ void main() {
     ]);
     // Owner 2026-10-15: one list of cards, the chips Active · Completed.
     expect(find.text('Active'), findsOneWidget);
-    expect(find.text('Completed'), findsOneWidget);
+    expect(find.text('Done'), findsOneWidget);
     expect(find.byKey(const ValueKey('active-case-a')), findsOneWidget);
     expect(find.byKey(const ValueKey('active-case-b')), findsOneWidget);
     expect(find.text('Case a'), findsOneWidget);
     // The rows (and their swipe actions) are gone.
     expect(find.byKey(const ValueKey('my-case-a')), findsNothing);
-    await tester.tap(find.text('Completed'));
+    await tester.tap(find.text('Done'));
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
   });
@@ -120,7 +120,7 @@ void main() {
     final close = find.byKey(const ValueKey('mine-search-close'));
     // Owner 2026-10-16: closed — the two chips and the magnifier, one row.
     expect(find.text('Active'), findsOneWidget);
-    expect(find.text('Completed'), findsOneWidget);
+    expect(find.text('Done'), findsOneWidget);
     expect(open, findsOneWidget);
     expect(close, findsNothing);
     expect(
@@ -134,11 +134,11 @@ void main() {
     expect(find.byKey(const ValueKey('mine-search')), findsOneWidget);
     expect(find.byKey(const ValueKey('mine-filters')), findsOneWidget);
     expect(close, findsOneWidget);
-    expect(find.text('Completed'), findsNothing);
+    expect(find.text('Done'), findsNothing);
     await tester.tap(close);
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('mine-search')), findsNothing);
-    expect(find.text('Completed'), findsOneWidget);
+    expect(find.text('Done'), findsOneWidget);
     expect(open, findsOneWidget);
     // The Cases · Tasks tabs stay full width above.
     expect(find.text('Cases'), findsOneWidget);

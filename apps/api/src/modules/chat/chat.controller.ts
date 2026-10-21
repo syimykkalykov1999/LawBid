@@ -26,8 +26,12 @@ import {
   ConversationsQueryDto,
   MessageDto,
   MessagesQueryDto,
+  MuteCallsDto,
   MuteConversationDto,
+  SetDisappearingDto,
   ReadConversationDto,
+  DeliveredConversationDto,
+  DeliveredResultDto,
   ReadResultDto,
   RequestsCountDto,
   SendMessageDto,
@@ -241,6 +245,23 @@ export class ChatController {
     return this.chat.read(user, p.id, dto.lastReadMessageId);
   }
 
+  @Post(':id/delivered')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'The device received messages up to this one (two grey ticks)',
+  })
+  @ApiEnvelopeResponse(DeliveredResultDto)
+  @ApiErrors({
+    404: [ErrorCode.CONVERSATION_NOT_FOUND, ErrorCode.NOT_FOUND],
+  })
+  deliveredConversation(
+    @CurrentUser() user: RequestUser,
+    @Param() p: ConversationIdParamDto,
+    @Body() dto: DeliveredConversationDto,
+  ): Promise<{ lastDeliveredMessageId: string | null }> {
+    return this.chat.delivered(user, p.id, dto.lastDeliveredMessageId);
+  }
+
   // Audit 2026-10-02: these are the attorney's own chat settings.
   @AttorneyOnly()
   @Patch(':id/organize')
@@ -261,8 +282,7 @@ export class ChatController {
     return this.chat.organize(user, p.id, dto);
   }
 
-  // Audit 2026-10-02: these are the attorney's own chat settings.
-  @AttorneyOnly()
+  // Owner 2026-10-21: muting is for both roles (Telegram / WhatsApp).
   @Patch(':id/mute')
   @ApiOperation({ summary: 'Mute push until a time; null unmutes (§8.4)' })
   @ApiEnvelopeResponse(ConversationDto)
@@ -273,5 +293,36 @@ export class ChatController {
     @Body() dto: MuteConversationDto,
   ): Promise<ConversationDto> {
     return this.chat.mute(user, p.id, dto.until ?? null);
+  }
+
+  @Patch(':id/calls-mute')
+  @ApiOperation({ summary: 'Calls of this chat ring silently (or not)' })
+  @ApiEnvelopeResponse(ConversationDto)
+  @ApiErrors({ 404: [ErrorCode.CONVERSATION_NOT_FOUND] })
+  muteChatCalls(
+    @CurrentUser() user: RequestUser,
+    @Param() p: ConversationIdParamDto,
+    @Body() dto: MuteCallsDto,
+  ): Promise<ConversationDto> {
+    return this.chat.muteCalls(user, p.id, dto.muted);
+  }
+
+  @Patch(':id/disappearing')
+  @ApiOperation({
+    summary:
+      'Disappearing messages: 24 h / 7 d / 90 d for new messages; null = off',
+  })
+  @ApiEnvelopeResponse(ConversationDto)
+  @ApiErrors({
+    400: [ErrorCode.VALIDATION_ERROR],
+    403: [ErrorCode.FORBIDDEN],
+    404: [ErrorCode.CONVERSATION_NOT_FOUND],
+  })
+  setDisappearing(
+    @CurrentUser() user: RequestUser,
+    @Param() p: ConversationIdParamDto,
+    @Body() dto: SetDisappearingDto,
+  ): Promise<ConversationDto> {
+    return this.chat.setDisappearing(user, p.id, dto.afterS ?? null);
   }
 }

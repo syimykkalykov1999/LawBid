@@ -98,6 +98,10 @@ enum ErrorCode {
   reviewAlreadyExists('REVIEW_ALREADY_EXISTS'),
   @JsonValue('REVIEW_EDIT_WINDOW_EXPIRED')
   reviewEditWindowExpired('REVIEW_EDIT_WINDOW_EXPIRED'),
+  @JsonValue('MESSAGE_WINDOW_EXPIRED')
+  messageWindowExpired('MESSAGE_WINDOW_EXPIRED'),
+  @JsonValue('MESSAGE_PIN_LIMIT')
+  messagePinLimit('MESSAGE_PIN_LIMIT'),
   @JsonValue('REVIEW_NOT_EDITABLE')
   reviewNotEditable('REVIEW_NOT_EDITABLE'),
   @JsonValue('REVIEW_APPEAL_EXISTS')
@@ -274,6 +278,16 @@ enum ErrorCode {
   commentNotFound('COMMENT_NOT_FOUND'),
   @JsonValue('FOLLOW_NOT_ALLOWED')
   followNotAllowed('FOLLOW_NOT_ALLOWED'),
+  @JsonValue('GROUP_NOT_FOUND')
+  groupNotFound('GROUP_NOT_FOUND'),
+  @JsonValue('GROUP_FORBIDDEN')
+  groupForbidden('GROUP_FORBIDDEN'),
+  @JsonValue('GROUP_FULL')
+  groupFull('GROUP_FULL'),
+  @JsonValue('GROUP_USERNAME_TAKEN')
+  groupUsernameTaken('GROUP_USERNAME_TAKEN'),
+  @JsonValue('POLL_CLOSED')
+  pollClosed('POLL_CLOSED'),
   @JsonValue('CONVERSATION_NOT_FOUND')
   conversationNotFound('CONVERSATION_NOT_FOUND'),
   @JsonValue('CONVERSATION_CLOSED')
@@ -330,6 +344,10 @@ enum ErrorCode {
   translationUnavailable('TRANSLATION_UNAVAILABLE'),
   @JsonValue('STICKER_LIMIT_REACHED')
   stickerLimitReached('STICKER_LIMIT_REACHED'),
+  @JsonValue('INSUFFICIENT_STARS')
+  insufficientStars('INSUFFICIENT_STARS'),
+  @JsonValue('STICKER_PACK_NOT_OWNED')
+  stickerPackNotOwned('STICKER_PACK_NOT_OWNED'),
   @JsonValue('SUPPORT_TICKET_CLOSED')
   supportTicketClosed('SUPPORT_TICKET_CLOSED'),
   @JsonValue('REFERRAL_CODE_INVALID')
@@ -420,6 +438,28 @@ enum ErrorCode {
   demoCodeInvalid('DEMO_CODE_INVALID'),
   @JsonValue('LEGAL_REACCEPT_REQUIRED')
   legalReacceptRequired('LEGAL_REACCEPT_REQUIRED'),
+  @JsonValue('STORY_LIMIT_REACHED')
+  storyLimitReached('STORY_LIMIT_REACHED'),
+  @JsonValue('CHANNEL_LIMIT_REACHED')
+  channelLimitReached('CHANNEL_LIMIT_REACHED'),
+  @JsonValue('CHANNEL_USERNAME_TAKEN')
+  channelUsernameTaken('CHANNEL_USERNAME_TAKEN'),
+  @JsonValue('CONSULTATION_SLOT_TAKEN')
+  consultationSlotTaken('CONSULTATION_SLOT_TAKEN'),
+  @JsonValue('CONSULTATION_NOT_AVAILABLE')
+  consultationNotAvailable('CONSULTATION_NOT_AVAILABLE'),
+  @JsonValue('CONSULTATION_STATE_CONFLICT')
+  consultationStateConflict('CONSULTATION_STATE_CONFLICT'),
+  @JsonValue('QA_ANSWERS_ENOUGH')
+  qaAnswersEnough('QA_ANSWERS_ENOUGH'),
+  @JsonValue('QA_QUESTION_CLOSED')
+  qaQuestionClosed('QA_QUESTION_CLOSED'),
+  @JsonValue('FORWARD_NOT_ALLOWED')
+  forwardNotAllowed('FORWARD_NOT_ALLOWED'),
+  @JsonValue('CONTENT_PROTECTED')
+  contentProtected('CONTENT_PROTECTED'),
+  @JsonValue('UNSUPPORTED_IN_TARGET')
+  unsupportedInTarget('UNSUPPORTED_IN_TARGET'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

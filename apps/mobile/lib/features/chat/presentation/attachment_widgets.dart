@@ -32,6 +32,11 @@ Future<List<PickedChatFile>> pickChatFiles(
   /// no files are returned.
   VoidCallback? onTemplate,
 
+  /// Owner 2026-10-20: «Contact» (an attorney's card) and «Place» (an
+  /// address with «Open in maps»); picked → this runs, no files returned.
+  VoidCallback? onContact,
+  VoidCallback? onPlace,
+
   /// Owner 2026-10-07 (bug 17): the admin's formats and MB for this place
   /// (chat or task); without it the chat defaults.
   PlaceUploadLimits? limits,
@@ -70,6 +75,18 @@ Future<List<PickedChatFile>> pickChatFiles(
               label: t.t('chat.attach.template'),
               onTap: () => Navigator.of(sheet).pop('template'),
             ),
+          if (onContact != null)
+            AppListRow(
+              icon: AppIcons.person,
+              label: t.t('card.contact'),
+              onTap: () => Navigator.of(sheet).pop('contact'),
+            ),
+          if (onPlace != null)
+            AppListRow(
+              icon: AppIcons.placeOutlined,
+              label: t.t('card.place'),
+              onTap: () => Navigator.of(sheet).pop('place'),
+            ),
           const SizedBox(height: AppSpacing.md),
         ],
       ),
@@ -100,6 +117,12 @@ Future<List<PickedChatFile>> pickChatFiles(
   switch (choice) {
     case 'template':
       onTemplate?.call();
+      return const [];
+    case 'contact':
+      onContact?.call();
+      return const [];
+    case 'place':
+      onPlace?.call();
       return const [];
     case 'photos':
       // Owner 2026-10-01: no count limit in chats and tasks (only
@@ -247,19 +270,16 @@ class AttachmentMessageBody extends ConsumerWidget {
     var captionWidth = 240.0;
     if (a.isVideo) {
       // Owner 2026-10-17 (WhatsApp): first frame, play button, length.
+      final box = chatMediaBox(context, a);
       content = ChatVideoTile(
         attachment: a,
         sending: sending,
         playLabel: t.t('chat.attach.videoPlay'),
+        box: box,
       );
-      captionWidth = 220;
+      captionWidth = box.width;
     } else if (a.isImage) {
-      final limits = chatMediaLimits(context);
-      final box = chatPhotoBox(
-        chatAspectOf(a),
-        maxWidth: limits.maxWidth,
-        maxHeight: limits.maxHeight,
-      );
+      final box = chatMediaBox(context, a);
       captionWidth = box.width;
       content = Semantics(
         button: a.url != null,

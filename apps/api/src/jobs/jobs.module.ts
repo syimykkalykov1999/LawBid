@@ -1,12 +1,16 @@
 import { PostsModule } from '../modules/posts/posts.module';
 import { CasePaymentsCoreModule } from '../modules/case-payments/case-payments.module';
 import { PromotionsCoreModule } from '../modules/promotions/promotions.module';
+import { StarsCoreModule } from '../modules/stars/stars.module';
 import { PartnersCoreModule } from '../modules/partners/partners.module';
 import { OutreachRetentionModule } from '../modules/outreach/outreach.module';
 import { CountryPartnersCoreModule } from '../modules/country-partners/country-partners.module';
 import { RewardsModule } from '../modules/rewards/rewards.module';
 import { SupportModule } from '../modules/support/support.module';
+import { LegalExportsCoreModule } from '../modules/admin-data-requests/legal-exports-core.module';
 import { StorageCoreModule } from '../modules/storage/storage.module';
+import { LegalQaSweepJob } from '../modules/legal-qa/legal-qa-sweep.job';
+import { ConsultationsCoreModule } from '../modules/consultations/consultations-core.module';
 import { TreasuryCoreModule } from '../modules/treasury/treasury.module';
 import { FileReleaseService } from '../modules/files/storage/file-release.service';
 import { DynamicModule, Module } from '@nestjs/common';
@@ -51,6 +55,7 @@ import { ClientReviewsCoreModule } from '../modules/client-reviews/client-review
 import { CaseLifecycleModule } from '../modules/cases/lifecycle/case-lifecycle.module';
 import { BidsModule } from '../modules/bids/bids.module';
 import { SubscriptionsModule } from '../modules/subscriptions/subscriptions.module';
+import { DisappearingSweepService } from '../modules/chat/disappearing-sweep.service';
 import { DemoCoreModule } from '../modules/demo/demo.module';
 
 /**
@@ -78,6 +83,8 @@ export class JobsModule {
         PostsModule,
         // Owner 2026-10-02: `promotions.expire`.
         PromotionsCoreModule,
+        // Owner 2026-10-20: `stars.sweep`.
+        StarsCoreModule,
         // Owner 2026-10-05: `case-payments.expire`.
         CasePaymentsCoreModule,
         // Owner 2026-10-05: `partners.sweep`.
@@ -95,8 +102,11 @@ export class JobsModule {
         // Owner 2026-10-05: `storage.gc`, `storage.retention`,
         // `storage.snapshot`.
         StorageCoreModule,
+        LegalExportsCoreModule,
         // Owner 2026-10-05: `treasury.daily` (profit and reserve).
         TreasuryCoreModule,
+        // Owner 2026-10-20: `consultations.sweep`.
+        ConsultationsCoreModule,
       ],
       providers: [
         { provide: JOBS_OPTIONS, useValue: options },
@@ -105,6 +115,8 @@ export class JobsModule {
           useClass: HttpDisposableDomainsFetcher,
         },
         SessionsCleanupJob,
+        // Owner 2026-10-21: `legal-qa.sweep`.
+        LegalQaSweepJob,
         OtpCleanupJob,
         DisposableDomainsRefreshJob,
         ReviewReminderJob,
@@ -132,6 +144,8 @@ export class JobsModule {
         TaskArchivePurgeJob,
         S3StorageService,
         FileReleaseService,
+        // Owner 2026-10-21: `chat.disappearing`.
+        DisappearingSweepService,
         CronProcessor,
         JobsRunner,
       ],

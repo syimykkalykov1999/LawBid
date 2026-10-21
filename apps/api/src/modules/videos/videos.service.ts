@@ -124,6 +124,7 @@ export class VideosService {
   async createUpload(
     userId: string,
     dto: CreateVideoUploadDto,
+    opts: { skipEntitlement?: boolean } = {},
   ): Promise<VideoUploadDto> {
     await this.assertAvailable();
     // Owner 2026-10-16 (economy guard): new uploads wait while third-party
@@ -136,7 +137,9 @@ export class VideosService {
       });
     }
     // Owner 2026-10-05 (plan builder): video posts are a plan term.
+    // Owner 2026-10-20: stories and channel posts take video from anyone.
     if (
+      !opts.skipEntitlement &&
       this.entitlements &&
       !(await this.entitlements.has(userId, 'video_posts'))
     ) {
@@ -245,6 +248,40 @@ export class VideosService {
       authorizationExpire: expire,
       maxDurationSec: maxSec,
     };
+  }
+
+  /**
+   * Owner 2026-10-20: my finished upload that no post, story or channel
+   * post uses yet (what a story / channel post may attach).
+   */
+  async takeReady(userId: string, id: string): Promise<VideoAsset> {
+    const a = await this.prisma.videoAsset.findFirst({
+      where: { id, owner_user_id: userId, deleted_at: null },
+      include: {
+        post: { select: { id: true } },
+        story: { select: { id: true } },
+        channel_post: { select: { id: true } },
+      },
+    });
+    if (!a) {
+      throw new NotFoundException({
+        code: ErrorCode.NOT_FOUND,
+        message: 'Video not found.',
+      });
+    }
+    if (a.post || a.story || a.channel_post) {
+      throw new ConflictException({
+        code: ErrorCode.FILE_NOT_ATTACHABLE,
+        message: 'This video is already used.',
+      });
+    }
+    if (a.status !== 'ready') {
+      throw new ConflictException({
+        code: ErrorCode.VIDEO_NOT_READY,
+        message: 'The video is still being processed.',
+      });
+    }
+    return a;
   }
 
   /** GET /videos/:id — the composer polls its own upload. */

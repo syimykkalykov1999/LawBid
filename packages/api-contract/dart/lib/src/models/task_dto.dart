@@ -18,40 +18,41 @@ part 'task_dto.g.dart';
 @JsonSerializable()
 class TaskDto {
   const TaskDto({
-    required this.assignedToMe,
+    required this.createdAt,
     required this.kind,
     required this.title,
-    required this.canDelete,
-    required this.id,
     required this.files,
+    required this.id,
     required this.status,
+    required this.canComplete,
     required this.canEdit,
+    required this.priority,
     required this.people,
     required this.places,
     required this.steps,
     required this.keepForever,
+    required this.assignedToMe,
     required this.repeat,
-    required this.canComplete,
-    required this.createdAt,
-    required this.priority,
+    required this.canDelete,
     this.createdByName,
     this.rescheduledTo,
     this.outcomeNote,
     this.doneAt,
+    this.contactEmail,
     this.contactPhone,
     this.contactName,
     this.casePracticeCode,
     this.caseTitle,
-    this.location,
     this.repeatUntil,
     this.remindBeforeMin,
     this.assigneeMembershipId,
     this.assigneeName,
-    this.contactEmail,
+    this.location,
     this.conversationId,
     this.archivedAt,
     this.dueAt,
     this.purgeAt,
+    this.consultationId,
     this.notes,
     this.caseId,
   });
@@ -99,6 +100,9 @@ class TaskDto {
 
   /// When the archive cleanup removes it (null: never).
   final String? purgeAt;
+
+  /// The booked consultation this entry mirrors (its time is fixed here).
+  final String? consultationId;
 
   /// The viewer may check it off.
   final bool canComplete;

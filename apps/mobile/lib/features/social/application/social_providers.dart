@@ -5,6 +5,7 @@ import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/files/file_types.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/dio_client.dart';
+import 'package:lawbid/core/persistence/saved_json.dart';
 import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/features/cases/application/paged_notifier.dart';
 import 'package:lawbid/features/feed/application/feed_topics.dart'
@@ -27,6 +28,15 @@ final socialLocalDatabaseProvider = Provider<SocialLocalDatabase>((ref) {
   ref.onDispose(db.close);
   return db;
 });
+
+/// Owner 2026-10-20 (speed): the saved last answers of this account's
+/// screens (chat list, own profile) — see [SavedJson].
+final savedJsonProvider = Provider<SavedJson>(
+  (ref) => SavedJson(
+    ref.watch(socialLocalDatabaseProvider),
+    ref.watch(currentUserIdProvider),
+  ),
+);
 
 /// The signed-in user's id (JWT `sub`), or null signed out.
 /// The account the app acts as — for an assistant (OQ-048) the attorney
@@ -140,6 +150,16 @@ class FeedNotifier extends PagedNotifier<Post> {
   // (see PagedNotifier.keepAliveFor).
   @override
   Duration? get keepAliveFor => const Duration(minutes: 5);
+
+  // Owner 2026-10-20 (speed): the feed opens on the page saved by the last
+  // visit and refreshes in the background (see PagedNotifier).
+  @override
+  Future<CursorPage<Post>?> cachedFirstPage() async {
+    final saved = await ref.read(socialRepositoryProvider).cachedFeed();
+    // The page on screen is the copy until the live first page arrives.
+    if (saved != null) fromCache = true;
+    return saved;
+  }
 
   @override
   Future<CursorPage<Post>> fetch(String? cursor) async {
@@ -295,6 +315,26 @@ class UserRepostsNotifier extends PagedNotifier<Post> {
 final userRepostsProvider = AsyncNotifierProvider.autoDispose
     .family<UserRepostsNotifier, PaginatedList<Post>, String>(
   UserRepostsNotifier.new,
+  retry: _noRetry,
+);
+
+/// Owner 2026-10-20: people who liked a post.
+class PostLikersNotifier extends PagedNotifier<PersonRow> {
+  PostLikersNotifier(this.postId);
+
+  final String postId;
+
+  @override
+  Future<CursorPage<PersonRow>> fetch(String? cursor) =>
+      ref.read(socialRepositoryProvider).postLikers(postId, cursor: cursor);
+
+  @override
+  Object idOf(PersonRow item) => item.id;
+}
+
+final postLikersProvider = AsyncNotifierProvider.autoDispose
+    .family<PostLikersNotifier, PaginatedList<PersonRow>, String>(
+  PostLikersNotifier.new,
   retry: _noRetry,
 );
 
@@ -692,32 +732,33 @@ class SocialActions {
   Future<Object?> like(Post post) async =>
       _latest(post).likedByMe ? null : toggleLike(post);
 
-  /// OQ-037: a completed share — the counter moves at once.
+  /// OQ-037: a completed share. Owner 2026-10-20: the counter moves after
+  /// the server confirmed; the server counts one share per user per 24 h.
   Future<void> recordShare(Post post) async {
-    final before = _latest(post);
-    _ref
-        .read(postOverridesProvider.notifier)
-        .put(before.copyWith(shareCount: before.shareCount + 1));
     try {
       await _repo.recordPostShare(post.id);
+      final now = _latest(post);
+      _ref
+          .read(postOverridesProvider.notifier)
+          .put(now.copyWith(shareCount: now.shareCount + 1));
     } on Object {
-      _ref.read(postOverridesProvider.notifier).put(before);
+      // not counted
     }
   }
 
-  /// Owner 2026-10-12: a reel / video was watched; the counter moves at
-  /// once and the server counts it once per viewer.
+  /// Owner 2026-10-20: a reel / video was watched (3 s of real playback).
+  /// The counter moves only after the server confirmed (204); the server
+  /// counts one view per viewer per 24 h, the true number returns on refresh.
   Future<void> recordView(Post post) async {
     if (!_viewed.add(post.id)) return;
-    final before = _latest(post);
-    _ref
-        .read(postOverridesProvider.notifier)
-        .put(before.copyWith(viewCount: before.viewCount + 1));
     try {
       await _repo.recordPostView(post.id);
+      final now = _latest(post);
+      _ref
+          .read(postOverridesProvider.notifier)
+          .put(now.copyWith(viewCount: now.viewCount + 1));
     } on Object {
       _viewed.remove(post.id);
-      _ref.read(postOverridesProvider.notifier).put(before);
     }
   }
 

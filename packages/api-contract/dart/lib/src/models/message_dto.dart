@@ -6,7 +6,12 @@ import 'package:json_annotation/json_annotation.dart';
 
 import 'call_log_dto.dart';
 import 'chat_attachment_dto.dart';
+import 'contact_card_dto.dart';
+import 'gift_send_dto.dart';
 import 'message_dto_type.dart';
+import 'reaction_dto.dart';
+import 'reply_preview_dto.dart';
+import 'shared_post_card_dto.dart';
 import 'sticker_dto.dart';
 import 'voice_note_dto.dart';
 
@@ -21,13 +26,24 @@ class MessageDto {
     required this.body,
     required this.contactMasked,
     required this.createdAt,
+    required this.revoked,
+    required this.forwarded,
+    required this.reactions,
+    required this.pinned,
     this.senderId,
     this.sentByAssistant,
+    this.gift,
+    this.contact,
+    this.post,
     this.sticker,
     this.voice,
     this.attachment,
     this.call,
     this.clientMessageId,
+    this.expiresAt,
+    this.editedAt,
+    this.forwardedFrom,
+    this.replyTo,
   });
 
   factory MessageDto.fromJson(Map<String, Object?> json) =>
@@ -40,6 +56,15 @@ class MessageDto {
   /// OQ-048: sent by the attorney's assistant — their name (shown as "Assistant of …").
   final String? sentByAssistant;
   final MessageDtoType type;
+
+  /// Owner 2026-10-20: the gift of a gift message.
+  final GiftSendDto? gift;
+
+  /// Owner 2026-10-20: the attorney card of a `contact` message.
+  final ContactCardDto? contact;
+
+  /// Owner 2026-10-21 (Instagram): the post card of a `post` message.
+  final SharedPostCardDto? post;
 
   /// Owner 2026-10-01: the sticker of a sticker message.
   final StickerDto? sticker;
@@ -56,6 +81,20 @@ class MessageDto {
   /// Only on the viewer's own messages (outbox matching).
   final String? clientMessageId;
   final DateTime createdAt;
+
+  /// Disappearing messages: when the message goes; the app hides it from this time on. Null = stays.
+  final DateTime? expiresAt;
+  final DateTime? editedAt;
+
+  /// Deleted for everyone: the app shows "Message deleted"; body and media are empty.
+  final bool revoked;
+  final bool forwarded;
+
+  /// Telegram-style "Forwarded from": the first author's name.
+  final String? forwardedFrom;
+  final ReplyPreviewDto? replyTo;
+  final List<ReactionDto> reactions;
+  final bool pinned;
 
   Map<String, Object?> toJson() => _$MessageDtoToJson(this);
 }

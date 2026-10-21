@@ -102,3 +102,74 @@ PUT /admin/storage/uploads added the new `webm` enum value to the `data/places/i
 PUT /admin/promotions/settings removed the enum value `download` of the request property `ctaTypes/items/`
 POST /cases/{id}/promotions removed the enum value `download` of the request property `ctaType`
 POST /posts/{id}/promotions removed the enum value `download` of the request property `ctaType`
+GET /admin/moderation/queue added the new `channel` enum value to the `data/items/targetType` response property for the response status `200`
+GET /admin/moderation/queue added the new `channel_post` enum value to the `data/items/targetType` response property for the response status `200`
+GET /admin/moderation/queue added the new `story` enum value to the `data/items/targetType` response property for the response status `200`
+GET /admin/moderation/targets/{type}/{id} added the new `channel` enum value to the `data/targetType` response property for the response status `200`
+GET /admin/moderation/targets/{type}/{id} added the new `channel_post` enum value to the `data/targetType` response property for the response status `200`
+GET /admin/moderation/targets/{type}/{id} added the new `story` enum value to the `data/targetType` response property for the response status `200`
+POST /admin/moderation/targets/{type}/{id}/actions added the new `channel` enum value to the `data/targetType` response property for the response status `200`
+POST /admin/moderation/targets/{type}/{id}/actions added the new `channel_post` enum value to the `data/targetType` response property for the response status `200`
+POST /admin/moderation/targets/{type}/{id}/actions added the new `story` enum value to the `data/targetType` response property for the response status `200`
+GET /admin/moderation/appeals added the new `channel` enum value to the `data/items/targetType` response property for the response status `200`
+GET /admin/moderation/appeals added the new `channel_post` enum value to the `data/items/targetType` response property for the response status `200`
+GET /admin/moderation/appeals added the new `story` enum value to the `data/items/targetType` response property for the response status `200`
+GET /admin/moderation/journal added the new `channel` enum value to the `data/items/targetType` response property for the response status `200`
+GET /admin/moderation/journal added the new `channel_post` enum value to the `data/items/targetType` response property for the response status `200`
+GET /admin/moderation/journal added the new `story` enum value to the `data/items/targetType` response property for the response status `200`
+POST /moderation/appeals added the new `channel` enum value to the `data/targetType` response property for the response status `200`
+POST /moderation/appeals added the new `channel_post` enum value to the `data/targetType` response property for the response status `200`
+POST /moderation/appeals added the new `story` enum value to the `data/targetType` response property for the response status `200`
+GET /moderation/notices added the new `channel` enum value to the `data/items/targetType` response property for the response status `200`
+GET /moderation/notices added the new `channel_post` enum value to the `data/items/targetType` response property for the response status `200`
+GET /moderation/notices added the new `story` enum value to the `data/items/targetType` response property for the response status `200`
+GET /reports/mine added the new `channel` enum value to the `data/items/targetType` response property for the response status `200`
+GET /reports/mine added the new `channel_post` enum value to the `data/items/targetType` response property for the response status `200`
+GET /reports/mine added the new `story` enum value to the `data/items/targetType` response property for the response status `200`
+<<<<<<< HEAD
+GET /conversations/{id}/messages added the new `gift` enum value to the `data/items/type` response property for the response status `200`
+POST /conversations/{id}/messages added the new `gift` enum value to the `data/type` response property for the response status `201`
+POST /conversations/{id}/messages/{messageId}/listened added the new `gift` enum value to the `data/type` response property for the response status `200`
+=======
+# 2026-10-20: the moderation queue and card gain two report targets (legal_question, legal_answer); admin web only, the generated clients map unknown values to $unknown
+GET /admin/moderation/queue added the new `legal_answer` enum value to the `data/items/targetType` response property for the response status `200`
+GET /admin/moderation/queue added the new `legal_question` enum value to the `data/items/targetType` response property for the response status `200`
+GET /admin/moderation/targets/{type}/{id} added the new `legal_answer` enum value to the `data/targetType` response property for the response status `200`
+GET /admin/moderation/targets/{type}/{id} added the new `legal_question` enum value to the `data/targetType` response property for the response status `200`
+POST /admin/moderation/targets/{type}/{id}/actions added the new `legal_answer` enum value to the `data/targetType` response property for the response status `200`
+POST /admin/moderation/targets/{type}/{id}/actions added the new `legal_question` enum value to the `data/targetType` response property for the response status `200`
+>>>>>>> origin/claude/release-20oct
+# release-20oct: новые enum legal_answer/legal_question, типы contact/place, conversationId nullable у звонков (групповые) — все изменения намеренные, старых клиентов в магазинах ещё нет
+GET /admin/moderation/appeals added the new `legal_answer` enum value to the `data/items/targetType` response property for the response status `200`
+GET /admin/moderation/appeals added the new `legal_question` enum value to the `data/items/targetType` response property for the response status `200`
+GET /admin/moderation/journal added the new `legal_answer` enum value to the `data/items/targetType` response property for the response status `200`
+GET /admin/moderation/journal added the new `legal_question` enum value to the `data/items/targetType` response property for the response status `200`
+GET /calls/{id} the response property `data/conversationId` became nullable for the status `200`
+POST /calls/{id}/accept the response property `data/conversationId` became nullable for the status `200`
+POST /calls/{id}/decline the response property `data/conversationId` became nullable for the status `200`
+POST /calls/{id}/end the response property `data/conversationId` became nullable for the status `200`
+POST /conversations/{id}/calls the response property `data/conversationId` became nullable for the status `201`
+GET /conversations/{id}/messages added the new `contact` enum value to the `data/items/type` response property for the response status `200`
+GET /conversations/{id}/messages added the new `place` enum value to the `data/items/type` response property for the response status `200`
+POST /conversations/{id}/messages added the new `contact` enum value to the `data/type` response property for the response status `201`
+POST /conversations/{id}/messages added the new `place` enum value to the `data/type` response property for the response status `201`
+POST /conversations/{id}/messages/{messageId}/listened added the new `contact` enum value to the `data/type` response property for the response status `200`
+POST /conversations/{id}/messages/{messageId}/listened added the new `place` enum value to the `data/type` response property for the response status `200`
+POST /moderation/appeals added the new `legal_answer` enum value to the `data/targetType` response property for the response status `200`
+POST /moderation/appeals added the new `legal_question` enum value to the `data/targetType` response property for the response status `200`
+GET /moderation/notices added the new `legal_answer` enum value to the `data/items/targetType` response property for the response status `200`
+GET /moderation/notices added the new `legal_question` enum value to the `data/items/targetType` response property for the response status `200`
+GET /reports/mine added the new `legal_answer` enum value to the `data/items/targetType` response property for the response status `200`
+GET /reports/mine added the new `legal_question` enum value to the `data/items/targetType` response property for the response status `200`
+# 2026-10-21 (owner: yes): notification categories gain channels and groups; an extension, the generated clients map unknown values to $unknown
+GET /notification-settings added the new `channels` enum value to the `data/categories/items/category` response property for the response status `200`
+GET /notification-settings added the new `groups` enum value to the `data/categories/items/category` response property for the response status `200`
+PUT /notification-settings added the new `channels` enum value to the `data/categories/items/category` response property for the response status `200`
+PUT /notification-settings added the new `groups` enum value to the `data/categories/items/category` response property for the response status `200`
+PUT /notification-settings/quiet-hours added the new `channels` enum value to the `data/categories/items/category` response property for the response status `200`
+PUT /notification-settings/quiet-hours added the new `groups` enum value to the `data/categories/items/category` response property for the response status `200`
+GET /notifications added the new `channels` enum value to the `data/items/category` response property for the response status `200`
+GET /notifications added the new `groups` enum value to the `data/items/category` response property for the response status `200`
+GET /conversations/{id}/messages added the new `post` enum value to the `data/items/type` response property for the response status `200`
+POST /conversations/{id}/messages added the new `post` enum value to the `data/type` response property for the response status `201`
+POST /conversations/{id}/messages/{messageId}/listened added the new `post` enum value to the `data/type` response property for the response status `200`

@@ -16,6 +16,7 @@ OrganizeConversationDto _$OrganizeConversationDtoFromJson(
   note: json['note'] as String?,
   pinned: json['pinned'] as bool?,
   hidden: json['hidden'] as bool?,
+  archived: json['archived'] as bool?,
 );
 
 Map<String, dynamic> _$OrganizeConversationDtoToJson(
@@ -26,4 +27,5 @@ Map<String, dynamic> _$OrganizeConversationDtoToJson(
   'note': ?instance.note,
   'pinned': ?instance.pinned,
   'hidden': ?instance.hidden,
+  'archived': ?instance.archived,
 };

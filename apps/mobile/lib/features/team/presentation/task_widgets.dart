@@ -137,7 +137,7 @@ class TaskRow extends StatelessWidget {
           padding: const EdgeInsets.only(top: 6),
           child: Row(
             children: [
-              AppIcon(icon, size: 15, color: colors.goldDark),
+              AppIcon(icon, size: 15, color: colors.iconTint),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -270,7 +270,7 @@ class TaskRow extends StatelessWidget {
                           child: AppIcon(
                             AppIcons.bookmarkRounded,
                             size: 16,
-                            color: colors.goldDark,
+                            color: colors.iconTint,
                           ),
                         ),
                       if (due != null)
@@ -494,7 +494,8 @@ class TaskKindMedallion extends StatelessWidget {
         borderRadius: BorderRadius.circular(size * 0.3),
         border: Border.all(color: colors.gold.withValues(alpha: 0.55)),
       ),
-      child: AppIcon(taskKindIcon(kind), size: size * 0.5, color: colors.gold),
+      child:
+          AppIcon(taskKindIcon(kind), size: size * 0.5, color: colors.iconTint),
     );
   }
 }

@@ -296,6 +296,30 @@ export const NOTIFICATION_TEMPLATES: Partial<
     },
     ru: { title: 'Вас отметили', body: 'Вас отметили в LawBid.' },
   },
+  // Owner 2026-10-21: an invitation to a group (Requests).
+  group_invite: {
+    group: 'social',
+    en: {
+      title: 'Group invitation',
+      body: 'You were invited to a group. Open Requests to answer.',
+    },
+    ru: {
+      title: 'Приглашение в группу',
+      body: 'Вас пригласили в группу. Ответьте во вкладке «Запросы».',
+    },
+  },
+  // Owner 2026-10-20: a post in a channel I subscribed to.
+  channel_post: {
+    group: 'social',
+    en: {
+      title: 'New post in a channel',
+      body: 'A channel you follow published a new post.',
+    },
+    ru: {
+      title: 'Новый пост в канале',
+      body: 'В канале, на который вы подписаны, новая публикация.',
+    },
+  },
   // Owner 2026-09-30 (opt-in).
   followed_post: {
     group: 'social',
@@ -640,6 +664,14 @@ export const NOTIFICATION_TEMPLATES: Partial<
       body: 'Кто-то сделал репост вашей публикации.',
     },
   },
+  gift_received: {
+    group: 'social',
+    en: { title: 'You received a gift', body: 'Open your profile to see it.' },
+    ru: {
+      title: 'Вам подарили подарок',
+      body: 'Откройте профиль, чтобы посмотреть.',
+    },
+  },
   comment_like: {
     group: 'social',
     en: { title: 'New like', body: 'Someone liked your comment.' },
@@ -720,6 +752,29 @@ export const NOTIFICATION_TEMPLATES: Partial<
       title: 'Новый вход',
       body: 'В ваш аккаунт вошли с нового устройства.',
     },
+  },
+  // Owner 2026-10-20: booking; the body says what happened
+  // (`notif.consult.<kind>`), this pair is the fallback.
+  consultation_update: {
+    group: 'cases',
+    en: { title: 'Consultation', body: 'Your consultation has an update.' },
+    ru: { title: 'Консультация', body: 'По консультации есть новости.' },
+  },
+  legal_question_new: {
+    group: 'cases',
+    en: {
+      title: 'New question',
+      body: 'A client asked a question in your practice area.',
+    },
+    ru: {
+      title: 'Новый вопрос',
+      body: 'Клиент задал вопрос по вашей специализации.',
+    },
+  },
+  legal_answer_update: {
+    group: 'cases',
+    en: { title: 'Question', body: 'Your question has a new answer.' },
+    ru: { title: 'Вопрос', body: 'На ваш вопрос есть новый ответ.' },
   },
   security_phone_changed: {
     group: 'system',

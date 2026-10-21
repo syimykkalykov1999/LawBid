@@ -101,6 +101,16 @@ variable "min_tasks" {
   default     = 2
   description = "Minimum api and worker tasks (autoscaling floor). 1 = launch size, 2+ = survives a lost AZ."
 }
+variable "worker_spot" {
+  type        = bool
+  default     = false
+  description = "Worker on Fargate Spot (one task stays on regular Fargate): up to 70 % cheaper."
+}
+variable "api_spot" {
+  type        = bool
+  default     = false
+  description = "API tasks added by autoscaling run on Fargate Spot; the first stays on regular Fargate."
+}
 variable "admin_tasks" {
   type    = number
   default = 2

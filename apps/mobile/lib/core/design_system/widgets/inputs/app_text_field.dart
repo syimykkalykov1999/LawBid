@@ -36,6 +36,7 @@ class AppTextField extends StatefulWidget {
     this.textInputAction,
     this.autofillHints,
     this.onSubmitted,
+    this.onTapOutside = hideKeyboardOnTapOutside,
     this.enabled = true,
     this.obscureText = false,
     this.trailing,
@@ -69,6 +70,10 @@ class AppTextField extends StatefulWidget {
   final TextInputAction? textInputAction;
   final Iterable<String>? autofillHints;
   final ValueChanged<String>? onSubmitted;
+
+  /// Default: close the keyboard. A screen whose buttons sit right under the
+  /// field (story creator) passes a no-op so the layout does not jump.
+  final TapRegionCallback onTapOutside;
   final bool enabled;
 
   /// Owner 2026-10-13: a password field (dots; [trailing] hosts the
@@ -164,7 +169,7 @@ class _AppTextFieldState extends State<AppTextField> {
                     const SizedBox(width: AppSpacing.md),
                   Expanded(
                     child: TextField(
-                      onTapOutside: hideKeyboardOnTapOutside,
+                      onTapOutside: widget.onTapOutside,
                       controller: widget.controller,
                       focusNode: _focusNode,
                       autofocus: widget.autofocus,

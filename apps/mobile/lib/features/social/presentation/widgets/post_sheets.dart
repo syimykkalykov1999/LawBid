@@ -15,6 +15,7 @@ import 'package:lawbid/core/navigation/shell/web_page_frame.dart';
 import 'package:lawbid/features/blocks/presentation/block_actions.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
     show showConfirmSheet;
+import 'package:lawbid/features/chat/presentation/share_to_sheet.dart';
 import 'package:lawbid/features/promotions/presentation/promote_case_card.dart';
 import 'package:lawbid/features/social/application/post_insights_providers.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
@@ -22,24 +23,26 @@ import 'package:lawbid/features/social/data/social_repository.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/screens/create_post_screen.dart';
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart'
-    show RepostersScreen;
+    show LikersScreen, RepostersScreen;
 import 'package:lawbid/features/social/presentation/widgets/post_impression_tracker.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
-import 'package:lawbid/shared/presentation/share_sheet.dart';
 
 String _link(WidgetRef ref, String postId) => SocialFormat.postLink(
       ref.read(appEnvironmentProvider).deepLinkHost,
       postId,
     );
 
-/// §4 "Поделиться" (owner 2026-10-01): the LawBid share sheet — social
-/// networks, copy link, the system sheet — with `lawbid.dev/post/:id`.
+/// §4 "Поделиться" (owner 2026-10-01): the LawBid share sheet with
+/// `lawbid.dev/post/:id`. Owner 2026-10-21 (Instagram, inbox 17): chats,
+/// groups and channels on top, «Добавить в историю», copy link, the system
+/// sheet and the networks below.
 Future<void> sharePost(BuildContext context, WidgetRef ref, Post post) async {
-  final shared = await showShareSheet(
+  final shared = await showPostShareSheet(
     context,
-    t: ref.read(translatorProvider),
+    ref,
+    postId: post.id,
     link: _link(ref, post.id),
     text: post.title,
   );
@@ -101,6 +104,12 @@ Future<void> showRepostSheet(
     showAppSnackBar(context, errorText(t, error));
   }
 }
+
+/// The list of people who liked a post (the like counter's tap).
+Future<void> showLikersList(BuildContext context, String postId) =>
+    Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(builder: (_) => LikersScreen(postId: postId)),
+    );
 
 /// The list of people who reposted a post (the counter's tap).
 Future<void> showRepostersList(BuildContext context, String postId) =>
@@ -630,7 +639,11 @@ String? _dmcaTargetType(ReportTarget target) => switch (target) {
       ReportTarget.post => 'post',
       ReportTarget.comment => 'comment',
       ReportTarget.message => 'message',
-      ReportTarget.user || ReportTarget.stickerPack => null,
+      ReportTarget.user ||
+      ReportTarget.stickerPack ||
+      ReportTarget.legalQuestion ||
+      ReportTarget.legalAnswer =>
+        null,
     };
 
 /// Owner 2026-09-30: "Edit" opens the "+" form with the post's title,

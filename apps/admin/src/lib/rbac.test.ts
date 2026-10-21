@@ -25,8 +25,11 @@ describe('menu sections with tabs', () => {
     const mod = { role: 'moderator' as const, permissions: { moderation: 'manage' as const, content: 'view' as const } };
     expect(groupsFor(mod).map((g) => g.key)).toEqual(['home', 'moderation', 'system']);
     expect(tabsFor(mod, '/moderation').map((t) => t.href)).toEqual([
-      '/moderation', '/review-appeals', '/moderation-appeals', '/moderation-journal', '/content', '/document-templates', '/search',
+      '/moderation', '/review-appeals', '/moderation-appeals', '/moderation-journal', '/legal-qa', '/group-chats', '/content', '/document-templates', '/form-templates', '/search',
     ]);
+    // Document forms follow the API: super admin and moderators only.
+    expect(canOpen(mod, '/form-templates')).toBe(true);
+    expect(canOpen({ role: 'support' as const, permissions: { content: 'manage' as const } }, '/form-templates')).toBe(false);
     // Same section, tab without the right: not shown, URL answers 404.
     expect(canOpen(mod, '/sanctions')).toBe(false);
     expect(canOpen(mod, '/media')).toBe(false);
@@ -116,5 +119,17 @@ describe('grantable money and audit (owner 2026-10-16)', () => {
     expect(s.view).toEqual(['Деньги']);
     expect(s.closed).toContain('Пользователи');
     expect(s.closed).not.toContain('Деньги');
+  });
+});
+
+describe('sections tied to a feature flag', () => {
+  const owner = { role: 'super_admin' as const, permissions: {} };
+  const hrefs = (off?: ReadonlySet<string>) => groupsFor(owner, off).flatMap((g) => g.items.map((s) => s.href));
+
+  it('hides «Сроки» while the deadline_calculator flag is off', () => {
+    expect(hrefs()).toContain('/deadlines');
+    expect(hrefs(new Set(['deadline_calculator']))).not.toContain('/deadlines');
+    expect(tabsFor(owner, '/cases', new Set(['deadline_calculator'])).map((t) => t.href)).not.toContain('/deadlines');
+    expect(tabsFor(owner, '/cases').map((t) => t.href)).toContain('/deadlines');
   });
 });

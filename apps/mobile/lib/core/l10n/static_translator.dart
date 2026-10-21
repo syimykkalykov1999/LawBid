@@ -7,37 +7,52 @@ import 'package:lawbid/core/l10n/strings/audit_cases_strings.dart';
 import 'package:lawbid/core/l10n/strings/audit_chat_strings.dart';
 import 'package:lawbid/core/l10n/strings/audit_social_strings.dart';
 import 'package:lawbid/core/l10n/strings/boost_strings.dart';
+import 'package:lawbid/core/l10n/strings/case_billing_strings.dart';
 import 'package:lawbid/core/l10n/strings/case_cover_strings.dart';
 import 'package:lawbid/core/l10n/strings/case_dossier_strings.dart';
 import 'package:lawbid/core/l10n/strings/case_payments_strings.dart';
+import 'package:lawbid/core/l10n/strings/case_preview_strings.dart';
+import 'package:lawbid/core/l10n/strings/case_signing_strings.dart';
+import 'package:lawbid/core/l10n/strings/case_tools_strings.dart';
 import 'package:lawbid/core/l10n/strings/case_urgency_strings.dart';
 import 'package:lawbid/core/l10n/strings/case_workspace_strings.dart';
+import 'package:lawbid/core/l10n/strings/channels_strings.dart';
 import 'package:lawbid/core/l10n/strings/chat_note_strings.dart';
 import 'package:lawbid/core/l10n/strings/client_fraud_strings.dart';
+import 'package:lawbid/core/l10n/strings/consultation_strings.dart';
 import 'package:lawbid/core/l10n/strings/contact_info_strings.dart';
 import 'package:lawbid/core/l10n/strings/contingency_strings.dart';
+import 'package:lawbid/core/l10n/strings/deadline_strings.dart';
 import 'package:lawbid/core/l10n/strings/demo_strings.dart';
+import 'package:lawbid/core/l10n/strings/disappearing_strings.dart';
 import 'package:lawbid/core/l10n/strings/email_flows_strings.dart';
 import 'package:lawbid/core/l10n/strings/feed_content_strings.dart';
 import 'package:lawbid/core/l10n/strings/feed_fresh_strings.dart';
 import 'package:lawbid/core/l10n/strings/file05_strings.dart';
 import 'package:lawbid/core/l10n/strings/file06_strings.dart';
 import 'package:lawbid/core/l10n/strings/file07_strings.dart';
-import 'package:lawbid/core/l10n/strings/guide_strings.dart';
+import 'package:lawbid/core/l10n/strings/forward_strings.dart';
+import 'package:lawbid/core/l10n/strings/group_strings.dart';
 import 'package:lawbid/core/l10n/strings/invite_strings.dart';
 import 'package:lawbid/core/l10n/strings/legal_docs_strings.dart';
+import 'package:lawbid/core/l10n/strings/legal_qa_strings.dart';
 import 'package:lawbid/core/l10n/strings/legal_strings.dart';
 import 'package:lawbid/core/l10n/strings/news_off_strings.dart';
 import 'package:lawbid/core/l10n/strings/partner_strings.dart';
 import 'package:lawbid/core/l10n/strings/password_strings.dart';
+import 'package:lawbid/core/l10n/strings/people_suggest_strings.dart';
 import 'package:lawbid/core/l10n/strings/plan_strings.dart';
 import 'package:lawbid/core/l10n/strings/post_inner_strings.dart';
 import 'package:lawbid/core/l10n/strings/privacy_strings.dart';
 import 'package:lawbid/core/l10n/strings/qr_strings.dart';
 import 'package:lawbid/core/l10n/strings/reels_docs_strings.dart';
 import 'package:lawbid/core/l10n/strings/reels_strings.dart';
+import 'package:lawbid/core/l10n/strings/saved_cards_strings.dart';
+import 'package:lawbid/core/l10n/strings/share_to_strings.dart';
 import 'package:lawbid/core/l10n/strings/stale_case_strings.dart';
+import 'package:lawbid/core/l10n/strings/stars_strings.dart';
 import 'package:lawbid/core/l10n/strings/storage_strings.dart';
+import 'package:lawbid/core/l10n/strings/stories_strings.dart';
 import 'package:lawbid/core/l10n/strings/support_strings.dart';
 import 'package:lawbid/core/l10n/strings/tasks_planner_strings.dart';
 import 'package:lawbid/core/l10n/strings/templates_strings.dart';
@@ -1152,19 +1167,24 @@ class StaticTranslatorRu extends _MapTranslator {
         ...file06Ru,
         ...contingencyRu,
         ...staleCaseRu,
-        ...guideRu,
         ...usernameRu,
         ...privacyRu,
         ...contactInfoRu,
+        ...disappearingRu,
+        ...forwardRu,
         ...file07Ru,
         ...reelsRu,
         ...auditCasesRu,
         ...auditChatRu,
+        ...groupRu,
         ...auditSocialRu,
         ...partnerRu,
         ...demoRu,
         ...reelsDocsRu,
         ...templatesRu,
+        ...consultationRu,
+        ...legalQaRu,
+        ...deadlineRu,
         ...storageRu,
         ...supportRu,
         ...caseCoverRu,
@@ -1172,6 +1192,7 @@ class StaticTranslatorRu extends _MapTranslator {
         ...tasksPlannerRu,
         ...casePaymentsRu,
         ...planRu,
+        ...savedCardsRu,
         ...attorneySetupRu,
         ...assistantCodeRu,
         ...passwordRu,
@@ -1183,14 +1204,23 @@ class StaticTranslatorRu extends _MapTranslator {
         ...clientFraudRu,
         ...legalDocsRu,
         ...boostRu,
+        ...starsRu,
         ...feedContentRu,
         ...newsOffRu,
         ...feedFreshRu,
         ...chatNoteRu,
+        ...shareToRu,
+        ...peopleSuggestRu,
         ...caseWorkspaceRu,
+        ...caseBillingRu,
+        ...caseSigningRu,
+        ...caseToolsRu,
         ...themeRu,
         ...postInnerRu,
         ...emailFlowsRu,
+        ...storiesRu,
+        ...channelsRu,
+        ...casePreviewRu,
       };
 }
 
@@ -2576,19 +2606,24 @@ class StaticTranslatorEn extends _MapTranslator {
         ...file06En,
         ...contingencyEn,
         ...staleCaseEn,
-        ...guideEn,
         ...usernameEn,
         ...privacyEn,
         ...contactInfoEn,
+        ...disappearingEn,
+        ...forwardEn,
         ...file07En,
         ...reelsEn,
         ...auditCasesEn,
         ...auditChatEn,
+        ...groupEn,
         ...auditSocialEn,
         ...partnerEn,
         ...demoEn,
         ...reelsDocsEn,
         ...templatesEn,
+        ...consultationEn,
+        ...legalQaEn,
+        ...deadlineEn,
         ...storageEn,
         ...supportEn,
         ...caseCoverEn,
@@ -2596,6 +2631,7 @@ class StaticTranslatorEn extends _MapTranslator {
         ...tasksPlannerEn,
         ...casePaymentsEn,
         ...planEn,
+        ...savedCardsEn,
         ...attorneySetupEn,
         ...assistantCodeEn,
         ...passwordEn,
@@ -2607,13 +2643,22 @@ class StaticTranslatorEn extends _MapTranslator {
         ...clientFraudEn,
         ...legalDocsEn,
         ...boostEn,
+        ...starsEn,
         ...feedContentEn,
         ...newsOffEn,
         ...feedFreshEn,
         ...chatNoteEn,
+        ...shareToEn,
+        ...peopleSuggestEn,
         ...caseWorkspaceEn,
+        ...caseBillingEn,
+        ...caseSigningEn,
+        ...caseToolsEn,
         ...themeEn,
         ...postInnerEn,
+        ...storiesEn,
+        ...channelsEn,
         ...emailFlowsEn,
+        ...casePreviewEn,
       };
 }

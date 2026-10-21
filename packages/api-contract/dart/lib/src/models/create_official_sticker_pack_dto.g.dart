@@ -11,6 +11,7 @@ CreateOfficialStickerPackDto _$CreateOfficialStickerPackDtoFromJson(
 ) => CreateOfficialStickerPackDto(
   title: json['title'] as String,
   shortName: json['shortName'] as String?,
+  priceStars: (json['priceStars'] as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$CreateOfficialStickerPackDtoToJson(
@@ -18,4 +19,5 @@ Map<String, dynamic> _$CreateOfficialStickerPackDtoToJson(
 ) => <String, dynamic>{
   'title': instance.title,
   'shortName': ?instance.shortName,
+  'priceStars': ?instance.priceStars,
 };

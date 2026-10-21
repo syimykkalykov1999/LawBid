@@ -16,6 +16,7 @@ ConversationDto _$ConversationDtoFromJson(
     json['counterpart'] as Map<String, dynamic>,
   ),
   unreadCount: json['unreadCount'] as num,
+  callsMuted: json['callsMuted'] as bool,
   updatedAt: DateTime.parse(json['updatedAt'] as String),
   folder: ChatFolder.fromJson(json['folder'] as String),
   folderAuto: json['folderAuto'] as bool,
@@ -31,10 +32,16 @@ ConversationDto _$ConversationDtoFromJson(
   lastMessageAt: json['lastMessageAt'] == null
       ? null
       : DateTime.parse(json['lastMessageAt'] as String),
+  disappearAfterS: json['disappearAfterS'] as num?,
   mutedUntil: json['mutedUntil'] == null
       ? null
       : DateTime.parse(json['mutedUntil'] as String),
   counterpartLastReadMessageId: json['counterpartLastReadMessageId'] as String?,
+  counterpartLastReadAt: json['counterpartLastReadAt'] == null
+      ? null
+      : DateTime.parse(json['counterpartLastReadAt'] as String),
+  counterpartLastDeliveredMessageId:
+      json['counterpartLastDeliveredMessageId'] as String?,
   matchedMessage: json['matchedMessage'] as String?,
   waitingSince: json['waitingSince'] == null
       ? null
@@ -45,28 +52,34 @@ ConversationDto _$ConversationDtoFromJson(
       : DateTime.parse(json['pinnedAt'] as String),
 );
 
-Map<String, dynamic> _$ConversationDtoToJson(ConversationDto instance) =>
-    <String, dynamic>{
-      'id': instance.id,
-      'caseId': ?instance.caseId,
-      'caseTitle': ?instance.caseTitle,
-      'status': instance.status.toJson(),
-      'contactsUnlocked': instance.contactsUnlocked,
-      'counterpart': instance.counterpart.toJson(),
-      'lastMessage': ?instance.lastMessage?.toJson(),
-      'lastMessageAt': ?instance.lastMessageAt?.toIso8601String(),
-      'unreadCount': instance.unreadCount,
-      'mutedUntil': ?instance.mutedUntil?.toIso8601String(),
-      'counterpartLastReadMessageId': ?instance.counterpartLastReadMessageId,
-      'updatedAt': instance.updatedAt.toIso8601String(),
-      'folder': instance.folder.toJson(),
-      'folderAuto': instance.folderAuto,
-      'matchedMessage': ?instance.matchedMessage,
-      'waitingSince': ?instance.waitingSince?.toIso8601String(),
-      'note': ?instance.note,
-      'pinnedAt': ?instance.pinnedAt?.toIso8601String(),
-      'kind': instance.kind.toJson(),
-      'requestStatus': instance.requestStatus.toJson(),
-      'requestedByMe': instance.requestedByMe,
-      'blocked': instance.blocked,
-    };
+Map<String, dynamic> _$ConversationDtoToJson(
+  ConversationDto instance,
+) => <String, dynamic>{
+  'id': instance.id,
+  'caseId': ?instance.caseId,
+  'caseTitle': ?instance.caseTitle,
+  'status': instance.status.toJson(),
+  'contactsUnlocked': instance.contactsUnlocked,
+  'counterpart': instance.counterpart.toJson(),
+  'lastMessage': ?instance.lastMessage?.toJson(),
+  'lastMessageAt': ?instance.lastMessageAt?.toIso8601String(),
+  'unreadCount': instance.unreadCount,
+  'disappearAfterS': ?instance.disappearAfterS,
+  'mutedUntil': ?instance.mutedUntil?.toIso8601String(),
+  'callsMuted': instance.callsMuted,
+  'counterpartLastReadMessageId': ?instance.counterpartLastReadMessageId,
+  'counterpartLastReadAt': ?instance.counterpartLastReadAt?.toIso8601String(),
+  'counterpartLastDeliveredMessageId':
+      ?instance.counterpartLastDeliveredMessageId,
+  'updatedAt': instance.updatedAt.toIso8601String(),
+  'folder': instance.folder.toJson(),
+  'folderAuto': instance.folderAuto,
+  'matchedMessage': ?instance.matchedMessage,
+  'waitingSince': ?instance.waitingSince?.toIso8601String(),
+  'note': ?instance.note,
+  'pinnedAt': ?instance.pinnedAt?.toIso8601String(),
+  'kind': instance.kind.toJson(),
+  'requestStatus': instance.requestStatus.toJson(),
+  'requestedByMe': instance.requestedByMe,
+  'blocked': instance.blocked,
+};

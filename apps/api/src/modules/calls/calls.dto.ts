@@ -1,5 +1,14 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsIn, IsOptional, IsUUID } from 'class-validator';
+import {
+  ArrayMaxSize,
+  IsArray,
+  IsBoolean,
+  IsIn,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+} from 'class-validator';
 
 /** POST /conversations/:id/calls — owner 2026-10-05: video or audio. */
 export class StartCallDto {
@@ -29,6 +38,30 @@ export class VideoCallConfigDto {
   reason!: 'flag_off' | 'provider_not_configured' | null;
 }
 
+/** POST /calls/:id/votes — propose to remove a member. */
+export class StartCallVoteDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID('all')
+  targetId!: string;
+}
+
+/** POST /calls/:id/votes/:voteId — a ballot. */
+export class CastCallVoteDto {
+  @ApiProperty({ description: 'true = for removing, false = against.' })
+  @IsBoolean()
+  favor!: boolean;
+}
+
+export class CallVoteParamDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID('all')
+  id!: string;
+
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID('all')
+  voteId!: string;
+}
+
 export class CallIdParamDto {
   @ApiProperty({ format: 'uuid' })
   @IsUUID('all')
@@ -45,6 +78,66 @@ export class EndCallDto {
   @IsOptional()
   @IsIn(['hangup', 'no_answer', 'failed'])
   reason?: 'hangup' | 'no_answer' | 'failed';
+
+  @ApiPropertyOptional({
+    description:
+      'Group call, host only: end the call for everyone (like Telegram "End call for everyone"). Without it a host who hangs up just leaves, the call goes on for the others.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  forAll?: boolean;
+}
+
+/** POST /groups/:id/calls — start a call from a group chat. */
+export class StartGroupCallDto {
+  @ApiPropertyOptional({ description: 'Video call (default: audio).' })
+  @IsOptional()
+  @IsBoolean()
+  video?: boolean;
+
+  @ApiPropertyOptional({
+    type: [String],
+    description:
+      'Group members to ring (up to the size of the call minus the host); the rest of the group can join from the chat.',
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(8)
+  @IsUUID('all', { each: true })
+  userIds?: string[];
+}
+
+export class GroupCallParamDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID('all')
+  id!: string;
+}
+
+/** POST /calls/:id/participants — add a person to the running call. */
+export class InviteCallDto {
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID('all')
+  userId?: string;
+
+  @ApiPropertyOptional({ description: 'Username, with or without @.' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  username?: string;
+}
+
+export class CallParticipantParamDto extends CallIdParamDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID('all')
+  userId!: string;
+}
+
+/** POST /calls/:id/participants/:userId/mute (host) and /mute-state (self). */
+export class CallMuteDto {
+  @ApiProperty()
+  @IsBoolean()
+  muted!: boolean;
 }
 
 /** The other member of the call as the viewer sees them. */
@@ -65,13 +158,94 @@ export class CallPeerDto {
   kind!: 'attorney' | 'client';
 }
 
+/** One person in a group call. */
+export class CallParticipantDto {
+  @ApiProperty({ format: 'uuid' })
+  userId!: string;
+
+  @ApiPropertyOptional({ type: String, nullable: true })
+  displayName!: string | null;
+
+  @ApiPropertyOptional({ type: String, nullable: true })
+  username!: string | null;
+
+  @ApiPropertyOptional({ type: String, nullable: true })
+  avatarUrl!: string | null;
+
+  @ApiProperty({
+    enum: ['invited', 'joined', 'declined', 'left', 'removed'],
+    enumName: 'CallParticipantStatus',
+  })
+  status!: 'invited' | 'joined' | 'declined' | 'left' | 'removed';
+
+  @ApiProperty({
+    description: 'The microphone is off (their own or the host).',
+  })
+  muted!: boolean;
+
+  @ApiProperty({ description: 'The host switched the microphone off.' })
+  mutedByHost!: boolean;
+
+  @ApiPropertyOptional({
+    type: Date,
+    nullable: true,
+    description: 'When they joined; the later joiner offers WebRTC.',
+  })
+  joinedAt!: Date | null;
+}
+
 /** OQ-041: an in-app audio call. */
-export class CallDto {
+/** The open vote to remove a member from a group call (owner 2026-10-21). */
+export class CallVoteDto {
   @ApiProperty({ format: 'uuid' })
   id!: string;
 
   @ApiProperty({ format: 'uuid' })
-  conversationId!: string;
+  targetId!: string;
+
+  @ApiProperty({ format: 'uuid' })
+  startedById!: string;
+
+  @ApiProperty({ type: 'integer' })
+  forCount!: number;
+
+  @ApiProperty({ type: 'integer' })
+  againstCount!: number;
+
+  @ApiProperty({
+    type: 'integer',
+    description: 'How many members vote (in the call, minus the candidate).',
+  })
+  voters!: number;
+
+  @ApiProperty()
+  expiresAt!: Date;
+
+  @ApiProperty({
+    type: Boolean,
+    nullable: true,
+    description: "The viewer's ballot (null = not voted).",
+  })
+  myBallot!: boolean | null;
+}
+
+export class CallDto {
+  @ApiProperty({ format: 'uuid' })
+  id!: string;
+
+  @ApiProperty({
+    format: 'uuid',
+    nullable: true,
+    description: 'Null for a call started from a group chat.',
+  })
+  conversationId!: string | null;
+
+  @ApiProperty({
+    format: 'uuid',
+    nullable: true,
+    description: 'The group chat the call was started from (else null).',
+  })
+  groupId!: string | null;
 
   @ApiProperty({ format: 'uuid' })
   callerId!: string;
@@ -111,6 +285,31 @@ export class CallDto {
 
   @ApiProperty({ type: CallPeerDto })
   peer!: CallPeerDto;
+
+  /** Owner 2026-10-20: people were added; `participants` lists everyone. */
+  @ApiProperty({ default: false })
+  group!: boolean;
+
+  @ApiPropertyOptional({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description: 'Who can mute / remove others (group calls).',
+  })
+  hostId!: string | null;
+
+  @ApiProperty({ type: CallParticipantDto, isArray: true })
+  participants!: CallParticipantDto[];
+
+  @ApiProperty({
+    default: false,
+    description:
+      'Somebody who runs the call (the starter or a group admin) is in it: members cannot vote to remove anyone then.',
+  })
+  moderated!: boolean;
+
+  @ApiPropertyOptional({ type: CallVoteDto, nullable: true })
+  vote!: CallVoteDto | null;
 
   @ApiProperty()
   createdAt!: Date;

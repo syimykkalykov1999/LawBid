@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils';
 import { ICONS } from './icons';
 import { Logo, LogoMark } from './logo';
 import { useNavCounts } from './use-nav-counts';
+import { useOffFlags } from './use-off-flags';
 
 export function Sidebar({
   me,
@@ -27,7 +28,8 @@ export function Sidebar({
   const pathname = usePathname();
   const counts = useNavCounts(me);
   const active = groupFor(pathname)?.key;
-  const groups = me ? groupsFor(me) : [];
+  const off = useOffFlags(me);
+  const groups = me ? groupsFor(me, off) : [];
   const narrow = collapsed && !mobile;
 
   return (

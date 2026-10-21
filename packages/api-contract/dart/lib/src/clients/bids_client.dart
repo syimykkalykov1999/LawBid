@@ -8,6 +8,7 @@ import 'package:retrofit/retrofit.dart';
 import '../models/bid_draft_body_dto.dart';
 import '../models/bid_draft_envelope.dart';
 import '../models/bid_envelope.dart';
+import '../models/conflict_check_envelope.dart';
 import '../models/counter_offer_dto.dart';
 import '../models/create_bid_dto.dart';
 
@@ -16,6 +17,13 @@ part 'bids_client.g.dart';
 @RestApi()
 abstract class BidsClient {
   factory BidsClient(Dio dio, {String? baseUrl}) = _BidsClient;
+
+  /// Attorney: does this case clash with a client or a case of yours? (a warning, never a block)
+  @GET('/cases/{caseId}/conflict-check')
+  Future<ConflictCheckEnvelope> conflictCheck({
+    @Path('caseId') required String caseId,
+    @Extras() Map<String, dynamic>? extras,
+  });
 
   /// Place a bid on an open case (attorney)
   @POST('/cases/{caseId}/bids')

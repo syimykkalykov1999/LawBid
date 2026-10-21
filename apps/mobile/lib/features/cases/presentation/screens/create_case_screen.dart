@@ -262,14 +262,14 @@ class _DraftBanner extends StatelessWidget {
           vertical: AppSpacing.sm,
         ),
         decoration: BoxDecoration(
-          color: colors.goldTint,
+          color: colors.iconTintFill,
           borderRadius: BorderRadius.circular(AppRadii.field),
         ),
         child: Row(
           children: [
             AppIcon(
               AppIcons.historyEduRounded,
-              color: colors.goldDark,
+              color: colors.iconTint,
               size: AppSizes.iconSm,
             ),
             const SizedBox(width: AppSpacing.sm),
@@ -398,7 +398,7 @@ class _ReviewStep extends ConsumerWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  AppIcon(icon, size: AppSizes.iconSm, color: colors.goldDark),
+                  AppIcon(icon, size: AppSizes.iconSm, color: colors.iconTint),
                   const SizedBox(width: AppSpacing.md),
                   Expanded(
                     child: Column(
@@ -565,7 +565,7 @@ class _ReviewStep extends ConsumerWidget {
                     AppIcon(
                       icon,
                       size: AppSpacing.xl - 2,
-                      color: colors.goldDark,
+                      color: colors.iconTint,
                     ),
                     const SizedBox(width: AppSpacing.sm),
                     Expanded(

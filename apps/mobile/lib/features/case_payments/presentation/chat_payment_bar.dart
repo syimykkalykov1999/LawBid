@@ -38,7 +38,7 @@ class ChatPaymentBar extends ConsumerWidget {
           AppIcon(
             AppIcons.receiptLongOutlined,
             size: AppSizes.iconSm,
-            color: colors.goldDark,
+            color: colors.iconTint,
           ),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
@@ -73,7 +73,7 @@ class ChatPaymentBar extends ConsumerWidget {
           AppIcon(
             AppIcons.receiptLongOutlined,
             size: AppSizes.iconSm,
-            color: colors.goldDark,
+            color: colors.iconTint,
           ),
           const SizedBox(width: AppSpacing.sm),
           Expanded(

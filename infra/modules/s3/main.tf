@@ -106,6 +106,17 @@ resource "aws_s3_bucket_lifecycle_configuration" "documents" {
     expiration { days = 3 }
     noncurrent_version_expiration { noncurrent_days = 1 }
   }
+  # Owner 2026-10-20: government-request archives (ZIP of chats and
+  # profiles) live 30 days. The worker removes each one at its own
+  # expires_at (legal.export_ttl_days, 30); this rule is the second net a
+  # day later, so a stuck worker never leaves personal data lying around.
+  rule {
+    id     = "legal-exports-expire"
+    status = "Enabled"
+    filter { prefix = "legal-exports/" }
+    expiration { days = 31 }
+    noncurrent_version_expiration { noncurrent_days = 1 }
+  }
   rule {
     id     = "old-versions"
     status = "Enabled"
@@ -236,6 +247,22 @@ resource "aws_s3_bucket_public_access_block" "media" {
   block_public_policy     = true
   ignore_public_acls      = true
   restrict_public_buckets = true
+}
+
+# Owner 2026-10-20: the replica copy of a government-request archive goes
+# with the original (delete markers are replicated, the old version is then
+# pruned a day later).
+resource "aws_s3_bucket_lifecycle_configuration" "documents_replica" {
+  provider = aws.replica
+  bucket   = aws_s3_bucket.documents_replica.id
+  rule {
+    id     = "legal-exports-expire"
+    status = "Enabled"
+    filter { prefix = "legal-exports/" }
+    expiration { days = 31 }
+    noncurrent_version_expiration { noncurrent_days = 1 }
+  }
+  depends_on = [aws_s3_bucket_versioning.documents_replica]
 }
 
 resource "aws_s3_bucket_lifecycle_configuration" "media" {

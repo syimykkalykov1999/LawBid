@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
+import 'package:lawbid/features/calls/application/call_quality.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:record/record.dart' show AudioRecorder;
 
@@ -20,25 +21,37 @@ enum CallMediaState {
 }
 
 /// The media side of a call: microphone (and camera in a video call),
-/// peer connection, speaker. Kept behind an interface so the call logic is
+/// peer connections, speaker. Kept behind an interface so the call logic is
 /// tested without WebRTC.
+///
+/// A two-person call has one link (to the first peer); a group call (owner
+/// 2026-10-20) adds one link per other member, all sharing the same
+/// microphone/camera — a mesh. The single-link methods address the first
+/// link; the `…For` methods address any member by user id.
 abstract interface class CallMedia {
-  /// Opens the mic (+ the front camera when [video]) and a peer
-  /// connection; [onSignal] gets our ICE candidates to relay, [onState]
-  /// the link state.
+  /// Opens the mic (+ the front camera when [video]) and the first peer
+  /// connection (to [peer]); [onSignal] gets our ICE candidates to relay,
+  /// [onState] the link state.
   Future<void> open(
     List<IceServer> iceServers, {
     required void Function(Map<String, Object?> signal) onSignal,
     required void Function(CallMediaState state) onState,
     bool video = false,
+    String peer = '',
   });
 
   /// Owner 2026-10-05 (video calls): our camera picture; null in an audio
   /// call or with the camera off.
   ValueListenable<MediaStream?> get localVideo;
 
-  /// The other side's picture once it arrives.
+  /// The other side's picture once it arrives (the first link).
   ValueListenable<MediaStream?> get remoteVideo;
+
+  /// Group calls: each member's picture by user id.
+  ValueListenable<Map<String, MediaStream>> get remoteStreams;
+
+  /// Group calls: who is speaking now (user ids; [kSelfSpeaker] = us).
+  ValueListenable<Set<String>> get speaking;
 
   // ignore: avoid_positional_boolean_parameters
   Future<void> setCameraOn(bool on);
@@ -61,6 +74,39 @@ abstract interface class CallMedia {
   /// candidates; the callee answers it like the first one.
   Future<Map<String, Object?>> restartIce();
 
+  /// Owner 2026-10-21: the worst link right now. Video is thinned or paused
+  /// by itself as it drops; the call screen may say so.
+  ValueListenable<LinkQuality> get quality;
+
+  /// A fresh TURN login (the old one runs out in hours): taken by every
+  /// link for its next ICE restart / relay refresh.
+  Future<void> updateIceServers(List<IceServer> iceServers);
+
+  // --- Group calls: one link per member ------------------------------------
+
+  /// Members we have a link with (user ids).
+  Set<String> get peers;
+
+  /// A link to [peer] (no offer yet); its candidates go to [onSignal], its
+  /// state to [onState].
+  Future<void> addPeer(
+    String peer, {
+    required void Function(Map<String, Object?> signal) onSignal,
+    required void Function(CallMediaState state) onState,
+  });
+
+  Future<Map<String, Object?>> createOfferFor(String peer);
+  Future<Map<String, Object?>> answerFor(
+    String peer,
+    Map<String, Object?> offer,
+  );
+  Future<void> setAnswerFor(String peer, Map<String, Object?> answer);
+  Future<void> addCandidateFor(String peer, Map<String, Object?> candidate);
+  Future<Map<String, Object?>> restartIceFor(String peer);
+
+  /// Closes the link with [peer] (they left or were removed).
+  Future<void> removePeer(String peer);
+
   // ignore: avoid_positional_boolean_parameters
   void setMuted(bool muted);
 
@@ -70,21 +116,71 @@ abstract interface class CallMedia {
   Future<void> close();
 }
 
+/// [CallMedia.speaking] key for our own microphone.
+const kSelfSpeaker = 'me';
+
+/// One WebRTC link of a call.
+class _Link {
+  _Link(this.peer, this.pc);
+
+  final String peer;
+  final RTCPeerConnection pc;
+  final pending = <RTCIceCandidate>[];
+  bool remoteSet = false;
+  final tracker = QualityTracker();
+  VideoTier? tier;
+}
+
+/// A reading of one link from `getStats` (W3C names): the nominated
+/// candidate pair gives the round trip and the bandwidth estimate, the
+/// remote-inbound report the loss the other side saw. Null before a pair
+/// exists.
+LinkStats? linkStatsFrom(Iterable<StatsReport> reports) {
+  double? rtt;
+  var bps = 0.0;
+  var loss = 0.0;
+  var pair = false;
+  double toD(Object? v) => v is num ? v.toDouble() : double.tryParse('$v') ?? 0;
+  for (final r in reports) {
+    final v = r.values;
+    if (r.type == 'candidate-pair' &&
+        (v['nominated'] == true || '${v['state']}' == 'succeeded')) {
+      pair = true;
+      final t = toD(v['currentRoundTripTime']);
+      if (t > 0) rtt = t * 1000;
+      final a = toD(v['availableOutgoingBitrate']);
+      if (a > 0) bps = a;
+    } else if (r.type == 'remote-inbound-rtp') {
+      final l = toD(v['fractionLost']) * 100;
+      if (l > loss) loss = l;
+      final t = toD(v['roundTripTime']);
+      if (rtt == null && t > 0) rtt = t * 1000;
+    }
+  }
+  if (!pair && rtt == null) return null;
+  return LinkStats(rttMs: rtt ?? 0, lossPct: loss, availableBps: bps);
+}
+
 /// flutter_webrtc: echo cancellation on; an audio call starts on the
 /// earpiece, a video call on the speaker with the front camera (up to
 /// 720p, 30 fps — enough for a face, light on mobile data).
 class WebRtcCallMedia implements CallMedia {
-  RTCPeerConnection? _pc;
+  final _links = <String, _Link>{};
+  String _first = '';
+  List<IceServer> _servers = const [];
   MediaStream? _mic;
   bool _video = false;
-  final _pendingCandidates = <RTCIceCandidate>[];
-  bool _remoteSet = false;
   final _local = ValueNotifier<MediaStream?>(null);
   final _remote = ValueNotifier<MediaStream?>(null);
+  final _remotes = ValueNotifier<Map<String, MediaStream>>(const {});
+  final _speaking = ValueNotifier<Set<String>>(const {});
+  Timer? _levelTimer;
   // Web: a browser plays the other side only through an <audio> element,
   // which a renderer creates; the phones play it by themselves.
-  RTCVideoRenderer? _webAudio;
+  final _webAudio = <String, RTCVideoRenderer>{};
   bool _frontCamera = true;
+
+  _Link get _firstLink => _links[_first]!;
 
   @override
   ValueListenable<MediaStream?> get localVideo => _local;
@@ -93,13 +189,25 @@ class WebRtcCallMedia implements CallMedia {
   ValueListenable<MediaStream?> get remoteVideo => _remote;
 
   @override
+  ValueListenable<Map<String, MediaStream>> get remoteStreams => _remotes;
+
+  @override
+  ValueListenable<Set<String>> get speaking => _speaking;
+
+  @override
+  Set<String> get peers => _links.keys.toSet();
+
+  @override
   Future<void> open(
     List<IceServer> iceServers, {
     required void Function(Map<String, Object?> signal) onSignal,
     required void Function(CallMediaState state) onState,
     bool video = false,
+    String peer = '',
   }) async {
     _video = video;
+    _servers = iceServers;
+    _first = peer;
     _mic = await navigator.mediaDevices.getUserMedia({
       'audio': {
         'echoCancellation': true,
@@ -116,25 +224,30 @@ class WebRtcCallMedia implements CallMedia {
           : false,
     });
     if (video) _local.value = _mic;
-    final pc = await createPeerConnection({
-      'iceServers': [for (final s in iceServers) s.toJson()],
-      'sdpSemantics': 'unified-plan',
-      // Gather candidates as soon as the connection exists and share one
-      // transport: the first sound is heard sooner.
-      'iceCandidatePoolSize': 2,
-      'bundlePolicy': 'max-bundle',
-    });
-    _pc = pc;
+    await _newLink(peer, onSignal: onSignal, onState: onState);
+    await setSpeaker(video);
+    onState(CallMediaState.connecting);
+  }
+
+  Future<_Link> _newLink(
+    String peer, {
+    required void Function(Map<String, Object?> signal) onSignal,
+    required void Function(CallMediaState state) onState,
+  }) async {
+    final pc = await createPeerConnection(_config());
+    final link = _Link(peer, pc);
+    _links[peer] = link;
     for (final track in _mic!.getTracks()) {
       await pc.addTrack(track, _mic!);
     }
     pc
       ..onTrack = (e) {
         if (e.track.kind == 'video' && e.streams.isNotEmpty) {
-          _remote.value = e.streams.first;
+          if (peer == _first) _remote.value = e.streams.first;
+          _remotes.value = {..._remotes.value, peer: e.streams.first};
         }
         if (kIsWeb && e.track.kind == 'audio' && e.streams.isNotEmpty) {
-          unawaited(_playWebAudio(e.streams.first));
+          unawaited(_playWebAudio(peer, e.streams.first));
         }
       }
       ..onIceCandidate = (c) {
@@ -159,87 +272,277 @@ class WebRtcCallMedia implements CallMedia {
             break;
         }
       };
-    await setSpeaker(video);
-    onState(CallMediaState.connecting);
+    _watchLevels();
+    _watchQuality();
+    return link;
   }
 
-  Future<void> _playWebAudio(MediaStream stream) async {
-    final r = _webAudio ??= RTCVideoRenderer();
+  // --- Link quality: thin the picture, keep the voice ----------------------
+
+  final _quality = ValueNotifier<LinkQuality>(LinkQuality.good);
+  Timer? _qualityTimer;
+
+  @override
+  ValueListenable<LinkQuality> get quality => _quality;
+
+  void _watchQuality() {
+    _qualityTimer ??= Timer.periodic(
+      const Duration(seconds: 3),
+      (_) => unawaited(_pollQuality()),
+    );
+  }
+
+  Future<void> _pollQuality() async {
+    var worst = LinkQuality.good;
+    final links = _links.values.toList();
+    for (final link in links) {
+      try {
+        final stats = linkStatsFrom(await link.pc.getStats());
+        if (stats == null) continue;
+        final q = link.tracker.add(stats);
+        if (q.index > worst.index) worst = q;
+        if (_video) {
+          await _applyTier(link, videoTierFor(q, links: links.length));
+        }
+      } on Object {
+        // The link is closing.
+      }
+    }
+    if (_quality.value != worst) _quality.value = worst;
+  }
+
+  Future<void> _applyTier(_Link link, VideoTier t) async {
+    final old = link.tier;
+    if (old != null &&
+        old.active == t.active &&
+        old.maxBitrate == t.maxBitrate &&
+        old.scaleDown == t.scaleDown) {
+      return;
+    }
+    for (final sender in await link.pc.getSenders()) {
+      if (sender.track?.kind != 'video') continue;
+      final p = sender.parameters;
+      final enc = (p.encodings?.isNotEmpty ?? false)
+          ? p.encodings!
+          : [RTCRtpEncoding()];
+      for (final e in enc) {
+        e
+          ..active = t.active
+          ..maxBitrate = t.maxBitrate
+          ..scaleResolutionDownBy = t.scaleDown
+          ..maxFramerate = t.maxFps;
+      }
+      p
+        ..encodings = enc
+        // A weak link keeps the picture moving and gets blurrier, not choppy.
+        ..degradationPreference = RTCDegradationPreference.MAINTAIN_FRAMERATE;
+      await sender.setParameters(p);
+    }
+    link.tier = t;
+  }
+
+  @override
+  Future<void> updateIceServers(List<IceServer> iceServers) async {
+    _servers = iceServers;
+    for (final link in _links.values.toList()) {
+      try {
+        await link.pc.setConfiguration(_config());
+      } on Object {
+        // The link is closing.
+      }
+    }
+  }
+
+  Map<String, dynamic> _config() => {
+        'iceServers': [for (final s in _servers) s.toJson()],
+        'sdpSemantics': 'unified-plan',
+        'iceCandidatePoolSize': 2,
+        'bundlePolicy': 'max-bundle',
+        'continualGatheringPolicy': 'gather_continually',
+        'iceConnectionReceivingTimeout': 10000,
+        'iceBackupCandidatePairPingInterval': 2000,
+      };
+
+  Future<void> _playWebAudio(String peer, MediaStream stream) async {
+    final r = _webAudio[peer] ??= RTCVideoRenderer();
     await r.initialize();
     r.srcObject = stream;
   }
 
-  @override
-  Future<Map<String, Object?>> createOffer() async {
-    final pc = _pc!;
-    final offer = await pc.createOffer({
+  /// Group calls: who is talking — the audio levels of the incoming
+  /// streams (and ours) every half second; only while there are 2+ links.
+  void _watchLevels() {
+    if (_links.length < 2) return;
+    _levelTimer ??= Timer.periodic(
+      const Duration(milliseconds: 500),
+      (_) => unawaited(_pollLevels()),
+    );
+  }
+
+  Future<void> _pollLevels() async {
+    final now = <String>{};
+    var self = 0.0;
+    for (final link in _links.values.toList()) {
+      try {
+        for (final r in await link.pc.getStats()) {
+          final level = (r.values['audioLevel'] as num?)?.toDouble() ?? 0;
+          if (r.type == 'inbound-rtp' && level > 0.02) now.add(link.peer);
+          if (r.type == 'media-source' && level > self) self = level;
+        }
+      } on Object {
+        // The link is closing.
+      }
+    }
+    if (self > 0.02 && !_mutedNow) now.add(kSelfSpeaker);
+    final old = _speaking.value;
+    if (old.length != now.length || !old.containsAll(now)) {
+      _speaking.value = now;
+    }
+  }
+
+  bool _mutedNow = false;
+
+  _Link _linkOf(String? peer) {
+    final l = _links[peer ?? _first];
+    if (l == null) throw StateError('no link with $peer');
+    return l;
+  }
+
+  Future<Map<String, Object?>> _offer(
+    _Link link, {
+    bool restart = false,
+  }) async {
+    final offer = await link.pc.createOffer({
+      if (restart) 'iceRestart': true,
       'offerToReceiveAudio': true,
       'offerToReceiveVideo': _video,
     });
-    await pc.setLocalDescription(offer);
-    return {'type': 'offer', 'sdp': offer.sdp};
+    final sdp = tuneOpusSdp(offer.sdp ?? '');
+    await link.pc.setLocalDescription(RTCSessionDescription(sdp, 'offer'));
+    return {'type': 'offer', 'sdp': sdp};
   }
 
-  @override
-  Future<Map<String, Object?>> restartIce() async {
-    final pc = _pc!;
-    final offer = await pc.createOffer({
-      'iceRestart': true,
-      'offerToReceiveAudio': true,
-      'offerToReceiveVideo': _video,
-    });
-    await pc.setLocalDescription(offer);
-    return {'type': 'offer', 'sdp': offer.sdp};
-  }
-
-  @override
-  Future<Map<String, Object?>> answer(Map<String, Object?> offer) async {
-    final pc = _pc!;
-    await pc.setRemoteDescription(
+  Future<Map<String, Object?>> _answer(
+    _Link link,
+    Map<String, Object?> offer,
+  ) async {
+    await link.pc.setRemoteDescription(
       RTCSessionDescription(offer['sdp'] as String?, 'offer'),
     );
-    await _flushCandidates();
-    final ans = await pc.createAnswer({
+    await _flush(link);
+    final ans = await link.pc.createAnswer({
       'offerToReceiveAudio': true,
       'offerToReceiveVideo': _video,
     });
-    await pc.setLocalDescription(ans);
-    return {'type': 'answer', 'sdp': ans.sdp};
+    final sdp = tuneOpusSdp(ans.sdp ?? '');
+    await link.pc.setLocalDescription(RTCSessionDescription(sdp, 'answer'));
+    return {'type': 'answer', 'sdp': sdp};
   }
 
-  @override
-  Future<void> setAnswer(Map<String, Object?> answer) async {
-    await _pc!.setRemoteDescription(
+  Future<void> _setAnswer(_Link link, Map<String, Object?> answer) async {
+    await link.pc.setRemoteDescription(
       RTCSessionDescription(answer['sdp'] as String?, 'answer'),
     );
-    await _flushCandidates();
+    await _flush(link);
   }
 
-  @override
-  Future<void> addCandidate(Map<String, Object?> c) async {
+  Future<void> _candidate(_Link link, Map<String, Object?> c) async {
     final candidate = RTCIceCandidate(
       c['candidate'] as String?,
       c['sdpMid'] as String?,
       (c['sdpMLineIndex'] as num?)?.toInt(),
     );
     // Candidates can arrive before the remote description.
-    if (!_remoteSet) {
-      _pendingCandidates.add(candidate);
+    if (!link.remoteSet) {
+      link.pending.add(candidate);
       return;
     }
-    await _pc?.addCandidate(candidate);
+    await link.pc.addCandidate(candidate);
   }
 
-  Future<void> _flushCandidates() async {
-    _remoteSet = true;
-    for (final c in _pendingCandidates) {
-      await _pc?.addCandidate(c);
+  Future<void> _flush(_Link link) async {
+    link.remoteSet = true;
+    for (final c in link.pending) {
+      await link.pc.addCandidate(c);
     }
-    _pendingCandidates.clear();
+    link.pending.clear();
+  }
+
+  @override
+  Future<Map<String, Object?>> createOffer() => _offer(_firstLink);
+
+  @override
+  Future<Map<String, Object?>> restartIce() =>
+      _offer(_firstLink, restart: true);
+
+  @override
+  Future<Map<String, Object?>> answer(Map<String, Object?> offer) =>
+      _answer(_firstLink, offer);
+
+  @override
+  Future<void> setAnswer(Map<String, Object?> answer) =>
+      _setAnswer(_firstLink, answer);
+
+  @override
+  Future<void> addCandidate(Map<String, Object?> c) =>
+      _candidate(_firstLink, c);
+
+  @override
+  Future<void> addPeer(
+    String peer, {
+    required void Function(Map<String, Object?> signal) onSignal,
+    required void Function(CallMediaState state) onState,
+  }) async {
+    if (_links.containsKey(peer)) return;
+    await _newLink(peer, onSignal: onSignal, onState: onState);
+    onState(CallMediaState.connecting);
+  }
+
+  @override
+  Future<Map<String, Object?>> createOfferFor(String peer) =>
+      _offer(_linkOf(peer));
+
+  @override
+  Future<Map<String, Object?>> restartIceFor(String peer) =>
+      _offer(_linkOf(peer), restart: true);
+
+  @override
+  Future<Map<String, Object?>> answerFor(
+    String peer,
+    Map<String, Object?> offer,
+  ) =>
+      _answer(_linkOf(peer), offer);
+
+  @override
+  Future<void> setAnswerFor(String peer, Map<String, Object?> answer) =>
+      _setAnswer(_linkOf(peer), answer);
+
+  @override
+  Future<void> addCandidateFor(String peer, Map<String, Object?> c) =>
+      _candidate(_linkOf(peer), c);
+
+  @override
+  Future<void> removePeer(String peer) async {
+    final link = _links.remove(peer);
+    if (link == null) return;
+    await link.pc.close();
+    final r = _webAudio.remove(peer);
+    if (r != null) {
+      r.srcObject = null;
+      await r.dispose();
+    }
+    _remotes.value = {..._remotes.value}..remove(peer);
+    if (peer == _first) _remote.value = null;
+    if (_links.length < 2) {
+      _levelTimer?.cancel();
+      _levelTimer = null;
+      _speaking.value = const {};
+    }
   }
 
   @override
   void setMuted(bool muted) {
+    _mutedNow = muted;
     for (final t in _mic?.getAudioTracks() ?? const <MediaStreamTrack>[]) {
       t.enabled = !muted;
     }
@@ -269,11 +572,10 @@ class WebRtcCallMedia implements CallMedia {
   }
 
   /// Browsers have no camera flip: open the other camera (where there is
-  /// one) and hand its track to the peer in place of the old one.
+  /// one) and hand its track to every peer in place of the old one.
   Future<void> _switchCameraWeb(MediaStreamTrack old) async {
     final mic = _mic;
-    final pc = _pc;
-    if (mic == null || pc == null) return;
+    if (mic == null || _links.isEmpty) return;
     _frontCamera = !_frontCamera;
     final cam = await navigator.mediaDevices.getUserMedia({
       'audio': false,
@@ -285,8 +587,10 @@ class WebRtcCallMedia implements CallMedia {
       },
     });
     final track = cam.getVideoTracks().first;
-    for (final sender in await pc.getSenders()) {
-      if (sender.track?.kind == 'video') await sender.replaceTrack(track);
+    for (final link in _links.values) {
+      for (final sender in await link.pc.getSenders()) {
+        if (sender.track?.kind == 'video') await sender.replaceTrack(track);
+      }
     }
     await old.stop();
     await mic.removeTrack(old);
@@ -299,22 +603,32 @@ class WebRtcCallMedia implements CallMedia {
 
   @override
   Future<void> close() async {
+    _levelTimer?.cancel();
+    _levelTimer = null;
+    _qualityTimer?.cancel();
+    _qualityTimer = null;
+    _quality.value = LinkQuality.good;
     for (final t in _mic?.getTracks() ?? const <MediaStreamTrack>[]) {
       await t.stop();
     }
     _local.value = null;
     _remote.value = null;
-    _webAudio?.srcObject = null;
-    await _webAudio?.dispose();
-    _webAudio = null;
+    _remotes.value = const {};
+    _speaking.value = const {};
+    for (final r in _webAudio.values) {
+      r.srcObject = null;
+      await r.dispose();
+    }
+    _webAudio.clear();
     _frontCamera = true;
     await _mic?.dispose();
-    await _pc?.close();
-    _pc = null;
+    for (final link in _links.values) {
+      await link.pc.close();
+    }
+    _links.clear();
     _mic = null;
     _video = false;
-    _pendingCandidates.clear();
-    _remoteSet = false;
+    _mutedNow = false;
   }
 }
 

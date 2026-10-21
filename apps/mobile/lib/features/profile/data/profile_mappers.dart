@@ -64,12 +64,15 @@ abstract final class ProfileMappers {
         trustLevel: d.trustLevel,
         licensedStates: d.licensedStates.map(state).toList(growable: false),
         practices: d.practiceAreas.map(selected).toList(growable: false),
+        qaAnswers: d.qa.answers.toInt(),
+        qaBest: d.qa.best.toInt(),
         rating: rating(d.rating),
         counters: counters(d.counters),
         isSelf: d.isSelf,
         isFollowing: d.isFollowing,
         isBlocked: d.isBlocked,
         hasBlockedMe: d.hasBlockedMe,
+        consultationEnabled: d.consultationEnabled,
         // Owner 2026-10-18: the profile header shows the full avatar (the
         // 256 px variant looked soft at ~100 dp on a Retina screen);
         // AppAvatar decodes it at the size it is drawn.
@@ -117,7 +120,10 @@ abstract final class ProfileMappers {
         issue: switch (d.reason) {
           api.UsernameUnavailableReason.invalid => UsernameIssue.invalid,
           api.UsernameUnavailableReason.reserved => UsernameIssue.reserved,
-          api.UsernameUnavailableReason.taken => UsernameIssue.taken,
+          api.UsernameUnavailableReason.taken ||
+          api.UsernameUnavailableReason.held ||
+          api.UsernameUnavailableReason.similar =>
+            UsernameIssue.taken,
           _ => d.available ? null : UsernameIssue.invalid,
         },
       );
@@ -134,7 +140,7 @@ abstract final class ProfileMappers {
           ? null
           : switch (j['reason']) {
               'reserved' => UsernameIssue.reserved,
-              'taken' => UsernameIssue.taken,
+              'taken' || 'held' || 'similar' => UsernameIssue.taken,
               _ => UsernameIssue.invalid,
             },
       suggestions: suggestions is List

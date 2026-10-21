@@ -122,14 +122,14 @@ class CaseCoverPicker extends StatelessWidget {
                   onTap: () => onChanged(null),
                   child: SizedBox.expand(
                     child: ColoredBox(
-                      color: colors.goldTint,
+                      color: colors.iconTintFill,
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           AppIcon(
                             AppIcons.autoAwesomeOutlined,
                             size: 20,
-                            color: colors.goldDark,
+                            color: colors.iconTint,
                           ),
                           const SizedBox(height: 2),
                           Text(
@@ -216,7 +216,7 @@ class _AutoPreview extends StatelessWidget {
                 AppIcon(
                   AppIcons.autoAwesomeOutlined,
                   size: 14,
-                  color: colors.goldLight,
+                  color: colors.iconTint,
                 ),
                 const SizedBox(width: AppSpacing.xs),
                 Text(

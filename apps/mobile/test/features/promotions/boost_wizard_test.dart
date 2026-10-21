@@ -42,6 +42,7 @@ class _FakeRepo extends PromotionsRepository {
     String? ctaType,
     String? ctaValue,
     bool extend = false,
+    bool withStars = false,
   }) async {
     bought = {
       'goal': goal,

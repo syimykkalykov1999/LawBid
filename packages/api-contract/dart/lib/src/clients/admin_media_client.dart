@@ -8,6 +8,11 @@ import 'package:retrofit/retrofit.dart';
 import '../models/add_official_sticker_dto.dart';
 import '../models/admin_bulk_reason_dto.dart';
 import '../models/admin_bulk_result_envelope.dart';
+import '../models/admin_channel_envelope.dart';
+import '../models/admin_channel_post_action_dto.dart';
+import '../models/admin_channel_row_list_envelope.dart';
+import '../models/admin_channel_status.dart';
+import '../models/admin_channel_status_dto.dart';
 import '../models/admin_media_reason_dto.dart';
 import '../models/admin_sticker_pack_envelope.dart';
 import '../models/admin_sticker_pack_row_list_envelope.dart';
@@ -19,6 +24,7 @@ import '../models/create_official_sticker_pack_dto.dart';
 import '../models/file_envelope.dart';
 import '../models/kind2.dart';
 import '../models/presigned_file_envelope.dart';
+import '../models/set_sticker_pack_price_dto.dart';
 import '../models/status6.dart';
 
 part 'admin_media_client.g.dart';
@@ -123,6 +129,14 @@ abstract class AdminMediaClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
+  /// Set the price in stars of an official pack
+  @POST('/admin/media/sticker-packs/{id}/price')
+  Future<AdminStickerPackEnvelope> setAdminStickerPackPrice({
+    @Path('id') required String id,
+    @Body() required SetStickerPackPriceDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
   /// Add an uploaded (clean) image to an official pack
   @POST('/admin/media/sticker-packs/{id}/stickers')
   Future<AdminStickerPackEnvelope> addAdminSticker({
@@ -150,6 +164,44 @@ abstract class AdminMediaClient {
   @POST('/admin/media/sticker-uploads/{fileId}/confirm')
   Future<FileEnvelope> confirmAdminStickerUpload({
     @Path('fileId') required String fileId,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Channels, newest first.
+  ///
+  /// [q] - Title or @username.
+  ///
+  /// [cursor] - meta.nextCursor of the previous page.
+  @GET('/admin/media/channels')
+  Future<AdminChannelRowListEnvelope> listChannels({
+    @Query('status') AdminChannelStatus? status,
+    @Query('q') String? q,
+    @Query('cursor') String? cursor,
+    @Query('limit') num? limit,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// A channel with its latest posts
+  @GET('/admin/media/channels/{id}')
+  Future<AdminChannelEnvelope> getChannel({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Hide (out of search), close (banned) or reopen a channel
+  @POST('/admin/media/channels/{id}/status')
+  Future<AdminChannelEnvelope> setChannelStatus({
+    @Path('id') required String id,
+    @Body() required AdminChannelStatusDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Remove or restore one post of a channel
+  @POST('/admin/media/channels/{id}/posts/{postId}/moderate')
+  Future<AdminChannelEnvelope> moderateChannelPost({
+    @Path('id') required String id,
+    @Path('postId') required String postId,
+    @Body() required AdminChannelPostActionDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 }

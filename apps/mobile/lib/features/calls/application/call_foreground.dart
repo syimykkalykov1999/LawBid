@@ -94,9 +94,30 @@ class CallScreenVisible extends Notifier<bool> {
   @override
   bool build() => false;
 
-  // ignore: use_setters_to_change_properties
-  void set({required bool visible}) => state = visible;
+  void set({required bool visible}) {
+    // The screen's dispose runs a microtask later, maybe after the scope.
+    if (ref.mounted) state = visible;
+  }
 }
 
 final callScreenVisibleProvider =
     NotifierProvider<CallScreenVisible, bool>(CallScreenVisible.new);
+
+/// Android picture-in-picture for video calls: while on, leaving the app
+/// (Home, another app) shrinks the call to a floating window.
+class CallPip {
+  const CallPip();
+
+  static const _channel = MethodChannel('lawbid/call_pip');
+
+  Future<void> setActive({required bool active}) async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
+    try {
+      await _channel.invokeMethod<void>('setActive', {'active': active});
+    } on Object {
+      // No platform bindings (plain unit tests).
+    }
+  }
+}
+
+final callPipProvider = Provider<CallPip>((ref) => const CallPip());

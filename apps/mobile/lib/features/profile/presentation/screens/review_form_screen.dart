@@ -304,7 +304,7 @@ class _Compose extends StatelessWidget {
       Container(
         padding: const EdgeInsets.all(AppSpacing.md),
         decoration: BoxDecoration(
-          color: colors.goldTint,
+          color: colors.iconTintFill,
           borderRadius: BorderRadius.circular(AppRadii.field),
         ),
         child: Row(
@@ -313,7 +313,7 @@ class _Compose extends StatelessWidget {
             AppIcon(
               AppIcons.infoOutlineRounded,
               size: AppSizes.iconSm,
-              color: colors.goldStroke,
+              color: colors.iconTint,
             ),
             const SizedBox(width: AppSpacing.sm),
             Expanded(

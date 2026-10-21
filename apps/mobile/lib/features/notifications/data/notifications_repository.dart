@@ -8,6 +8,8 @@ import 'package:lawbid_api/lawbid_api.dart' as api;
 // `newCases` — opt-in alerts (off until turned on).
 enum NotifCategory {
   messages,
+  groups,
+  channels,
   calls,
   bids,
   cases,
@@ -197,8 +199,20 @@ abstract interface class NotificationsRepository {
     String token, {
     required bool ios,
     bool web = false,
+
+    /// Owner 2026-10-20: this app keeps planner reminders as local alarms
+    /// and shows the reminder push itself (Android).
+    bool localReminders = false,
   });
   Future<void> deletePushToken(String token);
+
+  /// Owner 2026-10-20: the reminders this iPhone has armed as local alarms
+  /// (`<taskId>@<remindAt ms>`); the reminder push skips them.
+  Future<void> setArmedReminders(String token, List<String> ids);
+
+  /// Owner 2026-10-20: the phone's IANA time zone — the server repeats
+  /// tasks and sends daily reminders by this clock.
+  Future<void> setTimezone(String timezone);
 
   /// Owner 2026-10-17: an iPhone's PushKit token for incoming calls.
   Future<void> registerVoipToken(
@@ -385,6 +399,7 @@ class ApiNotificationsRepository implements NotificationsRepository {
     String token, {
     required bool ios,
     bool web = false,
+    bool localReminders = false,
   }) =>
       guardApiCall(
         () => _api.registerPushToken(
@@ -395,8 +410,22 @@ class ApiNotificationsRepository implements NotificationsRepository {
                 : ios
                     ? api.PushTokenDtoPlatform.ios
                     : api.PushTokenDtoPlatform.android,
+            localReminders: localReminders,
           ),
         ),
+      );
+
+  @override
+  Future<void> setArmedReminders(String token, List<String> ids) =>
+      guardApiCall(
+        () => _api.setArmedReminders(
+          body: api.ArmedRemindersDto(token: token, ids: ids),
+        ),
+      );
+
+  @override
+  Future<void> setTimezone(String timezone) => guardApiCall(
+        () => _api.setTimezone(body: api.TimezoneDto(timezone: timezone)),
       );
 
   @override

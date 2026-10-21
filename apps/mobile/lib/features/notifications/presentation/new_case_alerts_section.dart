@@ -149,7 +149,7 @@ class _NewCaseAlertsSectionState extends ConsumerState<NewCaseAlertsSection> {
                     selected
                         ? AppIcons.radioButtonCheckedRounded
                         : AppIcons.radioButtonUncheckedRounded,
-                    color: selected ? colors.goldDark : colors.textSecondary,
+                    color: selected ? colors.iconTint : colors.textSecondary,
                   ),
                   const SizedBox(width: AppSpacing.sm),
                   Expanded(
@@ -259,7 +259,7 @@ class _NewCaseAlertsSectionState extends ConsumerState<NewCaseAlertsSection> {
               key: const ValueKey('alerts-choose'),
               onPressed:
                   _saving || tree.isEmpty ? null : () => _choose(a, tree),
-              icon: AppIcon(AppIcons.tuneRounded, color: colors.goldDark),
+              icon: AppIcon(AppIcons.tuneRounded, color: colors.iconTint),
               label: Text(
                 t.t('notif.newCases.choose'),
                 style: TextStyle(color: colors.goldDark),

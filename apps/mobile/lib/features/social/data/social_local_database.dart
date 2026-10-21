@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart';
 import 'package:lawbid/core/persistence/drift_web.dart';
+import 'package:lawbid/core/persistence/saved_json.dart';
 
 part 'social_local_database.g.dart';
 
@@ -29,6 +30,10 @@ class ChatOutbox extends Table {
   /// show "не отправлено", never retried automatically.
   TextColumn get failedCode => text().nullable()();
 
+  /// Owner 2026-10-20: a reply quotes this message; a forward is labelled.
+  TextColumn get replyToId => text().nullable()();
+  BoolColumn get forwarded => boolean().withDefault(const Constant(false))();
+
   @override
   Set<Column> get primaryKey => {clientMessageId};
 }
@@ -50,24 +55,37 @@ class RecentSearches extends Table {
 }
 
 @DriftDatabase(tables: [CachedPages, ChatOutbox, RecentSearches])
-class SocialLocalDatabase extends _$SocialLocalDatabase {
+class SocialLocalDatabase extends _$SocialLocalDatabase
+    implements SavedPageStore {
   SocialLocalDatabase([QueryExecutor? executor])
       : super(
           executor ?? appDriftDatabase('lawbid_social'),
         );
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+        onUpgrade: (m, from, to) async {
+          if (from < 2) {
+            await m.addColumn(chatOutbox, chatOutbox.replyToId);
+            await m.addColumn(chatOutbox, chatOutbox.forwarded);
+          }
+        },
+      );
 
   static const _recentMax = 10;
 
   // --- cached pages ---------------------------------------------------
 
+  @override
   Future<String?> pageJson(String key) async =>
       (await (select(cachedPages)..where((p) => p.key.equals(key)))
               .getSingleOrNull())
           ?.json;
 
+  @override
   Future<void> savePage(String key, String json) =>
       into(cachedPages).insertOnConflictUpdate(
         CachedPagesCompanion.insert(
@@ -84,6 +102,8 @@ class SocialLocalDatabase extends _$SocialLocalDatabase {
     required String ownerId,
     required String conversationId,
     required String body,
+    String? replyToId,
+    bool forwarded = false,
   }) =>
       into(chatOutbox).insertOnConflictUpdate(
         ChatOutboxCompanion.insert(
@@ -92,6 +112,8 @@ class SocialLocalDatabase extends _$SocialLocalDatabase {
           conversationId: conversationId,
           body: body,
           createdAt: DateTime.now(),
+          replyToId: Value(replyToId),
+          forwarded: Value(forwarded),
         ),
       );
 

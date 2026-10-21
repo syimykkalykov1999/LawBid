@@ -9,11 +9,11 @@ import 'package:lawbid/core/design_system/tokens/app_radii.dart';
 import 'package:lawbid/core/design_system/tokens/app_sizes.dart';
 import 'package:lawbid/core/design_system/tokens/app_spacing.dart';
 
-/// Floating, rounded, inverse-colored snackbar with a gold info glyph
+/// Floating, rounded, surface-colored snackbar with a gold info glyph
 /// (UI modernization pass, 2026-09-27). Opt-in per call site rather than a
 /// global `snackBarTheme`, so the welcome screen's snackbar is unchanged.
 ///
-/// [actionLabel] + [onAction]: a gold text button (e.g. "Undo", owner
+/// [actionLabel] + [onAction]: an accent text button (e.g. "Undo", owner
 /// 2026-10-01 — a checkmark set by mistake can be taken back at once).
 void showAppSnackBar(
   BuildContext context,
@@ -72,7 +72,7 @@ void _showOverlayMessage(
           bottom: AppSpacing.lg + mq.viewInsets.bottom + mq.padding.bottom,
           child: Material(
             key: const ValueKey('app-overlay-message'),
-            color: colors.text,
+            color: colors.surface,
             elevation: 6,
             borderRadius: BorderRadius.circular(AppRadii.field),
             child: Padding(
@@ -91,8 +91,7 @@ void _showOverlayMessage(
                   Expanded(
                     child: Text(
                       message,
-                      style:
-                          typography.body.copyWith(color: colors.inverseText),
+                      style: typography.body.copyWith(color: colors.text),
                     ),
                   ),
                   if (actionLabel != null && onAction != null)
@@ -103,7 +102,7 @@ void _showOverlayMessage(
                       },
                       child: Text(
                         actionLabel,
-                        style: typography.body.copyWith(color: colors.gold),
+                        style: typography.body.copyWith(color: colors.accent),
                       ),
                     ),
                 ],
@@ -118,7 +117,7 @@ void _showOverlayMessage(
   overlay.insert(entry);
 }
 
-/// Closes the message after 4 s; the timer ends with the widget.
+/// Closes the message after 2.5 s; the timer ends with the widget.
 class _AutoClose extends StatefulWidget {
   const _AutoClose({required this.onClose, required this.child});
 
@@ -135,7 +134,7 @@ class _AutoCloseState extends State<_AutoClose> {
   @override
   void initState() {
     super.initState();
-    _timer = Timer(const Duration(seconds: 4), widget.onClose);
+    _timer = Timer(const Duration(milliseconds: 2500), widget.onClose);
   }
 
   @override
@@ -161,16 +160,24 @@ void _showScaffoldSnackBar(
     ..showSnackBar(
       SnackBar(
         behavior: SnackBarBehavior.floating,
-        backgroundColor: colors.text,
+        // Owner 2026-10-20: a snackbar with an action never went away
+        // (Flutter keeps it until tapped) and hung over every screen, in
+        // a white system look. Now it closes by itself after 2.5 s, in the
+        // theme's own surface.
+        persist: false,
+        duration: const Duration(milliseconds: 2500),
+        backgroundColor: colors.surface,
+        elevation: 6,
         margin: const EdgeInsets.all(AppSpacing.lg),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadii.field),
+          side: BorderSide(color: colors.border),
         ),
         action: actionLabel == null || onAction == null
             ? null
             : SnackBarAction(
                 label: actionLabel,
-                textColor: colors.gold,
+                textColor: colors.accent,
                 onPressed: onAction,
               ),
         content: Row(
@@ -184,7 +191,7 @@ void _showScaffoldSnackBar(
             Expanded(
               child: Text(
                 message,
-                style: typography.body.copyWith(color: colors.inverseText),
+                style: typography.body.copyWith(color: colors.text),
               ),
             ),
           ],

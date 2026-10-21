@@ -18,6 +18,7 @@ class AdminStickerPackRowDto {
     required this.status,
     required this.stickerCount,
     required this.installCount,
+    required this.priceStars,
     required this.createdAt,
     this.ownerId,
     this.ownerName,
@@ -35,6 +36,9 @@ class AdminStickerPackRowDto {
   final String? ownerName;
   final int stickerCount;
   final int installCount;
+
+  /// Stars to add the pack; 0 = free.
+  final int priceStars;
   final DateTime createdAt;
 
   Map<String, Object?> toJson() => _$AdminStickerPackRowDtoToJson(this);

@@ -126,7 +126,7 @@ class _CaseStaleBannerState extends ConsumerState<CaseStaleBanner> {
                       ? AppIcons.pauseCircleOutlineRounded
                       : AppIcons.hourglassTopRounded,
                   size: AppSizes.iconSm,
-                  color: colors.goldDark,
+                  color: colors.iconTint,
                 ),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
@@ -170,24 +170,38 @@ class _CaseStaleBannerState extends ConsumerState<CaseStaleBanner> {
                 style: typography.caption.copyWith(color: colors.textSecondary),
               ),
               const SizedBox(height: AppSpacing.md),
-              Wrap(
-                spacing: AppSpacing.sm,
-                runSpacing: AppSpacing.sm,
+              // Owner 2026-10-20: comfortable buttons across the whole width,
+              // two to a row like Telegram's inline keyboard; owner
+              // 2026-10-21: «Да» and «Не нужен» on top, «Жду предложений
+              // получше» alone on the full-width row below.
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _StaleButton(
-                    key: const ValueKey('stale-yes'),
-                    label: t.t('cases.stale.yes'),
-                    emphasized: true,
-                    onTap: _busy
-                        ? null
-                        : () => _answer(
-                              StillNeededAnswer.stillNeeded,
-                              'cases.stale.answered',
-                            ),
+                  _ButtonGrid(
+                    children: [
+                      _StaleButton(
+                        key: const ValueKey('stale-yes'),
+                        label: t.t('cases.stale.yes'),
+                        emphasized: true,
+                        onTap: _busy
+                            ? null
+                            : () => _answer(
+                                  StillNeededAnswer.stillNeeded,
+                                  'cases.stale.answered',
+                                ),
+                      ),
+                      _StaleButton(
+                        key: const ValueKey('stale-no'),
+                        label: t.t('cases.stale.no'),
+                        onTap: _busy ? null : _notNeeded,
+                      ),
+                    ],
                   ),
+                  const SizedBox(height: AppSpacing.sm),
                   _StaleButton(
                     key: const ValueKey('stale-wait'),
                     label: t.t('cases.stale.wait'),
+                    singleLine: true,
                     onTap: _busy
                         ? null
                         : () => _answer(
@@ -195,12 +209,8 @@ class _CaseStaleBannerState extends ConsumerState<CaseStaleBanner> {
                               'cases.stale.answered',
                             ),
                   ),
-                  _StaleButton(
-                    key: const ValueKey('stale-no'),
-                    label: t.t('cases.stale.no'),
-                    onTap: _busy ? null : _notNeeded,
-                  ),
-                  if (widget.canMakeNotUrgent)
+                  if (widget.canMakeNotUrgent) ...[
+                    const SizedBox(height: AppSpacing.sm),
                     _StaleButton(
                       key: const ValueKey('stale-not-urgent'),
                       label: t.t('cases.stale.notUrgent'),
@@ -211,6 +221,7 @@ class _CaseStaleBannerState extends ConsumerState<CaseStaleBanner> {
                                 'cases.stale.notUrgentDone',
                               ),
                     ),
+                  ],
                 ],
               ),
               const SizedBox(height: AppSpacing.sm),
@@ -226,6 +237,43 @@ class _CaseStaleBannerState extends ConsumerState<CaseStaleBanner> {
   }
 }
 
+/// Buttons two to a row, equal width; an odd last one spans the row.
+class _ButtonGrid extends StatelessWidget {
+  const _ButtonGrid({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = <Widget>[];
+    for (var i = 0; i < children.length; i += 2) {
+      final pair = children.sublist(i, i + 2 > children.length ? i + 1 : i + 2);
+      rows.add(
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (var j = 0; j < pair.length; j++) ...[
+                if (j > 0) const SizedBox(width: AppSpacing.sm),
+                Expanded(child: pair[j]),
+              ],
+            ],
+          ),
+        ),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (var i = 0; i < rows.length; i++) ...[
+          if (i > 0) const SizedBox(height: AppSpacing.sm),
+          rows[i],
+        ],
+      ],
+    );
+  }
+}
+
 /// A quiet pill button: the first answer sits on the chip tone, the rest on
 /// the surface with a hairline; never a gold fill.
 class _StaleButton extends StatelessWidget {
@@ -233,12 +281,19 @@ class _StaleButton extends StatelessWidget {
     required this.label,
     required this.onTap,
     this.emphasized = false,
+    this.singleLine = false,
     super.key,
   });
 
   final String label;
   final VoidCallback? onTap;
   final bool emphasized;
+
+  /// One line: a long translation shrinks to fit instead of wrapping.
+  final bool singleLine;
+
+  Widget _wrap(Widget text) =>
+      singleLine ? FittedBox(fit: BoxFit.scaleDown, child: text) : text;
 
   @override
   Widget build(BuildContext context) {
@@ -253,7 +308,10 @@ class _StaleButton extends StatelessWidget {
           onTap: onTap,
           child: Container(
             constraints: const BoxConstraints(minHeight: AppSizes.touchTarget),
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.md,
+              vertical: AppSpacing.xs,
+            ),
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: emphasized ? colors.chip : colors.surface,
@@ -262,12 +320,16 @@ class _StaleButton extends StatelessWidget {
             ),
             child: Opacity(
               opacity: onTap == null ? 0.5 : 1,
-              child: Text(
-                label,
-                textAlign: TextAlign.center,
-                style: typography.bodySmall.copyWith(
-                  color: colors.text,
-                  fontWeight: emphasized ? FontWeight.w600 : FontWeight.w500,
+              child: _wrap(
+                Text(
+                  label,
+                  maxLines: singleLine ? 1 : 2,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: typography.bodySmall.copyWith(
+                    color: colors.text,
+                    fontWeight: emphasized ? FontWeight.w600 : FontWeight.w500,
+                  ),
                 ),
               ),
             ),

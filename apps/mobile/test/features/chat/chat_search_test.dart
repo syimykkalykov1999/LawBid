@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -7,10 +8,12 @@ import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/chat/data/chat_repository.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart';
+import 'package:lawbid/features/groups/application/group_providers.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 
 import '../../helpers/ux_harness.dart';
+import '../groups/fake_group_repository.dart';
 
 Conversation _conv(String id, String name, {String? matched}) => Conversation(
       id: id,
@@ -64,8 +67,8 @@ class _Chats implements ChatRepository {
   }
 
   @override
-  Future<({int waiting, int requests})> folderCounts() async =>
-      (waiting: 0, requests: 0);
+  Future<({int waiting, int requests, int cases, int archived})>
+      folderCounts() async => (waiting: 0, requests: 0, cases: 0, archived: 0);
 
   @override
   dynamic noSuchMethod(Invocation invocation) => Future<void>.value();
@@ -100,12 +103,20 @@ void main() {
         overrides: uxOverrides(
           extra: [
             chatRepositoryProvider.overrideWithValue(repo),
+            groupRepositoryProvider.overrideWithValue(FakeGroupRepository()),
             currentUserIdProvider.overrideWithValue('me'),
             realtimeClientProvider.overrideWithValue(null),
           ],
         ),
       ),
     );
+    await tester.pumpAndSettle();
+    // Owner 2026-10-21: the magnifier sits in the top bar (here the list
+    // alone: the same signal); it opens the field over the folders row.
+    expect(find.byKey(const ValueKey('chat-search')), findsNothing);
+    ProviderScope.containerOf(tester.element(find.byType(ConversationsView)))
+        .read(chatSearchOpenProvider.notifier)
+        .open();
     await tester.pumpAndSettle();
     expect(find.text('Search chats'), findsOneWidget);
     expect(find.text('Anna Petrova'), findsOneWidget);
@@ -147,5 +158,11 @@ void main() {
     expect(find.text('Nothing found'), findsNothing);
     expect(find.text('Anna Petrova'), findsOneWidget);
     expect(find.text('Boris Ivanov'), findsOneWidget);
+
+    // The cross closes the field and the folder chips are back.
+    await tester.tap(find.byKey(const ValueKey('chat-search-close')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('chat-search')), findsNothing);
+    expect(find.byKey(const ValueKey('chat-folder-all')), findsOneWidget);
   });
 }

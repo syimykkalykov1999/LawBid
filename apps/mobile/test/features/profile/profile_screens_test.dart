@@ -87,7 +87,8 @@ void main() {
       expect(find.text('Family Law · 2'), findsOneWidget);
       expect(find.text('Work Visas'), findsOneWidget);
       expect(find.text('New York'), findsOneWidget);
-      expect(find.text('1.2K'), findsOneWidget);
+      // Owner 2026-10-21 (Instagram): up to 9 999 the number is shown whole.
+      expect(find.text('1,280'), findsOneWidget);
       expect(find.text('Follow'), findsOneWidget);
       expect(find.bySemanticsLabel('Share'), findsOneWidget);
       expect(find.text('Edit'), findsNothing);
@@ -138,9 +139,11 @@ void main() {
             'licensedStates': <Object?>[],
             'practiceAreas': <Object?>[],
             'rating': {'avg': 0, 'count': 0},
+            'qa': {'answers': 0, 'best': 0},
             'counters': {'posts': 0, 'followers': 0, 'following': 0},
             'isSelf': false,
             'isFollowing': false,
+            'consultationEnabled': false,
             'isBlocked': false,
             'hasBlockedMe': false,
           };

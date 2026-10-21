@@ -187,6 +187,40 @@ export class PrivacySettingsService {
     ]);
   }
 
+  /**
+   * Owner 2026-10-21: strangers do not get to ring or add each other — they
+   * go through «Requests» first. Two people are connected when a chat
+   * between them was accepted (a case chat counts), or one has the other in
+   * their phone book. Judged on the chat's state, not on who follows whom:
+   * an unfollow leaves an accepted chat open.
+   */
+  async isConnected(a: string, b: string): Promise<boolean> {
+    if (a === b) return true;
+    const [chat, book] = await Promise.all([
+      this.prisma.conversation.findFirst({
+        where: {
+          OR: [
+            { client_id: a, attorney_id: b },
+            { client_id: b, attorney_id: a },
+          ],
+          request_status: { in: ['none', 'accepted'] },
+          contacts_unlocked: true,
+        },
+        select: { id: true },
+      }),
+      this.prisma.contactMatch.findFirst({
+        where: {
+          OR: [
+            { owner_id: a, matched_id: b },
+            { owner_id: b, matched_id: a },
+          ],
+        },
+        select: { owner_id: true },
+      }),
+    ]);
+    return chat !== null || book !== null;
+  }
+
   /** Non-throwing [assertAllowed]. */
   async allows(
     actorId: string,

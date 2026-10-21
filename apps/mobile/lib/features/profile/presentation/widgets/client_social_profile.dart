@@ -33,6 +33,7 @@ import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart'
     show FollowButton, TrustAvatarBadge;
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/social/social_routes.dart';
+import 'package:lawbid/features/stories/presentation/story_avatar_ring.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/shared/presentation/share_sheet.dart';
@@ -203,16 +204,22 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
                 size: AppSizes.profileAvatar,
                 trustLevel: 0,
                 goldLabel: p.verified ? t.t('profile.verified.label') : null,
-                child: ProfileAvatar(
+                child: StoryAvatarRing(
+                  userId: p.id,
+                  photoUrl: p.avatarUrl,
+                  photoCloseLabel: t.t('common.close'),
                   size: AppSizes.profileAvatar,
-                  url: p.avatarUrl,
-                  initials: initialsOf(
-                    p.firstName,
-                    p.lastName,
-                    fallback: p.username,
+                  child: ProfileAvatar(
+                    size: AppSizes.profileAvatar,
+                    url: p.avatarUrl,
+                    initials: initialsOf(
+                      p.firstName,
+                      p.lastName,
+                      fallback: p.username,
+                    ),
+                    semanticLabel: t.t('profile.avatar.label'),
+                    viewerCloseLabel: t.t('common.close'),
                   ),
-                  semanticLabel: t.t('profile.avatar.label'),
-                  viewerCloseLabel: t.t('common.close'),
                 ),
               ),
               const SizedBox(width: AppSpacing.md),
@@ -258,6 +265,7 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
               style: type.bodySmall.copyWith(color: colors.textSecondary),
             ),
           ],
+          // Owner 2026-10-21: the gifts moved to an icon in the top bar.
           const SizedBox(height: AppSpacing.md),
           if (p.isSelf)
             Row(
@@ -346,42 +354,38 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
       tabBar: Builder(
         builder: (context) {
           _pages = ProfileTabPages.controllerOf(context);
-          return Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.screenSide,
-            ),
-            child: Row(
-              children: [
+          // Owner 2026-10-20: the tab bar runs edge to edge.
+          return Row(
+            children: [
+              tabButton(
+                _Tab.posts,
+                AppIcons.gridOnRounded,
+                t.t('client.tab.posts'),
+              ),
+              tabButton(
+                _Tab.reels,
+                AppIcons.playCircleOutlined,
+                t.t('profile.tab.reels'),
+              ),
+              // Owner 2026-10-18: the same «Брифы и репосты» tab as an
+              // attorney's (a client's text posts had no tab before).
+              tabButton(
+                _Tab.reposts,
+                AppIcons.autoModeRounded,
+                t.t('profile.tab.briefsReposts'),
+              ),
+              if (p.canSeeReviews)
                 tabButton(
-                  _Tab.posts,
-                  AppIcons.gridOnRounded,
-                  t.t('client.tab.posts'),
+                  _Tab.reviews,
+                  AppIcons.starOutlineRounded,
+                  t.t('client.tab.reviews'),
                 ),
-                tabButton(
-                  _Tab.reels,
-                  AppIcons.playCircleOutlined,
-                  t.t('profile.tab.reels'),
-                ),
-                // Owner 2026-10-18: the same «Брифы и репосты» tab as an
-                // attorney's (a client's text posts had no tab before).
-                tabButton(
-                  _Tab.reposts,
-                  AppIcons.autoModeRounded,
-                  t.t('profile.tab.briefsReposts'),
-                ),
-                if (p.canSeeReviews)
-                  tabButton(
-                    _Tab.reviews,
-                    AppIcons.starOutlineRounded,
-                    t.t('client.tab.reviews'),
-                  ),
-              ],
-            ),
+            ],
           );
         },
       ),
-      pagePadding: (_) => const EdgeInsets.only(
-        top: AppSpacing.sm,
+      pagePadding: (i) => EdgeInsets.only(
+        top: tabs[i] == _Tab.reposts ? AppSpacing.sm : 0,
         bottom: AppSpacing.xxl,
       ),
       onRefresh: () async {
@@ -480,7 +484,7 @@ class _ReviewsListState extends ConsumerState<_ReviewsList> {
               AppIcon(
                 AppIcons.infoOutlineRounded,
                 size: AppSizes.iconSm,
-                color: colors.goldDark,
+                color: colors.iconTint,
               ),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
@@ -517,13 +521,9 @@ class _ReviewsListState extends ConsumerState<_ReviewsList> {
       ),
     );
     final panel = Padding(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.screenSide,
-        AppSpacing.md,
-        AppSpacing.screenSide,
-        0,
-      ),
+      padding: const EdgeInsets.only(top: AppSpacing.md),
       child: ReviewSummaryPanel(
+        flat: true,
         summary: summary,
         selectedStars: _stars,
         onStarsTap: (stars) =>
@@ -558,48 +558,41 @@ class _ReviewsListState extends ConsumerState<_ReviewsList> {
               ),
             ),
           for (final r in page.items)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.screenSide,
-                AppSpacing.md,
-                AppSpacing.screenSide,
-                0,
-              ),
-              // Owner 2026-10-01: laid out like a Google Maps review.
-              child: MapsReviewTile(
-                id: r.id,
-                authorName: r.attorneyName,
-                authorAvatarUrl: r.attorneyAvatarUrl,
-                authorReviewCount: r.authorReviewCount,
-                rating: r.rating,
-                createdAt: r.createdAt,
-                edited: r.editedAt != null,
-                body: r.body,
-                photos: r.photos,
-                badges: [
-                  if (r.caseId != null)
-                    ReviewBadge(
-                      label: t.t('reviews.badge.case'),
-                      icon: AppIcons.verifiedUserOutlined,
-                    ),
-                  ReviewBadge(label: t.t('reviews.role.${r.authorRole}')),
-                ],
-                helpfulCount: r.helpfulCount,
-                helpfulByMe: r.helpfulByMe,
-                onHelpful:
-                    r.isMine || r.canReply ? null : () => _helpful(r, refresh),
-                reply: r.reply,
-                replyAt: r.replyAt,
-                replyLabel: t.t('reviews.reply.fromPerson'),
-                onEditReply: r.canReply ? () => _reply(r, refresh) : null,
-                onDeleteReply:
-                    r.canReply ? () => _deleteReply(r, refresh) : null,
-                onMenu: () => _reviewMenu(r, refresh, write),
-                onAuthor: () => context.push(
-                  r.authorIsClient
-                      ? AppRoutes.client(r.attorneyUsername)
-                      : AppRoutes.lawyer(r.attorneyUsername),
-                ),
+            // Owner 2026-10-01: laid out like a Google Maps review;
+            // 2026-10-20: edge to edge with full-width dividers.
+            MapsReviewTile(
+              flat: true,
+              id: r.id,
+              authorName: r.attorneyName,
+              authorAvatarUrl: r.attorneyAvatarUrl,
+              authorReviewCount: r.authorReviewCount,
+              rating: r.rating,
+              createdAt: r.createdAt,
+              edited: r.editedAt != null,
+              body: r.body,
+              photos: r.photos,
+              badges: [
+                if (r.caseId != null)
+                  ReviewBadge(
+                    label: t.t('reviews.badge.case'),
+                    icon: AppIcons.verifiedUserOutlined,
+                  ),
+                ReviewBadge(label: t.t('reviews.role.${r.authorRole}')),
+              ],
+              helpfulCount: r.helpfulCount,
+              helpfulByMe: r.helpfulByMe,
+              onHelpful:
+                  r.isMine || r.canReply ? null : () => _helpful(r, refresh),
+              reply: r.reply,
+              replyAt: r.replyAt,
+              replyLabel: t.t('reviews.reply.fromPerson'),
+              onEditReply: r.canReply ? () => _reply(r, refresh) : null,
+              onDeleteReply: r.canReply ? () => _deleteReply(r, refresh) : null,
+              onMenu: () => _reviewMenu(r, refresh, write),
+              onAuthor: () => context.push(
+                r.authorIsClient
+                    ? AppRoutes.client(r.attorneyUsername)
+                    : AppRoutes.lawyer(r.attorneyUsername),
               ),
             ),
         ],

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_translator.dart';
@@ -9,16 +10,25 @@ import 'package:lawbid/core/time/local_now.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/onboarding/application/onboarding_providers.dart';
 import 'package:lawbid/features/profile/data/avatar_upload_repository.dart';
+import 'package:lawbid/features/profile/data/own_profile_saved.dart';
 import 'package:lawbid/features/profile/data/profile_repositories.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/features/profile/domain/verification_gate.dart';
+import 'package:lawbid/features/social/application/social_providers.dart';
 
 export 'package:lawbid/features/profile/domain/verification_gate.dart';
 
 // --- Repositories (swappable in tests) -----------------------------------
 
+final ownProfileSavedProvider = Provider<OwnProfileSaved>(
+  (ref) => OwnProfileSaved(ref.watch(savedJsonProvider)),
+);
+
 final attorneyProfileRepositoryProvider = Provider<AttorneyProfileRepository>(
-  (ref) => ApiAttorneyProfileRepository(ref.watch(dioProvider)),
+  (ref) => ApiAttorneyProfileRepository(
+    ref.watch(dioProvider),
+    saved: ref.watch(ownProfileSavedProvider),
+  ),
 );
 
 final practicesRepositoryProvider = Provider<PracticesRepository>(
@@ -30,7 +40,10 @@ final reviewsRepositoryProvider = Provider<ReviewsRepository>(
 );
 
 final clientProfileRepositoryProvider = Provider<ClientProfileRepository>(
-  (ref) => ApiClientProfileRepository(ref.watch(dioProvider)),
+  (ref) => ApiClientProfileRepository(
+    ref.watch(dioProvider),
+    saved: ref.watch(ownProfileSavedProvider),
+  ),
 );
 
 final avatarUploadRepositoryProvider = Provider<AvatarUploadRepository>(
@@ -101,14 +114,52 @@ final reviewSummaryProvider =
   retry: (_, __) => null,
 );
 
+/// Owner 2026-10-20 (speed, Telegram): my profile opens on the copy saved
+/// by the last visit, then the live one replaces it. The copy is shown only
+/// before the first live answer of the session for this account — after an
+/// edit and `invalidate` the screen never goes back to the old copy — and a
+/// failed live read behind a shown copy keeps the copy.
+final _liveProfileSeen = <String>{};
+
+@visibleForTesting
+Stream<T> savedThenLive<T>({
+  required String? owner,
+  required Future<T?> Function() saved,
+  required Future<T> Function() live,
+}) async* {
+  var shown = false;
+  if (owner != null && !_liveProfileSeen.contains(owner)) {
+    final copy = await saved();
+    if (copy != null) {
+      shown = true;
+      yield copy;
+    }
+  }
+  try {
+    final fresh = await live();
+    if (owner != null) _liveProfileSeen.add(owner);
+    yield fresh;
+  } on Object {
+    if (!shown) rethrow;
+  }
+}
+
 final ownAttorneyProfileProvider =
-    FutureProvider.autoDispose<OwnAttorneyProfile>(
-  (ref) => ref.watch(attorneyProfileRepositoryProvider).fetchOwn(),
+    StreamProvider.autoDispose<OwnAttorneyProfile>(
+  (ref) => savedThenLive(
+    owner: ref.watch(currentUserIdProvider),
+    saved: ref.read(ownProfileSavedProvider).attorney,
+    live: ref.watch(attorneyProfileRepositoryProvider).fetchOwn,
+  ),
   retry: (_, __) => null,
 );
 
-final clientProfileProvider = FutureProvider.autoDispose<ClientProfileDetails>(
-  (ref) => ref.watch(clientProfileRepositoryProvider).fetch(),
+final clientProfileProvider = StreamProvider.autoDispose<ClientProfileDetails>(
+  (ref) => savedThenLive(
+    owner: ref.watch(currentUserIdProvider),
+    saved: ref.read(ownProfileSavedProvider).client,
+    live: ref.watch(clientProfileRepositoryProvider).fetch,
+  ),
   retry: (_, __) => null,
 );
 

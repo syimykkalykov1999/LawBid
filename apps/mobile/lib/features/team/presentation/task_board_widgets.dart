@@ -387,7 +387,7 @@ class TaskRingCard extends StatelessWidget {
                     size: 40,
                     stroke: 3,
                     child: picked
-                        ? AppIcon(AppIcons.checkRounded, color: colors.gold)
+                        ? AppIcon(AppIcons.checkRounded, color: colors.iconTint)
                         : AppIcon(
                             taskKindIcon(task.kind),
                             size: 18,
@@ -942,7 +942,10 @@ class MiniChip extends StatelessWidget {
             child: Text(
               label,
               maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+              // Owner 2026-10-20: the row of chips scrolls sideways, so a
+              // chip is never cut to «Для клиен…» — it shows whole.
+              softWrap: false,
+              overflow: TextOverflow.visible,
               style: type.bodySmall.copyWith(
                 color: fg,
                 fontWeight: FontWeight.w600,

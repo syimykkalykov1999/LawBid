@@ -99,7 +99,7 @@ class PlanTierCard extends StatelessWidget {
                   border:
                       Border.all(color: colors.gold.withValues(alpha: 0.55)),
                 ),
-                child: AppIcon(icon, size: 19, color: colors.gold),
+                child: AppIcon(icon, size: 19, color: colors.iconTint),
               ),
               const SizedBox(width: AppSpacing.md),
               Expanded(
@@ -179,7 +179,7 @@ class PlanTierCard extends StatelessWidget {
                     child: AppIcon(
                       AppIcons.checkRounded,
                       size: 16,
-                      color: colors.goldDark,
+                      color: colors.iconTint,
                     ),
                   ),
                   const SizedBox(width: AppSpacing.sm),

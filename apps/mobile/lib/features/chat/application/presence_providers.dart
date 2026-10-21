@@ -125,11 +125,11 @@ final activityStatusProvider =
 
 /// Owner 2026-10-01: chats where the other side is typing right now (the
 /// chat list shows "typing…"); an entry goes out after a few quiet seconds.
-class ListTypingNotifier extends Notifier<Set<String>> {
+class ListTypingNotifier extends Notifier<Map<String, bool>> {
   final Map<String, Timer> _timers = {};
 
   @override
-  Set<String> build() {
+  Map<String, bool> build() {
     final sub = ref.watch(realtimeEventsProvider).listen(_onEvent);
     ref.onDispose(() {
       unawaited(sub.cancel());
@@ -152,22 +152,25 @@ class ListTypingNotifier extends Notifier<Set<String>> {
     if (e.name != 'typing' || d is! Map) return;
     final id = d['conversationId'];
     if (id is! String) return;
-    _set(id, typing: d['typing'] == true);
+    _set(id, typing: d['typing'] == true, voice: d['kind'] == 'voice');
   }
 
-  void _set(String id, {required bool typing}) {
+  /// The value is true while the other side records a voice message.
+  void _set(String id, {required bool typing, bool voice = false}) {
     _timers.remove(id)?.cancel();
     if (typing) {
       _timers[id] = Timer(const Duration(seconds: 6), () {
         _timers.remove(id);
         if (ref.mounted) state = {...state}..remove(id);
       });
-      if (!state.contains(id)) state = {...state, id};
-    } else if (state.contains(id)) {
+      if (state[id] != voice) state = {...state, id: voice};
+    } else if (state.containsKey(id)) {
       state = {...state}..remove(id);
     }
   }
 }
 
 final listTypingProvider =
-    NotifierProvider<ListTypingNotifier, Set<String>>(ListTypingNotifier.new);
+    NotifierProvider<ListTypingNotifier, Map<String, bool>>(
+  ListTypingNotifier.new,
+);

@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/features/stars/domain/stars_models.dart';
 import 'package:lawbid/features/stickers/domain/sticker_models.dart';
 
 enum ConversationStatus { preAcceptance, active, closed }
@@ -59,7 +60,10 @@ class Conversation {
     this.lastMessage,
     this.lastMessageAt,
     this.mutedUntil,
+    this.callsMuted = false,
     this.counterpartLastReadId,
+    this.counterpartLastDeliveredId,
+    this.counterpartLastReadAt,
     this.isDirect = false,
     this.request = MessageRequest.none,
     this.requestedByMe = false,
@@ -70,11 +74,52 @@ class Conversation {
     this.pinnedAt,
     this.blocked = false,
     this.matchedMessage,
+    this.disappearAfterS,
   });
+
+  /// The same chat with the other side's receipts moved (a socket event):
+  /// only the given ones change.
+  Conversation withReceipts({
+    String? readId,
+    DateTime? readAt,
+    String? deliveredId,
+  }) =>
+      Conversation(
+        id: id,
+        caseId: caseId,
+        caseTitle: caseTitle,
+        status: status,
+        contactsUnlocked: contactsUnlocked,
+        blocked: blocked,
+        counterpart: counterpart,
+        lastMessage: lastMessage,
+        lastMessageAt: lastMessageAt,
+        unreadCount: unreadCount,
+        mutedUntil: mutedUntil,
+        callsMuted: callsMuted,
+        counterpartLastReadId: readId ?? counterpartLastReadId,
+        counterpartLastReadAt: readAt ?? counterpartLastReadAt,
+        counterpartLastDeliveredId: deliveredId ?? counterpartLastDeliveredId,
+        updatedAt: updatedAt,
+        isDirect: isDirect,
+        request: request,
+        requestedByMe: requestedByMe,
+        folder: folder,
+        folderAuto: folderAuto,
+        waitingSince: waitingSince,
+        note: note,
+        pinnedAt: pinnedAt,
+        matchedMessage: matchedMessage,
+        disappearAfterS: disappearAfterS,
+      );
 
   /// Owner 2026-10-18: in a search by text, the message that matched —
   /// shown instead of the last-message preview.
   final String? matchedMessage;
+
+  /// Owner 2026-10-21 (WhatsApp): seconds a new message lives here
+  /// (86400 / 604800 / 7776000); null = disappearing messages are off.
+  final int? disappearAfterS;
 
   /// Audit 2026-10-04: either side blocked the other. An accepted case
   /// chat that is not closed keeps working (see [blockedHere]).
@@ -130,7 +175,18 @@ class Conversation {
   final DateTime? lastMessageAt;
   final int unreadCount;
   final DateTime? mutedUntil;
+
+  /// Owner 2026-10-21: calls of this chat ring silently for me.
+  final bool callsMuted;
   final String? counterpartLastReadId;
+
+  /// The newest of my messages that reached the other device (two grey
+  /// ticks); reading implies it.
+  final String? counterpartLastDeliveredId;
+
+  /// When the other side last read: "seen at HH:MM" for every message up
+  /// to [counterpartLastReadId].
+  final DateTime? counterpartLastReadAt;
   final DateTime updatedAt;
 
   bool get muted => mutedUntil != null && mutedUntil!.isAfter(DateTime.now());
@@ -140,11 +196,84 @@ class Conversation {
 /// Owner 2026-10-01: Instagram-like folders of the chat list.
 enum ChatFolder { primary, general }
 
-/// The chat list's sub-tabs: All · Primary · General · Waiting · Requests.
-enum ChatListFolder { all, primary, general, waiting, requests }
+/// The chat list's sub-tabs: All · Primary · General · Cases · Waiting ·
+/// Requests (owner 2026-10-21: «Cases» = only the chats tied to a case).
+/// `archive` (owner 2026-10-20) is the Archive screen, never a pill.
+enum ChatListFolder { all, primary, general, cases, waiting, requests, archive }
 
 // OQ-047: `attachment` — a photo or a document after acceptance.
-enum MessageKind { text, system, voice, call, attachment, sticker }
+// Owner 2026-10-20: `contact` — a shared attorney card, `place` — an address.
+enum MessageKind {
+  text,
+  system,
+  voice,
+  call,
+  attachment,
+  sticker,
+  gift,
+  contact,
+  place,
+  // Owner 2026-10-21 (Instagram «Поделиться»): a post sent as a card.
+  post,
+}
+
+/// Owner 2026-10-21 (Instagram «Поделиться»): a post shared in a chat —
+/// the card opens /post/:id. [available] false = deleted or hidden since.
+@immutable
+class SharedPostCard {
+  const SharedPostCard({
+    required this.id,
+    required this.available,
+    this.authorId,
+    this.authorName,
+    this.authorUsername,
+    this.authorAvatarUrl,
+    this.authorVerified = false,
+    this.title,
+    this.excerpt,
+    this.thumbnailUrl,
+    this.isVideo = false,
+  });
+
+  final String id;
+  final bool available;
+  final String? authorId;
+  final String? authorName;
+  final String? authorUsername;
+  final String? authorAvatarUrl;
+  final bool authorVerified;
+  final String? title;
+  final String? excerpt;
+  final String? thumbnailUrl;
+  final bool isVideo;
+}
+
+/// Owner 2026-10-20: an attorney shared in a chat — the public profile only
+/// (never a phone or an e-mail).
+@immutable
+class ContactCard {
+  const ContactCard({
+    required this.userId,
+    required this.username,
+    required this.displayName,
+    required this.verified,
+    this.avatarUrl,
+    this.firmNames = const [],
+    this.practiceKeys = const [],
+    this.licensedStates = const [],
+  });
+
+  final String userId;
+  final String username;
+  final String displayName;
+  final String? avatarUrl;
+  final bool verified;
+  final List<String> firmNames;
+
+  /// Translation keys of the practice areas.
+  final List<String> practiceKeys;
+  final List<String> licensedStates;
+}
 
 /// OQ-041: a call in the chat log (the sender placed it).
 @immutable
@@ -257,6 +386,49 @@ class ChatAttachment {
 /// прочитано"); server messages are [sent].
 enum DeliveryState { sending, failed, sent }
 
+/// Owner 2026-10-20: the quoted message of a reply.
+@immutable
+class ReplyPreview {
+  const ReplyPreview({
+    required this.id,
+    required this.kind,
+    required this.snippet,
+    this.senderId,
+    this.revoked = false,
+  });
+
+  /// The quote of [m] as the composer and the sending bubble show it.
+  factory ReplyPreview.of(ChatMessage m) => ReplyPreview(
+        id: m.id,
+        senderId: m.senderId,
+        kind: m.kind,
+        snippet: m.kind == MessageKind.text ? m.body : '',
+        revoked: m.revoked,
+      );
+
+  final String id;
+  final String? senderId;
+  final MessageKind kind;
+
+  /// First characters of a text; empty for media.
+  final String snippet;
+  final bool revoked;
+}
+
+/// Owner 2026-10-20: one emoji with how many people chose it.
+@immutable
+class MessageReaction {
+  const MessageReaction({
+    required this.emoji,
+    required this.count,
+    required this.mine,
+  });
+
+  final String emoji;
+  final int count;
+  final bool mine;
+}
+
 @immutable
 class ChatMessage {
   const ChatMessage({
@@ -275,7 +447,49 @@ class ChatMessage {
     this.attachment,
     this.sentByAssistant,
     this.sticker,
+    this.gift,
+    this.contact,
+    this.post,
+    this.editedAt,
+    this.revoked = false,
+    this.forwarded = false,
+    this.forwardedFrom,
+    this.replyTo,
+    this.reactions = const [],
+    this.pinned = false,
+    this.expiresAt,
   });
+
+  /// Owner 2026-10-20: set for [MessageKind.gift]; the note is [body].
+  final GiftSend? gift;
+
+  /// Owner 2026-10-20: set for [MessageKind.contact] (null when that
+  /// attorney is gone).
+  final ContactCard? contact;
+
+  /// Owner 2026-10-21: set for [MessageKind.post].
+  final SharedPostCard? post;
+
+  /// Edited at (the bubble says "edited").
+  final DateTime? editedAt;
+
+  /// Deleted for everyone: the bubble says "Message deleted".
+  final bool revoked;
+  final bool forwarded;
+
+  /// Telegram's "Forwarded from <name>": the first author.
+  final String? forwardedFrom;
+  final ReplyPreview? replyTo;
+  final List<MessageReaction> reactions;
+  final bool pinned;
+
+  /// Owner 2026-10-21: disappearing messages — the app hides the message
+  /// from this time on (the server deletes it a little later).
+  final DateTime? expiresAt;
+
+  /// Gone by the clock: hidden from lists and previews.
+  bool isExpired([DateTime? now]) =>
+      expiresAt != null && !expiresAt!.isAfter(now ?? DateTime.now());
 
   /// Owner 2026-10-01: set for [MessageKind.sticker].
   final ChatSticker? sticker;
@@ -313,16 +527,32 @@ class ChatMessage {
     ChatAttachment? attachment,
     DeliveryState? delivery,
     String? failedCode,
+    DateTime? editedAt,
+    bool? revoked,
+    bool? forwarded,
+    String? forwardedFrom,
+    ReplyPreview? replyTo,
+    List<MessageReaction>? reactions,
+    bool? pinned,
+    String? body,
   }) =>
       ChatMessage(
         id: id,
         conversationId: conversationId,
         senderId: senderId,
         kind: kind,
-        body: body,
+        body: body ?? this.body,
         createdAt: createdAt,
         contactMasked: contactMasked,
         clientMessageId: clientMessageId,
+        editedAt: editedAt ?? this.editedAt,
+        revoked: revoked ?? this.revoked,
+        forwarded: forwarded ?? this.forwarded,
+        forwardedFrom: forwardedFrom ?? this.forwardedFrom,
+        replyTo: replyTo ?? this.replyTo,
+        reactions: reactions ?? this.reactions,
+        pinned: pinned ?? this.pinned,
+        expiresAt: expiresAt,
         delivery: delivery ?? this.delivery,
         failedCode: failedCode ?? this.failedCode,
         voice: voice ?? this.voice,
@@ -330,6 +560,9 @@ class ChatMessage {
         attachment: attachment ?? this.attachment,
         sentByAssistant: sentByAssistant,
         sticker: sticker,
+        gift: gift,
+        contact: contact,
+        post: post,
       );
 }
 
@@ -352,6 +585,8 @@ String newClientMessageId() {
 String systemLineText(Translator t, String body, {L10nFormats? formats}) {
   final i = body.indexOf(':');
   if (i < 0) return t.t('chat.system.$body');
+  // Owner 2026-10-20: `consult:<booking id>` — the id is not text.
+  if (body.startsWith('consult:')) return t.t('chat.system.consult');
   final raw = body.substring(i + 1);
   final key = body.substring(0, i);
   final cents = int.tryParse(raw);

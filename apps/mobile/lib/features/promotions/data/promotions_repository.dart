@@ -61,8 +61,10 @@ class PromotionsRepository {
     String? ctaType,
     String? ctaValue,
     bool extend = false,
+    bool withStars = false,
   }) async {
     final body = api.CreatePromotionDto(
+      payWith: withStars ? api.CreatePromotionDtoPayWith.stars : null,
       days: days,
       dailyBudgetCents: dailyBudgetCents,
       audience: audience == null || audience.isAutomatic
@@ -98,6 +100,7 @@ class PromotionsRepository {
       totalCents: d.totalCents,
       creditDaysUsed: d.creditDaysUsedExact,
       checkoutUrl: d.checkoutUrl,
+      starsCharged: d.starsCharged,
     );
   }
 
@@ -226,6 +229,7 @@ class PromotionsRepository {
         estReachMin: d.estReachMin,
         estReachMax: d.estReachMax,
         ctaTypes: d.ctaTypes,
+        starsTotal: d.starsTotal,
       );
 
   static api.PromotionTarget _target(PromotionTarget t) =>

@@ -534,7 +534,7 @@ class SelfieStep extends StatelessWidget {
             width: illustration,
             height: illustration,
             decoration: BoxDecoration(
-              color: colors.goldTint,
+              color: colors.iconTintFill,
               borderRadius: BorderRadius.circular(AppRadii.sheet),
             ),
             child: Stack(
@@ -543,7 +543,7 @@ class SelfieStep extends StatelessWidget {
                 AppIcon(
                   AppIcons.personRounded,
                   size: illustration * 0.5,
-                  color: colors.goldStroke.withValues(alpha: 0.5),
+                  color: colors.iconTint.withValues(alpha: 0.5),
                 ),
                 const Positioned.fill(
                   child: CaptureGuideOverlay(
@@ -566,7 +566,7 @@ class SelfieStep extends StatelessWidget {
             padding: const EdgeInsets.only(bottom: AppSpacing.md),
             child: Row(
               children: [
-                AppIcon(icon, size: AppSizes.iconSm, color: colors.goldDark),
+                AppIcon(icon, size: AppSizes.iconSm, color: colors.iconTint),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
                   child: Text(

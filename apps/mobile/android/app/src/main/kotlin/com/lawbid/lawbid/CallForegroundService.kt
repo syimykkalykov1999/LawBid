@@ -22,11 +22,48 @@ import android.os.IBinder
 class CallForegroundService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
+    private var wakeLock: android.os.PowerManager.WakeLock? = null
+
+    /** Swiped from the recent apps: the Flutter engine lives in the activity
+     * and dies with it (the call's WebRTC and signaling are Dart), so a
+     * service that stayed would only show a call that is no longer there
+     * (device test 2026-10-20: audio mode normal, no way back, the server
+     * still held the person "in a call"). The notification and microphone
+     * indicator go with it; the server drops a silent member on its own
+     * (45 s without a heartbeat, calls.service.ts sweepSilentMembers). */
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        clearNotification()
+        stopSelf()
+        super.onTaskRemoved(rootIntent)
+    }
+
+    override fun onDestroy() {
+        try {
+            wakeLock?.takeIf { it.isHeld }?.release()
+        } catch (e: Exception) {
+            // already released
+        }
+        wakeLock = null
+        clearNotification()
+        super.onDestroy()
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
             stopForeground(STOP_FOREGROUND_REMOVE)
+            clearNotification()
             stopSelf()
             return START_NOT_STICKY
+        }
+        if (wakeLock == null) {
+            // The CPU stays on for the whole call (screen off, Doze).
+            val pm = getSystemService(android.content.Context.POWER_SERVICE) as? android.os.PowerManager
+            wakeLock = pm?.newWakeLock(android.os.PowerManager.PARTIAL_WAKE_LOCK, "lawbid:call")
+                ?.apply {
+                    setReferenceCounted(false)
+                    acquire(4 * 60 * 60 * 1000L)
+                }
         }
         val name = intent?.getStringExtra(EXTRA_NAME) ?: ""
         val since = intent?.getLongExtra(EXTRA_SINCE, 0L) ?: 0L
@@ -74,6 +111,16 @@ class CallForegroundService : Service() {
             }
         }
         return START_NOT_STICKY
+    }
+
+    /** The ongoing-call notification must never outlive the call (a
+     * fallback `notify` or a killed service left copies in the shade). */
+    private fun clearNotification() {
+        try {
+            getSystemService(NotificationManager::class.java)?.cancel(NOTIFICATION_ID)
+        } catch (e: Exception) {
+            // nothing to cancel
+        }
     }
 
     private fun build(name: String, since: Long, status: String, hangup: String): Notification {

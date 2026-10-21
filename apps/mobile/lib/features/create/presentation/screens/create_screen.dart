@@ -102,13 +102,13 @@ class _Chooser extends ConsumerWidget {
                     width: AppSizes.rowMedallion,
                     height: AppSizes.rowMedallion,
                     decoration: BoxDecoration(
-                      color: colors.goldTint,
+                      color: colors.iconTintFill,
                       shape: BoxShape.circle,
-                      border: Border.all(color: colors.goldStroke),
+                      border: Border.all(color: colors.iconTint),
                     ),
                     child: AppIcon(
                       icon,
-                      color: colors.goldDark,
+                      color: colors.iconTint,
                       size: AppSizes.iconMd,
                     ),
                   ),

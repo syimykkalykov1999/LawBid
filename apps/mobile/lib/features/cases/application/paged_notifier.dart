@@ -26,10 +26,45 @@ abstract class PagedNotifier<T> extends AsyncNotifier<PaginatedList<T>> {
   /// re-read the list as before.
   Duration? get keepAliveFor => null;
 
+  /// Owner 2026-10-20 (speed, Instagram / Telegram): the first page saved
+  /// on the phone by the last visit, or null (the default: nothing saved).
+  /// When it exists the list opens on it at once and the real first page is
+  /// read in the background and swapped in ([build]); a failed read keeps
+  /// what is shown. Must not throw: a broken copy is just "no copy".
+  Future<CursorPage<T>?> cachedFirstPage() async => null;
+
   @override
   Future<PaginatedList<T>> build() async {
     _cacheFor();
-    return PaginatedList.firstPage(await fetch(null));
+    final saved = await _savedFirstPage();
+    if (saved == null) return PaginatedList.firstPage(await fetch(null));
+    // After this build has returned: the swap needs a value to replace.
+    unawaited(Future<void>(() => _revalidate(saved)));
+    return PaginatedList.firstPage(saved);
+  }
+
+  Future<CursorPage<T>?> _savedFirstPage() async {
+    try {
+      final page = await cachedFirstPage();
+      return page == null || page.items.isEmpty ? null : page;
+    } on Object {
+      return null;
+    }
+  }
+
+  /// Swaps the saved first page for the live one, unless the user already
+  /// pulled to refresh or loaded further pages (their list wins).
+  Future<void> _revalidate(CursorPage<T> saved) async {
+    final generation = _generation;
+    try {
+      final live = await fetch(null);
+      if (!ref.mounted || generation != _generation) return;
+      final shown = state.value;
+      if (shown == null || shown.items.length > saved.items.length) return;
+      state = AsyncData(PaginatedList.firstPage(live));
+    } on Object {
+      // Offline / 5xx: the saved page stays; pull-to-refresh retries.
+    }
   }
 
   /// The standard Riverpod "cache for" pattern: hold the provider, and let

@@ -375,6 +375,11 @@ class _WavePainter extends CustomPainter {
 }
 
 /// Live bars while recording (the newest on the right).
+///
+/// Owner 2026-10-20 (WhatsApp): the strip has its final look from the first
+/// frame: bars of one fixed width on fixed slots, so a new level only
+/// fills the next slot on the right (older ones slide left); slots without
+/// a level yet are small dots. The bars never change width as the list grows.
 class RecordingMeter extends StatelessWidget {
   const RecordingMeter({required this.levels, super.key});
 
@@ -386,15 +391,70 @@ class RecordingMeter extends StatelessWidget {
     return SizedBox(
       height: 24,
       child: CustomPaint(
-        painter: _WavePainter(
-          bars: [for (final l in levels) (8 + 92 * l).round()],
-          progress: 1,
-          played: colors.gold,
-          rest: colors.gold,
+        painter: RecordingMeterPainter(
+          levels: levels,
+          color: colors.gold,
+          rest: colors.gold.withValues(alpha: 0.35),
         ),
+        size: const Size.fromHeight(24),
       ),
     );
   }
+}
+
+/// Bar width and gap of the recording strip (dp).
+const kMeterBar = 2.5;
+const kMeterGap = 2.5;
+
+/// Paints [levels] (0–1) right-aligned on fixed slots.
+class RecordingMeterPainter extends CustomPainter {
+  RecordingMeterPainter({
+    required this.levels,
+    required this.color,
+    required this.rest,
+  });
+
+  final List<double> levels;
+  final Color color;
+  final Color rest;
+
+  /// How many slots fit in [width].
+  static int slotsFor(double width) =>
+      math.max(1, ((width + kMeterGap) / (kMeterBar + kMeterGap)).floor());
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final slots = slotsFor(size.width);
+    final paint = Paint()
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = kMeterBar;
+    final shown =
+        levels.length > slots ? levels.sublist(levels.length - slots) : levels;
+    final empty = slots - shown.length;
+    // The strip is centred as a whole so a width that is not a multiple of
+    // the slot leaves equal margins instead of a ragged edge.
+    final used = slots * (kMeterBar + kMeterGap) - kMeterGap;
+    final left = (size.width - used) / 2 + kMeterBar / 2;
+    for (var i = 0; i < slots; i++) {
+      final x = left + i * (kMeterBar + kMeterGap);
+      final has = i >= empty;
+      final h = has
+          ? math.max(3, size.height * (0.08 + 0.92 * shown[i - empty]))
+          : kMeterBar;
+      paint.color = has ? color : rest;
+      canvas.drawLine(
+        Offset(x, (size.height - h) / 2),
+        Offset(x, (size.height + h) / 2),
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(RecordingMeterPainter old) =>
+      old.levels.length != levels.length ||
+      (levels.isNotEmpty && old.levels.last != levels.last) ||
+      old.color != color;
 }
 
 /// A waveform with a seek thumb (the preview of a locked recording).
@@ -484,7 +544,7 @@ class VoiceMiniPlayer extends ConsumerWidget {
                         p.playing
                             ? AppIcons.pauseRounded
                             : AppIcons.playArrowRounded,
-                        color: colors.goldDark,
+                        color: colors.iconTint,
                       ),
                       semanticLabel: t.t(
                         p.playing ? 'chat.voice.pause' : 'chat.voice.play',

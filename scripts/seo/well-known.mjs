@@ -30,6 +30,7 @@ export const APP_PATHS = [
   ['/u/*', 'Profile QR code: a user by @username'],
   ['/q/*', 'Website sign-in QR code'],
   ['/g/*', 'Group invitation'],
+  ['/c/*', 'Channel (lawbid.dev/c/<username>)'],
   ['/auth/email-code', 'Email magic sign-in link'],
 ];
 

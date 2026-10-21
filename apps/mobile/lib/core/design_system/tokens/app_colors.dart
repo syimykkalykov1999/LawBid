@@ -21,10 +21,10 @@ abstract final class AppColorsLight {
   /// [accent]/[onAccent] unchanged -- no visible difference here.
   static const Color ctaBright = accent;
   static const Color onCtaBright = onAccent;
-  static const Color gold = Color(0xFFC9A24A);
-  static const Color goldStroke = Color(0xFFB08A2E);
-  static const Color goldLight = Color(0xFFE3C877);
-  static const Color goldDark = Color(0xFF8E6F26);
+  static const Color gold = Color(0xFFC8A765);
+  static const Color goldStroke = Color(0xFFB39350);
+  static const Color goldLight = Color(0xFFE6D3A3);
+  static const Color goldDark = Color(0xFF806128);
   static const Color navy = Color(0xFF0A1A3F);
   static const Color panFill = Color(0xFF0A1A3F);
 
@@ -53,7 +53,7 @@ abstract final class AppColorsLight {
   static const Color shadow = Color(0x0F0A1A3F);
 
   /// Gold at ~12% — medallion / selected-row fill.
-  static const Color goldTint = Color(0x1FC9A24A);
+  static const Color goldTint = Color(0x1FC8A765);
 
   /// Danger at ~10% — destructive medallion fill.
   static const Color dangerTint = Color(0x1AD64545);
@@ -85,7 +85,7 @@ abstract final class AppColorsDark {
   static const Color text = Color(0xFFF3EFE3);
   static const Color textSecondary = Color(0xFF9A9AA6);
   static const Color border = Color(0xFF2A2A31);
-  static const Color accent = Color(0xFFC9A24A);
+  static const Color accent = Color(0xFFD8BC84);
   static const Color onAccent = Color(0xFF0B0B0D);
 
   /// Owner follow-up (2026-09-22): the gold [accent] read too dull/dark
@@ -97,10 +97,10 @@ abstract final class AppColorsDark {
   /// screens, error-state retry) that the owner did not ask to change.
   static const Color ctaBright = Color(0xFFFFFFFF);
   static const Color onCtaBright = Color(0xFF0B0B0D);
-  static const Color gold = Color(0xFFC9A24A);
-  static const Color goldStroke = Color(0xFFD4AF5A);
-  static const Color goldLight = Color(0xFFE3C877);
-  static const Color goldDark = Color(0xFF8E6F26);
+  static const Color gold = Color(0xFFD8BC84);
+  static const Color goldStroke = Color(0xFFDFC48F);
+  static const Color goldLight = Color(0xFFEBD8AE);
+  static const Color goldDark = Color(0xFF9A7A3C);
   static const Color navy = Color(0xFF0A1A3F);
 
   /// White (2026-09-22 owner follow-up, same message as [ctaBright]): was
@@ -115,7 +115,7 @@ abstract final class AppColorsDark {
   static const Color focusRingGlow = Color(0x00000000);
   // --- UI modernization pass (2026-09-27) — see AppColorsLight. ---------
   static const Color shadow = Color(0x66000000);
-  static const Color goldTint = Color(0x26C9A24A);
+  static const Color goldTint = Color(0x26D8BC84);
   static const Color dangerTint = Color(0x26D64545);
   static const Color successTint = Color(0x261F9D67);
   static const Color infoTint = Color(0x262F80ED);
@@ -138,14 +138,14 @@ abstract final class AppColorsNavy {
   static const Color textSecondary = Color(0xFF9AA3B8);
   static const Color border = Color(0xFF232C4A);
   static const Color chip = Color(0xFF1B2440);
-  static const Color gold = Color(0xFFD6B05A);
-  static const Color goldStroke = Color(0xFFD6B05A);
-  static const Color goldLight = Color(0xFFE8CD85);
-  static const Color goldDark = Color(0xFF9A7A2E);
+  static const Color gold = Color(0xFFDCC08A);
+  static const Color goldStroke = Color(0xFFDCC08A);
+  static const Color goldLight = Color(0xFFEEDBB2);
+  static const Color goldDark = Color(0xFFA28245);
   static const Color navy = Color(0xFF0A1A3F);
   static const double watermarkOpacity = 0.10;
   static const Color shadow = Color(0x66000000);
-  static const Color goldTint = Color(0x26D6B05A);
+  static const Color goldTint = Color(0x26DCC08A);
   static const Color dangerTint = Color(0x26D64545);
   static const Color successTint = Color(0x261F9D67);
   static const Color infoTint = Color(0x262F80ED);
@@ -169,27 +169,27 @@ abstract final class AppColorsGlass {
   ];
 
   /// Soft light spots drawn over the gradient (fraction of the screen).
-  static const Color spotBlue = Color(0x8C78BEDC);
-  static const Color spotIndigo = Color(0x804678BE);
-  static const Color spotTeal = Color(0x7328969A);
+  static const Color spotBlue = Color(0x3A78BEDC);
+  static const Color spotIndigo = Color(0x3A4678BE);
+  static const Color spotTeal = Color(0x3828969A);
   static const Color surface = Color(0x1AFFFFFF);
 
   /// A sheet / dialog over the glass (artifact `--shb`).
   static const Color sheet = Color(0xFF142C3C);
   static const Color text = Color(0xFFF4F8FB);
-  static const Color textSecondary = Color(0xADE2ECF4);
+  static const Color textSecondary = Color(0xEBE2ECF4);
   static const Color border = Color(0x2EFFFFFF);
   static const Color chip = Color(0x24FFFFFF);
-  static const Color gold = Color(0xFFE6C984);
-  static const Color goldStroke = Color(0xFFE6C984);
-  static const Color goldLight = Color(0xFFF0DAA6);
-  static const Color goldDark = Color(0xFFB8974A);
+  static const Color gold = Color(0xFFE8D2A0);
+  static const Color goldStroke = Color(0xFFE8D2A0);
+  static const Color goldLight = Color(0xFFF2E3C0);
+  static const Color goldDark = Color(0xFFB8995A);
   static const Color cta = Color(0xEBFFFFFF);
   static const Color onCta = Color(0xFF0E1E2B);
   static const Color navy = Color(0xFF0A1A3F);
   static const double watermarkOpacity = 0.08;
   static const Color shadow = Color(0x40000000);
-  static const Color goldTint = Color(0x29E6C984);
+  static const Color goldTint = Color(0x29E8D2A0);
   static const Color dangerTint = Color(0x29D64545);
   static const Color successTint = Color(0x291F9D67);
   static const Color infoTint = Color(0x292F80ED);
@@ -234,7 +234,7 @@ abstract final class AppColorsFixed {
   static const Color attorneyCardTitleText = Color(0xFFFFFFFF);
 
   /// Attorney card's nested gold border: `rgba(201,162,74,.55)`, file 07 §2.
-  static const Color attorneyCardGoldBorder = Color(0x8CC9A24A);
+  static const Color attorneyCardGoldBorder = Color(0x8CC8A765);
 
   /// Owner 2026-10-15 (mockup A): the cool accents of the post form's
   /// «Gallery» (blue) and «Camera» (teal) tiles; the same in every theme

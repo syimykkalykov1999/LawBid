@@ -92,7 +92,7 @@ class _RecommendedSheetState extends ConsumerState<RecommendedSheet> {
         icon: Icon(
           icon,
           size: 22,
-          color: active ? colors.goldAccent : colors.textSecondary,
+          color: active ? colors.iconTint : colors.textSecondary,
         ),
       );
     }

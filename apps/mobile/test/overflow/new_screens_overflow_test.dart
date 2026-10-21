@@ -18,7 +18,6 @@ import 'package:lawbid/features/cases/domain/case_draft.dart';
 import 'package:lawbid/features/cases/presentation/widgets/attorney_view_preview.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_stale_banner.dart';
 import 'package:lawbid/features/feed/application/news_flag.dart';
-import 'package:lawbid/features/guide/presentation/guide_screen.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/onboarding/domain/current_user.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
@@ -210,10 +209,9 @@ void main() {
           );
           await tester.tap(find.text('open'));
           await tester.pumpAndSettle();
-          expect(
-            find.byKey(const ValueKey('case-preview-more')),
-            findsOneWidget,
-          );
+          // The «learn more» link to the in-app guide went with the guide
+          // screen (2026-10-20); the preview itself must be on screen.
+          expect(find.byType(AttorneyViewPreview), findsOneWidget);
           expect(tester.takeException(), isNull);
         });
 
@@ -405,31 +403,6 @@ void main() {
             expect(tester.takeException(), isNull);
           });
         }
-
-        // 7. «Справочник», every section opened.
-        testWidgets('guide screen, all sections open', (tester) async {
-          await pump(tester, const GuideScreen(), overrides: overrides());
-          expect(tester.takeException(), isNull);
-          for (var i = 1; i <= GuideScreen.sectionCount; i++) {
-            final s = find.byKey(ValueKey('guide-s$i'));
-            await tester.scrollUntilVisible(
-              s,
-              200,
-              scrollable: find
-                  .descendant(
-                    of: find.byKey(const ValueKey('guide-list')),
-                    matching: find.byType(Scrollable),
-                  )
-                  .first,
-            );
-            await tester.tap(
-              find.descendant(of: s, matching: find.byType(AppPressable)),
-            );
-            await tester.pumpAndSettle();
-            expect(tester.takeException(), isNull);
-          }
-          await scrollThrough(tester);
-        });
 
         // 8. An attorney's profile with posts: the icon tabs.
         for (final self in [false, true]) {

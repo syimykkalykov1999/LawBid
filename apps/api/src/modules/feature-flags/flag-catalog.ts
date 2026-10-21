@@ -52,6 +52,14 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     app: true,
   },
   {
+    // Owner 2026-10-20: stars (balance bought on the web), gifts, paid stickers.
+    key: 'stars',
+    enabled: false,
+    description:
+      'Stars: balance bought on the web, gifts in chats, paid sticker packs',
+    app: true,
+  },
+  {
     // Owner 2026-10-14: offer packs bought on top of the monthly limit.
     key: 'bid_packs',
     enabled: false,
@@ -73,6 +81,45 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     enabled: false,
     app: true,
     description: 'Video calls in chats (WebRTC, needs a TURN relay)',
+  },
+  {
+    // Owner 2026-10-20: stories (24 h) like Instagram / WhatsApp.
+    key: 'stories',
+    enabled: true,
+    app: true,
+    description: 'Stories: photo / video / text for 24 hours',
+  },
+  {
+    // Owner 2026-10-20: Telegram-style channels of attorneys and companies.
+    key: 'channels',
+    enabled: true,
+    app: true,
+    description: 'Channels: posts from admins to subscribers',
+  },
+  {
+    // Owner 2026-10-20: attorneys publish free slots, clients book a
+    // consultation from the profile.
+    key: 'consultations',
+    enabled: true,
+    app: true,
+    description: 'Booking a consultation: slots, requests, reminders',
+  },
+  {
+    // Owner 2026-10-20: «Вопрос юристу» — public questions, answers only
+    // from verified attorneys.
+    key: 'legal_qa',
+    enabled: true,
+    app: true,
+    description: 'Ask a lawyer: public questions and attorneys answers',
+  },
+  {
+    // Owner 2026-10-20: court deadlines and statutes of limitations. Off by
+    // default (legal risk: a wrong date reads as advice); the rules stay in
+    // the database and the owner can switch it on in «Функции».
+    key: 'deadline_calculator',
+    enabled: false,
+    app: true,
+    description: 'Deadline calculator (admin: Сроки)',
   },
   {
     key: 'document_templates',
@@ -156,10 +203,15 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     description: 'Guide («Справочник») section 8: Deleting your account',
   },
   {
+    // Owner 2026-10-20: off by default — no «Перевести» button or menu
+    // item and no language-model download. On: the item appears in the
+    // long-press menu of a message (and on posts, cases, reviews); the app
+    // translates free on the phone, the paid server only where it cannot.
     key: 'chat_translate',
     enabled: false,
     app: true,
-    description: 'Translate button under chat messages (Google Translate)',
+    description:
+      'Translator: «Перевести» in the message menu and on posts; free on the phone (ML Kit), paid Google Translate where the phone cannot',
   },
   {
     key: 'payroll_stripe_payouts',

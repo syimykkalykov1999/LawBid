@@ -8,8 +8,12 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/case_payments/case_payments_routes.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
+import 'package:lawbid/features/channels/channels_routes.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart';
+import 'package:lawbid/features/consultations/consultations_routes.dart';
+import 'package:lawbid/features/groups/group_routes.dart';
+import 'package:lawbid/features/legal_qa/legal_qa_routes.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
 import 'package:lawbid/features/notifications/data/notifications_repository.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
@@ -25,7 +29,7 @@ import 'package:lawbid/features/team/team_routes.dart';
 import 'package:lawbid/features/trust/domain/trust_models.dart';
 import 'package:lawbid/features/trust/trust_routes.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
-import 'package:lawbid/shared/presentation/list_search_field.dart';
+import 'package:lawbid/shared/presentation/chips_search_row.dart';
 
 /// Where a notification (or its push) leads (docs/05 §9.2); null = no
 /// target screen (a sheet with the text is shown instead).
@@ -42,6 +46,13 @@ String? notificationRoute({
   final bidId = s('bidId');
   final postId = s('postId');
   switch (type) {
+    // Owner 2026-10-21: a group invitation opens its card (look, then answer).
+    case 'group_invite':
+      final inviteId = s('inviteId');
+      return inviteId == null ? ChatRoutes.inbox : GroupRoutes.invite(inviteId);
+    // Owner 2026-10-20: a group message opens the group.
+    case 'new_message' || 'group_call' when s('groupId') != null:
+      return GroupRoutes.group(s('groupId')!);
     case 'new_message' || 'missed_call' || 'incoming_call':
       final c = s('conversationId');
       return c == null ? ChatRoutes.inbox : ChatRoutes.conversation(c);
@@ -87,6 +98,9 @@ String? notificationRoute({
     // Owner 2026-10-05: a client offered a case / an attorney declined.
     case 'case_invite_received':
       return AppRoutes.invites;
+    // Owner 2026-10-20: a gift on my profile.
+    case 'gift_received':
+      return AppRoutes.myGifts;
     case 'case_invite_declined':
       return caseId == null ? null : AppRoutes.myCase(caseId);
     case 'review_requested':
@@ -128,6 +142,13 @@ String? notificationRoute({
         return AppRoutes.caseComments(caseId);
       }
       return postId == null ? null : SocialRoutes.post(postId);
+    // Owner 2026-10-20: a new post in a channel I follow opens the channel
+    // (the shared post first).
+    case 'channel_post':
+      final channelId = s('channelId');
+      return channelId == null
+          ? ChannelsRoutes.list
+          : ChannelsRoutes.channel(channelId, postId: postId);
     case 'verification_update':
       // Owner 2026-10-05: trust level changes / holds open the attorney's
       // own trust screen.
@@ -169,6 +190,12 @@ String? notificationRoute({
       return AppRoutes.myCase(caseId);
     case 'payout_account_status':
       return CasePaymentsRoutes.payoutAccount;
+    // Owner 2026-10-20: a booking was requested, answered, moved or is near.
+    case 'consultation_update':
+      final consultationId = s('consultationId');
+      return consultationId == null
+          ? ConsultationsRoutes.list
+          : ConsultationsRoutes.detail(consultationId);
     case 'subscription_trial_ending' ||
           'subscription_payment_failed' ||
           'subscription_status':
@@ -196,6 +223,11 @@ String? notificationRoute({
     // «Decisions on my content».
     case 'moderation_notice':
       return PrivacyRoutes.notices;
+    // Owner 2026-10-20: a new question in my area / an answer, the best
+    // mark → the question.
+    case 'legal_question_new' || 'legal_answer_update':
+      final questionId = s('questionId');
+      return questionId == null ? null : LegalQaRoutes.question(questionId);
   }
   return null;
 }
@@ -247,6 +279,10 @@ const caseWorkspaceActivityKinds = {
   'task_done',
   'task_files',
   'details',
+  'invoice',
+  'sign_request',
+  'sign_done',
+  'sign_declined',
 };
 
 String notificationText(Translator t, AppNotification n) {
@@ -302,6 +338,13 @@ String notificationText(Translator t, AppNotification n) {
       return base;
     }
   }
+  // Owner 2026-10-20: what happened to a booking (`notif.consult.<kind>`).
+  if (n.type == 'consultation_update') {
+    final kind = n.payload['kind'];
+    if (kind is String && RegExp(r'^[a-z_]{1,40}$').hasMatch(kind)) {
+      return t.t('notif.consult.$kind');
+    }
+  }
   if (n.type == 'review_received' && _flag(n.payload['reply'])) {
     return t.t(
       _flag(n.payload['clientReview'])
@@ -348,6 +391,10 @@ String notificationText(Translator t, AppNotification n) {
       {'count': '${count is num ? count.toInt() : 1}'},
     );
   }
+  // Owner 2026-10-20: a reminder that could not be sent in time says so.
+  if (n.type == 'task_reminder' && n.payload['missed'] == true) {
+    return t.t('notif.cases.task_reminder.missed');
+  }
   // Owner 2026-10-05: "N days until the case's date".
   if (n.type == 'case_deadline_soon') {
     final days = n.payload['days'];
@@ -372,6 +419,23 @@ String notificationText(Translator t, AppNotification n) {
     return reason is String && reason.trim().isNotEmpty
         ? '$base: ${reason.trim()}'
         : base;
+  }
+  // Owner 2026-10-20: «New post in "channel"» — no actor, the channel's title
+  // comes with the notification.
+  if (n.type == 'channel_post') {
+    return t.t(
+      'channel.notif.post',
+      {'title': '${n.payload['channelTitle'] ?? ''}'},
+    );
+  }
+  // Owner 2026-10-20: «Ask a lawyer» notices have no actor name; the
+  // answer / best-answer ones say what happened.
+  if (n.type == 'legal_answer_update') {
+    return t.t(
+      n.payload['kind'] == 'best'
+          ? 'notif.list.legal_answer_best'
+          : 'notif.list.legal_answer_update',
+    );
   }
   final name = n.actor?.displayName ?? '';
   final others = n.aggregateCount - 1;
@@ -400,6 +464,8 @@ IconData _icon(AppNotification n) => switch (n.type) {
       // Owner 2026-10-07: Threads-style reposts.
       'post_repost' => AppIcons.autoModeRounded,
       'new_follower' => AppIcons.personAddAlt1Rounded,
+      // Owner 2026-10-20: channels.
+      'channel_post' => AppIcons.campaignOutlined,
       // OQ-041.
       'missed_call' => AppIcons.phoneMissedRounded,
       // OQ-042.
@@ -432,9 +498,13 @@ IconData _icon(AppNotification n) => switch (n.type) {
         AppIcons.scheduleRounded,
       'case_payment_disputed' => AppIcons.errorOutlineRounded,
       'payout_account_status' => AppIcons.accountBalanceOutlined,
+      'consultation_update' => AppIcons.eventAvailableRounded,
       'assistant_task' || 'task_assigned' => AppIcons.eventNoteRounded,
       'task_reminder' => AppIcons.notificationsActiveOutlined,
       'task_purge_soon' => AppIcons.inventory2Outlined,
+      'legal_question_new' ||
+      'legal_answer_update' =>
+        AppIcons.helpOutlineRounded,
       'assistant_joined' || 'assistant_result' => AppIcons.supportAgentRounded,
       'case_deadline_soon' ||
       'case_deadline_today' ||
@@ -516,69 +586,66 @@ class _NotificationsViewState extends ConsumerState<NotificationsView> {
           ),
         );
 
+    final chips = SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsetsDirectional.only(start: AppSpacing.sm),
+      child: Row(
+        children: [
+          chip(
+            'notif-view-all',
+            t.t('notif.view.all'),
+            selected: !_assistants && group == null,
+            onTap: () => pick(null),
+          ),
+          chip(
+            'notif-view-important',
+            t.t('notif.view.important'),
+            selected: !_assistants && group == NotifGroup.important,
+            onTap: () => pick(NotifGroup.important),
+          ),
+          chip(
+            'notif-view-other',
+            t.t('notif.view.other'),
+            selected: !_assistants && group == NotifGroup.other,
+            onTap: () => pick(NotifGroup.other),
+          ),
+          if (team)
+            chip(
+              'notif-view-assistants',
+              t.t('notif.view.assistants'),
+              selected: _assistants,
+              onTap: () => pick(null, assistants: true),
+            ),
+        ],
+      ),
+    );
     return Column(
       children: [
-        // Owner 2026-10-18: one search box above the list (not for the
-        // assistants' activity, which has its own list).
-        if (!(team && _assistants))
-          ListSearchField(
-            fieldKey: const ValueKey('notif-search'),
+        // Owner 2026-10-20: the chips and a round magnifier in one row (the
+        // assistants' activity has its own list, no search).
+        if (team && _assistants)
+          Padding(
+            padding: const EdgeInsetsDirectional.only(
+              end: AppSpacing.xs,
+              bottom: AppSpacing.sm,
+            ),
+            child: Row(
+              children: [
+                Expanded(child: chips),
+                if (trailing != null) trailing,
+              ],
+            ),
+          )
+        else
+          ChipsSearchRow(
+            chips: chips,
             hintKey: 'notif.search.hint',
-            initial: ref.read(notificationQueryProvider),
-            onChanged: ref.read(notificationQueryProvider.notifier).set,
+            query: ref.read(notificationQueryProvider),
+            onQuery: ref.read(notificationQueryProvider.notifier).set,
+            openKey: const ValueKey('notif-search-open'),
+            fieldKey: const ValueKey('notif-search'),
+            closeKey: const ValueKey('notif-search-close'),
           ),
-        Padding(
-          padding: const EdgeInsetsDirectional.fromSTEB(
-            0,
-            0,
-            AppSpacing.xs,
-            AppSpacing.sm,
-          ),
-          child: Row(
-            children: [
-              // Scrolls sideways: long labels in some languages never
-              // squeeze "Mark all read".
-              Expanded(
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsetsDirectional.only(
-                    start: AppSpacing.screenSide,
-                  ),
-                  child: Row(
-                    children: [
-                      chip(
-                        'notif-view-all',
-                        t.t('notif.view.all'),
-                        selected: !_assistants && group == null,
-                        onTap: () => pick(null),
-                      ),
-                      chip(
-                        'notif-view-important',
-                        t.t('notif.view.important'),
-                        selected: !_assistants && group == NotifGroup.important,
-                        onTap: () => pick(NotifGroup.important),
-                      ),
-                      chip(
-                        'notif-view-other',
-                        t.t('notif.view.other'),
-                        selected: !_assistants && group == NotifGroup.other,
-                        onTap: () => pick(NotifGroup.other),
-                      ),
-                      if (team)
-                        chip(
-                          'notif-view-assistants',
-                          t.t('notif.view.assistants'),
-                          selected: _assistants,
-                          onTap: () => pick(null, assistants: true),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-              if (trailing != null) trailing,
-            ],
-          ),
-        ),
         Expanded(child: list),
       ],
     );
@@ -804,9 +871,9 @@ class _Medallion extends StatelessWidget {
       decoration: BoxDecoration(
         color: colors.navy,
         borderRadius: BorderRadius.circular(AppRadii.field),
-        border: Border.all(color: colors.goldStroke),
+        border: Border.all(color: colors.iconTint),
       ),
-      child: AppIcon(_icon(n), size: 20, color: colors.gold),
+      child: AppIcon(_icon(n), size: 20, color: colors.iconTint),
     );
     final actor = n.actor;
     if (actor?.avatarUrl == null) return glyph;
@@ -834,7 +901,7 @@ class _Medallion extends StatelessWidget {
                 shape: BoxShape.circle,
                 border: Border.all(color: colors.surface, width: 2),
               ),
-              child: AppIcon(_icon(n), size: 11, color: colors.gold),
+              child: AppIcon(_icon(n), size: 11, color: colors.iconTint),
             ),
           ),
         ],

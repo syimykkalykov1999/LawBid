@@ -27,6 +27,7 @@ import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
 import 'package:lawbid/features/cases/presentation/widgets/private_details_card.dart';
 import 'package:lawbid/features/cases/workspace/workspace_view.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
+import 'package:lawbid/features/deadlines/presentation/deadline_entry.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart'
     show initialsOf;
 import 'package:lawbid/features/team/application/team_providers.dart';
@@ -291,6 +292,13 @@ class _WorkCaseScreenState extends ConsumerState<WorkCaseScreen> {
           icon: AppIcons.modeCommentOutlined,
           label: t.t('cases.comments.button'),
           onTap: () => context.push(AppRoutes.caseComments(c.id)),
+        ),
+        // Owner 2026-10-20: the deadline calculator, prefilled.
+        CaseDeadlinesRow(
+          caseId: c.id,
+          stateCode: c.primaryStateCode,
+          practiceCategory: c.practice.artCode,
+          padding: side(AppSpacing.md),
         ),
       ],
     );
@@ -614,13 +622,13 @@ class _ContactAction extends StatelessWidget {
               minHeight: AppSizes.hitTarget + AppSpacing.md,
             ),
             decoration: BoxDecoration(
-              color: colors.goldTint,
+              color: colors.iconTintFill,
               borderRadius: BorderRadius.circular(AppRadii.field),
             ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                AppIcon(icon, color: colors.goldDark, size: AppSizes.iconSm),
+                AppIcon(icon, color: colors.iconTint, size: AppSizes.iconSm),
                 const SizedBox(height: AppSpacing.xs),
                 // Four actions share the row: a long label shrinks to fit.
                 Padding(

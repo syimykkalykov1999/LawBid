@@ -2,8 +2,10 @@ import 'dart:async';
 
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_callkit_incoming/entities/entities.dart';
 import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:lawbid/features/calls/application/call_controller.dart';
@@ -11,6 +13,8 @@ import 'package:lawbid/features/calls/application/call_end_port_stub.dart'
     if (dart.library.io) 'package:lawbid/features/calls/application/call_end_port_io.dart';
 import 'package:lawbid/features/calls/data/calls_repository.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
+import 'package:lawbid/features/notifications/application/task_reminder_scheduler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// OQ-041: the phone's own incoming-call screen (Android full-screen
 /// ringing notification / iOS CallKit) — rings on a locked screen and
@@ -29,10 +33,36 @@ class CallkitSystemUi implements SystemCallUi {
 
   @override
   Future<void> dismiss(String callId) async {
+    // The plugin reports our own endCall back as an "ended" / "declined"
+    // event: that is not the user hanging up (Android: answering from the
+    // heads-up ended the call it had just answered).
+    _ignoreEnded(callId);
     try {
       await FlutterCallkitIncoming.endCall(callId);
     } on Object {
       // No plugin / already gone.
+    }
+  }
+
+  @override
+  Future<void> endAll() async {
+    // Android's plugin keeps only the last call and its notification: after
+    // a call, nothing of ours may stay in the shade (device test
+    // 2026-10-20: ghosts of finished calls). A call that rings now is
+    // impossible — one call at a time, the server declines the other.
+    if (defaultTargetPlatform != TargetPlatform.android) return;
+    try {
+      await FlutterCallkitIncoming.endAllCalls();
+    } on Object {
+      // No plugin.
+    }
+    // The plugin's own notifications can outlive its calls (a ghost whose
+    // call it no longer knows): sweep what is left of ours in the shade.
+    try {
+      await const MethodChannel('lawbid/call_service')
+          .invokeMethod<void>('clear');
+    } on Object {
+      // Not Android / no host.
     }
   }
 
@@ -77,11 +107,11 @@ class CallkitSystemUi implements SystemCallUi {
           appName: 'LawBid',
           avatar: call.peer.avatarUrl,
           handle: call.peer.name.isEmpty ? 'LawBid' : call.peer.name,
-          type: 0,
+          type: call.video ? 1 : 0,
           extra: {'callId': call.id},
-          ios: const IOSParams(
+          ios: IOSParams(
             handleType: 'generic',
-            supportsVideo: false,
+            supportsVideo: call.video,
             maximumCallGroups: 1,
             maximumCallsPerCallGroup: 1,
             supportsDTMF: false,
@@ -108,6 +138,52 @@ bool _endedByUs(String id) {
   return until != null && DateTime.now().isBefore(until);
 }
 
+@visibleForTesting
+bool callEndedByUs(String id) => _endedByUs(id);
+
+/// "End" on the system call UI hangs up only a call that is really running
+/// here — never the ringing one, nor one we ended ourselves a moment ago.
+@visibleForTesting
+bool systemEndHangsUp(CallSession s, String id) =>
+    !_endedByUs(id) &&
+    s.busy &&
+    s.call?.id == id &&
+    s.phase != CallPhase.incoming;
+
+final _claimedRings = <String, DateTime>{};
+
+/// True for the first caller within a minute for [callId], in this isolate
+/// (memory) and across isolates (a marker in the shared preferences).
+Future<bool> _claimRing(String callId) async {
+  final now = DateTime.now();
+  final mine = _claimedRings[callId];
+  if (mine != null && now.difference(mine) < const Duration(minutes: 1)) {
+    return false;
+  }
+  _claimedRings[callId] = now;
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    final key = 'call.ring.$callId';
+    final at = prefs.getInt(key);
+    if (at != null &&
+        now.millisecondsSinceEpoch - at <
+            const Duration(minutes: 1).inMilliseconds) {
+      return false;
+    }
+    await prefs.setInt(key, now.millisecondsSinceEpoch);
+  } on Object {
+    // No preferences here: the in-memory claim has to do.
+  }
+  return true;
+}
+
+@visibleForTesting
+Future<bool> claimRingForTest(String callId) => _claimRing(callId);
+
+@visibleForTesting
+void forgetRingClaimsForTest() => _claimedRings.clear();
+
 /// Shows the system ringing UI for [callId] (also from the push
 /// background isolate).
 Future<void> showLawbidIncoming({
@@ -119,6 +195,19 @@ Future<void> showLawbidIncoming({
   // Owner 2026-10-05: the system screen says "video call".
   bool video = false,
 }) async {
+  // Device test 2026-10-21: the push (background isolate) and the socket
+  // (app isolate) rang the same call 54 ms apart — two Telecom calls, of
+  // which «end» closed one and the other stayed as a ghost. One claim per
+  // call id, shared by both isolates.
+  if (!await _claimRing(callId)) return;
+  try {
+    // Already on screen (iOS: PushKit reported it before the socket did):
+    // a second report would replace the call and end the one being answered.
+    final shown = await FlutterCallkitIncoming.activeCalls();
+    if (shown.any((c) => c.id == callId)) return;
+  } on Object {
+    // No plugin / cannot tell: go on.
+  }
   try {
     await FlutterCallkitIncoming.showCallkitIncoming(
       CallKitParams(
@@ -149,9 +238,9 @@ Future<void> showLawbidIncoming({
           textAccept: 'Accept',
           textDecline: 'Decline',
         ),
-        ios: const IOSParams(
+        ios: IOSParams(
           handleType: 'generic',
-          supportsVideo: false,
+          supportsVideo: video,
           maximumCallGroups: 1,
           maximumCallsPerCallGroup: 1,
           supportsDTMF: false,
@@ -171,6 +260,7 @@ Future<void> showLawbidIncoming({
 /// [over] (owner 2026-10-20): the ANSWERED call is over too — end the
 /// system call even if this phone had accepted it.
 Future<void> stopLawbidIncoming(String callId, {bool over = false}) async {
+  await clearGroupCallNotice(callId);
   try {
     final calls = await FlutterCallkitIncoming.activeCalls();
     final mine = calls.where((c) => c.id == callId);
@@ -181,17 +271,36 @@ Future<void> stopLawbidIncoming(String callId, {bool over = false}) async {
   }
 }
 
+/// Owner 2026-10-21: the light «X started a call · Join» notification of a
+/// call from a group chat (tag `gc:<callId>`, FCM shows it with id 0) goes
+/// when the call is over or the person has joined.
+Future<void> clearGroupCallNotice(String callId) async {
+  if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
+  try {
+    await FlutterLocalNotificationsPlugin().cancel(id: 0, tag: 'gc:$callId');
+  } on Object {
+    // No plugin / nothing shown.
+  }
+}
+
 /// FCM in the background / killed app (Android data-only push): ring, or
 /// stop ringing when the call is over.
 @pragma('vm:entry-point')
 Future<void> lawbidBackgroundMessage(RemoteMessage message) async {
   final d = message.data;
+  // Owner 2026-10-20: a planner reminder (data-only, Android) is drawn by
+  // the app under the id of its own alarm.
+  if (d['type'] == taskReminderType) {
+    await showTaskReminderFromPush(d);
+    return;
+  }
   final callId = d['callId'];
   if (callId is! String) return;
   if (d['type'] == 'call_ended') {
     final over = d['ended'] == '1';
     // The app's own isolate (alive in the background while a call runs)
     // holds the call: tell it to re-read the call from the server now.
+    await clearGroupCallNotice(callId);
     if (over && sendCallEnded(callId)) return;
     await stopLawbidIncoming(callId, over: over);
     return;
@@ -226,13 +335,13 @@ final callkitEventsProvider = Provider<void>((ref) {
             // screen) hangs up. Our own endCall() also reports it — the
             // call is already over then.
             final s = ref.read(callControllerProvider);
-            if (!_endedByUs(callKitParams.id) &&
-                s.busy &&
-                s.call?.id == callKitParams.id &&
-                s.phase != CallPhase.incoming) {
+            if (systemEndHangsUp(s, callKitParams.id)) {
               await controller.hangUp();
             }
           case CallEventActionCallDecline(:final callKitParams):
+            // Our own dismiss (answered elsewhere, replaced by the ongoing
+            // call) is reported as a decline too: not the user's choice.
+            if (_endedByUs(callKitParams.id)) break;
             final s = ref.read(callControllerProvider);
             if (s.call?.id == callKitParams.id) {
               await controller.decline();
@@ -259,11 +368,12 @@ final callkitEventsProvider = Provider<void>((ref) {
     try {
       final calls = await FlutterCallkitIncoming.activeCalls();
       for (final c in calls) {
-        if (c.isAccepted) {
-          await ref
-              .read(callControllerProvider.notifier)
-              .ringFromPush(c.id, accept: true);
-        }
+        // Accepted: carry on. Not accepted: still ringing, or a ghost of a
+        // call that ended while the app was closed — the server decides
+        // (ringFromPush takes a finished one off the screen).
+        await ref
+            .read(callControllerProvider.notifier)
+            .ringFromPush(c.id, accept: c.isAccepted);
       }
     } on Object {
       // No plugin.

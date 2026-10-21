@@ -146,7 +146,7 @@ export default function EconomyPage() {
 
           <SectionTitle>На что уходят деньги</SectionTitle>
           <Card className="mb-6 overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="sticky-first w-full min-w-[34rem] text-sm">
               <thead>
                 <tr className="border-b border-line text-left text-xs text-muted">
                   <th className="p-3 font-medium">Сервис</th>
@@ -348,7 +348,7 @@ export default function EconomyPage() {
             </Card>
           </div>
           <Card className="mb-6 overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="sticky-first w-full min-w-[34rem] text-sm">
               <thead>
                 <tr className="border-b border-line text-left text-xs text-muted">
                   <th className="p-3 font-medium">Ступень</th>

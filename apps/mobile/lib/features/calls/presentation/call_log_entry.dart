@@ -108,7 +108,7 @@ class CallLogEntry extends ConsumerWidget {
             child: AppIcon(
               icon,
               size: 20,
-              color: missedHere ? colors.danger : colors.goldAccent,
+              color: missedHere ? colors.danger : colors.iconTint,
             ),
           ),
           const SizedBox(width: AppSpacing.sm),
@@ -145,7 +145,7 @@ class CallLogEntry extends ConsumerWidget {
             AppIcon(
               AppIcons.callOutlined,
               size: 20,
-              color: colors.goldAccent,
+              color: colors.iconTint,
             ),
           ],
         ],

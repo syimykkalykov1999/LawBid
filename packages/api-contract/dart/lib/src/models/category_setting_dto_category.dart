@@ -8,6 +8,10 @@ import 'package:json_annotation/json_annotation.dart';
 enum CategorySettingDtoCategory {
   @JsonValue('messages')
   messages('messages'),
+  @JsonValue('groups')
+  groups('groups'),
+  @JsonValue('channels')
+  channels('channels'),
   @JsonValue('calls')
   calls('calls'),
   @JsonValue('following')

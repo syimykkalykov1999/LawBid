@@ -204,7 +204,7 @@ class CaseUrgencyPicker extends ConsumerWidget {
                       ? AppIcons.radioButtonCheckedRounded
                       : AppIcons.radioButtonUncheckedRounded,
                   size: 20,
-                  color: selected ? colors.goldDark : colors.textSecondary,
+                  color: selected ? colors.iconTint : colors.textSecondary,
                 ),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
@@ -287,7 +287,7 @@ class CaseUrgencyPicker extends ConsumerWidget {
                 ),
                 child: Row(
                   children: [
-                    AppIcon(AppIcons.eventOutlined, color: colors.goldDark),
+                    AppIcon(AppIcons.eventOutlined, color: colors.iconTint),
                     const SizedBox(width: AppSpacing.md),
                     Expanded(
                       child: Column(
@@ -530,7 +530,7 @@ class CaseUrgencyRow extends ConsumerWidget {
                   ? AppIcons.eventOutlined
                   : AppIcons.timerOutlined,
               size: AppSizes.iconSm,
-              color: info.isUrgent ? colors.danger : colors.goldDark,
+              color: info.isUrgent ? colors.danger : colors.iconTint,
             ),
             const SizedBox(width: AppSpacing.md),
             Expanded(

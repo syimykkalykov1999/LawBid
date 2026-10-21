@@ -157,29 +157,60 @@ export class PushDispatcher
       select: {
         status: true,
         conversation_id: true,
+        group_id: true,
         video: true,
+        is_group: true,
+        caller_id: true,
         callee: { select: { status: true, ui_language: true } },
         caller: {
           select: { first_name: true, last_name: true },
         },
+        // Group calls: a person added to a running call.
+        participants: {
+          where: { user_id: data.recipientId, status: 'invited' },
+          select: {
+            invited_by_id: true,
+            invited_by: { select: { first_name: true, last_name: true } },
+            user: { select: { status: true, ui_language: true } },
+          },
+        },
       },
     });
-    if (!call || call.callee.status !== 'active') return 'no_user';
-    if (call.status !== 'ringing') return 'no_push';
+    if (!call) return 'no_user';
+    const invite = call.is_group ? call.participants[0] : undefined;
+    if (invite) {
+      if (invite.user.status !== 'active') return 'no_user';
+      if (call.status !== 'active') return 'no_push';
+    } else {
+      if (call.callee.status !== 'active') return 'no_user';
+      if (call.status !== 'ringing') return 'no_push';
+    }
+    const language = invite ? invite.user.ui_language : call.callee.ui_language;
+    // Owner 2026-10-21 (Telegram): a call started in a group chat does not
+    // ring like a phone call — a light notification «X started a call ·
+    // Join», and the same for being invited into it. No ringtone, no
+    // CallKit / VoIP push.
+    if (call.group_id) {
+      // Owner 2026-10-21: «mute calls» of the group silences this too.
+      if (await this.callsMutedFor(data.recipientId, call)) return 'no_push';
+      return this.dispatchGroupCallNotice(data, call, invite, language);
+    }
     // Owner 2026-10-02: calls switched off still come through — silently
     // (no ringtone), so a call is never lost.
-    const silent = !(await this.pushAllowed(data.recipientId, 'calls'));
+    // Owner 2026-10-21: «mute calls» of this chat / group does the same.
+    const silent =
+      !(await this.pushAllowed(data.recipientId, 'calls')) ||
+      (await this.callsMutedFor(data.recipientId, call));
+    const who = invite?.invited_by ?? call.caller;
     const name =
-      [call.caller.first_name, call.caller.last_name]
-        .filter(Boolean)
-        .join(' ') || 'LawBid';
+      [who.first_name, who.last_name].filter(Boolean).join(' ') || 'LawBid';
     // Owner 2026-10-17: iPhones with a VoIP token ring through Apple
     // directly (CallKit, even when the app is closed); their FCM call push
     // is skipped so they don't ring twice.
     const rang =
       (await this.voip?.ringCall(data.recipientId, {
         callId: data.callId,
-        conversationId: call.conversation_id,
+        conversationId: call.conversation_id ?? '',
         callerName: name,
         video: call.video,
         silent,
@@ -193,16 +224,16 @@ export class PushDispatcher
         title: name,
         // Owner 2026-10-05: video calls say so.
         body: call.video
-          ? call.callee.ui_language === 'ru'
+          ? language === 'ru'
             ? '📹 Входящий видеозвонок'
             : '📹 Incoming video call'
-          : call.callee.ui_language === 'ru'
+          : language === 'ru'
             ? '📞 Входящий звонок'
             : '📞 Incoming call',
         data: {
           type: 'incoming_call',
           callId: data.callId,
-          conversationId: call.conversation_id,
+          conversationId: call.conversation_id ?? '',
           callerName: name,
           ...(silent ? { silent: '1' } : {}),
           ...(call.video ? { video: '1' } : {}),
@@ -213,6 +244,102 @@ export class PushDispatcher
       `c:${data.callId}`,
     );
     return 'sent';
+  }
+
+  private async dispatchGroupCallNotice(
+    data: CallJobData,
+    call: {
+      group_id: string | null;
+      caller_id: string;
+      video: boolean;
+      caller: { first_name: string | null; last_name: string | null };
+    },
+    invite:
+      | {
+          invited_by_id: string | null;
+          invited_by: {
+            first_name: string | null;
+            last_name: string | null;
+          } | null;
+        }
+      | undefined,
+    language: string | null,
+  ): Promise<DispatchResult> {
+    const group = await this.prisma.chatGroup.findUnique({
+      where: { id: call.group_id ?? '' },
+      select: { title: true },
+    });
+    const who = invite?.invited_by ?? call.caller;
+    const name =
+      [who.first_name, who.last_name].filter(Boolean).join(' ') || 'LawBid';
+    const ru = language === 'ru';
+    // The starter's own invitees get «started a call»; a later invite from a
+    // member says «invites you».
+    const starter =
+      !invite?.invited_by || invite.invited_by_id === call.caller_id;
+    const kind = call.video
+      ? ru
+        ? 'видеозвонок'
+        : 'a video call'
+      : ru
+        ? 'звонок'
+        : 'a call';
+    const body = starter
+      ? ru
+        ? `${name} начал(а) ${kind} · Присоединиться`
+        : `${name} started ${kind} · Join`
+      : ru
+        ? `${name} приглашает в ${kind} · Присоединиться`
+        : `${name} invites you to ${kind} · Join`;
+    await this.sender.send(
+      {
+        userId: data.recipientId,
+        title: group?.title ?? name,
+        body,
+        // About a minute in the shade, then gone (owner 2026-10-21); the
+        // call-end push takes it away sooner. One per call (tag).
+        ttlSec: 60,
+        collapseKey: `gc:${data.callId}`,
+        sound: 'notification',
+        data: {
+          type: 'group_call',
+          callId: data.callId,
+          groupId: call.group_id ?? '',
+          callerName: name,
+          groupTitle: group?.title ?? '',
+          ...(call.video ? { video: '1' } : {}),
+        },
+      },
+      `gc:${data.callId}`,
+    );
+    return 'sent';
+  }
+
+  /** The recipient muted the calls of the chat / group this call is from. */
+  private async callsMutedFor(
+    userId: string,
+    call: { conversation_id: string | null; group_id: string | null },
+  ): Promise<boolean> {
+    if (call.group_id) {
+      const m = await this.prisma.chatGroupMember.findUnique({
+        where: {
+          group_id_user_id: { group_id: call.group_id, user_id: userId },
+        },
+        select: { calls_muted: true },
+      });
+      return m?.calls_muted ?? false;
+    }
+    if (!call.conversation_id) return false;
+    const p = await this.prisma.conversationParticipant.findUnique({
+      where: {
+        conversation_id_user_id: {
+          conversation_id: call.conversation_id,
+          user_id: userId,
+        },
+      },
+      select: { calls_muted: true },
+    });
+    return p?.calls_muted ?? false;
   }
 
   private async dispatchNotification(
@@ -231,6 +358,8 @@ export class PushDispatcher
         user: {
           select: {
             ui_language: true,
+            timezone: true,
+            quiet_hours: { select: { timezone: true } },
             status: true,
             email: true,
             email_verified_at: true,
@@ -273,7 +402,12 @@ export class PushDispatcher
       typeof payload.body === 'string'
         ? { title: payload.title, body: payload.body }
         : fillTemplate(
-            await this.templates.renderFor(n.type, payload, n.user.ui_language),
+            await this.templates.renderFor(
+              n.type,
+              payload,
+              n.user.ui_language,
+              n.user.timezone ?? n.user.quiet_hours?.timezone ?? 'UTC',
+            ),
             payload,
           );
     const deepLink: Record<string, string> = {
@@ -294,9 +428,13 @@ export class PushDispatcher
       'kind',
       'requestId',
       'taskId',
+      // Owner 2026-10-20: the planner reminder — when it is for.
+      'remindAt',
+      'dueAt',
     ]) {
       if (typeof payload[k] === 'string') deepLink[k] = payload[k];
     }
+    if (payload.missed === true) deepLink.missed = '1';
     // Owner 2026-10-20 (like WhatsApp): a missed call shows who called —
     // the caller's name on top, "Missed call" below.
     let shown = text;
@@ -318,6 +456,7 @@ export class PushDispatcher
         data: deepLink,
         badge,
         sound: 'notification',
+        ...(n.type === 'task_reminder' ? { reminder: true } : {}),
       },
       `n:${n.id}`,
     );
@@ -340,10 +479,148 @@ export class PushDispatcher
     return 'sent';
   }
 
+  /**
+   * Owner 2026-10-20: a group chat message. Same gates as a 1:1 message
+   * (active user, still a member, muted, chat open, setting, quiet hours);
+   * a system line only pushes to the person just added; @mentioned members
+   * get a push even while the group is muted.
+   */
+  private async dispatchGroupMessage(
+    data: MessageJobData & { groupId: string },
+    jobId: string,
+  ): Promise<DispatchResult> {
+    const [user, member, message, group] = await Promise.all([
+      this.prisma.user.findUnique({
+        where: { id: data.recipientId },
+        select: { status: true, ui_language: true },
+      }),
+      this.prisma.chatGroupMember.findUnique({
+        where: {
+          group_id_user_id: {
+            group_id: data.groupId,
+            user_id: data.recipientId,
+          },
+        },
+        select: { muted_until: true, left_at: true },
+      }),
+      this.prisma.chatGroupMessage.findUnique({
+        where: { id: data.messageId, deleted_at: {} },
+        select: {
+          body: true,
+          type: true,
+          sender_id: true,
+          deleted_at: true,
+          system_kind: true,
+          system_payload: true,
+          mention_ids: true,
+          poll: { select: { question: true } },
+        },
+      }),
+      this.prisma.chatGroup.findUnique({
+        where: { id: data.groupId },
+        select: { title: true, deleted_at: true },
+      }),
+    ]);
+    if (
+      !user ||
+      user.status !== 'active' ||
+      !member ||
+      member.left_at ||
+      !message ||
+      !group ||
+      group.deleted_at
+    ) {
+      return 'no_user';
+    }
+    if (message.deleted_at) return 'no_push';
+    const ru = user.ui_language === 'ru';
+    const mentioned = message.mention_ids.includes(data.recipientId);
+    let body: string;
+    if (message.type === 'system') {
+      const payload = (message.system_payload ?? {}) as {
+        targetIds?: string[];
+      };
+      if (
+        message.system_kind !== 'added' ||
+        !payload.targetIds?.includes(data.recipientId)
+      ) {
+        return 'no_push';
+      }
+      body = ru ? 'Вас добавили в группу' : 'You were added to the group';
+    } else {
+      const sender = message.sender_id
+        ? await this.prisma.user.findUnique({
+            where: { id: message.sender_id },
+            select: { first_name: true, last_name: true },
+          })
+        : null;
+      const who = [sender?.first_name, sender?.last_name]
+        .filter(Boolean)
+        .join(' ');
+      const caption = [
+        ...(message.type === 'poll'
+          ? (message.poll?.question ?? '')
+          : message.body),
+      ]
+        .slice(0, MESSAGE_PREVIEW_CHARS)
+        .join('');
+      const preview =
+        message.type === 'poll'
+          ? `📊 ${caption}`
+          : message.type === 'attachment'
+            ? (ru ? '📎 Файл' : '📎 File') + (caption ? `: ${caption}` : '')
+            : caption;
+      body = (who ? `${who}: ` : '') + preview;
+      if (mentioned) {
+        body = (ru ? '@ Вас упомянули. ' : '@ Mentioned you. ') + body;
+      }
+    }
+    const muted = !!member.muted_until && member.muted_until > new Date();
+    if (muted && !mentioned) return 'muted';
+    if (await this.realtime.isViewing(data.recipientId, data.groupId)) {
+      return 'viewing';
+    }
+    // Owner 2026-10-21: groups have their own switch (Telegram).
+    if (!(await this.pushAllowed(data.recipientId, 'groups'))) {
+      return 'disabled';
+    }
+    if (!data.deferred) {
+      const until = await this.quietUntil(data.recipientId);
+      if (until) {
+        await this.queue.defer(data, until, jobId || data.messageId);
+        return 'deferred';
+      }
+    }
+    const badge = (await this.badges.get(data.recipientId)).total;
+    await this.sender.send(
+      {
+        userId: data.recipientId,
+        title: group.title,
+        body,
+        data: {
+          type: 'new_message',
+          groupId: data.groupId,
+          conversationId: data.groupId,
+          messageId: data.messageId,
+        },
+        badge,
+        sound: 'message',
+      },
+      `m:${data.messageId}`,
+    );
+    return 'sent';
+  }
+
   private async dispatchMessage(
     data: MessageJobData,
     jobId: string,
   ): Promise<DispatchResult> {
+    if (data.groupId) {
+      return this.dispatchGroupMessage(
+        { ...data, groupId: data.groupId },
+        jobId,
+      );
+    }
     const [user, part, message] = await Promise.all([
       this.prisma.user.findUnique({
         where: { id: data.recipientId },
@@ -369,6 +646,8 @@ export class PushDispatcher
           type: true,
           duration_ms: true,
           deleted_at: true,
+          revoked_at: true,
+          sender_id: true,
           sent_by_name: true,
         },
       }),
@@ -376,7 +655,20 @@ export class PushDispatcher
     if (!user || user.status !== 'active' || !part || !message) {
       return 'no_user';
     }
-    if (message.deleted_at) return 'no_push';
+    if (message.deleted_at || message.revoked_at) return 'no_push';
+    // Owner 2026-10-20: an edit only refreshes the alert of a message the
+    // recipient has not read yet (it replaces it); a read one stays quiet.
+    if (data.event === 'edit') {
+      if (part.last_read_message_id) {
+        const lastRead = await this.prisma.message.findUnique({
+          where: { id: part.last_read_message_id },
+          select: { created_at: true },
+        });
+        if (lastRead && lastRead.created_at >= message.created_at) {
+          return 'no_push';
+        }
+      }
+    }
     // Audit 2026-10-02: a push held by quiet hours is dropped when the
     // message was read in the meantime.
     if (data.deferred && part.last_read_message_id) {
@@ -427,7 +719,23 @@ export class PushDispatcher
             ? ru
               ? 'Стикер'
               : 'Sticker'
-            : caption;
+            : // Owner 2026-10-20: a gift / a shared attorney / a place.
+              message.type === 'gift'
+              ? ru
+                ? '🎁 Подарок'
+                : '🎁 Gift'
+              : message.type === 'contact'
+                ? ru
+                  ? '👤 Контакт'
+                  : '👤 Contact'
+                : message.type === 'place'
+                  ? `📍 ${caption}`
+                  : // Owner 2026-10-21: a shared post (the body is its id).
+                    message.type === 'post'
+                    ? ru
+                      ? '📰 Публикация'
+                      : '📰 Post'
+                    : caption;
     // Owner 2026-10-01: an assistant's message says so (not who exactly).
     const from = message.sent_by_name
       ? ru
@@ -435,11 +743,34 @@ export class PushDispatcher
         : "Attorney's assistant: "
       : '';
     const badge = (await this.badges.get(data.recipientId)).total;
+    let body = from + (preview || text.body);
+    let collapseKey: string | undefined;
+    let dedupeKey = `m:${data.messageId}`;
+    if (data.event === 'edit') {
+      // Same group as the message's own alert: it is rewritten in place.
+      body = `✏️ ${body}`;
+      collapseKey = `msg-${data.messageId}`;
+      dedupeKey = `e:${data.messageId}`;
+    } else if (data.event === 'reaction' && data.actorId) {
+      const actor = await this.prisma.user.findUnique({
+        where: { id: data.actorId },
+        select: { first_name: true },
+      });
+      const name = actor?.first_name?.trim() || (ru ? 'Собеседник' : 'Someone');
+      const quoted = preview ? ` «${[...preview].slice(0, 40).join('')}»` : '';
+      body = ru
+        ? `${name} отреагировал(а) ${data.emoji ?? ''} на${quoted || ' ваше сообщение'}`
+        : `${name} reacted ${data.emoji ?? ''} to${quoted || ' your message'}`;
+      collapseKey = `react-${data.messageId}`;
+      dedupeKey = `r:${data.messageId}:${data.actorId}:${data.emoji ?? ''}`;
+    } else {
+      collapseKey = `msg-${data.messageId}`;
+    }
     await this.sender.send(
       {
         userId: data.recipientId,
         title: text.title,
-        body: from + (preview || text.body),
+        body,
         data: {
           type: 'new_message',
           conversationId: data.conversationId,
@@ -447,8 +778,9 @@ export class PushDispatcher
         },
         badge,
         sound: 'message',
+        collapseKey,
       },
-      `m:${data.messageId}`,
+      dedupeKey,
     );
     return 'sent';
   }

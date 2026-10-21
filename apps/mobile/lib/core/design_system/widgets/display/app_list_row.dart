@@ -28,6 +28,7 @@ class AppListRow extends StatefulWidget {
     this.flush = false,
     this.subtitle,
     this.indent = 0,
+    this.dense = false,
   });
 
   /// A quiet second line under the label (e.g. a subcategory's category).
@@ -36,6 +37,9 @@ class AppListRow extends StatefulWidget {
   /// Extra left inset for nested options (a subcategory under its
   /// category in a picker).
   final double indent;
+
+  /// A 48dp row instead of the roomy 52dp one (info screens).
+  final bool dense;
 
   final String label;
   final VoidCallback? onTap;
@@ -75,7 +79,7 @@ class _AppListRowState extends State<AppListRow> {
       trailing = AppIcon(
         AppIcons.checkRounded,
         size: AppSizes.iconSm,
-        color: colors.goldStroke,
+        color: colors.iconTint,
       );
     } else if (widget.showChevron && !widget.destructive) {
       trailing = AppIcon(
@@ -103,12 +107,14 @@ class _AppListRowState extends State<AppListRow> {
           duration:
               context.reduceMotion ? Duration.zero : AppMotion.stateChange,
           curve: AppMotion.enterCurve,
-          constraints: const BoxConstraints(
-            minHeight: AppSizes.touchTarget + AppSpacing.sm,
+          constraints: BoxConstraints(
+            minHeight: widget.dense
+                ? AppSizes.hitTarget
+                : AppSizes.touchTarget + AppSpacing.sm,
           ),
           padding: EdgeInsets.symmetric(
             horizontal: widget.flush ? 0 : AppSpacing.md,
-            vertical: AppSpacing.sm,
+            vertical: widget.dense ? AppSpacing.xs : AppSpacing.sm,
           ),
           decoration: BoxDecoration(
             color: highlight ? colors.goldTint : colors.surface,
@@ -160,9 +166,10 @@ class _AppListRowState extends State<AppListRow> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     textAlign: TextAlign.end,
-                    style: typography.bodySmall.copyWith(
-                      color: colors.textSecondary,
-                    ),
+                    style: (widget.dense
+                            ? typography.caption
+                            : typography.bodySmall)
+                        .copyWith(color: colors.textSecondary),
                   ),
                 ),
               ],

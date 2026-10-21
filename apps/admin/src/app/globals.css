@@ -245,3 +245,30 @@ html.theme-switching * {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Phone: nothing pushes the page sideways; wide content scrolls in its own box. */
+html,
+body {
+  max-width: 100%;
+  overflow-x: clip;
+}
+img,
+video,
+canvas,
+svg {
+  max-width: 100%;
+}
+pre {
+  overflow-x: auto;
+}
+
+/* Raw tables inside a scrolling card: first column stays put on phones. */
+@media (max-width: 639px) {
+  table.sticky-first :is(th, td):first-child {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: var(--c-surface);
+    box-shadow: 1px 0 0 var(--c-line);
+  }
+}

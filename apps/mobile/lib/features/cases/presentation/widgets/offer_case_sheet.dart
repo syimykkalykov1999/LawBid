@@ -294,7 +294,7 @@ class _CaseOption extends ConsumerWidget {
                   selected
                       ? AppIcons.checkCircleRounded
                       : AppIcons.radioButtonUncheckedRounded,
-                  color: selected ? colors.goldDark : colors.textSecondary,
+                  color: selected ? colors.iconTint : colors.textSecondary,
                 ),
               ],
             ),
@@ -318,7 +318,7 @@ class _Mismatch extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.sm),
       decoration: BoxDecoration(
-        color: colors.goldTint,
+        color: colors.iconTintFill,
         borderRadius: BorderRadius.circular(AppRadii.field),
       ),
       child: Row(
@@ -327,7 +327,7 @@ class _Mismatch extends StatelessWidget {
           AppIcon(
             AppIcons.infoOutlineRounded,
             size: 18,
-            color: colors.goldDark,
+            color: colors.iconTint,
           ),
           const SizedBox(width: AppSpacing.sm),
           Expanded(

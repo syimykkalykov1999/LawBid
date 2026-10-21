@@ -64,7 +64,7 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
         goldStroke: AppColorsLight.goldStroke,
         goldLight: AppColorsLight.goldLight,
         goldDark: AppColorsLight.goldDark,
-        goldAccent: Color(0xFFA9821F),
+        goldAccent: Color(0xFF9C7A35),
         navy: AppColorsLight.navy,
         panFill: AppColorsLight.panFill,
         panText: AppColorsLight.panText,
@@ -105,7 +105,7 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
         goldStroke: AppColorsDark.goldStroke,
         goldLight: AppColorsDark.goldLight,
         goldDark: AppColorsDark.goldDark,
-        goldAccent: Color(0xFFE4C46E),
+        goldAccent: Color(0xFFE6CE98),
         navy: AppColorsDark.navy,
         panFill: AppColorsDark.panFill,
         panText: AppColorsDark.panText,
@@ -147,7 +147,7 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
         goldStroke: AppColorsNavy.goldStroke,
         goldLight: AppColorsNavy.goldLight,
         goldDark: AppColorsNavy.goldDark,
-        goldAccent: Color(0xFFD6B05A),
+        goldAccent: Color(0xFFE0C894),
         navy: AppColorsNavy.navy,
         panFill: AppColorsDark.panFill,
         panText: AppColorsDark.panText,
@@ -189,7 +189,7 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
         goldStroke: AppColorsGlass.goldStroke,
         goldLight: AppColorsGlass.goldLight,
         goldDark: AppColorsGlass.goldDark,
-        goldAccent: Color(0xFFD4A93F),
+        goldAccent: Color(0xFFDCBB6E),
         navy: AppColorsGlass.navy,
         panFill: AppColorsDark.panFill,
         panText: AppColorsDark.panText,
@@ -240,6 +240,24 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
   /// The gold of selected icons and the gold check: a shade per theme so
   /// it stays visible on that theme's bars (contrast ≥ 3:1).
   final Color goldAccent;
+
+  /// Owner 2026-10-20: gold for SMALL TEXT (links, captions): the deep gold
+  /// on the light theme (the plain gold is 2.3:1 on white), the plain gold on
+  /// the dark ones. Big icons and buttons keep [gold].
+  Color get goldText {
+    if (isGlass) return goldLight;
+    return bg.computeLuminance() > 0.5 ? goldDark : gold;
+  }
+
+  /// Owner 2026-10-20: the colour of tinted icons (tile icons, selected tab,
+  /// picked rows): the theme's own ink, the deep navy on the light theme.
+  /// Never gold: gold stays for the client check and rating stars only.
+  Color get iconTint => bg.computeLuminance() > 0.5 ? accent : text;
+
+  /// Soft fill behind a tinted icon (icon circles, tiles): [iconTint] at a
+  /// low alpha, so it follows the theme instead of the gold wash.
+  Color get iconTintFill => iconTint.withValues(alpha: 0.12);
+
   final Color navy;
   final Color panFill;
   final Color panText;

@@ -18,6 +18,15 @@ import 'package:lawbid/core/platform/web_consent_notice.dart';
 import 'package:lawbid/core/platform/web_gate.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/callkit_bridge.dart';
+import 'package:lawbid/features/calls/data/calls_repository.dart';
+import 'package:lawbid/features/calls/domain/call_models.dart';
+import 'package:lawbid/features/calls/presentation/call_widgets.dart';
+import 'package:lawbid/features/channels/application/channel_forward_port.dart';
+import 'package:lawbid/features/chat/domain/forward.dart';
+import 'package:lawbid/features/chat/presentation/forward_sheet.dart';
+import 'package:lawbid/features/contacts_sync/application/phone_contacts.dart';
+import 'package:lawbid/features/contacts_sync/presentation/contact_picker.dart';
+import 'package:lawbid/features/groups/application/group_call_port.dart';
 import 'package:lawbid/features/referrals/application/install_referrer.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -67,6 +76,77 @@ Future<void> runLawBid(AppFlavor flavor) async {
         systemCallUiProvider.overrideWithValue(const CallkitSystemUi()),
       // OQ-044: ringback / busy / end tones and message sounds.
       appSoundsProvider.overrideWithValue(JustAudioAppSounds()),
+      // "Add participant" offers the LawBid people of the phone book.
+      groupVideoCallsProvider.overrideWith(
+        (ref) => ref.watch(videoCallsEnabledProvider),
+      ),
+      // Owner 2026-10-21 (Telegram «Переслать»): a channel post into chats.
+      channelForwardPortProvider.overrideWithValue(
+        (context, ref, {required postId}) => forwardWithSheet(
+          context,
+          ref,
+          [ForwardSource(ForwardSourceKind.channelPost, postId)],
+        ),
+      ),
+      groupCallPortProvider.overrideWith(
+        (ref) => GroupCallPort(
+          start: (
+            groupId, {
+            required title,
+            avatarUrl,
+            video = false,
+            userIds = const [],
+          }) =>
+              ref.read(callControllerProvider.notifier).startGroupCall(
+                    groupId,
+                    peer: CallPeer(
+                      id: groupId,
+                      isAttorney: false,
+                      displayName: title,
+                      avatarUrl: avatarUrl,
+                    ),
+                    video: video,
+                    userIds: userIds,
+                  ),
+          running: (groupId) async {
+            final call = await ref.read(callsRepositoryProvider).groupCall(
+                  groupId,
+                );
+            if (call == null) return null;
+            final me = ref.read(callMyIdProvider);
+            final mine =
+                call.participants.where((m) => m.userId == me).firstOrNull;
+            // Taken out by the host / a vote: no way back into this call.
+            if (mine?.status == CallMemberStatus.removed) return null;
+            return GroupRunningCall(
+              video: call.video,
+              members: call.participants.where((m) => m.joined).length,
+              returning: mine != null &&
+                  (mine.joined || mine.status == CallMemberStatus.left),
+              join: (title, avatarUrl) =>
+                  ref.read(callControllerProvider.notifier).joinGroupCall(
+                        call,
+                        peer: CallPeer(
+                          id: groupId,
+                          isAttorney: false,
+                          displayName: title,
+                          avatarUrl: avatarUrl,
+                        ),
+                      ),
+            );
+          },
+        ),
+      ),
+      callContactPickerProvider.overrideWithValue(
+        (context, skip) async => [
+          for (final c in await showContactPicker(
+                context,
+                excludeUserIds: skip,
+              ) ??
+              const <LawBidContact>[])
+            c.userId,
+        ],
+      ),
     ],
   );
 

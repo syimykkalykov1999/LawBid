@@ -176,7 +176,7 @@ class _FlipSearchBarState extends State<FlipSearchBar> {
                   duration: d,
                   child: AppIcon(
                     AppIcons.searchRounded,
-                    color: focused ? colors.goldDark : colors.textSecondary,
+                    color: focused ? colors.iconTint : colors.textSecondary,
                   ),
                 ),
               ],
@@ -312,8 +312,10 @@ class _FlipSearchBarState extends State<FlipSearchBar> {
     );
   }
 
-  /// Split-flap: the outgoing phrase tips back over the top edge while
-  /// the incoming one falls into place from below.
+  /// Split-flap: the outgoing phrase tips back over the top edge and is
+  /// gone by the half-way point, then the incoming one falls into place
+  /// from below (owner 2026-10-20: never two phrases drawn on top of each
+  /// other).
   Widget _flip(Widget child, Animation<double> animation) {
     final incoming = child.key ==
         ValueKey(
@@ -326,7 +328,7 @@ class _FlipSearchBarState extends State<FlipSearchBar> {
         final t = animation.value;
         final angle = (1 - t) * (math.pi / 2) * (incoming ? 1 : -1);
         return Opacity(
-          opacity: t.clamp(0, 1),
+          opacity: ((t - 0.5) * 2).clamp(0, 1),
           child: Transform(
             alignment: incoming ? Alignment.topCenter : Alignment.bottomCenter,
             transform: Matrix4.identity()

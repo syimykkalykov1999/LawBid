@@ -14,6 +14,7 @@ import {
   decodeCursor,
   encodeCursor,
 } from '../../common/pagination/cursor.util';
+import { isValidTimeZone } from '../../common/utils/zoned-time';
 import { PrismaService } from '../../prisma/prisma.service';
 import { clientDisplayName } from '../comments/comments.service';
 import { FilesService } from '../files/files.service';
@@ -214,6 +215,19 @@ export class NotificationsApiService {
     // Owner 2026-10-02: a switched-off category leaves the badges at once.
     await this.badges.settingsChanged(userId);
     return this.settings(userId);
+  }
+
+  /** Owner 2026-10-20: the person's time zone (IANA). */
+  async setTimezone(userId: string, timezone: string): Promise<void> {
+    if (!isValidTimeZone(timezone))
+      throw invalid('timezone', 'Unknown time zone.');
+    await this.prisma.user.updateMany({
+      where: {
+        id: userId,
+        OR: [{ timezone: null }, { timezone: { not: timezone } }],
+      },
+      data: { timezone },
+    });
   }
 
   async setQuietHours(

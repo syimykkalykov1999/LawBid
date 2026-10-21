@@ -2,6 +2,7 @@ import { Injectable, Optional } from '@nestjs/common';
 import { CRON_JOBS } from './jobs.constants';
 import { CasePaymentsService } from '../modules/case-payments/case-payments.service';
 import { PromotionsService } from '../modules/promotions/promotions.service';
+import { StarsService } from '../modules/stars/stars.service';
 import { PartnersService } from '../modules/partners/partners.service';
 import { CountryPartnersService } from '../modules/country-partners/country-partners.service';
 import { RewardsService } from '../modules/rewards/rewards.service';
@@ -33,6 +34,8 @@ import { OpsMetricsJob } from './handlers/ops-metrics.job';
 import { OpsGuardJob } from './handlers/ops-guard.job';
 import { HEAVY_CRON_JOBS } from '../common/ops/ops.constants';
 import { OpsStateService } from '../common/ops/ops-state.service';
+import { LegalQaSweepJob } from '../modules/legal-qa/legal-qa-sweep.job';
+import { ConsultationRemindersJob } from '../modules/consultations/consultation-reminders.job';
 import {
   TaskArchivePurgeJob,
   TaskRemindersJob,
@@ -41,6 +44,8 @@ import { CallsService } from '../modules/calls/calls.service';
 import { PostVideosService } from '../modules/posts/post-videos.service';
 import { ClientReviewsService } from '../modules/client-reviews/client-reviews.service';
 import { AccountAnonymizationService } from '../modules/privacy/account-anonymization.service';
+import { LegalExportBuilder } from '../modules/admin-data-requests/legal-export.builder';
+import { LegalRetentionService } from '../modules/admin-data-requests/legal-retention.service';
 import { ExportsCleanupService } from '../modules/privacy/exports-cleanup.service';
 import { JournalIntegrityService } from '../modules/privacy/journal-integrity.service';
 import { AttorneyTrustService } from '../modules/attorney-trust/attorney-trust.service';
@@ -53,6 +58,7 @@ import { StorageCleanupService } from '../modules/storage/storage-cleanup.servic
 import { DataRetentionService } from '../modules/storage/data-retention.service';
 import { StorageStatsService } from '../modules/storage/storage-stats.service';
 import { EconomyService } from '../common/economy/economy.service';
+import { DisappearingSweepService } from '../modules/chat/disappearing-sweep.service';
 import { TreasuryService } from '../modules/treasury/treasury.service';
 
 /** Routes a `cron` queue job to its handler by job name. The return value
@@ -86,6 +92,7 @@ export class CronProcessor {
     private readonly clientReviews: ClientReviewsService,
     private readonly postVideos: PostVideosService,
     private readonly promotions: PromotionsService,
+    private readonly stars: StarsService,
     private readonly taskReminders: TaskRemindersJob,
     private readonly taskArchivePurge: TaskArchivePurgeJob,
     private readonly casePayments: CasePaymentsService,
@@ -110,6 +117,11 @@ export class CronProcessor {
     @Optional() private readonly searchLog?: SearchLogService,
     @Optional() private readonly searchSynonyms?: SearchSynonymsService,
     @Optional() private readonly crashReports?: CrashReportsService,
+    @Optional() private readonly consultationSweep?: ConsultationRemindersJob,
+    @Optional() private readonly legalExports?: LegalExportBuilder,
+    @Optional() private readonly legalRetention?: LegalRetentionService,
+    @Optional() private readonly disappearing?: DisappearingSweepService,
+    @Optional() private readonly legalQaSweep?: LegalQaSweepJob,
   ) {}
 
   async process(name: string): Promise<unknown> {
@@ -168,12 +180,18 @@ export class CronProcessor {
         return this.journalRetention.run();
       case CRON_JOBS.journalChainVerify:
         return this.journalIntegrity.run();
+      case CRON_JOBS.legalExports:
+        return this.legalExports?.run() ?? null;
+      case CRON_JOBS.legalRetention:
+        return this.legalRetention?.run() ?? null;
       case CRON_JOBS.exportsCleanup:
         return this.exportsCleanup.run();
       case CRON_JOBS.opsQueueMetrics:
         return this.opsMetrics.queueDepths();
       case CRON_JOBS.opsBusinessMetrics:
         return this.opsMetrics.businessCounters();
+      case CRON_JOBS.disappearingSweep:
+        return this.disappearing?.run() ?? null;
       case CRON_JOBS.callsSweep:
         return this.calls.sweep();
       case CRON_JOBS.reviewAppealsSweep:
@@ -182,6 +200,12 @@ export class CronProcessor {
         return this.postVideos.sweep();
       case CRON_JOBS.promotionsExpire:
         return this.promotions.expire();
+      case CRON_JOBS.starsSweep:
+        return this.stars.sweepPending();
+      case CRON_JOBS.legalQaSweep:
+        return this.legalQaSweep?.run() ?? null;
+      case CRON_JOBS.consultationsSweep:
+        return this.consultationSweep?.run() ?? null;
       case CRON_JOBS.taskReminders:
         return this.taskReminders.run();
       case CRON_JOBS.taskArchivePurge:

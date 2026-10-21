@@ -114,10 +114,12 @@ class PostTextSheet extends ConsumerWidget {
                     body: title,
                     expanded: true,
                     mentions: post.mentions,
-                    style: type.titleMedium.copyWith(
-                      fontFamily: type.body.fontFamily,
+                    // Owner 2026-10-20 (Instagram): bold, the caption's
+                    // own size.
+                    style: type.body.copyWith(
                       color: colors.text,
                       fontWeight: FontWeight.w700,
+                      height: 1.45,
                     ),
                   ),
                 if (text.isNotEmpty) ...[
@@ -126,6 +128,7 @@ class PostTextSheet extends ConsumerWidget {
                     body: text,
                     expanded: true,
                     mentions: post.mentions,
+                    large: true,
                   ),
                 ],
                 if (hashtags.isNotEmpty) ...[

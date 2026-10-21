@@ -27,11 +27,23 @@ import {
   hotRaw,
   postScore,
 } from './posts.scoring';
+import {
+  type CommunityCandidate,
+  type CommunityViewer,
+  communityScore,
+  feedOrder,
+} from './communities.scoring';
 import { diversify, type Scored } from './ranking.math';
 
 /** Ranked lists are rebuilt at most this often per viewer. */
 export const PEOPLE_TTL_SEC = 10 * 60;
 export const LISTING_TTL_SEC = 3 * 60;
+/** The recommended groups / channels snapshot is rebuilt this often. */
+export const COMMUNITY_TTL_SEC = 30 * 60;
+export const COMMUNITY_POOL = 100;
+/** Popular candidates read per snapshot, and the newest ones appended after. */
+const COMMUNITY_SCAN = 500;
+const COMMUNITY_NEWEST = 300;
 /** How many people / posts / cases a ranked list keeps. */
 export const PEOPLE_POOL = 300;
 export const POST_CANDIDATES = 400;
@@ -68,6 +80,15 @@ export function normalizeInterests(
   if (max <= 0) return out;
   for (const [k, v] of sums) out.set(k, v / max);
   return out;
+}
+
+interface CommunityRow {
+  id: string;
+  members: number;
+  last_at: Date | null;
+  owner_id: string;
+  joins7d: number;
+  mutual: number;
 }
 
 interface PersonRow {
@@ -594,6 +615,168 @@ export class RecommendationsService {
       states: new Set(base.states),
       bidOn: new Set(bids.map((b) => b.case_id)),
     };
+  }
+
+  // --- groups and channels -------------------------------------------------
+
+  /**
+   * Public groups or active channels to suggest to [viewerId], best first,
+   * with how many of the viewer's circle (people they follow, members of
+   * their own groups and channels) are in each. A snapshot per viewer, so
+   * the cost is paid once per [COMMUNITY_TTL_SEC], not per request. Never
+   * holds the viewer's own communities, ones they were removed from, or
+   * ones owned across a block; the callers filter what changed since.
+   */
+  async communities(
+    viewerId: string,
+    kind: 'group' | 'channel',
+  ): Promise<{ id: string; mutual: number }[]> {
+    const key = `reco:communities:${kind}:${viewerId}`;
+    const hit = await this.redis.get(key);
+    if (hit) return JSON.parse(hit) as { id: string; mutual: number }[];
+    const out = await this.buildCommunities(viewerId, kind);
+    await this.redis.set(key, JSON.stringify(out), 'EX', COMMUNITY_TTL_SEC);
+    return out;
+  }
+
+  private async buildCommunities(
+    viewerId: string,
+    kind: 'group' | 'channel',
+  ): Promise<{ id: string; mutual: number }[]> {
+    const [base, interests, circle] = await Promise.all([
+      this.viewerBase(viewerId),
+      this.interests(viewerId),
+      this.circle(viewerId),
+    ]);
+    const load = (newest: boolean) =>
+      kind === 'group'
+        ? this.groupRows(viewerId, circle, newest)
+        : this.channelRows(viewerId, circle, newest);
+    const [popularRows, newestRows] = await Promise.all([
+      load(false),
+      load(true),
+    ]);
+    const rows = [
+      ...new Map(
+        [...popularRows, ...newestRows].map((r) => [r.id, r]),
+      ).values(),
+    ];
+    if (rows.length === 0) return [];
+    const owners = [...new Set(rows.map((r) => r.owner_id))];
+    const [cats, states] = await Promise.all([
+      this.prisma.$queryRaw<{ uid: string; v: string[] }[]>`
+        SELECT ap.attorney_id::TEXT AS uid,
+               array_agg(DISTINCT COALESCE(pa.parent_id, pa.id)::TEXT) AS v
+        FROM attorney_practice_areas ap
+        JOIN practice_areas pa ON pa.id = ap.practice_area_id
+        WHERE ap.attorney_id = ANY(${owners}::UUID[]) GROUP BY 1`,
+      this.prisma.$queryRaw<{ uid: string; v: string[] }[]>`
+        SELECT l.attorney_id::TEXT AS uid,
+               array_agg(DISTINCT l.state_code::TEXT) AS v
+        FROM attorney_licenses l
+        WHERE l.license_status = 'verified'
+          AND l.attorney_id = ANY(${owners}::UUID[]) GROUP BY 1`,
+    ]);
+    const catOf = new Map(cats.map((r) => [r.uid, r.v]));
+    const stateOf = new Map(states.map((r) => [r.uid, r.v]));
+    const viewer: CommunityViewer = {
+      id: viewerId,
+      states: base.states,
+      interests,
+    };
+    const now = Date.now();
+    const scored = rows.map((r) => {
+      const cand: CommunityCandidate = {
+        id: r.id,
+        members: Number(r.members),
+        lastActivityAt: r.last_at ? new Date(r.last_at) : null,
+        joins7d: Number(r.joins7d),
+        categories: catOf.get(r.owner_id) ?? [],
+        states: stateOf.get(r.owner_id) ?? [],
+        mutual: Number(r.mutual),
+      };
+      return {
+        id: r.id,
+        mutual: cand.mutual,
+        score: communityScore(cand, viewer, now),
+      };
+    });
+    return feedOrder(
+      scored,
+      popularRows.map((r) => r.id),
+      newestRows.map((r) => r.id),
+      COMMUNITY_POOL,
+    ).map(({ id, mutual }) => ({ id, mutual }));
+  }
+
+  /** People the viewer knows: followed, and fellow members of own groups / channels. */
+  private async circle(viewerId: string): Promise<string[]> {
+    const rows = await this.prisma.$queryRaw<{ uid: string }[]>`
+      SELECT DISTINCT uid::TEXT AS uid FROM (
+        (SELECT followee_id AS uid FROM follows
+          WHERE follower_id = ${viewerId}::UUID LIMIT 300)
+        UNION ALL
+        (SELECT m.user_id FROM chat_group_members m
+          WHERE m.left_at IS NULL AND m.user_id <> ${viewerId}::UUID
+            AND m.group_id IN (SELECT group_id FROM chat_group_members
+              WHERE user_id = ${viewerId}::UUID AND left_at IS NULL LIMIT 20)
+          LIMIT 500)
+        UNION ALL
+        (SELECT s.user_id FROM channel_subscriptions s
+          WHERE s.user_id <> ${viewerId}::UUID
+            AND s.channel_id IN (SELECT channel_id FROM channel_subscriptions
+              WHERE user_id = ${viewerId}::UUID LIMIT 20)
+          LIMIT 500)
+      ) t`;
+    return rows.map((r) => r.uid);
+  }
+
+  private groupRows(viewerId: string, circle: string[], newest: boolean) {
+    return this.prisma.$queryRaw<CommunityRow[]>`
+      SELECT g.id::TEXT AS id, g.member_count AS members,
+             g.last_message_at AS last_at, own.user_id::TEXT AS owner_id,
+             (SELECT count(*)::INT FROM chat_group_members j
+               WHERE j.group_id = g.id AND j.left_at IS NULL
+                 AND j.joined_at > now() - INTERVAL '7 days') AS joins7d,
+             (SELECT count(*)::INT FROM chat_group_members j
+               WHERE j.group_id = g.id AND j.left_at IS NULL
+                 AND j.user_id = ANY(${circle}::UUID[])) AS mutual
+      FROM chat_groups g
+      JOIN chat_group_members own
+        ON own.group_id = g.id AND own.role = 'owner' AND own.left_at IS NULL
+      WHERE g.group_type = 'public' AND g.deleted_at IS NULL
+        AND g.member_count > 0
+        AND NOT EXISTS (SELECT 1 FROM chat_group_members me
+          WHERE me.group_id = g.id AND me.user_id = ${viewerId}::UUID
+            AND (me.left_at IS NULL OR me.left_reason = 'removed'))
+        AND NOT EXISTS (SELECT 1 FROM user_blocks b
+          WHERE (b.blocker_id = ${viewerId}::UUID AND b.blocked_id = own.user_id)
+             OR (b.blocker_id = own.user_id AND b.blocked_id = ${viewerId}::UUID))
+      ORDER BY ${newest ? Prisma.sql`g.created_at DESC` : Prisma.sql`g.member_count DESC, g.created_at DESC`}
+      LIMIT ${newest ? COMMUNITY_NEWEST : COMMUNITY_SCAN}`;
+  }
+
+  private channelRows(viewerId: string, circle: string[], newest: boolean) {
+    return this.prisma.$queryRaw<CommunityRow[]>`
+      SELECT c.id::TEXT AS id, c.subscriber_count AS members,
+             c.last_post_at AS last_at, c.owner_id::TEXT AS owner_id,
+             (SELECT count(*)::INT FROM channel_subscriptions j
+               WHERE j.channel_id = c.id
+                 AND j.created_at > now() - INTERVAL '7 days') AS joins7d,
+             (SELECT count(*)::INT FROM channel_subscriptions j
+               WHERE j.channel_id = c.id
+                 AND j.user_id = ANY(${circle}::UUID[])) AS mutual
+      FROM channels c
+      WHERE c.status = 'active' AND c.deleted_at IS NULL AND c.post_count > 0
+        AND NOT EXISTS (SELECT 1 FROM channel_subscriptions s
+          WHERE s.channel_id = c.id AND s.user_id = ${viewerId}::UUID)
+        AND NOT EXISTS (SELECT 1 FROM channel_admins a
+          WHERE a.channel_id = c.id AND a.user_id = ${viewerId}::UUID)
+        AND NOT EXISTS (SELECT 1 FROM user_blocks b
+          WHERE (b.blocker_id = ${viewerId}::UUID AND b.blocked_id = c.owner_id)
+             OR (b.blocker_id = c.owner_id AND b.blocked_id = ${viewerId}::UUID))
+      ORDER BY ${newest ? Prisma.sql`c.created_at DESC` : Prisma.sql`c.subscriber_count DESC, c.created_at DESC`}
+      LIMIT ${newest ? COMMUNITY_NEWEST : COMMUNITY_SCAN}`;
   }
 
   // --- cache -------------------------------------------------------------

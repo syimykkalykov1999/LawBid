@@ -26,6 +26,7 @@ import type {
   PaymentProvider,
   ProviderCheckoutSession,
 } from '../billing/payment-provider';
+import { StarsService } from '../stars/stars.service';
 import { ReferralsService } from '../referrals/referrals.service';
 import { wholeDays } from '../referrals/referrals.settings';
 import type {
@@ -81,6 +82,7 @@ export function toPromotionDto(p: CasePromotion): CasePromotionDto {
     goal: p.goal,
     ctaType: p.cta_type,
     ctaValue: p.cta_value,
+    paidStars: p.paid_stars,
     createdAt: p.created_at.toISOString(),
   };
 }
@@ -147,6 +149,7 @@ export class PromotionsService {
     @Optional() private readonly entitlements?: EntitlementsService,
     @Optional() private readonly delivery?: PromotionDeliveryService,
     @Optional() private readonly appSettings?: AppSettingsService,
+    @Optional() private readonly stars?: StarsService,
   ) {}
 
   /** Owner 2026-10-16: an attorney who is not verified cannot buy Boost
@@ -244,6 +247,7 @@ export class PromotionsService {
       priceCentsPerDay: q.priceCentsPerDay,
       grossCents: q.grossCents,
       totalCents: q.totalCents,
+      starsTotal: (await this.stars?.starsForCents(q.totalCents)) ?? null,
       creditDaysAvailable: wholeDays(creditDaysAvailable),
       creditDaysUsed: wholeDays(q.creditDaysUsed),
       creditDaysAvailableExact: creditDaysAvailable,
@@ -387,7 +391,7 @@ export class PromotionsService {
     const useCredits = dto.useCredits ?? true;
     const review = await this.needsReview(target, settings);
 
-    const { row, creditDaysUsed } = await withTxRetry(
+    const { row, creditDaysUsed, starsCharged } = await withTxRetry(
       this.prisma,
       async (tx) => {
         const now = new Date();
@@ -443,14 +447,26 @@ export class PromotionsService {
           promo,
           creditDayValueCents: settings.priceCentsPerDay,
         });
-        const free = q.totalCents === 0;
+        // Paid with stars: the balance is debited right here, so the
+        // boost behaves like a free one (no checkout) — all or nothing.
+        let starsCharged = 0;
+        if (dto.payWith === 'stars' && q.totalCents > 0) {
+          starsCharged = (await this.stars?.starsForCents(q.totalCents)) ?? 0;
+          if (starsCharged <= 0) {
+            throw new ForbiddenException({
+              code: ErrorCode.FEATURE_DISABLED,
+              message: 'Paying with stars is not available right now.',
+            });
+          }
+        }
+        const free = q.totalCents === 0 || starsCharged > 0;
         const startNow = free && !review;
         // An extension starts when the running boost ends.
         const begin = startNow
           ? await this.startAfterRunning(
               tx,
               {
-                id: '',
+                id: '00000000-0000-0000-0000-000000000000',
                 post_id: type === 'post' ? id : null,
                 case_id: type === 'case' ? id : null,
               } as CasePromotion,
@@ -484,8 +500,19 @@ export class PromotionsService {
               ? new Date(begin.getTime() + dto.days * DAY_MS)
               : null,
             promo_code_id: promo?.id ?? null,
+            paid_stars: starsCharged,
           },
         });
+        if (starsCharged > 0) {
+          await this.stars!.debit(
+            tx,
+            userId,
+            starsCharged,
+            'boost',
+            `boost:${created.id}`,
+            { refId: created.id },
+          );
+        }
         const used =
           q.creditDaysUsed > 0
             ? await this.referrals.consumePromotionCredits(
@@ -504,7 +531,7 @@ export class PromotionsService {
             q.promoDiscountCents,
           );
         }
-        return { row: created, creditDaysUsed: used };
+        return { row: created, creditDaysUsed: used, starsCharged };
       },
     );
 
@@ -514,7 +541,8 @@ export class PromotionsService {
         promotionId: row.id,
         status: row.status as PromotionStatus,
         checkoutUrl: null,
-        totalCents: 0,
+        totalCents: starsCharged > 0 ? row.total_cents : 0,
+        starsCharged,
         creditDaysUsed: wholeDays(creditDaysUsed),
         creditDaysUsedExact: creditDaysUsed,
         promotion: toPromotionDto(row),
@@ -565,6 +593,7 @@ export class PromotionsService {
       status: 'pending_payment',
       checkoutUrl: session.url,
       totalCents: row.total_cents,
+      starsCharged: 0,
       creditDaysUsed: wholeDays(creditDaysUsed),
       creditDaysUsedExact: creditDaysUsed,
       promotion: toPromotionDto(updated),

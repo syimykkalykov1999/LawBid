@@ -12,6 +12,7 @@ import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { BidAcceptanceController } from './acceptance/bid-acceptance.controller';
 import { BidAcceptanceService } from './acceptance/bid-acceptance.service';
 import { BidsController } from './bids.controller';
+import { ConflictCheckService } from './conflict/conflict-check.service';
 import { BidsService } from './bids.service';
 import { BidStateMachine } from './domain/bid-state-machine';
 
@@ -51,6 +52,7 @@ import { BidStateMachine } from './domain/bid-state-machine';
     CaseAccessPolicy,
     BidsService,
     BidAcceptanceService,
+    ConflictCheckService,
   ],
   exports: [BidStateMachine, BidsService, BidAcceptanceService],
 })

@@ -32,4 +32,16 @@ describe('SQL safety', () => {
       .filter((f) => !ALLOWED.has(f));
     expect(offenders).toEqual([]);
   });
+
+  it('every make_interval(unit => ${value}) casts the bound value to INT', () => {
+    // A JS number binds as bigint; make_interval takes integer, so without
+    // the cast (secs is double precision and takes a bigint) PostgreSQL 16 fails with "function make_interval(mins => bigint)
+    // does not exist" (it did, in the legal-exports worker).
+    const bare =
+      /make_interval\(\s*(?:years|months|weeks|days|hours|mins)\s*=>\s*\$\{[^}]+\}\s*\)/;
+    const offenders = walk(SRC)
+      .filter((f) => bare.test(readFileSync(f, 'utf8')))
+      .map((f) => relative(SRC, f).split(sep).join('/'));
+    expect(offenders).toEqual([]);
+  });
 });

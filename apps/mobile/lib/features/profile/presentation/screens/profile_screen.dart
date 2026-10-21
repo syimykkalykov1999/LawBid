@@ -11,6 +11,8 @@ import 'package:lawbid/features/profile/presentation/screens/attorney_profile_sc
 import 'package:lawbid/features/profile/presentation/widgets/attorney_profile_view.dart';
 import 'package:lawbid/features/profile/presentation/widgets/client_profile_view.dart';
 import 'package:lawbid/features/profile/presentation/widgets/profile_handle_bar.dart';
+import 'package:lawbid/features/stars/presentation/gift_widgets.dart'
+    show GiftHeaderButton;
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/presentation/team_widgets.dart';
 
@@ -70,13 +72,27 @@ class ProfileScreen extends ConsumerWidget {
       // left, the handle centered, settings on the right.
       appBar: ProfileHandleBar(
         handle: username ?? user?.clientProfile?.username,
-        leading: ExcludeSemantics(
-          child: ScalesLogo(
-            size: 40,
-            animated: true,
-            runFor: const Duration(seconds: 6),
-            semanticLabel: t.t('brand.name'),
-          ),
+        // Owner 2026-10-21: the gift second from the left, next to the
+        // scales; all four icons of the bar the size of the QR and the gear.
+        leading: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ExcludeSemantics(
+              child: SizedBox.square(
+                dimension: AppSizes.touchTarget,
+                child: Center(
+                  child: ScalesLogo(
+                    size: AppSizes.iconMd,
+                    animated: true,
+                    runFor: const Duration(seconds: 6),
+                    semanticLabel: t.t('brand.name'),
+                  ),
+                ),
+              ),
+            ),
+            if (user != null && assistant == null)
+              GiftHeaderButton(userId: user.id, isMe: true),
+          ],
         ),
         actions: [
           // Owner 2026-10-20 (WeChat): "My QR code" next to the gear.

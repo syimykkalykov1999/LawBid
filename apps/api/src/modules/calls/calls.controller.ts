@@ -1,4 +1,12 @@
-import { Body, Controller, Get, HttpCode, Param, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  Post,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   ApiEnvelopeResponse,
@@ -14,9 +22,17 @@ import { ConversationIdParamDto } from '../chat/chat.dto';
 import {
   CallDto,
   CallIdParamDto,
+  CallMuteDto,
+  CallParticipantParamDto,
+  CallVoteParamDto,
+  CastCallVoteDto,
   EndCallDto,
   IceServersDto,
+  InviteCallDto,
+  GroupCallParamDto,
   StartCallDto,
+  StartCallVoteDto,
+  StartGroupCallDto,
   VideoCallConfigDto,
 } from './calls.dto';
 import { CallsService } from './calls.service';
@@ -59,6 +75,56 @@ export class CallsController {
     @Body() dto: StartCallDto,
   ): Promise<CallDto> {
     return this.calls.start(user, p.id, dto ?? {});
+  }
+
+  @Post('groups/:id/calls')
+  @ApiOperation({
+    summary: 'Start a call from a group chat (audio or video)',
+  })
+  @ApiBody({ type: StartGroupCallDto, required: false })
+  @ApiEnvelopeResponse(CallDto, { status: 201 })
+  @ApiErrors({
+    403: [
+      ErrorCode.GROUP_FORBIDDEN,
+      ErrorCode.ENTITLEMENT_REQUIRED,
+      ErrorCode.FEATURE_DISABLED,
+    ],
+    404: [ErrorCode.GROUP_NOT_FOUND],
+    409: [ErrorCode.CALL_IN_PROGRESS],
+  })
+  startGroupCall(
+    @CurrentUser() user: RequestUser,
+    @Param() p: GroupCallParamDto,
+    @Body() dto: StartGroupCallDto,
+  ): Promise<CallDto> {
+    return this.calls.startGroupCall(user, p.id, dto ?? {});
+  }
+
+  @Get('groups/:id/call')
+  @ApiOperation({ summary: 'The call running in a group chat (404 when none)' })
+  @ApiEnvelopeResponse(CallDto)
+  @ApiErrors({ 404: [ErrorCode.GROUP_NOT_FOUND, ErrorCode.CALL_NOT_FOUND] })
+  groupCall(
+    @CurrentUser() user: RequestUser,
+    @Param() p: GroupCallParamDto,
+  ): Promise<CallDto> {
+    return this.calls.groupCall(user, p.id);
+  }
+
+  @Post('calls/:id/join')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Join the call running in your group chat' })
+  @ApiEnvelopeResponse(CallDto)
+  @ApiErrors({
+    403: [ErrorCode.ENTITLEMENT_REQUIRED, ErrorCode.FORBIDDEN],
+    404: [ErrorCode.CALL_NOT_FOUND, ErrorCode.GROUP_NOT_FOUND],
+    409: [ErrorCode.CALL_IN_PROGRESS, ErrorCode.CALL_STATE_CONFLICT],
+  })
+  joinCall(
+    @CurrentUser() user: RequestUser,
+    @Param() p: CallIdParamDto,
+  ): Promise<CallDto> {
+    return this.calls.joinCall(user, p.id);
   }
 
   @Get('calls/video')
@@ -125,5 +191,117 @@ export class CallsController {
     @Body() dto: EndCallDto,
   ): Promise<CallDto> {
     return this.calls.end(user, p.id, dto);
+  }
+
+  @Post('calls/:id/participants')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'Add a person to the running call (group call)',
+  })
+  @ApiEnvelopeResponse(CallDto)
+  @ApiErrors({
+    403: [
+      ErrorCode.SUBSCRIPTION_REQUIRED,
+      ErrorCode.USER_BLOCKED,
+      ErrorCode.ENTITLEMENT_REQUIRED,
+    ],
+    404: [ErrorCode.CALL_NOT_FOUND, ErrorCode.NOT_FOUND],
+    409: [
+      ErrorCode.CALL_NOT_ALLOWED,
+      ErrorCode.CALL_IN_PROGRESS,
+      ErrorCode.CALL_STATE_CONFLICT,
+    ],
+  })
+  inviteToCall(
+    @CurrentUser() user: RequestUser,
+    @Param() p: CallIdParamDto,
+    @Body() dto: InviteCallDto,
+  ): Promise<CallDto> {
+    return this.calls.invite(user, p.id, dto);
+  }
+
+  @Post('calls/:id/participants/:userId/mute')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: "Host: switch a member's microphone off / allow it",
+  })
+  @ApiEnvelopeResponse(CallDto)
+  @ApiErrors({
+    403: [ErrorCode.FORBIDDEN],
+    404: [ErrorCode.CALL_NOT_FOUND],
+    409: [ErrorCode.CALL_STATE_CONFLICT],
+  })
+  muteParticipant(
+    @CurrentUser() user: RequestUser,
+    @Param() p: CallParticipantParamDto,
+    @Body() dto: CallMuteDto,
+  ): Promise<CallDto> {
+    return this.calls.muteParticipant(user, p.id, p.userId, dto.muted);
+  }
+
+  @Delete('calls/:id/participants/:userId')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Host: remove a member from the call' })
+  @ApiEnvelopeResponse(CallDto)
+  @ApiErrors({
+    403: [ErrorCode.FORBIDDEN],
+    404: [ErrorCode.CALL_NOT_FOUND],
+    409: [ErrorCode.CALL_STATE_CONFLICT],
+  })
+  removeFromCall(
+    @CurrentUser() user: RequestUser,
+    @Param() p: CallParticipantParamDto,
+  ): Promise<CallDto> {
+    return this.calls.removeParticipant(user, p.id, p.userId);
+  }
+
+  @Post('calls/:id/votes')
+  @HttpCode(200)
+  @ApiOperation({
+    summary:
+      'Propose to remove a member (only while nobody who runs the call is in it)',
+  })
+  @ApiEnvelopeResponse(CallDto)
+  @ApiErrors({
+    403: [ErrorCode.FORBIDDEN],
+    404: [ErrorCode.CALL_NOT_FOUND],
+    409: [ErrorCode.CALL_STATE_CONFLICT],
+  })
+  startVote(
+    @CurrentUser() user: RequestUser,
+    @Param() p: CallIdParamDto,
+    @Body() dto: StartCallVoteDto,
+  ): Promise<CallDto> {
+    return this.calls.startVote(user, p.id, dto.targetId);
+  }
+
+  @Post('calls/:id/votes/:voteId')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Vote for / against removing the member' })
+  @ApiEnvelopeResponse(CallDto)
+  @ApiErrors({
+    403: [ErrorCode.FORBIDDEN],
+    404: [ErrorCode.CALL_NOT_FOUND],
+    409: [ErrorCode.CALL_STATE_CONFLICT],
+  })
+  castVote(
+    @CurrentUser() user: RequestUser,
+    @Param() p: CallVoteParamDto,
+    @Body() dto: CastCallVoteDto,
+  ): Promise<CallDto> {
+    return this.calls.castVote(user, p.id, p.voteId, dto.favor);
+  }
+
+  @Post('calls/:id/mute-state')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Tell the call my microphone is off / on' })
+  @ApiEnvelopeResponse(CallDto)
+  @ApiErrors({ 404: [ErrorCode.CALL_NOT_FOUND] })
+  muteState(
+    @CurrentUser() user: RequestUser,
+    @Param() p: CallIdParamDto,
+    @Body() dto: CallMuteDto,
+  ): Promise<CallDto> {
+    return this.calls.setMuteState(user, p.id, dto.muted);
   }
 }

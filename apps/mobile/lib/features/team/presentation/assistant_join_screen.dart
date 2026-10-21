@@ -108,13 +108,13 @@ class _AssistantJoinScreenState extends ConsumerState<AssistantJoinScreen> {
               height: 84,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: colors.goldTint,
+                color: colors.iconTintFill,
                 border: Border.all(color: colors.gold),
               ),
               child: AppIcon(
                 AppIcons.supportAgentRounded,
                 size: 40,
-                color: colors.gold,
+                color: colors.iconTint,
               ),
             ),
           ),

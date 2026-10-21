@@ -16,6 +16,7 @@ import 'package:lawbid/features/promotions/application/promotions_providers.dart
 import 'package:lawbid/features/promotions/domain/promotion_models.dart';
 import 'package:lawbid/features/promotions/presentation/boost_colors.dart';
 import 'package:lawbid/features/referrals/domain/referral_models.dart';
+import 'package:lawbid/features/stars/application/stars_providers.dart';
 import 'package:lawbid/features/subscription/domain/subscription_models.dart';
 import 'package:lawbid/features/subscription/presentation/promo_code_field.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -105,9 +106,27 @@ class _PromoteSheetState extends ConsumerState<PromoteSheet> {
   final _phone = TextEditingController();
   bool _ctaTouched = false;
   String? _promo;
+  bool _withStars = false;
   bool _busy = false;
   Timer? _debounce;
   int _seq = 0;
+
+  /// The price in stars when paying with the balance is possible: stars on,
+  /// something to pay and no promo code (the server prices that itself).
+  int? get _starsPrice {
+    if (_promo != null || _quote.totalCents <= 0) return null;
+    if (!ref.read(starsEnabledProvider)) return null;
+    if (!(ref.read(starsOverviewProvider).value?.enabled ?? false)) {
+      return null;
+    }
+    return _quote.starsTotal;
+  }
+
+  bool get _starsPay => _withStars && _starsPrice != null;
+
+  bool get _starsShort =>
+      _starsPay &&
+      (ref.read(starsOverviewProvider).value?.balance ?? 0) < _starsPrice!;
 
   bool get _isPost => widget.target == PromotionTarget.post;
 
@@ -268,9 +287,11 @@ class _PromoteSheetState extends ConsumerState<PromoteSheet> {
             ctaType: _isPost ? _cta : null,
             ctaValue: _ctaValue,
             extend: widget.extend,
+            withStars: _starsPay,
           );
       if (!mounted) return;
       ref
+        ..invalidate(starsOverviewProvider)
         ..invalidate(promotionStateProvider(widget.target, widget.id))
         ..invalidate(myPromotionsProvider);
       final url = r.checkoutUrl;
@@ -315,9 +336,12 @@ class _PromoteSheetState extends ConsumerState<PromoteSheet> {
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final q = _quote;
     final last = _step == kBoostSteps - 1;
+    if (ref.watch(starsEnabledProvider)) ref.watch(starsOverviewProvider);
     final payLabel = q.totalCents == 0
         ? t.t('promote.free')
-        : t.t('promote.pay', {'price': f.currencyFromCents(q.totalCents)});
+        : _starsPay
+            ? t.t('promote.pay.starsBtn', {'n': '${_starsPrice!}'})
+            : t.t('promote.pay', {'price': f.currencyFromCents(q.totalCents)});
     final height = MediaQuery.sizeOf(context).height * 0.92;
 
     Widget title(String key) => Padding(
@@ -422,7 +446,7 @@ class _PromoteSheetState extends ConsumerState<PromoteSheet> {
                       label: last ? payLabel : t.t('boost.next'),
                       icon: last ? AppIcons.lockOutlineRounded : null,
                       isLoading: _busy,
-                      onPressed: last ? _buy : _next,
+                      onPressed: last ? (_starsShort ? null : _buy) : _next,
                     ),
                   ),
                 ],
@@ -432,6 +456,43 @@ class _PromoteSheetState extends ConsumerState<PromoteSheet> {
         ),
       ),
     );
+  }
+
+  /// Card (the web checkout) or the star balance.
+  List<Widget> _payChoice(
+    Translator t,
+    AppColorTokens colors,
+    AppTypographyTokens type,
+  ) {
+    final balance = ref.read(starsOverviewProvider).value?.balance ?? 0;
+    return [
+      _choice(
+        colors: colors,
+        type: type,
+        icon: AppIcons.creditCardRounded,
+        label: t.t('promote.pay.card'),
+        selected: !_withStars,
+        onTap: () => setState(() => _withStars = false),
+      ),
+      _choice(
+        colors: colors,
+        type: type,
+        icon: AppIcons.starRounded,
+        label: t.t('promote.pay.stars'),
+        sub: t.t('stars.send.balance', {'n': '$balance'}),
+        selected: _withStars,
+        onTap: () => setState(() => _withStars = true),
+      ),
+      if (_starsShort)
+        Padding(
+          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+          child: Text(
+            '${t.t('promote.pay.short')} · ${t.t('stars.topup.web')}',
+            textAlign: TextAlign.center,
+            style: type.caption.copyWith(color: colors.dangerText),
+          ),
+        ),
+    ];
   }
 
   // --- 1 goal ----------------------------------------------------------
@@ -988,12 +1049,13 @@ class _PromoteSheetState extends ConsumerState<PromoteSheet> {
             ),
           ),
         const SizedBox(height: AppSpacing.md),
+        if (_starsPrice != null) ..._payChoice(t, colors, type),
         PromoCodeField(
           t: t,
           formats: f,
           plan: SubscriptionPlan.monthly,
           validate: _validate,
-          onChanged: (c) => _promo = c,
+          onChanged: (c) => setState(() => _promo = c),
         ),
         const SizedBox(height: AppSpacing.sm),
         Text(

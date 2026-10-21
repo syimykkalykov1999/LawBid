@@ -184,6 +184,11 @@ export class AdminStickerPackRowDto {
   ownerName!: string | null;
   @ApiProperty({ type: 'integer' }) stickerCount!: number;
   @ApiProperty({ type: 'integer' }) installCount!: number;
+  @ApiProperty({
+    type: 'integer',
+    description: 'Stars to add the pack; 0 = free.',
+  })
+  priceStars!: number;
   @ApiProperty({ format: 'date-time' }) createdAt!: string;
 }
 
@@ -207,6 +212,26 @@ export class CreateOfficialStickerPackDto {
   @IsOptional()
   @Matches(/^[A-Za-z][A-Za-z0-9_]{2,39}$/)
   shortName?: string;
+
+  @ApiPropertyOptional({
+    type: 'integer',
+    minimum: 0,
+    maximum: 1000000,
+    description: 'Stars to add the pack (0 = free, the default).',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(1000000)
+  priceStars?: number;
+}
+
+export class SetStickerPackPriceDto {
+  @ApiProperty({ type: 'integer', minimum: 0, maximum: 1000000 })
+  @IsInt()
+  @Min(0)
+  @Max(1000000)
+  priceStars!: number;
 }
 
 export class AddOfficialStickerDto {

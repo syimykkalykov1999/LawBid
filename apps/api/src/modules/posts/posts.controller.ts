@@ -376,6 +376,20 @@ export class PostsController {
     return this.engagement.unrepost(user.sub, p.id);
   }
 
+  @Get('posts/:id/likes')
+  @ApiOperation({
+    summary: 'Who liked a post, newest first (owner 2026-10-20)',
+  })
+  @ApiEnvelopeResponse(PersonItemDto, { isArray: true })
+  @ApiErrors({ 403: [E.USER_BLOCKED], 404: [E.POST_NOT_FOUND] })
+  listLikers(
+    @CurrentUser() user: RequestUser,
+    @Param() p: PostIdParamDto,
+    @Query() q: RepostsQueryDto,
+  ): Promise<PeoplePage> {
+    return this.engagement.listLikers(user.sub, p.id, q.cursor);
+  }
+
   @Get('posts/:id/reposts')
   @ApiOperation({
     summary: 'Who reposted a post, newest first (owner 2026-10-18)',
