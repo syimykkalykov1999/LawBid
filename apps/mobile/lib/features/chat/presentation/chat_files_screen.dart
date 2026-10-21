@@ -241,7 +241,7 @@ class _ChatFilesScreenState extends ConsumerState<ChatFilesScreen>
               values: ChatFilesTab.values,
               onChanged: (v) => _tabs.animateTo(v.index),
               pageBuilder: (_, tab) => switch (tab) {
-                ChatFilesTab.media => _MediaTab(
+                ChatFilesTab.media => SharedMediaTab(
                     media: media,
                     storage: _storage,
                     loading: _loading,
@@ -259,7 +259,7 @@ class _ChatFilesScreenState extends ConsumerState<ChatFilesScreen>
                       ),
                     }),
                   ),
-                ChatFilesTab.documents => _DocsTab(
+                ChatFilesTab.documents => SharedDocsTab(
                     docs: docs,
                     loading: _loading,
                     error: _error,
@@ -269,7 +269,7 @@ class _ChatFilesScreenState extends ConsumerState<ChatFilesScreen>
                       'n': plus(docs.length, partial: !_done),
                     }),
                   ),
-                ChatFilesTab.links => _LinksTab(
+                ChatFilesTab.links => SharedLinksTab(
                     links: links,
                     loading: thread.loadingMore || (thread.loading && more),
                     countLabel: t.t('files.count.links', {
@@ -358,8 +358,8 @@ Widget _tabBody({
   return child;
 }
 
-class _MediaTab extends ConsumerWidget {
-  const _MediaTab({
+class SharedMediaTab extends ConsumerWidget {
+  const SharedMediaTab({
     required this.media,
     required this.storage,
     required this.loading,
@@ -367,6 +367,7 @@ class _MediaTab extends ConsumerWidget {
     required this.onRetry,
     required this.onScroll,
     required this.countLabel,
+    super.key,
   });
 
   final List<ChatMessage> media;
@@ -451,16 +452,22 @@ class _MediaTab extends ConsumerWidget {
   }
 }
 
-class _DocsTab extends ConsumerWidget {
-  const _DocsTab({
+class SharedDocsTab extends ConsumerWidget {
+  const SharedDocsTab({
     required this.docs,
     required this.loading,
     required this.error,
     required this.onRetry,
     required this.onScroll,
     required this.countLabel,
+    this.emptyText,
+    this.listKey = const ValueKey('files-docs'),
+    super.key,
   });
 
+  /// Overrides «No documents» (the group's voice tab lists audio files).
+  final String? emptyText;
+  final Key listKey;
   final List<ChatMessage> docs;
   final bool loading;
   final Object? error;
@@ -481,11 +488,11 @@ class _DocsTab extends ConsumerWidget {
       loading: loading,
       error: error,
       onRetry: onRetry,
-      emptyText: t.t('files.empty.documents'),
+      emptyText: emptyText ?? t.t('files.empty.documents'),
       child: NotificationListener<ScrollNotification>(
         onNotification: onScroll,
         child: CustomScrollView(
-          key: const ValueKey('files-docs'),
+          key: listKey,
           slivers: [
             SliverToBoxAdapter(child: _CountLine(countLabel)),
             SliverList.builder(
@@ -534,13 +541,16 @@ class _DocsTab extends ConsumerWidget {
   }
 }
 
-class _LinksTab extends ConsumerWidget {
-  const _LinksTab({
+class SharedLinksTab extends ConsumerWidget {
+  const SharedLinksTab({
     required this.links,
     required this.loading,
     required this.countLabel,
+    this.onScroll,
+    super.key,
   });
 
+  final bool Function(ScrollNotification)? onScroll;
   final List<ChatLink> links;
   final bool loading;
   final String countLabel;
@@ -559,47 +569,50 @@ class _LinksTab extends ConsumerWidget {
       error: null,
       onRetry: null,
       emptyText: t.t('files.empty.links'),
-      child: ListView(
-        key: const ValueKey('files-links'),
-        padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
-        children: [
-          _CountLine(countLabel),
-          for (final l in links)
-            ListTile(
-              key: ValueKey('link-${l.message.id}-${l.url}'),
-              leading: Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: colors.surface,
-                  borderRadius: BorderRadius.circular(AppRadii.button),
-                  border: Border.all(color: colors.border),
+      child: NotificationListener<ScrollNotification>(
+        onNotification: onScroll ?? (_) => false,
+        child: ListView(
+          key: const ValueKey('files-links'),
+          padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
+          children: [
+            _CountLine(countLabel),
+            for (final l in links)
+              ListTile(
+                key: ValueKey('link-${l.message.id}-${l.url}'),
+                leading: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: colors.surface,
+                    borderRadius: BorderRadius.circular(AppRadii.button),
+                    border: Border.all(color: colors.border),
+                  ),
+                  child: AppIcon(
+                    AppIcons.linkRounded,
+                    color: colors.iconTint,
+                    size: 20,
+                  ),
                 ),
-                child: AppIcon(
-                  AppIcons.linkRounded,
-                  color: colors.iconTint,
-                  size: 20,
+                title: Text(
+                  l.domain,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: type.bodySmall.copyWith(
+                    color: colors.text,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-              ),
-              title: Text(
-                l.domain,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: type.bodySmall.copyWith(
-                  color: colors.text,
-                  fontWeight: FontWeight.w600,
+                subtitle: Text(
+                  '${l.url} · ${f.date(l.message.createdAt)}',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: type.caption.copyWith(color: colors.textSecondary),
                 ),
+                onTap: () => openCaseDocument(l.url),
               ),
-              subtitle: Text(
-                '${l.url} · ${f.date(l.message.createdAt)}',
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: type.caption.copyWith(color: colors.textSecondary),
-              ),
-              onTap: () => openCaseDocument(l.url),
-            ),
-          if (loading) const _Spinner(),
-        ],
+            if (loading) const _Spinner(),
+          ],
+        ),
       ),
     );
   }

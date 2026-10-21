@@ -149,6 +149,18 @@ class GroupRepository {
     return CursorPage(items: env.data, nextCursor: env.meta?.nextCursor);
   }
 
+  /// Owner 2026-10-21: one tab of the group's shared media, newest first.
+  Future<CursorPage<api.GroupMessageDto>> shared(
+    String id,
+    api.GroupSharedKind kind, {
+    String? cursor,
+  }) async {
+    final env = await guardApiCall(
+      () => _c.listShared(id: id, kind: kind, cursor: cursor),
+    );
+    return CursorPage(items: env.data, nextCursor: env.meta?.nextCursor);
+  }
+
   Future<api.GroupMessageDto> send(
     String id,
     api.SendGroupMessageDto body,

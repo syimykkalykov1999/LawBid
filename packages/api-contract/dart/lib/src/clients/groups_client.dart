@@ -20,6 +20,7 @@ import '../models/group_list_envelope.dart';
 import '../models/group_message_envelope.dart';
 import '../models/group_message_list_envelope.dart';
 import '../models/group_read_result_envelope.dart';
+import '../models/group_shared_kind.dart';
 import '../models/group_topic_envelope.dart';
 import '../models/group_topic_list_envelope.dart';
 import '../models/pin_group_message_dto.dart';
@@ -303,6 +304,20 @@ abstract class GroupsClient {
   Future<PollVoterOptionListEnvelope> listGroupPollVoters({
     @Path('id') required String id,
     @Path('pollId') required String pollId,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Shared media of the group, newest first.
+  ///
+  /// [kind] - media = photos and videos · files = documents · links = messages with a link · voice = voice notes.
+  ///
+  /// [cursor] - meta.nextCursor of the previous page.
+  @GET('/groups/{id}/shared')
+  Future<GroupMessageListEnvelope> listShared({
+    @Path('id') required String id,
+    @Query('kind') required GroupSharedKind kind,
+    @Query('limit') num? limit = 30,
+    @Query('cursor') String? cursor,
     @Extras() Map<String, dynamic>? extras,
   });
 }
