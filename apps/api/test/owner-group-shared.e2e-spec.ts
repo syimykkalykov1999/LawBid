@@ -6,6 +6,7 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
+import { acceptInvites } from './support/group-invites';
 
 /**
  * Owner 2026-10-21 (Telegram «shared media»): GET /groups/:id/shared —
@@ -72,6 +73,7 @@ describe('Group shared media (e2e)', () => {
       .set(bearer(owner.id))
       .send({ title: 'Media', type: 'closed', memberIds: [ann.id] })
       .expect(201);
+    await acceptInvites(api, bearer, res.body.data.id as string, [ann.id]);
     return { owner, ann, cy, id: res.body.data.id as string };
   }
 

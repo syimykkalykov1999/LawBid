@@ -215,6 +215,10 @@ describe('Group chat calls (e2e)', () => {
         memberIds: [friend.id, stranger.id],
       })
       .expect(201);
+    await acceptInvites(api, auth, g.body.data.id as string, [
+      friend.id,
+      stranger.id,
+    ]);
     const started = await api()
       .post(`/api/v1/groups/${g.body.data.id as string}/calls`)
       .set(auth(owner.id))

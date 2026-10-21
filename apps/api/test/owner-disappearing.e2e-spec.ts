@@ -6,6 +6,7 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
+import { acceptInvites } from './support/group-invites';
 import { DisappearingSweepService } from '../src/modules/chat/disappearing-sweep.service';
 
 /**
@@ -251,6 +252,7 @@ describe('Disappearing messages (e2e, owner 2026-10-21)', () => {
       .send({ title: 'Vanish', memberIds: [ann.id] })
       .expect(201);
     const gid = created.body.data.id as string;
+    await acceptInvites(api, bearer, gid, [ann.id]);
     // «Edit group info» is admins-only by default: a member cannot.
     await api()
       .patch(`/api/v1/groups/${gid}`)
