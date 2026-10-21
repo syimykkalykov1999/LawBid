@@ -4,7 +4,6 @@ import 'package:lawbid/core/account_status/account_restricted.dart';
 import 'package:lawbid/core/account_status/account_suspended.dart';
 import 'package:lawbid/core/app_update/app_update_gate.dart';
 import 'package:lawbid/core/config/app_environment.dart';
-import 'package:lawbid/core/connectivity/offline_banner_host.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/available_languages.dart';
 import 'package:lawbid/core/l10n/language_providers.dart';
@@ -65,9 +64,7 @@ class LawBidApp extends ConsumerWidget {
       // Update gate (docs/01_FOUNDATION_AUTH.md §7/§12/§15 "Этап 1.8"):
       // forced-update screen (below min_app_version_* or ANY 426
       // APP_UPDATE_REQUIRED response) and the dismissible soft-update
-      // prompt — see core/app_update/app_update_gate.dart. Inside it, the
-      // global offline banner (docs/01 §8.3, p12 leaf-1.6), active only on
-      // in-app routes — see core/connectivity/offline_banner_host.dart.
+      // prompt — see core/app_update/app_update_gate.dart.
       // Owner 2026-09-30: a tap on empty space anywhere hides the keyboard
       // (Instagram/YouTube behaviour). Translucent: buttons and fields
       // still get their own taps first.
@@ -101,13 +98,13 @@ class LawBidApp extends ConsumerWidget {
                               // OQ-041: the call screen pops over any route.
                               : CallHost(
                                   router: router,
-                                  child: RouterOfflineBannerHost(
+                                  // Owner 2026-10-21: no «connection lost»
+                                  // banner for users, ever (screens keep
+                                  // their cache and retry quietly).
+                                  // Owner 2026-10-05 (docs/CLIENT_FRAUD.md).
+                                  child: AccountRestrictedHost(
                                     router: router,
-                                    // Owner 2026-10-05 (docs/CLIENT_FRAUD.md).
-                                    child: AccountRestrictedHost(
-                                      router: router,
-                                      child: child,
-                                    ),
+                                    child: child,
                                   ),
                                 ),
                         ),

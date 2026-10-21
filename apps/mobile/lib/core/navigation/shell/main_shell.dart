@@ -24,9 +24,7 @@ import 'package:lawbid/features/demo/presentation/demo_banner.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
 import 'package:lawbid/features/notifications/application/push_service.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
-import 'package:lawbid/features/reels/application/reel_publish_job.dart';
 import 'package:lawbid/features/reels/application/reels_providers.dart';
-import 'package:lawbid/features/reels/presentation/reel_publish_strip.dart';
 import 'package:lawbid/features/referrals/application/install_referrer.dart';
 
 /// Shell scaffold for the 4 `StatefulShellRoute.indexedStack` branches
@@ -105,12 +103,6 @@ class _MainShellState extends ConsumerState<MainShell> {
       ..listen(badgesProvider, (_, __) {})
       ..listen(sessionServicesProvider, (_, __) {});
 
-    // Owner 2026-10-18 (speed): only "is a reel uploading" — the upload's
-    // progress ticks must not rebuild the whole shell (the strip watches
-    // them itself).
-    final uploading = ref.watch(
-      reelPublishJobProvider.select((j) => j.phase != ReelPublishPhase.idle),
-    );
     final miniPlayer = ref.watch(
       voicePlayerProvider.select(
         (p) => p.messageId != null && p.messageId != kVoiceDraftId,
@@ -123,9 +115,6 @@ class _MainShellState extends ConsumerState<MainShell> {
       child: DemoBannerHost(
         child: Column(
           children: [
-            // Owner 2026-10-15: a reel uploading in the background.
-            if (uploading)
-              const SafeArea(bottom: false, child: ReelPublishStrip()),
             // WhatsApp: a voice note keeps playing after the chat is left.
             VoiceMiniPlayer(
               onOpen: (id) => context.push(ChatRoutes.conversation(id)),
@@ -134,7 +123,7 @@ class _MainShellState extends ConsumerState<MainShell> {
               // The strip took the status bar's room; the screens below
               // must not leave it a second time.
               child: StatusBarTaken(
-                taken: uploading || miniPlayer,
+                taken: miniPlayer,
                 // Owner 2026-10-18 (speed): tabs switch instantly — the
                 // whole-body fade drew the tab into an extra layer.
                 child: KeyedSubtree(key: _bodyKey, child: navigationShell),

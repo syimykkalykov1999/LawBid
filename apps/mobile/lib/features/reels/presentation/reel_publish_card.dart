@@ -8,19 +8,19 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/reels/application/reel_publish_job.dart';
 
-/// Owner 2026-10-15 (like X / Threads): one thin line over the app while a
-/// reel is compressed, uploaded and posted in the background — the text,
-/// a hairline of progress and a «Cancel»; then «Published» (a tap opens
-/// the profile; it leaves by itself) or «Failed · Retry» (the video is
-/// kept).
-class ReelPublishStrip extends ConsumerStatefulWidget {
-  const ReelPublishStrip({super.key});
+/// Owner 2026-10-21 (like Instagram): the reel being published is a card at
+/// the top of the feed itself — never a bar over the app. A thin line of
+/// progress runs along its bottom edge while the video is compressed,
+/// uploaded and encoded; «Cancel» while it goes, «Retry» inside the card
+/// when it failed (the video is kept); «Published» leaves by itself.
+class ReelPublishCard extends ConsumerStatefulWidget {
+  const ReelPublishCard({super.key});
 
   @override
-  ConsumerState<ReelPublishStrip> createState() => _ReelPublishStripState();
+  ConsumerState<ReelPublishCard> createState() => _ReelPublishCardState();
 }
 
-class _ReelPublishStripState extends ConsumerState<ReelPublishStrip> {
+class _ReelPublishCardState extends ConsumerState<ReelPublishCard> {
   Timer? _hide;
 
   @override
@@ -57,50 +57,69 @@ class _ReelPublishStripState extends ConsumerState<ReelPublishStrip> {
         : done || s.phase == ReelPublishPhase.processing
             ? null
             : (t.t('common.cancel'), job.cancel);
-    return Material(
-      color: colors.surface,
+    return Container(
+      margin: const EdgeInsets.fromLTRB(
+        AppSpacing.screenSide,
+        AppSpacing.sm,
+        AppSpacing.screenSide,
+        AppSpacing.sm,
+      ),
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: failed ? colors.danger : colors.border),
+      ),
       child: InkWell(
         onTap: done ? () => context.go(AppRoutes.profile) : null,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            SizedBox(
-              height: 32,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.screenSide,
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: type.bodySmall.copyWith(
-                          color: failed ? colors.danger : colors.text,
+            Padding(
+              padding: const EdgeInsets.all(AppSpacing.sm),
+              child: Row(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: colors.border,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      done ? Icons.check_rounded : Icons.play_arrow_rounded,
+                      color: colors.text,
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: Text(
+                      label,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: type.bodySmall.copyWith(
+                        color: failed ? colors.danger : colors.text,
+                      ),
+                    ),
+                  ),
+                  if (action != null)
+                    InkWell(
+                      onTap: action.$2,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.sm,
+                          vertical: AppSpacing.xs,
+                        ),
+                        child: Text(
+                          action.$1,
+                          style: type.bodySmall.copyWith(
+                            color: colors.goldDark,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                     ),
-                    if (action != null)
-                      InkWell(
-                        onTap: action.$2,
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: AppSpacing.sm,
-                            vertical: AppSpacing.xs,
-                          ),
-                          child: Text(
-                            failed ? ' · ${action.$1}' : action.$1,
-                            style: type.bodySmall.copyWith(
-                              color: colors.goldDark,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
+                ],
               ),
             ),
             if (s.busy)
@@ -112,9 +131,7 @@ class _ReelPublishStripState extends ConsumerState<ReelPublishStrip> {
                 minHeight: 2,
                 color: colors.gold,
                 backgroundColor: colors.border,
-              )
-            else
-              Divider(height: 1, color: colors.border),
+              ),
           ],
         ),
       ),
