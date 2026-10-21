@@ -124,7 +124,7 @@ describe('Channels (e2e)', () => {
     return false;
   };
 
-  it('creates a channel with a unique @username; only verified attorneys', async () => {
+  it('creates a channel with a unique @username; attorneys and clients', async () => {
     const owner = await attorney('Olga');
     const reader = await client('Rita');
     const name = `ch_${randomUUID().replace(/-/g, '').slice(0, 10)}`;
@@ -145,7 +145,18 @@ describe('Channels (e2e)', () => {
     expect((await mkChannel(owner, { username: name })).status).toBe(409);
     expect((await mkChannel(owner, { username: 'lawbid' })).status).toBe(400);
     expect((await mkChannel(owner, { username: 'a' })).status).toBe(400);
+    // Owner 2026-10-21 (п.24): a client creates channels too; an account
+    // that may not publish (no verified phone) still may not.
+    expect((await mkChannel(reader)).status).toBe(201);
+    await prisma.user.update({
+      where: { id: reader.id },
+      data: { phone_verified_at: null },
+    });
     expect((await mkChannel(reader)).status).toBe(403);
+    await prisma.user.update({
+      where: { id: reader.id },
+      data: { phone_verified_at: new Date() },
+    });
 
     // By @username and by id.
     const byName = await api()

@@ -81,7 +81,9 @@ export class ChannelsController {
   }
 
   @Post()
-  @ApiOperation({ summary: 'Create a channel (verified attorneys)' })
+  @ApiOperation({
+    summary: 'Create a channel (verified attorneys and clients)',
+  })
   @ApiEnvelopeResponse(ChannelDto, { status: 201 })
   @ApiErrors({
     403: [E.POST_NOT_ALLOWED, E.FEATURE_DISABLED],

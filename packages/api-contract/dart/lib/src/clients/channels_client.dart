@@ -45,7 +45,7 @@ abstract class ChannelsClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Create a channel (verified attorneys)
+  /// Create a channel (verified attorneys and clients)
   @POST('/channels')
   Future<ChannelEnvelope> channelCreate({
     @Body() required CreateChannelDto body,
