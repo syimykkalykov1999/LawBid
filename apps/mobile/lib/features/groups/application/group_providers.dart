@@ -77,6 +77,10 @@ final groupsProvider = AsyncNotifierProvider.autoDispose<GroupsNotifier,
 
 /// Owner 2026-10-20: my archived groups (the Archive screen).
 class ArchivedGroupsNotifier extends GroupsNotifier {
+  /// Only the «Archive (N)» row and the archive screen read it: no cache.
+  @override
+  Duration? get keepAliveFor => null;
+
   @override
   Future<CursorPage<api.GroupDto>> fetch(String? cursor) =>
       ref.read(groupRepositoryProvider).groups(cursor: cursor, archived: true);

@@ -81,6 +81,10 @@ class Channel {
     this.lastPostAt,
     this.protectContent = false,
     this.ongoingCall,
+    this.pinned = false,
+    this.archived = false,
+    this.mutedUntil,
+    this.unreadCount = 0,
   });
 
   final String id;
@@ -112,6 +116,20 @@ class Channel {
   /// the channel now (subscribers and admins see it).
   final OngoingCallSummary? ongoingCall;
 
+  /// Owner 2026-10-21 (inbox 22c / 27, Telegram): my own settings of a
+  /// channel I follow — pinned on top, in the Channels archive, muted until
+  /// a moment (null = on, or muted for good when [isMuted]), unread posts.
+  final bool pinned;
+  final bool archived;
+  final DateTime? mutedUntil;
+  final int unreadCount;
+
+  /// Muted right now: a timed mute ends by itself once [mutedUntil] passed.
+  bool get mutedNow {
+    final until = mutedUntil;
+    return until == null ? isMuted : until.isAfter(DateTime.now());
+  }
+
   bool get isOwner => myRole == ChannelRole.owner;
   bool get isAdmin => myRole != null;
 
@@ -122,6 +140,11 @@ class Channel {
     bool? isSubscribed,
     bool? isMuted,
     int? subscriberCount,
+    bool? pinned,
+    bool? archived,
+    int? unreadCount,
+    DateTime? mutedUntil,
+    bool clearMutedUntil = false,
   }) =>
       Channel(
         id: id,
@@ -142,6 +165,10 @@ class Channel {
         createdAt: createdAt,
         protectContent: protectContent,
         ongoingCall: ongoingCall,
+        pinned: pinned ?? this.pinned,
+        archived: archived ?? this.archived,
+        mutedUntil: clearMutedUntil ? null : mutedUntil ?? this.mutedUntil,
+        unreadCount: unreadCount ?? this.unreadCount,
       );
 }
 

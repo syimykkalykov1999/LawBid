@@ -93,9 +93,19 @@ void main() {
     testWidgets('no subscriptions is a plain empty state, not an error',
         (tester) async {
       final repo = FakeChannelsRepository();
-      await pump(tester, const ChannelsScreen(), repo);
+      await pump(
+        tester,
+        const ChannelsScreen(),
+        repo,
+        // No network reads of the groups (their archive too) left running.
+        extra: [
+          groupRepositoryProvider.overrideWithValue(FakeGroupRepository()),
+        ],
+      );
       expect(find.byType(AppErrorState), findsNothing);
       expect(find.byType(ChannelsEmpty), findsWidgets);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(minutes: 5));
     });
 
     // Owner 2026-10-21: every tab has «Groups | Channels» on top: groups

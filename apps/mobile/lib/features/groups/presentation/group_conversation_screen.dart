@@ -37,6 +37,7 @@ import 'package:lawbid/features/groups/presentation/widgets/group_topic_list.dar
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart'
     show GoldRingAvatar;
+import 'package:lawbid/shared/presentation/mute_for_sheet.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// A group chat (or one topic of a forum group): header with the group and
@@ -528,6 +529,10 @@ class _GroupConversationScreenState
     required bool muted,
   }) async {
     final t = ref.read(translatorProvider);
+    // Owner 2026-10-21 (inbox 27): off for 1 h · 8 h · 2 days · forever.
+    final until = muted ? null : await pickMuteUntil(context, t);
+    if (!muted && until == null) return;
+    if (!mounted) return;
     try {
       await ref.read(groupRepositoryProvider).updateMine(
             detail.id,
@@ -536,7 +541,7 @@ class _GroupConversationScreenState
               // moment in the past: the mute has already ended.
               mutedUntil: muted
                   ? DateTime.now().toUtc().subtract(const Duration(seconds: 1))
-                  : DateTime.now().toUtc().add(const Duration(days: 3650)),
+                  : until!.toUtc(),
             ),
           );
       if (!mounted) return;

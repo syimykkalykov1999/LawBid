@@ -42,6 +42,10 @@ class FakeGroupRepository implements GroupRepository {
   final api.GroupInvitePreviewDetailDto? invitePeek;
   final updates = <String>[];
 
+  /// The Groups archive (owner 2026-10-21, inbox 22c): `groups(archived:
+  /// true)` answers these.
+  List<api.GroupDto> archivedItems = const [];
+
   /// The shared-media tabs: the rows of each kind (newest first), served
   /// [sharedPage] at a time; [sharedCalls] records `kind:cursor`.
   final sharedItems = <api.GroupSharedKind, List<api.GroupMessageDto>>{};
@@ -56,7 +60,7 @@ class FakeGroupRepository implements GroupRepository {
     String? cursor,
     bool archived = false,
   }) async =>
-      CursorPage(items: items);
+      CursorPage(items: archived ? archivedItems : items);
 
   @override
   Future<api.GroupDetailDto> group(String id) async => detail!;
@@ -142,7 +146,20 @@ class FakeGroupRepository implements GroupRepository {
   }
 
   @override
-  Future<void> read(String id, String lastReadMessageId) async {}
+  Future<void> read(String id, String lastReadMessageId) async =>
+      updates.add('read:$id:$lastReadMessageId');
+
+  @override
+  Future<void> leave(String id) async => updates.add('leave:$id');
+
+  @override
+  Future<api.GroupJoinResultDto> join(String code) async {
+    updates.add('join:$code');
+    return const api.GroupJoinResultDto(
+      status: api.GroupJoinResultDtoStatus.pending,
+      groupId: 'g9',
+    );
+  }
 
   @override
   Future<api.GroupDto> updateMine(String id, api.UpdateGroupMeDto body) async {
@@ -150,7 +167,7 @@ class FakeGroupRepository implements GroupRepository {
       '$id:pinned=${body.pinned}:hidden=${body.hidden}:'
       'muted=${body.mutedUntil != null}:archived=${body.archived}',
     );
-    return items.firstWhere((g) => g.id == id);
+    return [...items, ...archivedItems].firstWhere((g) => g.id == id);
   }
 
   @override

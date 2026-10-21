@@ -38,7 +38,7 @@ import 'package:lawbid_api/lawbid_api.dart' as api;
 
 enum _MemberAction { makeAdmin, rights, removeAdmin, transfer, remove }
 
-enum _Mute { hour, eightHours, week, forever, off }
+enum _Mute { hour, eightHours, days2, forever, off }
 
 /// Owner 2026-10-20: «Group info» (Telegram + WhatsApp): photo, title,
 /// description, mute, the admin settings, the invite link, join requests,
@@ -269,7 +269,7 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
           value: _Mute.eightHours,
           label: t.t('group.info.mute.hours8'),
         ),
-        GroupChoice(value: _Mute.week, label: t.t('group.info.mute.week')),
+        GroupChoice(value: _Mute.days2, label: t.t('group.info.mute.days2')),
         GroupChoice(
           value: _Mute.forever,
           label: t.t('group.info.mute.forever'),
@@ -283,7 +283,7 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
     final until = switch (pick) {
       _Mute.hour => now.add(const Duration(hours: 1)),
       _Mute.eightHours => now.add(const Duration(hours: 8)),
-      _Mute.week => now.add(const Duration(days: 7)),
+      _Mute.days2 => now.add(const Duration(days: 2)),
       _Mute.forever => DateTime.utc(2100),
       _Mute.off => now.subtract(const Duration(minutes: 1)),
     };

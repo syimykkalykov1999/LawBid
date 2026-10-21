@@ -41,6 +41,10 @@ Channel fakeChannel({
   ChannelState state = ChannelState.active,
   String? avatarUrl,
   OngoingCallSummary? ongoingCall,
+  bool pinned = false,
+  bool archived = false,
+  int unread = 0,
+  DateTime? mutedUntil,
 }) =>
     Channel(
       id: id,
@@ -59,6 +63,10 @@ Channel fakeChannel({
       myRole: role,
       createdAt: DateTime(2026, 10),
       ongoingCall: ongoingCall,
+      pinned: pinned,
+      archived: archived,
+      unreadCount: unread,
+      mutedUntil: mutedUntil,
     );
 
 ChannelPost fakePost(
@@ -139,9 +147,54 @@ class FakeChannelsRepository implements ChannelsRepository {
         () => CursorPage(items: listed),
       );
 
+  /// The Channels archive (owner 2026-10-21, inbox 22c).
+  List<Channel> archivedList = [];
+
   @override
-  Future<List<Channel>> list(ChannelScope scope, {String? q}) =>
-      _run('list:${scope.name}:${q ?? ''}', () => listed);
+  Future<List<Channel>> list(
+    ChannelScope scope, {
+    String? q,
+    bool archived = false,
+  }) =>
+      archived
+          ? _run('list:archived', () => archivedList)
+          : _run('list:${scope.name}:${q ?? ''}', () => listed);
+
+  @override
+  Future<Channel> updateMine(
+    String id, {
+    bool? pinned,
+    bool? archived,
+    DateTime? mutedUntil,
+    bool unmute = false,
+    bool read = false,
+  }) =>
+      _run(
+        'me:$id'
+        '${pinned == null ? '' : ':pinned=$pinned'}'
+        '${archived == null ? '' : ':archived=$archived'}'
+        '${mutedUntil == null ? '' : ':mutedUntil'}'
+        '${unmute ? ':unmute' : ''}'
+        '${read ? ':read' : ''}',
+        () {
+          final base = channel.id == id
+              ? channel
+              : [...listed, ...archivedList].firstWhere(
+                  (c) => c.id == id,
+                  orElse: () => channel,
+                );
+          final next = base.copyWith(
+            pinned: pinned,
+            archived: archived,
+            unreadCount: read ? 0 : null,
+            isMuted: unmute ? false : (mutedUntil != null ? false : null),
+            mutedUntil: mutedUntil,
+            clearMutedUntil: unmute,
+          );
+          if (channel.id == id) channel = next;
+          return next;
+        },
+      );
 
   @override
   Future<Channel> get(String ref) => _run('get:$ref', () => channel);

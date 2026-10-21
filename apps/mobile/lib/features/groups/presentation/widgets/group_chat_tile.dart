@@ -15,21 +15,34 @@ import 'package:lawbid/features/groups/domain/ongoing_call.dart';
 import 'package:lawbid/features/groups/group_routes.dart';
 import 'package:lawbid/features/groups/presentation/group_message_text.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_call_ui.dart';
+import 'package:lawbid/features/groups/presentation/widgets/group_info_sheets.dart'
+    show confirmGroupAction;
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
+import 'package:lawbid/shared/presentation/mute_for_sheet.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
-/// A group in the Chats list: same look and height as a direct chat row.
-/// A tap opens the group (or picks it in «Select chats»); a long press
-/// opens its menu (pin · mute · hide).
+/// Owner 2026-10-21 (inbox 22d): the actions a group's menu offers by the
+/// tab it is on — «Mine» the full set (pin · mute · read · archive ·
+/// select · remove · leave), «Following» pin · mute · archive · select ·
+/// leave.
+enum GroupMenuSet { full, following }
+
+/// A group row of the Channels screen (Groups): same look and height as a
+/// direct chat row. A tap opens the group (or picks it in «Select»); a long
+/// press opens its menu.
 class GroupChatTile extends ConsumerWidget {
   const GroupChatTile({
     required this.group,
     this.highlight = '',
     this.inArchive = false,
+    this.menu = GroupMenuSet.full,
     super.key,
   });
+
+  /// Which actions the long-press menu offers.
+  final GroupMenuSet menu;
 
   final api.GroupDto group;
 
@@ -56,8 +69,13 @@ class GroupChatTile extends ConsumerWidget {
     final last = g.lastMessage;
     final at = g.lastMessageAt;
     final canOrganize = picking == null && !ref.watch(isAssistantProvider);
-    void organize() =>
-        showGroupOrganizeSheet(context, ref, g, inArchive: inArchive);
+    void organize() => showGroupOrganizeSheet(
+          context,
+          ref,
+          g,
+          inArchive: inArchive,
+          menu: menu,
+        );
     final secondary = type.bodySmall.copyWith(color: colors.textSecondary);
     final hot = unread > 0 && !muted;
     final title = g.title.trim().isEmpty ? '?' : g.title.trim();
@@ -221,6 +239,8 @@ class GroupChatTile extends ConsumerWidget {
       try {
         await call();
         if (context.mounted) showAppSnackBar(context, t.t(done));
+      } on _Dismissed {
+        // The time sheet was closed: nothing changed.
       } on Object catch (e) {
         if (context.mounted) showAppSnackBar(context, errorText(t, e));
       }
@@ -236,9 +256,15 @@ class GroupChatTile extends ConsumerWidget {
           g.pinned ? 'chat.organize.unpinned' : 'chat.organize.pinned',
         ),
       ),
+      // Owner 2026-10-21 (inbox 27): off for a picked time, on at once.
       onMute: () => unawaited(
         act(
-          () => updateMyGroup(ref, g.id, muted: !muted),
+          () async {
+            if (muted) return updateMyGroup(ref, g.id, muted: false);
+            final until = await pickMuteUntil(context, t);
+            if (until == null) throw const _Dismissed();
+            await updateMyGroup(ref, g.id, mutedUntil: until);
+          },
           muted ? 'chat.select.unmuted' : 'chat.select.muted',
         ),
       ),
@@ -311,63 +337,92 @@ class _Badge extends StatelessWidget {
   }
 }
 
-/// The long-press menu of one group: pin · mute · hide from my list.
+/// The time sheet was closed without a pick.
+class _Dismissed implements Exception {
+  const _Dismissed();
+}
+
+/// The long-press menu of one group, by the tab it is on ([menu]).
 Future<void> showGroupOrganizeSheet(
   BuildContext context,
   WidgetRef ref,
   api.GroupDto g, {
   bool inArchive = false,
+  GroupMenuSet menu = GroupMenuSet.full,
 }) async {
   final t = ref.read(translatorProvider);
   final muted = isGroupMuted(g);
+  final full = menu == GroupMenuSet.full;
+  final canRead = g.unreadCount > 0 && g.lastMessage != null;
   final pick = await showAppBottomSheet<String>(
     context: context,
     builder: (ctx) => SafeArea(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const SizedBox(height: AppSpacing.sm),
-          const AppSheetHandle(),
-          AppListRow(
-            key: const ValueKey('group-menu-pin'),
-            icon: AppIcons.pushPinOutlined,
-            label: t.t(g.pinned ? 'group.menu.unpin' : 'group.menu.pin'),
-            showChevron: false,
-            onTap: () => Navigator.of(ctx).pop('pin'),
-          ),
-          AppListRow(
-            key: const ValueKey('group-menu-mute'),
-            icon: AppIcons.notificationsOffOutlined,
-            label: t.t(muted ? 'group.menu.unmute' : 'group.menu.mute'),
-            showChevron: false,
-            onTap: () => Navigator.of(ctx).pop('mute'),
-          ),
-          AppListRow(
-            key: const ValueKey('group-menu-archive'),
-            icon: inArchive
-                ? AppIcons.unarchiveOutlined
-                : AppIcons.inventory2Outlined,
-            label: t.t(inArchive ? 'chat.unarchive' : 'tasks.bulk.archive'),
-            showChevron: false,
-            onTap: () => Navigator.of(ctx).pop('archive'),
-          ),
-          AppListRow(
-            key: const ValueKey('group-menu-select'),
-            icon: AppIcons.checkCircleOutlineRounded,
-            label: t.t('chat.select.start'),
-            showChevron: false,
-            onTap: () => Navigator.of(ctx).pop('select'),
-          ),
-          AppListRow(
-            key: const ValueKey('group-menu-hide'),
-            icon: AppIcons.deleteOutlineRounded,
-            label: t.t('group.menu.hide'),
-            destructive: true,
-            showChevron: false,
-            onTap: () => Navigator.of(ctx).pop('hide'),
-          ),
-          const SizedBox(height: AppSpacing.md),
-        ],
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: AppSpacing.sm),
+            const AppSheetHandle(),
+            AppListRow(
+              key: const ValueKey('group-menu-pin'),
+              icon: AppIcons.pushPinOutlined,
+              label: t.t(g.pinned ? 'group.menu.unpin' : 'group.menu.pin'),
+              showChevron: false,
+              onTap: () => Navigator.of(ctx).pop('pin'),
+            ),
+            AppListRow(
+              key: const ValueKey('group-menu-mute'),
+              icon: muted
+                  ? AppIcons.notificationsRounded
+                  : AppIcons.notificationsOffOutlined,
+              label: t.t(muted ? 'group.menu.unmute' : 'group.menu.mute'),
+              showChevron: false,
+              onTap: () => Navigator.of(ctx).pop('mute'),
+            ),
+            if (full && canRead)
+              AppListRow(
+                key: const ValueKey('group-menu-read'),
+                icon: AppIcons.doneAllRounded,
+                label: t.t('notif.markAllRead'),
+                showChevron: false,
+                onTap: () => Navigator.of(ctx).pop('read'),
+              ),
+            AppListRow(
+              key: const ValueKey('group-menu-archive'),
+              icon: inArchive
+                  ? AppIcons.unarchiveOutlined
+                  : AppIcons.inventory2Outlined,
+              label: t.t(inArchive ? 'chat.unarchive' : 'tasks.bulk.archive'),
+              showChevron: false,
+              onTap: () => Navigator.of(ctx).pop('archive'),
+            ),
+            AppListRow(
+              key: const ValueKey('group-menu-select'),
+              icon: AppIcons.checkCircleOutlineRounded,
+              label: t.t('chat.select.start'),
+              showChevron: false,
+              onTap: () => Navigator.of(ctx).pop('select'),
+            ),
+            if (full)
+              AppListRow(
+                key: const ValueKey('group-menu-hide'),
+                icon: AppIcons.deleteOutlineRounded,
+                label: t.t('group.menu.hide'),
+                destructive: true,
+                showChevron: false,
+                onTap: () => Navigator.of(ctx).pop('hide'),
+              ),
+            AppListRow(
+              key: const ValueKey('group-menu-leave'),
+              icon: AppIcons.logoutRounded,
+              label: t.t('group.info.leave.title'),
+              destructive: true,
+              showChevron: false,
+              onTap: () => Navigator.of(ctx).pop('leave'),
+            ),
+            const SizedBox(height: AppSpacing.md),
+          ],
+        ),
       ),
     ),
   );
@@ -378,21 +433,48 @@ Future<void> showGroupOrganizeSheet(
       ..toggle(g.id);
     return;
   }
-  final messenger = ScaffoldMessenger.maybeOf(context);
+  // The navigator outlives the row (an archived or left group goes away)
+  // and sits under the app's ScaffoldMessenger.
+  final host = Navigator.of(context).context;
+  void toast(String text) {
+    if (host.mounted) showAppSnackBar(host, text);
+  }
+
   try {
     switch (pick) {
       case 'pin':
         await updateMyGroup(ref, g.id, pinned: !g.pinned);
       case 'mute':
-        await updateMyGroup(ref, g.id, muted: !muted);
+        if (muted) {
+          await updateMyGroup(ref, g.id, muted: false);
+          toast(t.t('chat.select.unmuted'));
+        } else {
+          final until = await pickMuteUntil(context, t);
+          if (until == null) return;
+          await updateMyGroup(ref, g.id, mutedUntil: until);
+          toast(t.t('chat.select.muted'));
+        }
+      case 'read':
+        await markGroupRead(ref, g);
       case 'archive':
         await updateMyGroup(ref, g.id, archived: !inArchive);
       case 'hide':
         await updateMyGroup(ref, g.id, hidden: true);
+      case 'leave':
+        final owner = g.myRole == api.GroupRole.owner;
+        final ok = await confirmGroupAction(
+          context,
+          title: t.t('group.info.leave.title'),
+          message: t.t(
+            owner ? 'group.info.leave.bodyOwner' : 'group.info.leave.body',
+          ),
+          confirmLabel: t.t('group.info.leave.confirm'),
+          cancelLabel: t.t('common.cancel'),
+          destructive: true,
+        );
+        if (ok) await leaveMyGroup(ref, g.id);
     }
   } on Object catch (e) {
-    if (messenger != null && messenger.mounted) {
-      showAppSnackBar(messenger.context, errorText(t, e));
-    }
+    toast(errorText(t, e));
   }
 }

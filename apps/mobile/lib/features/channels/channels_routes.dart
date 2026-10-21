@@ -6,6 +6,7 @@ import 'package:lawbid/features/channels/presentation/channel_composer_screen.da
 import 'package:lawbid/features/channels/presentation/channel_form_screen.dart';
 import 'package:lawbid/features/channels/presentation/channel_screen.dart';
 import 'package:lawbid/features/channels/presentation/channels_screen.dart';
+import 'package:lawbid/features/channels/presentation/community_archive.dart';
 
 /// Owner 2026-10-20: channels routes. `/c/:username` is the public link
 /// (`https://lawbid.dev/c/:username`, core/deeplinks); `/channels/:id` is
@@ -13,6 +14,11 @@ import 'package:lawbid/features/channels/presentation/channels_screen.dart';
 abstract final class ChannelsRoutes {
   static const list = '/channels';
   static const newChannel = '/channels/new';
+
+  /// Owner 2026-10-21 (inbox 22c): the Groups archive or the Channels one.
+  static const archivePattern = '/channels/archive/:kind';
+  static String archive({required bool channels}) =>
+      '/channels/archive/${channels ? 'channels' : 'groups'}';
 
   static const channelPattern = '/channels/:id';
   static String channel(String id, {String? postId}) =>
@@ -49,6 +55,16 @@ List<RouteBase> channelsRoutes(GlobalKey<NavigatorState> root) => [
         parentNavigatorKey: root,
         pageBuilder: (context, state) =>
             AppPageTransitions.push(state, const ChannelFormScreen()),
+      ),
+      GoRoute(
+        path: ChannelsRoutes.archivePattern,
+        parentNavigatorKey: root,
+        pageBuilder: (context, state) => AppPageTransitions.push(
+          state,
+          CommunityArchiveScreen(
+            channels: state.pathParameters['kind'] == 'channels',
+          ),
+        ),
       ),
       GoRoute(
         path: ChannelsRoutes.channelPattern,

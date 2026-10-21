@@ -180,7 +180,7 @@ void retryChatListMore(WidgetRef ref, {ChatSearchKey? search}) {
   }
 }
 
-/// My own pin / mute / hide of one group, then the list re-reads.
+/// My own pin / mute / hide / archive of one group, then the list re-reads.
 ///
 /// The generated client cannot send `mutedUntil: null` (null fields are
 /// dropped), so «unmute» sends a moment in the past, which the server
@@ -192,6 +192,7 @@ Future<void> updateMyGroup(
   bool? muted,
   bool? hidden,
   bool? archived,
+  DateTime? mutedUntil,
 }) async {
   final now = DateTime.now();
   await ref.read(groupRepositoryProvider).updateMine(
@@ -200,11 +201,14 @@ Future<void> updateMyGroup(
           pinned: pinned,
           hidden: hidden,
           archived: archived,
-          mutedUntil: muted == null
-              ? null
-              : muted
-                  ? now.add(const Duration(days: 3650))
-                  : now.subtract(const Duration(seconds: 1)),
+          // Owner 2026-10-21 (inbox 27): a picked moment (1 h · 8 h ·
+          // 2 days · forever), else on / off for good.
+          mutedUntil: mutedUntil ??
+              (muted == null
+                  ? null
+                  : muted
+                      ? now.add(const Duration(days: 3650))
+                      : now.subtract(const Duration(seconds: 1))),
         ),
       );
   // The write is done: updating the lists is best-effort, never an error.
@@ -218,6 +222,33 @@ Future<void> updateMyGroup(
       ..invalidate(archivedGroupsProvider)
       ..invalidate(chatFolderCountsProvider);
     await notifier.refresh().catchError((Object _) {});
+  } on Object {
+    // The screen is gone; the next open re-reads the lists.
+  }
+}
+
+/// Owner 2026-10-21 (inbox 22c): «mark read» of one group from its row.
+Future<void> markGroupRead(WidgetRef ref, api.GroupDto g) async {
+  final last = g.lastMessage;
+  if (g.unreadCount == 0 || last == null) return;
+  await ref.read(groupRepositoryProvider).read(g.id, last.id);
+  try {
+    if (!ref.context.mounted) return;
+    ref.invalidate(archivedGroupsProvider);
+    await ref.read(groupsProvider.notifier).refresh().catchError((Object _) {});
+  } on Object {
+    // The screen is gone; the next open re-reads the lists.
+  }
+}
+
+/// Owner 2026-10-21 (inbox 22d): leave a group from its row.
+Future<void> leaveMyGroup(WidgetRef ref, String id) async {
+  await ref.read(groupRepositoryProvider).leave(id);
+  try {
+    if (!ref.context.mounted) return;
+    ref.read(groupsProvider.notifier).removeWhere((g) => g.id == id);
+    ref.invalidate(archivedGroupsProvider);
+    await ref.read(groupsProvider.notifier).refresh().catchError((Object _) {});
   } on Object {
     // The screen is gone; the next open re-reads the lists.
   }

@@ -11,8 +11,10 @@ import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/channels/application/channels_providers.dart';
 import 'package:lawbid/features/channels/channels_routes.dart';
 import 'package:lawbid/features/channels/domain/channel_models.dart';
+import 'package:lawbid/features/channels/presentation/channel_row_actions.dart';
 import 'package:lawbid/features/channels/presentation/channel_widgets.dart';
 import 'package:lawbid/features/channels/presentation/channels_groups.dart';
+import 'package:lawbid/features/channels/presentation/community_archive.dart';
 import 'package:lawbid/features/chat/application/chat_selection.dart';
 import 'package:lawbid/features/chat/presentation/chat_selection_bar.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
@@ -432,6 +434,23 @@ class _ScopeListState extends ConsumerState<_ScopeList> {
         ? ref.watch(recommendedChannelsProvider).whenData((p) => p.items)
         : ref.watch(channelListProvider(key));
 
+    // Owner 2026-10-21 (inbox 22d): what a row's menu offers by the tab.
+    final groupMenu = scope == ChannelScope.subscribed
+        ? GroupMenuSet.following
+        : GroupMenuSet.full;
+    final channelMenu = scope == ChannelScope.subscribed
+        ? ChannelMenuSet.following
+        : ChannelMenuSet.full;
+    // Each section's own archive (inbox 22c): «Archive (N)» on top of the
+    // Groups list and of the Channels list of Mine and Following.
+    final withArchive = !recommended && query.isEmpty;
+    final archivedGroups = withArchive
+        ? ref.watch(archivedGroupsProvider).value?.items.length ?? 0
+        : 0;
+    final archivedChannels = withArchive
+        ? ref.watch(archivedChannelsProvider).value?.length ?? 0
+        : 0;
+
     // Groups: mine (Mine, Following), recommended (Discover), or the typed
     // words among mine and the public ones.
     final myGroups = ref.watch(groupsProvider);
@@ -454,7 +473,11 @@ class _ScopeListState extends ConsumerState<_ScopeList> {
       final found = ref.watch(groupSearchProvider(query)).value ?? const [];
       groupRows = [
         for (final g in mine)
-          GroupChatTile(key: ValueKey('group-row-${g.id}'), group: g),
+          GroupChatTile(
+            key: ValueKey('group-row-${g.id}'),
+            group: g,
+            menu: groupMenu,
+          ),
         for (final g in found)
           if (!mine.any((m) => m.id == g.id))
             GroupPreviewRow(key: ValueKey('group-found-${g.id}'), group: g),
@@ -463,7 +486,11 @@ class _ScopeListState extends ConsumerState<_ScopeList> {
       groupsLoading = myGroups.isLoading && !myGroups.hasValue;
       groupRows = [
         for (final g in myGroups.value?.items ?? const <api.GroupDto>[])
-          GroupChatTile(key: ValueKey('group-row-${g.id}'), group: g),
+          GroupChatTile(
+            key: ValueKey('group-row-${g.id}'),
+            group: g,
+            menu: groupMenu,
+          ),
       ];
     }
 
@@ -487,6 +514,9 @@ class _ScopeListState extends ConsumerState<_ScopeList> {
         await ref.read(recommendedChannelsProvider.notifier).refresh();
         await ref.read(recommendedGroupsProvider.notifier).refresh();
       } else {
+        ref
+          ..invalidate(archivedChannelsProvider)
+          ..invalidate(archivedGroupsProvider);
         await ref.read(groupsProvider.notifier).refresh();
       }
     }
@@ -515,6 +545,10 @@ class _ScopeListState extends ConsumerState<_ScopeList> {
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
               children: [
+                if (kind == _Kind.groups && archivedGroups > 0)
+                  CommunityArchiveRow(count: archivedGroups, channels: false),
+                if (kind == _Kind.channels && archivedChannels > 0)
+                  CommunityArchiveRow(count: archivedChannels, channels: true),
                 if (recommended && rows.isNotEmpty)
                   Padding(
                     padding: const EdgeInsetsDirectional.fromSTEB(
@@ -575,17 +609,22 @@ class _ScopeListState extends ConsumerState<_ScopeList> {
                     key: ValueKey('channel-row-${c.id}'),
                     channel: c,
                     // Owner 2026-10-21: a channel I follow is picked like a
-                    // chat (long press, then taps).
+                    // chat (its menu's «Select», then taps).
                     picked: picking == null || !c.isSubscribed
                         ? null
                         : picking.contains(c.id),
                     onTap: picking != null && c.isSubscribed
                         ? () => selection.toggle(c.id)
                         : () => context.push(ChannelsRoutes.channel(c.id)),
-                    onLongPress: picking == null && c.isSubscribed
-                        ? () => selection
-                          ..start()
-                          ..toggle(c.id)
+                    // Inbox 22d: the long press opens the row's actions by
+                    // the tab (Discover: subscribe · open).
+                    onLongPress: picking == null
+                        ? () => showChannelOrganizeSheet(
+                              context,
+                              ref,
+                              c,
+                              menu: channelMenu,
+                            )
                         : null,
                   ),
               ]),

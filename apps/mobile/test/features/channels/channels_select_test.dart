@@ -138,15 +138,18 @@ void main() {
   });
 
   testWidgets(
-      'a channel I follow: long press picks it; only «mute» is on, and it '
-      'mutes', (tester) async {
+      'a channel I follow: its menu picks it; every action is on, mute asks '
+      'how long', (tester) async {
     final channels = FakeChannelsRepository()
       ..listed = [fakeChannel(subscribed: true)];
     await pump(tester, channels: channels);
     await tester.tap(find.text('Channels').last);
     await tester.pumpAndSettle();
 
+    // Owner 2026-10-21 (inbox 22d): the long press opens the row's actions.
     await tester.longPress(find.byKey(const ValueKey('channel-row-ch-1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('channel-menu-row-select')));
     await tester.pumpAndSettle();
     expect(find.text('1 selected'), findsOneWidget);
     expect(find.byKey(const ValueKey('channel-pick-ch-1')), findsOneWidget);
@@ -162,19 +165,21 @@ void main() {
         )
         .properties
         .enabled!;
-    expect(enabled('select-mute'), isTrue);
     for (final k in [
+      'select-mute',
       'select-archive',
       'select-pin',
       'select-read',
       'select-delete',
     ]) {
-      expect(enabled(k), isFalse, reason: k);
+      expect(enabled(k), isTrue, reason: k);
     }
 
     await tester.tap(find.byKey(const ValueKey('select-mute')));
     await tester.pumpAndSettle();
-    expect(channels.calls, contains('mute:true'));
+    await tester.tap(find.byKey(const ValueKey('mute-for-hours8')));
+    await tester.pumpAndSettle();
+    expect(channels.calls, contains('me:ch-1:mutedUntil'));
     expect(find.byType(ChatSelectionBar), findsNothing);
     await end(tester);
   });

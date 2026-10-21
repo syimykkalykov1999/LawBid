@@ -18,6 +18,7 @@ import 'package:lawbid/features/groups/presentation/widgets/group_call_ui.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart'
     show VerifiedCheck;
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
+import 'package:lawbid/shared/presentation/mute_for_sheet.dart';
 
 /// Owner 2026-10-20: a channel — header, subscribe / mute / share, ⋯ menu
 /// and the posts feed (newest first). [channelRef] is the id or @username;
@@ -200,6 +201,23 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
                 shareChannel(context, ref, channel);
               },
             ),
+            // Owner 2026-10-21 (inbox 27b): the same «Notifications» switch
+            // as in the channel's row.
+            if (channel.isSubscribed)
+              AppListRow(
+                key: const ValueKey('channel-menu-mute'),
+                icon: channel.mutedNow
+                    ? AppIcons.notificationsRounded
+                    : AppIcons.notificationsOffOutlined,
+                label: t.t(
+                  channel.mutedNow ? 'channel.unmute' : 'channel.mute',
+                ),
+                showChevron: false,
+                onTap: () {
+                  Navigator.of(sheet).pop();
+                  _toggleMute(context, channel);
+                },
+              ),
             if (channel.isAdmin)
               AppListRow(
                 key: const ValueKey('channel-menu-edit'),
@@ -255,6 +273,22 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
     );
   }
 
+  Future<void> _toggleMute(BuildContext context, Channel channel) async {
+    final t = ref.read(translatorProvider);
+    final controller = ref.read(channelProvider(widget.channelRef).notifier);
+    try {
+      if (channel.mutedNow) {
+        await controller.setMutedUntil(null);
+      } else {
+        final until = await pickMuteUntil(context, t);
+        if (until == null) return;
+        await controller.setMutedUntil(until);
+      }
+    } on Object catch (e) {
+      if (context.mounted) showAppSnackBar(context, channelErrorText(t, e));
+    }
+  }
+
   Future<void> _delete(BuildContext context, Channel channel) async {
     final t = ref.read(translatorProvider);
     final ok = await confirmChannelAction(
@@ -298,6 +332,14 @@ class _FeedState extends ConsumerState<_Feed> {
   @override
   void initState() {
     super.initState();
+    // Owner 2026-10-21 (inbox 22c): opening the channel reads it.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref
+          .read(channelProvider(widget.channelRef).notifier)
+          .markRead()
+          .catchError((Object _) {});
+    });
     final focus = widget.focusPostId;
     if (focus != null && !widget.alreadyFocused) {
       widget.onFocusStarted();
@@ -526,17 +568,23 @@ class _ChannelHeaderState extends ConsumerState<ChannelHeader> {
                 key: const ValueKey('channel-mute'),
                 plain: false,
                 icon: AppIcon(
-                  channel.isMuted
+                  channel.mutedNow
                       ? AppIcons.notificationsOffOutlined
                       : AppIcons.notificationsRounded,
                   color: colors.text,
                 ),
-                semanticLabel: channel.isMuted
+                semanticLabel: channel.mutedNow
                     ? t.t('channel.unmute')
                     : t.t('channel.mute'),
-                onPressed: () => _run(
-                  () => controller.setMuted(muted: !channel.isMuted),
-                ),
+                // Owner 2026-10-21 (inbox 27, Telegram): off for 1 h · 8 h
+                // · 2 days · forever; on again at once.
+                onPressed: () => _run(() async {
+                  if (channel.mutedNow) {
+                    return controller.setMutedUntil(null);
+                  }
+                  final until = await pickMuteUntil(context, t);
+                  if (until != null) await controller.setMutedUntil(until);
+                }),
               ),
             ],
             const SizedBox(width: AppSpacing.sm),

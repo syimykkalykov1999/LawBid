@@ -228,6 +228,48 @@ class ChannelRow extends ConsumerWidget {
                     ],
                   ),
                 ),
+                // Owner 2026-10-21 (inbox 22c / 27, Telegram): my own marks
+                // of a channel I follow — muted (a crossed bell), pinned,
+                // unread posts.
+                if (channel.isSubscribed && channel.mutedNow) ...[
+                  const SizedBox(width: AppSpacing.sm),
+                  AppIcon(
+                    AppIcons.notificationsOffOutlined,
+                    key: ValueKey('channel-muted-${channel.id}'),
+                    size: 16,
+                    color: colors.textSecondary,
+                  ),
+                ],
+                if (channel.isSubscribed && channel.pinned) ...[
+                  const SizedBox(width: AppSpacing.sm),
+                  AppIcon(
+                    AppIcons.pushPin,
+                    key: ValueKey('channel-pinned-${channel.id}'),
+                    size: 16,
+                    color: colors.textSecondary,
+                  ),
+                ],
+                if (channel.isSubscribed && channel.unreadCount > 0) ...[
+                  const SizedBox(width: AppSpacing.sm),
+                  Container(
+                    key: ValueKey('channel-unread-${channel.id}'),
+                    constraints: const BoxConstraints(minWidth: 20),
+                    height: 20,
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color:
+                          channel.mutedNow ? colors.textSecondary : colors.text,
+                      borderRadius: BorderRadius.circular(AppRadii.pill),
+                    ),
+                    child: Text(
+                      channel.unreadCount > 99
+                          ? '${context.digits(99)}+'
+                          : context.digits(channel.unreadCount),
+                      style: type.badge.copyWith(color: colors.bg),
+                    ),
+                  ),
+                ],
                 if (channel.isClosed)
                   Padding(
                     padding: const EdgeInsetsDirectional.only(

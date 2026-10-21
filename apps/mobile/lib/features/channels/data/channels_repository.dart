@@ -69,7 +69,12 @@ class ChannelsRepository {
     );
   }
 
-  Future<List<Channel>> list(ChannelScope scope, {String? q}) async {
+  /// [archived]: the Channels section's own archive (owner 2026-10-21).
+  Future<List<Channel>> list(
+    ChannelScope scope, {
+    String? q,
+    bool archived = false,
+  }) async {
     final term = q?.trim();
     try {
       final env = await guardApiCall(
@@ -80,6 +85,7 @@ class ChannelsRepository {
             ChannelScope.managed => api.Scope2.managed,
           },
           q: term == null || term.isEmpty ? null : term,
+          archived: archived ? true : null,
         ),
       );
       return env.data.map(channelOf).toList();
@@ -160,6 +166,34 @@ class ChannelsRepository {
           () => _channels.channelMute(
             id: c.id,
             body: api.UpdateChannelSubscriptionDto(muted: muted),
+          ),
+        ))
+            .data,
+      );
+
+  /// Owner 2026-10-21 (Telegram): my own pin · archive · mute until ·
+  /// «read» of a channel I follow. The client drops a null field, so
+  /// [unmute] sends a moment already gone (the server only compares it).
+  Future<Channel> updateMine(
+    String id, {
+    bool? pinned,
+    bool? archived,
+    DateTime? mutedUntil,
+    bool unmute = false,
+    bool read = false,
+  }) async =>
+      channelOf(
+        (await guardApiCall(
+          () => _channels.channelUpdateMine(
+            id: id,
+            body: api.UpdateChannelMeDto(
+              pinned: pinned,
+              archived: archived,
+              mutedUntil: unmute
+                  ? DateTime.now().subtract(const Duration(seconds: 1))
+                  : mutedUntil,
+              read: read ? true : null,
+            ),
           ),
         ))
             .data,
@@ -556,6 +590,10 @@ class ChannelsRepository {
         createdAt: d.createdAt,
         protectContent: d.protectContent ?? false,
         ongoingCall: OngoingCallSummary.fromDto(d.ongoingCall),
+        pinned: d.pinned ?? false,
+        archived: d.archived ?? false,
+        mutedUntil: d.mutedUntil,
+        unreadCount: d.unreadCount ?? 0,
       );
 
   static ChannelPost postOf(api.ChannelPostDto d) => ChannelPost(

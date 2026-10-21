@@ -31,6 +31,46 @@ final channelListProvider =
       ref.watch(channelsRepositoryProvider).list(key.scope, q: key.query),
 );
 
+/// Owner 2026-10-21 (inbox 22c): the Channels section's own archive — the
+/// channels I follow (or run) that I moved there.
+final archivedChannelsProvider = FutureProvider.autoDispose<List<Channel>>(
+  (ref) => ref
+      .watch(channelsRepositoryProvider)
+      .list(ChannelScope.subscribed, archived: true),
+);
+
+/// My own pin · archive · mute until · «read» of a channel, then every
+/// channel list re-reads (best-effort).
+Future<Channel> updateMyChannel(
+  WidgetRef ref,
+  String id, {
+  bool? pinned,
+  bool? archived,
+  DateTime? mutedUntil,
+  bool unmute = false,
+  bool read = false,
+}) async {
+  final next = await ref.read(channelsRepositoryProvider).updateMine(
+        id,
+        pinned: pinned,
+        archived: archived,
+        mutedUntil: mutedUntil,
+        unmute: unmute,
+        read: read,
+      );
+  try {
+    if (ref.context.mounted) {
+      ref
+        ..invalidate(channelListProvider)
+        ..invalidate(archivedChannelsProvider)
+        ..invalidate(channelProvider);
+    }
+  } on Object {
+    // The screen is gone; the next open re-reads the lists.
+  }
+  return next;
+}
+
 /// «Discover» with nothing typed: an endless list, ranked for me first.
 class RecommendedChannelsNotifier extends PagedNotifier<Channel> {
   @override
@@ -85,6 +125,29 @@ class ChannelController extends AsyncNotifier<Channel> {
     }
   }
 
+  /// Owner 2026-10-21 (inbox 27): notifications off until [until], or back
+  /// on with null — the same switch as in the channel's row.
+  Future<void> setMutedUntil(DateTime? until) async {
+    final c = state.value;
+    if (c == null) return;
+    final next = await _repo.updateMine(
+      c.id,
+      mutedUntil: until,
+      unmute: until == null,
+    );
+    if (ref.mounted) state = AsyncData(next);
+    _refreshLists();
+  }
+
+  /// Opening the channel reads it: the list's unread count goes.
+  Future<void> markRead() async {
+    final c = state.value;
+    if (c == null || !c.isSubscribed || c.unreadCount == 0) return;
+    final next = await _repo.updateMine(c.id, read: true);
+    if (ref.mounted) state = AsyncData(next);
+    _refreshLists();
+  }
+
   Future<void> setMuted({required bool muted}) async {
     final c = state.value;
     if (c == null || c.isMuted == muted) return;
@@ -105,7 +168,9 @@ class ChannelController extends AsyncNotifier<Channel> {
     _refreshLists();
   }
 
-  void _refreshLists() => ref.invalidate(channelListProvider);
+  void _refreshLists() => ref
+    ..invalidate(channelListProvider)
+    ..invalidate(archivedChannelsProvider);
 }
 
 /// The posts of a channel, newest first, loaded page by page.
