@@ -31,12 +31,15 @@ GroupDto _$GroupDtoFromJson(Map<String, dynamic> json) => GroupDto(
       .map((e) => GroupDtoMyRights.fromJson(e as String))
       .toList(),
   showServiceMessages: json['showServiceMessages'] as bool,
+  isAdmin: json['isAdmin'] as bool,
   canPost: json['canPost'] as bool,
   canAdd: json['canAdd'] as bool,
-  canEditInfo: json['canEditInfo'] as bool,
   updatedAt: DateTime.parse(json['updatedAt'] as String),
-  isAdmin: json['isAdmin'] as bool,
   canCall: json['canCall'] as bool,
+  canEditInfo: json['canEditInfo'] as bool,
+  myRole: json['myRole'] == null
+      ? null
+      : GroupRole.fromJson(json['myRole'] as String),
   inviteLink: json['inviteLink'] as String?,
   pinnedMessage: json['pinnedMessage'] == null
       ? null
@@ -55,9 +58,7 @@ GroupDto _$GroupDtoFromJson(Map<String, dynamic> json) => GroupDto(
   avatarFullUrl: json['avatarFullUrl'] as String?,
   avatarUrl: json['avatarUrl'] as String?,
   description: json['description'] as String?,
-  myRole: json['myRole'] == null
-      ? null
-      : GroupRole.fromJson(json['myRole'] as String),
+  disappearAfterS: json['disappearAfterS'] as num?,
 );
 
 Map<String, dynamic> _$GroupDtoToJson(GroupDto instance) => <String, dynamic>{
@@ -83,6 +84,7 @@ Map<String, dynamic> _$GroupDtoToJson(GroupDto instance) => <String, dynamic>{
   'whoCanPin': instance.whoCanPin.toJson(),
   'myRights': instance.myRights.map((e) => e.toJson()).toList(),
   'showServiceMessages': instance.showServiceMessages,
+  'disappearAfterS': ?instance.disappearAfterS,
   'canPost': instance.canPost,
   'canAdd': instance.canAdd,
   'canEditInfo': instance.canEditInfo,

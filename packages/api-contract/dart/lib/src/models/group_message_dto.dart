@@ -34,6 +34,7 @@ class GroupMessageDto {
     this.attachment,
     this.poll,
     this.editedAt,
+    this.expiresAt,
   });
 
   factory GroupMessageDto.fromJson(Map<String, Object?> json) =>
@@ -52,7 +53,7 @@ class GroupMessageDto {
   final bool mine;
   final String clientMessageId;
 
-  /// System messages: created | added | removed | left | joined | renamed | photo | description | promoted | demoted | pinned | poll_closed.
+  /// System messages: created | added | removed | left | joined | renamed | photo | description | promoted | demoted | pinned | poll_closed | disappearing (systemText = seconds, "0" = off).
   final String? systemKind;
 
   /// System messages: who acted (first) and who it concerned.
@@ -72,6 +73,9 @@ class GroupMessageDto {
   /// Deleted for everyone.
   final bool deleted;
   final DateTime createdAt;
+
+  /// Disappearing messages: when the message goes; the app hides it from this time on. Null = stays.
+  final DateTime? expiresAt;
 
   Map<String, Object?> toJson() => _$GroupMessageDtoToJson(this);
 }

@@ -16,47 +16,48 @@ part 'group_detail_dto.g.dart';
 @JsonSerializable()
 class GroupDetailDto {
   const GroupDetailDto({
-    required this.whoCanAdd,
+    required this.myRights,
     required this.title,
     required this.members,
     required this.updatedAt,
     required this.createdAt,
     required this.memberCount,
     required this.type,
-    required this.pinned,
+    required this.whoCanPost,
     required this.joinApproval,
     required this.topicsEnabled,
-    required this.callsMuted,
+    required this.pinned,
     required this.pendingRequests,
-    required this.unreadMentions,
-    required this.whoCanPost,
+    required this.callsMuted,
     required this.id,
+    required this.whoCanAdd,
     required this.whoCanEditInfo,
     required this.whoCanCall,
     required this.whoCanMedia,
     required this.whoCanPoll,
     required this.whoCanPin,
-    required this.myRights,
+    required this.isAdmin,
     required this.showServiceMessages,
+    required this.unreadCount,
     required this.canPost,
     required this.canAdd,
     required this.canEditInfo,
     required this.canCall,
-    required this.unreadCount,
-    required this.isAdmin,
     required this.inviteEnabled,
+    required this.unreadMentions,
+    this.inviteLink,
     this.pinnedMessage,
     this.lastMessage,
     this.lastMessageAt,
-    this.notAdded,
-    this.myRole,
-    this.mutedUntil,
-    this.generalTopicId,
+    this.disappearAfterS,
     this.username,
+    this.mutedUntil,
+    this.myRole,
+    this.generalTopicId,
     this.avatarFullUrl,
     this.avatarUrl,
     this.description,
-    this.inviteLink,
+    this.notAdded,
   });
 
   factory GroupDetailDto.fromJson(Map<String, Object?> json) =>
@@ -98,6 +99,9 @@ class GroupDetailDto {
 
   /// Service lines (joined, left, renamed…) are shown to everyone.
   final bool showServiceMessages;
+
+  /// Disappearing messages: seconds a new message lives (86400 / 604800 / 7776000); null = off.
+  final num? disappearAfterS;
 
   /// What I may do here (derived from the above).
   final bool canPost;

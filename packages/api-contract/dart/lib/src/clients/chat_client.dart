@@ -27,6 +27,7 @@ import '../models/read_conversation_dto.dart';
 import '../models/read_result_envelope.dart';
 import '../models/requests_count_envelope.dart';
 import '../models/send_message_dto.dart';
+import '../models/set_disappearing_dto.dart';
 import '../models/start_direct_chat_dto.dart';
 import '../models/translate_message_dto.dart';
 
@@ -179,6 +180,14 @@ abstract class ChatClient {
   Future<ConversationEnvelope> muteChatCalls({
     @Path('id') required String id,
     @Body() required MuteCallsDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Disappearing messages: 24 h / 7 d / 90 d for new messages; null = off
+  @PATCH('/conversations/{id}/disappearing')
+  Future<ConversationEnvelope> setDisappearing({
+    @Path('id') required String id,
+    @Body() required SetDisappearingDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

@@ -84022,6 +84022,123 @@
         ]
       }
     },
+    "/conversations/{id}/disappearing": {
+      "patch": {
+        "operationId": "setDisappearing",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetDisappearingDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: CONVERSATION_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Disappearing messages: 24 h / 7 d / 90 d for new messages; null = off",
+        "tags": [
+          "chat"
+        ]
+      }
+    },
     "/conversations/{id}/messages/{messageId}": {
       "patch": {
         "operationId": "editChatMessage",
@@ -151123,6 +151240,12 @@
             "format": "date-time",
             "type": "string"
           },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true,
+            "description": "Disappearing messages: when the message goes; the app hides it from this time on. Null = stays."
+          },
           "editedAt": {
             "format": "date-time",
             "type": "string",
@@ -151243,6 +151366,11 @@
           },
           "unreadCount": {
             "type": "number"
+          },
+          "disappearAfterS": {
+            "type": "number",
+            "nullable": true,
+            "description": "Disappearing messages: seconds a new message lives (86400 / 604800 / 7776000); null = off."
           },
           "mutedUntil": {
             "format": "date-time",
@@ -151819,6 +151947,21 @@
         "required": [
           "muted"
         ]
+      },
+      "SetDisappearingDto": {
+        "type": "object",
+        "properties": {
+          "afterS": {
+            "type": "number",
+            "nullable": true,
+            "enum": [
+              86400,
+              604800,
+              7776000
+            ],
+            "description": "Seconds a new message lives: 86400 (24 h), 604800 (7 d) or 7776000 (90 d); absent or null = off."
+          }
+        }
       },
       "EditMessageDto": {
         "type": "object",
@@ -152504,7 +152647,7 @@
             "description": "Video call (default: audio)."
           },
           "userIds": {
-            "maxItems": 5,
+            "maxItems": 8,
             "description": "Group members to ring (up to the size of the call minus the host); the rest of the group can join from the chat.",
             "type": "array",
             "items": {
@@ -152933,7 +153076,7 @@
           "systemKind": {
             "type": "string",
             "nullable": true,
-            "description": "System messages: created | added | removed | left | joined | renamed | photo | description | promoted | demoted | pinned | poll_closed."
+            "description": "System messages: created | added | removed | left | joined | renamed | photo | description | promoted | demoted | pinned | poll_closed | disappearing (systemText = seconds, \"0\" = off)."
           },
           "systemPeople": {
             "description": "System messages: who acted (first) and who it concerned.",
@@ -152996,6 +153139,12 @@
           "createdAt": {
             "format": "date-time",
             "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true,
+            "description": "Disappearing messages: when the message goes; the app hides it from this time on. Null = stays."
           }
         },
         "required": [
@@ -153142,6 +153291,11 @@
           "showServiceMessages": {
             "type": "boolean",
             "description": "Service lines (joined, left, renamed…) are shown to everyone."
+          },
+          "disappearAfterS": {
+            "type": "number",
+            "nullable": true,
+            "description": "Disappearing messages: seconds a new message lives (86400 / 604800 / 7776000); null = off."
           },
           "canPost": {
             "type": "boolean",
@@ -153465,6 +153619,11 @@
           "showServiceMessages": {
             "type": "boolean",
             "description": "Service lines (joined, left, renamed…) are shown to everyone."
+          },
+          "disappearAfterS": {
+            "type": "number",
+            "nullable": true,
+            "description": "Disappearing messages: seconds a new message lives (86400 / 604800 / 7776000); null = off."
           },
           "canPost": {
             "type": "boolean",
@@ -153840,6 +153999,17 @@
             ],
             "type": "string",
             "description": "Admins only."
+          },
+          "disappearAfterS": {
+            "type": "number",
+            "nullable": true,
+            "enum": [
+              0,
+              86400,
+              604800,
+              7776000
+            ],
+            "description": "Disappearing messages: seconds a new message lives; 0 (or null) = off. Allowed for admins, and for everyone while «edit group info» is open to all (WhatsApp)."
           },
           "whoCanMedia": {
             "enum": [

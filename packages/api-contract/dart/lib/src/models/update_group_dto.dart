@@ -5,6 +5,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'group_type.dart';
+import 'update_group_dto_disappear_after_s.dart';
 import 'update_group_dto_who_can_add.dart';
 import 'update_group_dto_who_can_call.dart';
 import 'update_group_dto_who_can_edit_info.dart';
@@ -25,6 +26,7 @@ class UpdateGroupDto {
     this.whoCanAdd,
     this.whoCanEditInfo,
     this.whoCanCall,
+    this.disappearAfterS,
     this.whoCanMedia,
     this.whoCanPoll,
     this.whoCanPin,
@@ -58,6 +60,9 @@ class UpdateGroupDto {
 
   /// Admins only.
   final UpdateGroupDtoWhoCanCall? whoCanCall;
+
+  /// Disappearing messages: seconds a new message lives; 0 (or null) = off. Allowed for admins, and for everyone while «edit group info» is open to all (WhatsApp).
+  final UpdateGroupDtoDisappearAfterS? disappearAfterS;
 
   /// Admins only.
   final UpdateGroupDtoWhoCanMedia? whoCanMedia;
