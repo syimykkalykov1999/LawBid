@@ -1,4 +1,5 @@
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/features/chat/domain/disappearing.dart';
 import 'package:lawbid/features/groups/domain/group_message_ext.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
@@ -65,6 +66,12 @@ String groupSystemText(Translator t, api.GroupMessageDto m) {
       });
     case 'pinned':
       return t.t('group.system.pinned', {'name': _name(t, actor)});
+    case 'disappearing':
+      return disappearLineText(
+        t,
+        text == '0' || text.isEmpty ? 'disappear_off' : 'disappear:$text',
+        name: _name(t, actor),
+      );
     case 'topic_created':
       return t.t(
         'group.system.topicCreated',

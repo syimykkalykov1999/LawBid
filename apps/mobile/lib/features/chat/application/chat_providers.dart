@@ -507,7 +507,13 @@ class ChatThreadState {
   List<ChatMessage> get all {
     final pending = [...outbox, ...voiceOutbox]
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    return [...pending, ...messages];
+    // Owner 2026-10-21: disappearing messages vanish by the clock, before
+    // the server's sweep (and from a cached page) reaches the device.
+    final now = DateTime.now();
+    return [
+      ...pending,
+      ...messages.where((m) => !m.isExpired(now)),
+    ];
   }
 
   ChatThreadState copyWith({
@@ -557,6 +563,7 @@ class ChatThread extends Notifier<ChatThreadState> {
 
   final String id;
   Timer? _typingOff;
+  Timer? _expiryTimer;
   String? _lastReadSent;
   DateTime _lastTypingSent = DateTime.fromMillisecondsSinceEpoch(0);
 
@@ -584,10 +591,53 @@ class ChatThread extends Notifier<ChatThreadState> {
         s.cancel();
       }
       _typingOff?.cancel();
+      _expiryTimer?.cancel();
       realtime?.leave(id);
+    });
+    // Owner 2026-10-21: wake up at the next message that runs out.
+    listenSelf((prev, next) {
+      if (!identical(prev?.messages, next.messages)) _armExpiry();
     });
     unawaited(Future.microtask(load));
     return const ChatThreadState();
+  }
+
+  /// Owner 2026-10-21: one timer for the soonest expiring message; when it
+  /// fires the expired ones leave the state and the next one is armed.
+  void _armExpiry() {
+    _expiryTimer?.cancel();
+    DateTime? soonest;
+    for (final m in state.messages) {
+      final at = m.expiresAt;
+      if (at != null && (soonest == null || at.isBefore(soonest))) {
+        soonest = at;
+      }
+    }
+    if (soonest == null) return;
+    final wait = soonest.difference(DateTime.now());
+    _expiryTimer = Timer(
+      wait.isNegative ? Duration.zero : wait + const Duration(milliseconds: 50),
+      () {
+        if (!ref.mounted) return;
+        final now = DateTime.now();
+        state = state.copyWith(
+          messages: [
+            for (final m in state.messages)
+              if (!m.isExpired(now)) m,
+          ],
+        );
+      },
+    );
+  }
+
+  /// Owner 2026-10-21: switch the disappearing-messages timer (null = off).
+  Future<void> setDisappearing(int? afterS) async {
+    final updated = await _repo.setDisappearing(id, afterS);
+    if (!ref.mounted) return;
+    state = state.copyWith(conversation: updated);
+    ref
+      ..invalidate(conversationsProvider)
+      ..invalidate(folderConversationsProvider);
   }
 
   Future<void> load() async {

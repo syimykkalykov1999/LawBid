@@ -171,6 +171,7 @@ api.GroupMessageDto message(
   String? systemText,
   bool mentionsMe = false,
   String? topicId,
+  DateTime? expiresAt,
 }) =>
     api.GroupMessageDto(
       id: id,
@@ -191,6 +192,7 @@ api.GroupMessageDto message(
       poll: poll,
       deleted: false,
       createdAt: _at.add(Duration(minutes: minutes)),
+      expiresAt: expiresAt,
     );
 
 api.PollDto poll(
@@ -327,6 +329,8 @@ api.GroupDetailDto groupDetail({
   bool readOnly = false,
   api.GroupType type = api.GroupType.public,
   bool withPinned = true,
+  int? disappearAfterS,
+  bool canEditInfo = true,
 }) {
   final canPost = !readOnly;
   return api.GroupDetailDto(
@@ -349,6 +353,7 @@ api.GroupDetailDto groupDetail({
     whoCanEditInfo: api.GroupWho.admins,
     whoCanCall: api.GroupWho.all,
     showServiceMessages: true,
+    disappearAfterS: disappearAfterS,
     whoCanMedia: api.GroupWho.all,
     whoCanPoll: api.GroupWho.all,
     whoCanPin: api.GroupWho.admins,
@@ -360,7 +365,7 @@ api.GroupDetailDto groupDetail({
         : const [],
     canPost: canPost,
     canAdd: owner,
-    canEditInfo: owner,
+    canEditInfo: owner && canEditInfo,
     canCall: true,
     isAdmin: owner,
     inviteEnabled: true,

@@ -236,6 +236,7 @@ class GroupThread extends Notifier<GroupThreadState> {
   final GroupThreadKey key;
   String? _lastReadSent;
   int _seq = 0;
+  Timer? _expiryTimer;
 
   GroupRepository get _repo => ref.read(groupRepositoryProvider);
 
@@ -249,10 +250,42 @@ class GroupThread extends Notifier<GroupThreadState> {
     final sub = ref.watch(realtimeEventsProvider).listen(_onEvent);
     ref.onDispose(() {
       sub.cancel();
+      _expiryTimer?.cancel();
       realtime?.leave(key.groupId);
+    });
+    // Owner 2026-10-21: disappearing messages leave the list by the clock.
+    listenSelf((prev, next) {
+      if (!identical(prev?.messages, next.messages)) _armExpiry();
     });
     unawaited(load());
     return const GroupThreadState();
+  }
+
+  /// Drops the messages that ran out and arms one timer for the next one.
+  void _armExpiry() {
+    _expiryTimer?.cancel();
+    final now = DateTime.now();
+    if (state.messages.any((m) => m.isExpired(now))) {
+      state = state.copyWith(
+        messages: [
+          for (final m in state.messages)
+            if (!m.isExpired(now)) m,
+        ],
+      );
+      return;
+    }
+    DateTime? soonest;
+    for (final m in state.messages) {
+      final at = m.expiresAt;
+      if (at != null && (soonest == null || at.isBefore(soonest))) {
+        soonest = at;
+      }
+    }
+    if (soonest == null) return;
+    _expiryTimer = Timer(
+      soonest.difference(now) + const Duration(milliseconds: 50),
+      _armExpiry,
+    );
   }
 
   Future<void> load() async {
