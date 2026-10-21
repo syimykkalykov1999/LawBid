@@ -61,6 +61,8 @@ export const NOTIFICATION_CATEGORY: Record<
   followed_post: 'following',
   // Owner 2026-10-20: a post in a channel I subscribed to.
   channel_post: 'channels',
+  // Owner 2026-10-21: an invitation to a group.
+  group_invite: 'groups',
   // OQ-048: the attorney's team.
   assistant_request: 'messages',
   assistant_task: 'cases',
@@ -153,6 +155,7 @@ export const NOTIFICATION_IMPORTANT: Record<NotificationType, boolean> = {
   mention: false,
   followed_post: false,
   channel_post: false,
+  group_invite: true,
   assistant_request: true,
   assistant_task: true,
   assistant_joined: false,

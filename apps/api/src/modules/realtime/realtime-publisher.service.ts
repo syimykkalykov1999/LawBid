@@ -37,6 +37,7 @@ export type RealtimeEvent =
   // fresh poll counters.
   | 'group:message'
   | 'group:update'
+  | 'group:invite'
   | 'group:member_removed'
   | 'poll:update'
   | 'conversation:update'

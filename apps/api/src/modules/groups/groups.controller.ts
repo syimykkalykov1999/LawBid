@@ -30,6 +30,9 @@ import {
   GroupDetailDto,
   GroupDto,
   GroupJoinRequestDto,
+  GroupInviteDto,
+  GroupInviteIdParamDto,
+  GroupInvitePreviewDetailDto,
   GroupJoinResultDto,
   GroupRequestParamDto,
   GroupTopicDto,
@@ -124,6 +127,55 @@ export class GroupsController {
     @Query() q: SearchGroupsQueryDto,
   ): Promise<GroupInvitePreviewDto[]> {
     return this.groups.searchPublic(user, q.q);
+  }
+
+  @Get('invites')
+  @ApiOperation({ summary: 'My pending group invitations (cards in Requests)' })
+  @ApiEnvelopeResponse(GroupInviteDto, { isArray: true })
+  listMyGroupInvitations(
+    @CurrentUser() user: RequestUser,
+  ): Promise<GroupInviteDto[]> {
+    return this.groups.myInvites(user);
+  }
+
+  @Get('invites/:inviteId/preview')
+  @ApiOperation({
+    summary:
+      'Look inside the group before answering: open group shows description, members and messages read-only',
+  })
+  @ApiEnvelopeResponse(GroupInvitePreviewDetailDto)
+  @ApiErrors({ 404: [ErrorCode.GROUP_NOT_FOUND] })
+  previewGroupInvitation(
+    @CurrentUser() user: RequestUser,
+    @Param() p: GroupInviteIdParamDto,
+  ): Promise<GroupInvitePreviewDetailDto> {
+    return this.groups.invitePreview(user, p.inviteId);
+  }
+
+  @Post('invites/:inviteId/accept')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Accept a group invitation' })
+  @ApiEnvelopeResponse(GroupJoinResultDto)
+  @ApiErrors({
+    404: [ErrorCode.GROUP_NOT_FOUND],
+    409: [ErrorCode.GROUP_FULL],
+  })
+  acceptGroupInvitation(
+    @CurrentUser() user: RequestUser,
+    @Param() p: GroupInviteIdParamDto,
+  ): Promise<GroupJoinResultDto> {
+    return this.groups.acceptInvite(user, p.inviteId);
+  }
+
+  @Post('invites/:inviteId/decline')
+  @HttpCode(204)
+  @ApiOperation({ summary: 'Decline a group invitation' })
+  @ApiErrors({ 404: [ErrorCode.GROUP_NOT_FOUND] })
+  async declineGroupInvitation(
+    @CurrentUser() user: RequestUser,
+    @Param() p: GroupInviteIdParamDto,
+  ): Promise<void> {
+    await this.groups.declineInvite(user, p.inviteId);
   }
 
   @Get('join/:code')

@@ -4,6 +4,7 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
+import { acceptInvites } from './support/group-invites';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
 
@@ -143,6 +144,7 @@ describe('Call history (e2e)', () => {
       .set(auth(me.id))
       .send({ title: 'Firm', type: 'closed', memberIds: [ann.id] })
       .expect(201);
+    await acceptInvites(api, auth, g.body.data.id as string, [ann.id]);
     const gid = g.body.data.id as string;
     expect(
       (await api().get('/api/v1/calls/ongoing').set(auth(ann.id))).body.data,

@@ -13,6 +13,7 @@ import { randomBytes } from 'node:crypto';
 import { Prisma } from '@prisma/client';
 import type {
   ChatGroup,
+  ChatGroupInvite,
   ChatGroupMember,
   ChatGroupMessage,
   ChatGroupTopic,
@@ -51,7 +52,10 @@ import {
   type GroupDetailDto,
   type GroupDto,
   type GroupDiscoverPageDto,
+  type GroupInviteDto,
+  type GroupInvitePreviewDetailDto,
   type GroupInvitePreviewDto,
+  type GroupPersonDto,
   type GroupMessageDto,
   type GroupMessagePage,
   type GroupPage,
@@ -73,6 +77,7 @@ import {
 const GROUPS_PAGE = 30;
 const MESSAGES_PAGE = 30;
 const GROUPS_PER_DAY = 10;
+const INVITE_RETRY_MS = 24 * 3600 * 1000;
 const FANOUT_CHUNK = 50;
 const TOPICS_MAX = 100;
 const TOPIC_COLORS = 7;
@@ -263,7 +268,26 @@ export class GroupsService {
         where: { group_id: id, left_at: null },
       }),
     ]);
-    return { ...dto, members: await this.presenter.members(members) };
+    // Owner 2026-10-21: whom I invited and who has not answered yet.
+    const pending =
+      me.role === 'member' && group.who_can_add !== 'all'
+        ? []
+        : await this.prisma.chatGroupInvite.findMany({
+            where: { group_id: id, status: 'pending' },
+            orderBy: { created_at: 'desc' },
+            take: 100,
+          });
+    const people = await this.presenter.people(
+      pending.map((x) => x.invitee_id),
+    );
+    return {
+      ...dto,
+      members: await this.presenter.members(members),
+      invited: pending.flatMap((x) => {
+        const p = people.get(x.invitee_id);
+        return p ? [p] : [];
+      }),
+    };
   }
 
   async messages(
@@ -380,17 +404,9 @@ export class GroupsService {
           avatar_file_id: dto.avatarFileId ?? null,
           created_by: user.sub,
           invite_code: newInviteCode(),
-          member_count: others.length + 1,
-          members: {
-            create: [
-              { user_id: user.sub, role: 'owner' },
-              ...others.map((uid) => ({
-                user_id: uid,
-                role: 'member' as const,
-                added_by: user.sub,
-              })),
-            ],
-          },
+          // Owner 2026-10-21: nobody is put in — the people are invited.
+          member_count: 1,
+          members: { create: [{ user_id: user.sub, role: 'owner' }] },
         },
       });
       const created = await this.system(
@@ -402,9 +418,6 @@ export class GroupsService {
         title,
       );
       const out = [created];
-      if (others.length > 0) {
-        out.push(await this.system(tx, g.id, 'added', user.sub, others));
-      }
       const last = out[out.length - 1];
       await tx.chatGroup.update({
         where: { id: g.id },
@@ -415,7 +428,7 @@ export class GroupsService {
       throw this.usernameTaken(error) ?? error;
     });
     for (const row of rows) await this.broadcast(groupId, row);
-    if (rows[1]) await this.notifyAdded(groupId, rows[1], others);
+    await this.sendInvites(groupId, user.sub, others);
     return this.detail(user.sub, groupId);
   }
 
@@ -639,6 +652,11 @@ export class GroupsService {
 
   // ---------------------------------------------------------------- members
 
+  /**
+   * Owner 2026-10-21 (Instagram): «Add» is an invitation. The person sees it
+   * in Requests and joins after «Accept»; someone who declined can be asked
+   * again after a day.
+   */
   async addMembers(
     user: RequestUser,
     id: string,
@@ -647,72 +665,239 @@ export class GroupsService {
     const m = await this.requireMember(user.sub, id);
     if (!(m.can('invite') || m.group.who_can_add === 'all')) throw forbidden();
     const wanted = await this.addableIds(user.sub, dto.userIds);
+    const { held } = await this.sendInvites(id, user.sub, wanted);
     const notAdded = dto.userIds.filter(
       (u) => u !== user.sub && !wanted.includes(u),
     );
-    const { added, row } = await withTxRetry(this.prisma, async (tx) => {
-      await tx.$queryRaw`SELECT id FROM chat_groups WHERE id = ${id}::UUID FOR UPDATE`;
-      const existing = await tx.chatGroupMember.findMany({
-        where: { group_id: id, user_id: { in: wanted } },
-      });
-      const byId = new Map(existing.map((e) => [e.user_id, e]));
-      // A person removed by an admin stays out until an admin re-adds them;
-      // here an admin/adder is re-adding, so that's allowed.
-      const fresh = wanted.filter(
-        (u) => byId.get(u)?.left_at !== null || !byId.has(u),
-      );
-      const count = await tx.chatGroupMember.count({
-        where: { group_id: id, left_at: null },
-      });
-      if (count + fresh.length > GROUP_MAX_MEMBERS) {
-        throw new ConflictException({
-          code: ErrorCode.GROUP_FULL,
-          message: 'The group is full.',
-          details: { max: GROUP_MAX_MEMBERS },
-        });
+    return {
+      ...(await this.detail(user.sub, id)),
+      notAdded: [...notAdded, ...held],
+    };
+  }
+
+  /**
+   * Invitations to [ids] (already screened by [addableIds]). Skips people
+   * already inside and ones who declined less than a day ago ([held]).
+   */
+  private async sendInvites(
+    groupId: string,
+    inviterId: string,
+    ids: string[],
+  ): Promise<{ sent: string[]; held: string[] }> {
+    if (ids.length === 0) return { sent: [], held: [] };
+    const [members, invites, group] = await Promise.all([
+      this.prisma.chatGroupMember.findMany({
+        where: { group_id: groupId, user_id: { in: ids }, left_at: null },
+        select: { user_id: true },
+      }),
+      this.prisma.chatGroupInvite.findMany({
+        where: { group_id: groupId, invitee_id: { in: ids } },
+      }),
+      this.prisma.chatGroup.findUnique({
+        where: { id: groupId },
+        select: { title: true },
+      }),
+    ]);
+    const inside = new Set(members.map((x) => x.user_id));
+    const byId = new Map(invites.map((x) => [x.invitee_id, x]));
+    const dayAgo = Date.now() - INVITE_RETRY_MS;
+    const sent: string[] = [];
+    const held: string[] = [];
+    for (const uid of ids) {
+      if (inside.has(uid)) continue;
+      const old = byId.get(uid);
+      if (old?.status === 'pending') continue;
+      if (
+        old?.status === 'declined' &&
+        (old.responded_at?.getTime() ?? 0) > dayAgo
+      ) {
+        held.push(uid);
+        continue;
       }
-      if (fresh.length === 0) return { added: [] as string[], row: null };
-      for (const uid of fresh) {
-        if (byId.has(uid)) {
-          await tx.chatGroupMember.update({
-            where: { group_id_user_id: { group_id: id, user_id: uid } },
-            data: {
-              left_at: null,
-              left_reason: null,
-              role: 'member',
-              joined_at: new Date(),
-              added_by: user.sub,
-              hidden_at: null,
-            },
-          });
-        } else {
-          await tx.chatGroupMember.create({
-            data: {
-              group_id: id,
-              user_id: uid,
-              role: 'member',
-              added_by: user.sub,
-            },
-          });
-        }
-      }
-      await tx.chatGroup.update({
-        where: { id },
-        data: { member_count: count + fresh.length },
+      const row = await this.prisma.chatGroupInvite.upsert({
+        where: { group_id_invitee_id: { group_id: groupId, invitee_id: uid } },
+        create: { group_id: groupId, invitee_id: uid, inviter_id: inviterId },
+        update: {
+          inviter_id: inviterId,
+          status: 'pending',
+          created_at: new Date(),
+          responded_at: null,
+        },
       });
-      const sys = await this.system(tx, id, 'added', user.sub, fresh);
-      await tx.chatGroup.update({
-        where: { id },
-        data: { last_message_id: sys.id, last_message_at: sys.created_at },
-      });
-      return { added: fresh, row: sys };
-    });
-    if (row) {
-      await this.broadcast(id, row);
-      await this.notifyAdded(id, row, added);
-      await this.groupChanged(id, 'members');
+      sent.push(uid);
+      this.realtime.toUsers([uid], 'group:invite', { groupId });
+      await this.badges.chatsChanged(uid).catch(() => undefined);
+      await this.notifications
+        .emit({
+          type: 'group_invite',
+          recipientId: uid,
+          payload: {
+            groupId,
+            inviteId: row.id,
+            groupTitle: group?.title ?? '',
+            inviterId,
+          },
+        })
+        .catch(() => undefined);
     }
-    return { ...(await this.detail(user.sub, id)), notAdded };
+    if (sent.length) await this.groupChanged(groupId, 'invites');
+    return { sent, held };
+  }
+
+  /** My pending invitations (the group cards in Requests). */
+  async myInvites(user: RequestUser): Promise<GroupInviteDto[]> {
+    const rows = await this.prisma.chatGroupInvite.findMany({
+      where: {
+        invitee_id: user.sub,
+        status: 'pending',
+        group: { deleted_at: null },
+      },
+      include: { group: true },
+      orderBy: { created_at: 'desc' },
+      take: 100,
+    });
+    return this.inviteDtos(rows);
+  }
+
+  private async inviteDtos(
+    rows: (ChatGroupInvite & { group: ChatGroup })[],
+  ): Promise<GroupInviteDto[]> {
+    if (rows.length === 0) return [];
+    const [people, avatars] = await Promise.all([
+      this.presenter.people(rows.map((r) => r.inviter_id)),
+      this.files.avatarUrlsMany(rows.map((r) => r.group.avatar_file_id)),
+    ]);
+    return rows.flatMap((r) => {
+      const inviter = people.get(r.inviter_id);
+      if (!inviter) return [];
+      return [
+        {
+          id: r.id,
+          groupId: r.group_id,
+          title: r.group.title,
+          avatarUrl: r.group.avatar_file_id
+            ? (avatars.get(r.group.avatar_file_id)?.url256 ?? null)
+            : null,
+          memberCount: r.group.member_count,
+          type: r.group.group_type,
+          inviter,
+          createdAt: r.created_at,
+        },
+      ];
+    });
+  }
+
+  private async myInvite(
+    userId: string,
+    inviteId: string,
+  ): Promise<ChatGroupInvite & { group: ChatGroup }> {
+    const row = await this.prisma.chatGroupInvite.findUnique({
+      where: { id: inviteId },
+      include: { group: true },
+    });
+    if (
+      !row ||
+      row.invitee_id !== userId ||
+      row.status !== 'pending' ||
+      row.group.deleted_at !== null
+    ) {
+      throw notFound();
+    }
+    return row;
+  }
+
+  /** Look inside before answering: open group = members and chat, read-only. */
+  async invitePreview(
+    user: RequestUser,
+    inviteId: string,
+  ): Promise<GroupInvitePreviewDetailDto> {
+    const row = await this.myInvite(user.sub, inviteId);
+    const [invite] = await this.inviteDtos([row]);
+    if (!invite) throw notFound();
+    const readable = row.group.group_type === 'public';
+    let members: GroupPersonDto[] = [];
+    let messages: GroupMessageDto[] = [];
+    if (readable) {
+      const [memberRows, messageRows] = await Promise.all([
+        this.prisma.chatGroupMember.findMany({
+          where: { group_id: row.group_id, left_at: null },
+          orderBy: { joined_at: 'asc' },
+          take: 50,
+        }),
+        this.prisma.chatGroupMessage.findMany({
+          where: {
+            group_id: row.group_id,
+            deleted_at: null,
+            type: { not: 'system' },
+          },
+          orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+          take: 30,
+        }),
+      ]);
+      members = (await this.presenter.members(memberRows)).map(
+        (m): GroupPersonDto => ({
+          userId: m.userId,
+          displayName: m.displayName,
+          username: m.username,
+          avatarUrl: m.avatarUrl,
+          kind: m.kind,
+          verifiedBadge: m.verifiedBadge,
+        }),
+      );
+      messages = await this.presenter.messages(messageRows, user.sub);
+    }
+    return {
+      invite,
+      description: row.group.description,
+      readable,
+      members,
+      messages,
+    };
+  }
+
+  async acceptInvite(
+    user: RequestUser,
+    inviteId: string,
+  ): Promise<GroupJoinResultDto> {
+    const row = await this.myInvite(user.sub, inviteId);
+    const existing = await this.prisma.chatGroupMember.findUnique({
+      where: {
+        group_id_user_id: { group_id: row.group_id, user_id: user.sub },
+      },
+    });
+    if (!existing || existing.left_at !== null) {
+      const line = await this.admit(
+        row.group_id,
+        user.sub,
+        row.inviter_id,
+        'added',
+      );
+      await this.broadcast(row.group_id, line);
+      await this.groupChanged(row.group_id, 'members');
+    }
+    await this.prisma.chatGroupInvite.update({
+      where: { id: row.id },
+      data: { status: 'accepted', responded_at: new Date() },
+    });
+    await this.badges.chatsChanged(user.sub).catch(() => undefined);
+    await this.prisma.chatGroupJoinRequest
+      .deleteMany({ where: { group_id: row.group_id, user_id: user.sub } })
+      .catch(() => undefined);
+    return {
+      status: 'joined',
+      groupId: row.group_id,
+      group: await this.detail(user.sub, row.group_id),
+    };
+  }
+
+  async declineInvite(user: RequestUser, inviteId: string): Promise<void> {
+    const row = await this.myInvite(user.sub, inviteId);
+    await this.prisma.chatGroupInvite.update({
+      where: { id: row.id },
+      data: { status: 'declined', responded_at: new Date() },
+    });
+    await this.badges.chatsChanged(user.sub).catch(() => undefined);
+    await this.groupChanged(row.group_id, 'invites');
   }
 
   async removeMember(

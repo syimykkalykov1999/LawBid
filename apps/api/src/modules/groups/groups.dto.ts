@@ -94,6 +94,12 @@ export class GroupPollParamDto extends GroupIdParamDto {
   pollId!: string;
 }
 
+export class GroupInviteIdParamDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID('all')
+  inviteId!: string;
+}
+
 export class GroupInviteCodeParamDto {
   @ApiProperty({ description: 'The code from the invite link.' })
   @IsString()
@@ -889,10 +895,17 @@ export class GroupDetailDto extends GroupDto {
   @ApiProperty({ type: [GroupMemberDto] })
   members!: GroupMemberDto[];
 
+  @ApiProperty({
+    type: [GroupPersonDto],
+    description:
+      'Owner 2026-10-21: people invited and not answered yet (only for those who can invite).',
+  })
+  invited!: GroupPersonDto[];
+
   @ApiPropertyOptional({
     type: [String],
     description:
-      'Only after adding members: people who could not be added (blocked, inactive or their privacy settings).',
+      'Only after inviting: people who could not be invited (blocked, inactive, their privacy settings, or declined less than a day ago).',
   })
   notAdded?: string[];
 }
@@ -1115,4 +1128,52 @@ export interface GroupPage {
 export interface GroupMessagePage {
   items: GroupMessageDto[];
   nextCursor: string | null;
+}
+
+/** Owner 2026-10-21: «X invites you to a group» in Requests. */
+export class GroupInviteDto {
+  @ApiProperty({ format: 'uuid' })
+  id!: string;
+
+  @ApiProperty({ format: 'uuid' })
+  groupId!: string;
+
+  @ApiProperty()
+  title!: string;
+
+  @ApiPropertyOptional({ type: String, nullable: true })
+  avatarUrl!: string | null;
+
+  @ApiProperty()
+  memberCount!: number;
+
+  @ApiProperty({ enum: GROUP_TYPES, enumName: 'GroupType' })
+  type!: GroupTypeName;
+
+  @ApiProperty({ type: GroupPersonDto })
+  inviter!: GroupPersonDto;
+
+  @ApiProperty({ format: 'date-time' })
+  createdAt!: Date;
+}
+
+/** Owner 2026-10-21: look inside before answering. An open group shows its
+ * members and chat read-only; a closed one only the card. */
+export class GroupInvitePreviewDetailDto {
+  @ApiProperty({ type: GroupInviteDto })
+  invite!: GroupInviteDto;
+
+  @ApiPropertyOptional({ type: String, nullable: true })
+  description!: string | null;
+
+  @ApiProperty({
+    description: 'Members and messages are included (open group).',
+  })
+  readable!: boolean;
+
+  @ApiProperty({ type: [GroupPersonDto] })
+  members!: GroupPersonDto[];
+
+  @ApiProperty({ type: [GroupMessageDto], description: 'Newest first.' })
+  messages!: GroupMessageDto[];
 }

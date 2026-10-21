@@ -4,6 +4,7 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
+import { acceptInvites } from './support/group-invites';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
 
@@ -77,7 +78,9 @@ describe('Recommended groups (e2e)', () => {
         ...(type === 'public' ? { username: `disc_${tag}` } : {}),
       })
       .expect(201);
-    return res.body.data.id as string;
+    const id = res.body.data.id as string;
+    await acceptInvites(api, bearer, id, memberIds);
+    return id;
   };
   const discover = async (viewer: string, query = '') => {
     const res = await api()
