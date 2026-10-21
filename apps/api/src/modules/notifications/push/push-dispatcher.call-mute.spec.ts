@@ -80,9 +80,9 @@ describe('PushDispatcher incoming call silence', () => {
     expect(sent[0].data?.silent).toBe('1');
   });
 
-  it('is silent when the calls of that group are muted', async () => {
+  it('sends no notice at all when the calls of that group are muted', async () => {
     const { d, sent } = build({ group: true, groupMuted: true });
     await d.dispatch(job, 'j');
-    expect(sent[0].data?.silent).toBe('1');
+    expect(sent).toHaveLength(0);
   });
 });

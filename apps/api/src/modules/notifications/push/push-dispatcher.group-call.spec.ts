@@ -8,6 +8,9 @@ function build(call: Record<string, unknown>) {
   const ring = jest.fn().mockResolvedValue([]);
   const prisma = {
     call: { findUnique: jest.fn().mockResolvedValue(call) },
+    chatGroupMember: {
+      findUnique: jest.fn().mockResolvedValue({ calls_muted: false }),
+    },
     chatGroup: {
       findUnique: jest.fn().mockResolvedValue({ title: 'Team' }),
     },
