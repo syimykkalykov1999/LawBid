@@ -18,6 +18,8 @@ class ChipsSearchRow extends ConsumerStatefulWidget {
     required this.query,
     required this.onQuery,
     this.leading,
+    this.trailing,
+    this.openSignal = 0,
     this.openKey = const ValueKey('list-search-open'),
     this.fieldKey = const ValueKey('list-search'),
     this.closeKey = const ValueKey('list-search-close'),
@@ -30,6 +32,13 @@ class ChipsSearchRow extends ConsumerStatefulWidget {
   /// An icon between the chips and the magnifier (a section's own door, like
   /// the channels).
   final Widget? leading;
+
+  /// Owner 2026-10-21: a button in the magnifier's place (Chats: «+»; the
+  /// magnifier then lives in the top bar and opens the row by [openSignal]).
+  final Widget? trailing;
+
+  /// Each change opens the search (a magnifier outside the row).
+  final int openSignal;
 
   /// Translation key of the placeholder and of the magnifier's label.
   final String hintKey;
@@ -78,6 +87,12 @@ class _ChipsSearchRowState extends ConsumerState<ChipsSearchRow> {
     _text.dispose();
     _focus.dispose();
     super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(ChipsSearchRow old) {
+    super.didUpdateWidget(old);
+    if (widget.openSignal != old.openSignal && !_open) _openSearch();
   }
 
   void _openSearch() {
@@ -140,20 +155,32 @@ class _ChipsSearchRowState extends ConsumerState<ChipsSearchRow> {
             child: widget.chips,
           ),
           if (widget.leading != null) widget.leading!,
-          Padding(
-            padding: const EdgeInsetsDirectional.only(
-              start: AppSpacing.xs,
-              end: AppSpacing.sm,
+          if (widget.trailing != null)
+            Padding(
+              padding: const EdgeInsetsDirectional.only(
+                start: AppSpacing.xs,
+                end: AppSpacing.sm,
+              ),
+              child: widget.trailing,
+            )
+          else
+            Padding(
+              padding: const EdgeInsetsDirectional.only(
+                start: AppSpacing.xs,
+                end: AppSpacing.sm,
+              ),
+              child: AppIconButton(
+                key: widget.openKey,
+                compact: true,
+                icon: AppIcon(
+                  AppIcons.searchRounded,
+                  size: 22,
+                  color: colors.text,
+                ),
+                semanticLabel: t.t(widget.hintKey),
+                onPressed: _openSearch,
+              ),
             ),
-            child: AppIconButton(
-              key: widget.openKey,
-              compact: true,
-              icon:
-                  AppIcon(AppIcons.searchRounded, size: 22, color: colors.text),
-              semanticLabel: t.t(widget.hintKey),
-              onPressed: _openSearch,
-            ),
-          ),
         ],
       ),
     );

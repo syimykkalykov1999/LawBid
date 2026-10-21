@@ -86,7 +86,7 @@ void main() {
         expect(tester.takeException(), isNull);
         final menu = tester.getRect(find.byKey(const ValueKey('chats-menu')));
         final plus =
-            tester.getRect(find.byKey(const ValueKey('chats-new-chat')));
+            tester.getRect(find.byKey(const ValueKey('chat-search-top')));
         // The segments end before the first icon begins.
         final tabs = tester.getRect(find.byType(InboxTabsBar));
         final firstIcon = dir == TextDirection.ltr

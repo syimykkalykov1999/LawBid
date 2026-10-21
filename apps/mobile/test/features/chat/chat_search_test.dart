@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -110,10 +111,12 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    // Owner 2026-10-20: the search is a magnifier in the folders row; a tap
-    // opens the field over the row.
+    // Owner 2026-10-21: the magnifier sits in the top bar (here the list
+    // alone: the same signal); it opens the field over the folders row.
     expect(find.byKey(const ValueKey('chat-search')), findsNothing);
-    await tester.tap(find.byKey(const ValueKey('chat-search-open')));
+    ProviderScope.containerOf(tester.element(find.byType(ConversationsView)))
+        .read(chatSearchOpenProvider.notifier)
+        .open();
     await tester.pumpAndSettle();
     expect(find.text('Search chats'), findsOneWidget);
     expect(find.text('Anna Petrova'), findsOneWidget);

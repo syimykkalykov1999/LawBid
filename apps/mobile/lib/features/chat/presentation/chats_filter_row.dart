@@ -11,6 +11,8 @@ class ChatsFilterRow extends StatelessWidget {
     required this.query,
     required this.onQuery,
     this.leading,
+    this.trailing,
+    this.openSignal = 0,
     super.key,
   });
 
@@ -19,6 +21,8 @@ class ChatsFilterRow extends StatelessWidget {
   final String query;
   final ValueChanged<String> onQuery;
   final Widget? leading;
+  final Widget? trailing;
+  final int openSignal;
 
   /// The bar's height in both states.
   static const double height = ChipsSearchRow.height;
@@ -26,6 +30,8 @@ class ChatsFilterRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) => ChipsSearchRow(
         leading: leading,
+        trailing: trailing,
+        openSignal: openSignal,
         chips: ChatFolderPills(value: folder, onChanged: onFolder),
         hintKey: 'chat.search.hint',
         query: query,

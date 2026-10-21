@@ -279,9 +279,21 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                                 // Owner 2026-10-20 (WhatsApp): «new chat» —
                                 // opens Contacts (who is on LawBid: chat,
                                 // call, video, invite).
+                                // Owner 2026-10-21: the magnifier up here,
+                                // the «+» in the folders row (swapped).
                                 if (tab == InboxTab.chats)
-                                  _NewChatButton(
-                                    label: t.t('phoneContacts.title'),
+                                  AppIconButton(
+                                    key: const ValueKey('chat-search-top'),
+                                    compact: true,
+                                    icon: AppIcon(
+                                      AppIcons.searchRounded,
+                                      size: 22,
+                                      color: colors.text,
+                                    ),
+                                    semanticLabel: t.t('chat.search.hint'),
+                                    onPressed: ref
+                                        .read(chatSearchOpenProvider.notifier)
+                                        .open,
                                   ),
                                 // Owner 2026-10-02: the notification filter /
                                 // settings sit up here, left of the bell, in
@@ -792,6 +804,8 @@ class ConversationsView extends ConsumerWidget {
             onFolder: onFolder!,
             query: query,
             onQuery: onQuery!,
+            trailing: _NewChatButton(label: t.t('phoneContacts.title')),
+            openSignal: ref.watch(chatSearchOpenProvider),
             // Owner 2026-10-20: the channels' door at the start of the row.
             leading: ref.watch(channelsEnabledProvider)
                 ? _ChannelsDoor(
@@ -825,6 +839,18 @@ class ConversationsView extends ConsumerWidget {
       body: body,
     );
   }
+}
+
+/// Owner 2026-10-21: the magnifier in the top bar opens the search of the
+/// folders row (each tap is a new number).
+final chatSearchOpenProvider =
+    NotifierProvider.autoDispose<_SearchOpen, int>(_SearchOpen.new);
+
+class _SearchOpen extends Notifier<int> {
+  @override
+  int build() => 0;
+
+  void open() => state++;
 }
 
 /// «Archive (N)» at the top of the Chats list; opens the Archive screen.
