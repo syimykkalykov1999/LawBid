@@ -45,7 +45,9 @@ export class CallHistoryController {
   @Get('ongoing')
   @ApiOperation({ summary: 'Group calls running now in my groups' })
   @ApiEnvelopeResponse(OngoingGroupCallDto, { isArray: true })
-  ongoingGroupCalls(@CurrentUser() user: RequestUser): Promise<OngoingGroupCallDto[]> {
+  ongoingGroupCalls(
+    @CurrentUser() user: RequestUser,
+  ): Promise<OngoingGroupCallDto[]> {
     return this.history.ongoing(user);
   }
 }
