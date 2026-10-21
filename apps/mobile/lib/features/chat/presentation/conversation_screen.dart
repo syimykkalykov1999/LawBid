@@ -2051,7 +2051,7 @@ class _ComposerState extends ConsumerState<_Composer> {
       if (!mounted) return;
       setState(() {
         _levels.add(l);
-        if (_levels.length > 40) _levels.removeAt(0);
+        if (_levels.length > 120) _levels.removeAt(0);
       });
     });
     var ticks = 0;
