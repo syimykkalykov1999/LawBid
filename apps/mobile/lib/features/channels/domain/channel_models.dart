@@ -81,6 +81,9 @@ class Channel {
     this.lastPostAt,
     this.protectContent = false,
     this.ongoingCall,
+    this.isPinned = false,
+    this.isArchived = false,
+    this.mutedUntil,
   });
 
   final String id;
@@ -111,6 +114,11 @@ class Channel {
   /// Owner 2026-10-21 (inbox 20e, Telegram «Видеочат»): the call running in
   /// the channel now (subscribers and admins see it).
   final OngoingCallSummary? ongoingCall;
+  /// Owner 2026-10-21 (inbox 22c, 27): my pin, my Archive of channels, and
+  /// a timed mute («forever» is just [isMuted]).
+  final bool isPinned;
+  final bool isArchived;
+  final DateTime? mutedUntil;
 
   bool get isOwner => myRole == ChannelRole.owner;
   bool get isAdmin => myRole != null;
@@ -122,6 +130,10 @@ class Channel {
     bool? isSubscribed,
     bool? isMuted,
     int? subscriberCount,
+    bool? isPinned,
+    bool? isArchived,
+    DateTime? mutedUntil,
+    bool clearMutedUntil = false,
   }) =>
       Channel(
         id: id,
@@ -142,6 +154,9 @@ class Channel {
         createdAt: createdAt,
         protectContent: protectContent,
         ongoingCall: ongoingCall,
+        isPinned: isPinned ?? this.isPinned,
+        isArchived: isArchived ?? this.isArchived,
+        mutedUntil: clearMutedUntil ? null : mutedUntil ?? this.mutedUntil,
       );
 }
 

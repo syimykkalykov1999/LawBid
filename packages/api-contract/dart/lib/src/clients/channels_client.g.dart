@@ -22,6 +22,7 @@ class _ChannelsClient implements ChannelsClient {
 
   @override
   Future<ChannelListEnvelope> channelList({
+    bool? archived,
     String? q,
     String? cursor,
     Scope2? scope = Scope2.discover,
@@ -30,6 +31,7 @@ class _ChannelsClient implements ChannelsClient {
     final _extra = <String, dynamic>{};
     _extra.addAll(extras ?? <String, dynamic>{});
     final queryParameters = <String, dynamic>{
+      r'archived': archived,
       r'q': q,
       r'cursor': cursor,
       r'scope': scope?.toJson(),

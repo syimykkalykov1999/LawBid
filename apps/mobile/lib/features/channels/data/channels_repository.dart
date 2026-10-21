@@ -69,7 +69,11 @@ class ChannelsRepository {
     );
   }
 
-  Future<List<Channel>> list(ChannelScope scope, {String? q}) async {
+  Future<List<Channel>> list(
+    ChannelScope scope, {
+    String? q,
+    bool archived = false,
+  }) async {
     final term = q?.trim();
     try {
       final env = await guardApiCall(
@@ -80,6 +84,7 @@ class ChannelsRepository {
             ChannelScope.managed => api.Scope2.managed,
           },
           q: term == null || term.isEmpty ? null : term,
+          archived: archived ? true : null,
         ),
       );
       return env.data.map(channelOf).toList();
@@ -154,12 +159,30 @@ class ChannelsRepository {
         (await guardApiCall(() => _channels.channelUnsubscribe(id: c.id))).data,
       );
 
-  Future<Channel> mute(Channel c, {required bool muted}) async => _sub(
+  Future<Channel> mute(Channel c, {required bool muted}) =>
+      organize(c, muted: muted);
+
+  /// My own switches of a channel I follow (owner 2026-10-21, inbox 22c/27):
+  /// mute for good ([muted]) or until [mutedUntil], pin, Archive. «Unmute»
+  /// is `muted: false` (the generated client drops nulls).
+  Future<Channel> organize(
+    Channel c, {
+    bool? muted,
+    DateTime? mutedUntil,
+    bool? pinned,
+    bool? archived,
+  }) async =>
+      _sub(
         c,
         (await guardApiCall(
           () => _channels.channelMute(
             id: c.id,
-            body: api.UpdateChannelSubscriptionDto(muted: muted),
+            body: api.UpdateChannelSubscriptionDto(
+              muted: muted,
+              mutedUntil: mutedUntil,
+              pinned: pinned,
+              archived: archived,
+            ),
           ),
         ))
             .data,
@@ -169,6 +192,10 @@ class ChannelsRepository {
         isSubscribed: s.isSubscribed,
         isMuted: s.isMuted,
         subscriberCount: s.subscriberCount,
+        isPinned: s.isPinned,
+        isArchived: s.isArchived,
+        mutedUntil: s.mutedUntil,
+        clearMutedUntil: s.mutedUntil == null,
       );
 
   // ── admins ─────────────────────────────────────────────────────────────
@@ -556,6 +583,9 @@ class ChannelsRepository {
         createdAt: d.createdAt,
         protectContent: d.protectContent ?? false,
         ongoingCall: OngoingCallSummary.fromDto(d.ongoingCall),
+        isPinned: d.isPinned,
+        isArchived: d.isArchived,
+        mutedUntil: d.mutedUntil,
       );
 
   static ChannelPost postOf(api.ChannelPostDto d) => ChannelPost(

@@ -323,6 +323,62 @@ describe('Channels (e2e)', () => {
     });
   });
 
+  it('keeps my pin, Archive and timed mute per channel (inbox 22c, 27)', async () => {
+    const owner = await attorney('Pia');
+    const reader = await client('Rita');
+    const a = (await mkChannel(owner)).body.data;
+    const b = (
+      await mkChannel(owner, {
+        title: 'Second',
+        username: `s${randomUUID().replace(/-/g, '').slice(0, 12)}`,
+      })
+    ).body.data;
+    for (const ch of [a, b]) {
+      await api()
+        .put(`/api/v1/channels/${ch.id}/subscription`)
+        .set(reader.auth);
+    }
+    const patch = (id: string, body: object) =>
+      api()
+        .patch(`/api/v1/channels/${id}/subscription`)
+        .set(reader.auth)
+        .send(body);
+    const list = async (archived: boolean) =>
+      (
+        await api()
+          .get(`/api/v1/channels?scope=subscribed&archived=${archived}`)
+          .set(reader.auth)
+      ).body.data as { id: string; isPinned: boolean; isArchived: boolean }[];
+
+    // Archive: leaves the list, shows in the Archive, comes back.
+    expect((await patch(a.id, { archived: true })).body.data.isArchived).toBe(
+      true,
+    );
+    expect((await list(false)).map((c) => c.id)).toEqual([b.id]);
+    expect((await list(true)).map((c) => c.id)).toEqual([a.id]);
+    await patch(a.id, { archived: false });
+    expect(await list(true)).toHaveLength(0);
+
+    // Pin: the pinned channel goes first.
+    await patch(a.id, { pinned: true });
+    const pinned = await list(false);
+    expect(pinned[0]).toMatchObject({ id: a.id, isPinned: true });
+
+    // Timed mute: muted now, not muted once the moment has passed.
+    const until = new Date(Date.now() + 3600_000).toISOString();
+    const timed = await patch(a.id, { mutedUntil: until });
+    expect(timed.body.data).toMatchObject({ isMuted: true, mutedUntil: until });
+    const gone = await patch(a.id, {
+      mutedUntil: new Date(Date.now() - 1000).toISOString(),
+    });
+    expect(gone.body.data.isMuted).toBe(false);
+    await patch(a.id, { muted: true });
+    expect((await patch(a.id, { muted: false })).body.data).toMatchObject({
+      isMuted: false,
+      mutedUntil: null,
+    });
+  });
+
   it('notifies subscribers who did not mute; comments follow the switch', async () => {
     const owner = await attorney('Nina');
     const loud = await client('Loud');

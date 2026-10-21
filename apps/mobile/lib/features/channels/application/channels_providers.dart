@@ -31,6 +31,14 @@ final channelListProvider =
       ref.watch(channelsRepositoryProvider).list(key.scope, q: key.query),
 );
 
+/// Owner 2026-10-21 (inbox 22c): the channels I moved to the channels' own
+/// Archive.
+final archivedChannelsProvider = FutureProvider.autoDispose<List<Channel>>(
+  (ref) => ref
+      .watch(channelsRepositoryProvider)
+      .list(ChannelScope.subscribed, archived: true),
+);
+
 /// «Discover» with nothing typed: an endless list, ranked for me first.
 class RecommendedChannelsNotifier extends PagedNotifier<Channel> {
   @override
@@ -105,7 +113,9 @@ class ChannelController extends AsyncNotifier<Channel> {
     _refreshLists();
   }
 
-  void _refreshLists() => ref.invalidate(channelListProvider);
+  void _refreshLists() => ref
+    ..invalidate(channelListProvider)
+    ..invalidate(archivedChannelsProvider);
 }
 
 /// The posts of a channel, newest first, loaded page by page.
