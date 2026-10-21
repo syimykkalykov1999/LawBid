@@ -7,7 +7,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// One place a link can go.
-typedef _Target = ({
+typedef ShareTarget = ({
   String key,
   Widget icon,
   String label,
@@ -28,12 +28,77 @@ Future<bool> showShareSheet(
   required String link,
   String? text,
 }) async {
-  final message = text == null || text.isEmpty ? link : '$text\n$link';
-  const enc = Uri.encodeComponent;
+  final targets = buildShareTargets(context, t: t, link: link, text: text);
+  final picked = await showAppBottomSheet<String>(
+    context: context,
+    isScrollControlled: true,
+    builder: (sheet) => _ShareSheet(t: t, link: link, targets: targets),
+  );
+  if (picked == null || !context.mounted) return false;
+  if (picked == 'copy') {
+    await copyShareLink(context, t: t, link: link);
+    return true;
+  }
+  if (picked == 'more') return shareLinkViaSystem(context, link: link);
+  return runShareTarget(
+    context,
+    t: t,
+    target: targets.firstWhere((x) => x.key == picked),
+  );
+}
+
+/// Owner 2026-10-21 (Instagram «Поделиться»): «Копировать ссылку» — the
+/// link on the clipboard and a «Link copied» message.
+Future<void> copyShareLink(
+  BuildContext context, {
+  required Translator t,
+  required String link,
+}) async {
+  await Clipboard.setData(ClipboardData(text: link));
+  if (context.mounted) showAppSnackBar(context, t.t('share.copied'));
+}
+
+/// The phone's own share sheet with [link]; true unless it was dismissed.
+Future<bool> shareLinkViaSystem(
+  BuildContext context, {
+  required String link,
+}) async {
   final box = context.findRenderObject() as RenderBox?;
   final origin = box == null || !box.hasSize
       ? null
       : box.localToGlobal(Offset.zero) & box.size;
+  final r = await SharePlus.instance.share(
+    ShareParams(
+      uri: Uri.parse(link),
+      sharePositionOrigin: origin,
+    ),
+  );
+  return r.status != ShareResultStatus.dismissed;
+}
+
+/// Runs [target]; says so when its app could not be opened.
+Future<bool> runShareTarget(
+  BuildContext context, {
+  required Translator t,
+  required ShareTarget target,
+}) async {
+  final ok = await target.go();
+  if (!ok && context.mounted) {
+    showAppSnackBar(context, t.t('share.cantOpen', {'app': target.label}));
+  }
+  return ok;
+}
+
+/// Owner 2026-10-21: the network targets of the share sheet (WhatsApp …
+/// e-mail), also the tail of the post share sheet's action row.
+List<ShareTarget> buildShareTargets(
+  BuildContext context, {
+  required Translator t,
+  required String link,
+  String? text,
+}) {
+  final message = text == null || text.isEmpty ? link : '$text\n$link';
+  const enc = Uri.encodeComponent;
 
   Future<bool> open(String url, {String? fallback}) async {
     try {
@@ -69,7 +134,7 @@ Future<bool> showShareSheet(
   Widget brand(FaIconData icon, Color color) =>
       FaIcon(icon, size: 24, color: color);
 
-  final targets = <_Target>[
+  return <ShareTarget>[
     (
       key: 'whatsapp',
       icon: brand(FontAwesomeIcons.whatsapp, const Color(0xFF25D366)),
@@ -159,33 +224,6 @@ Future<bool> showShareSheet(
           ),
     ),
   ];
-
-  final picked = await showAppBottomSheet<String>(
-    context: context,
-    isScrollControlled: true,
-    builder: (sheet) => _ShareSheet(t: t, link: link, targets: targets),
-  );
-  if (picked == null || !context.mounted) return false;
-  switch (picked) {
-    case 'copy':
-      await Clipboard.setData(ClipboardData(text: link));
-      if (context.mounted) showAppSnackBar(context, t.t('share.copied'));
-      return true;
-    case 'more':
-      final r = await SharePlus.instance.share(
-        ShareParams(
-          uri: Uri.parse(link),
-          sharePositionOrigin: origin,
-        ),
-      );
-      return r.status != ShareResultStatus.dismissed;
-  }
-  final target = targets.firstWhere((x) => x.key == picked);
-  final ok = await target.go();
-  if (!ok && context.mounted) {
-    showAppSnackBar(context, t.t('share.cantOpen', {'app': target.label}));
-  }
-  return ok;
 }
 
 class _ShareSheet extends StatelessWidget {
@@ -197,7 +235,7 @@ class _ShareSheet extends StatelessWidget {
 
   final Translator t;
   final String link;
-  final List<_Target> targets;
+  final List<ShareTarget> targets;
 
   @override
   Widget build(BuildContext context) {
