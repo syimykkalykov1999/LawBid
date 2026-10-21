@@ -2709,6 +2709,9 @@ model ChatGroup {
   /// Owner 2026-10-21: disappearing messages (24 h / 7 d / 90 d); null = off.
   /// Who may change it follows `who_can_edit_info` (WhatsApp).
   disappear_after_s     Int?
+  /// Owner 2026-10-21 (Telegram «Запретить копирование»): no forwarding,
+  /// copying or saving of the group's messages; sharing sends the link.
+  protect_content       Boolean   @default(false)
   /// Telegram's member permissions beyond post / add / edit-info / call.
   who_can_media         GroupWho  @default(all)
   who_can_poll          GroupWho  @default(all)
@@ -2766,36 +2769,40 @@ model ChatGroupMember {
 }
 
 model ChatGroupMessage {
-  id                String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  group_id          String             @db.Uuid
-  group             ChatGroup          @relation(fields: [group_id], references: [id], onDelete: Cascade)
+  id                  String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  group_id            String             @db.Uuid
+  group               ChatGroup          @relation(fields: [group_id], references: [id], onDelete: Cascade)
   /// NULL for system messages.
-  sender_id         String?            @db.Uuid
-  sender            User?              @relation("ChatGroupMessageSender", fields: [sender_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  type              GroupMessageType
-  body              String             @default("")
-  client_message_id String
+  sender_id           String?            @db.Uuid
+  sender              User?              @relation("ChatGroupMessageSender", fields: [sender_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  type                GroupMessageType
+  body                String             @default("")
+  client_message_id   String
   /// system messages: added | removed | left | joined | renamed | created |
   /// photo | pinned | promoted | demoted | poll_closed | call_started | call_ended
-  system_kind       String?            @db.VarChar(24)
-  system_payload    Json?
+  system_kind         String?            @db.VarChar(24)
+  system_payload      Json?
   /// null = «General» (or no topics at all).
-  topic_id          String?            @db.Uuid
-  topic             ChatGroupTopic?    @relation(fields: [topic_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  reply_to_id       String?            @db.Uuid
-  reply_to          ChatGroupMessage?  @relation("GroupMessageReply", fields: [reply_to_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
-  replies           ChatGroupMessage[] @relation("GroupMessageReply")
+  topic_id            String?            @db.Uuid
+  topic               ChatGroupTopic?    @relation(fields: [topic_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  reply_to_id         String?            @db.Uuid
+  reply_to            ChatGroupMessage?  @relation("GroupMessageReply", fields: [reply_to_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  replies             ChatGroupMessage[] @relation("GroupMessageReply")
   /// @mentioned user ids.
-  mention_ids       String[]           @default([]) @db.Uuid
-  file_id           String?            @db.Uuid
-  file              File?              @relation("ChatGroupMessageFile", fields: [file_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  file_name         String?
-  edited_at         DateTime?          @db.Timestamptz
-  deleted_at        DateTime?          @db.Timestamptz
+  mention_ids         String[]           @default([]) @db.Uuid
+  file_id             String?            @db.Uuid
+  file                File?              @relation("ChatGroupMessageFile", fields: [file_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  file_name           String?
+  edited_at           DateTime?          @db.Timestamptz
+  deleted_at          DateTime?          @db.Timestamptz
   /// Owner 2026-10-21: disappearing messages — see messages.expires_at.
-  expires_at        DateTime?          @db.Timestamptz
-  created_at        DateTime           @default(now()) @db.Timestamptz
-  poll              ChatGroupPoll?
+  expires_at          DateTime?          @db.Timestamptz
+  /// Owner 2026-10-21 (Telegram): «Forwarded from <name>» — the first
+  /// author (or channel), kept through re-forwards.
+  forwarded           Boolean            @default(false)
+  forwarded_from_name String?            @db.VarChar(120)
+  created_at          DateTime           @default(now()) @db.Timestamptz
+  poll                ChatGroupPoll?
 
   @@unique([group_id, sender_id, client_message_id])
   @@index([group_id, created_at(sort: Desc)])
@@ -6010,6 +6017,9 @@ model Channel {
   avatar_file_id      String?               @db.Uuid
   avatar_file         File?                 @relation(fields: [avatar_file_id], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "channels_avatar_fkey")
   comments_enabled    Boolean               @default(true)
+  /// Owner 2026-10-21 (Telegram «Запретить копирование»): no forwarding,
+  /// copying or saving of the posts; sharing sends the channel link.
+  protect_content     Boolean               @default(false)
   /// 'active' | 'hidden' (moderation: out of search, posts still readable
   /// by subscribers) | 'banned' (closed for everyone but the admin panel).
   status              String                @default("active") @db.VarChar(10)
@@ -6058,29 +6068,34 @@ model ChannelSubscription {
 }
 
 model ChannelPost {
-  id             String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  channel_id     String             @db.Uuid
-  channel        Channel            @relation(fields: [channel_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "channel_posts_channel_fkey")
-  author_id      String             @db.Uuid
-  author         User               @relation("ChannelPostAuthor", fields: [author_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "channel_posts_author_fkey")
-  body           String             @db.VarChar(4000)
+  id                  String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  channel_id          String             @db.Uuid
+  channel             Channel            @relation(fields: [channel_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "channel_posts_channel_fkey")
+  author_id           String             @db.Uuid
+  author              User               @relation("ChannelPostAuthor", fields: [author_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "channel_posts_author_fkey")
+  body                String             @db.VarChar(4000)
   /// Clean post_image files of the author, in order (≤ 10).
-  media_file_ids String[]           @default([]) @db.Uuid
-  video_asset_id String?            @unique @db.Uuid
-  video_asset    VideoAsset?        @relation(fields: [video_asset_id], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "channel_posts_video_asset_fkey")
+  media_file_ids      String[]           @default([]) @db.Uuid
+  video_asset_id      String?            @unique @db.Uuid
+  video_asset         VideoAsset?        @relation(fields: [video_asset_id], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "channel_posts_video_asset_fkey")
   /// 'active' | 'hidden' | 'removed' (moderation).
-  status         String             @default("active") @db.VarChar(10)
-  view_count     Int                @default(0)
-  comment_count  Int                @default(0)
-  share_count    Int                @default(0)
-  created_at     DateTime           @default(now()) @db.Timestamptz
-  edited_at      DateTime?          @db.Timestamptz
-  deleted_at     DateTime?          @db.Timestamptz
-  views          ChannelPostView[]
-  shares         ChannelPostShare[]
-  reactions      ChannelReaction[]
-  comments       ChannelComment[]
+  status              String             @default("active") @db.VarChar(10)
+  view_count          Int                @default(0)
+  comment_count       Int                @default(0)
+  share_count         Int                @default(0)
+  /// Owner 2026-10-21 (Telegram): a forwarded post — «Forwarded from
+  /// <name>»; forward_key makes a retried forward a no-op.
+  forwarded_from_name String?            @db.VarChar(120)
+  forward_key         String?            @db.VarChar(64)
+  created_at          DateTime           @default(now()) @db.Timestamptz
+  edited_at           DateTime?          @db.Timestamptz
+  deleted_at          DateTime?          @db.Timestamptz
+  views               ChannelPostView[]
+  shares              ChannelPostShare[]
+  reactions           ChannelReaction[]
+  comments            ChannelComment[]
 
+  @@unique([channel_id, author_id, forward_key], map: "channel_posts_forward_key_key")
   @@index([channel_id, created_at(sort: Desc)], map: "channel_posts_channel_created_idx")
   @@map("channel_posts")
 }
