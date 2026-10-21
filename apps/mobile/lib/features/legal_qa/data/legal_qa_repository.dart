@@ -27,6 +27,9 @@ class LegalQaRepository {
           QaFilter.solved => api.QuestionFilter.solved,
           QaFilter.mine => api.QuestionFilter.mine,
         },
+        scope: query.mineScope && query.practiceAreaId == null
+            ? api.QuestionScope.mine
+            : null,
         cursor: cursor,
       ),
     );
@@ -66,6 +69,8 @@ class LegalQaRepository {
         author: d.author,
         bestAnswerId: d.bestAnswerId,
         myAnswerId: d.myAnswerId,
+        closed: d.closed,
+        answersEnough: d.answersEnough,
       ),
       answers: d.answers,
     );
@@ -93,6 +98,9 @@ class LegalQaRepository {
         .data;
     return _question(d);
   }
+
+  Future<void> close(String id) =>
+      guardApiCall(() => _api.closeQuestion(id: id));
 
   Future<void> delete(String id) =>
       guardApiCall(() => _api.deleteQuestion(id: id));
@@ -173,6 +181,8 @@ class LegalQaRepository {
         author: d.author == null ? null : _person(d.author!),
         bestAnswerId: d.bestAnswerId,
         myAnswerId: d.myAnswerId,
+        closed: d.closed,
+        answersEnough: d.answersEnough,
         answers: answers.map(_answer).toList(),
       );
 }

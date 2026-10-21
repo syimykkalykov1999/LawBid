@@ -74,12 +74,6 @@ class _QaFilterSheetState extends ConsumerState<_QaFilterSheet> {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    final tabs = [
-      (QaFilter.all, t.t('qa.tab.all')),
-      (QaFilter.unanswered, t.t('qa.tab.unanswered')),
-      (QaFilter.solved, t.t('qa.tab.solved')),
-      if (!widget.attorney) (QaFilter.mine, t.t('qa.tab.mine')),
-    ];
     Widget picker(String label, VoidCallback onTap, {required bool selected}) =>
         AppChip(
           label: label,
@@ -122,7 +116,6 @@ class _QaFilterSheetState extends ConsumerState<_QaFilterSheet> {
                     child: TextButton(
                       onPressed: () => setState(
                         () => _q = _q.copyWith(
-                          filter: QaFilter.all,
                           clearPractice: true,
                           clearState: true,
                         ),
@@ -137,19 +130,6 @@ class _QaFilterSheetState extends ConsumerState<_QaFilterSheet> {
                 ],
               ),
               const SizedBox(height: AppSpacing.sm),
-              Wrap(
-                spacing: AppSpacing.sm,
-                runSpacing: AppSpacing.sm,
-                children: [
-                  for (final (f, label) in tabs)
-                    AppChip(
-                      label: label,
-                      selected: _q.filter == f,
-                      onTap: () => setState(() => _q = _q.copyWith(filter: f)),
-                    ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.md),
               picker(
                 _q.practiceLabel ?? t.t('qa.allAreas'),
                 _pickArea,
