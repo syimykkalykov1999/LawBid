@@ -19,6 +19,7 @@ import 'package:lawbid/features/chat/presentation/disappearing_sheet.dart';
 import 'package:lawbid/features/groups/application/group_call_port.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
 import 'package:lawbid/features/groups/domain/group_message_ext.dart';
+import 'package:lawbid/features/groups/presentation/group_files_screen.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_admin_rights_sheet.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_info_avatar.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_info_header.dart';
@@ -802,6 +803,23 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
                 ],
               ],
             ),
+          ),
+        ),
+        SliverToBoxAdapter(
+          child: GroupInfoSection(
+            children: [
+              GroupInfoNavRow(
+                key: const ValueKey('group-shared-media'),
+                neutral: true,
+                icon: AppIcons.photoLibraryOutlined,
+                label: t.t('contact.mediaLinksDocs'),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => GroupFilesScreen(groupId: _id),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
         if (ref.watch(groupCallPortProvider) != null)

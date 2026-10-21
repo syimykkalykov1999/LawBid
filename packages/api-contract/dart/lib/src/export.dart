@@ -1717,6 +1717,7 @@ export 'models/vote_poll_dto.dart';
 export 'models/poll_envelope.dart';
 export 'models/poll_voter_option_dto.dart';
 export 'models/poll_voter_option_list_envelope.dart';
+export 'models/group_shared_kind.dart';
 export 'models/admin_group_dto.dart';
 export 'models/admin_group_list_envelope.dart';
 export 'models/admin_group_detail_dto.dart';

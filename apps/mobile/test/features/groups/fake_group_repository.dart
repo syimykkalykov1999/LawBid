@@ -34,6 +34,12 @@ class FakeGroupRepository implements GroupRepository {
   final List<api.PollVoterOptionDto> voterList;
   final updates = <String>[];
 
+  /// The shared-media tabs: the rows of each kind (newest first), served
+  /// [sharedPage] at a time; [sharedCalls] records `kind:cursor`.
+  final sharedItems = <api.GroupSharedKind, List<api.GroupMessageDto>>{};
+  final sharedCalls = <String>[];
+  int sharedPage = 2;
+
   /// Makes every send fail, so a message stays «not delivered».
   bool failSend = false;
 
@@ -46,6 +52,22 @@ class FakeGroupRepository implements GroupRepository {
 
   @override
   Future<api.GroupDetailDto> group(String id) async => detail!;
+
+  @override
+  Future<CursorPage<api.GroupMessageDto>> shared(
+    String id,
+    api.GroupSharedKind kind, {
+    String? cursor,
+  }) async {
+    sharedCalls.add('${kind.json}:${cursor ?? ''}');
+    final all = sharedItems[kind] ?? const [];
+    final from = cursor == null ? 0 : int.parse(cursor);
+    final to = math.min(from + sharedPage, all.length);
+    return CursorPage(
+      items: all.sublist(from, to),
+      nextCursor: to < all.length ? '$to' : null,
+    );
+  }
 
   @override
   Future<CursorPage<api.GroupMessageDto>> messages(

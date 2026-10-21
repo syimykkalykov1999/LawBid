@@ -11,6 +11,8 @@ import { AdminGroupsController } from './admin-groups.controller';
 import { AdminGroupsService } from './admin-groups.service';
 import { GroupPollsService } from './group-polls.service';
 import { GroupPresenter } from './group-presenter.service';
+import { GroupSharedController } from './group-shared.controller';
+import { GroupSharedService } from './group-shared.service';
 import { GroupsController } from './groups.controller';
 import { GroupsService } from './groups.service';
 
@@ -25,12 +27,13 @@ import { GroupsService } from './groups.service';
     UsernamesModule,
     RecommendationsModule,
   ],
-  controllers: [GroupsController, AdminGroupsController],
+  controllers: [GroupsController, GroupSharedController, AdminGroupsController],
   providers: [
     GroupAddPolicy,
     GroupsService,
     GroupPollsService,
     GroupPresenter,
+    GroupSharedService,
     AdminGroupsService,
   ],
   exports: [GroupsService],
