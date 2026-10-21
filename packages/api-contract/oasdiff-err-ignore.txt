@@ -170,3 +170,6 @@ PUT /notification-settings/quiet-hours added the new `channels` enum value to th
 PUT /notification-settings/quiet-hours added the new `groups` enum value to the `data/categories/items/category` response property for the response status `200`
 GET /notifications added the new `channels` enum value to the `data/items/category` response property for the response status `200`
 GET /notifications added the new `groups` enum value to the `data/items/category` response property for the response status `200`
+GET /conversations/{id}/messages added the new `post` enum value to the `data/items/type` response property for the response status `200`
+POST /conversations/{id}/messages added the new `post` enum value to the `data/type` response property for the response status `201`
+POST /conversations/{id}/messages/{messageId}/listened added the new `post` enum value to the `data/type` response property for the response status `200`
