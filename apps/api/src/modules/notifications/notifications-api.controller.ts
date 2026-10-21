@@ -37,6 +37,7 @@ import {
   ReadNotificationsResultDto,
   UpdateNewCaseAlertsDto,
   UpdateNotificationSettingsDto,
+  UpdateTopicSettingsDto,
 } from './notifications-api.dto';
 import { NotificationsApiService } from './notifications-api.service';
 import { PushTokensService } from './push/push-tokens.service';
@@ -164,6 +165,19 @@ export class NotificationsApiController {
   @ApiErrors({ 400: [ErrorCode.VALIDATION_ERROR] })
   setQuietHours(@CurrentUser() user: RequestUser, @Body() dto: QuietHoursDto) {
     return this.api.setQuietHours(user.sub, dto);
+  }
+
+  // Owner 2026-10-21 (inbox 30): a switch per kind of notification.
+  @AssistantSelf()
+  @Put('notification-settings/topics')
+  @ApiOperation({ summary: 'Kinds of notifications on/off; locked stay on' })
+  @ApiEnvelopeResponse(NotificationSettingsDto)
+  @ApiErrors({ 400: [ErrorCode.VALIDATION_ERROR] })
+  updateNotificationTopics(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: UpdateTopicSettingsDto,
+  ) {
+    return this.api.updateTopics(user.sub, dto.items);
   }
 
   // Owner 2026-10-21 (inbox 29): «Счётчик на иконке в меню».

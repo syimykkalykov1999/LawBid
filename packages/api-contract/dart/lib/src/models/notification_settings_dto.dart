@@ -6,6 +6,7 @@ import 'package:json_annotation/json_annotation.dart';
 
 import 'category_setting_view_dto.dart';
 import 'quiet_hours_dto.dart';
+import 'topic_setting_view_dto.dart';
 
 part 'notification_settings_dto.g.dart';
 
@@ -14,6 +15,7 @@ class NotificationSettingsDto {
   const NotificationSettingsDto({
     required this.categories,
     required this.iconBadge,
+    required this.topics,
     this.quietHours,
   });
 
@@ -25,6 +27,9 @@ class NotificationSettingsDto {
 
   /// Owner 2026-10-21: the unread number on the app icon (default true).
   final bool iconBadge;
+
+  /// Owner 2026-10-21: a switch per kind of notification, in screen order.
+  final List<TopicSettingViewDto> topics;
 
   Map<String, Object?> toJson() => _$NotificationSettingsDtoToJson(this);
 }

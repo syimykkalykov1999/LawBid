@@ -520,6 +520,8 @@ enum NotificationType {
   assistant_task
   assistant_joined
   assistant_result
+  // Owner 2026-10-21 (inbox 30): an assistant prepared a bid draft.
+  assistant_bid_draft
   // Owner 2026-10-05: the planner — a reminder, a task assigned to an
   // assistant, archived tasks about to be removed.
   task_reminder
@@ -775,6 +777,10 @@ model User {
   /// number on the app icon (home screen). Off: pushes carry badge 0 and
   /// the app clears the icon; notifications still arrive.
   notif_icon_badge         Boolean                 @default(true)
+  /// Owner 2026-10-21 (inbox 30): the finer notification switches
+  /// ({"likes": false, …}, keys in notification-topics.ts); a missing key
+  /// follows the old category switch.
+  notif_topics             Json                    @default("{}")
   /// Owner 2026-10-15: do not show like counters under other people's posts.
   hide_like_counts         Boolean                 @default(false)
   theme                    ThemePref               @default(system)
