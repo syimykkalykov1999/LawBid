@@ -8,6 +8,8 @@ import 'package:lawbid_api/lawbid_api.dart' as api;
 // `newCases` — opt-in alerts (off until turned on).
 enum NotifCategory {
   messages,
+  groups,
+  channels,
   calls,
   bids,
   cases,

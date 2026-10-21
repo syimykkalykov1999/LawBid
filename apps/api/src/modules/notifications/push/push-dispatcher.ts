@@ -157,6 +157,7 @@ export class PushDispatcher
       select: {
         status: true,
         conversation_id: true,
+        group_id: true,
         video: true,
         is_group: true,
         callee: { select: { status: true, ui_language: true } },
@@ -185,7 +186,10 @@ export class PushDispatcher
     const language = invite ? invite.user.ui_language : call.callee.ui_language;
     // Owner 2026-10-02: calls switched off still come through — silently
     // (no ringtone), so a call is never lost.
-    const silent = !(await this.pushAllowed(data.recipientId, 'calls'));
+    // Owner 2026-10-21: «mute calls» of this chat / group does the same.
+    const silent =
+      !(await this.pushAllowed(data.recipientId, 'calls')) ||
+      (await this.callsMutedFor(data.recipientId, call));
     const who = invite?.invited_by ?? call.caller;
     const name =
       [who.first_name, who.last_name].filter(Boolean).join(' ') || 'LawBid';
@@ -229,6 +233,33 @@ export class PushDispatcher
       `c:${data.callId}`,
     );
     return 'sent';
+  }
+
+  /** The recipient muted the calls of the chat / group this call is from. */
+  private async callsMutedFor(
+    userId: string,
+    call: { conversation_id: string | null; group_id: string | null },
+  ): Promise<boolean> {
+    if (call.group_id) {
+      const m = await this.prisma.chatGroupMember.findUnique({
+        where: {
+          group_id_user_id: { group_id: call.group_id, user_id: userId },
+        },
+        select: { calls_muted: true },
+      });
+      return m?.calls_muted ?? false;
+    }
+    if (!call.conversation_id) return false;
+    const p = await this.prisma.conversationParticipant.findUnique({
+      where: {
+        conversation_id_user_id: {
+          conversation_id: call.conversation_id,
+          user_id: userId,
+        },
+      },
+      select: { calls_muted: true },
+    });
+    return p?.calls_muted ?? false;
   }
 
   private async dispatchNotification(
@@ -469,7 +500,8 @@ export class PushDispatcher
     if (await this.realtime.isViewing(data.recipientId, data.groupId)) {
       return 'viewing';
     }
-    if (!(await this.pushAllowed(data.recipientId, 'messages'))) {
+    // Owner 2026-10-21: groups have their own switch (Telegram).
+    if (!(await this.pushAllowed(data.recipientId, 'groups'))) {
       return 'disabled';
     }
     if (!data.deferred) {

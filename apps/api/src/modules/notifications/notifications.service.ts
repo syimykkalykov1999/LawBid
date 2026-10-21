@@ -60,7 +60,7 @@ export const NOTIFICATION_CATEGORY: Record<
   // Owner 2026-09-30, opt-in.
   followed_post: 'following',
   // Owner 2026-10-20: a post in a channel I subscribed to.
-  channel_post: 'social',
+  channel_post: 'channels',
   // OQ-048: the attorney's team.
   assistant_request: 'messages',
   assistant_task: 'cases',

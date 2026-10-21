@@ -16,6 +16,7 @@ ConversationDto _$ConversationDtoFromJson(
     json['counterpart'] as Map<String, dynamic>,
   ),
   unreadCount: json['unreadCount'] as num,
+  callsMuted: json['callsMuted'] as bool,
   updatedAt: DateTime.parse(json['updatedAt'] as String),
   folder: ChatFolder.fromJson(json['folder'] as String),
   folderAuto: json['folderAuto'] as bool,
@@ -63,6 +64,7 @@ Map<String, dynamic> _$ConversationDtoToJson(
   'lastMessageAt': ?instance.lastMessageAt?.toIso8601String(),
   'unreadCount': instance.unreadCount,
   'mutedUntil': ?instance.mutedUntil?.toIso8601String(),
+  'callsMuted': instance.callsMuted,
   'counterpartLastReadMessageId': ?instance.counterpartLastReadMessageId,
   'counterpartLastReadAt': ?instance.counterpartLastReadAt?.toIso8601String(),
   'counterpartLastDeliveredMessageId':

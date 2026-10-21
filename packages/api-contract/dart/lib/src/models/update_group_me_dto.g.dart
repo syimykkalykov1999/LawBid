@@ -11,6 +11,7 @@ UpdateGroupMeDto _$UpdateGroupMeDtoFromJson(Map<String, dynamic> json) =>
       mutedUntil: json['mutedUntil'] == null
           ? null
           : DateTime.parse(json['mutedUntil'] as String),
+      callsMuted: json['callsMuted'] as bool?,
       pinned: json['pinned'] as bool?,
       hidden: json['hidden'] as bool?,
       archived: json['archived'] as bool?,
@@ -19,6 +20,7 @@ UpdateGroupMeDto _$UpdateGroupMeDtoFromJson(Map<String, dynamic> json) =>
 Map<String, dynamic> _$UpdateGroupMeDtoToJson(UpdateGroupMeDto instance) =>
     <String, dynamic>{
       'mutedUntil': ?instance.mutedUntil?.toIso8601String(),
+      'callsMuted': ?instance.callsMuted,
       'pinned': ?instance.pinned,
       'hidden': ?instance.hidden,
       'archived': ?instance.archived,

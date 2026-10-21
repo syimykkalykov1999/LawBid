@@ -39,6 +39,7 @@ api.GroupDto grp(
   bool lastMessage = true,
 }) =>
     api.GroupDto(
+      callsMuted: false,
       id: id,
       title: title,
       memberCount: 3,
@@ -213,4 +214,5 @@ api.GroupDto _withMute(api.GroupDto g, DateTime until) => api.GroupDto(
       createdAt: g.createdAt,
       updatedAt: g.updatedAt,
       mutedUntil: until,
+      callsMuted: false,
     );

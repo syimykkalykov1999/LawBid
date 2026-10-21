@@ -17,6 +17,8 @@ import {
 
 export const CATEGORIES = [
   'messages',
+  'groups',
+  'channels',
   'calls',
   'following',
   'new_cases',

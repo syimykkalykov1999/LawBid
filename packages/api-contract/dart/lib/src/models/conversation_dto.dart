@@ -21,6 +21,7 @@ class ConversationDto {
     required this.contactsUnlocked,
     required this.counterpart,
     required this.unreadCount,
+    required this.callsMuted,
     required this.updatedAt,
     required this.folder,
     required this.folderAuto,
@@ -57,6 +58,9 @@ class ConversationDto {
   final DateTime? lastMessageAt;
   final num unreadCount;
   final DateTime? mutedUntil;
+
+  /// Calls of this chat ring silently for me.
+  final bool callsMuted;
 
   /// For "Seen" on own messages (§8.2).
   final String? counterpartLastReadMessageId;

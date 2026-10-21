@@ -17,9 +17,7 @@ import 'package:lawbid/features/calls/data/calls_repository.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/chat/data/realtime_client.dart';
-import 'package:lawbid/features/notifications/application/notifications_providers.dart';
-import 'package:lawbid/features/notifications/data/notifications_repository.dart'
-    show NotifCategory;
+import 'package:lawbid/features/notifications/application/call_mute.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:proximity_sensor/proximity_sensor.dart';
@@ -1105,7 +1103,14 @@ class CallController extends Notifier<CallSession> {
     unawaited(_iceServers().then<void>((_) {}, onError: (Object _) {}));
     // Owner 2026-10-02: "Calls" off in Settings → the call still comes
     // (the in-app screen), but without the ringing system UI or a buzz.
-    if (isCategoryMuted(ref, NotifCategory.calls)) return;
+    // Owner 2026-10-21: and so do the muted calls of this chat / group.
+    if (callRingMuted(
+      ref,
+      conversationId: call.conversationId,
+      groupId: call.groupId,
+    )) {
+      return;
+    }
     unawaited(HapticFeedback.heavyImpact());
     // Audit 2026-10-02: with the app open Android's call screen needs the
     // notifications permission to ring (often not granted) — the app plays

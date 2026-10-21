@@ -455,6 +455,7 @@ export class GroupPresenter {
         unreadCount: stats?.n ?? 0,
         unreadMentions: stats?.mentions ?? 0,
         mutedUntil: me?.muted_until ?? null,
+        callsMuted: me?.calls_muted ?? false,
         pinned: me?.pinned_at != null,
         createdAt: g.created_at,
         updatedAt: g.updated_at,

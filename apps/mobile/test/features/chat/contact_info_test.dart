@@ -61,6 +61,21 @@ class FakeContactChat implements ChatRepository {
   @override
   Future<Conversation> conversation(String id) async => conv;
 
+  final callsMutes = <bool>[];
+  final mutes = <DateTime?>[];
+
+  @override
+  Future<Conversation> muteCalls(String id, {required bool muted}) async {
+    callsMutes.add(muted);
+    return conv;
+  }
+
+  @override
+  Future<Conversation> mute(String id, DateTime? until) async {
+    mutes.add(until);
+    return conv;
+  }
+
   @override
   Future<CursorPage<ChatMessage>> messages(String id, {String? cursor}) async =>
       CursorPage(items: textMessages);
@@ -189,6 +204,52 @@ void main() {
     expect(find.text('в сети'), findsOneWidget);
     expect(find.textContaining('@anna'), findsNothing);
     expect(find.textContaining('Speeding ticket'), findsNothing);
+  });
+
+  _test('«Заглушить звонки» is a switch of this chat only', (tester) async {
+    final chat = FakeContactChat(makeConv());
+    await pumpContact(
+      tester,
+      contactTestApp(
+        chat,
+        const ContactInfoScreen(conversationId: 'c1'),
+        pushed: [],
+      ),
+    );
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('contact-calls-mute')),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.byKey(const ValueKey('contact-calls-mute')));
+    await tester.pumpAndSettle();
+    expect(chat.callsMutes, [true]);
+    expect(chat.mutes, isEmpty);
+  });
+
+  _test('«Без звука» asks for how long: an hour, 8 hours, a week, always',
+      (tester) async {
+    final chat = FakeContactChat(makeConv());
+    await pumpContact(
+      tester,
+      contactTestApp(
+        chat,
+        const ContactInfoScreen(conversationId: 'c1'),
+        pushed: [],
+      ),
+    );
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('contact-mute')),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.byKey(const ValueKey('contact-mute')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('На 8 часов'));
+    await tester.pumpAndSettle();
+    expect(chat.mutes, hasLength(1));
+    final left = chat.mutes.single!.difference(DateTime.now());
+    expect(left.inHours, inInclusiveRange(7, 8));
   });
 
   _test('tapping the header opens «Данные контакта»; Profile routes',

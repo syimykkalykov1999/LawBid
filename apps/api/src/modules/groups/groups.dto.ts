@@ -439,6 +439,11 @@ export class UpdateGroupMeDto {
   @IsISO8601()
   mutedUntil?: string | null;
 
+  @ApiPropertyOptional({ description: 'Group calls ring silently for me.' })
+  @IsOptional()
+  @IsBoolean()
+  callsMuted?: boolean;
+
   @ApiPropertyOptional({ description: 'Pin the chat to the top of my list.' })
   @IsOptional()
   @IsBoolean()
@@ -838,6 +843,9 @@ export class GroupDto {
 
   @ApiPropertyOptional({ type: Date, nullable: true })
   mutedUntil!: Date | null;
+
+  @ApiProperty({ description: 'Group calls ring silently for me.' })
+  callsMuted!: boolean;
 
   @ApiProperty()
   pinned!: boolean;

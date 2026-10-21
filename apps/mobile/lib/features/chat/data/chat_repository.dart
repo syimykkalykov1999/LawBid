@@ -163,6 +163,9 @@ abstract interface class ChatRepository {
   });
   Future<ChatPins> pins(String id);
   Future<Conversation> mute(String id, DateTime? until);
+
+  /// Owner 2026-10-21: calls of this chat ring silently (or not).
+  Future<Conversation> muteCalls(String id, {required bool muted});
 }
 
 class ApiChatRepository implements ChatRepository {
@@ -708,6 +711,18 @@ class ApiChatRepository implements ChatRepository {
         ))
             .data,
       );
+
+  @override
+  Future<Conversation> muteCalls(String id, {required bool muted}) async =>
+      ChatMappers.conversation(
+        (await guardApiCall(
+          () => _chat.muteChatCalls(
+            id: id,
+            body: api.MuteCallsDto(muted: muted),
+          ),
+        ))
+            .data,
+      );
 }
 
 /// OQ-047: the default chat MB per file (admin «Загрузки и файлы»).
@@ -873,6 +888,7 @@ abstract final class ChatMappers {
         lastMessageAt: d.lastMessageAt,
         unreadCount: d.unreadCount.toInt(),
         mutedUntil: d.mutedUntil,
+        callsMuted: d.callsMuted,
         counterpartLastReadId: d.counterpartLastReadMessageId,
         counterpartLastDeliveredId: d.counterpartLastDeliveredMessageId,
         counterpartLastReadAt: d.counterpartLastReadAt,

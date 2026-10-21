@@ -361,6 +361,12 @@ export class MuteConversationDto {
   until?: string | null;
 }
 
+export class MuteCallsDto {
+  @ApiProperty({ description: 'Calls of this chat ring silently for me.' })
+  @IsBoolean()
+  muted!: boolean;
+}
+
 /** OQ-040: the audio of a voice message. */
 export class VoiceNoteDto {
   @ApiPropertyOptional({
@@ -731,6 +737,9 @@ export class ConversationDto {
 
   @ApiPropertyOptional({ type: Date, nullable: true })
   mutedUntil!: Date | null;
+
+  @ApiProperty({ description: 'Calls of this chat ring silently for me.' })
+  callsMuted!: boolean;
 
   @ApiPropertyOptional({
     type: String,
