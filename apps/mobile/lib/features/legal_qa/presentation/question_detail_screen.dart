@@ -313,15 +313,9 @@ class _Body extends ConsumerWidget {
           subtitle: SocialFormat.ago(t, formats, q.createdAt),
         ),
         const SizedBox(height: AppSpacing.md),
-        Text(
-          q.title,
-          style: type.titleLarge.copyWith(color: colors.text),
-        ),
+        Text(q.title, style: type.titleLarge.copyWith(color: colors.text)),
         const SizedBox(height: AppSpacing.sm),
-        SelectableText(
-          q.body,
-          style: type.body.copyWith(color: colors.text),
-        ),
+        SelectableText(q.body, style: type.body.copyWith(color: colors.text)),
         const SizedBox(height: AppSpacing.md),
         Wrap(
           spacing: AppSpacing.sm,
@@ -371,9 +365,9 @@ class _Body extends ConsumerWidget {
   /// The best answer first, then the most liked.
   static List<QaAnswer> _ordered(List<QaAnswer> list) =>
       [...list]..sort((a, b) {
-          if (a.isBest != b.isBest) return a.isBest ? -1 : 1;
-          return b.likeCount.compareTo(a.likeCount);
-        });
+        if (a.isBest != b.isBest) return a.isBest ? -1 : 1;
+        return b.likeCount.compareTo(a.likeCount);
+      });
 }
 
 class _AnswerCard extends ConsumerWidget {
@@ -401,6 +395,8 @@ class _AnswerCard extends ConsumerWidget {
     final formats = ref.watch(l10nFormatsProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    // Owner 2026-10-21: only clients like answers (the server says 403).
+    final attorney = ref.watch(actsAsAttorneyProvider);
     final a = answer;
     final username = a.attorney.username;
     Widget action({
@@ -409,47 +405,42 @@ class _AnswerCard extends ConsumerWidget {
       required VoidCallback onTap,
       Color? color,
       String? shown,
-    }) =>
-        Semantics(
-          button: true,
-          label: label,
-          excludeSemantics: true,
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(AppRadii.pill),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(minHeight: 44, minWidth: 44),
-              child: Padding(
-                padding: const EdgeInsetsDirectional.symmetric(
-                  horizontal: AppSpacing.sm,
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    AppIcon(
-                      icon,
-                      size: 20,
-                      color: color ?? colors.textSecondary,
-                    ),
-                    if (shown ?? label case final text
-                        when text.isNotEmpty) ...[
-                      const SizedBox(width: AppSpacing.xs),
-                      Flexible(
-                        child: Text(
-                          text,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: type.caption
-                              .copyWith(color: color ?? colors.textSecondary),
-                        ),
+    }) => Semantics(
+      button: true,
+      label: label,
+      excludeSemantics: true,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppRadii.pill),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 44, minWidth: 44),
+          child: Padding(
+            padding: const EdgeInsetsDirectional.symmetric(
+              horizontal: AppSpacing.sm,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AppIcon(icon, size: 20, color: color ?? colors.textSecondary),
+                if (shown ?? label case final text when text.isNotEmpty) ...[
+                  const SizedBox(width: AppSpacing.xs),
+                  Flexible(
+                    child: Text(
+                      text,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: type.caption.copyWith(
+                        color: color ?? colors.textSecondary,
                       ),
-                    ],
-                  ],
-                ),
-              ),
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
-        );
+        ),
+      ),
+    );
     return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -468,24 +459,22 @@ class _AnswerCard extends ConsumerWidget {
                 : () => context.push(AppRoutes.lawyer(username)),
           ),
           const SizedBox(height: AppSpacing.sm),
-          SelectableText(
-            a.body,
-            style: type.body.copyWith(color: colors.text),
-          ),
+          SelectableText(a.body, style: type.body.copyWith(color: colors.text)),
           const SizedBox(height: AppSpacing.xs),
           Wrap(
             spacing: AppSpacing.xs,
             children: [
-              action(
-                icon: a.likedByMe
-                    ? AppIcons.thumbUpAltRounded
-                    : AppIcons.thumbUpAltOutlined,
-                // Owner 2026-10-20: icon + counter, no words.
-                label: t.t('qa.like'),
-                shown: a.likeCount > 0 ? formats.number(a.likeCount) : '',
-                color: a.likedByMe ? colors.goldDark : null,
-                onTap: onLike,
-              ),
+              if (!attorney)
+                action(
+                  icon: a.likedByMe
+                      ? AppIcons.thumbUpAltRounded
+                      : AppIcons.thumbUpAltOutlined,
+                  // Owner 2026-10-20: icon + counter, no words.
+                  label: t.t('qa.like'),
+                  shown: a.likeCount > 0 ? formats.number(a.likeCount) : '',
+                  color: a.likedByMe ? colors.goldDark : null,
+                  onTap: onLike,
+                ),
               if (asker)
                 action(
                   icon: a.isBest
@@ -577,13 +566,13 @@ class _Composer extends ConsumerWidget {
       final hint = q.myAnswerId != null
           ? t.t('qa.answered')
           : attorney && !q.isMine
-              // Owner 2026-10-21: say why the box is gone.
-              ? q.closed
-                  ? t.t('qa.closed')
-                  : q.answersEnough
-                      ? t.t('qa.enough')
-                      : t.t('qa.answer.only')
-              : null;
+          // Owner 2026-10-21: say why the box is gone.
+          ? q.closed
+                ? t.t('qa.closed')
+                : q.answersEnough
+                ? t.t('qa.enough')
+                : t.t('qa.answer.only')
+          : null;
       if (hint == null) return const SizedBox.shrink();
       return Container(
         width: double.infinity,
