@@ -11,6 +11,10 @@ export interface Badges {
   chatsUnread: number;
   notificationsUnread: number;
   total: number;
+  /** Owner 2026-10-21 (inbox 29): the «Счётчик на иконке в меню» switch;
+   * false = the app keeps its icon clear. Sent with GET /badges and
+   * `badge:update` only. */
+  iconBadge?: boolean;
 }
 
 const key = (userId: string) => `badge:${userId}`;
@@ -63,6 +67,31 @@ export class BadgesService {
       this.get(assistantId),
     ]);
     return shape(chats.chatsUnread, mine.notificationsUnread);
+  }
+
+  /** Owner 2026-10-21 (inbox 29): the «Счётчик на иконке в меню» switch
+   * (default on). */
+  async iconBadgeOn(userId: string): Promise<boolean> {
+    const u = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { notif_icon_badge: true },
+    });
+    return u?.notif_icon_badge ?? true;
+  }
+
+  /** The number a push puts on the app icon: the total, or 0 while the
+   * switch is off (0 also clears an older number, like Telegram). */
+  async forIcon(userId: string): Promise<number> {
+    const [b, on] = await Promise.all([
+      this.get(userId),
+      this.iconBadgeOn(userId),
+    ]);
+    return on ? b.total : 0;
+  }
+
+  /** [b] plus the [ownerId]'s icon switch (GET /badges, `badge:update`). */
+  async withIcon(ownerId: string, b: Badges): Promise<Badges> {
+    return { ...b, iconBadge: await this.iconBadgeOn(ownerId) };
   }
 
   /** A notification row was written (maybe not committed yet): drop the
@@ -137,7 +166,11 @@ export class BadgesService {
   }
 
   private async publish(userId: string): Promise<void> {
-    this.realtime.toUsers([userId], 'badge:update', await this.get(userId));
+    this.realtime.toUsers(
+      [userId],
+      'badge:update',
+      await this.withIcon(userId, await this.get(userId)),
+    );
   }
 
   private async rebuild(userId: string): Promise<Badges> {

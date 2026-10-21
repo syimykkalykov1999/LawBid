@@ -152,11 +152,12 @@ export class NotificationsApiService {
   }
 
   async settings(userId: string): Promise<NotificationSettingsDto> {
-    const [rows, qh] = await Promise.all([
+    const [rows, qh, iconBadge] = await Promise.all([
       this.prisma.notificationSetting.findMany({ where: { user_id: userId } }),
       this.prisma.notificationQuietHours.findUnique({
         where: { user_id: userId },
       }),
+      this.badges.iconBadgeOn(userId),
     ]);
     const byCat = new Map(rows.map((r) => [r.category, r]));
     return {
@@ -179,7 +180,22 @@ export class NotificationsApiService {
             timezone: qh.timezone,
           }
         : null,
+      iconBadge,
     };
+  }
+
+  /** Owner 2026-10-21 (inbox 29): «Счётчик на иконке в меню» on/off; the
+   * user's devices get `badge:update` with the switch at once. */
+  async setIconBadge(
+    userId: string,
+    enabled: boolean,
+  ): Promise<NotificationSettingsDto> {
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { notif_icon_badge: enabled },
+    });
+    await this.badges.settingsChanged(userId);
+    return this.settings(userId);
   }
 
   async updateSettings(

@@ -146,6 +146,12 @@ export class BadgesDto {
 
   @ApiProperty()
   total!: number;
+
+  @ApiPropertyOptional({
+    description:
+      'Owner 2026-10-21: false = keep the app icon clear (the user switched the icon counter off).',
+  })
+  iconBadge?: boolean;
 }
 
 export class CategorySettingDto {
@@ -209,6 +215,19 @@ export class NotificationSettingsDto {
 
   @ApiPropertyOptional({ type: QuietHoursDto, nullable: true })
   quietHours!: QuietHoursDto | null;
+
+  @ApiProperty({
+    description:
+      'Owner 2026-10-21: the unread number on the app icon (default true).',
+  })
+  iconBadge!: boolean;
+}
+
+/** Owner 2026-10-21 (inbox 29): «Счётчик на иконке в меню». */
+export class IconBadgeDto {
+  @ApiProperty()
+  @IsBoolean()
+  enabled!: boolean;
 }
 
 export class UpdateNotificationSettingsDto {

@@ -11,13 +11,20 @@ part 'notification_settings_dto.g.dart';
 
 @JsonSerializable()
 class NotificationSettingsDto {
-  const NotificationSettingsDto({required this.categories, this.quietHours});
+  const NotificationSettingsDto({
+    required this.categories,
+    required this.iconBadge,
+    this.quietHours,
+  });
 
   factory NotificationSettingsDto.fromJson(Map<String, Object?> json) =>
       _$NotificationSettingsDtoFromJson(json);
 
   final List<CategorySettingViewDto> categories;
   final QuietHoursDto? quietHours;
+
+  /// Owner 2026-10-21: the unread number on the app icon (default true).
+  final bool iconBadge;
 
   Map<String, Object?> toJson() => _$NotificationSettingsDtoToJson(this);
 }
