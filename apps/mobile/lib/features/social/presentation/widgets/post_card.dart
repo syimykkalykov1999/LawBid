@@ -2116,32 +2116,6 @@ class GoldRingAvatar extends StatelessWidget {
   }
 }
 
-bool _isEmojiRune(int r) =>
-    (r >= 0x1F300 && r <= 0x1FAFF) ||
-    (r >= 0x2600 && r <= 0x27BF) ||
-    (r >= 0x2190 && r <= 0x21FF) ||
-    (r >= 0x2B00 && r <= 0x2BFF) ||
-    (r >= 0x1F1E6 && r <= 0x1F1FF) ||
-    r == 0x200D ||
-    r == 0xFE0F ||
-    r == 0x20E3 ||
-    r == 0x00A9 ||
-    r == 0x00AE ||
-    r == 0x203C ||
-    r == 0x2049 ||
-    r == 0x3030 ||
-    r == 0x303D;
-
-/// Font size for a body that is nothing but 1–3 emoji (null otherwise).
-double? emojiOnlySize(String body) {
-  final t = body.trim();
-  if (t.isEmpty || t.length > 40) return null;
-  if (!t.runes.every((r) => _isEmojiRune(r) || r == 0x20)) return null;
-  final n = t.characters.where((c) => c.trim().isNotEmpty).length;
-  if (n > 3) return null;
-  return n == 1 ? 44 : (n == 2 ? 36 : 30);
-}
-
 class PostBodyText extends ConsumerStatefulWidget {
   const PostBodyText({
     required this.body,
@@ -2305,17 +2279,11 @@ class _PostBodyTextState extends ConsumerState<PostBodyText> {
     if (_body.trim().isEmpty && widget.leading == null) {
       return const SizedBox.shrink();
     }
-    var style = widget.style ??
+    final style = widget.style ??
         (widget.large ? type.body : type.bodySmall).copyWith(
           color: colors.text,
           height: widget.height,
         );
-    // Owner 2026-10-20: a post that is only emoji drew them at caption size,
-    // a tiny glyph in a big empty card — they are drawn big, like a sticker.
-    final emojiSize = widget.leading == null ? emojiOnlySize(_body) : null;
-    if (emojiSize != null) {
-      style = style.copyWith(fontSize: emojiSize, height: 1.2);
-    }
     final text = Text.rich(
       TextSpan(children: _spans(colors), style: style),
       maxLines: _expanded ? null : widget.collapsedLines,
@@ -3505,27 +3473,6 @@ class FeedCaptionState extends ConsumerState<FeedCaption> {
           )
         : const SizedBox.shrink();
     final moreLabel = t.t('post.more');
-    // Owner 2026-10-20: a post that is only 1–3 emoji — drawn big, in one
-    // block, instead of a caption-size glyph in a tall empty card.
-    final emojiSize = widget.hashtags.isEmpty && !widget.forceMore
-        ? emojiOnlySize('${widget.title}${widget.text}')
-        : null;
-    if (emojiSize != null) {
-      return Padding(
-        padding: const EdgeInsets.fromLTRB(AppSpacing.md, 4, AppSpacing.md, 0),
-        child: AppPressable(
-          onTap: widget.onOpen,
-          child: Text(
-            '${widget.title}${widget.text}'.trim(),
-            style: bodyStyle.copyWith(
-              color: colors.text,
-              fontSize: emojiSize,
-              height: 1.2,
-            ),
-          ),
-        ),
-      );
-    }
     return Padding(
       padding: const EdgeInsets.fromLTRB(AppSpacing.md, 8, AppSpacing.md, 0),
       child: LayoutBuilder(
