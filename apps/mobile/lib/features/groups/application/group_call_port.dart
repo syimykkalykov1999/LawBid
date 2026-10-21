@@ -4,9 +4,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// A call running in a group chat (what the «Join» bar needs).
 class GroupRunningCall {
-  const GroupRunningCall({required this.video, required this.join});
+  const GroupRunningCall({
+    required this.video,
+    required this.join,
+    this.members = 0,
+    this.returning = false,
+  });
 
   final bool video;
+
+  /// How many people are in the call now.
+  final int members;
+
+  /// We were in this call (left it, or are in it): «Return», not «Join».
+  final bool returning;
 
   /// Joins it; returns the API error code, or null when it worked.
   final Future<String?> Function(String title, String? avatarUrl) join;

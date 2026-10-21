@@ -182,7 +182,7 @@ describe('Group chat calls (e2e)', () => {
   it('limits the size, drops a removed member, lets the call outlive its host', async () => {
     const owner = await person('Host');
     const crowd = await Promise.all(
-      ['a', 'b', 'c', 'd', 'e', 'f'].map((n) => person(`M${n}`)),
+      ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i'].map((n) => person(`M${n}`)),
     );
     const g = await api()
       .post('/api/v1/groups')
@@ -201,8 +201,8 @@ describe('Group chat calls (e2e)', () => {
       .expect(201);
     const callId = started.body.data.id as string;
 
-    // Audio holds six: the host + five join, the seventh is told it is full.
-    for (const c of crowd.slice(0, 5)) {
+    // Audio holds nine: the host + eight join, the tenth is told it is full.
+    for (const c of crowd.slice(0, 8)) {
       await api()
         .post(`/api/v1/calls/${callId}/join`)
         .set(auth(c.id))
@@ -210,7 +210,7 @@ describe('Group chat calls (e2e)', () => {
     }
     const full = await api()
       .post(`/api/v1/calls/${callId}/join`)
-      .set(auth(crowd[5].id))
+      .set(auth(crowd[8].id))
       .expect(409);
     expect((full.body as { error: { code: string } }).error.code).toBe(
       'CALL_STATE_CONFLICT',
@@ -229,7 +229,7 @@ describe('Group chat calls (e2e)', () => {
     // ...and the freed place can be taken.
     await api()
       .post(`/api/v1/calls/${callId}/join`)
-      .set(auth(crowd[5].id))
+      .set(auth(crowd[8].id))
       .expect(200);
 
     // The host hangs up: the call goes on while two or more are in it.
@@ -241,7 +241,7 @@ describe('Group chat calls (e2e)', () => {
     const status = async () =>
       (await prisma.call.findUniqueOrThrow({ where: { id: callId } })).status;
     expect(await status()).toBe('active');
-    for (const c of [crowd[1], crowd[2], crowd[3], crowd[4]]) {
+    for (const c of crowd.slice(1, 8)) {
       await api()
         .post(`/api/v1/calls/${callId}/end`)
         .set(auth(c.id))
@@ -443,7 +443,9 @@ describe('Group chat calls (e2e)', () => {
   it('no list = the whole group rings (up to the size of the call)', async () => {
     const owner = await person('Own');
     const crowd = await Promise.all(
-      ['a', 'b', 'c', 'd', 'e', 'f', 'g'].map((n) => person(`R${n}`)),
+      ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'].map((n) =>
+        person(`R${n}`),
+      ),
     );
     const g = await api()
       .post('/api/v1/groups')
@@ -462,8 +464,8 @@ describe('Group chat calls (e2e)', () => {
     const invited = (
       started.body as { data: { participants: { status: string }[] } }
     ).data.participants.filter((p) => p.status === 'invited');
-    // Audio holds six: the host + five ring.
-    expect(invited).toHaveLength(5);
+    // Audio holds nine: the host + eight ring.
+    expect(invited).toHaveLength(8);
   });
 
   it('vote to remove: only when nobody runs the call; strictly more "for"; barred for good', async () => {

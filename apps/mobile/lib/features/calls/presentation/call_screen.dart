@@ -15,6 +15,7 @@ import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/call_foreground.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:lawbid/features/calls/presentation/call_group.dart';
+import 'package:lawbid/features/calls/presentation/call_vote.dart';
 import 'package:lawbid/features/calls/presentation/call_widgets.dart';
 import 'package:lawbid/features/chat/application/voice_recorder.dart'
     show voiceClock;
@@ -66,6 +67,59 @@ class _CallScreenState extends ConsumerState<CallScreen>
     _tick = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() {});
     });
+  }
+
+  /// The red button. In a group call the host chooses like in Telegram:
+  /// end it for everyone, or just leave (the others go on, and the host's
+  /// rights come back when they return).
+  Future<void> _pressEnd(CallController c, CallSession s) async {
+    final call = s.call;
+    final me = ref.read(callMyIdProvider);
+    final othersIn = call == null
+        ? 0
+        : call.participants.where((m) => m.joined && m.userId != me).length;
+    final host = call != null &&
+        call.group &&
+        call.hostId != null &&
+        call.hostId == me &&
+        othersIn > 0 &&
+        s.phase == CallPhase.active;
+    if (!host) {
+      await c.hangUp();
+      return;
+    }
+    final t = ref.read(translatorProvider);
+    final all = await showAppBottomSheet<bool>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              FilledButton(
+                key: const Key('call-end-for-all'),
+                style: FilledButton.styleFrom(
+                  backgroundColor:
+                      Theme.of(ctx).extension<AppColorTokens>()!.danger,
+                ),
+                onPressed: () => Navigator.of(ctx).pop(true),
+                child: Text(t.t('call.endAll')),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              OutlinedButton(
+                key: const Key('call-leave'),
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: Text(t.t('call.leave')),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (all == null) return;
+    await c.hangUp(forAll: all);
   }
 
   Future<void> _askEndOther(CallController c) async {
@@ -311,9 +365,16 @@ class _CallScreenState extends ConsumerState<CallScreen>
                             ),
                           ],
                         ),
-                        if (s.notice == kNoticeMutedByHost) ...[
+                        if (s.notice != null) ...[
                           const SizedBox(height: AppSpacing.sm),
-                          CallNoticeBanner(notice: s.notice!),
+                          CallNoticeBanner(
+                            key: ValueKey(s.notice),
+                            notice: s.notice!,
+                          ),
+                        ],
+                        if (group && s.call?.vote != null) ...[
+                          const SizedBox(height: AppSpacing.sm),
+                          CallVoteStrip(vote: s.call!.vote!, call: s.call!),
                         ],
                         if (group)
                           Expanded(
@@ -396,7 +457,9 @@ class _CallScreenState extends ConsumerState<CallScreen>
                                       icon: AppIcons.callEndRounded,
                                       label: t.t('call.end'),
                                       color: colors.danger,
-                                      onTap: s.busy ? c.hangUp : null,
+                                      onTap: s.busy
+                                          ? () => unawaited(_pressEnd(c, s))
+                                          : null,
                                     ),
                                     if (s.video) ...[
                                       _RoundButton(

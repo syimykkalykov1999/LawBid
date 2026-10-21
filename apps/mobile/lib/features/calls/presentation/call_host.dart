@@ -9,6 +9,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/call_foreground.dart';
 import 'package:lawbid/features/calls/application/callkit_bridge.dart';
+import 'package:lawbid/features/calls/presentation/call_rejoin.dart';
 import 'package:lawbid/features/chat/application/voice_recorder.dart'
     show voiceClock;
 import 'package:lawbid/features/chat/chat_routes.dart';
@@ -29,6 +30,10 @@ class CallHost extends ConsumerWidget {
   bool _onCallScreen(WidgetRef ref) =>
       ref.read(callScreenVisibleProvider) ||
       router.routerDelegate.currentConfiguration.uri.path == ChatRoutes.call;
+
+  /// The group's own chat shows its «Return» bar itself.
+  bool _inChatOf(String groupId) =>
+      router.routerDelegate.currentConfiguration.uri.path.contains(groupId);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -64,6 +69,7 @@ class CallHost extends ConsumerWidget {
     // leaves the app (Android).
     final pip = s.video && talking && screenOpen;
     unawaited(ref.read(callPipProvider).setActive(active: pip));
+    final rejoin = ref.watch(groupRejoinProvider);
     return ListenableBuilder(
       listenable: router.routerDelegate,
       builder: (context, _) {
@@ -81,6 +87,8 @@ class CallHost extends ConsumerWidget {
             session: s,
             onTap: () => unawaited(router.push<void>(ChatRoutes.call)),
           );
+        } else if (!s.busy && rejoin != null && !_inChatOf(rejoin.groupId)) {
+          top = CallRejoinBar(key: ValueKey(rejoin.groupId), rejoin: rejoin);
         } else {
           top = null;
         }

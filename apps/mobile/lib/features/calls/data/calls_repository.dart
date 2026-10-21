@@ -28,7 +28,11 @@ abstract interface class CallsRepository {
   Future<AppCall> join(String callId);
   Future<AppCall> accept(String callId);
   Future<AppCall> decline(String callId);
-  Future<AppCall> end(String callId, CallEndReason reason);
+  Future<AppCall> end(
+    String callId,
+    CallEndReason reason, {
+    bool forAll = false,
+  });
   Future<AppCall> get(String callId);
   Future<List<IceServer>> iceServers();
 
@@ -48,6 +52,12 @@ abstract interface class CallsRepository {
 
   /// Our own microphone state, for the others' list.
   Future<void> setMuteState(String callId, {required bool muted});
+
+  /// Group calls, nobody runs the call: propose to remove [userId].
+  Future<AppCall> startVote(String callId, String userId);
+
+  /// A ballot in the open vote.
+  Future<AppCall> castVote(String callId, String voteId, {required bool favor});
 }
 
 class ApiCallsRepository implements CallsRepository {
@@ -111,12 +121,17 @@ class ApiCallsRepository implements CallsRepository {
       );
 
   @override
-  Future<AppCall> end(String callId, CallEndReason reason) async =>
+  Future<AppCall> end(
+    String callId,
+    CallEndReason reason, {
+    bool forAll = false,
+  }) async =>
       CallMappers.call(
         (await guardApiCall(
           () => _api.endCall(
             id: callId,
             body: api.EndCallDto(
+              forAll: forAll ? true : null,
               reason: switch (reason) {
                 CallEndReason.hangup => api.CallEndReason.hangup,
                 CallEndReason.noAnswer => api.CallEndReason.noAnswer,
@@ -161,6 +176,35 @@ class ApiCallsRepository implements CallsRepository {
             id: callId,
             userId: userId,
             body: api.CallMuteDto(muted: muted),
+          ),
+        ))
+            .data,
+      );
+
+  @override
+  Future<AppCall> startVote(String callId, String userId) async =>
+      CallMappers.call(
+        (await guardApiCall(
+          () => _api.startVote(
+            id: callId,
+            body: api.StartCallVoteDto(targetId: userId),
+          ),
+        ))
+            .data,
+      );
+
+  @override
+  Future<AppCall> castVote(
+    String callId,
+    String voteId, {
+    required bool favor,
+  }) async =>
+      CallMappers.call(
+        (await guardApiCall(
+          () => _api.castVote(
+            id: callId,
+            voteId: voteId,
+            body: api.CastCallVoteDto(favor: favor),
           ),
         ))
             .data,
@@ -225,7 +269,44 @@ abstract final class CallMappers {
         group: d.group,
         hostId: d.hostId,
         participants: d.participants.map(member).toList(),
+        moderated: d.moderated,
+        vote: d.vote == null ? null : voteOf(d.vote!),
       );
+
+  static CallVote voteOf(api.CallVoteDto v) => CallVote(
+        id: v.id,
+        targetId: v.targetId,
+        startedById: v.startedById,
+        forCount: v.forCount,
+        againstCount: v.againstCount,
+        voters: v.voters,
+        expiresAt: v.expiresAt,
+        myBallot: v.myBallot,
+      );
+
+  /// A realtime `call:vote` payload: the open vote (null when it ended) and
+  /// how it ended ('open' | 'passed' | 'failed').
+  static ({String callId, String result, String targetId, CallVote? vote})?
+      voteFromEvent(Object? data) {
+    if (data is! Map ||
+        data['callId'] is! String ||
+        data['targetId'] is! String) {
+      return null;
+    }
+    try {
+      final v = data['vote'];
+      return (
+        callId: data['callId'] as String,
+        result: '${data['result']}',
+        targetId: data['targetId'] as String,
+        vote: v is Map
+            ? voteOf(api.CallVoteDto.fromJson(Map<String, Object?>.from(v)))
+            : null,
+      );
+    } on Object {
+      return null;
+    }
+  }
 
   static CallMember member(api.CallParticipantDto p) => CallMember(
         userId: p.userId,
