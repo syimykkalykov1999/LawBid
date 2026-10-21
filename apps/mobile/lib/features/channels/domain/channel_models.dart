@@ -1,6 +1,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:lawbid/features/social/domain/social_models.dart'
     show PostVideo;
+import 'package:lawbid/shared/domain/reaction_palette.dart';
+
+export 'package:lawbid/shared/domain/reaction_palette.dart'
+    show ReactionsMode, kReactionPalette, reactionChoices;
 
 /// Owner 2026-10-20: channels — Telegram-style one-to-many feeds of an
 /// attorney or a company. Limits mirror the server
@@ -11,8 +15,9 @@ const int kChannelPostMax = 4000;
 const int kChannelCommentMax = 1000;
 const int kChannelDefaultMaxPostMedia = 10;
 
-/// The reactions a reader can put on a post (one per reader).
-const List<String> kChannelReactions = ['👍', '❤️', '🔥', '👏', '😮', '🙏'];
+/// The reactions a reader can put on a post (one per reader). Owner
+/// 2026-10-21 (inbox 26b): the whole palette; a channel may narrow it.
+const List<String> kChannelReactions = kReactionPalette;
 
 /// 5–32 letters, digits or `_`, starting with a letter, no `__`, no trailing
 /// `_`, lowercase (Telegram; the server has the final word).
@@ -85,6 +90,8 @@ class Channel {
     this.protectContent = false,
     this.whoCanPost = ChannelWho.admins,
     this.canPost = false,
+    this.reactionsMode = ReactionsMode.all,
+    this.reactionsAllowed = const [],
   });
 
   final String id;
@@ -115,6 +122,14 @@ class Channel {
   /// Owner 2026-10-21 (inbox 26b): who publishes, and whether I may.
   final ChannelWho whoCanPost;
   final bool canPost;
+
+  /// Owner 2026-10-21 (inbox 26b): all / selected / off.
+  final ReactionsMode reactionsMode;
+  final List<String> reactionsAllowed;
+
+  /// What a reader may put under a post here.
+  List<String> get reactionOptions =>
+      reactionChoices(reactionsMode, reactionsAllowed);
 
   /// A subscriber (not an admin) who may publish while it is open to all.
   bool get canPostAsMember => !isAdmin && canPost && !isClosed;
@@ -150,6 +165,8 @@ class Channel {
         protectContent: protectContent,
         whoCanPost: whoCanPost,
         canPost: canPost,
+        reactionsMode: reactionsMode,
+        reactionsAllowed: reactionsAllowed,
       );
 }
 
@@ -319,6 +336,8 @@ class ChannelDraft {
     this.removeAvatar = false,
     this.protectContent,
     this.whoCanPost,
+    this.reactionsMode,
+    this.reactionsAllowed,
   });
 
   final String title;
@@ -331,6 +350,10 @@ class ChannelDraft {
 
   /// Editing by the owner only (null: unchanged).
   final ChannelWho? whoCanPost;
+
+  /// Editing only (null: unchanged).
+  final ReactionsMode? reactionsMode;
+  final List<String>? reactionsAllowed;
   final String? avatarFileId;
   final bool removeAvatar;
 }

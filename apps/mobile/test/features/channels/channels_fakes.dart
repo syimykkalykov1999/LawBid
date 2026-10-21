@@ -41,6 +41,8 @@ Channel fakeChannel({
   String? avatarUrl,
   ChannelWho whoCanPost = ChannelWho.admins,
   bool? canPost,
+  ReactionsMode reactionsMode = ReactionsMode.all,
+  List<String> reactionsAllowed = const [],
 }) =>
     Channel(
       id: id,
@@ -60,6 +62,8 @@ Channel fakeChannel({
       createdAt: DateTime(2026, 10),
       whoCanPost: whoCanPost,
       canPost: canPost ?? role != null,
+      reactionsMode: reactionsMode,
+      reactionsAllowed: reactionsAllowed,
     );
 
 ChannelPost fakePost(

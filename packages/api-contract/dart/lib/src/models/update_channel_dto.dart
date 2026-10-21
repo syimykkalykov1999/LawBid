@@ -5,6 +5,8 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'channel_who.dart';
+import 'reaction_mode.dart';
+import 'update_channel_dto_reactions_allowed.dart';
 
 part 'update_channel_dto.g.dart';
 
@@ -19,6 +21,8 @@ class UpdateChannelDto {
     this.commentsEnabled,
     this.protectContent,
     this.whoCanPost,
+    this.reactionsMode,
+    this.reactionsAllowed,
   });
 
   factory UpdateChannelDto.fromJson(Map<String, Object?> json) =>
@@ -40,6 +44,12 @@ class UpdateChannelDto {
 
   /// Owner only (inbox 26b): 'all' lets every subscriber publish.
   final ChannelWho? whoCanPost;
+
+  /// Owner 2026-10-21 (inbox 26b): all / selected / off.
+  final ReactionMode? reactionsMode;
+
+  /// With reactionsMode «some»: the reactions left open (≥ 1).
+  final List<UpdateChannelDtoReactionsAllowed>? reactionsAllowed;
 
   Map<String, Object?> toJson() => _$UpdateChannelDtoToJson(this);
 }

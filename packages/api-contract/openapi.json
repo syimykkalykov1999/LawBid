@@ -139286,6 +139286,15 @@
         ],
         "description": "Owner 2026-10-21 (inbox 26b): who publishes posts."
       },
+      "ReactionMode": {
+        "type": "string",
+        "enum": [
+          "all",
+          "some",
+          "off"
+        ],
+        "description": "Owner 2026-10-21 (inbox 26b): all / selected / off."
+      },
       "ChannelStatus": {
         "type": "string",
         "enum": [
@@ -139348,6 +139357,21 @@
           "canPost": {
             "type": "boolean",
             "description": "I may publish here: an admin, or a subscriber while it is open to all."
+          },
+          "reactionsMode": {
+            "description": "Owner 2026-10-21 (inbox 26b): all / selected / off.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReactionMode"
+              }
+            ]
+          },
+          "reactionsAllowed": {
+            "description": "The selected reactions (mode «some»), palette order.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           },
           "status": {
             "description": "Hidden / banned are only reported to the channel's admins.",
@@ -139505,6 +139529,47 @@
                 "$ref": "#/components/schemas/ChannelWho"
               }
             ]
+          },
+          "reactionsMode": {
+            "description": "Owner 2026-10-21 (inbox 26b): all / selected / off.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReactionMode"
+              }
+            ]
+          },
+          "reactionsAllowed": {
+            "type": "array",
+            "description": "With reactionsMode «some»: the reactions left open (≥ 1).",
+            "items": {
+              "type": "string",
+              "enum": [
+                "👍",
+                "❤️",
+                "🔥",
+                "👏",
+                "😮",
+                "🙏",
+                "👎",
+                "😁",
+                "🤔",
+                "🤯",
+                "😢",
+                "🎉",
+                "🤩",
+                "👌",
+                "😍",
+                "💯",
+                "🤣",
+                "⚡",
+                "🏆",
+                "💔",
+                "👀",
+                "🤝",
+                "✍️",
+                "😎"
+              ]
+            }
           }
         }
       },
@@ -139633,7 +139698,25 @@
               "🔥",
               "👏",
               "😮",
-              "🙏"
+              "🙏",
+              "👎",
+              "😁",
+              "🤔",
+              "🤯",
+              "😢",
+              "🎉",
+              "🤩",
+              "👌",
+              "😍",
+              "💯",
+              "🤣",
+              "⚡",
+              "🏆",
+              "💔",
+              "👀",
+              "🤝",
+              "✍️",
+              "😎"
             ]
           },
           "count": {
@@ -139820,7 +139903,25 @@
               "🔥",
               "👏",
               "😮",
-              "🙏"
+              "🙏",
+              "👎",
+              "😁",
+              "🤔",
+              "🤯",
+              "😢",
+              "🎉",
+              "🤩",
+              "👌",
+              "😍",
+              "💯",
+              "🤣",
+              "⚡",
+              "🏆",
+              "💔",
+              "👀",
+              "🤝",
+              "✍️",
+              "😎"
             ]
           }
         },

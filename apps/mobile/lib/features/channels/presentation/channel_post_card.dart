@@ -20,6 +20,7 @@ import 'package:lawbid/features/social/domain/social_models.dart'
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart'
     show PostMediaCarousel;
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
+import 'package:lawbid/shared/presentation/reaction_sheets.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
 /// Owner 2026-10-20: one post of a channel — text (links tappable), photos
@@ -43,40 +44,16 @@ class ChannelPostCard extends ConsumerWidget {
   }
 
   Future<void> _pickReaction(BuildContext context, WidgetRef ref) async {
+    // Owner 2026-10-21 (inbox 26b): only what the channel opened.
+    final choices = channel.reactionOptions;
+    if (choices.isEmpty) return;
     final t = ref.read(translatorProvider);
-    final emoji = await showAppBottomSheet<String>(
-      context: context,
-      builder: (sheet) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.screenSide,
-            0,
-            AppSpacing.screenSide,
-            AppSpacing.lg,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const AppSheetHandle(),
-              Wrap(
-                alignment: WrapAlignment.center,
-                spacing: AppSpacing.sm,
-                runSpacing: AppSpacing.sm,
-                children: [
-                  for (final e in kChannelReactions)
-                    _EmojiButton(
-                      key: ValueKey('channel-pick-$e'),
-                      emoji: e,
-                      selected: post.myReaction == e,
-                      label: t.t('channel.react.pick', {'emoji': e}),
-                      onTap: () => Navigator.of(sheet).pop(e),
-                    ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
+    final emoji = await showReactionPickerSheet(
+      context,
+      t,
+      choices: choices,
+      mine: post.myReaction,
+      keyPrefix: 'channel-pick',
     );
     if (emoji != null && context.mounted) await _react(context, ref, emoji);
   }
@@ -229,7 +206,10 @@ class ChannelPostCard extends ConsumerWidget {
                     inList: true,
                     semanticLabel: t.t('channel.post.photos'),
                     onDoubleTap: () {
-                      if (post.myReaction == null) _react(context, ref, '❤️');
+                      if (post.myReaction == null &&
+                          channel.reactionOptions.contains('❤️')) {
+                        _react(context, ref, '❤️');
+                      }
                     },
                     onTap: (i) => showPhotoGallery(
                       context,
@@ -308,7 +288,12 @@ class ChannelPostCard extends ConsumerWidget {
                               'emoji': r.emoji,
                               'count': '${r.count}',
                             }),
-                            onTap: () => _react(context, ref, r.emoji),
+                            // Mine can always be taken back; another
+                            // only while the channel allows it.
+                            onTap: post.myReaction == r.emoji ||
+                                    channel.reactionOptions.contains(r.emoji)
+                                ? () => _react(context, ref, r.emoji)
+                                : null,
                           ),
                     ],
                   ),
@@ -418,11 +403,13 @@ class _ReactionChip extends StatelessWidget {
   final String count;
   final bool selected;
   final String label;
-  final VoidCallback onTap;
+
+  /// Null: shown, not tappable (the channel closed this reaction).
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) => Semantics(
-        button: true,
+        button: onTap != null,
         selected: selected,
         label: label,
         excludeSemantics: true,
@@ -435,51 +422,6 @@ class _ReactionChip extends StatelessWidget {
           onTap: onTap,
         ),
       );
-}
-
-class _EmojiButton extends StatelessWidget {
-  const _EmojiButton({
-    required this.emoji,
-    required this.selected,
-    required this.label,
-    required this.onTap,
-    super.key,
-  });
-
-  final String emoji;
-  final bool selected;
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    return Semantics(
-      button: true,
-      selected: selected,
-      label: label,
-      excludeSemantics: true,
-      onTap: onTap,
-      child: InkWell(
-        onTap: onTap,
-        customBorder: const CircleBorder(),
-        child: Container(
-          width: AppSizes.hitTarget,
-          height: AppSizes.hitTarget,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: selected ? colors.goldTint : null,
-            border: Border.all(
-              color: selected ? colors.goldStroke : colors.border,
-            ),
-          ),
-          child: Text(emoji, style: type.titleLarge),
-        ),
-      ),
-    );
-  }
 }
 
 /// A small icon button with an optional count beside it (≥ 44 dp to tap).

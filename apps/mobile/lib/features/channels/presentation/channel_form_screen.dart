@@ -18,6 +18,7 @@ import 'package:lawbid/features/channels/presentation/channel_widgets.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_info_sheets.dart'
     show GroupChoice, showGroupChoiceSheet;
 import 'package:lawbid/shared/presentation/handle_hints.dart';
+import 'package:lawbid/shared/presentation/reaction_sheets.dart';
 
 /// Owner 2026-10-20: create a channel (verified attorneys) or, with
 /// [channelRef], edit one (admins; only the owner renames the @username).
@@ -78,6 +79,9 @@ class _FormState extends ConsumerState<_Form> {
   late bool _comments = widget.editing?.commentsEnabled ?? true;
   late bool _protect = widget.editing?.protectContent ?? false;
   late ChannelWho _who = widget.editing?.whoCanPost ?? ChannelWho.admins;
+  late ReactionsMode _reactMode =
+      widget.editing?.reactionsMode ?? ReactionsMode.all;
+  late List<String> _reactAllowed = widget.editing?.reactionsAllowed ?? [];
 
   Uint8List? _avatarBytes;
   String? _avatarFileId;
@@ -203,6 +207,8 @@ class _FormState extends ConsumerState<_Form> {
       removeAvatar: _removeAvatar,
       protectContent: editing == null ? null : _protect,
       whoCanPost: editing != null && editing.isOwner ? _who : null,
+      reactionsMode: editing == null ? null : _reactMode,
+      reactionsAllowed: editing == null ? null : _reactAllowed,
     );
     setState(() {
       _saving = true;
@@ -292,6 +298,22 @@ class _FormState extends ConsumerState<_Form> {
       ],
     );
     if (picked != null && mounted) setState(() => _who = picked);
+  }
+
+  /// Owner 2026-10-21 (inbox 26b): reactions all / selected / off.
+  Future<void> _pickReactions() async {
+    final t = ref.read(translatorProvider);
+    final picked = await showReactionSettingsSheet(
+      context,
+      t,
+      mode: _reactMode,
+      allowed: _reactAllowed,
+    );
+    if (picked == null || !mounted) return;
+    setState(() {
+      _reactMode = picked.mode;
+      _reactAllowed = picked.allowed;
+    });
   }
 
   String? _usernameError(Translator t) {
@@ -512,6 +534,20 @@ class _FormState extends ConsumerState<_Form> {
                             ),
                           ],
                         ),
+                      ),
+                    ],
+                    if (editing != null) ...[
+                      const SizedBox(height: AppSpacing.md),
+                      AppListRow(
+                        key: const ValueKey('channel-reactions'),
+                        icon: AppIcons.faceOutlined,
+                        label: t.t('reactions.title'),
+                        subtitle: reactionSettingsLabel(
+                          t,
+                          _reactMode,
+                          _reactAllowed,
+                        ),
+                        onTap: _saving ? null : _pickReactions,
                       ),
                     ],
                     if (editing != null && editing.isOwner) ...[

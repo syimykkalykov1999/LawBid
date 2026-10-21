@@ -7,6 +7,7 @@ import 'package:json_annotation/json_annotation.dart';
 import 'channel_role.dart';
 import 'channel_status.dart';
 import 'channel_who.dart';
+import 'reaction_mode.dart';
 import 'user_brief_dto.dart';
 
 part 'channel_dto.g.dart';
@@ -31,6 +32,8 @@ class ChannelDto {
     this.protectContent,
     this.whoCanPost,
     this.canPost,
+    this.reactionsMode,
+    this.reactionsAllowed,
     this.myRole,
     this.lastPostAt,
   });
@@ -59,6 +62,12 @@ class ChannelDto {
 
   /// I may publish here: an admin, or a subscriber while it is open to all.
   final bool? canPost;
+
+  /// Owner 2026-10-21 (inbox 26b): all / selected / off.
+  final ReactionMode? reactionsMode;
+
+  /// The selected reactions (mode «some»), palette order.
+  final List<String>? reactionsAllowed;
 
   /// Hidden / banned are only reported to the channel's admins.
   final ChannelStatus status;

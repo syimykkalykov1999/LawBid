@@ -200,4 +200,58 @@ describe('Groups and channels — Telegram parity (e2e)', () => {
         .expect(400);
     });
   });
+
+  describe('channel: reactions all / selected / off (item 3)', () => {
+    const react = (who: Who, ch: string, post: string, emoji: string) =>
+      api()
+        .put(`/api/v1/channels/${ch}/posts/${post}/reaction`)
+        .set(who.auth)
+        .send({ emoji });
+
+    it('all by default, then only the selected, then none', async () => {
+      const owner = await client('Olga');
+      const reader = await client('Rita');
+      const ch = await channel(owner);
+      await subscribe(reader, ch.id);
+      const post = (await publish(owner, ch.id).expect(201)).body.data
+        .id as string;
+
+      // «All»: the whole palette, not only the old six.
+      await react(reader, ch.id, post, '🎉').expect(200);
+      const seen = await api()
+        .get(`/api/v1/channels/${ch.id}`)
+        .set(reader.auth)
+        .expect(200);
+      expect(seen.body.data.reactionsMode).toBe('all');
+
+      // «Selected» needs at least one.
+      await api()
+        .patch(`/api/v1/channels/${ch.id}`)
+        .set(owner.auth)
+        .send({ reactionsMode: 'some', reactionsAllowed: [] })
+        .expect(400);
+      const some = await api()
+        .patch(`/api/v1/channels/${ch.id}`)
+        .set(owner.auth)
+        .send({ reactionsMode: 'some', reactionsAllowed: ['🔥', '👍', '🔥'] })
+        .expect(200);
+      expect(some.body.data.reactionsAllowed).toEqual(['👍', '🔥']);
+      await react(reader, ch.id, post, '🎉').expect(403);
+      await react(reader, ch.id, post, '🔥').expect(200);
+
+      // «Off»: nothing new; taking mine back still works.
+      await api()
+        .patch(`/api/v1/channels/${ch.id}`)
+        .set(owner.auth)
+        .send({ reactionsMode: 'off' })
+        .expect(200);
+      await react(reader, ch.id, post, '👍').expect(403);
+      await api()
+        .delete(`/api/v1/channels/${ch.id}/posts/${post}/reaction`)
+        .set(reader.auth)
+        .expect(200);
+      // Not an emoji of the palette at all.
+      await react(reader, ch.id, post, 'x').expect(400);
+    });
+  });
 });

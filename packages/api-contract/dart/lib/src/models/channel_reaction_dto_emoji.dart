@@ -30,6 +30,78 @@ enum ChannelReactionDtoEmoji {
   @JsonValue('🙏')
   undefined5('🙏'),
 
+  /// Incorrect name has been replaced. Original name: `👎`.
+  @JsonValue('👎')
+  undefined6('👎'),
+
+  /// Incorrect name has been replaced. Original name: `😁`.
+  @JsonValue('😁')
+  undefined7('😁'),
+
+  /// Incorrect name has been replaced. Original name: `🤔`.
+  @JsonValue('🤔')
+  undefined8('🤔'),
+
+  /// Incorrect name has been replaced. Original name: `🤯`.
+  @JsonValue('🤯')
+  undefined9('🤯'),
+
+  /// Incorrect name has been replaced. Original name: `😢`.
+  @JsonValue('😢')
+  undefined10('😢'),
+
+  /// Incorrect name has been replaced. Original name: `🎉`.
+  @JsonValue('🎉')
+  undefined11('🎉'),
+
+  /// Incorrect name has been replaced. Original name: `🤩`.
+  @JsonValue('🤩')
+  undefined12('🤩'),
+
+  /// Incorrect name has been replaced. Original name: `👌`.
+  @JsonValue('👌')
+  undefined13('👌'),
+
+  /// Incorrect name has been replaced. Original name: `😍`.
+  @JsonValue('😍')
+  undefined14('😍'),
+
+  /// Incorrect name has been replaced. Original name: `💯`.
+  @JsonValue('💯')
+  undefined15('💯'),
+
+  /// Incorrect name has been replaced. Original name: `🤣`.
+  @JsonValue('🤣')
+  undefined16('🤣'),
+
+  /// Incorrect name has been replaced. Original name: `⚡`.
+  @JsonValue('⚡')
+  undefined17('⚡'),
+
+  /// Incorrect name has been replaced. Original name: `🏆`.
+  @JsonValue('🏆')
+  undefined18('🏆'),
+
+  /// Incorrect name has been replaced. Original name: `💔`.
+  @JsonValue('💔')
+  undefined19('💔'),
+
+  /// Incorrect name has been replaced. Original name: `👀`.
+  @JsonValue('👀')
+  undefined20('👀'),
+
+  /// Incorrect name has been replaced. Original name: `🤝`.
+  @JsonValue('🤝')
+  undefined21('🤝'),
+
+  /// Incorrect name has been replaced. Original name: `✍️`.
+  @JsonValue('✍️')
+  undefined22('✍️'),
+
+  /// Incorrect name has been replaced. Original name: `😎`.
+  @JsonValue('😎')
+  undefined23('😎'),
+
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);
 

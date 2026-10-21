@@ -71,8 +71,7 @@ void main() {
       );
     });
 
-    testWidgets('the author of a post may edit and delete it',
-        (tester) async {
+    testWidgets('the author of a post may edit and delete it', (tester) async {
       final repo = FakeChannelsRepository(
         channel: fakeChannel(
           subscribed: true,
@@ -121,6 +120,99 @@ void main() {
         repo,
       );
       expect(find.byKey(const ValueKey('channel-who-post')), findsNothing);
+    });
+  });
+
+  group('reactions all / selected / off (item 3)', () {
+    testWidgets('selected: the picker offers only those', (tester) async {
+      final repo = FakeChannelsRepository(
+        channel: fakeChannel(
+          subscribed: true,
+          reactionsMode: ReactionsMode.some,
+          reactionsAllowed: const ['🔥', '👍'],
+        ),
+        feed: [fakePost('p1')],
+      );
+      await pump(tester, const ChannelScreen(channelRef: 'tax_news'), repo);
+      await tester.longPress(
+        find.byKey(const ValueKey('channel-post-card-p1')),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('channel-pick-🔥')), findsOne);
+      expect(find.byKey(const ValueKey('channel-pick-👍')), findsOne);
+      expect(find.byKey(const ValueKey('channel-pick-❤️')), findsNothing);
+      await tester.tap(find.byKey(const ValueKey('channel-pick-🔥')));
+      await tester.pumpAndSettle();
+      expect(repo.calls, contains('react:p1:🔥'));
+    });
+
+    testWidgets('all: the whole palette', (tester) async {
+      final repo = FakeChannelsRepository(
+        channel: fakeChannel(subscribed: true),
+        feed: [fakePost('p1')],
+      );
+      await pump(tester, const ChannelScreen(channelRef: 'tax_news'), repo);
+      await tester.longPress(
+        find.byKey(const ValueKey('channel-post-card-p1')),
+      );
+      await tester.pumpAndSettle();
+      for (final e in kReactionPalette) {
+        expect(find.byKey(ValueKey('channel-pick-$e')), findsOne);
+      }
+    });
+
+    testWidgets("off: no picker, others' chips do nothing", (tester) async {
+      final repo = FakeChannelsRepository(
+        channel: fakeChannel(
+          subscribed: true,
+          reactionsMode: ReactionsMode.off,
+        ),
+        feed: [
+          fakePost(
+            'p1',
+            reactions: const [ChannelReactionCount('👍', 2)],
+          ),
+        ],
+      );
+      await pump(tester, const ChannelScreen(channelRef: 'tax_news'), repo);
+      await tester.longPress(
+        find.byKey(const ValueKey('channel-post-card-p1')),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('channel-pick-👍')), findsNothing);
+      await tester.tap(find.byKey(const ValueKey('channel-react-👍')));
+      await tester.pumpAndSettle();
+      expect(repo.calls.where((c) => c.startsWith('react:')), isEmpty);
+    });
+
+    testWidgets('an admin narrows the reactions in Manage', (tester) async {
+      final repo = FakeChannelsRepository(
+        channel: fakeChannel(role: ChannelRole.admin),
+      );
+      await pump(
+        tester,
+        const ChannelFormScreen(channelRef: 'tax_news'),
+        repo,
+      );
+      final row = find.byKey(const ValueKey('channel-reactions'));
+      await tester.ensureVisible(row);
+      await tester.pumpAndSettle();
+      expect(find.text('All reactions'), findsOne);
+      await tester.tap(row);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('reactions-mode-some')));
+      await tester.pumpAndSettle();
+      // The first six are ticked to start with; untick all but 👍.
+      for (final e in ['❤️', '🔥', '👏', '😮', '🙏']) {
+        await tester.tap(find.byKey(ValueKey('reactions-allow-$e')));
+      }
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('reactions-done')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('channel-form-save')));
+      await tester.pumpAndSettle();
+      expect(repo.lastDraft?.reactionsMode, ReactionsMode.some);
+      expect(repo.lastDraft?.reactionsAllowed, ['👍']);
     });
   });
 }

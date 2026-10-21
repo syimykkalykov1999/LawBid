@@ -15,6 +15,11 @@ import {
   Min,
   MinLength,
 } from 'class-validator';
+import {
+  REACTION_MODES,
+  REACTION_PALETTE,
+  type ReactionMode,
+} from '../../common/reactions/reaction-palette';
 import { UserBriefDto } from '../user-brief/user-brief.dto';
 import { PostVideoDto } from '../videos/videos.dto';
 
@@ -29,8 +34,9 @@ export type ChannelRole = (typeof CHANNEL_ROLES)[number];
 export const CHANNEL_WHO = ['admins', 'all'] as const;
 export type ChannelWho = (typeof CHANNEL_WHO)[number];
 
-/** The reactions a subscriber can put on a post. */
-export const CHANNEL_REACTIONS = ['👍', '❤️', '🔥', '👏', '😮', '🙏'] as const;
+/** The reactions a subscriber can put on a post (owner 2026-10-21, inbox
+ * 26b: the whole palette; the channel may narrow it or switch it off). */
+export const CHANNEL_REACTIONS = REACTION_PALETTE;
 
 export const CHANNEL_TITLE_MAX = 64;
 export const CHANNEL_DESCRIPTION_MAX = 255;
@@ -82,6 +88,14 @@ export class ChannelDto {
   /** I may publish here: an admin, or a subscriber while it is open to all. */
   @ApiPropertyOptional()
   canPost?: boolean;
+
+  /** Owner 2026-10-21 (inbox 26b): all / selected / off. */
+  @ApiPropertyOptional({ enum: REACTION_MODES, enumName: 'ReactionMode' })
+  reactionsMode?: ReactionMode;
+
+  /** The selected reactions (mode «some»), palette order. */
+  @ApiPropertyOptional({ type: [String] })
+  reactionsAllowed?: string[];
 
   /** Hidden / banned are only reported to the channel's admins. */
   @ApiProperty({ enum: CHANNEL_STATUSES, enumName: 'ChannelStatus' })
@@ -229,6 +243,20 @@ export class UpdateChannelDto {
   @IsOptional()
   @IsIn(CHANNEL_WHO)
   whoCanPost?: ChannelWho;
+
+  /** Owner 2026-10-21 (inbox 26b): all / selected / off. */
+  @ApiPropertyOptional({ enum: REACTION_MODES, enumName: 'ReactionMode' })
+  @IsOptional()
+  @IsIn(REACTION_MODES)
+  reactionsMode?: ReactionMode;
+
+  /** With reactionsMode «some»: the reactions left open (≥ 1). */
+  @ApiPropertyOptional({ type: [String], enum: REACTION_PALETTE })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(REACTION_PALETTE.length)
+  @IsIn(REACTION_PALETTE, { each: true })
+  reactionsAllowed?: string[];
 }
 
 export class ChannelMediaDto {

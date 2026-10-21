@@ -18,6 +18,12 @@ UpdateChannelDto _$UpdateChannelDtoFromJson(Map<String, dynamic> json) =>
       whoCanPost: json['whoCanPost'] == null
           ? null
           : ChannelWho.fromJson(json['whoCanPost'] as String),
+      reactionsMode: json['reactionsMode'] == null
+          ? null
+          : ReactionMode.fromJson(json['reactionsMode'] as String),
+      reactionsAllowed: (json['reactionsAllowed'] as List<dynamic>?)
+          ?.map((e) => UpdateChannelDtoReactionsAllowed.fromJson(e as String))
+          .toList(),
     );
 
 Map<String, dynamic> _$UpdateChannelDtoToJson(UpdateChannelDto instance) =>
@@ -30,4 +36,8 @@ Map<String, dynamic> _$UpdateChannelDtoToJson(UpdateChannelDto instance) =>
       'commentsEnabled': ?instance.commentsEnabled,
       'protectContent': ?instance.protectContent,
       'whoCanPost': ?instance.whoCanPost?.toJson(),
+      'reactionsMode': ?instance.reactionsMode?.toJson(),
+      'reactionsAllowed': ?instance.reactionsAllowed
+          ?.map((e) => e.toJson())
+          .toList(),
     };

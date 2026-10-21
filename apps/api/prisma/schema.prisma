@@ -6023,6 +6023,10 @@ model Channel {
   /// Owner 2026-10-21 (inbox 26b): who publishes — 'admins' (the owner and
   /// the admins, the default) or 'all' (every subscriber; the owner opens it).
   who_can_post        String                @default("admins") @db.VarChar(8)
+  /// Owner 2026-10-21 (inbox 26b): reactions — 'all' (the app's palette),
+  /// 'some' (only `reactions_allowed`) or 'off'.
+  reactions_mode      String                @default("all") @db.VarChar(8)
+  reactions_allowed   String[]              @default([]) @db.VarChar(16)
   /// 'active' | 'hidden' (moderation: out of search, posts still readable
   /// by subscribers) | 'banned' (closed for everyone but the admin panel).
   status              String                @default("active") @db.VarChar(10)

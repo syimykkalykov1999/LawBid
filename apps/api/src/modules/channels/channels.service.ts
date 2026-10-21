@@ -42,6 +42,11 @@ import type {
   UpdateChannelDto,
 } from './channels.dto';
 import { CHANNEL_REACTIONS } from './channels.dto';
+import {
+  assertReactionAllowed,
+  cleanAllowed,
+  reactionMode,
+} from '../../common/reactions/reaction-palette';
 import { UsernamePolicyService } from '../usernames/username-policy.service';
 import { ConfigService } from '@nestjs/config';
 import {
@@ -274,6 +279,15 @@ export class ChannelsService {
         throw forbidden('Only the owner decides who publishes.');
       }
       data.who_can_post = dto.whoCanPost;
+    }
+    // Owner 2026-10-21 (inbox 26b): reactions all / selected / off.
+    if (dto.reactionsMode !== undefined || dto.reactionsAllowed !== undefined) {
+      const mode = dto.reactionsMode ?? reactionMode(channel.reactions_mode);
+      data.reactions_mode = mode;
+      data.reactions_allowed = cleanAllowed(
+        mode,
+        dto.reactionsAllowed ?? channel.reactions_allowed,
+      );
     }
     if (dto.username !== undefined && dto.username !== channel.username) {
       if (role !== 'owner')
@@ -853,6 +867,10 @@ export class ChannelsService {
       where: { id: postId, channel_id: ch.id, status: 'active' },
     });
     if (!post) throw notFound('Post');
+    // Owner 2026-10-21 (inbox 26b): only what the channel opened.
+    if (emoji !== null) {
+      assertReactionAllowed(ch.reactions_mode, ch.reactions_allowed, emoji);
+    }
     if (emoji === null) {
       await this.prisma.channelReaction.deleteMany({
         where: { post_id: postId, user_id: user.sub },
@@ -1183,6 +1201,8 @@ export class ChannelsService {
           canPost:
             r.status === 'active' &&
             (role !== null || (r.who_can_post === 'all' && subBy.has(r.id))),
+          reactionsMode: reactionMode(r.reactions_mode),
+          reactionsAllowed: r.reactions_allowed,
           // Moderation state is the admins' business only.
           status: role ? (r.status as ChannelStatus) : 'active',
           subscriberCount: r.subscriber_count,

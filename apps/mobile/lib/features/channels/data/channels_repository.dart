@@ -137,6 +137,15 @@ class ChannelsRepository {
                 ChannelWho.admins => api.ChannelWho.admins,
                 null => null,
               },
+              reactionsMode: d.reactionsMode == null
+                  ? null
+                  : api.ReactionMode.fromJson(d.reactionsMode!.name),
+              reactionsAllowed: d.reactionsAllowed == null
+                  ? null
+                  : [
+                      for (final e in d.reactionsAllowed!)
+                        api.UpdateChannelDtoReactionsAllowed.fromJson(e),
+                    ],
             ),
           ),
         ))
@@ -563,6 +572,8 @@ class ChannelsRepository {
             ? ChannelWho.all
             : ChannelWho.admins,
         canPost: d.canPost ?? d.myRole != null,
+        reactionsMode: ReactionsMode.parse(d.reactionsMode?.json),
+        reactionsAllowed: d.reactionsAllowed ?? const [],
       );
 
   static ChannelPost postOf(api.ChannelPostDto d) => ChannelPost(

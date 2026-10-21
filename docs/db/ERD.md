@@ -2486,6 +2486,7 @@ erDiagram
     Boolean comments_enabled
     Boolean protect_content
     String who_can_post
+    String reactions_mode
     String status
     String moderation_note "nullable"
     Int subscriber_count
