@@ -7,6 +7,7 @@ import 'package:json_annotation/json_annotation.dart';
 import 'call_participant_dto.dart';
 import 'call_peer_dto.dart';
 import 'call_status.dart';
+import 'call_vote_dto.dart';
 
 part 'call_dto.g.dart';
 
@@ -24,11 +25,13 @@ class CallDto {
     required this.participants,
     required this.createdAt,
     this.hostId,
+    this.vote,
     this.answeredAt,
     this.endedAt,
     this.durationSec,
     this.video = false,
     this.group = false,
+    this.moderated = false,
   });
 
   factory CallDto.fromJson(Map<String, Object?> json) =>
@@ -58,6 +61,10 @@ class CallDto {
   /// Who can mute / remove others (group calls).
   final String? hostId;
   final List<CallParticipantDto> participants;
+
+  /// Somebody who runs the call (the starter or a group admin) is in it: members cannot vote to remove anyone then.
+  final bool moderated;
+  final CallVoteDto? vote;
   final DateTime createdAt;
   final DateTime? answeredAt;
   final DateTime? endedAt;

@@ -166,6 +166,15 @@ export class GroupsService {
     return rows.map((r) => r.user_id);
   }
 
+  /** For the calls module: the owner and admins currently in the group. */
+  async adminIds(groupId: string): Promise<string[]> {
+    const rows = await this.prisma.chatGroupMember.findMany({
+      where: { group_id: groupId, left_at: null },
+      select: { user_id: true, role: true },
+    });
+    return rows.filter((r) => isAdminRole(r.role)).map((r) => r.user_id);
+  }
+
   /** For the calls module: may [userId] ring the whole group? */
   async canStartCall(userId: string, groupId: string): Promise<boolean> {
     try {

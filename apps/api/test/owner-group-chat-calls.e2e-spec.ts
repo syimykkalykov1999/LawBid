@@ -377,7 +377,59 @@ describe('Group chat calls (e2e)', () => {
     expect(await row(bob.id)).toBe('joined');
     expect(await row(ann.id)).toBe('joined');
 
-    // The host leaves, then everyone else: the last press ends the call.
+    // Telegram: the host leaves — the call goes on, the next member hosts.
+    await api()
+      .post(`/api/v1/calls/${callId}/end`)
+      .set(auth(owner.id))
+      .send({})
+      .expect(200);
+    expect(await status()).toBe('active');
+    const after = await api()
+      .get(`/api/v1/calls/${callId}`)
+      .set(auth(ann.id))
+      .expect(200);
+    const hostId = (after.body as { data: { hostId: string } }).data.hostId;
+    expect([cy.id, bob.id, ann.id]).toContain(hostId);
+    // Only the host may end it for everyone.
+    const other = [cy, bob, ann].find((u) => u.id !== hostId)!;
+    await api()
+      .post(`/api/v1/calls/${callId}/end`)
+      .set(auth(other.id))
+      .send({ forAll: true })
+      .expect(403);
+    expect(await status()).toBe('active');
+    await api()
+      .post(`/api/v1/calls/${callId}/end`)
+      .set(auth(hostId))
+      .send({ forAll: true })
+      .expect(200);
+    expect(await status()).toBe('ended');
+    expect(await row(other.id)).toBe('left');
+  });
+
+  it('everyone leaves one by one: the last press ends the call', async () => {
+    const owner = await person('Own2');
+    const ann = await person('Ann2');
+    const bob = await person('Bob2');
+    const g = await api()
+      .post('/api/v1/groups')
+      .set(auth(owner.id))
+      .send({ title: 'Seq', type: 'closed', memberIds: [ann.id, bob.id] })
+      .expect(201);
+    const started = await api()
+      .post(`/api/v1/groups/${g.body.data.id as string}/calls`)
+      .set(auth(owner.id))
+      .send({})
+      .expect(201);
+    const callId = started.body.data.id as string;
+    const status = async () =>
+      (await prisma.call.findUniqueOrThrow({ where: { id: callId } })).status;
+    for (const u of [ann, bob]) {
+      await api()
+        .post(`/api/v1/calls/${callId}/accept`)
+        .set(auth(u.id))
+        .expect(200);
+    }
     for (const u of [owner, ann, bob]) {
       await api()
         .post(`/api/v1/calls/${callId}/end`)
@@ -412,5 +464,116 @@ describe('Group chat calls (e2e)', () => {
     ).data.participants.filter((p) => p.status === 'invited');
     // Audio holds six: the host + five ring.
     expect(invited).toHaveLength(5);
+  });
+
+  it('vote to remove: only when nobody runs the call; strictly more "for"; barred for good', async () => {
+    const owner = await person('VOwn');
+    const m = await Promise.all(
+      ['1', '2', '3', '4', '5'].map((n) => person(`V${n}`)),
+    );
+    const g = await api()
+      .post('/api/v1/groups')
+      .set(auth(owner.id))
+      .send({ title: 'Vote', type: 'closed', memberIds: m.map((x) => x.id) })
+      .expect(201);
+    const started = await api()
+      .post(`/api/v1/groups/${g.body.data.id as string}/calls`)
+      .set(auth(owner.id))
+      .send({})
+      .expect(201);
+    const callId = started.body.data.id as string;
+    for (const u of m) {
+      await api()
+        .post(`/api/v1/calls/${callId}/accept`)
+        .set(auth(u.id))
+        .expect(200);
+    }
+    const [a, b, c, d, x] = m;
+    const vote = (who: { id: string }, target: { id: string }) =>
+      api()
+        .post(`/api/v1/calls/${callId}/votes`)
+        .set(auth(who.id))
+        .send({ targetId: target.id });
+    const ballot = (who: { id: string }, voteId: string, favor: boolean) =>
+      api()
+        .post(`/api/v1/calls/${callId}/votes/${voteId}`)
+        .set(auth(who.id))
+        .send({ favor })
+        .expect(200);
+    const rowOf = async (id: string) =>
+      (
+        await prisma.callParticipant.findUniqueOrThrow({
+          where: { call_id_user_id: { call_id: callId, user_id: id } },
+        })
+      ).status;
+    const openVote = async (viewer: { id: string }) =>
+      (
+        (
+          await api()
+            .get(`/api/v1/calls/${callId}`)
+            .set(auth(viewer.id))
+            .expect(200)
+        ).body as {
+          data: {
+            moderated: boolean;
+            vote: { id: string; forCount: number } | null;
+          };
+        }
+      ).data;
+
+    // The starter (and group owner) is in the call: nobody votes.
+    expect((await openVote(a)).moderated).toBe(true);
+    await vote(a, x).expect(403);
+
+    // The starter leaves, no admin is left: the members decide.
+    await api()
+      .post(`/api/v1/calls/${callId}/end`)
+      .set(auth(owner.id))
+      .send({})
+      .expect(200);
+    expect((await openVote(a)).moderated).toBe(false);
+
+    // 2 for, 2 against: a tie keeps the member.
+    const v1 = await vote(a, x).expect(200);
+    expect(
+      (v1.body as { data: { vote: { forCount: number } } }).data.vote.forCount,
+    ).toBe(1);
+    const id1 = (await openVote(b)).vote!.id;
+    // The candidate cannot vote.
+    await api()
+      .post(`/api/v1/calls/${callId}/votes/${id1}`)
+      .set(auth(x.id))
+      .send({ favor: false })
+      .expect(403);
+    await ballot(b, id1, false);
+    await ballot(c, id1, true);
+    await ballot(d, id1, false);
+    expect(await rowOf(x.id)).toBe('joined');
+    expect((await openVote(a)).vote).toBeNull();
+
+    // 3 for, 1 against: out — and barred from this call for good.
+    await vote(a, x).expect(200);
+    const id2 = (await openVote(b)).vote!.id;
+    await ballot(b, id2, true);
+    await ballot(c, id2, true);
+    expect(await rowOf(x.id)).toBe('removed');
+    await api()
+      .post(`/api/v1/calls/${callId}/join`)
+      .set(auth(x.id))
+      .expect(403);
+    await api()
+      .post(`/api/v1/calls/${callId}/participants`)
+      .set(auth(a.id))
+      .send({ userId: x.id })
+      .expect(403);
+
+    // At the deadline the count decides: 1 for, 0 against passes.
+    await vote(a, d).expect(200);
+    await prisma.callVote.updateMany({
+      where: { call_id: callId, status: 'open' },
+      data: { expires_at: new Date(Date.now() - 1000) },
+    });
+    await api().get(`/api/v1/calls/${callId}`).set(auth(a.id)).expect(200);
+    expect(await rowOf(d.id)).toBe('removed');
   });
 });
