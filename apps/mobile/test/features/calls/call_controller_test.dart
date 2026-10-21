@@ -12,6 +12,7 @@ import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/call_foreground.dart';
 import 'package:lawbid/features/calls/application/call_media.dart';
 import 'package:lawbid/features/calls/application/call_quality.dart';
+import 'package:lawbid/features/calls/application/call_video_layout.dart';
 import 'package:lawbid/features/calls/data/calls_repository.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
@@ -1277,6 +1278,25 @@ void main() {
       await _settle();
       expect(h.repo.endedForAll, ['g1']);
       expect(h.container.read(groupRejoinProvider), isNull);
+    });
+
+    test('a member switches the camera off: the others hear it', () async {
+      final h = await joined();
+      h.media.onState!(CallMediaState.connected);
+      h.emit('call:signal', {
+        'callId': 'g1',
+        'from': 'p2',
+        'data': {'type': 'camera', 'on': false},
+      });
+      await _settle();
+      expect(h.container.read(callCamerasOffProvider), {'p2'});
+      h.emit('call:signal', {
+        'callId': 'g1',
+        'from': 'p2',
+        'data': {'type': 'camera', 'on': true},
+      });
+      await _settle();
+      expect(h.container.read(callCamerasOffProvider), isEmpty);
     });
 
     test('leaving a running group call offers the way back', () async {

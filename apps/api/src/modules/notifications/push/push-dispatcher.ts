@@ -296,6 +296,11 @@ export class PushDispatcher
         userId: data.recipientId,
         title: group?.title ?? name,
         body,
+        // About a minute in the shade, then gone (owner 2026-10-21); the
+        // call-end push takes it away sooner. One per call (tag).
+        ttlSec: 60,
+        collapseKey: `gc:${data.callId}`,
+        sound: 'notification',
         data: {
           type: 'group_call',
           callId: data.callId,

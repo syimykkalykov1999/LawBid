@@ -138,6 +138,9 @@ export class FcmPushSender implements PushSender {
                       ? { priority: 'high', ttl: `${REMINDER_TTL_SEC}s` }
                       : {
                           priority: 'high',
+                          ...(message.ttlSec
+                            ? { ttl: `${message.ttlSec}s` }
+                            : {}),
                           ...(message.collapseKey
                             ? { collapse_key: message.collapseKey }
                             : {}),
@@ -184,10 +187,11 @@ export class FcmPushSender implements PushSender {
                               'apns-collapse-id': `task:${message.data.taskId}`,
                             }
                           : {}),
-                      ...(message.call
+                      ...(message.call || message.ttlSec
                         ? {
                             'apns-expiration': String(
-                              Math.floor(Date.now() / 1000) + CALL_TTL_SEC,
+                              Math.floor(Date.now() / 1000) +
+                                (message.ttlSec ?? CALL_TTL_SEC),
                             ),
                           }
                         : {}),

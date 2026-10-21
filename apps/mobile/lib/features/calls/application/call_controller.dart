@@ -13,6 +13,7 @@ import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/features/calls/application/call_foreground.dart';
 import 'package:lawbid/features/calls/application/call_media.dart';
+import 'package:lawbid/features/calls/application/call_video_layout.dart';
 import 'package:lawbid/features/calls/data/calls_repository.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
@@ -870,6 +871,8 @@ class CallController extends Notifier<CallSession> {
     state = state.copyWith(
       call: call.copyWith(group: group, hostId: hostId, participants: members),
     );
+    // Someone new may have joined: tell them our camera is off.
+    if (!state.cameraOn) _shareCamera();
     // The host switched our microphone off and we missed the event.
     final mine = members.where((m) => m.userId == _me).firstOrNull;
     if (mine != null && mine.joined && mine.mutedByHost && !state.muted) {
@@ -991,6 +994,22 @@ class CallController extends Notifier<CallSession> {
     } on Object {
       // No camera: keep the flag for the UI.
     }
+    _shareCamera();
+  }
+
+  /// Everyone else learns whether our camera is on (an off camera still
+  /// sends black frames — they show our photo instead).
+  void _shareCamera() {
+    final call = state.call;
+    if (call == null || !state.video || !state.busy) return;
+    unawaited(
+      ref
+          .read(callSignalSenderProvider)(
+            call.id,
+            {'type': 'camera', 'on': state.cameraOn},
+          )
+          .then<void>((_) {}, onError: (Object _) {}),
+    );
   }
 
   Future<void> switchCamera() async {
@@ -1455,6 +1474,10 @@ class CallController extends Notifier<CallSession> {
           if (media.peers.contains(peer)) {
             await media.addCandidateFor(peer, data);
           }
+        case 'camera':
+          ref
+              .read(callCamerasOffProvider.notifier)
+              .set(peer, on: data['on'] != false);
         case 'restart':
           // The side that answered lost the route: the offerer renews it.
           if (_offered.contains(peer)) await _restartIce(peer);
@@ -1679,6 +1702,7 @@ class CallController extends Notifier<CallSession> {
 
   void _reset() {
     _gen++;
+    ref.read(callCamerasOffProvider.notifier).clear();
     _accepting = null;
     _clearTimers();
     // Audit 2026-10-02: the incoming melody stops with any change.

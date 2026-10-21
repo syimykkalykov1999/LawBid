@@ -10,6 +10,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/call_media.dart';
+import 'package:lawbid/features/calls/application/call_video_layout.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:lawbid/features/calls/presentation/call_widgets.dart';
 
@@ -21,7 +22,7 @@ import 'package:lawbid/features/calls/presentation/call_widgets.dart';
 /// Owner 2026-10-21 (Zoom): a tap on a tile in a video call makes that
 /// person the big picture, the others shrink to a strip below; a tap on the
 /// big one goes back to the grid, a tap on a strip tile switches to them.
-class CallGroupGrid extends ConsumerStatefulWidget {
+class CallGroupGrid extends ConsumerWidget {
   const CallGroupGrid({required this.session, required this.media, super.key});
 
   final CallSession session;
@@ -42,30 +43,45 @@ class CallGroupGrid extends ConsumerStatefulWidget {
   }
 
   @override
-  ConsumerState<CallGroupGrid> createState() => _CallGroupGridState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final m = media;
+    // Like Telegram: people whose camera is on come up to the top.
+    if (m == null) return _content(context, ref, const {});
+    return ListenableBuilder(
+      listenable: m.remoteStreams,
+      builder: (_, __) => _content(
+        context,
+        ref,
+        {...m.remoteStreams.value.keys},
+      ),
+    );
+  }
 
-class _CallGroupGridState extends ConsumerState<CallGroupGrid> {
-  /// The person shown big (null = the grid).
-  String? _focus;
-
-  void _tap(String userId) =>
-      setState(() => _focus = _focus == userId ? null : userId);
-
-  @override
-  Widget build(BuildContext context) {
-    final session = widget.session;
-    final media = widget.media;
+  Widget _content(BuildContext context, WidgetRef ref, Set<String> live) {
     final call = session.call;
     if (call == null) return const SizedBox.shrink();
     final me = ref.watch(callMyIdProvider);
     final members = CallGroupGrid.visibleMembers(call, me);
+    if (session.video && live.isNotEmpty) {
+      // Stable: those with a picture first (us included, camera on), the
+      // rest keep their order.
+      final withVideo = [
+        for (final x in members)
+          if (live.contains(x.userId) || (x.userId == me && session.cameraOn))
+            x,
+      ];
+      members
+        ..removeWhere(withVideo.contains)
+        ..insertAll(0, withVideo);
+    }
     final n = members.length;
     final cols = n <= 4 ? 2 : 3;
     final rows = (n / cols).ceil();
     final m = media;
+    final focusId = ref.watch(callVideoLayoutProvider).focusId;
+    final camerasOff = ref.watch(callCamerasOffProvider);
     final focused = session.video
-        ? members.where((x) => x.userId == _focus).firstOrNull
+        ? members.where((x) => x.userId == focusId).firstOrNull
         : null;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
@@ -88,6 +104,7 @@ class _CallGroupGridState extends ConsumerState<CallGroupGrid> {
                       stream: null,
                       mirror: isMe,
                       micOff: isMe ? session.muted : member.muted,
+                      cameraOff: session.video,
                     )
                   : ListenableBuilder(
                       listenable: Listenable.merge([
@@ -100,7 +117,9 @@ class _CallGroupGridState extends ConsumerState<CallGroupGrid> {
                             ? null
                             : isMe
                                 ? (session.cameraOn ? m.localVideo.value : null)
-                                : m.remoteStreams.value[member.userId];
+                                : camerasOff.contains(member.userId)
+                                    ? null
+                                    : m.remoteStreams.value[member.userId];
                         return _MemberTile(
                           member: member,
                           isMe: isMe,
@@ -111,6 +130,7 @@ class _CallGroupGridState extends ConsumerState<CallGroupGrid> {
                           stream: stream,
                           mirror: isMe,
                           micOff: isMe ? session.muted : member.muted,
+                          cameraOff: session.video && stream == null,
                         );
                       },
                     ),
@@ -122,7 +142,9 @@ class _CallGroupGridState extends ConsumerState<CallGroupGrid> {
               ? GestureDetector(
                   key: Key('call-tile-${member.userId}'),
                   behavior: HitTestBehavior.opaque,
-                  onTap: () => _tap(member.userId),
+                  onTap: () => ref
+                      .read(callVideoLayoutProvider.notifier)
+                      .toggleFocus(member.userId),
                   child: tileFor(member, size),
                 )
               : tileFor(member, size);
@@ -136,7 +158,55 @@ class _CallGroupGridState extends ConsumerState<CallGroupGrid> {
             return Column(
               children: [
                 Expanded(
-                  child: tappable(focused, Size(box.maxWidth, box.maxHeight)),
+                  // A tap or a swipe down goes back to everyone.
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onVerticalDragEnd: (d) {
+                      if ((d.primaryVelocity ?? 0) > 250) {
+                        ref.read(callVideoLayoutProvider.notifier).clearFocus();
+                      }
+                    },
+                    child: Stack(
+                      children: [
+                        tappable(focused, Size(box.maxWidth, box.maxHeight)),
+                        // The way back, in plain sight (also: tap, swipe down).
+                        PositionedDirectional(
+                          top: AppSpacing.sm,
+                          start: AppSpacing.sm,
+                          child: Semantics(
+                            button: true,
+                            label:
+                                ref.watch(translatorProvider).t('call.members'),
+                            excludeSemantics: true,
+                            child: GestureDetector(
+                              key: const Key('call-focus-back'),
+                              behavior: HitTestBehavior.opaque,
+                              onTap: ref
+                                  .read(callVideoLayoutProvider.notifier)
+                                  .clearFocus,
+                              child: Padding(
+                                padding: const EdgeInsets.all(4),
+                                child: DecoratedBox(
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: Colors.black.withValues(alpha: 0.45),
+                                  ),
+                                  child: const Padding(
+                                    padding: EdgeInsets.all(8),
+                                    child: AppIcon(
+                                      AppIcons.peopleOutlineRounded,
+                                      size: 20,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
                 const SizedBox(height: gap),
                 SizedBox(
@@ -180,6 +250,7 @@ class _MemberTile extends StatelessWidget {
     required this.stream,
     required this.mirror,
     required this.micOff,
+    this.cameraOff = false,
   });
 
   final CallMember member;
@@ -189,6 +260,9 @@ class _MemberTile extends StatelessWidget {
   final MediaStream? stream;
   final bool mirror;
   final bool micOff;
+
+  /// A video call and this person's picture is off: photo + crossed camera.
+  final bool cameraOff;
 
   @override
   Widget build(BuildContext context) {
@@ -268,6 +342,25 @@ class _MemberTile extends StatelessWidget {
                   ),
                 ),
               ),
+              if (cameraOff && !ringing)
+                PositionedDirectional(
+                  top: AppSpacing.xs,
+                  start: AppSpacing.xs,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.black.withValues(alpha: 0.5),
+                    ),
+                    child: const Padding(
+                      padding: EdgeInsets.all(4),
+                      child: AppIcon(
+                        AppIcons.videocamOffOutlined,
+                        size: 14,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
               if (micOff && !ringing)
                 PositionedDirectional(
                   top: AppSpacing.xs,

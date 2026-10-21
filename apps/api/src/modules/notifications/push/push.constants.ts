@@ -115,6 +115,9 @@ export interface PushMessage {
    * phone (Android tag + collapse key, iOS collapse id + thread id) — one
    * alert per message however many reactions or edits follow. */
   collapseKey?: string;
+  /** Owner 2026-10-21: the alert is worth nothing after this many seconds
+   * (a call from a group chat: about a minute) — the push service drops it. */
+  ttlSec?: number;
 }
 
 export type PushSoundKind = 'message' | 'notification';

@@ -75,6 +75,9 @@ describe('PushDispatcher call from a group chat', () => {
     expect(sent).toHaveLength(1);
     expect(sent[0].call).toBeUndefined();
     expect(sent[0].title).toBe('Team');
+    // About a minute in the shade, one per call.
+    expect(sent[0].ttlSec).toBe(60);
+    expect(sent[0].collapseKey).toBe('gc:c1');
     expect(sent[0].body).toBe('Ann Lee started a call · Join');
     expect(sent[0].data).toMatchObject({
       type: 'group_call',

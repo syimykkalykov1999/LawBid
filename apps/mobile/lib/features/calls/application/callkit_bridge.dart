@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_callkit_incoming/entities/entities.dart';
 import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:lawbid/features/calls/application/call_controller.dart';
@@ -219,6 +220,7 @@ Future<void> showLawbidIncoming({
 /// [over] (owner 2026-10-20): the ANSWERED call is over too — end the
 /// system call even if this phone had accepted it.
 Future<void> stopLawbidIncoming(String callId, {bool over = false}) async {
+  await clearGroupCallNotice(callId);
   try {
     final calls = await FlutterCallkitIncoming.activeCalls();
     final mine = calls.where((c) => c.id == callId);
@@ -226,6 +228,18 @@ Future<void> stopLawbidIncoming(String callId, {bool over = false}) async {
     await FlutterCallkitIncoming.endCall(callId);
   } on Object catch (e) {
     debugPrint('callkit unavailable: $e');
+  }
+}
+
+/// Owner 2026-10-21: the light «X started a call · Join» notification of a
+/// call from a group chat (tag `gc:<callId>`, FCM shows it with id 0) goes
+/// when the call is over or the person has joined.
+Future<void> clearGroupCallNotice(String callId) async {
+  if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
+  try {
+    await FlutterLocalNotificationsPlugin().cancel(id: 0, tag: 'gc:$callId');
+  } on Object {
+    // No plugin / nothing shown.
   }
 }
 
@@ -246,6 +260,7 @@ Future<void> lawbidBackgroundMessage(RemoteMessage message) async {
     final over = d['ended'] == '1';
     // The app's own isolate (alive in the background while a call runs)
     // holds the call: tell it to re-read the call from the server now.
+    await clearGroupCallNotice(callId);
     if (over && sendCallEnded(callId)) return;
     await stopLawbidIncoming(callId, over: over);
     return;

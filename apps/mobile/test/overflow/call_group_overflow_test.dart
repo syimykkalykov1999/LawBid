@@ -47,6 +47,7 @@ CallSession _session(
   bool video = false,
   bool host = true,
   String? notice,
+  CallPhase phase = CallPhase.active,
 }) {
   final members = [
     for (var i = 0; i < people; i++)
@@ -57,7 +58,7 @@ CallSession _session(
       ),
   ];
   return CallSession(
-    phase: CallPhase.active,
+    phase: phase,
     connectedAt: DateTime.now(),
     video: video,
     notice: notice,
@@ -157,6 +158,31 @@ void main() {
           await tester.pump(const Duration(milliseconds: 300));
           expect(find.byKey(const Key('call-tile-u0')), findsOneWidget);
           expect(tester.takeException(), isNull);
+          await tester.tap(find.byKey(const Key('call-tile-u2')));
+          await tester.pump(const Duration(milliseconds: 300));
+          // The explicit way back to the grid.
+          expect(find.byKey(const Key('call-focus-back')), findsOneWidget);
+          await tester.tap(find.byKey(const Key('call-focus-back')));
+          await tester.pump(const Duration(milliseconds: 300));
+          expect(find.byKey(const Key('call-focus-back')), findsNothing);
+          expect(tester.takeException(), isNull);
+          await tester.pump(const Duration(seconds: 5));
+        });
+
+        testWidgets('host presses end while links are still connecting: asked',
+            (tester) async {
+          await pump(
+            tester,
+            _session(4, video: true, phase: CallPhase.connecting),
+            const CallScreen(),
+          );
+          await tester.tap(
+            find.byWidgetPredicate(
+              (w) => w is AppIcon && w.icon == AppIcons.callEndRounded,
+            ),
+          );
+          await tester.pump(const Duration(milliseconds: 400));
+          expect(find.byKey(const Key('call-end-for-all')), findsOneWidget);
           await tester.pump(const Duration(seconds: 5));
         });
 
