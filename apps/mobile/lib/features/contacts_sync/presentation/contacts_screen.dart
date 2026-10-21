@@ -17,6 +17,7 @@ import 'package:lawbid/features/chat/presentation/open_direct_chat.dart';
 import 'package:lawbid/features/contacts_sync/application/contacts_background_sync.dart';
 import 'package:lawbid/features/contacts_sync/application/contacts_sync_providers.dart';
 import 'package:lawbid/features/contacts_sync/application/phone_contacts.dart';
+import 'package:lawbid/features/contacts_sync/presentation/calls_tab.dart';
 import 'package:lawbid/features/contacts_sync/presentation/contact_rows.dart';
 import 'package:lawbid/features/contacts_sync/presentation/contacts_section.dart';
 import 'package:lawbid/features/contacts_sync/presentation/contacts_states.dart';
@@ -27,11 +28,24 @@ import 'package:lawbid/shared/domain/user_role.dart';
 /// Owner 2026-10-20: "Contacts" like WhatsApp — the phone-book people who
 /// are on LawBid (with message / call / video) and the rest to invite.
 /// A browser cannot read the phone book: "Available in the app".
-class ContactsScreen extends ConsumerWidget {
-  const ContactsScreen({super.key});
+///
+/// Owner 2026-10-21: two sections under a segmented switch — «Contacts» and
+/// «Calls» (history and the group calls running now, like WhatsApp).
+class ContactsScreen extends ConsumerStatefulWidget {
+  const ContactsScreen({this.initialCalls = false, super.key});
+
+  /// Opens on the «Calls» section.
+  final bool initialCalls;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ContactsScreen> createState() => _ContactsScreenState();
+}
+
+class _ContactsScreenState extends ConsumerState<ContactsScreen> {
+  late bool _calls = widget.initialCalls;
+
+  @override
+  Widget build(BuildContext context) {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     return Scaffold(
@@ -41,14 +55,28 @@ class ContactsScreen extends ConsumerWidget {
           semanticLabel: t.t('common.back'),
           onPressed: () => Navigator.of(context).maybePop(),
         ),
-        title: Text(t.t('phoneContacts.title')),
+        title: Text(t.t(_calls ? 'calls.title' : 'phoneContacts.title')),
       ),
-      body: kIsWeb
-          ? AppEmptyState(
-              icon: AppIcons.contactPhoneOutlined,
-              message: t.t('phoneContacts.webOnly'),
-            )
-          : _Body(t: t),
+      body: Column(
+        children: [
+          ContactsCallsSegment(
+            calls: _calls,
+            contactsLabel: t.t('phoneContacts.title'),
+            callsLabel: t.t('calls.title'),
+            onChanged: (v) => setState(() => _calls = v),
+          ),
+          Expanded(
+            child: _calls
+                ? const CallsTab()
+                : kIsWeb
+                    ? AppEmptyState(
+                        icon: AppIcons.contactPhoneOutlined,
+                        message: t.t('phoneContacts.webOnly'),
+                      )
+                    : _Body(t: t),
+          ),
+        ],
+      ),
     );
   }
 }
