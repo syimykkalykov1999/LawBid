@@ -230,34 +230,46 @@ class QuestionCard extends ConsumerWidget {
               ],
             ),
             const SizedBox(height: AppSpacing.sm),
+            // Owner 2026-10-21: the time sits at the far end of the row.
             Row(
               children: [
-                AppIcon(
-                  AppIcons.chatBubbleOutlineRounded,
-                  size: 16,
-                  color: colors.textSecondary,
-                ),
-                const SizedBox(width: AppSpacing.xs),
-                Flexible(
-                  child: Text(
-                    question.answersEnough && attorney
-                        ? t.t('qa.enough')
-                        : attorney
-                            ? t.t('qa.count.of', {
-                                'n': formats.number(question.answerCount),
-                                'max': formats.number(10),
-                              })
-                            : SocialFormat.count(formats, question.answerCount),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: type.caption.copyWith(color: colors.textSecondary),
+                Expanded(
+                  child: Row(
+                    children: [
+                      AppIcon(
+                        AppIcons.chatBubbleOutlineRounded,
+                        size: 16,
+                        color: colors.textSecondary,
+                      ),
+                      const SizedBox(width: AppSpacing.xs),
+                      Flexible(
+                        child: Text(
+                          question.answersEnough && attorney
+                              ? t.t('qa.enough')
+                              : attorney
+                                  ? t.t('qa.count.of', {
+                                      'n': formats.number(question.answerCount),
+                                      'max': formats.number(10),
+                                    })
+                                  : SocialFormat.count(
+                                      formats,
+                                      question.answerCount,
+                                    ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: type.caption.copyWith(
+                            color: colors.textSecondary,
+                          ),
+                        ),
+                      ),
+                      if (question.solved) ...[
+                        const SizedBox(width: AppSpacing.md),
+                        QaBestBadge(label: t.t('qa.best'), iconOnly: true),
+                      ],
+                    ],
                   ),
                 ),
-                if (question.solved) ...[
-                  const SizedBox(width: AppSpacing.md),
-                  QaBestBadge(label: t.t('qa.best'), iconOnly: true),
-                ],
-                const Spacer(),
+                const SizedBox(width: AppSpacing.sm),
                 Text(
                   SocialFormat.ago(t, formats, question.createdAt),
                   style: type.caption.copyWith(color: colors.textSecondary),

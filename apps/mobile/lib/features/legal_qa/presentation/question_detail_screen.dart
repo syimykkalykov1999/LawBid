@@ -517,19 +517,10 @@ class _AnswerCard extends ConsumerWidget {
                   color: colors.dangerText,
                   onTap: onDelete,
                 ),
-              ] else
-                action(
-                  icon: AppIcons.flagOutlined,
-                  label: t.t('qa.report'),
-                  onTap: () => unawaited(
-                    showReportSheet(
-                      context,
-                      ref,
-                      ReportTarget.legalAnswer,
-                      a.id,
-                    ),
-                  ),
-                ),
+              ],
+              // Owner 2026-10-21: no «Report» on an answer; the disclaimer
+              // under the answers says it is one attorney's opinion. Abuse
+              // stays reportable from the attorney's profile.
             ],
           ),
         ],

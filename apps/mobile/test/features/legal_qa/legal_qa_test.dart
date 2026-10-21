@@ -200,6 +200,30 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  // Owner 2026-10-21: the time sits at the far end of the card's last row.
+  for (final dir in TextDirection.values) {
+    testWidgets('feed: the time is at the end of the card row (${dir.name})', (
+      tester,
+    ) async {
+      final repo = _Repo(items: [_q(best: 'a1', answers: [_a(best: true)])]);
+      await pump(tester, const QaFeedScreen(), repo, dir: dir, textScale: 1.1);
+      expect(tester.takeException(), isNull);
+      final card = find.byType(QuestionCard);
+      // The title wraps, so it spans the card's full content width.
+      final title = tester.getRect(
+        find.descendant(of: card, matching: find.textContaining('landlord')),
+      );
+      final time = tester.getRect(
+        find.descendant(of: card, matching: find.byType(Text)).last,
+      );
+      if (dir == TextDirection.ltr) {
+        expect(time.right, closeTo(title.right, 1));
+      } else {
+        expect(time.left, closeTo(title.left, 1));
+      }
+    });
+  }
+
   testWidgets('an attorney has no «Ask» button; «All» stays in the practice', (
     tester,
   ) async {
@@ -318,7 +342,9 @@ void main() {
     await pump(tester, const QuestionDetailScreen(id: 'q1'), repo);
     expect(find.text('Jordan Lee'), findsOneWidget);
     expect(find.text('Лучший'), findsOneWidget);
-    expect(find.text('Пожаловаться'), findsWidgets);
+    // Owner 2026-10-21: no «Report» on an answer, the disclaimer instead.
+    expect(find.text('Пожаловаться'), findsNothing);
+    expect(find.textContaining('мнение конкретного адвоката'), findsOneWidget);
     await tester.tap(find.text('Лучший'));
     await tester.pump();
     expect(repo.best, ['a1']);

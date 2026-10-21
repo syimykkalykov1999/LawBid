@@ -44,7 +44,9 @@ const legalQaRu = <String, String>{
   'qa.fill': 'Тема, заголовок и текст обязательны',
   'qa.limit': 'Лимит вопросов на сегодня исчерпан. Попробуйте завтра.',
   'qa.disclaimer':
-      'Ответ — общая информация, а не консультация и не договор об услугах.',
+      'Ответ — общее мнение конкретного адвоката, а не консультация. '
+      'Сверяйтесь с несколькими адвокатами и не принимайте решений только '
+      'по одному ответу.',
   'qa.answer.hint': 'Ваш ответ',
   'qa.answer.send': 'Ответить',
   'qa.answer.only': 'Отвечают проверенные адвокаты',
@@ -117,7 +119,9 @@ const legalQaEn = <String, String>{
   'qa.fill': 'Topic, title and text are required',
   'qa.limit': 'Today’s question limit is reached. Try tomorrow.',
   'qa.disclaimer':
-      'An answer is general information, not legal advice or an engagement.',
+      'An answer is one attorney’s general opinion, not legal advice. '
+      'Check with several attorneys and don’t decide based on one answer '
+      'alone.',
   'qa.answer.hint': 'Your answer',
   'qa.answer.send': 'Answer',
   'qa.answer.only': 'Only verified attorneys answer',
