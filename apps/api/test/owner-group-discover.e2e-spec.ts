@@ -153,4 +153,46 @@ describe('Recommended groups (e2e)', () => {
     const { items } = await discover(newbie.id, '?limit=30');
     expect(items.map((i) => i.id)).toContain(id);
   });
+
+  it('never ends at the ranked pool: popular, then newest, no repeats', async () => {
+    const [me, owner] = await Promise.all([person('Me4'), person('Own4')]);
+    // Many public groups: more than the ranked pool (100) of one snapshot.
+    const total = 130;
+    const rows = Array.from({ length: total }, (_, i) => ({
+      id: randomUUID(),
+      title: `Bulk ${i}`,
+      i,
+    }));
+    for (const r of rows) {
+      await prisma.chatGroup.create({
+        data: {
+          id: r.id,
+          title: r.title,
+          group_type: 'public',
+          username: `bulk_${r.id.replaceAll('-', '').slice(0, 12)}`,
+          username_lower: `bulk_${r.id.replaceAll('-', '').slice(0, 12)}`,
+          invite_code: r.id.slice(0, 16),
+          created_by: owner.id,
+          member_count: 1 + r.i,
+        },
+      });
+      await prisma.chatGroupMember.create({
+        data: { group_id: r.id, user_id: owner.id, role: 'owner' },
+      });
+    }
+    const seen: string[] = [];
+    let cursor: string | null = null;
+    for (let page = 0; page < 40; page += 1) {
+      const res = await discover(
+        me.id,
+        `?limit=30${cursor ? `&cursor=${cursor}` : ''}`,
+      );
+      seen.push(...res.items.map((i) => i.id));
+      cursor = res.nextCursor;
+      if (!cursor) break;
+    }
+    expect(new Set(seen).size).toBe(seen.length);
+    const mine = new Set<string>(rows.map((r) => r.id));
+    expect(seen.filter((id) => mine.has(id)).length).toBeGreaterThan(110);
+  });
 });

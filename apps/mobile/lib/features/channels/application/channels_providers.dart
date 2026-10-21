@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/network/dio_client.dart';
+import 'package:lawbid/features/cases/application/paged_notifier.dart';
 import 'package:lawbid/features/channels/data/channels_repository.dart';
 import 'package:lawbid/features/channels/domain/channel_models.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
@@ -28,6 +29,21 @@ final channelListProvider =
     FutureProvider.autoDispose.family<List<Channel>, ChannelListKey>(
   (ref, key) =>
       ref.watch(channelsRepositoryProvider).list(key.scope, q: key.query),
+);
+
+/// «Discover» with nothing typed: an endless list, ranked for me first.
+class RecommendedChannelsNotifier extends PagedNotifier<Channel> {
+  @override
+  Future<CursorPage<Channel>> fetch(String? cursor) =>
+      ref.read(channelsRepositoryProvider).recommended(cursor: cursor);
+
+  @override
+  Object idOf(Channel item) => item.id;
+}
+
+final recommendedChannelsProvider = AsyncNotifierProvider.autoDispose<
+    RecommendedChannelsNotifier, PaginatedList<Channel>>(
+  RecommendedChannelsNotifier.new,
 );
 
 /// One channel by id or @username. Subscribe / mute change it in place.

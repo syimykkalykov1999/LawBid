@@ -19,7 +19,7 @@ import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { BlocksService } from '../blocks/blocks.service';
 import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
 import { FilesService } from '../files/files.service';
-import { decodeOffset } from '../recommendations/offset-cursor';
+import { decodeOffset, encodeOffset } from '../recommendations/offset-cursor';
 import { RecommendationsService } from '../recommendations/recommendations.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { UserBriefService } from '../user-brief/user-brief.service';
@@ -74,6 +74,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
  * not mute the channel. Moderation: reports reach the shared moderation
  * queue (channel / channel_post), the admin panel lists and closes channels.
  */
+
 @Injectable()
 export class ChannelsService {
   private readonly logger = new Logger(ChannelsService.name);
@@ -109,7 +110,7 @@ export class ChannelsService {
     scope: 'discover' | 'subscribed' | 'managed' = 'discover',
     q?: string,
     cursor?: string,
-  ): Promise<ChannelDto[]> {
+  ): Promise<ChannelPage<ChannelDto>> {
     await this.assertEnabled();
     const me = user.sub;
     let rows: Channel[];
@@ -154,7 +155,7 @@ export class ChannelsService {
         take: 30,
       });
     }
-    return this.presentChannels(rows, me);
+    return { items: await this.presentChannels(rows, me), nextCursor: null };
   }
 
   /**
@@ -164,11 +165,13 @@ export class ChannelsService {
   private async recommended(
     me: string,
     cursor?: string,
-  ): Promise<ChannelDto[]> {
+  ): Promise<ChannelPage<ChannelDto>> {
     const ranked = await this.reco.communities(me, 'channel');
     const start = decodeOffset(cursor);
     const ids = ranked.slice(start, start + 30).map((r) => r.id);
-    if (ids.length === 0) return [];
+    const nextCursor =
+      start + 30 < ranked.length ? encodeOffset(start + 30) : null;
+    if (ids.length === 0) return { items: [], nextCursor };
     const found = await this.prisma.channel.findMany({
       where: { id: { in: ids }, status: 'active' },
     });
@@ -185,7 +188,7 @@ export class ChannelsService {
       const c = byId.get(id);
       return c && !subscribed.has(id) ? [c] : [];
     });
-    return this.presentChannels(rows, me);
+    return { items: await this.presentChannels(rows, me), nextCursor };
   }
 
   /** GET /channels/:ref — by id or @username. */

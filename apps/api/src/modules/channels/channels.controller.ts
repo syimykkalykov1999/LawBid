@@ -76,7 +76,7 @@ export class ChannelsController {
   channelList(
     @CurrentUser() user: RequestUser,
     @Query() q: ChannelListQueryDto,
-  ): Promise<ChannelDto[]> {
+  ): Promise<ChannelPage<ChannelDto>> {
     return this.channels.list(user, q.scope, q.q, q.cursor);
   }
 

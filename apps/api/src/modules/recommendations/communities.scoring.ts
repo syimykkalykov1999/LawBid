@@ -85,3 +85,33 @@ export function communityScore(
     (hash01(`${v.id}:${c.id}:${day}`) - 0.5) * 2 * COMMUNITY_JITTER;
   return base + jitter;
 }
+
+/**
+ * One endless-feeling list from three tiers, without repeats: the top
+ * [pool] by score, then the rest of the popular list, then the newest.
+ * [scored] holds every candidate once; [popular] / [newest] are ids in the
+ * order the database returned them.
+ */
+export function feedOrder<T extends { id: string; score: number }>(
+  scored: T[],
+  popular: string[],
+  newest: string[],
+  pool: number,
+): T[] {
+  const byId = new Map(scored.map((s) => [s.id, s]));
+  const out: T[] = [];
+  const seen = new Set<string>();
+  const take = (s: T | undefined) => {
+    if (s && !seen.has(s.id)) {
+      seen.add(s.id);
+      out.push(s);
+    }
+  };
+  [...scored]
+    .sort((a, b) => b.score - a.score)
+    .slice(0, pool)
+    .forEach(take);
+  popular.forEach((id) => take(byId.get(id)));
+  newest.forEach((id) => take(byId.get(id)));
+  return out;
+}
