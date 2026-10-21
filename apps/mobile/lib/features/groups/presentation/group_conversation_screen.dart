@@ -101,6 +101,14 @@ class _GroupConversationScreenState
           mounted) {
         setState(() => _removed = true);
       }
+      // Inbox 20e: someone started / joined / left / ended the group's call.
+      if (e.name == 'group:update' &&
+          data is Map &&
+          data['groupId'] == widget.groupId &&
+          data['kind'] == 'call' &&
+          mounted) {
+        ref.invalidate(groupRunningCallProvider(widget.groupId));
+      }
     });
   }
 
@@ -130,7 +138,11 @@ class _GroupConversationScreenState
     if (code != null && mounted) {
       showAppSnackBar(
         context,
-        groupCallError(ref.read(translatorProvider), code),
+        groupCallError(
+          ref.read(translatorProvider),
+          code,
+          max: context.digits(groupCallMax),
+        ),
       );
     }
     ref.invalidate(groupRunningCallProvider(widget.groupId));
@@ -144,7 +156,11 @@ class _GroupConversationScreenState
     if (code != null && mounted) {
       showAppSnackBar(
         context,
-        groupCallError(ref.read(translatorProvider), code),
+        groupCallError(
+          ref.read(translatorProvider),
+          code,
+          max: context.digits(groupCallMax),
+        ),
       );
     }
     ref.invalidate(groupRunningCallProvider(widget.groupId));
@@ -764,6 +780,7 @@ class _GroupConversationScreenState
         if (running != null)
           GroupCallJoinBar(
             running: running,
+            live: groupRunningCallProvider(widget.groupId),
             onJoin: () => _joinCall(detail, running),
           ),
         if (showPin)

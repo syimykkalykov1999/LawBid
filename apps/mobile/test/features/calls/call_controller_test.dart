@@ -112,6 +112,13 @@ class _FakeRepo implements CallsRepository {
   Future<AppCall?> groupCall(String groupId) async => null;
 
   @override
+  Future<AppCall> startChannel(String channelId, {bool video = false}) async =>
+      throw UnimplementedError();
+
+  @override
+  Future<AppCall?> channelCall(String channelId) async => null;
+
+  @override
   Future<AppCall> join(String callId) async => throw UnimplementedError();
 
   @override

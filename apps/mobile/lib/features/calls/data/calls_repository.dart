@@ -24,6 +24,13 @@ abstract interface class CallsRepository {
   /// The call running in the group, or null.
   Future<AppCall?> groupCall(String groupId);
 
+  /// Owner 2026-10-21 (inbox 20e): the channel's call — its owner / an admin
+  /// starts it (a running one is joined); nobody is rung.
+  Future<AppCall> startChannel(String channelId, {bool video = false});
+
+  /// The call running in the channel, or null.
+  Future<AppCall?> channelCall(String channelId);
+
   /// Joins the call running in the group.
   Future<AppCall> join(String callId);
   Future<AppCall> accept(String callId);
@@ -98,6 +105,30 @@ class ApiCallsRepository implements CallsRepository {
     try {
       return CallMappers.call(
         (await guardApiCall(() => _api.groupCall(id: groupId))).data,
+      );
+    } on ApiException catch (e) {
+      if (e.code == ApiErrorCodes.callNotFound) return null;
+      rethrow;
+    }
+  }
+
+  @override
+  Future<AppCall> startChannel(String channelId, {bool video = false}) async =>
+      CallMappers.call(
+        (await guardApiCall(
+          () => _api.startChannelCall(
+            id: channelId,
+            body: api.StartCallDto(video: video),
+          ),
+        ))
+            .data,
+      );
+
+  @override
+  Future<AppCall?> channelCall(String channelId) async {
+    try {
+      return CallMappers.call(
+        (await guardApiCall(() => _api.channelCall(id: channelId))).data,
       );
     } on ApiException catch (e) {
       if (e.code == ApiErrorCodes.callNotFound) return null;
@@ -249,6 +280,7 @@ abstract final class CallMappers {
         id: d.id,
         conversationId: d.conversationId,
         groupId: d.groupId,
+        channelId: d.channelId,
         status: CallStatus.values.firstWhere(
           (s) => s.name == d.status.json,
           orElse: () => CallStatus.failed,

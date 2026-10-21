@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:lawbid/features/groups/domain/ongoing_call.dart';
 import 'package:lawbid/features/social/domain/social_models.dart'
     show PostVideo;
 
@@ -79,6 +80,7 @@ class Channel {
     this.myRole,
     this.lastPostAt,
     this.protectContent = false,
+    this.ongoingCall,
   });
 
   final String id;
@@ -105,6 +107,10 @@ class Channel {
   /// Owner 2026-10-21 (Telegram «Запретить копирование и пересылку»): the
   /// posts are not forwarded, copied or saved; sharing gives the link.
   final bool protectContent;
+
+  /// Owner 2026-10-21 (inbox 20e, Telegram «Видеочат»): the call running in
+  /// the channel now (subscribers and admins see it).
+  final OngoingCallSummary? ongoingCall;
 
   bool get isOwner => myRole == ChannelRole.owner;
   bool get isAdmin => myRole != null;
@@ -135,6 +141,7 @@ class Channel {
         lastPostAt: lastPostAt,
         createdAt: createdAt,
         protectContent: protectContent,
+        ongoingCall: ongoingCall,
       );
 }
 

@@ -724,6 +724,19 @@ class CallController extends Notifier<CallSession> {
         open: () => _repo.startGroup(groupId, video: video, userIds: userIds),
       );
 
+  /// Owner 2026-10-21 (inbox 20e): the phone / video button of a channel
+  /// (owner / admins). Nobody rings; subscribers join from the channel.
+  Future<String?> startChannelCall(
+    String channelId, {
+    required CallPeer peer,
+    bool video = false,
+  }) =>
+      _enterGroupCall(
+        peer: peer,
+        video: video,
+        open: () => _repo.startChannel(channelId, video: video),
+      );
+
   /// "Join" on the banner of a group chat with a call running.
   Future<String?> joinGroupCall(AppCall running, {required CallPeer peer}) =>
       _enterGroupCall(
@@ -1356,7 +1369,8 @@ class CallController extends Notifier<CallSession> {
               if (p != peer && _connected.contains(p)) p,
           ];
     if (state.call?.group ?? false) {
-      if (others.isNotEmpty) {
+      // A channel's call goes on with nobody else in it (Telegram).
+      if (others.isNotEmpty || state.call?.channelId != null) {
         _forgetLink(peer);
         unawaited(media?.removePeer(peer));
         return;
@@ -1610,7 +1624,7 @@ class CallController extends Notifier<CallSession> {
           ? null
           : call.participants.where((m) => m.userId == me).firstOrNull;
       if (call.group &&
-          call.groupId != null &&
+          (call.groupId != null || call.channelId != null) &&
           state.phase == CallPhase.active &&
           (mine == null || !mine.joined) &&
           mine?.status != CallMemberStatus.invited) {

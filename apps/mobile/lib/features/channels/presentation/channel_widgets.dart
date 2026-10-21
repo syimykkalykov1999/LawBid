@@ -11,6 +11,7 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/channels/application/channels_providers.dart';
 import 'package:lawbid/features/channels/domain/channel_models.dart';
+import 'package:lawbid/features/groups/presentation/widgets/group_call_ui.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart'
     show VerifiedCheck;
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
@@ -212,14 +213,18 @@ class ChannelRow extends ConsumerWidget {
                           color: colors.textSecondary,
                         ),
                       ),
-                      Text(
-                        subscribers,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: type.caption.copyWith(
-                          color: colors.textSecondary,
+                      // Inbox 20e: a running call takes the subscribers' line.
+                      if (channel.ongoingCall case final call?)
+                        OngoingCallLine(call: call)
+                      else
+                        Text(
+                          subscribers,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: type.caption.copyWith(
+                            color: colors.textSecondary,
+                          ),
                         ),
-                      ),
                     ],
                   ),
                 ),
