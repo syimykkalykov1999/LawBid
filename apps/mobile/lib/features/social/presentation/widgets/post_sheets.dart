@@ -15,6 +15,7 @@ import 'package:lawbid/core/navigation/shell/web_page_frame.dart';
 import 'package:lawbid/features/blocks/presentation/block_actions.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
     show showConfirmSheet;
+import 'package:lawbid/features/chat/presentation/share_to_sheet.dart';
 import 'package:lawbid/features/promotions/presentation/promote_case_card.dart';
 import 'package:lawbid/features/social/application/post_insights_providers.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
@@ -27,19 +28,21 @@ import 'package:lawbid/features/social/presentation/widgets/post_impression_trac
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
-import 'package:lawbid/shared/presentation/share_sheet.dart';
 
 String _link(WidgetRef ref, String postId) => SocialFormat.postLink(
       ref.read(appEnvironmentProvider).deepLinkHost,
       postId,
     );
 
-/// §4 "Поделиться" (owner 2026-10-01): the LawBid share sheet — social
-/// networks, copy link, the system sheet — with `lawbid.dev/post/:id`.
+/// §4 "Поделиться" (owner 2026-10-01): the LawBid share sheet with
+/// `lawbid.dev/post/:id`. Owner 2026-10-21 (Instagram, inbox 17): chats,
+/// groups and channels on top, «Добавить в историю», copy link, the system
+/// sheet and the networks below.
 Future<void> sharePost(BuildContext context, WidgetRef ref, Post post) async {
-  final shared = await showShareSheet(
+  final shared = await showPostShareSheet(
     context,
-    t: ref.read(translatorProvider),
+    ref,
+    postId: post.id,
     link: _link(ref, post.id),
     text: post.title,
   );
