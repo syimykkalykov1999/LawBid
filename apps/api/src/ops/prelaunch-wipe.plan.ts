@@ -222,6 +222,7 @@ export const WIPE_TABLES: Readonly<Record<string, string>> = {
   calls: 'calls',
   call_participants: 'group call members',
   call_votes: 'votes to remove a member from a group call',
+  call_log_hidden: "calls deleted from one person's list",
   // notifications
   notifications: 'in-app notifications',
   notification_settings: 'notification settings',

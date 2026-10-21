@@ -11,6 +11,7 @@ import { FilesService } from '../files/files.service';
 import type {
   CallHistoryItemDto,
   CallHistoryPage,
+  HiddenCallsDto,
   OngoingGroupCallDto,
 } from './call-history.dto';
 import { CALL_SILENT_MS } from './calls.service';
@@ -26,10 +27,11 @@ const FINISHED = [
 ] as const;
 
 /**
- * Owner 2026-10-21: the «Calls» tab — read only. The calls the person took
+ * Owner 2026-10-21: the «Calls» tab. The calls the person took
  * part in (finished, newest first, keyset cursor) and the group calls running
- * now in their groups. Kept apart from CallsService: nothing here changes a
- * call.
+ * now in their groups; a person deletes calls from their own list (WhatsApp:
+ * nobody else's changes). Kept apart from CallsService: nothing here changes
+ * a call.
  */
 @Injectable()
 export class CallHistoryService {
@@ -46,12 +48,8 @@ export class CallHistoryService {
     const me = user.sub;
     const c = cursor ? decodeCursor(cursor) : undefined;
     const where: Prisma.CallWhereInput = {
-      status: { in: [...FINISHED] },
-      OR: [
-        { caller_id: me },
-        { callee_id: me },
-        { is_group: true, participants: { some: { user_id: me } } },
-      ],
+      ...this.mine(me),
+      log_hidden: { none: { user_id: me } },
       ...(c
         ? {
             AND: [
@@ -151,6 +149,51 @@ export class CallHistoryService {
       });
       return { items, nextCursor };
     });
+  }
+
+  /** My finished calls (the ones my list may show). */
+  private mine(me: string): Prisma.CallWhereInput {
+    return {
+      status: { in: [...FINISHED] },
+      OR: [
+        { caller_id: me },
+        { callee_id: me },
+        { is_group: true, participants: { some: { user_id: me } } },
+      ],
+    };
+  }
+
+  /** Takes the given calls off my list (others' lists stay). */
+  async hide(user: RequestUser, ids: string[]): Promise<HiddenCallsDto> {
+    const me = user.sub;
+    const calls = await this.prisma.call.findMany({
+      where: { id: { in: [...new Set(ids)] }, ...this.mine(me) },
+      select: { id: true },
+    });
+    const { count } = await this.prisma.callLogHidden.createMany({
+      data: calls.map((x) => ({ user_id: me, call_id: x.id })),
+      skipDuplicates: true,
+    });
+    return { count };
+  }
+
+  /** «Clear»: every finished call off my list in one statement. */
+  async clear(user: RequestUser): Promise<HiddenCallsDto> {
+    const me = user.sub;
+    const count = await this.prisma.$executeRaw`
+      INSERT INTO call_log_hidden (user_id, call_id)
+      SELECT ${me}::uuid, c.id FROM calls c
+      WHERE c.status::text IN ('ended', 'missed', 'declined', 'busy', 'canceled', 'failed')
+        AND (
+          c.caller_id = ${me}::uuid
+          OR c.callee_id = ${me}::uuid
+          OR (c.is_group AND EXISTS (
+            SELECT 1 FROM call_participants p
+            WHERE p.call_id = c.id AND p.user_id = ${me}::uuid
+          ))
+        )
+      ON CONFLICT DO NOTHING`;
+    return { count };
   }
 
   /** Group calls running now in the groups I belong to. */

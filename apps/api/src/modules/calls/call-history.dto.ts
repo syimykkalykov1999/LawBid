@@ -1,9 +1,13 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  IsArray,
   IsInt,
   IsOptional,
   IsString,
+  IsUUID,
   Max,
   MaxLength,
   Min,
@@ -104,4 +108,19 @@ export class OngoingGroupCallDto {
 export interface CallHistoryPage {
   items: CallHistoryItemDto[];
   nextCursor: string | null;
+}
+
+/** Owner 2026-10-21 (WhatsApp): calls deleted from my own list. */
+export class HideCallsDto {
+  @ApiProperty({ type: [String], format: 'uuid', minItems: 1, maxItems: 200 })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(200)
+  @IsUUID('all', { each: true })
+  ids!: string[];
+}
+
+export class HiddenCallsDto {
+  @ApiProperty({ type: 'integer', description: 'Calls taken off the list.' })
+  count!: number;
 }

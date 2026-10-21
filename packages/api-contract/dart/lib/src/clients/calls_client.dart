@@ -10,6 +10,8 @@ import '../models/call_history_item_list_envelope.dart';
 import '../models/call_mute_dto.dart';
 import '../models/cast_call_vote_dto.dart';
 import '../models/end_call_dto.dart';
+import '../models/hidden_calls_envelope.dart';
+import '../models/hide_calls_dto.dart';
 import '../models/ice_servers_envelope.dart';
 import '../models/invite_call_dto.dart';
 import '../models/ongoing_group_call_list_envelope.dart';
@@ -31,6 +33,19 @@ abstract class CallsClient {
   Future<CallHistoryItemListEnvelope> callHistory({
     @Query('cursor') String? cursor,
     @Query('limit') int? limit,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Clear my calls list (others keep theirs)
+  @DELETE('/calls/history')
+  Future<HiddenCallsEnvelope> clearCalls({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Delete calls from my list (others keep theirs)
+  @POST('/calls/history/hide')
+  Future<HiddenCallsEnvelope> hideCalls({
+    @Body() required HideCallsDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

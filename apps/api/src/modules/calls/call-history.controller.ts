@@ -1,4 +1,12 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   ApiEnvelopeResponse,
@@ -15,12 +23,14 @@ import {
   CallHistoryItemDto,
   CallHistoryQueryDto,
   type CallHistoryPage,
+  HiddenCallsDto,
+  HideCallsDto,
   OngoingGroupCallDto,
 } from './call-history.dto';
 import { CallHistoryService } from './call-history.service';
 
 /** Owner 2026-10-21: the «Calls» tab (WhatsApp style): history + the group
- * calls running now. Read only. */
+ * calls running now; deleting calls from my own list. */
 @ApiTags('calls')
 @ApiBearerAuth()
 @ApiErrors(AUTHENTICATED_ERRORS)
@@ -40,6 +50,25 @@ export class CallHistoryController {
     @Query() q: CallHistoryQueryDto,
   ): Promise<CallHistoryPage> {
     return this.history.history(user, q.cursor, q.limit);
+  }
+
+  @Post('history/hide')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Delete calls from my list (others keep theirs)' })
+  @ApiEnvelopeResponse(HiddenCallsDto)
+  @ApiErrors({ 400: [ErrorCode.VALIDATION_ERROR] })
+  hideCalls(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: HideCallsDto,
+  ): Promise<HiddenCallsDto> {
+    return this.history.hide(user, dto.ids);
+  }
+
+  @Delete('history')
+  @ApiOperation({ summary: 'Clear my calls list (others keep theirs)' })
+  @ApiEnvelopeResponse(HiddenCallsDto)
+  clearCalls(@CurrentUser() user: RequestUser): Promise<HiddenCallsDto> {
+    return this.history.clear(user);
   }
 
   @Get('ongoing')
