@@ -189,7 +189,28 @@ class AppCall {
       );
 
   bool get live => status == CallStatus.ringing || status == CallStatus.active;
+
+  /// The most people the call holds (server GROUP_MAX_AUDIO / _VIDEO).
+  int get capacity => video ? callMaxVideo : callMaxAudio;
+
+  /// People in the call or ringing — what the server counts against
+  /// [capacity] (a one-to-one call is two).
+  int get size => group
+      ? participants
+          .where(
+            (m) =>
+                m.status == CallMemberStatus.joined ||
+                m.status == CallMemberStatus.invited,
+          )
+          .length
+      : 2;
+
+  bool get full => size >= capacity;
 }
+
+/// Mesh calls: the server's GROUP_MAX_AUDIO / GROUP_MAX_VIDEO.
+const callMaxAudio = 9;
+const callMaxVideo = 6;
 
 /// One ICE server (STUN or TURN) for WebRTC.
 @immutable
