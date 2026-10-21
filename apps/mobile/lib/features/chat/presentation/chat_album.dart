@@ -327,6 +327,7 @@ class ChatDocumentRow extends StatelessWidget {
     required this.fg,
     this.sending = false,
     this.width,
+    this.onOpen,
     super.key,
   });
 
@@ -334,6 +335,10 @@ class ChatDocumentRow extends StatelessWidget {
   final Color fg;
   final bool sending;
   final double? width;
+
+  /// Replaces opening the file outside the app (owner 2026-10-21: a group
+  /// that restricts saving content says so instead).
+  final VoidCallback? onOpen;
 
   @override
   Widget build(BuildContext context) {
@@ -346,7 +351,8 @@ class ChatDocumentRow extends StatelessWidget {
       label: '${a.name}, ${fileSizeLabel(a.sizeBytes)}',
       excludeSemantics: true,
       child: AppPressable(
-        onTap: a.url == null ? () {} : () => openCaseDocument(a.url!),
+        onTap:
+            a.url == null ? () {} : (onOpen ?? () => openCaseDocument(a.url!)),
         child: SizedBox(
           width: width ?? 240,
           child: Column(

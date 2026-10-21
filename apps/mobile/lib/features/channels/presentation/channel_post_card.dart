@@ -6,6 +6,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/buttons/player_round_button.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/features/channels/application/channel_forward_port.dart';
 import 'package:lawbid/features/channels/application/channels_providers.dart';
 import 'package:lawbid/features/channels/domain/channel_models.dart';
 import 'package:lawbid/features/channels/presentation/channel_actions.dart';
@@ -82,6 +83,11 @@ class ChannelPostCard extends ConsumerWidget {
 
   Future<void> _menu(BuildContext context, WidgetRef ref) async {
     final t = ref.read(translatorProvider);
+    // Owner 2026-10-21 (Telegram): «Forward» into chats, groups and my
+    // channels — not from a channel that restricts saving content (its
+    // «Share» gives the link only).
+    final forward =
+        channel.protectContent ? null : ref.read(channelForwardPortProvider);
     await showAppBottomSheet<void>(
       context: context,
       builder: (sheet) => SafeArea(
@@ -98,6 +104,17 @@ class ChannelPostCard extends ConsumerWidget {
                 onTap: () {
                   Navigator.of(sheet).pop();
                   ChannelComposerScreen.openEdit(context, channel, post);
+                },
+              ),
+            if (forward != null)
+              AppListRow(
+                key: const ValueKey('channel-post-forward'),
+                icon: AppIcons.forwardRounded,
+                label: t.t('chat.act.forward'),
+                showChevron: false,
+                onTap: () {
+                  Navigator.of(sheet).pop();
+                  forward(context, ref, postId: post.id);
                 },
               ),
             AppListRow(
@@ -220,6 +237,40 @@ class ChannelPostCard extends ConsumerWidget {
                       initial: i,
                       closeLabel: t.t('common.close'),
                     ),
+                  ),
+                ),
+              // Owner 2026-10-21 (Telegram): «Forwarded from <name>».
+              if (post.forwardedFrom != null)
+                Padding(
+                  key: const ValueKey('channel-post-forwarded'),
+                  padding: const EdgeInsetsDirectional.fromSTEB(
+                    AppSpacing.lg,
+                    AppSpacing.sm,
+                    AppSpacing.lg,
+                    0,
+                  ),
+                  child: Row(
+                    children: [
+                      AppIcon(
+                        AppIcons.forwardRounded,
+                        size: 14,
+                        color: colors.textSecondary,
+                      ),
+                      const SizedBox(width: AppSpacing.xs),
+                      Expanded(
+                        child: Text(
+                          t.t('chat.forwardedFrom', {
+                            'name': post.forwardedFrom!,
+                          }),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: type.caption.copyWith(
+                            color: colors.textSecondary,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               if (post.body.isNotEmpty)

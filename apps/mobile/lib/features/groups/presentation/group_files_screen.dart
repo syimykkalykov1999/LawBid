@@ -7,6 +7,7 @@ import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart'
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/presentation/chat_files_screen.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
+import 'package:lawbid/features/groups/domain/group_message_ext.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// The group message as the shared-media tabs draw it.
@@ -144,6 +145,15 @@ class _GroupFilesScreenState extends ConsumerState<GroupFilesScreen>
     final links = _feeds[ChatFilesTab.links]!;
     final voice = _feeds[ChatFilesTab.voice]!;
     final found = extractChatLinks(links.items);
+    // Owner 2026-10-21 (Telegram «Запретить копирование»): files of a
+    // protected group are not opened outside the app.
+    final protected =
+        ref.watch(groupDetailProvider(widget.groupId)).value?.isProtected ??
+            false;
+    final blockOpen = protected
+        ? (ChatMessage _) =>
+            showAppSnackBar(context, t.t('chat.forward.protected'))
+        : null;
 
     return Scaffold(
       backgroundColor: colors.bg,
@@ -201,6 +211,7 @@ class _GroupFilesScreenState extends ConsumerState<GroupFilesScreen>
                     error: docs.error,
                     onRetry: () => _load(tab),
                     onScroll: _scroll(tab),
+                    onOpen: blockOpen,
                     countLabel: t.t('files.count.documents', {
                       'n': _plus(docs, docs.items.length),
                     }),
@@ -221,6 +232,7 @@ class _GroupFilesScreenState extends ConsumerState<GroupFilesScreen>
                     onRetry: () => _load(tab),
                     onScroll: _scroll(tab),
                     emptyText: t.t('files.empty.voice'),
+                    onOpen: blockOpen,
                     countLabel: t.t('files.count.voice', {
                       'n': _plus(voice, voice.items.length),
                     }),

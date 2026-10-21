@@ -72,6 +72,12 @@ String groupSystemText(Translator t, api.GroupMessageDto m) {
         text == '0' || text.isEmpty ? 'disappear_off' : 'disappear:$text',
         name: _name(t, actor),
       );
+    // Owner 2026-10-21 (Telegram «Запретить копирование»): "1" on, "0" off.
+    case 'protect_content':
+      return t.t(
+        text == '1' ? 'group.system.protectOn' : 'group.system.protectOff',
+        {'name': _name(t, actor)},
+      );
     case 'topic_created':
       return t.t(
         'group.system.topicCreated',

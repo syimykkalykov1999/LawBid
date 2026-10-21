@@ -131,6 +131,7 @@ class ChannelsRepository {
               avatarFileId: d.avatarFileId,
               removeAvatar: d.removeAvatar ? true : null,
               commentsEnabled: d.commentsEnabled,
+              protectContent: d.protectContent,
             ),
           ),
         ))
@@ -551,6 +552,7 @@ class ChannelsRepository {
         },
         lastPostAt: d.lastPostAt,
         createdAt: d.createdAt,
+        protectContent: d.protectContent ?? false,
       );
 
   static ChannelPost postOf(api.ChannelPostDto d) => ChannelPost(
@@ -577,6 +579,7 @@ class ChannelsRepository {
         myReaction: d.myReaction,
         createdAt: d.createdAt,
         editedAt: d.editedAt,
+        forwardedFrom: d.forwardedFrom,
       );
 
   static PostVideo videoOf(api.PostVideoDto v) => PostVideo(

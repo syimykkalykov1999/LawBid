@@ -77,6 +77,7 @@ class Channel {
     this.avatarUrl,
     this.myRole,
     this.lastPostAt,
+    this.protectContent = false,
   });
 
   final String id;
@@ -96,6 +97,10 @@ class Channel {
   final ChannelRole? myRole;
   final DateTime? lastPostAt;
   final DateTime createdAt;
+
+  /// Owner 2026-10-21 (Telegram «Запретить копирование и пересылку»): the
+  /// posts are not forwarded, copied or saved; sharing gives the link.
+  final bool protectContent;
 
   bool get isOwner => myRole == ChannelRole.owner;
   bool get isAdmin => myRole != null;
@@ -124,6 +129,7 @@ class Channel {
         myRole: myRole,
         lastPostAt: lastPostAt,
         createdAt: createdAt,
+        protectContent: protectContent,
       );
 }
 
@@ -164,6 +170,7 @@ class ChannelPost {
     this.video,
     this.myReaction,
     this.editedAt,
+    this.forwardedFrom,
   });
 
   final String id;
@@ -179,6 +186,9 @@ class ChannelPost {
   final String? myReaction;
   final DateTime createdAt;
   final DateTime? editedAt;
+
+  /// Owner 2026-10-21: a forwarded post — «Forwarded from <name>».
+  final String? forwardedFrom;
 
   int get reactionTotal => reactions.fold(0, (s, r) => s + r.count);
 
@@ -243,6 +253,7 @@ class ChannelPost {
         myReaction: clearReaction ? null : (myReaction ?? this.myReaction),
         createdAt: createdAt,
         editedAt: editedAt ?? this.editedAt,
+        forwardedFrom: forwardedFrom,
       );
 }
 
@@ -281,12 +292,16 @@ class ChannelDraft {
     required this.commentsEnabled,
     this.avatarFileId,
     this.removeAvatar = false,
+    this.protectContent,
   });
 
   final String title;
   final String username;
   final String description;
   final bool commentsEnabled;
+
+  /// Editing only (null: unchanged).
+  final bool? protectContent;
   final String? avatarFileId;
   final bool removeAvatar;
 }

@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -13,8 +12,10 @@ import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/application/chat_saved_providers.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
+import 'package:lawbid/features/chat/domain/forward.dart';
 import 'package:lawbid/features/chat/presentation/chat_message_menu.dart';
 import 'package:lawbid/features/chat/presentation/chat_translation.dart';
+import 'package:lawbid/features/chat/presentation/forward_sheet.dart';
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart'
     show kContactMask;
 import 'package:lawbid/features/social/application/social_providers.dart';
@@ -112,55 +113,38 @@ String _errorOf(Translator t, Object e) {
 }
 
 /// Everything a person wrote or sent can be passed on: the server copies a
-/// voice note's or file's reference, so nothing is uploaded again.
+/// voice note's or file's reference, so nothing is uploaded again. Owner
+/// 2026-10-21: shared attorney cards and places too; a disappearing message
+/// never (it stays where it was sent).
 bool canForward(ChatMessage m) =>
     !m.isLocal &&
     !m.revoked &&
+    m.expiresAt == null &&
     (m.kind == MessageKind.text ||
         m.kind == MessageKind.sticker ||
         m.kind == MessageKind.voice ||
-        m.kind == MessageKind.attachment);
+        m.kind == MessageKind.attachment ||
+        m.kind == MessageKind.contact ||
+        m.kind == MessageKind.place);
 
-/// Sends [messages] (oldest first) to every chat in [targets]; returns how
-/// many of them could not be passed on.
-Future<int> forwardMessages(
+/// [messages] that can be forwarded, oldest first, as forward sources.
+List<ForwardSource> forwardSourcesOf(List<ChatMessage> messages) {
+  final ordered = messages.where(canForward).toList()
+    ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+  return [for (final m in ordered) ForwardSource.message(m.id)];
+}
+
+/// Sends [messages] (oldest first) to every chat in [targets] and returns
+/// the text to show. Owner 2026-10-21: every forward goes through the
+/// server (POST /messages/forward) — texts used to go out through the
+/// outbox as plain new messages, so «Forwarded from» was lost and the
+/// server could check nothing.
+Future<String> forwardMessages(
   WidgetRef ref,
   List<ChatMessage> messages,
-  List<String> targets,
-) async {
-  final owner = ref.read(currentUserIdProvider);
-  if (owner == null) return messages.length;
-  final db = ref.read(socialLocalDatabaseProvider);
-  final repo = ref.read(chatRepositoryProvider);
-  var skipped = 0;
-  final ordered = [...messages]
-    ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
-  for (final target in targets) {
-    for (final m in ordered) {
-      if (!canForward(m)) {
-        skipped++;
-        continue;
-      }
-      if (m.kind != MessageKind.text) {
-        try {
-          await repo.forward(target, newClientMessageId(), m.id);
-        } on Object {
-          skipped++;
-        }
-        continue;
-      }
-      await db.enqueue(
-        clientMessageId: newClientMessageId(),
-        ownerId: owner,
-        conversationId: target,
-        body: m.body,
-        forwarded: true,
-      );
-    }
-  }
-  unawaited(ref.read(outboxSenderProvider).drain());
-  return skipped ~/ (targets.isEmpty ? 1 : targets.length);
-}
+  List<ForwardTarget> targets,
+) =>
+    sendForward(ref, forwardSourcesOf(messages), targets);
 
 Future<void> copyMessages(
   BuildContext context,
@@ -628,124 +612,14 @@ class _ReactionButton extends StatelessWidget {
   }
 }
 
-/// "Forward to…": the chats as a multi-select list, then Send.
+/// "Forward to…": chats, groups and channels as a multi-select list, then
+/// Send (owner 2026-10-21: one server request for all of them).
 Future<void> pickForwardTargets(
   BuildContext context,
   WidgetRef ref,
   List<ChatMessage> messages,
-) async {
-  final t = ref.read(translatorProvider);
-  final picked = await showAppBottomSheet<List<String>>(
-    context: context,
-    isScrollControlled: true,
-    builder: (_) => const _ForwardSheet(),
-  );
-  if (picked == null || picked.isEmpty) return;
-  final skipped = await forwardMessages(ref, messages, picked);
-  if (!context.mounted) return;
-  showAppSnackBar(
-    context,
-    t.t(skipped > 0 ? 'chat.forward.partial' : 'chat.forward.done'),
-  );
-}
-
-class _ForwardSheet extends ConsumerStatefulWidget {
-  const _ForwardSheet();
-
-  @override
-  ConsumerState<_ForwardSheet> createState() => _ForwardSheetState();
-}
-
-class _ForwardSheetState extends ConsumerState<_ForwardSheet> {
-  final _picked = <String>[];
-
-  @override
-  Widget build(BuildContext context) {
-    final t = ref.watch(translatorProvider);
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    final list = ref.watch(conversationsProvider);
-    final items = list.value?.items ?? const <Conversation>[];
-    final height = MediaQuery.sizeOf(context).height * 0.7;
-    return SafeArea(
-      child: SizedBox(
-        height: height,
-        child: Column(
-          children: [
-            const AppSheetHandle(),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.screenSide,
-                0,
-                AppSpacing.screenSide,
-                AppSpacing.sm,
-              ),
-              child: Align(
-                alignment: AlignmentDirectional.centerStart,
-                child: Text(
-                  t.t('chat.forward.title'),
-                  style: type.titleMedium.copyWith(color: colors.text),
-                ),
-              ),
-            ),
-            Expanded(
-              child: list.isLoading && items.isEmpty
-                  ? const Center(child: CircularProgressIndicator())
-                  : ListView.builder(
-                      itemCount: items.length,
-                      itemBuilder: (context, i) {
-                        final c = items[i];
-                        final on = _picked.contains(c.id);
-                        final name = c.counterpart.displayName ??
-                            c.counterpart.username ??
-                            '?';
-                        return ListTile(
-                          key: ValueKey('forward-${c.id}'),
-                          leading: AppAvatar(
-                            initials: avatarInitials(name),
-                            imageProvider: c.counterpart.avatarUrl == null
-                                ? null
-                                : CachedNetworkImageProvider(
-                                    c.counterpart.avatarUrl!,
-                                    cacheKey: Uri.parse(
-                                      c.counterpart.avatarUrl!,
-                                    ).path,
-                                  ),
-                          ),
-                          title: Text(
-                            name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: type.body.copyWith(color: colors.text),
-                          ),
-                          trailing: AppIcon(
-                            on
-                                ? AppIcons.checkCircleRounded
-                                : AppIcons.radioButtonCheckedRounded,
-                            color: on ? colors.iconTint : colors.textSecondary,
-                          ),
-                          onTap: () => setState(() {
-                            on ? _picked.remove(c.id) : _picked.add(c.id);
-                          }),
-                        );
-                      },
-                    ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(AppSpacing.md),
-              child: AppButton(
-                label: t.t('chat.forward.send'),
-                onPressed: _picked.isEmpty
-                    ? null
-                    : () => Navigator.of(context).pop(List<String>.of(_picked)),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
+) =>
+    forwardWithSheet(context, ref, forwardSourcesOf(messages));
 
 /// The quote block of a reply (inside the bubble) and of the composer bar.
 class ReplyQuote extends ConsumerWidget {

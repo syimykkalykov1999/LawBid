@@ -118,5 +118,9 @@
   "group.info.delete.body2": {"en": "This cannot be undone.", "ru": "Это нельзя отменить."},
   "group.info.delete.confirm2": {"en": "Delete group", "ru": "Удалить группу"},
   "reco.title": {"en": "Recommended", "ru": "Рекомендуем"},
-  "reco.mutual": {"en": "{count} mutual", "ru": "{count} общих"}
+  "reco.mutual": {"en": "{count} mutual", "ru": "{count} общих"},
+  "group.info.settings.protect": {"en": "Restrict saving content", "ru": "Запретить копирование"},
+  "group.info.settings.protectNote": {"en": "Members can't forward, copy or save messages", "ru": "Участники не смогут пересылать, копировать и сохранять сообщения"},
+  "group.system.protectOn": {"en": "{name} restricted copying and forwarding", "ru": "{name} запретил(а) копирование и пересылку"},
+  "group.system.protectOff": {"en": "{name} allowed copying and forwarding", "ru": "{name} разрешил(а) копирование и пересылку"}
 }

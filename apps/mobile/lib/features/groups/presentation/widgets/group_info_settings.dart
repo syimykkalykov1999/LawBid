@@ -244,6 +244,16 @@ class GroupInfoSettings extends ConsumerWidget {
         ),
         GroupInfoSection(
           children: [
+            // Owner 2026-10-21 (Telegram «Запретить копирование и
+            // пересылку»): screenshots stay possible, like in Telegram.
+            GroupInfoSwitchRow(
+              key: const ValueKey('group-set-protect'),
+              icon: AppIcons.lockOutlineRounded,
+              label: t.t('group.info.settings.protect'),
+              subtitle: t.t('group.info.settings.protectNote'),
+              value: detail.isProtected,
+              onChanged: (v) => _run(api.UpdateGroupDto(protectContent: v)),
+            ),
             GroupInfoSwitchRow(
               key: const ValueKey('group-set-service'),
               icon: AppIcons.infoOutlineRounded,

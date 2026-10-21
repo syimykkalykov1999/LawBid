@@ -21,6 +21,9 @@ import 'package:lawbid/features/calls/application/callkit_bridge.dart';
 import 'package:lawbid/features/calls/data/calls_repository.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:lawbid/features/calls/presentation/call_widgets.dart';
+import 'package:lawbid/features/channels/application/channel_forward_port.dart';
+import 'package:lawbid/features/chat/domain/forward.dart';
+import 'package:lawbid/features/chat/presentation/forward_sheet.dart';
 import 'package:lawbid/features/contacts_sync/application/phone_contacts.dart';
 import 'package:lawbid/features/contacts_sync/presentation/contact_picker.dart';
 import 'package:lawbid/features/groups/application/group_call_port.dart';
@@ -76,6 +79,14 @@ Future<void> runLawBid(AppFlavor flavor) async {
       // "Add participant" offers the LawBid people of the phone book.
       groupVideoCallsProvider.overrideWith(
         (ref) => ref.watch(videoCallsEnabledProvider),
+      ),
+      // Owner 2026-10-21 (Telegram «Переслать»): a channel post into chats.
+      channelForwardPortProvider.overrideWithValue(
+        (context, ref, {required postId}) => forwardWithSheet(
+          context,
+          ref,
+          [ForwardSource(ForwardSourceKind.channelPost, postId)],
+        ),
       ),
       groupCallPortProvider.overrideWith(
         (ref) => GroupCallPort(

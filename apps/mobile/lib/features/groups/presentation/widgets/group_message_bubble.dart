@@ -63,6 +63,9 @@ class GroupMessageBubble extends ConsumerWidget {
     required this.onPollChanged,
     this.onReply,
     this.onJump,
+    this.selected = false,
+    this.onTap,
+    this.protectContent = false,
     super.key,
   });
 
@@ -84,6 +87,15 @@ class GroupMessageBubble extends ConsumerWidget {
   /// Null: replying is not possible (read-only chat, deleted message).
   final VoidCallback? onReply;
   final void Function(String messageId)? onJump;
+
+  /// Owner 2026-10-21 (Telegram): picked in «Select» mode (tinted); a tap
+  /// then calls [onTap] (pick / unpick).
+  final bool selected;
+  final VoidCallback? onTap;
+
+  /// The group restricts saving content: a file is not opened outside the
+  /// app.
+  final bool protectContent;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -109,6 +121,7 @@ class GroupMessageBubble extends ConsumerWidget {
         (a.isImage || a.isVideo) &&
         m.body.trim().isEmpty &&
         m.replyTo == null &&
+        !(m.forwarded ?? false) &&
         !withName;
 
     final timeText = m.editedAt != null && !m.deleted
@@ -147,6 +160,7 @@ class GroupMessageBubble extends ConsumerWidget {
           attachment: a,
           fg: fg,
           accent: accent,
+          protectContent: protectContent,
           onMention: (p) => openGroupPerson(context, ref, p),
         );
       }
@@ -161,6 +175,9 @@ class GroupMessageBubble extends ConsumerWidget {
     }
 
     final reply = m.replyTo;
+    // Owner 2026-10-21 (Telegram): «Forwarded from <name>».
+    final forwarded = (m.forwarded ?? false) && !m.deleted;
+    final from = m.forwardedFrom?.trim();
     final content = media
         ? Stack(
             children: [
@@ -169,6 +186,7 @@ class GroupMessageBubble extends ConsumerWidget {
                 attachment: a,
                 fg: fg,
                 accent: accent,
+                protectContent: protectContent,
                 onMention: (_) {},
               ),
               PositionedDirectional(
@@ -215,6 +233,31 @@ class GroupMessageBubble extends ConsumerWidget {
                     ),
                   ),
                 ),
+              if (forwarded)
+                Padding(
+                  key: const ValueKey('group-forwarded'),
+                  padding: const EdgeInsets.only(bottom: 2),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      AppIcon(AppIcons.forwardRounded, size: 13, color: meta),
+                      const SizedBox(width: 4),
+                      Flexible(
+                        child: Text(
+                          from == null || from.isEmpty
+                              ? t.t('chat.forwarded')
+                              : t.t('chat.forwardedFrom', {'name': from}),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: type.caption.copyWith(
+                            color: meta,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               if (reply != null && !m.deleted)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 4),
@@ -257,6 +300,7 @@ class GroupMessageBubble extends ConsumerWidget {
     );
 
     final interactive = GestureDetector(
+      onTap: onTap,
       onLongPress: onMenu,
       onSecondaryTap: onMenu,
       child: Semantics(
@@ -297,7 +341,11 @@ class GroupMessageBubble extends ConsumerWidget {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       padding: EdgeInsets.only(top: showName ? 6 : 1.5, bottom: 1.5),
-      color: highlighted ? colors.gold.withValues(alpha: 0.16) : null,
+      color: selected
+          ? colors.iconTint.withValues(alpha: 0.14)
+          : highlighted
+              ? colors.gold.withValues(alpha: 0.16)
+              : null,
       child: onReply == null || m.deleted
           ? row
           : GroupSwipeToReply(
@@ -384,6 +432,7 @@ class _AttachmentBody extends ConsumerWidget {
     required this.fg,
     required this.accent,
     required this.onMention,
+    this.protectContent = false,
   });
 
   final api.GroupMessageDto message;
@@ -391,6 +440,7 @@ class _AttachmentBody extends ConsumerWidget {
   final Color fg;
   final Color accent;
   final void Function(api.GroupPersonDto person) onMention;
+  final bool protectContent;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -433,7 +483,14 @@ class _AttachmentBody extends ConsumerWidget {
         ),
       );
     } else {
-      content = ChatDocumentRow(attachment: a, fg: fg);
+      content = ChatDocumentRow(
+        attachment: a,
+        fg: fg,
+        // Owner 2026-10-21: opening it outside the app would save it.
+        onOpen: protectContent
+            ? () => showAppSnackBar(context, t.t('chat.forward.protected'))
+            : null,
+      );
     }
     final caption = message.body;
     return Column(

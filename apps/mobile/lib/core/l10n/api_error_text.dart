@@ -92,6 +92,9 @@ const _keys = <String, String>{
   ApiErrorCodes.reviewAlreadyExists: 'error.api.REVIEW_ALREADY_EXISTS',
   ApiErrorCodes.qaAnswersEnough: 'qa.err.enough',
   ApiErrorCodes.qaQuestionClosed: 'qa.err.closed',
+  ApiErrorCodes.forwardNotAllowed: 'error.api.FORWARD_NOT_ALLOWED',
+  ApiErrorCodes.contentProtected: 'error.api.CONTENT_PROTECTED',
+  ApiErrorCodes.unsupportedInTarget: 'error.api.UNSUPPORTED_IN_TARGET',
   ApiErrorCodes.consultationSlotTaken: 'error.api.CONSULTATION_SLOT_TAKEN',
   ApiErrorCodes.consultationNotAvailable:
       'error.api.CONSULTATION_NOT_AVAILABLE',

@@ -86,6 +86,10 @@ abstract final class ApiErrorCodes {
   static const consultationStateConflict = 'CONSULTATION_STATE_CONFLICT';
   static const qaAnswersEnough = 'QA_ANSWERS_ENOUGH';
   static const qaQuestionClosed = 'QA_QUESTION_CLOSED';
+  // Owner 2026-10-21 (Telegram «Переслать» / «Запретить копирование»).
+  static const forwardNotAllowed = 'FORWARD_NOT_ALLOWED';
+  static const contentProtected = 'CONTENT_PROTECTED';
+  static const unsupportedInTarget = 'UNSUPPORTED_IN_TARGET';
   static const chatAttachmentsLocked = 'CHAT_ATTACHMENTS_LOCKED';
   // OQ-048 plans and assistants.
   static const subscriptionPlanIncludesSeats =
@@ -348,6 +352,9 @@ abstract final class ApiErrorCodes {
     consultationStateConflict,
     qaAnswersEnough,
     qaQuestionClosed,
+    forwardNotAllowed,
+    contentProtected,
+    unsupportedInTarget,
     chatAttachmentsLocked,
     subscriptionPlanIncludesSeats,
     assistantSeatsInUse,

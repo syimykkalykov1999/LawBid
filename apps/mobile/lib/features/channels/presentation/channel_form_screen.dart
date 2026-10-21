@@ -73,6 +73,7 @@ class _FormState extends ConsumerState<_Form> {
   late final _description =
       TextEditingController(text: widget.editing?.description ?? '');
   late bool _comments = widget.editing?.commentsEnabled ?? true;
+  late bool _protect = widget.editing?.protectContent ?? false;
 
   Uint8List? _avatarBytes;
   String? _avatarFileId;
@@ -186,6 +187,7 @@ class _FormState extends ConsumerState<_Form> {
       commentsEnabled: _comments,
       avatarFileId: _avatarFileId,
       removeAvatar: _removeAvatar,
+      protectContent: editing == null ? null : _protect,
     );
     setState(() {
       _saving = true;
@@ -437,6 +439,43 @@ class _FormState extends ConsumerState<_Form> {
                         ],
                       ),
                     ),
+                    // Owner 2026-10-21 (Telegram «Запретить копирование и
+                    // пересылку»): a setting of an existing channel.
+                    if (editing != null) ...[
+                      const SizedBox(height: AppSpacing.md),
+                      MergeSemantics(
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    t.t('channel.form.protect'),
+                                    style:
+                                        type.body.copyWith(color: colors.text),
+                                  ),
+                                  Text(
+                                    t.t('channel.form.protectNote'),
+                                    style: type.caption
+                                        .copyWith(color: colors.textSecondary),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Switch(
+                              key: const ValueKey('channel-protect-switch'),
+                              value: _protect,
+                              activeThumbColor: colors.onAccent,
+                              activeTrackColor: colors.gold,
+                              onChanged: _saving
+                                  ? null
+                                  : (v) => setState(() => _protect = v),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                     if (editing != null && editing.isOwner) ...[
                       const SizedBox(height: AppSpacing.lg),
                       AppButton(

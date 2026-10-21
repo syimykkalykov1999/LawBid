@@ -17,6 +17,8 @@ import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
+import 'package:lawbid/features/chat/domain/forward.dart';
+import 'package:lawbid/features/chat/presentation/forward_sheet.dart';
 import 'package:lawbid/features/groups/application/group_call_port.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
 import 'package:lawbid/features/groups/domain/group_message_ext.dart';
@@ -29,6 +31,7 @@ import 'package:lawbid/features/groups/presentation/widgets/group_composer.dart'
 import 'package:lawbid/features/groups/presentation/widgets/group_message_bubble.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_message_menu.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_pin_banner.dart';
+import 'package:lawbid/features/groups/presentation/widgets/group_selection_bar.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_system_line.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_topic_list.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
@@ -72,6 +75,9 @@ class _GroupConversationScreenState
   int _uploading = 0;
   bool _removed = false;
   bool _goneHandled = false;
+
+  /// Owner 2026-10-21 (Telegram): the messages picked in «Select» mode.
+  Set<String> _selected = const {};
 
   GroupThreadKey get _key => (groupId: widget.groupId, topicId: widget.topicId);
 
@@ -301,19 +307,108 @@ class _GroupConversationScreenState
     _toBottom();
   }
 
+  // --- select / forward (owner 2026-10-21, Telegram) ------------------------
+
+  void _toggle(api.GroupMessageDto m) {
+    if (m.deleted || m.isSystem) return;
+    final next = {..._selected};
+    if (!next.remove(m.id)) next.add(m.id);
+    setState(() => _selected = next);
+  }
+
+  void _clearSelection() => setState(() => _selected = const {});
+
+  /// The picked messages, oldest first.
+  List<api.GroupMessageDto> _picked() {
+    final s = ref.read(groupThreadProvider(_key));
+    return [
+      for (final m in s.messages)
+        if (_selected.contains(m.id)) m,
+    ]..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+  }
+
+  Future<void> _copy(List<api.GroupMessageDto> messages) async {
+    final text = [
+      for (final m in messages)
+        if (!m.deleted && !m.isPoll && m.body.trim().isNotEmpty) m.body,
+    ].join('\n');
+    if (text.isEmpty) return;
+    await Clipboard.setData(ClipboardData(text: text));
+    if (!mounted) return;
+    showAppSnackBar(
+      context,
+      ref.read(translatorProvider).t('group.conv.copied'),
+    );
+  }
+
+  Future<void> _forward(List<api.GroupMessageDto> messages) => forwardWithSheet(
+        context,
+        ref,
+        [
+          for (final m in messages)
+            if (m.canForward)
+              ForwardSource(ForwardSourceKind.groupMessage, m.id),
+        ],
+      );
+
+  /// A protected group shares its link instead of its messages.
+  Future<void> _shareLink(api.GroupDetailDto detail) => forwardWithSheet(
+        context,
+        ref,
+        [ForwardSource(ForwardSourceKind.groupLink, detail.id)],
+      );
+
+  PreferredSizeWidget _selectionBar(api.GroupDetailDto detail) {
+    final picked = _picked();
+    final protected = detail.isProtected;
+    final canCopy = !protected &&
+        picked.any((m) => !m.deleted && !m.isPoll && m.body.trim().isNotEmpty);
+    final canForward =
+        !protected && picked.isNotEmpty && picked.every((m) => m.canForward);
+    return GroupSelectionBar(
+      count: _selected.length,
+      onClose: _clearSelection,
+      onCopy: canCopy
+          ? () async {
+              await _copy(picked);
+              _clearSelection();
+            }
+          : null,
+      onForward: canForward
+          ? () async {
+              await _forward(picked);
+              if (mounted) _clearSelection();
+            }
+          : null,
+      onShareLink: protected && detail.hasShareLink
+          ? () async {
+              await _shareLink(detail);
+              if (mounted) _clearSelection();
+            }
+          : null,
+    );
+  }
+
   Future<void> _menu(
     api.GroupMessageDto m,
     api.GroupDetailDto detail, {
     required bool canWrite,
   }) async {
     if (m.deleted || m.isSystem) return;
+    if (_selected.isNotEmpty) return _toggle(m);
     final t = ref.read(translatorProvider);
     final pinned = detail.pinnedMessage?.id == m.id;
+    // Owner 2026-10-21 (Telegram «Запретить копирование»): no Copy and no
+    // Forward in a protected group — its link can be shared instead.
+    final protected = detail.isProtected;
     final action = await showGroupMessageMenu(
       context,
       t,
       canReply: canWrite,
-      canCopy: !m.isPoll && m.body.trim().isNotEmpty,
+      canCopy: !protected && !m.isPoll && m.body.trim().isNotEmpty,
+      canForward: !protected && m.canForward,
+      canShareLink: protected && detail.hasShareLink,
+      canSelect: true,
       canEdit: m.mine && m.type == api.GroupMessageDtoType.text,
       canPin: detail.canPinMessages,
       pinned: pinned,
@@ -329,6 +424,12 @@ class _GroupConversationScreenState
       case GroupMessageAction.copy:
         await Clipboard.setData(ClipboardData(text: m.body));
         if (mounted) showAppSnackBar(context, t.t('group.conv.copied'));
+      case GroupMessageAction.forward:
+        await _forward([m]);
+      case GroupMessageAction.shareLink:
+        await _shareLink(detail);
+      case GroupMessageAction.select:
+        setState(() => _selected = {m.id});
       case GroupMessageAction.edit:
         setState(() {
           _editing = m;
@@ -533,51 +634,66 @@ class _GroupConversationScreenState
           .firstOrNull;
     }
 
-    return Scaffold(
-      backgroundColor: topicList ? null : ChatColors.of(context).wallpaper,
-      appBar: AppTopBar(
-        leading: AppBackButton(
-          semanticLabel: t.t('common.back'),
-          onPressed: _back,
-        ),
-        title: _Header(detail: detail, topic: topic),
-        actions: [
-          // Like WhatsApp: video and phone, tight, before the menu.
-          if (detail.canCall && ref.watch(groupCallPortProvider) != null) ...[
-            if (ref.watch(groupVideoCallsProvider))
-              AppIconButton(
-                key: const ValueKey('group-video-call'),
-                icon: AppIcon(
-                  AppIcons.videoCameraOutlined,
-                  size: 22,
-                  color: Theme.of(context).extension<AppColorTokens>()!.text,
+    final selecting = _selected.isNotEmpty && !topicList;
+    return PopScope(
+      canPop: !selecting,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && selecting) _clearSelection();
+      },
+      child: Scaffold(
+        backgroundColor: topicList ? null : ChatColors.of(context).wallpaper,
+        appBar: selecting
+            ? _selectionBar(detail)
+            : AppTopBar(
+                leading: AppBackButton(
+                  semanticLabel: t.t('common.back'),
+                  onPressed: _back,
                 ),
-                semanticLabel: t.t('call.videoButton'),
-                onPressed: () => _startCall(detail, video: true),
+                title: _Header(detail: detail, topic: topic),
+                actions: [
+                  // Like WhatsApp: video and phone, tight, before the menu.
+                  if (detail.canCall &&
+                      ref.watch(groupCallPortProvider) != null) ...[
+                    if (ref.watch(groupVideoCallsProvider))
+                      AppIconButton(
+                        key: const ValueKey('group-video-call'),
+                        icon: AppIcon(
+                          AppIcons.videoCameraOutlined,
+                          size: 22,
+                          color: Theme.of(context)
+                              .extension<AppColorTokens>()!
+                              .text,
+                        ),
+                        semanticLabel: t.t('call.videoButton'),
+                        onPressed: () => _startCall(detail, video: true),
+                      ),
+                    AppIconButton(
+                      key: const ValueKey('group-audio-call'),
+                      icon: AppIcon(
+                        AppIcons.callOutlined,
+                        size: 22,
+                        color:
+                            Theme.of(context).extension<AppColorTokens>()!.text,
+                      ),
+                      semanticLabel: t.t('call.button'),
+                      onPressed: () => _startCall(detail, video: false),
+                    ),
+                  ],
+                  AppIconButton(
+                    icon: AppIcon(
+                      AppIcons.moreVertRounded,
+                      color:
+                          Theme.of(context).extension<AppColorTokens>()!.text,
+                    ),
+                    semanticLabel: t.t('chat.menu'),
+                    onPressed: () => _headerMenu(detail),
+                  ),
+                ],
               ),
-            AppIconButton(
-              key: const ValueKey('group-audio-call'),
-              icon: AppIcon(
-                AppIcons.callOutlined,
-                size: 22,
-                color: Theme.of(context).extension<AppColorTokens>()!.text,
-              ),
-              semanticLabel: t.t('call.button'),
-              onPressed: () => _startCall(detail, video: false),
-            ),
-          ],
-          AppIconButton(
-            icon: AppIcon(
-              AppIcons.moreVertRounded,
-              color: Theme.of(context).extension<AppColorTokens>()!.text,
-            ),
-            semanticLabel: t.t('chat.menu'),
-            onPressed: () => _headerMenu(detail),
-          ),
-        ],
+        body: topicList
+            ? GroupTopicList(detail: detail)
+            : _chat(t, detail, topic),
       ),
-      body:
-          topicList ? GroupTopicList(detail: detail) : _chat(t, detail, topic),
     );
   }
 
@@ -629,6 +745,8 @@ class _GroupConversationScreenState
         canWrite: canWrite,
         onMore: _thread.loadMore,
         onMenu: (m) => _menu(m, detail, canWrite: canWrite),
+        selected: _selected,
+        onToggle: _selected.isEmpty ? null : _toggle,
         onReply: (m) => setState(() {
           _replyTo = m;
           _editing = null;
@@ -931,6 +1049,8 @@ class _MessageList extends ConsumerWidget {
     required this.onRetry,
     required this.onDiscard,
     required this.onPollChanged,
+    this.selected = const {},
+    this.onToggle,
   });
 
   final GroupThreadState state;
@@ -946,6 +1066,10 @@ class _MessageList extends ConsumerWidget {
   final void Function(String clientMessageId) onRetry;
   final void Function(String clientMessageId) onDiscard;
   final void Function(api.GroupMessageDto m, api.PollDto p) onPollChanged;
+
+  /// «Select» mode: the picked ids; a tap on a message calls [onToggle].
+  final Set<String> selected;
+  final void Function(api.GroupMessageDto m)? onToggle;
 
   static String _dayLabel(Translator t, L10nFormats f, DateTime at) {
     final now = DateTime.now();
@@ -1033,8 +1157,13 @@ class _MessageList extends ConsumerWidget {
             showAvatar: endsRun,
             canClose: m.mine || detail.canDeleteOthers,
             highlighted: highlightId == m.id,
+            selected: selected.contains(m.id),
+            onTap: onToggle == null ? null : () => onToggle!(m),
+            protectContent: detail.isProtected,
             onMenu: () => onMenu(m),
-            onReply: canWrite && !m.deleted ? () => onReply(m) : null,
+            onReply: canWrite && !m.deleted && onToggle == null
+                ? () => onReply(m)
+                : null,
             onJump: onJump,
             onPollChanged: (p) => onPollChanged(m, p),
           );

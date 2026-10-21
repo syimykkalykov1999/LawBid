@@ -5,6 +5,7 @@ import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/request_flags.dart';
 import 'package:lawbid/features/chat/data/chat_list_cache.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
+import 'package:lawbid/features/chat/domain/forward.dart';
 import 'package:lawbid/features/profile/data/avatar_upload_repository.dart'
     show sha256Hex;
 import 'package:lawbid/features/stars/domain/stars_mappers.dart';
@@ -122,6 +123,16 @@ abstract interface class ChatRepository {
     String id,
     String clientMessageId,
     String sourceId,
+  );
+
+  /// Owner 2026-10-21 (Telegram «Переслать»): [sources] (oldest first) into
+  /// every chat of [targets] in one request — direct / case chats, groups,
+  /// channels. A retry with the same [requestId] sends nothing twice; a
+  /// chat that refuses a message reports it in its result.
+  Future<List<ForwardResult>> forwardBatch(
+    String requestId,
+    List<ForwardSource> sources,
+    List<ForwardTarget> targets,
   );
 
   /// Owner 2026-10-01: a sticker message.
@@ -389,6 +400,69 @@ class ApiChatRepository implements ChatRepository {
         ))
             .data,
       );
+
+  @override
+  Future<List<ForwardResult>> forwardBatch(
+    String requestId,
+    List<ForwardSource> sources,
+    List<ForwardTarget> targets,
+  ) async {
+    final res = await guardApiCall(
+      () => _chat.forward(
+        body: api.ForwardMessagesDto(
+          requestId: requestId,
+          sources: [
+            for (final s in sources)
+              api.ForwardSourceDto(
+                kind: switch (s.kind) {
+                  ForwardSourceKind.message => api.ForwardSourceKind.message,
+                  ForwardSourceKind.groupMessage =>
+                    api.ForwardSourceKind.groupMessage,
+                  ForwardSourceKind.channelPost =>
+                    api.ForwardSourceKind.channelPost,
+                  ForwardSourceKind.groupLink =>
+                    api.ForwardSourceKind.groupLink,
+                  ForwardSourceKind.channelLink =>
+                    api.ForwardSourceKind.channelLink,
+                },
+                id: s.id,
+              ),
+          ],
+          targets: [
+            for (final t in targets)
+              api.ForwardTargetDto(
+                kind: switch (t.kind) {
+                  ForwardTargetKind.conversation =>
+                    api.ForwardTargetKind.conversation,
+                  ForwardTargetKind.group => api.ForwardTargetKind.group,
+                  ForwardTargetKind.channel => api.ForwardTargetKind.channel,
+                },
+                id: t.id,
+                topicId: t.topicId,
+              ),
+          ],
+        ),
+      ),
+    );
+    return [
+      for (final r in res.data.results)
+        ForwardResult(
+          target: ForwardTarget(
+            switch (r.target.kind) {
+              api.ForwardTargetKind.group => ForwardTargetKind.group,
+              api.ForwardTargetKind.channel => ForwardTargetKind.channel,
+              _ => ForwardTargetKind.conversation,
+            },
+            r.target.id,
+            topicId: r.target.topicId,
+          ),
+          sourceId: r.sourceId,
+          sent: r.status == api.ForwardStatus.sent,
+          code: r.code,
+          messageId: r.messageId,
+        ),
+    ];
+  }
 
   @override
   Future<ChatMessage> sendSticker(

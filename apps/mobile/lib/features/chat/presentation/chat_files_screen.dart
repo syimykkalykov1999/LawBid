@@ -462,11 +462,16 @@ class SharedDocsTab extends ConsumerWidget {
     required this.countLabel,
     this.emptyText,
     this.listKey = const ValueKey('files-docs'),
+    this.onOpen,
     super.key,
   });
 
   /// Overrides «No documents» (the group's voice tab lists audio files).
   final String? emptyText;
+
+  /// Replaces opening a file outside the app (owner 2026-10-21: a group
+  /// that restricts saving content says so instead).
+  final void Function(ChatMessage message)? onOpen;
   final Key listKey;
   final List<ChatMessage> docs;
   final bool loading;
@@ -528,7 +533,11 @@ class SharedDocsTab extends ConsumerWidget {
                     AppIcons.openInNewRounded,
                     color: colors.textSecondary,
                   ),
-                  onTap: a.url == null ? null : () => openCaseDocument(a.url!),
+                  onTap: a.url == null
+                      ? null
+                      : onOpen != null
+                          ? () => onOpen!(m)
+                          : () => openCaseDocument(a.url!),
                 );
               },
             ),

@@ -2,8 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 
-/// What the long-press menu of a message can do.
-enum GroupMessageAction { reply, copy, edit, pin, unpin, delete }
+/// What the long-press menu of a message can do. Owner 2026-10-21
+/// (Telegram): forward, select, and — in a group that restricts saving
+/// content — share the group's link instead.
+enum GroupMessageAction {
+  reply,
+  copy,
+  forward,
+  shareLink,
+  select,
+  edit,
+  pin,
+  unpin,
+  delete,
+}
 
 /// The long-press / right-click menu of a message; resolves to the chosen
 /// action, or null when dismissed. Rows that do not apply are left out.
@@ -16,6 +28,9 @@ Future<GroupMessageAction?> showGroupMessageMenu(
   required bool canPin,
   required bool pinned,
   required bool canDelete,
+  bool canForward = false,
+  bool canShareLink = false,
+  bool canSelect = false,
 }) =>
     showAppBottomSheet<GroupMessageAction>(
       context: context,
@@ -50,6 +65,18 @@ Future<GroupMessageAction?> showGroupMessageMenu(
                   AppIcons.articleOutlined,
                   'group.conv.copy',
                 ),
+              if (canForward)
+                row(
+                  GroupMessageAction.forward,
+                  AppIcons.forwardRounded,
+                  'chat.act.forward',
+                ),
+              if (canShareLink)
+                row(
+                  GroupMessageAction.shareLink,
+                  AppIcons.linkRounded,
+                  'chat.forward.shareLink',
+                ),
               if (canEdit)
                 row(
                   GroupMessageAction.edit,
@@ -61,6 +88,12 @@ Future<GroupMessageAction?> showGroupMessageMenu(
                   pinned ? GroupMessageAction.unpin : GroupMessageAction.pin,
                   AppIcons.pushPinOutlined,
                   pinned ? 'group.conv.unpin' : 'group.conv.pin',
+                ),
+              if (canSelect)
+                row(
+                  GroupMessageAction.select,
+                  AppIcons.selectChecksRounded,
+                  'chat.act.select',
                 ),
               if (canDelete)
                 row(

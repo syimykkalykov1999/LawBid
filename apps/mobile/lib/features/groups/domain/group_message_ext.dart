@@ -24,6 +24,8 @@ extension GroupMessageDtoX on api.GroupMessageDto {
         deleted: deleted,
         createdAt: createdAt,
         expiresAt: expiresAt,
+        forwarded: forwarded,
+        forwardedFrom: forwardedFrom,
       );
 
   /// Owner 2026-10-21: disappearing messages — gone by the clock.
@@ -32,6 +34,11 @@ extension GroupMessageDtoX on api.GroupMessageDto {
 
   bool get isSystem => type == api.GroupMessageDtoType.system;
   bool get isPoll => type == api.GroupMessageDtoType.poll;
+
+  /// Owner 2026-10-21 (Telegram «Переслать»): a text or a file can be
+  /// forwarded; a poll, a service line, a deleted or a disappearing
+  /// message cannot.
+  bool get canForward => !deleted && !isSystem && !isPoll && expiresAt == null;
 }
 
 /// Telegram's checkboxes and member permissions as the screens ask them.
@@ -47,4 +54,14 @@ extension GroupRightsX on api.GroupDetailDto {
   bool get canSendPolls =>
       isAdmin ||
       (whoCanPost == api.GroupWho.all && whoCanPoll == api.GroupWho.all);
+
+  /// Owner 2026-10-21 (Telegram «Запретить копирование и пересылку»): no
+  /// forwarding, copying or saving of the messages.
+  bool get isProtected => protectContent ?? false;
+
+  /// The group has a link to share instead of its content: a public
+  /// group's @username or a switched-on invite link.
+  bool get hasShareLink =>
+      (type == api.GroupType.public && (username?.isNotEmpty ?? false)) ||
+      (type != api.GroupType.private && inviteEnabled);
 }
