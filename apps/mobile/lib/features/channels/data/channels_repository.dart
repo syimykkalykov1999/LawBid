@@ -10,6 +10,7 @@ import 'package:lawbid/core/network/request_flags.dart';
 import 'package:lawbid/features/channels/domain/channel_models.dart';
 import 'package:lawbid/features/social/domain/social_models.dart'
     show PostVideo;
+import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// Bunny credentials for one channel video (`POST /channels/video-uploads`).
@@ -54,6 +55,18 @@ class ChannelsRepository {
   static const _create = {RequestFlags.createsResource: true};
 
   // ── channels ───────────────────────────────────────────────────────────
+
+  /// «Discover» without a search: channels ranked for me, then popular,
+  /// then newest, paged by the server's cursor (never ends at a short list).
+  Future<CursorPage<Channel>> recommended({String? cursor}) async {
+    final env = await guardApiCall(
+      () => _channels.channelList(cursor: cursor),
+    );
+    return CursorPage(
+      items: env.data.map(channelOf).toList(),
+      nextCursor: env.meta?.nextCursor,
+    );
+  }
 
   Future<List<Channel>> list(ChannelScope scope, {String? q}) async {
     final term = q?.trim();

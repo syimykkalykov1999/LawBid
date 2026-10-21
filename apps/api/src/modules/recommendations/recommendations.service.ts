@@ -31,6 +31,7 @@ import {
   type CommunityCandidate,
   type CommunityViewer,
   communityScore,
+  feedOrder,
 } from './communities.scoring';
 import { diversify, type Scored } from './ranking.math';
 
@@ -40,7 +41,9 @@ export const LISTING_TTL_SEC = 3 * 60;
 /** The recommended groups / channels snapshot is rebuilt this often. */
 export const COMMUNITY_TTL_SEC = 30 * 60;
 export const COMMUNITY_POOL = 100;
-const COMMUNITY_SCAN = 400;
+/** Popular candidates read per snapshot, and the newest ones appended after. */
+const COMMUNITY_SCAN = 500;
+const COMMUNITY_NEWEST = 300;
 /** How many people / posts / cases a ranked list keeps. */
 export const PEOPLE_POOL = 300;
 export const POST_CANDIDATES = 400;
@@ -645,9 +648,19 @@ export class RecommendationsService {
       this.interests(viewerId),
       this.circle(viewerId),
     ]);
-    const rows = await (kind === 'group'
-      ? this.groupRows(viewerId, circle)
-      : this.channelRows(viewerId, circle));
+    const load = (newest: boolean) =>
+      kind === 'group'
+        ? this.groupRows(viewerId, circle, newest)
+        : this.channelRows(viewerId, circle, newest);
+    const [popularRows, newestRows] = await Promise.all([
+      load(false),
+      load(true),
+    ]);
+    const rows = [
+      ...new Map(
+        [...popularRows, ...newestRows].map((r) => [r.id, r]),
+      ).values(),
+    ];
     if (rows.length === 0) return [];
     const owners = [...new Set(rows.map((r) => r.owner_id))];
     const [cats, states] = await Promise.all([
@@ -672,26 +685,28 @@ export class RecommendationsService {
       interests,
     };
     const now = Date.now();
-    return rows
-      .map((r) => {
-        const cand: CommunityCandidate = {
-          id: r.id,
-          members: Number(r.members),
-          lastActivityAt: r.last_at ? new Date(r.last_at) : null,
-          joins7d: Number(r.joins7d),
-          categories: catOf.get(r.owner_id) ?? [],
-          states: stateOf.get(r.owner_id) ?? [],
-          mutual: Number(r.mutual),
-        };
-        return {
-          id: r.id,
-          mutual: cand.mutual,
-          score: communityScore(cand, viewer, now),
-        };
-      })
-      .sort((a, b) => b.score - a.score)
-      .slice(0, COMMUNITY_POOL)
-      .map(({ id, mutual }) => ({ id, mutual }));
+    const scored = rows.map((r) => {
+      const cand: CommunityCandidate = {
+        id: r.id,
+        members: Number(r.members),
+        lastActivityAt: r.last_at ? new Date(r.last_at) : null,
+        joins7d: Number(r.joins7d),
+        categories: catOf.get(r.owner_id) ?? [],
+        states: stateOf.get(r.owner_id) ?? [],
+        mutual: Number(r.mutual),
+      };
+      return {
+        id: r.id,
+        mutual: cand.mutual,
+        score: communityScore(cand, viewer, now),
+      };
+    });
+    return feedOrder(
+      scored,
+      popularRows.map((r) => r.id),
+      newestRows.map((r) => r.id),
+      COMMUNITY_POOL,
+    ).map(({ id, mutual }) => ({ id, mutual }));
   }
 
   /** People the viewer knows: followed, and fellow members of own groups / channels. */
@@ -716,7 +731,7 @@ export class RecommendationsService {
     return rows.map((r) => r.uid);
   }
 
-  private groupRows(viewerId: string, circle: string[]) {
+  private groupRows(viewerId: string, circle: string[], newest: boolean) {
     return this.prisma.$queryRaw<CommunityRow[]>`
       SELECT g.id::TEXT AS id, g.member_count AS members,
              g.last_message_at AS last_at, own.user_id::TEXT AS owner_id,
@@ -737,11 +752,11 @@ export class RecommendationsService {
         AND NOT EXISTS (SELECT 1 FROM user_blocks b
           WHERE (b.blocker_id = ${viewerId}::UUID AND b.blocked_id = own.user_id)
              OR (b.blocker_id = own.user_id AND b.blocked_id = ${viewerId}::UUID))
-      ORDER BY g.member_count DESC, g.created_at DESC
-      LIMIT ${COMMUNITY_SCAN}`;
+      ORDER BY ${newest ? Prisma.sql`g.created_at DESC` : Prisma.sql`g.member_count DESC, g.created_at DESC`}
+      LIMIT ${newest ? COMMUNITY_NEWEST : COMMUNITY_SCAN}`;
   }
 
-  private channelRows(viewerId: string, circle: string[]) {
+  private channelRows(viewerId: string, circle: string[], newest: boolean) {
     return this.prisma.$queryRaw<CommunityRow[]>`
       SELECT c.id::TEXT AS id, c.subscriber_count AS members,
              c.last_post_at AS last_at, c.owner_id::TEXT AS owner_id,
@@ -760,8 +775,8 @@ export class RecommendationsService {
         AND NOT EXISTS (SELECT 1 FROM user_blocks b
           WHERE (b.blocker_id = ${viewerId}::UUID AND b.blocked_id = c.owner_id)
              OR (b.blocker_id = c.owner_id AND b.blocked_id = ${viewerId}::UUID))
-      ORDER BY c.subscriber_count DESC, c.created_at DESC
-      LIMIT ${COMMUNITY_SCAN}`;
+      ORDER BY ${newest ? Prisma.sql`c.created_at DESC` : Prisma.sql`c.subscriber_count DESC, c.created_at DESC`}
+      LIMIT ${newest ? COMMUNITY_NEWEST : COMMUNITY_SCAN}`;
   }
 
   // --- cache -------------------------------------------------------------

@@ -1,4 +1,5 @@
 import {
+  feedOrder,
   COMMUNITY_JITTER,
   COMMUNITY_WEIGHTS,
   type CommunityCandidate,
@@ -61,5 +62,17 @@ describe('community scoring', () => {
 
   it('is stable within a day for the same pair', () => {
     expect(score({})).toBe(score({}));
+  });
+});
+
+describe('feedOrder', () => {
+  const mk = (id: string, score: number) => ({ id, score });
+  it('top by score, then the rest popular, then newest, no repeats', () => {
+    const scored = ['a', 'b', 'c', 'd', 'e'].map((id, i) => mk(id, i));
+    const out = feedOrder(scored, ['a', 'b', 'c'], ['e', 'd', 'a'], 1).map(
+      (x) => x.id,
+    );
+    expect(out).toEqual(['e', 'a', 'b', 'c', 'd']);
+    expect(new Set(out).size).toBe(out.length);
   });
 });

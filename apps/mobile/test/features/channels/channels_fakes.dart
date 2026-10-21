@@ -14,6 +14,7 @@ import 'package:lawbid/features/channels/domain/channel_models.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/domain/social_models.dart'
     show PostVideo;
+import 'package:lawbid/shared/domain/cursor_page.dart';
 
 const offline =
     ApiException(code: ApiException.networkErrorCode, message: 'offline');
@@ -125,6 +126,12 @@ class FakeChannelsRepository implements ChannelsRepository {
     if (failWith != null) throw failWith!;
     return body();
   }
+
+  @override
+  Future<CursorPage<Channel>> recommended({String? cursor}) => _run(
+        'recommended:${cursor ?? ''}',
+        () => CursorPage(items: listed),
+      );
 
   @override
   Future<List<Channel>> list(ChannelScope scope, {String? q}) =>

@@ -100,7 +100,7 @@ void main() {
       expect(repo.calls, contains('list:subscribed:'));
       await tester.drag(find.byType(PageView), const Offset(-400, 0));
       await tester.pumpAndSettle();
-      expect(repo.calls, contains('list:discover:'));
+      expect(repo.calls, contains('recommended:'));
       await tester.drag(find.byType(PageView), const Offset(400, 0));
       await tester.pumpAndSettle();
       await tester.drag(find.byType(PageView), const Offset(400, 0));

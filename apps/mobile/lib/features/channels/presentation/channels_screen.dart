@@ -233,12 +233,41 @@ class _ScopeList extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translatorProvider);
+    // Owner 2026-10-20: «Discover» opens with «Recommended» and never ends
+    // — ranked for me first, then popular, then newest.
+    if (scope == ChannelScope.discover && query.isEmpty) {
+      final colors = Theme.of(context).extension<AppColorTokens>()!;
+      final notifier = ref.read(recommendedChannelsProvider.notifier);
+      return PagedListBody<Channel>(
+        value: ref.watch(recommendedChannelsProvider),
+        t: t,
+        itemKey: (c) => c.id,
+        itemBuilder: (context, c, _) => ChannelRow(
+          key: ValueKey('channel-row-${c.id}'),
+          channel: c,
+          onTap: () => context.push(ChannelsRoutes.channel(c.id)),
+        ),
+        skeleton: const CasesListSkeleton(),
+        header: Text(
+          t.t('reco.title'),
+          key: const ValueKey('channels-reco-title'),
+          style: Theme.of(context)
+              .extension<AppTypographyTokens>()!
+              .caption
+              .copyWith(
+                color: colors.textSecondary,
+                fontWeight: FontWeight.w600,
+              ),
+        ),
+        empty: empty,
+        onRefresh: notifier.refresh,
+        onLoadMore: () => unawaited(notifier.loadMore()),
+        onRetryMore: () => unawaited(notifier.retryLoadMore()),
+      );
+    }
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final key = (scope: scope, query: query);
     final list = ref.watch(channelListProvider(key));
-    // Owner 2026-10-20: «Discover» opens with a «Recommended» section — the
-    // server ranks it for me when nothing is typed.
-    final recommended = scope == ChannelScope.discover && query.isEmpty;
 
     Future<void> refresh() async {
       ref.invalidate(channelListProvider(key));
@@ -257,34 +286,13 @@ class _ScopeList extends ConsumerWidget {
               top: AppSpacing.sm,
               bottom: AppSpacing.xxl,
             ),
-            itemCount: value.length + (recommended ? 1 : 0),
+            itemCount: value.length,
             separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.xs),
-            itemBuilder: (context, raw) {
-              if (recommended && raw == 0) {
-                return Padding(
-                  padding: const EdgeInsetsDirectional.symmetric(
-                    horizontal: AppSpacing.screenSide,
-                  ),
-                  child: Text(
-                    t.t('reco.title'),
-                    key: const ValueKey('channels-reco-title'),
-                    style: Theme.of(context)
-                        .extension<AppTypographyTokens>()!
-                        .caption
-                        .copyWith(
-                          color: colors.textSecondary,
-                          fontWeight: FontWeight.w600,
-                        ),
-                  ),
-                );
-              }
-              final c = value[recommended ? raw - 1 : raw];
-              return ChannelRow(
-                key: ValueKey('channel-row-${c.id}'),
-                channel: c,
-                onTap: () => context.push(ChannelsRoutes.channel(c.id)),
-              );
-            },
+            itemBuilder: (context, i) => ChannelRow(
+              key: ValueKey('channel-row-${value[i].id}'),
+              channel: value[i],
+              onTap: () => context.push(ChannelsRoutes.channel(value[i].id)),
+            ),
           ),
         ),
       AsyncError(:final error) => CasesErrorView(
