@@ -4,6 +4,18 @@ import 'package:flutter/foundation.dart';
 /// verified attorneys.
 enum QaFilter { all, unanswered, solved, mine }
 
+/// Owner 2026-10-21: the tabs of the header, in this order. [mine] is the
+/// asker's own questions for a client and the questions an attorney answered.
+enum QaTab {
+  all(QaFilter.all),
+  mine(QaFilter.mine),
+  best(QaFilter.solved),
+  unanswered(QaFilter.unanswered);
+
+  const QaTab(this.filter);
+  final QaFilter filter;
+}
+
 @immutable
 class QaPerson {
   const QaPerson({
@@ -74,6 +86,8 @@ class Question {
     this.author,
     this.bestAnswerId,
     this.myAnswerId,
+    this.closed = false,
+    this.answersEnough = false,
     this.answers = const [],
   });
 
@@ -94,6 +108,12 @@ class Question {
   final bool canAnswer;
   final DateTime createdAt;
 
+  /// Closed by the author (or after 30 days without an answer).
+  final bool closed;
+
+  /// The question has the most answers (10).
+  final bool answersEnough;
+
   /// Only on the detail answer.
   final List<QaAnswer> answers;
 
@@ -109,6 +129,7 @@ class QuestionsQuery {
     this.practiceLabel,
     this.stateCode,
     this.filter = QaFilter.all,
+    this.mineScope = false,
   });
 
   final String q;
@@ -119,12 +140,17 @@ class QuestionsQuery {
   final String? stateCode;
   final QaFilter filter;
 
+  /// Attorney: only the questions of my practice areas and licensed states
+  /// (not sent when a topic is picked by hand).
+  final bool mineScope;
+
   int get activeFilters =>
       (practiceAreaId == null ? 0 : 1) + (stateCode == null ? 0 : 1);
 
   QuestionsQuery copyWith({
     String? q,
     QaFilter? filter,
+    bool? mineScope,
     String? practiceAreaId,
     String? practiceLabel,
     String? stateCode,
@@ -134,6 +160,7 @@ class QuestionsQuery {
       QuestionsQuery(
         q: q ?? this.q,
         filter: filter ?? this.filter,
+        mineScope: mineScope ?? this.mineScope,
         practiceAreaId:
             clearPractice ? null : practiceAreaId ?? this.practiceAreaId,
         practiceLabel:
@@ -147,10 +174,11 @@ class QuestionsQuery {
       other.q == q &&
       other.practiceAreaId == practiceAreaId &&
       other.stateCode == stateCode &&
-      other.filter == filter;
+      other.filter == filter &&
+      other.mineScope == mineScope;
 
   @override
-  int get hashCode => Object.hash(q, practiceAreaId, stateCode, filter);
+  int get hashCode => Object.hash(q, practiceAreaId, stateCode, filter, mineScope);
 }
 
 /// Owner 2026-10-20: the attorney's quiet count of fresh questions and the

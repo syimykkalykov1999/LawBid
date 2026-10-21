@@ -3,6 +3,15 @@
 // verified attorneys. Compiled-in strings merged into StaticTranslatorRu/En.
 
 const legalQaRu = <String, String>{
+  'qa.tab.answers': 'Ответы',
+  'qa.count.of': '{n} из {max}',
+  'qa.enough': 'Ответов достаточно',
+  'qa.closed': 'Закрыт',
+  'qa.close': 'Закрыть вопрос',
+  'qa.close.title': 'Закрыть вопрос?',
+  'qa.close.msg': 'Юристы его больше не увидят и не смогут ответить. Полученные ответы останутся у вас.',
+  'qa.err.closed': 'Вопрос закрыт.',
+  'qa.err.enough': 'На этот вопрос уже достаточно ответов.',
   'qa.title': 'Вопрос юристу',
   'qa.ask': 'Задать вопрос',
   'qa.search': 'Поиск вопросов',
@@ -67,6 +76,15 @@ const legalQaRu = <String, String>{
 };
 
 const legalQaEn = <String, String>{
+  'qa.tab.answers': 'Answers',
+  'qa.count.of': '{n} of {max}',
+  'qa.enough': 'Enough answers',
+  'qa.closed': 'Closed',
+  'qa.close': 'Close question',
+  'qa.close.title': 'Close this question?',
+  'qa.close.msg': 'Attorneys will no longer see it or answer it. The answers you have stay with you.',
+  'qa.err.closed': 'This question is closed.',
+  'qa.err.enough': 'This question already has enough answers.',
   'qa.title': 'Ask a lawyer',
   'qa.ask': 'Ask',
   'qa.search': 'Search questions',
