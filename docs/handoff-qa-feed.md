@@ -14,7 +14,7 @@ TODO (mobile, not started):
 - Header tabs in `qa_feed_screen.dart` (AppTopBar title, segment like ContactsCallsSegment / InboxTabsBar): «Все · Мои · Лучшие · Без ответа» for both roles. Attorney «Все» = scope=mine by default; the switch «везде» lives in the filter sheet. Swipe between tabs like elsewhere (PageView + edge-swipe rule, see pill_tabs.dart). Remove chips Без ответа / С лучшим / Мои from `qa_filter_sheet.dart` (keep topics + states). Tabs must combine with search + filters (test it). Client «Мои» = filter mine (own questions).
 - Question tap -> bottom sheet (like Instagram comments) with question + attorney answers + likes; keep `question_detail_screen.dart` for deep links. Feed is already infinite (PagedNotifier).
 - Attorney card: «N из 10» (`qa.count.of`), «Ответов достаточно» when `answersEnough`; client: «Закрыть вопрос» (+confirm), «Закрыт» badge; show `qa.err.*` on 409.
-- i18n: `docs/handoff-qa-pending-i18n.json` (9 keys x 85 languages, ready): `node scripts/i18n-add.mjs docs/handoff-qa-pending-i18n.json`, `node scripts/gen-longest-strings.mjs`, `node scripts/i18n-audit.mjs --ci`; add ru/en to `lib/core/l10n/strings/legal_qa_strings.dart`; delete the json after. xlsx rebase conflicts: `git checkout --ours` then re-run i18n-add.
+- i18n: DONE (9 keys x 85 languages in xlsx + compiled ru/en).
 - Tests: overflow 360dp ne/ar/ru x1.1, 4 themes; search combos.
 
 Rules: compact like Telegram, x1.1, no yellow icons, push only this branch, never release-20oct, report SHA to coordinator (cmsg thread of Q&A). Flutter at /opt/flutter/bin.
