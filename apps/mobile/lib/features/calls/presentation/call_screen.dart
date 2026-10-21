@@ -46,6 +46,10 @@ class _CallScreenState extends ConsumerState<CallScreen>
   )..repeat();
   Timer? _tick;
   Timer? _closeTimer;
+
+  /// Owner 2026-10-21 (Zoom): a tap on the small window puts it on the big
+  /// screen and the other picture takes its place; another tap swaps back.
+  bool _swapped = false;
   CallPeer? _lastPeer;
   late final CallScreenVisible _visible =
       ref.read(callScreenVisibleProvider.notifier);
@@ -249,14 +253,19 @@ class _CallScreenState extends ConsumerState<CallScreen>
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  // The other side, full screen, once their picture arrives.
-                  if (remote != null)
+                  // The other side, full screen, once their picture arrives
+                  // (ours instead when the small window was tapped).
+                  if (remote != null && local != null)
                     ValueListenableBuilder<MediaStream?>(
-                      valueListenable: remote,
+                      valueListenable: _swapped && s.cameraOn ? local : remote,
                       builder: (_, stream, __) =>
                           stream == null || s.phase != CallPhase.active
                               ? const SizedBox.shrink()
-                              : CallVideoView(stream: stream),
+                              : CallVideoView(
+                                  key: ValueKey(_swapped && s.cameraOn),
+                                  stream: stream,
+                                  mirror: _swapped && s.cameraOn,
+                                ),
                     ),
                   SafeArea(
                     child: Column(
@@ -504,11 +513,13 @@ class _CallScreenState extends ConsumerState<CallScreen>
                       ],
                     ),
                   ),
-                  // Our camera, small, in the top corner.
-                  if (local != null)
+                  // The other picture, small, in the top corner; a tap swaps.
+                  if (local != null && remote != null)
                     ValueListenableBuilder<MediaStream?>(
-                      valueListenable: local,
-                      builder: (_, stream, __) => stream == null || !s.cameraOn
+                      valueListenable: _swapped ? remote : local,
+                      builder: (_, stream, __) => stream == null ||
+                              (!_swapped && !s.cameraOn) ||
+                              (_swapped && s.phase != CallPhase.active)
                           ? const SizedBox.shrink()
                           : PositionedDirectional(
                               top: MediaQuery.paddingOf(context).top +
@@ -516,11 +527,24 @@ class _CallScreenState extends ConsumerState<CallScreen>
                               end: AppSpacing.md,
                               width: 104,
                               height: 156,
-                              child: ClipRRect(
-                                borderRadius:
-                                    BorderRadius.circular(AppRadii.card),
-                                child:
-                                    CallVideoView(stream: stream, mirror: true),
+                              child: Semantics(
+                                button: true,
+                                label: t.t('call.members'),
+                                child: GestureDetector(
+                                  key: const Key('call-pip-swap'),
+                                  behavior: HitTestBehavior.opaque,
+                                  onTap: () =>
+                                      setState(() => _swapped = !_swapped),
+                                  child: ClipRRect(
+                                    borderRadius:
+                                        BorderRadius.circular(AppRadii.card),
+                                    child: CallVideoView(
+                                      key: ValueKey(_swapped),
+                                      stream: stream,
+                                      mirror: !_swapped,
+                                    ),
+                                  ),
+                                ),
                               ),
                             ),
                     ),

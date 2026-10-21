@@ -679,7 +679,7 @@ void main() {
     expect(h.s.reconnecting, isFalse);
   });
 
-  test('a ringing call is the system sheet\'s: no second strip in the app',
+  test("a ringing call is the system sheet's: no second strip in the app",
       () async {
     final h = _Harness();
     addTearDown(h.dispose);

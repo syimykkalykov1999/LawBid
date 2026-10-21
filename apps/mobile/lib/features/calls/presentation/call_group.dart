@@ -17,7 +17,11 @@ import 'package:lawbid/features/calls/presentation/call_widgets.dart';
 /// shows everyone as a tile — photo or camera, name, a mic-off mark, a gold
 /// frame around whoever is speaking, a dimmed tile with "Calling…" for those
 /// still ringing.
-class CallGroupGrid extends ConsumerWidget {
+///
+/// Owner 2026-10-21 (Zoom): a tap on a tile in a video call makes that
+/// person the big picture, the others shrink to a strip below; a tap on the
+/// big one goes back to the grid, a tap on a strip tile switches to them.
+class CallGroupGrid extends ConsumerStatefulWidget {
   const CallGroupGrid({required this.session, required this.media, super.key});
 
   final CallSession session;
@@ -38,15 +42,31 @@ class CallGroupGrid extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<CallGroupGrid> createState() => _CallGroupGridState();
+}
+
+class _CallGroupGridState extends ConsumerState<CallGroupGrid> {
+  /// The person shown big (null = the grid).
+  String? _focus;
+
+  void _tap(String userId) =>
+      setState(() => _focus = _focus == userId ? null : userId);
+
+  @override
+  Widget build(BuildContext context) {
+    final session = widget.session;
+    final media = widget.media;
     final call = session.call;
     if (call == null) return const SizedBox.shrink();
     final me = ref.watch(callMyIdProvider);
-    final members = visibleMembers(call, me);
+    final members = CallGroupGrid.visibleMembers(call, me);
     final n = members.length;
     final cols = n <= 4 ? 2 : 3;
     final rows = (n / cols).ceil();
     final m = media;
+    final focused = session.video
+        ? members.where((x) => x.userId == _focus).firstOrNull
+        : null;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
       child: LayoutBuilder(
@@ -55,10 +75,10 @@ class CallGroupGrid extends ConsumerWidget {
           final w = (box.maxWidth - gap * (cols - 1)) / cols;
           final h = (box.maxHeight - gap * (rows - 1)) / rows;
           final tile = Size(w, h.clamp(60, 280));
-          Widget tileFor(CallMember member) {
+          Widget tileFor(CallMember member, Size size) {
             final isMe = member.userId == me;
             return SizedBox.fromSize(
-              size: tile,
+              size: size,
               child: m == null
                   ? _MemberTile(
                       member: member,
@@ -97,13 +117,51 @@ class CallGroupGrid extends ConsumerWidget {
             );
           }
 
+          // A tap picks whose picture is big (video calls only).
+          Widget tappable(CallMember member, Size size) => session.video
+              ? GestureDetector(
+                  key: Key('call-tile-${member.userId}'),
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => _tap(member.userId),
+                  child: tileFor(member, size),
+                )
+              : tileFor(member, size);
+
+          if (focused != null) {
+            final others = [
+              for (final x in members)
+                if (x.userId != focused.userId) x,
+            ];
+            const strip = 96.0;
+            return Column(
+              children: [
+                Expanded(
+                  child: tappable(focused, Size(box.maxWidth, box.maxHeight)),
+                ),
+                const SizedBox(height: gap),
+                SizedBox(
+                  height: strip,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: others.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: gap),
+                    itemBuilder: (_, i) =>
+                        tappable(others[i], const Size(strip * 0.75, strip)),
+                  ),
+                ),
+              ],
+            );
+          }
+
           return SingleChildScrollView(
             child: Center(
               child: Wrap(
                 spacing: gap,
                 runSpacing: gap,
                 alignment: WrapAlignment.center,
-                children: [for (final member in members) tileFor(member)],
+                children: [
+                  for (final member in members) tappable(member, tile),
+                ],
               ),
             ),
           );

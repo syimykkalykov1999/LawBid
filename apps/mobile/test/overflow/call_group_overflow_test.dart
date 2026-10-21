@@ -142,6 +142,24 @@ void main() {
           }
         }
 
+        testWidgets('video: a tap makes a person big, a tap again goes back',
+            (tester) async {
+          await pump(tester, _session(6, video: true), const CallScreen());
+          await tester.tap(find.byKey(const Key('call-tile-u2')));
+          await tester.pump(const Duration(milliseconds: 300));
+          expect(tester.takeException(), isNull);
+          // The others are a strip now: still tappable, switching the person.
+          await tester.tap(find.byKey(const Key('call-tile-u3')));
+          await tester.pump(const Duration(milliseconds: 300));
+          expect(find.byKey(const Key('call-tile-u2')), findsOneWidget);
+          expect(tester.takeException(), isNull);
+          await tester.tap(find.byKey(const Key('call-tile-u3')));
+          await tester.pump(const Duration(milliseconds: 300));
+          expect(find.byKey(const Key('call-tile-u0')), findsOneWidget);
+          expect(tester.takeException(), isNull);
+          await tester.pump(const Duration(seconds: 5));
+        });
+
         for (final host in [true, false]) {
           testWidgets('people sheet (${host ? 'host' : 'guest'})',
               (tester) async {
