@@ -26,6 +26,7 @@ class ChannelDto {
     required this.createdAt,
     this.description,
     this.avatarUrl,
+    this.avatarFullUrl,
     this.protectContent,
     this.myRole,
     this.lastPostAt,
@@ -41,6 +42,9 @@ class ChannelDto {
   final String username;
   final String? description;
   final String? avatarUrl;
+
+  /// The full-size picture for the full-screen view.
+  final String? avatarFullUrl;
   final bool commentsEnabled;
 
   /// Owner 2026-10-21 (Telegram): restrict saving content — no.

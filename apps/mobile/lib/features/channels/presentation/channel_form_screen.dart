@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart' show ImageSource;
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/files/file_types.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -107,9 +108,9 @@ class _FormState extends ConsumerState<_Form> {
       !_saving &&
       !_avatarUploading;
 
-  Future<void> _pickAvatar() async {
+  Future<void> _pickAvatar(ImageSource source) async {
     final t = ref.read(translatorProvider);
-    final bytes = await ref.read(channelAvatarPickerProvider)(context);
+    final bytes = await ref.read(channelAvatarPickerProvider)(context, source);
     if (bytes == null || !mounted) return;
     setState(() {
       _avatarBytes = bytes;
@@ -150,13 +151,23 @@ class _FormState extends ConsumerState<_Form> {
           children: [
             const AppSheetHandle(),
             AppListRow(
-              key: const ValueKey('channel-avatar-pick'),
-              icon: AppIcons.photoLibraryOutlined,
-              label: t.t('channel.form.avatarPick'),
+              key: const ValueKey('channel-avatar-camera'),
+              icon: AppIcons.photoCameraOutlined,
+              label: t.t('profile.photo.camera'),
               showChevron: false,
               onTap: () {
                 Navigator.of(sheet).pop();
-                unawaited(_pickAvatar());
+                unawaited(_pickAvatar(ImageSource.camera));
+              },
+            ),
+            AppListRow(
+              key: const ValueKey('channel-avatar-pick'),
+              icon: AppIcons.photoLibraryOutlined,
+              label: t.t('profile.photo.gallery'),
+              showChevron: false,
+              onTap: () {
+                Navigator.of(sheet).pop();
+                unawaited(_pickAvatar(ImageSource.gallery));
               },
             ),
             if (hasPicture)
