@@ -11,6 +11,7 @@ class ChatFolderCountsDto {
   const ChatFolderCountsDto({
     required this.waiting,
     required this.requests,
+    required this.cases,
     required this.archived,
   });
 
@@ -19,6 +20,9 @@ class ChatFolderCountsDto {
 
   final num waiting;
   final num requests;
+
+  /// Owner 2026-10-21: case chats whose last message is the other side’s (waiting for my answer).
+  final num cases;
 
   /// Chats and groups in my Archive.
   final num archived;

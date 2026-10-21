@@ -16,6 +16,8 @@ enum ConversationFolder {
   waiting('waiting'),
   @JsonValue('requests')
   requests('requests'),
+  @JsonValue('cases')
+  cases('cases'),
   @JsonValue('archive')
   archive('archive'),
 

@@ -55,8 +55,9 @@ class _Chats implements ChatRepository {
       CursorPage(items: [conv]);
 
   @override
-  Future<({int waiting, int requests, int archived})> folderCounts() async =>
-      (waiting: 0, requests: 0, archived: archivedCount);
+  Future<({int waiting, int requests, int cases, int archived})>
+      folderCounts() async =>
+          (waiting: 0, requests: 0, cases: 0, archived: archivedCount);
 
   @override
   Future<Conversation> organize(

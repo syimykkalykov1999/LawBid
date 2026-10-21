@@ -185,9 +185,10 @@ class Conversation {
 /// Owner 2026-10-01: Instagram-like folders of the chat list.
 enum ChatFolder { primary, general }
 
-/// The chat list's sub-tabs: All · Primary · General · Waiting · Requests.
+/// The chat list's sub-tabs: All · Primary · General · Cases · Waiting ·
+/// Requests (owner 2026-10-21: «Cases» = only the chats tied to a case).
 /// `archive` (owner 2026-10-20) is the Archive screen, never a pill.
-enum ChatListFolder { all, primary, general, waiting, requests, archive }
+enum ChatListFolder { all, primary, general, cases, waiting, requests, archive }
 
 // OQ-047: `attachment` — a photo or a document after acceptance.
 // Owner 2026-10-20: `contact` — a shared attorney card, `place` — an address.

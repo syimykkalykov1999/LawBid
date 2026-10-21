@@ -67,7 +67,7 @@ abstract interface class ChatRepository {
   });
 
   /// Badges of the Waiting and Requests folders, and the Archive's size.
-  Future<({int waiting, int requests, int archived})> folderCounts();
+  Future<({int waiting, int requests, int cases, int archived})> folderCounts();
 
   /// OQ-043: the direct chat with [userId] ("Message" on a profile).
   Future<Conversation> startDirect(String userId);
@@ -554,11 +554,13 @@ class ApiChatRepository implements ChatRepository {
       );
 
   @override
-  Future<({int waiting, int requests, int archived})> folderCounts() async {
+  Future<({int waiting, int requests, int cases, int archived})>
+      folderCounts() async {
     final d = (await guardApiCall(_chat.folderCounts)).data;
     return (
       waiting: d.waiting.toInt(),
       requests: d.requests.toInt(),
+      cases: d.cases.toInt(),
       archived: d.archived.toInt(),
     );
   }

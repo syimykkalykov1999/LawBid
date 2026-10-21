@@ -228,6 +228,9 @@ export class ChatService {
         ];
       case 'waiting':
         return [notRequest, mine({ waiting_since: { not: null } })];
+      // Owner 2026-10-21: «Cases» — only the chats tied to a case.
+      case 'cases':
+        return [notRequest, { case_id: { not: null } }];
       default:
         return [notRequest];
     }
@@ -430,8 +433,10 @@ export class ChatService {
 
   /** Owner 2026-10-01: badges of the Waiting and Requests folders. */
   async folderCounts(user: RequestUser): Promise<ChatFolderCountsDto> {
-    if (!this.sideOf(user)) return { waiting: 0, requests: 0, archived: 0 };
-    const [waiting, requests, archivedChats, archivedGroups] =
+    if (!this.sideOf(user)) {
+      return { waiting: 0, requests: 0, cases: 0, archived: 0 };
+    }
+    const [waiting, requests, casesAwaiting, archivedChats, archivedGroups] =
       await Promise.all([
         this.prisma.conversation.count({
           where: {
@@ -442,6 +447,7 @@ export class ChatService {
           },
         }),
         this.requestsCount(user),
+        this.casesAwaitingCount(user.sub),
         this.prisma.conversation.count({
           where: {
             AND: [
@@ -464,6 +470,7 @@ export class ChatService {
     return {
       waiting,
       requests: requests.count,
+      cases: casesAwaiting,
       archived: archivedChats + archivedGroups,
     };
   }
@@ -1175,6 +1182,31 @@ export class ChatService {
   }
 
   /** GET /conversations/requests/count (OQ-043): requests waiting for me. */
+  /**
+   * Owner 2026-10-21: case chats waiting for my answer — the last message
+   * is the other side's (a system line or a deleted message does not count).
+   */
+  private async casesAwaitingCount(me: string): Promise<number> {
+    const rows = await this.prisma.$queryRaw<{ n: bigint }[]>`
+      SELECT count(*) AS n
+      FROM conversations c
+      JOIN conversation_participants cp
+        ON cp.conversation_id = c.id AND cp.user_id = ${me}::UUID
+      WHERE (c.client_id = ${me}::UUID OR c.attorney_id = ${me}::UUID)
+        AND c.case_id IS NOT NULL
+        AND cp.hidden_at IS NULL AND cp.archived_at IS NULL
+        AND (c.request_status IN ('none', 'accepted')
+             OR c.requested_by = ${me}::UUID)
+        AND (SELECT m.sender_id FROM messages m
+             WHERE m.conversation_id = c.id AND m.deleted_at IS NULL
+             ORDER BY m.created_at DESC, m.id DESC LIMIT 1)
+            IS DISTINCT FROM ${me}::UUID
+        AND (SELECT m.sender_id FROM messages m
+             WHERE m.conversation_id = c.id AND m.deleted_at IS NULL
+             ORDER BY m.created_at DESC, m.id DESC LIMIT 1) IS NOT NULL`;
+    return Number(rows[0]?.n ?? 0);
+  }
+
   async requestsCount(user: RequestUser): Promise<{ count: number }> {
     const count = await this.prisma.conversation.count({
       where: {

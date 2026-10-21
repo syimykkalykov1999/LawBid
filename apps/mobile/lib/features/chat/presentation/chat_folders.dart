@@ -32,6 +32,8 @@ class ChatFolderPills extends ConsumerWidget {
     int? countOf(ChatListFolder f) => switch (f) {
           ChatListFolder.waiting => counts?.waiting,
           ChatListFolder.requests => counts?.requests,
+          // Owner 2026-10-21: how many case chats wait for my answer.
+          ChatListFolder.cases => counts?.cases,
           _ => null,
         };
     return SizedBox(

@@ -63,9 +63,10 @@ class _Chats implements ChatRepository {
   }
 
   @override
-  Future<({int waiting, int requests, int archived})> folderCounts() async {
+  Future<({int waiting, int requests, int cases, int archived})>
+      folderCounts() async {
     if (failRead && wrote) throw StateError('counts re-read failed');
-    return (waiting: 0, requests: 0, archived: 0);
+    return (waiting: 0, requests: 0, cases: 0, archived: 0);
   }
 
   @override

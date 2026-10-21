@@ -91,7 +91,10 @@ const file07Ru = <String, String>{
   'chat.folder.all': 'Все',
   'chat.folder.primary': 'Основные',
   'chat.folder.general': 'Общие',
-  'chat.folder.waiting': 'Ожидают ответа',
+  'chat.folder.waiting': 'Ожидают',
+  'chat.folder.cases': 'Кейсы',
+  'chat.awaitsMe': 'Ждёт ответа',
+  'chat.folder.cases.empty': 'Чатов по кейсам пока нет',
   'chat.folder.requests': 'Запросы',
   'chat.folder.waiting.explain':
       'Чаты, где человек ждёт вашего ответа. Заметка на чате напоминает, что нужно сделать.',
@@ -710,6 +713,9 @@ const file07En = <String, String>{
   'chat.folder.primary': 'Primary',
   'chat.folder.general': 'General',
   'chat.folder.waiting': 'Waiting',
+  'chat.folder.cases': 'Cases',
+  'chat.awaitsMe': 'Awaiting reply',
+  'chat.folder.cases.empty': 'No case chats yet',
   'chat.folder.requests': 'Requests',
   'chat.folder.waiting.explain':
       'Chats where someone is waiting for your answer. The note on a chat reminds you what to do.',
