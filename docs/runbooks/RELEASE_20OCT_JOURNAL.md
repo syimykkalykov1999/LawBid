@@ -99,3 +99,5 @@
   - Inbox: все файлы перенесены в `inbox/done/` (новый notes.txt как `notes-19-25.txt`); поздний скрин 22d (нет «+» у клиента на iPhone) = п.24, на iPhone появится с новой сборкой.
   - `RELEASE_20OCT_FILES.md` пересобран: 249 файлов.
   - Дальше: push, CI, сборка iPhone, финальный список.
+
+- **2026-10-21 16:50 UTC, terminal: CI зелёный на 5605161e, iPhone.** API CI (lint, typecheck, unit + e2e, ERD, контракт, oasdiff), Mobile CI (analyze, unit/widget/golden, сборки Android/iOS/Web), admin-ci, CodeQL, Secret scan, Container scan — success. (Mobile CI на промежуточном 11cc0de9 падал на 2 trailing comma в новом тесте — исправлено в 59435be4.) iPhone `00008150-001E545A1480401C`: dev flavor release с 5605161e собран и установлен, запускается. Inbox пуст (всё в `inbox/done/`). Worktree агентов удалены (ветки `worktree-agent-*` оставлены). `RELEASE_20OCT_FILES.md`: 249 файлов. Не закоммичены (локальные): `Podfile.lock`, `project.pbxproj`, `apps/mobile/config/dev.json.bak`. Финальный список выдан владельцу.
