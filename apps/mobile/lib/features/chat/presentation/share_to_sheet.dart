@@ -224,8 +224,10 @@ class _ShareToSheetState extends ConsumerState<ShareToSheet> {
               Divider(height: 1, thickness: 1, color: colors.border),
               // (AnimatedSize with a zero duration asserts: reduce
               // motion just swaps.)
-              if (context.reduceMotion)
-                _picked.isEmpty ? _actions(t) : _sendPanel(t)
+              if (context.reduceMotion && _picked.isEmpty)
+                _actions(t)
+              else if (context.reduceMotion)
+                _sendPanel(t)
               else
                 AnimatedSize(
                   duration: AppMotion.stateChange,

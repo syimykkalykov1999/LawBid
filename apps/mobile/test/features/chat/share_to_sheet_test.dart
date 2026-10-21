@@ -186,8 +186,11 @@ void main() {
       currentUserIdProvider.overrideWithValue('me'),
       groupRepositoryProvider.overrideWithValue(
         FakeGroupRepository([
-          _group('g1', 'Tenants of Brooklyn Heights Association',
-              canPost: true),
+          _group(
+            'g1',
+            'Tenants of Brooklyn Heights Association',
+            canPost: true,
+          ),
           _group('g2', 'Read-only announcements', canPost: false),
         ]),
       ),
@@ -196,9 +199,8 @@ void main() {
         if (key.scope != ChannelScope.managed) return const [];
         return [
           fakeChannel(
-            id: 'ch-1',
             title: 'Immigration law weekly digest for families',
-            role: ChannelRole.owner,
+            role: ChannelRole.admin,
           ),
         ];
       }),
