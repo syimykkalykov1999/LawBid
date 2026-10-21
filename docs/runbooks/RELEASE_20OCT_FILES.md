@@ -1,6 +1,6 @@
 # Файлы, изменённые после 60ae65d8 (до головы claude/release-20oct)
 
-`git diff --name-status 60ae65d8..origin/claude/release-20oct` — 227 файлов (A — новый, M — изменён, D — удалён).
+`git diff --name-status 60ae65d8..origin/claude/release-20oct` — 249 файлов (A — новый, M — изменён, D — удалён).
 
 - M .github/workflows/mobile-ci.yml
 - A apps/api/prisma/migrations/20261021050200_legal_question_closed/migration.sql
@@ -22,6 +22,7 @@
 - M apps/api/src/modules/calls/call-history.dto.ts
 - M apps/api/src/modules/calls/call-history.service.ts
 - M apps/api/src/modules/calls/calls.service.ts
+- M apps/api/src/modules/channels/channels.controller.ts
 - M apps/api/src/modules/channels/channels.dto.ts
 - M apps/api/src/modules/channels/channels.service.ts
 - M apps/api/src/modules/chat/chat.dto.ts
@@ -45,12 +46,14 @@
 - A apps/api/src/modules/posts/shared-post-cards.service.ts
 - M apps/api/src/ops/prelaunch-wipe.plan.ts
 - M apps/api/test/owner-call-history.e2e-spec.ts
+- M apps/api/test/owner-channels.e2e-spec.ts
 - M apps/api/test/owner-chat-actions.e2e-spec.ts
 - A apps/api/test/owner-chat-post-share.e2e-spec.ts
 - M apps/api/test/owner-disappearing.e2e-spec.ts
 - M apps/api/test/owner-group-calls.e2e-spec.ts
 - M apps/api/test/owner-group-chat-calls.e2e-spec.ts
 - M apps/api/test/owner-group-shared.e2e-spec.ts
+- M apps/api/test/owner-groups.e2e-spec.ts
 - A apps/api/test/owner-message-forward.e2e-spec.ts
 - A apps/api/test/owner-qa-scope-limits.e2e-spec.ts
 - M apps/mobile/android/app/src/main/AndroidManifest.xml
@@ -63,19 +66,25 @@
 - A apps/mobile/lib/core/l10n/strings/forward_strings.dart
 - M apps/mobile/lib/core/l10n/strings/group_strings.dart
 - M apps/mobile/lib/core/l10n/strings/legal_qa_strings.dart
+- A apps/mobile/lib/core/l10n/strings/people_suggest_strings.dart
 - A apps/mobile/lib/core/l10n/strings/share_to_strings.dart
 - M apps/mobile/lib/core/network/api_error.dart
 - M apps/mobile/lib/features/calls/application/call_controller.dart
 - M apps/mobile/lib/features/calls/application/call_history_providers.dart
 - M apps/mobile/lib/features/calls/data/call_history_repository.dart
+- M apps/mobile/lib/features/calls/domain/call_models.dart
+- M apps/mobile/lib/features/calls/presentation/call_group.dart
 - M apps/mobile/lib/features/calls/presentation/call_host.dart
 - M apps/mobile/lib/features/calls/presentation/call_rejoin.dart
 - M apps/mobile/lib/features/calls/presentation/call_screen.dart
+- M apps/mobile/lib/features/cases/presentation/widgets/case_stale_banner.dart
 - A apps/mobile/lib/features/channels/application/channel_forward_port.dart
 - M apps/mobile/lib/features/channels/data/channels_repository.dart
 - M apps/mobile/lib/features/channels/domain/channel_models.dart
+- M apps/mobile/lib/features/channels/presentation/channel_admins_screen.dart
 - M apps/mobile/lib/features/channels/presentation/channel_form_screen.dart
 - M apps/mobile/lib/features/channels/presentation/channel_post_card.dart
+- M apps/mobile/lib/features/channels/presentation/channel_widgets.dart
 - M apps/mobile/lib/features/channels/presentation/channels_screen.dart
 - A apps/mobile/lib/features/chat/application/post_share.dart
 - M apps/mobile/lib/features/chat/data/chat_extras_repository.dart
@@ -86,6 +95,7 @@
 - M apps/mobile/lib/features/chat/presentation/chat_files_screen.dart
 - M apps/mobile/lib/features/chat/presentation/chat_message_menu.dart
 - A apps/mobile/lib/features/chat/presentation/chat_post_card.dart
+- M apps/mobile/lib/features/chat/presentation/chat_selection_bar.dart
 - M apps/mobile/lib/features/chat/presentation/chats_filter_row.dart
 - M apps/mobile/lib/features/chat/presentation/conversation_screen.dart
 - A apps/mobile/lib/features/chat/presentation/forward_sheet.dart
@@ -101,9 +111,11 @@
 - M apps/mobile/lib/features/groups/presentation/group_files_screen.dart
 - M apps/mobile/lib/features/groups/presentation/group_message_text.dart
 - M apps/mobile/lib/features/groups/presentation/widgets/group_info_settings.dart
+- M apps/mobile/lib/features/groups/presentation/widgets/group_mention_picker.dart
 - M apps/mobile/lib/features/groups/presentation/widgets/group_message_bubble.dart
 - M apps/mobile/lib/features/groups/presentation/widgets/group_message_menu.dart
 - A apps/mobile/lib/features/groups/presentation/widgets/group_selection_bar.dart
+- M apps/mobile/lib/features/groups/presentation/widgets/people_picker.dart
 - M apps/mobile/lib/features/legal_qa/data/legal_qa_repository.dart
 - M apps/mobile/lib/features/legal_qa/domain/qa_models.dart
 - M apps/mobile/lib/features/legal_qa/presentation/qa_feed_screen.dart
@@ -118,6 +130,7 @@
 - M apps/mobile/lib/features/profile/presentation/widgets/client_social_profile.dart
 - M apps/mobile/lib/features/profile/presentation/widgets/review_widgets.dart
 - M apps/mobile/lib/features/reels/presentation/reels_screen.dart
+- M apps/mobile/lib/features/social/presentation/widgets/mention_suggestions.dart
 - M apps/mobile/lib/features/social/presentation/widgets/post_card.dart
 - M apps/mobile/lib/features/social/presentation/widgets/post_sheets.dart
 - M apps/mobile/lib/features/social/presentation/widgets/post_text_cover.dart
@@ -129,12 +142,16 @@
 - M apps/mobile/lib/features/stories/presentation/story_navigation.dart
 - A apps/mobile/lib/features/stories/presentation/story_post_sticker.dart
 - M apps/mobile/lib/features/stories/stories_routes.dart
+- A apps/mobile/lib/shared/people/people_suggest.dart
+- A apps/mobile/lib/shared/people/people_suggest_list.dart
 - M apps/mobile/lib/shared/presentation/chips_search_row.dart
 - M apps/mobile/lib/shared/presentation/share_sheet.dart
 - M apps/mobile/test/architecture/feature_boundaries_baseline.json
+- A apps/mobile/test/features/calls/call_add_suggest_test.dart
 - M apps/mobile/test/features/calls/call_controller_test.dart
 - A apps/mobile/test/features/calls/call_screen_close_test.dart
 - M apps/mobile/test/features/channels/channel_screens_test.dart
+- A apps/mobile/test/features/channels/channels_select_test.dart
 - M apps/mobile/test/features/chat/chat_folders_test.dart
 - A apps/mobile/test/features/chat/chat_post_card_test.dart
 - M apps/mobile/test/features/chat/chat_search_test.dart
@@ -161,14 +178,19 @@
 - M apps/mobile/test/l10n/lang_mr.json
 - M apps/mobile/test/l10n/lang_ne.json
 - M apps/mobile/test/l10n/longest_strings.json
+- A apps/mobile/test/overflow/call_add_suggest_overflow_test.dart
 - M apps/mobile/test/overflow/calls_tab_overflow_test.dart
+- A apps/mobile/test/overflow/channels_select_overflow_test.dart
 - A apps/mobile/test/overflow/forward_overflow_test.dart
+- A apps/mobile/test/overflow/stale_buttons_layout_test.dart
+- A apps/mobile/test/shared/people/people_suggest_test.dart
 - M docs/db/ERD.md
 - A docs/runbooks/RELEASE_20OCT_FILES.md
 - M docs/runbooks/RELEASE_20OCT_HANDOFF.md
 - M docs/runbooks/RELEASE_20OCT_JOURNAL.md
 - M packages/api-contract/dart/lib/src/clients/calls_client.dart
 - M packages/api-contract/dart/lib/src/clients/calls_client.g.dart
+- M packages/api-contract/dart/lib/src/clients/channels_client.dart
 - M packages/api-contract/dart/lib/src/clients/chat_client.dart
 - M packages/api-contract/dart/lib/src/clients/chat_client.g.dart
 - M packages/api-contract/dart/lib/src/clients/questions_client.dart
