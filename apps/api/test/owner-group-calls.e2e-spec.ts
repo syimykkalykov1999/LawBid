@@ -343,7 +343,7 @@ describe('Group calls (e2e)', () => {
     expect(call.status).toBe('ended');
   });
 
-  it('anyone can be added by @username or id, with no chat or accepted bid (like Telegram)', async () => {
+  it('a stranger cannot be added to a call (goes through Requests first); people with a chat or in the phone book can, by @username or id', async () => {
     const client = await prisma.user.create({
       data: { role: 'client', first_name: 'Eve', last_name: 'Group' },
     });
@@ -365,7 +365,22 @@ describe('Group calls (e2e)', () => {
       .set(auth(client.id, 'client'))
       .expect(200);
 
-    // Neither has a chat with anyone in the call.
+    // Neither has a chat with anyone in the call: refused until they are
+    // connected (owner 2026-10-21: strangers go through Requests first).
+    const refused = await api()
+      .post(`/api/v1/calls/${callId}/participants`)
+      .set(a1Auth)
+      .send({ username: `@${loose.username}` })
+      .expect(403);
+    expect((refused.body as { error: { code: string } }).error.code).toBe(
+      'CALL_NOT_ALLOWED',
+    );
+    await prisma.contactMatch.createMany({
+      data: [
+        { owner_id: a1.id, matched_id: loose.id },
+        { owner_id: looseClient.id, matched_id: a1.id },
+      ],
+    });
     const byName = await api()
       .post(`/api/v1/calls/${callId}/participants`)
       .set(a1Auth)

@@ -910,7 +910,8 @@ String callActionError(Translator t, String code) {
     case 'CALL_STATE_CONFLICT':
       return t.t('call.full');
     case 'CALL_NOT_ALLOWED':
-      return t.t('call.notAllowed');
+      // Adding a person: no accepted chat with them yet (Requests first).
+      return t.t('call.notAllowedRequest');
     case 'USER_BLOCKED':
       return t.t('error.api.USER_BLOCKED');
     case 'PRIVACY_RESTRICTED':

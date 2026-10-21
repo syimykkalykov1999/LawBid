@@ -55,10 +55,27 @@ describe('Group chat calls (e2e)', () => {
       subscriptionStatus: 'none',
     });
   const auth = (id: string) => ({ Authorization: `Bearer ${token(id)}` });
-  const person = (first: string) =>
-    prisma.user.create({
-      data: { role: 'client', first_name: first, last_name: 'Chat' },
+  // Owner 2026-10-21: only people with an accepted chat or in each other's
+  // phone book may be rung into a call — the test people know each other.
+  const made: string[] = [];
+  let queue: Promise<unknown> = Promise.resolve();
+  const person = (first: string, { known = true } = {}) => {
+    const job = queue.then(async () => {
+      const u = await prisma.user.create({
+        data: { role: 'client', first_name: first, last_name: 'Chat' },
+      });
+      if (known) {
+        await prisma.contactMatch.createMany({
+          data: made.map((other) => ({ owner_id: u.id, matched_id: other })),
+          skipDuplicates: true,
+        });
+        made.push(u.id);
+      }
+      return u;
     });
+    queue = job.catch(() => undefined);
+    return job;
+  };
 
   it('starts from the group, rings chosen members, others join, leaving drops out', async () => {
     const [owner, ann, bob, cy, out] = await Promise.all([
@@ -66,7 +83,7 @@ describe('Group chat calls (e2e)', () => {
       person('Ann'),
       person('Bob'),
       person('Cy'),
-      person('Out'),
+      person('Out', { known: false }),
     ]);
     const g = await api()
       .post('/api/v1/groups')
@@ -177,6 +194,31 @@ describe('Group chat calls (e2e)', () => {
       (await prisma.call.findUniqueOrThrow({ where: { id: call.id } })).status,
     ).toBe('ended');
     await api().get(`/api/v1/groups/${gid}/call`).set(auth(cy.id)).expect(404);
+  });
+
+  it('rings only the group members the starter is connected to (strangers wait for Requests)', async () => {
+    const owner = await person('GOwn');
+    const friend = await person('GFriend');
+    const stranger = await person('GStranger', { known: false });
+    const g = await api()
+      .post('/api/v1/groups')
+      .set(auth(owner.id))
+      .send({
+        title: 'Mixed',
+        type: 'closed',
+        memberIds: [friend.id, stranger.id],
+      })
+      .expect(201);
+    const started = await api()
+      .post(`/api/v1/groups/${g.body.data.id as string}/calls`)
+      .set(auth(owner.id))
+      .send({})
+      .expect(201);
+    const ids = (
+      started.body as { data: { participants: { userId: string }[] } }
+    ).data.participants.map((p) => p.userId);
+    expect(ids).toContain(friend.id);
+    expect(ids).not.toContain(stranger.id);
   });
 
   it('limits the size, drops a removed member, lets the call outlive its host', async () => {
