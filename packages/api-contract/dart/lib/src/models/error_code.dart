@@ -450,6 +450,10 @@ enum ErrorCode {
   consultationNotAvailable('CONSULTATION_NOT_AVAILABLE'),
   @JsonValue('CONSULTATION_STATE_CONFLICT')
   consultationStateConflict('CONSULTATION_STATE_CONFLICT'),
+  @JsonValue('QA_ANSWERS_ENOUGH')
+  qaAnswersEnough('QA_ANSWERS_ENOUGH'),
+  @JsonValue('QA_QUESTION_CLOSED')
+  qaQuestionClosed('QA_QUESTION_CLOSED'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

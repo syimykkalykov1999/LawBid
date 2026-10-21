@@ -104386,6 +104386,15 @@
             }
           },
           {
+            "name": "scope",
+            "required": false,
+            "in": "query",
+            "description": "Attorneys only: «mine» keeps questions of my practice areas (with parent/child areas) and of states where I hold a verified licence; a question without an area or state stays. No areas set — same as «all».",
+            "schema": {
+              "$ref": "#/components/schemas/QuestionScope"
+            }
+          },
+          {
             "name": "cursor",
             "required": false,
             "in": "query",
@@ -104834,6 +104843,86 @@
         ]
       }
     },
+    "/questions/{id}/close": {
+      "put": {
+        "operationId": "closeQuestion",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Close my question",
+        "tags": [
+          "questions"
+        ]
+      }
+    },
     "/questions/{id}/answer": {
       "put": {
         "operationId": "answerQuestion",
@@ -104901,6 +104990,16 @@
           },
           "404": {
             "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: QA_ANSWERS_ENOUGH, QA_QUESTION_CLOSED",
             "content": {
               "application/json": {
                 "schema": {
@@ -107133,7 +107232,9 @@
           "CHANNEL_USERNAME_TAKEN",
           "CONSULTATION_SLOT_TAKEN",
           "CONSULTATION_NOT_AVAILABLE",
-          "CONSULTATION_STATE_CONFLICT"
+          "CONSULTATION_STATE_CONFLICT",
+          "QA_ANSWERS_ENOUGH",
+          "QA_QUESTION_CLOSED"
         ]
       },
       "ErrorBodyDto": {
@@ -161941,6 +162042,14 @@
           "answerCount": {
             "type": "integer"
           },
+          "closed": {
+            "type": "boolean",
+            "description": "Closed by the author or after 30 days."
+          },
+          "answersEnough": {
+            "type": "boolean",
+            "description": "The question has the most answers (10)."
+          },
           "bestAnswerId": {
             "type": "string",
             "nullable": true,
@@ -161966,6 +162075,8 @@
           "isAnonymous",
           "isMine",
           "answerCount",
+          "closed",
+          "answersEnough",
           "canAnswer",
           "createdAt"
         ]
@@ -161976,6 +162087,13 @@
           "all",
           "unanswered",
           "solved",
+          "mine"
+        ]
+      },
+      "QuestionScope": {
+        "type": "string",
+        "enum": [
+          "all",
           "mine"
         ]
       },
@@ -162189,6 +162307,14 @@
           "answerCount": {
             "type": "integer"
           },
+          "closed": {
+            "type": "boolean",
+            "description": "Closed by the author or after 30 days."
+          },
+          "answersEnough": {
+            "type": "boolean",
+            "description": "The question has the most answers (10)."
+          },
           "bestAnswerId": {
             "type": "string",
             "nullable": true,
@@ -162220,6 +162346,8 @@
           "isAnonymous",
           "isMine",
           "answerCount",
+          "closed",
+          "answersEnough",
           "canAnswer",
           "createdAt",
           "answers"

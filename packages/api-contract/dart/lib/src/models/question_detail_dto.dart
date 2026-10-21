@@ -20,6 +20,8 @@ class QuestionDetailDto {
     required this.isAnonymous,
     required this.isMine,
     required this.answerCount,
+    required this.closed,
+    required this.answersEnough,
     required this.canAnswer,
     required this.createdAt,
     required this.answers,
@@ -44,6 +46,12 @@ class QuestionDetailDto {
   final QaPersonDto? author;
   final bool isMine;
   final int answerCount;
+
+  /// Closed by the author or after 30 days.
+  final bool closed;
+
+  /// The question has the most answers (10).
+  final bool answersEnough;
   final String? bestAnswerId;
   final String? myAnswerId;
 
