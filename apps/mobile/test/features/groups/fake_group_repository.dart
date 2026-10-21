@@ -1,7 +1,11 @@
 import 'dart:math' as math;
 
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/features/groups/application/group_providers.dart';
 import 'package:lawbid/features/groups/data/group_repository.dart';
+import 'package:lawbid/features/groups/presentation/widgets/group_chat_tile.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
@@ -570,3 +574,18 @@ api.GroupInvitePreviewDetailDto groupInvitePeek({bool readable = true}) =>
       members: readable ? [people[1], people[2], people[3]] : const [],
       messages: readable ? richThread().take(3).toList() : const [],
     );
+
+/// My groups as chat tiles (owner 2026-10-21: they live in «Channels» now;
+/// the tiles are the same).
+class GroupTilesList extends ConsumerWidget {
+  const GroupTilesList({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => ListView(
+        children: [
+          for (final g in ref.watch(groupsProvider).value?.items ??
+              const <api.GroupDto>[])
+            GroupChatTile(key: ValueKey('group-row-${g.id}'), group: g),
+        ],
+      );
+}

@@ -115,6 +115,8 @@ final mergedChatListProvider =
   (ref) => combineChatLists(
     ref.watch(conversationsProvider),
     ref.watch(groupsProvider),
+    // Owner 2026-10-21: groups live in «Channels», not in the chat list.
+    withGroups: false,
   ),
 );
 
@@ -125,8 +127,18 @@ final mergedChatSearchProvider = Provider.autoDispose
     ref.watch(searchConversationsProvider(key)),
     ref.watch(groupsProvider),
     query: key.q,
-    withGroups: key.folder == ChatListFolder.all,
+    withGroups: false,
   ),
+);
+
+/// How many of my loaded groups have something unread (the badge on the
+/// «Channels» door of Chats).
+final unreadGroupsProvider = Provider.autoDispose<int>(
+  (ref) => [
+    for (final g
+        in ref.watch(groupsProvider).value?.items ?? const <api.GroupDto>[])
+      if (g.unreadCount > 0 && !isGroupMuted(g)) g,
+  ].length,
 );
 
 /// Pull-to-refresh of the merged list: both lists.

@@ -631,7 +631,7 @@ void main() {
           ]);
           await pump(
             tester,
-            const Scaffold(body: ConversationsView()),
+            const Scaffold(body: GroupTilesList()),
             repo,
           );
           await tester.pumpAndSettle();

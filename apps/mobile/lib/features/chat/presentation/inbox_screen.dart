@@ -794,16 +794,19 @@ class ConversationsView extends ConsumerWidget {
             onQuery: onQuery!,
             // Owner 2026-10-20: the channels' door at the start of the row.
             leading: ref.watch(channelsEnabledProvider)
-                ? AppIconButton(
-                    key: const ValueKey('inbox-channels'),
-                    compact: true,
-                    icon: AppIcon(
-                      AppIcons.campaignOutlined,
-                      size: 22,
-                      color: colors.text,
+                ? _ChannelsDoor(
+                    unread: ref.watch(unreadGroupsProvider),
+                    child: AppIconButton(
+                      key: const ValueKey('inbox-channels'),
+                      compact: true,
+                      icon: AppIcon(
+                        AppIcons.campaignOutlined,
+                        size: 22,
+                        color: colors.text,
+                      ),
+                      semanticLabel: t.t('channel.title'),
+                      onPressed: () => context.push(ChannelsRoutes.list),
                     ),
-                    semanticLabel: t.t('channel.title'),
-                    onPressed: () => context.push(ChannelsRoutes.list),
                   )
                 : null,
           )
@@ -1774,6 +1777,49 @@ class _NewChatButton extends ConsumerWidget {
       onPressed: () => context.push(
         live ? '${AppRoutes.contacts}?tab=calls' : AppRoutes.contacts,
       ),
+    );
+  }
+}
+
+/// The «Channels» door of Chats with a small count of groups that have
+/// something unread (owner 2026-10-21: groups live inside Channels).
+class _ChannelsDoor extends ConsumerWidget {
+  const _ChannelsDoor({required this.unread, required this.child});
+
+  final int unread;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (unread <= 0) return child;
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        child,
+        PositionedDirectional(
+          top: 0,
+          end: 0,
+          child: IgnorePointer(
+            child: Container(
+              key: const ValueKey('inbox-channels-unread'),
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+              decoration: BoxDecoration(
+                color: colors.gold,
+                borderRadius: BorderRadius.circular(AppRadii.pill),
+              ),
+              child: Text(
+                context.digits(unread),
+                style: type.caption.copyWith(
+                  color: AppColorsLight.navy,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

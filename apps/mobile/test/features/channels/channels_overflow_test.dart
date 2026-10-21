@@ -14,9 +14,11 @@ import 'package:lawbid/features/channels/presentation/channel_composer_screen.da
 import 'package:lawbid/features/channels/presentation/channel_form_screen.dart';
 import 'package:lawbid/features/channels/presentation/channel_screen.dart';
 import 'package:lawbid/features/channels/presentation/channels_screen.dart';
+import 'package:lawbid/features/groups/application/group_providers.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
 import '../../helpers/long_locale.dart';
+import '../groups/fake_group_repository.dart';
 import 'channels_fakes.dart';
 
 /// Owner 2026-10-20: every channels screen on a 360 dp phone with long
@@ -126,7 +128,19 @@ void main() {
         }
 
         testWidgets('channels list', (tester) async {
-          await pump(tester, const ChannelsScreen(), repo());
+          await pump(
+            tester,
+            const ChannelsScreen(),
+            repo(),
+            extra: [
+              groupRepositoryProvider.overrideWithValue(
+                FakeGroupRepository([listGroup('g1'), listGroup('g2')]),
+              ),
+            ],
+          );
+          // The groups list keeps itself alive a while: let that timer end.
+          await tester.pumpWidget(const SizedBox());
+          await tester.pump(const Duration(minutes: 5));
         });
 
         testWidgets('channel page, reader', (tester) async {

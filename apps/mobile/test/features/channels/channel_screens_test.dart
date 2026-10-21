@@ -16,8 +16,11 @@ import 'package:lawbid/features/channels/presentation/channel_screen.dart';
 import 'package:lawbid/features/channels/presentation/channel_widgets.dart'
     show ChannelsEmpty;
 import 'package:lawbid/features/channels/presentation/channels_screen.dart';
+import 'package:lawbid/features/groups/application/group_providers.dart';
+import 'package:lawbid/features/groups/presentation/widgets/group_chat_tile.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
+import '../groups/fake_group_repository.dart';
 import 'channels_fakes.dart';
 
 /// Owner 2026-10-20: the channel page and the composer as a reader and an
@@ -93,6 +96,33 @@ void main() {
       expect(find.byType(ChannelsEmpty), findsOneWidget);
     });
 
+    // Owner 2026-10-21: the groups I am in live here, under «Groups».
+    testWidgets('my groups show in Subscriptions under their own caption',
+        (tester) async {
+      final repo = FakeChannelsRepository()..listed = [fakeChannel()];
+      await pump(
+        tester,
+        const ChannelsScreen(),
+        repo,
+        extra: [
+          groupRepositoryProvider.overrideWithValue(
+            FakeGroupRepository([listGroup('g1'), listGroup('g2')]),
+          ),
+        ],
+      );
+      expect(
+        find.byKey(const ValueKey('channels-section-channels')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('channels-section-groups')),
+        findsOneWidget,
+      );
+      expect(find.byType(GroupChatTile), findsNWidgets(2));
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(minutes: 5));
+    });
+
     testWidgets('swiping moves between Mine, Subscriptions and Discover',
         (tester) async {
       final repo = FakeChannelsRepository()..listed = [fakeChannel()];
@@ -106,6 +136,8 @@ void main() {
       await tester.drag(find.byType(PageView), const Offset(400, 0));
       await tester.pumpAndSettle();
       expect(repo.calls, contains('list:managed:'));
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(minutes: 5));
     });
   });
 
