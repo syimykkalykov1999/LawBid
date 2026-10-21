@@ -32,6 +32,10 @@ class ChannelDto {
     this.myRole,
     this.lastPostAt,
     this.ongoingCall,
+    this.pinned,
+    this.archived,
+    this.mutedUntil,
+    this.unreadCount,
   });
 
   factory ChannelDto.fromJson(Map<String, Object?> json) =>
@@ -68,6 +72,18 @@ class ChannelDto {
 
   /// Owner 2026-10-21 (Telegram «Видеочат»): the call running in the channel now (subscribers and admins).
   final OngoingCallDto? ongoingCall;
+
+  /// Pinned to the top of my list.
+  final bool? pinned;
+
+  /// In my Channels archive.
+  final bool? archived;
+
+  /// Muted until this moment (isMuted tells whether now).
+  final DateTime? mutedUntil;
+
+  /// Posts I have not read yet (0 when not subscribed).
+  final int? unreadCount;
 
   Map<String, Object?> toJson() => _$ChannelDtoToJson(this);
 }

@@ -458,8 +458,10 @@ export class ChatService {
     if (!this.sideOf(user)) {
       return { waiting: 0, requests: 0, cases: 0, archived: 0 };
     }
-    const [waiting, requests, casesAwaiting, archivedChats, archivedGroups] =
-      await Promise.all([
+    // Owner 2026-10-21: every section has its own archive — groups and
+    // channels are counted on the Channels screen, not here.
+    const [waiting, requests, casesAwaiting, archivedChats] = await Promise.all(
+      [
         this.prisma.conversation.count({
           where: {
             AND: [
@@ -479,21 +481,13 @@ export class ChatService {
             ],
           },
         }),
-        this.prisma.chatGroupMember.count({
-          where: {
-            user_id: user.sub,
-            left_at: null,
-            hidden_at: null,
-            archived_at: { not: null },
-            group: { deleted_at: null, last_message_at: { not: null } },
-          },
-        }),
-      ]);
+      ],
+    );
     return {
       waiting,
       requests: requests.count,
       cases: casesAwaiting,
-      archived: archivedChats + archivedGroups,
+      archived: archivedChats,
     };
   }
 

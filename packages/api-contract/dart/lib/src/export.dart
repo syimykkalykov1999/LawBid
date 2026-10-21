@@ -1174,6 +1174,7 @@ export 'models/update_channel_dto.dart';
 export 'models/channel_subscription_dto.dart';
 export 'models/channel_subscription_envelope.dart';
 export 'models/update_channel_subscription_dto.dart';
+export 'models/update_channel_me_dto.dart';
 export 'models/channel_admin_dto.dart';
 export 'models/channel_admin_list_envelope.dart';
 export 'models/add_channel_admin_dto.dart';

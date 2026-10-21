@@ -178,7 +178,10 @@ export class ChatFolderCountsDto {
       'Owner 2026-10-21: case chats whose last message is the other side’s (waiting for my answer).',
   })
   cases!: number;
-  @ApiProperty({ description: 'Chats and groups in my Archive.' })
+  @ApiProperty({
+    description:
+      'Owner 2026-10-21: chats in my Archive (groups and channels have their own archive on the Channels screen).',
+  })
   archived!: number;
 }
 

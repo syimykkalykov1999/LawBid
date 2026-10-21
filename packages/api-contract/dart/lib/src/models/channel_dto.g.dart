@@ -31,6 +31,12 @@ ChannelDto _$ChannelDtoFromJson(Map<String, dynamic> json) => ChannelDto(
   ongoingCall: json['ongoingCall'] == null
       ? null
       : OngoingCallDto.fromJson(json['ongoingCall'] as Map<String, dynamic>),
+  pinned: json['pinned'] as bool?,
+  archived: json['archived'] as bool?,
+  mutedUntil: json['mutedUntil'] == null
+      ? null
+      : DateTime.parse(json['mutedUntil'] as String),
+  unreadCount: (json['unreadCount'] as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$ChannelDtoToJson(ChannelDto instance) =>
@@ -53,4 +59,8 @@ Map<String, dynamic> _$ChannelDtoToJson(ChannelDto instance) =>
       'lastPostAt': ?instance.lastPostAt?.toIso8601String(),
       'createdAt': instance.createdAt.toIso8601String(),
       'ongoingCall': ?instance.ongoingCall?.toJson(),
+      'pinned': ?instance.pinned,
+      'archived': ?instance.archived,
+      'mutedUntil': ?instance.mutedUntil?.toIso8601String(),
+      'unreadCount': ?instance.unreadCount,
     };

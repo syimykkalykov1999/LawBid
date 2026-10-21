@@ -24,7 +24,7 @@ class ChatFolderCountsDto {
   /// Owner 2026-10-21: case chats whose last message is the other side’s (waiting for my answer).
   final num cases;
 
-  /// Chats and groups in my Archive.
+  /// Owner 2026-10-21: chats in my Archive (groups and channels have their own archive on the Channels screen).
   final num archived;
 
   Map<String, Object?> toJson() => _$ChatFolderCountsDtoToJson(this);

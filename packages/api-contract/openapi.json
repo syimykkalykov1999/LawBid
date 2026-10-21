@@ -59215,6 +59215,15 @@
               "maxLength": 32,
               "type": "string"
             }
+          },
+          {
+            "name": "archived",
+            "required": false,
+            "in": "query",
+            "description": "Owner 2026-10-21: true = only the channels in my archive (any scope); otherwise they are left out of subscribed and managed.",
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -60068,6 +60077,103 @@
           }
         ],
         "summary": "Mute / unmute notifications of a channel",
+        "tags": [
+          "channels"
+        ]
+      }
+    },
+    "/channels/{id}/me": {
+      "patch": {
+        "operationId": "channelUpdateMine",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateChannelMeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChannelEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "My own settings of a channel I follow: mute until, pin, archive, read",
         "tags": [
           "channels"
         ]
@@ -139647,6 +139753,24 @@
                 "$ref": "#/components/schemas/OngoingCallDto"
               }
             ]
+          },
+          "pinned": {
+            "type": "boolean",
+            "description": "Pinned to the top of my list."
+          },
+          "archived": {
+            "type": "boolean",
+            "description": "In my Channels archive."
+          },
+          "mutedUntil": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time",
+            "description": "Muted until this moment (isMuted tells whether now)."
+          },
+          "unreadCount": {
+            "type": "integer",
+            "description": "Posts I have not read yet (0 when not subscribed)."
           }
         },
         "required": [
@@ -139801,6 +139925,29 @@
         "required": [
           "muted"
         ]
+      },
+      "UpdateChannelMeDto": {
+        "type": "object",
+        "properties": {
+          "mutedUntil": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time",
+            "description": "Mute until; null unmutes."
+          },
+          "pinned": {
+            "type": "boolean",
+            "description": "Pin the channel to the top of my list."
+          },
+          "archived": {
+            "type": "boolean",
+            "description": "Move the channel to my Channels archive or back."
+          },
+          "read": {
+            "type": "boolean",
+            "description": "true = every post so far is read."
+          }
+        }
       },
       "ChannelAdminDto": {
         "type": "object",
@@ -152729,7 +152876,7 @@
           },
           "archived": {
             "type": "number",
-            "description": "Chats and groups in my Archive."
+            "description": "Owner 2026-10-21: chats in my Archive (groups and channels have their own archive on the Channels screen)."
           }
         },
         "required": [

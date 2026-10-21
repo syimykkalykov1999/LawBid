@@ -24,6 +24,7 @@ class _ChannelsClient implements ChannelsClient {
   Future<ChannelListEnvelope> channelList({
     String? q,
     String? cursor,
+    bool? archived,
     Scope2? scope = Scope2.discover,
     Map<String, dynamic>? extras,
   }) async {
@@ -32,6 +33,7 @@ class _ChannelsClient implements ChannelsClient {
     final queryParameters = <String, dynamic>{
       r'q': q,
       r'cursor': cursor,
+      r'archived': archived,
       r'scope': scope?.toJson(),
     };
     queryParameters.removeWhere((k, v) => v == null);
@@ -305,6 +307,40 @@ class _ChannelsClient implements ChannelsClient {
     late ChannelSubscriptionEnvelope _value;
     try {
       _value = ChannelSubscriptionEnvelope.fromJson(_result.data!);
+    } on Object catch (e, s) {
+      errorLogger?.logError(e, s, _options, response: _result);
+      rethrow;
+    }
+    return _value;
+  }
+
+  @override
+  Future<ChannelEnvelope> channelUpdateMine({
+    required String id,
+    required UpdateChannelMeDto body,
+    Map<String, dynamic>? extras,
+  }) async {
+    final _extra = <String, dynamic>{};
+    _extra.addAll(extras ?? <String, dynamic>{});
+    final queryParameters = <String, dynamic>{};
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{};
+    final _data = <String, dynamic>{};
+    _data.addAll(body.toJson());
+    final _options = _setStreamType<ChannelEnvelope>(
+      Options(method: 'PATCH', headers: _headers, extra: _extra)
+          .compose(
+            _dio.options,
+            '/channels/${id}/me',
+            queryParameters: queryParameters,
+            data: _data,
+          )
+          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
+    );
+    final _result = await _dio.fetch<Map<String, Object?>>(_options);
+    late ChannelEnvelope _value;
+    try {
+      _value = ChannelEnvelope.fromJson(_result.data!);
     } on Object catch (e, s) {
       errorLogger?.logError(e, s, _options, response: _result);
       rethrow;

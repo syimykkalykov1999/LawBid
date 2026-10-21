@@ -41,6 +41,7 @@ import type {
   CreateChannelDto,
   CreateChannelPostDto,
   UpdateChannelDto,
+  UpdateChannelMeDto,
 } from './channels.dto';
 import { CHANNEL_REACTIONS } from './channels.dto';
 import { UsernamePolicyService } from '../usernames/username-policy.service';
@@ -69,6 +70,10 @@ const notFound = (what = 'Channel') =>
 
 const forbidden = (message: string) =>
   new ForbiddenException({ code: ErrorCode.FORBIDDEN, message });
+
+/** Muted for good, or until a moment still ahead. */
+const isMutedNow = (s: { muted: boolean; muted_until: Date | null }) =>
+  s.muted || (s.muted_until !== null && s.muted_until > new Date());
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -112,36 +117,75 @@ export class ChannelsService {
 
   // ── channels ─────────────────────────────────────────────────────────
 
-  /** GET /channels?scope=&q= */
+  /** GET /channels?scope=&q=&archived= */
   async list(
     user: RequestUser,
     scope: 'discover' | 'subscribed' | 'managed' = 'discover',
     q?: string,
     cursor?: string,
+    archived = false,
   ): Promise<ChannelPage<ChannelDto>> {
     await this.assertEnabled();
     const me = user.sub;
     let rows: Channel[];
-    if (scope === 'subscribed') {
+    const byActivity = (a: Channel, b: Channel) =>
+      (b.last_post_at ?? b.created_at).getTime() -
+      (a.last_post_at ?? a.created_at).getTime();
+    if (archived && scope !== 'discover') {
+      // Owner 2026-10-21: the Channels section's own archive.
       const subs = await this.prisma.channelSubscription.findMany({
-        where: { user_id: me, channel: { status: { not: 'banned' } } },
+        where: {
+          user_id: me,
+          archived_at: { not: null },
+          channel: { status: { not: 'banned' } },
+        },
         select: { channel: true },
         take: LIST_MAX,
       });
-      rows = subs.map((s) => s.channel);
-      rows.sort(
+      rows = subs.map((s) => s.channel).sort(byActivity);
+    } else if (scope === 'subscribed') {
+      const subs = await this.prisma.channelSubscription.findMany({
+        where: {
+          user_id: me,
+          archived_at: null,
+          channel: { status: { not: 'banned' } },
+        },
+        select: { channel: true, pinned: true },
+        take: LIST_MAX,
+      });
+      // Telegram: pinned first, then the newest post.
+      subs.sort(
         (a, b) =>
-          (b.last_post_at ?? b.created_at).getTime() -
-          (a.last_post_at ?? a.created_at).getTime(),
+          Number(b.pinned) - Number(a.pinned) ||
+          byActivity(a.channel, b.channel),
       );
+      rows = subs.map((s) => s.channel);
     } else if (scope === 'managed') {
       const adm = await this.prisma.channelAdmin.findMany({
         where: { user_id: me },
         select: { channel: true },
         take: LIST_MAX,
       });
-      rows = adm.map((a) => a.channel);
-      rows.sort((a, b) => b.created_at.getTime() - a.created_at.getTime());
+      const mine = new Map(
+        (
+          await this.prisma.channelSubscription.findMany({
+            where: {
+              user_id: me,
+              channel_id: { in: adm.map((a) => a.channel.id) },
+            },
+            select: { channel_id: true, pinned: true, archived_at: true },
+          })
+        ).map((s) => [s.channel_id, s]),
+      );
+      const pinned = (c: Channel) => Number(mine.get(c.id)?.pinned ?? false);
+      rows = adm
+        .map((a) => a.channel)
+        .filter((c) => !mine.get(c.id)?.archived_at)
+        .sort(
+          (a, b) =>
+            pinned(b) - pinned(a) ||
+            b.created_at.getTime() - a.created_at.getTime(),
+        );
     } else {
       const term = (q ?? '').trim().replace(/^@/, '');
       if (!term) return this.recommended(me, cursor);
@@ -364,10 +408,42 @@ export class ChannelsService {
     const ch = await this.findReadable(user.sub, id);
     const { count } = await this.prisma.channelSubscription.updateMany({
       where: { channel_id: ch.id, user_id: user.sub },
-      data: { muted },
+      // On or off for good: a timed mute ends with either.
+      data: { muted, muted_until: null },
     });
     if (count === 0) throw notFound('Subscription');
     return this.subscription(ch.id, user.sub);
+  }
+
+  /**
+   * PATCH /channels/:id/me — owner 2026-10-21 (Telegram): my own mute
+   * (until a moment), pin, archive and «read» of a channel I follow.
+   */
+  async updateMine(
+    user: RequestUser,
+    id: string,
+    dto: UpdateChannelMeDto,
+  ): Promise<ChannelDto> {
+    await this.assertEnabled();
+    const ch = await this.findReadable(user.sub, id);
+    const data: Prisma.ChannelSubscriptionUpdateManyMutationInput = {};
+    if (dto.mutedUntil !== undefined) {
+      data.muted = false;
+      data.muted_until =
+        dto.mutedUntil === null ? null : new Date(dto.mutedUntil);
+    }
+    if (dto.pinned !== undefined) data.pinned = dto.pinned;
+    if (dto.archived !== undefined) {
+      data.archived_at = dto.archived ? new Date() : null;
+    }
+    if (dto.read === true) data.last_read_at = new Date();
+    const { count } = await this.prisma.channelSubscription.updateMany({
+      where: { channel_id: ch.id, user_id: user.sub },
+      data,
+    });
+    if (count === 0) throw notFound('Subscription');
+    const [out] = await this.presentChannels([ch], user.sub);
+    return out;
   }
 
   private async subscription(
@@ -387,7 +463,7 @@ export class ChannelsService {
     ]);
     return {
       isSubscribed: sub !== null,
-      isMuted: sub?.muted ?? false,
+      isMuted: sub ? isMutedNow(sub) : false,
       subscriberCount: ch?.subscriber_count ?? 0,
     };
   }
@@ -1065,12 +1141,15 @@ export class ChannelsService {
   /** Tells every subscriber who has not muted the channel, in batches. */
   private async fanout(channel: Channel, post: ChannelPost): Promise<void> {
     const hidden = await this.blocks.hiddenIds(post.author_id);
+    const now = new Date();
     let after: string | undefined;
     for (;;) {
       const subs = await this.prisma.channelSubscription.findMany({
         where: {
           channel_id: channel.id,
           muted: false,
+          // Owner 2026-10-21: a timed mute is over once its moment passed.
+          OR: [{ muted_until: null }, { muted_until: { lte: now } }],
           user_id: { notIn: [...hidden, post.author_id] },
         },
         orderBy: { user_id: 'asc' },
@@ -1111,17 +1190,37 @@ export class ChannelsService {
   ): Promise<ChannelDto[]> {
     if (rows.length === 0) return [];
     const ids = rows.map((r) => r.id);
-    const [briefs, avatars, subs, roles] = await Promise.all([
+    const [briefs, avatars, subs, roles, unread] = await Promise.all([
       this.briefs.many(rows.map((r) => r.owner_id)),
       this.files.avatarUrlsMany(rows.map((r) => r.avatar_file_id)),
       this.prisma.channelSubscription.findMany({
         where: { user_id: viewerId, channel_id: { in: ids } },
-        select: { channel_id: true, muted: true },
+        select: {
+          channel_id: true,
+          muted: true,
+          muted_until: true,
+          pinned: true,
+          archived_at: true,
+        },
       }),
       this.prisma.channelAdmin.findMany({
         where: { user_id: viewerId, channel_id: { in: ids } },
         select: { channel_id: true, role: true },
       }),
+      // Owner 2026-10-21: posts after my «read up to» (else since I
+      // subscribed), not my own — one query for the whole list.
+      this.prisma.$queryRaw<{ channel_id: string; n: number }[]>`
+        SELECT s.channel_id::TEXT AS channel_id, COUNT(p.id)::INT AS n
+        FROM channel_subscriptions s
+        JOIN channel_posts p
+          ON p.channel_id = s.channel_id
+         AND p.created_at > COALESCE(s.last_read_at, s.created_at)
+         AND p.status = 'active'
+         AND p.deleted_at IS NULL
+         AND p.author_id <> s.user_id
+        WHERE s.user_id = ${viewerId}::UUID
+          AND s.channel_id = ANY(${ids}::UUID[])
+        GROUP BY s.channel_id`,
     ]);
     const subBy = new Map(subs.map((s) => [s.channel_id, s]));
     const roleBy = new Map(roles.map((r) => [r.channel_id, r.role]));
@@ -1133,10 +1232,12 @@ export class ChannelsService {
         channelIds: ids.filter((id) => subBy.has(id) || roleBy.has(id)),
       },
     );
+    const unreadBy = new Map(unread.map((u) => [u.channel_id, u.n]));
     return rows.flatMap((r) => {
       const owner = briefs.get(r.owner_id);
       if (!owner) return [];
       const role = (roleBy.get(r.id) as ChannelRole | undefined) ?? null;
+      const sub = subBy.get(r.id);
       return [
         {
           id: r.id,
@@ -1156,12 +1257,16 @@ export class ChannelsService {
           subscriberCount: r.subscriber_count,
           postCount: r.post_count,
           owner,
-          isSubscribed: subBy.has(r.id),
-          isMuted: subBy.get(r.id)?.muted ?? false,
+          isSubscribed: !!sub,
+          isMuted: sub ? isMutedNow(sub) : false,
           myRole: role,
           lastPostAt: r.last_post_at ? r.last_post_at.toISOString() : null,
           createdAt: r.created_at.toISOString(),
           ongoingCall: calls.get(r.id) ?? null,
+          pinned: sub?.pinned ?? false,
+          archived: !!sub?.archived_at,
+          mutedUntil: sub?.muted_until ? sub.muted_until.toISOString() : null,
+          unreadCount: unreadBy.get(r.id) ?? 0,
         },
       ];
     });

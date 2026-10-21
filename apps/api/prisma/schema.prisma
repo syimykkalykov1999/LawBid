@@ -6059,13 +6059,21 @@ model ChannelAdmin {
 }
 
 model ChannelSubscription {
-  channel_id String   @db.Uuid
-  channel    Channel  @relation(fields: [channel_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "channel_subscriptions_channel_fkey")
-  user_id    String   @db.Uuid
-  user       User     @relation("ChannelSubscriber", fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "channel_subscriptions_user_fkey")
-  /// No notifications from this channel.
-  muted      Boolean  @default(false)
-  created_at DateTime @default(now()) @db.Timestamptz
+  channel_id   String    @db.Uuid
+  channel      Channel   @relation(fields: [channel_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "channel_subscriptions_channel_fkey")
+  user_id      String    @db.Uuid
+  user         User      @relation("ChannelSubscriber", fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "channel_subscriptions_user_fkey")
+  /// No notifications from this channel (forever).
+  muted        Boolean   @default(false)
+  /// Owner 2026-10-21 (Telegram): no notifications until this moment.
+  muted_until  DateTime? @db.Timestamptz
+  /// Pinned to the top of my Channels list.
+  pinned       Boolean   @default(false)
+  /// In my Channels archive (the section's own archive) since.
+  archived_at  DateTime? @db.Timestamptz
+  /// Posts after this moment (else after created_at) are unread.
+  last_read_at DateTime? @db.Timestamptz
+  created_at   DateTime  @default(now()) @db.Timestamptz
 
   @@id([channel_id, user_id])
   @@index([user_id, created_at(sort: Desc)], map: "channel_subscriptions_user_idx")

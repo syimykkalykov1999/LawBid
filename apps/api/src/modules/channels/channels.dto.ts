@@ -6,6 +6,7 @@ import {
   IsArray,
   IsBoolean,
   IsIn,
+  IsISO8601,
   IsInt,
   IsOptional,
   IsString,
@@ -15,6 +16,7 @@ import {
   MaxLength,
   Min,
   MinLength,
+  ValidateIf,
 } from 'class-validator';
 import { UserBriefDto } from '../user-brief/user-brief.dto';
 import { PostVideoDto } from '../videos/videos.dto';
@@ -111,6 +113,27 @@ export class ChannelDto {
       'Owner 2026-10-21 (Telegram «Видеочат»): the call running in the channel now (subscribers and admins).',
   })
   ongoingCall?: OngoingCallDto | null;
+
+  /** Owner 2026-10-21 (Telegram): my own settings of the channel. */
+  @ApiPropertyOptional({ description: 'Pinned to the top of my list.' })
+  pinned?: boolean;
+
+  @ApiPropertyOptional({ description: 'In my Channels archive.' })
+  archived?: boolean;
+
+  @ApiPropertyOptional({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    description: 'Muted until this moment (isMuted tells whether now).',
+  })
+  mutedUntil?: string | null;
+
+  @ApiPropertyOptional({
+    type: 'integer',
+    description: 'Posts I have not read yet (0 when not subscribed).',
+  })
+  unreadCount?: number;
 }
 
 export class ChannelListQueryDto {
@@ -136,6 +159,21 @@ export class ChannelListQueryDto {
   @IsString()
   @MaxLength(32)
   cursor?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Owner 2026-10-21: true = only the channels in my archive (any scope); otherwise they are left out of subscribed and managed.',
+  })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === 'true' || value === true
+      ? true
+      : value === 'false' || value === false
+        ? false
+        : value,
+  )
+  @IsBoolean()
+  archived?: boolean;
 }
 
 export class CreateChannelDto {
@@ -360,6 +398,39 @@ export class UpdateChannelSubscriptionDto {
   @ApiProperty()
   @IsBoolean()
   muted!: boolean;
+}
+
+/** Owner 2026-10-21 (Telegram): my own settings of a channel I follow. */
+export class UpdateChannelMeDto {
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    format: 'date-time',
+    description: 'Mute until; null unmutes.',
+  })
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsISO8601()
+  mutedUntil?: string | null;
+
+  @ApiPropertyOptional({
+    description: 'Pin the channel to the top of my list.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  pinned?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Move the channel to my Channels archive or back.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  archived?: boolean;
+
+  @ApiPropertyOptional({ description: 'true = every post so far is read.' })
+  @IsOptional()
+  @IsBoolean()
+  read?: boolean;
 }
 
 export class ChannelCommentDto {

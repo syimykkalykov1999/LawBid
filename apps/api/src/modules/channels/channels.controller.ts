@@ -52,6 +52,7 @@ import {
   CreateChannelDto,
   CreateChannelPostDto,
   UpdateChannelDto,
+  UpdateChannelMeDto,
   UpdateChannelPostDto,
   UpdateChannelSubscriptionDto,
 } from './channels.dto';
@@ -77,7 +78,13 @@ export class ChannelsController {
     @CurrentUser() user: RequestUser,
     @Query() q: ChannelListQueryDto,
   ): Promise<ChannelPage<ChannelDto>> {
-    return this.channels.list(user, q.scope, q.q, q.cursor);
+    return this.channels.list(
+      user,
+      q.scope,
+      q.q,
+      q.cursor,
+      q.archived === true,
+    );
   }
 
   @Post()
@@ -184,6 +191,21 @@ export class ChannelsController {
     @Body() dto: UpdateChannelSubscriptionDto,
   ): Promise<ChannelSubscriptionDto> {
     return this.channels.mute(user, p.id, dto.muted);
+  }
+
+  @Patch(':id/me')
+  @ApiOperation({
+    summary:
+      'My own settings of a channel I follow: mute until, pin, archive, read',
+  })
+  @ApiEnvelopeResponse(ChannelDto)
+  @ApiErrors({ 404: [E.NOT_FOUND] })
+  channelUpdateMine(
+    @CurrentUser() user: RequestUser,
+    @Param() p: ChannelIdParamDto,
+    @Body() dto: UpdateChannelMeDto,
+  ): Promise<ChannelDto> {
+    return this.channels.updateMine(user, p.id, dto);
   }
 
   @Get(':id/admins')

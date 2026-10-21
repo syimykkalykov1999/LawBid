@@ -22,6 +22,7 @@ import '../models/create_channel_post_dto.dart';
 import '../models/create_video_upload_dto.dart';
 import '../models/scope2.dart';
 import '../models/update_channel_dto.dart';
+import '../models/update_channel_me_dto.dart';
 import '../models/update_channel_post_dto.dart';
 import '../models/update_channel_subscription_dto.dart';
 import '../models/video_upload_envelope.dart';
@@ -37,10 +38,13 @@ abstract class ChannelsClient {
   /// [q] - Title or @username.
   ///
   /// [cursor] - Discover without q: opaque cursor of the ranked list.
+  ///
+  /// [archived] - Owner 2026-10-21: true = only the channels in my archive (any scope); otherwise they are left out of subscribed and managed.
   @GET('/channels')
   Future<ChannelListEnvelope> channelList({
     @Query('q') String? q,
     @Query('cursor') String? cursor,
+    @Query('archived') bool? archived,
     @Query('scope') Scope2? scope = Scope2.discover,
     @Extras() Map<String, dynamic>? extras,
   });
@@ -102,6 +106,14 @@ abstract class ChannelsClient {
   Future<ChannelSubscriptionEnvelope> channelMute({
     @Path('id') required String id,
     @Body() required UpdateChannelSubscriptionDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// My own settings of a channel I follow: mute until, pin, archive, read
+  @PATCH('/channels/{id}/me')
+  Future<ChannelEnvelope> channelUpdateMine({
+    @Path('id') required String id,
+    @Body() required UpdateChannelMeDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 
