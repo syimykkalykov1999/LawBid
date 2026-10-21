@@ -1025,6 +1025,17 @@ export class CallsService {
    * call to them like any other). */
   private async assertMayCall(inviterId: string, inviteeId: string) {
     await this.privacy?.assertAllowed(inviterId, inviteeId, 'call');
+    // Owner 2026-10-21: no ringing or adding a stranger into a call — they
+    // go through «Requests» first (an accepted chat or the phone book).
+    if (
+      this.privacy &&
+      !(await this.privacy.isConnected(inviterId, inviteeId))
+    ) {
+      throw new ForbiddenException({
+        code: ErrorCode.CALL_NOT_ALLOWED,
+        message: 'Write first and wait for the request to be accepted.',
+      });
+    }
   }
 
   private async resolveInvitee(dto: InviteCallDto): Promise<string | null> {
