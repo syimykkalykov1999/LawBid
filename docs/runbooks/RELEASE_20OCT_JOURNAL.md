@@ -75,3 +75,5 @@
   - 96f915f2: лимит job тестов в `.github/workflows/mobile-ci.yml` 25 → 40 мин. Продукт не менялся. **Решение принято самостоятельно** (правка CI минимальным диффом).
   - `RELEASE_20OCT_FILES.md`: добавлены сам файл и `mobile-ci.yml`, 227 файлов.
   - Дальше: CI на новой голове, финальный список.
+
+- **2026-10-21 terminal: CI зелёный на b78645ed.** API CI, Mobile CI (тесты + сборки Android/iOS/Web), admin-ci, CodeQL, Secret scan, Container scan — success. API e2e `owner-attorney-trust` один раз не уложился в 45 с на медленном runner (тот же код зелёный на 82b9c893), после одного перезапуска job зелёный. Inbox пуст. Файлов после 60ae65d8: 227 (`RELEASE_20OCT_FILES.md`). Финальный список выдан владельцу.
