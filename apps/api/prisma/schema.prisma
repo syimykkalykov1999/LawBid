@@ -771,6 +771,10 @@ model User {
   /// sign-in and when it changes). Repeating tasks and the daily
   /// reminders follow this local clock; null = the quiet-hours zone, else UTC.
   timezone                 String?                 @db.VarChar(64)
+  /// Owner 2026-10-21 (inbox 29): «Счётчик на иконке в меню» — the unread
+  /// number on the app icon (home screen). Off: pushes carry badge 0 and
+  /// the app clears the icon; notifications still arrive.
+  notif_icon_badge         Boolean                 @default(true)
   /// Owner 2026-10-15: do not show like counters under other people's posts.
   hide_like_counts         Boolean                 @default(false)
   theme                    ThemePref               @default(system)

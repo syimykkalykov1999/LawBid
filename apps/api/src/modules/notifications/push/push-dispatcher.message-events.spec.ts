@@ -56,7 +56,10 @@ function setup(opts: { lastReadAt?: Date } = {}) {
     },
     {} as never,
     {} as never,
-    { get: () => Promise.resolve({ total: 3 }) } as never,
+    {
+      get: () => Promise.resolve({ total: 3 }),
+      forIcon: () => Promise.resolve(3),
+    } as never,
     { isViewing: () => Promise.resolve(false) } as never,
     { setContext: () => undefined } as never,
   );

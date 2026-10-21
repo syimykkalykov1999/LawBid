@@ -25,6 +25,7 @@ import {
   DeletePushTokenDto,
   NewCaseAlertsDto,
   NotificationDto,
+  IconBadgeDto,
   NotificationSettingsDto,
   NotificationsQueryDto,
   PushTokenDto,
@@ -85,10 +86,15 @@ export class NotificationsApiController {
   @Get('badges')
   @ApiOperation({ summary: 'Unread chats + notifications (§10)' })
   @ApiEnvelopeResponse(BadgesDto)
-  getBadges(@CurrentUser() user: RequestUser): Promise<Badges> {
-    return user.assistant
-      ? this.badges.forAssistant(user.sub, user.assistant.userId)
-      : this.badges.get(user.sub);
+  async getBadges(@CurrentUser() user: RequestUser): Promise<Badges> {
+    // Owner 2026-10-21: the icon switch is the device owner's own.
+    const me = user.assistant?.userId ?? user.sub;
+    return this.badges.withIcon(
+      me,
+      user.assistant
+        ? await this.badges.forAssistant(user.sub, user.assistant.userId)
+        : await this.badges.get(user.sub),
+    );
   }
 
   // OQ-048: an assistant has their own notifications and devices.
@@ -158,6 +164,16 @@ export class NotificationsApiController {
   @ApiErrors({ 400: [ErrorCode.VALIDATION_ERROR] })
   setQuietHours(@CurrentUser() user: RequestUser, @Body() dto: QuietHoursDto) {
     return this.api.setQuietHours(user.sub, dto);
+  }
+
+  // Owner 2026-10-21 (inbox 29): «Счётчик на иконке в меню».
+  @AssistantSelf()
+  @Put('notification-settings/icon-badge')
+  @ApiOperation({ summary: 'Unread number on the app icon on/off' })
+  @ApiEnvelopeResponse(NotificationSettingsDto)
+  @ApiErrors({ 400: [ErrorCode.VALIDATION_ERROR] })
+  setIconBadge(@CurrentUser() user: RequestUser, @Body() dto: IconBadgeDto) {
+    return this.api.setIconBadge(user.sub, dto.enabled);
   }
 
   // OQ-048: an assistant has their own notifications and devices.

@@ -459,7 +459,7 @@ export class PushDispatcher
         .join(' ');
       if (caller) shown = { title: caller, body: text.title };
     }
-    const badge = (await this.badges.get(n.user_id)).total;
+    const badge = await this.badges.forIcon(n.user_id);
     await this.sender.send(
       {
         userId: n.user_id,
@@ -621,7 +621,7 @@ export class PushDispatcher
         return 'deferred';
       }
     }
-    const badge = (await this.badges.get(data.recipientId)).total;
+    const badge = await this.badges.forIcon(data.recipientId);
     await this.sender.send(
       {
         userId: data.recipientId,
@@ -746,7 +746,7 @@ export class PushDispatcher
         ? 'Помощник адвоката: '
         : "Attorney's assistant: "
       : '';
-    const badge = (await this.badges.get(data.recipientId)).total;
+    const badge = await this.badges.forIcon(data.recipientId);
     let body = from + (preview || text.body);
     let collapseKey: string | undefined;
     let dedupeKey = `m:${data.messageId}`;

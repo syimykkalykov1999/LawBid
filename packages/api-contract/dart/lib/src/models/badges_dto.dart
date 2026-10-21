@@ -12,6 +12,7 @@ class BadgesDto {
     required this.chatsUnread,
     required this.notificationsUnread,
     required this.total,
+    this.iconBadge,
   });
 
   factory BadgesDto.fromJson(Map<String, Object?> json) =>
@@ -20,6 +21,9 @@ class BadgesDto {
   final num chatsUnread;
   final num notificationsUnread;
   final num total;
+
+  /// Owner 2026-10-21: false = keep the app icon clear (the user switched the icon counter off).
+  final bool? iconBadge;
 
   Map<String, Object?> toJson() => _$BadgesDtoToJson(this);
 }

@@ -1752,6 +1752,7 @@ export 'models/new_case_alerts_dto.dart';
 export 'models/new_case_alerts_envelope.dart';
 export 'models/update_new_case_alerts_dto.dart';
 export 'models/timezone_dto.dart';
+export 'models/icon_badge_dto.dart';
 export 'models/push_token_dto.dart';
 export 'models/armed_reminders_dto.dart';
 export 'models/voip_token_dto.dart';
