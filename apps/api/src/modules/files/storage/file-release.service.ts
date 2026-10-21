@@ -6,7 +6,13 @@ import { S3StorageService } from './s3-storage.service';
 
 /** Why a file row was deleted (files.deleted_reason). */
 export type FileDeleteReason =
-  'orphan' | 'released' | 'account_deleted' | 'task_purged' | 'expired';
+  | 'orphan'
+  | 'released'
+  | 'account_deleted'
+  | 'task_purged'
+  | 'expired'
+  // Owner 2026-10-21: the chat message it belonged to disappeared.
+  | 'disappeared';
 
 /** S3 DeleteObjects takes at most 1000 keys; a file is up to 4 objects. */
 const KEYS_PER_CALL = 1000;

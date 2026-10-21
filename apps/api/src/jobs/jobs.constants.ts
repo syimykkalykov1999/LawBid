@@ -61,6 +61,8 @@ export const CRON_JOBS = {
   opsQueueMetrics: 'ops.queue-metrics',
   /** docs/06 §8: business counters for the Grafana dashboard. */
   opsBusinessMetrics: 'ops.business-metrics',
+  /** Owner 2026-10-21: disappearing messages past expires_at → deleted. */
+  disappearingSweep: 'chat.disappearing',
   /** OQ-041: unanswered calls → missed, abandoned ones → ended. */
   callsSweep: 'calls.sweep',
   /** Owner 2026-09-30: undecided client-review appeals → removed. */
@@ -175,6 +177,7 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.opsQueueMetrics, pattern: '* * * * *' },
   { name: CRON_JOBS.opsBusinessMetrics, pattern: '*/10 * * * *' },
   { name: CRON_JOBS.callsSweep, pattern: '* * * * *' },
+  { name: CRON_JOBS.disappearingSweep, pattern: '*/2 * * * *' },
   { name: CRON_JOBS.reviewAppealsSweep, pattern: '40 * * * *' },
   { name: CRON_JOBS.videosSweep, pattern: '* * * * *' },
   { name: CRON_JOBS.promotionsExpire, pattern: '2-57/5 * * * *' },

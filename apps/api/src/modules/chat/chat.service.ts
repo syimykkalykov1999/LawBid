@@ -35,6 +35,7 @@ import {
   typedWords,
 } from '../../common/search/name-match.sql';
 import { PrismaService } from '../../prisma/prisma.service';
+import { randomUUID } from 'node:crypto';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { BlocksService } from '../blocks/blocks.service';
@@ -66,6 +67,7 @@ import {
 } from './chat.dto';
 import { MessageBodyCipher } from '../../common/secrets/message-body-cipher';
 import { loadMessageExtras, type MessageExtras } from './chat-message-extras';
+import { expiresAtFor, notExpired } from './disappearing';
 import { touchClientActive } from '../cases/cases.public';
 
 const CONVERSATIONS_PAGE = 20;
@@ -529,9 +531,14 @@ export class ChatService {
           conversation_id: id,
           deleted_at: null,
           hidden_for: { none: { user_id: user.sub } },
-          OR: [
-            { created_at: { gt: anchor.created_at } },
-            { created_at: anchor.created_at, id: { gt: anchor.id } },
+          AND: [
+            notExpired(),
+            {
+              OR: [
+                { created_at: { gt: anchor.created_at } },
+                { created_at: anchor.created_at, id: { gt: anchor.id } },
+              ],
+            },
           ],
         },
         orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
@@ -550,14 +557,19 @@ export class ChatService {
         deleted_at: null,
         hidden_for: { none: { user_id: user.sub } },
         ...(only ? { type: only } : {}),
-        ...(c
-          ? {
-              OR: [
-                { created_at: { lt: c.createdAt } },
-                { created_at: c.createdAt, id: { lt: c.id } },
-              ],
-            }
-          : {}),
+        AND: [
+          notExpired(),
+          ...(c
+            ? [
+                {
+                  OR: [
+                    { created_at: { lt: c.createdAt } },
+                    { created_at: c.createdAt, id: { lt: c.id } },
+                  ],
+                },
+              ]
+            : []),
+        ],
       },
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
       take: MESSAGES_PAGE + 1,
@@ -909,8 +921,12 @@ export class ChatService {
         // Serializes with the file-04 transactions that close the chat or
         // unlock contacts.
         const [locked] = await tx.$queryRaw<
-          { status: string; contacts_unlocked: boolean }[]
-        >`SELECT status, contacts_unlocked FROM conversations
+          {
+            status: string;
+            contacts_unlocked: boolean;
+            disappear_after_s: number | null;
+          }[]
+        >`SELECT status, contacts_unlocked, disappear_after_s FROM conversations
             WHERE id = ${id}::UUID FOR UPDATE`;
         if (!locked || locked.status === 'closed') throw closed();
         if (attachment && !locked.contacts_unlocked) {
@@ -958,6 +974,8 @@ export class ChatService {
             contact_masked: masked.masked,
             client_message_id: dto.clientMessageId,
             reply_to_id: replyToId,
+            // Owner 2026-10-21: disappearing messages.
+            expires_at: expiresAtFor(locked.disappear_after_s),
             forwarded: dto.forwarded === true,
             forwarded_from_name: dto.forwardedFromName ?? null,
             ...(voice
@@ -1452,6 +1470,70 @@ export class ChatService {
     return dto;
   }
 
+  /**
+   * PATCH …/disappearing (owner 2026-10-21, WhatsApp): either side of a
+   * direct chat switches the timer for new messages (null = off). Case chats
+   * keep their history (the case journal and the attorney's file rely on it),
+   * and a chat that is only a request cannot change it yet. A service line
+   * «X turned on disappearing messages: 7 days» is posted for both sides.
+   */
+  async setDisappearing(
+    user: RequestUser,
+    id: string,
+    afterS: number | null,
+  ): Promise<ConversationDto> {
+    const conv = await this.load(user, id);
+    if (conv.case_id !== null || conv.request_status === 'pending') {
+      throw new ForbiddenException({
+        code: ErrorCode.FORBIDDEN,
+        message: 'Disappearing messages are not available in this chat.',
+      });
+    }
+    if (conv.status === 'closed') throw closed();
+    if (conv.disappear_after_s === afterS) {
+      return (await this.present([conv], user.sub))[0];
+    }
+    const body = afterS ? `disappear:${afterS}` : 'disappear_off';
+    const { message, updated } = await withTxRetry(this.prisma, async (tx) => {
+      const updated = await tx.conversation.update({
+        where: { id },
+        data: { disappear_after_s: afterS },
+      });
+      // The line carries the actor (sender); it never expires itself.
+      const message = await tx.message.create({
+        data: {
+          conversation_id: id,
+          sender_id: user.sub,
+          type: 'system',
+          body_original: body,
+          body_display: body,
+          client_message_id: `system:disappear:${randomUUID()}`,
+        },
+      });
+      await tx.conversation.update({
+        where: { id },
+        data: {
+          last_message_at: message.created_at,
+          last_message_id: message.id,
+        },
+      });
+      await tx.conversationParticipant.updateMany({
+        where: { conversation_id: id, hidden_at: { not: null } },
+        data: { hidden_at: null },
+      });
+      return { message, updated };
+    });
+    for (const uid of [updated.client_id, updated.attorney_id]) {
+      this.realtime.toUsers([uid], 'message:new', {
+        message: this.toMessage(message, uid, updated),
+      });
+      this.realtime.toUsers([uid], 'conversation:update', {
+        conversationId: id,
+      });
+    }
+    return (await this.present([updated], user.sub))[0];
+  }
+
   private sideOf(user: RequestUser): 'client_id' | 'attorney_id' | null {
     return user.role === 'client'
       ? 'client_id'
@@ -1790,6 +1872,7 @@ export class ChatService {
       contactMasked: m.contact_masked,
       clientMessageId: m.sender_id === viewerId ? m.client_message_id : null,
       createdAt: m.created_at,
+      expiresAt: m.expires_at,
     };
   }
 
@@ -1965,6 +2048,7 @@ export class ChatService {
         lastMessage: last ? this.toMessage(last, viewerId, c) : null,
         lastMessageAt: c.last_message_at,
         unreadCount: unreadOf.get(c.id) ?? 0,
+        disappearAfterS: c.disappear_after_s,
         mutedUntil: partOf.get(`${c.id}:${viewerId}`)?.muted_until ?? null,
         callsMuted: partOf.get(`${c.id}:${viewerId}`)?.calls_muted ?? false,
         counterpartLastReadMessageId: seenHidden

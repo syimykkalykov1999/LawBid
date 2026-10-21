@@ -2347,6 +2347,10 @@ model Conversation {
   pair_kind         ChatPairKind         @default(attorney_client)
   requester         User?                @relation("ConversationRequester", fields: [requested_by], references: [id], onDelete: Restrict, onUpdate: NoAction)
   last_message_at   DateTime?            @db.Timestamptz
+  /// Owner 2026-10-21 (WhatsApp «Disappearing messages»): new messages live
+  /// this many seconds (24 h / 7 d / 90 d); null = off. Only messages sent
+  /// after it was switched on carry an `expires_at`.
+  disappear_after_s Int?
   // Bare uuid: an FK here would make conversations <-> messages a cycle
   // on every insert; it's a denormalized pointer for the chat list.
   last_message_id   String?              @db.Uuid
@@ -2528,6 +2532,11 @@ model Message {
   gift_send             GiftSend?          @relation(fields: [gift_send_id], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "messages_gift_send_fkey")
   saved_by              SavedChatMessage[]
   deleted_at            DateTime?          @db.Timestamptz
+  /// Owner 2026-10-21: disappearing messages — the hour the message goes
+  /// (conversation.disappear_after_s at send time). A nightly-fast sweep
+  /// marks it deleted_at (so the 90-day legal retention applies); null =
+  /// stays. Partial index messages_expiry_idx is raw SQL.
+  expires_at            DateTime?          @db.Timestamptz
   // Owner 2026-10-20 (WhatsApp/Telegram): edited within chat.edit_window_min;
   // "deleted for everyone" within chat.delete_for_all_hours (the bubble
   // stays as "Message deleted"; the texts are scrubbed from the display
@@ -2676,6 +2685,9 @@ model ChatGroup {
   who_can_call          GroupWho  @default(admins)
   /// Telegram's «hide service messages»: created / joined / left / renamed lines.
   show_service_messages Boolean   @default(true)
+  /// Owner 2026-10-21: disappearing messages (24 h / 7 d / 90 d); null = off.
+  /// Who may change it follows `who_can_edit_info` (WhatsApp).
+  disappear_after_s     Int?
   /// Telegram's member permissions beyond post / add / edit-info / call.
   who_can_media         GroupWho  @default(all)
   who_can_poll          GroupWho  @default(all)
@@ -2758,6 +2770,8 @@ model ChatGroupMessage {
   file_name         String?
   edited_at         DateTime?          @db.Timestamptz
   deleted_at        DateTime?          @db.Timestamptz
+  /// Owner 2026-10-21: disappearing messages — see messages.expires_at.
+  expires_at        DateTime?          @db.Timestamptz
   created_at        DateTime           @default(now()) @db.Timestamptz
   poll              ChatGroupPoll?
 

@@ -351,6 +351,7 @@ export class GroupPresenter {
         editedAt: m.edited_at,
         deleted,
         createdAt: m.created_at,
+        expiresAt: m.expires_at,
       };
     });
   }
@@ -420,6 +421,7 @@ export class GroupPresenter {
         whoCanEditInfo: g.who_can_edit_info,
         whoCanCall: g.who_can_call,
         showServiceMessages: g.show_service_messages,
+        disappearAfterS: g.disappear_after_s,
         whoCanMedia: g.who_can_media,
         whoCanPoll: g.who_can_poll,
         whoCanPin: g.who_can_pin,
