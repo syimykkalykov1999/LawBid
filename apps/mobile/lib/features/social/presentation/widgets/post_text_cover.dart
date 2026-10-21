@@ -179,15 +179,9 @@ class PostTextCover extends ConsumerWidget {
     // text scale or language).
     Widget body(BoxConstraints box) {
       final width = box.maxWidth.isFinite ? box.maxWidth : 170.0;
-      final widthFactor = (width / (compact ? 110 : 160)).clamp(0.8, 1.25);
-      final base = switch (title.characters.length) {
-        <= 6 => compact ? 19.0 : 28.0,
-        <= 14 => compact ? 17.0 : 24.0,
-        <= 32 => compact ? 14.0 : 19.0,
-        <= 64 => compact ? 12.5 : 16.5,
-        _ => compact ? 11.5 : 15.0,
-      };
-      final size = base * widthFactor;
+      // Owner 2026-10-21 (Instagram): the caption's one regular size, a
+      // short text or emoji never grow.
+      final size = type.body.fontSize!;
       final titleLine = scaler.scale(size) * 1.18;
       final h = box.maxHeight.isFinite ? box.maxHeight : 160.0;
       final quoteSize = scaler.scale(compact ? 22 : 30) * 0.8;
@@ -195,7 +189,7 @@ class PostTextCover extends ConsumerWidget {
       final quote = showQuote ? quoteSize : 0.0;
       final titleLines =
           math.max(1, math.min(compact ? 4 : 5, (h - quote) ~/ titleLine));
-      final excerptLine = scaler.scale(12) * 1.35;
+      final excerptLine = scaler.scale(size) * 1.35;
       final usedByTitle = math.min(
         titleLines * titleLine,
         // A short title takes fewer lines than allowed.
@@ -244,8 +238,7 @@ class PostTextCover extends ConsumerWidget {
                   rest,
                   maxLines: excerptLines,
                   overflow: TextOverflow.ellipsis,
-                  style: type.caption.copyWith(
-                    fontSize: 12,
+                  style: type.body.copyWith(
                     height: 1.35,
                     color: white.withValues(alpha: 0.72),
                   ),

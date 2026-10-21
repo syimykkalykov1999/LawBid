@@ -36,7 +36,8 @@ void main() {
     await t.pump(const Duration(seconds: 30));
   });
 
-  testWidgets('a one-emoji post draws the emoji big in the feed card',
+  // Owner 2026-10-21 (Instagram): no big emoji, the caption's own size.
+  testWidgets('a one-emoji post keeps the caption size in the feed card',
       (t) async {
     t.view.physicalSize = const Size(400, 1200);
     t.view.devicePixelRatio = 1;
@@ -52,7 +53,7 @@ void main() {
     );
     await t.pump(const Duration(seconds: 1));
     final emoji = t.widget<Text>(find.text('😎'));
-    expect(emoji.style?.fontSize, 44);
+    expect(emoji.style?.fontSize, 14);
     await t.pumpWidget(const SizedBox());
     await t.pump(const Duration(seconds: 30));
   });

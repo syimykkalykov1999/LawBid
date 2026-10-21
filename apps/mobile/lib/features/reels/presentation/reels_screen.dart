@@ -1033,15 +1033,16 @@ class _ReelCaption extends StatelessWidget {
     if (text.trim().isEmpty) return const SizedBox.shrink();
     return LayoutBuilder(
       builder: (context, box) {
+        // Measured with the style the Text draws (DefaultTextStyle merged).
+        final base = DefaultTextStyle.of(context).style.merge(style);
         final painter = TextPainter(
-          text: TextSpan(text: text, style: style),
+          text: TextSpan(text: text, style: base),
           maxLines: 2,
           textDirection: Directionality.of(context),
           textScaler: MediaQuery.textScalerOf(context),
         )..layout(maxWidth: box.maxWidth);
         if (!painter.didExceedMaxLines) return Text(text, style: style);
         // "… more" ends the second line, never a third one.
-        final base = DefaultTextStyle.of(context).style.merge(style);
         bool fits(int n) {
           final shown =
               n >= text.length ? text : '${text.substring(0, n).trimRight()}…';

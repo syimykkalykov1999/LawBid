@@ -711,10 +711,12 @@ class PostCard extends ConsumerWidget {
                     body: title,
                     expanded: true,
                     mentions: p.mentions,
-                    style: typography.titleLarge.copyWith(
-                      fontFamily: typography.body.fontFamily,
+                    // Owner 2026-10-20 (Instagram): the title is bold in
+                    // the caption's own size, never bigger.
+                    style: typography.body.copyWith(
                       color: colors.text,
                       fontWeight: FontWeight.w700,
+                      height: 1.45,
                     ),
                   ),
                   if (rest.isNotEmpty)
@@ -724,6 +726,7 @@ class PostCard extends ConsumerWidget {
                         body: rest,
                         expanded: true,
                         mentions: p.mentions,
+                        large: true,
                       ),
                     ),
                 ],
@@ -910,7 +913,9 @@ class _InstagramPost extends ConsumerWidget {
           onMore: inDetail ? null : open,
           forceMore: !inDetail && p.attachments.isNotEmpty,
           mentions: p.mentions,
-          large: !hasMedia,
+          // Owner 2026-10-20 (Instagram): one caption size with or
+          // without media.
+          large: true,
         );
 
     return Column(
@@ -1111,7 +1116,9 @@ class _ThreadsPost extends ConsumerWidget {
           onMore: inDetail ? null : open,
           forceMore: !inDetail && p.attachments.isNotEmpty,
           mentions: p.mentions,
-          large: inDetail,
+          // Owner 2026-10-20 (Instagram): the same size in the feed and
+          // inside.
+          large: true,
         );
 
     Widget action(Widget icon, int count, {VoidCallback? onCountTap}) => Row(
@@ -2158,6 +2165,10 @@ class PostBodyText extends ConsumerStatefulWidget {
 
   final double height;
   final bool expanded;
+
+  /// The regular caption size ([AppTypographyTokens.body]) — every post
+  /// caption passes it (owner 2026-10-20, Instagram); without it the
+  /// smaller comment size.
   final bool large;
 
   @override
@@ -3426,16 +3437,16 @@ class FeedCaptionState extends ConsumerState<FeedCaption> {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    final titleStyle = type.titleMedium.copyWith(
+    // Owner 2026-10-20 (Instagram): the caption is the regular body size
+    // everywhere (emoji too); the title is the same size, only bold.
+    final titleStyle = type.body.copyWith(
       color: colors.text,
-      fontSize: 14,
       fontWeight: FontWeight.w600,
-      height: 1.25,
+      height: 1.3,
     );
-    final bodyStyle = type.bodySmall.copyWith(
-      color: colors.text.withValues(alpha: 0.8),
-      fontSize: 13.5,
-      height: 1.4,
+    final bodyStyle = type.body.copyWith(
+      color: colors.text,
+      height: 1.45,
     );
     final moreStyle = bodyStyle.copyWith(
       color: colors.textSecondary,
