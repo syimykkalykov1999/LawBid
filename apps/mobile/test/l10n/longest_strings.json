@@ -4694,6 +4694,7 @@
 "reviews.empty.self":"Όταν οι πελάτες βαθμολογούν τη δουλειά σας μετά από μια κλειστή υπόθεση, οι αξιολογήσεις θα εμφανίζονται εδώ.",
 "reviews.end":"Αυτές είναι όλες οι αξιολογήσεις",
 "reviews.error":"Die Bewertungen konnten nicht geladen werden.",
+"reviews.filter.all":"Gach ceann",
 "reviews.filter.emptyMessage":"Det finnes ingen anmeldelser med denne vurderingen ennå.",
 "reviews.filter.emptyTitle":"Akukho kubuyekezwa kwezinkanyezi ezingu-{stars}",
 "reviews.filter.showAll":"Hammasini ko‘rsatish",

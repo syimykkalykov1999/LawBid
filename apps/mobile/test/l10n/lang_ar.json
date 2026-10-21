@@ -4694,6 +4694,7 @@
 "reviews.empty.self":"عندما يقيّم العملاء عملك بعد إغلاق القضية، ستظهر التقييمات هنا.",
 "reviews.end":"هذه كل التقييمات",
 "reviews.error":"تعذّر تحميل التقييمات.",
+"reviews.filter.all":"الكل",
 "reviews.filter.emptyMessage":"لا توجد تقييمات بهذا التصنيف بعد.",
 "reviews.filter.emptyTitle":"لا توجد تقييمات بـ {stars} نجوم",
 "reviews.filter.showAll":"عرض الكل",

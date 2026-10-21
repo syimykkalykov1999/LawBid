@@ -4694,6 +4694,7 @@
 "reviews.empty.self":"मुद्दा बन्द भएपछि ग्राहकहरूले तपाईंको कामको मूल्याङ्कन गर्दा समीक्षाहरू यहाँ देखिनेछन्।",
 "reviews.end":"सबै समीक्षा हेरिसकियो",
 "reviews.error":"समीक्षाहरू लोड गर्न सकिएन।",
+"reviews.filter.all":"सबै",
 "reviews.filter.emptyMessage":"यो रेटिङ भएको समीक्षा अहिलेसम्म छैन।",
 "reviews.filter.emptyTitle":"{stars} तारा भएको कुनै समीक्षा छैन",
 "reviews.filter.showAll":"सबै देखाउनुहोस्",

@@ -276,6 +276,18 @@ class ReviewSummaryPanel extends ConsumerWidget {
         const SizedBox(height: AppSpacing.xs),
         Row(
           children: [
+            // Owner 2026-10-21: «All» first — the way back from a grade
+            // (a second tap on the grade still clears it too).
+            if (onStarsTap != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2),
+                child: _AllChip(
+                  selected: selectedStars == null,
+                  onTap: selectedStars == null
+                      ? null
+                      : () => onStarsTap!(selectedStars!),
+                ),
+              ),
             for (var stars = 5; stars >= 1; stars--)
               Expanded(
                 child: Padding(
@@ -995,6 +1007,55 @@ class _MapsReviewTileState extends ConsumerState<MapsReviewTile> {
             ),
           const SizedBox(height: AppSpacing.xs),
         ],
+      ),
+    );
+  }
+}
+
+/// «All» in front of the five grade chips: lit while no grade is picked.
+class _AllChip extends ConsumerWidget {
+  const _AllChip({required this.selected, required this.onTap});
+
+  final bool selected;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
+    final t = ref.watch(translatorProvider);
+    return Semantics(
+      button: onTap != null,
+      selected: selected,
+      label: t.t('reviews.filter.all'),
+      excludeSemantics: true,
+      child: AppPressable(
+        key: const ValueKey('reviews-filter-all'),
+        onTap: onTap ?? () {},
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.sm,
+            vertical: AppSpacing.xs,
+          ),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppRadii.chip),
+            color: selected ? colors.gold.withValues(alpha: 0.16) : null,
+            border: Border.all(color: selected ? colors.gold : colors.border),
+          ),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 56),
+            child: Text(
+              t.t('reviews.filter.all'),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textScaler: TextScaler.noScaling,
+              style: typography.caption.copyWith(
+                color: selected ? colors.text : colors.textSecondary,
+                fontWeight: selected ? FontWeight.w700 : null,
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

@@ -4694,6 +4694,7 @@
 "reviews.empty.self":"प्रकरण बंद झाल्यानंतर अशिलांनी आपल्या कामाला रेटिंग दिल्यावर रिव्ह्यू येथे दिसतील.",
 "reviews.end":"सर्व रिव्ह्यू संपले",
 "reviews.error":"रिव्ह्यू लोड करता आले नाहीत.",
+"reviews.filter.all":"सर्व",
 "reviews.filter.emptyMessage":"या रेटिंगचे अजून रिव्ह्यू नाहीत.",
 "reviews.filter.emptyTitle":"{stars} तारांचे रिव्ह्यू नाहीत",
 "reviews.filter.showAll":"सर्व दाखवा",

@@ -4694,6 +4694,7 @@
 "reviews.empty.self":"Wenn Mandanten Ihre Arbeit nach einem abgeschlossenen Fall bewerten, erscheinen die Bewertungen hier.",
 "reviews.end":"Das sind alle Bewertungen",
 "reviews.error":"Die Bewertungen konnten nicht geladen werden.",
+"reviews.filter.all":"Alle",
 "reviews.filter.emptyMessage":"Es gibt noch keine Bewertungen mit dieser Sternezahl.",
 "reviews.filter.emptyTitle":"Keine {stars}-Sterne-Bewertungen",
 "reviews.filter.showAll":"Alle anzeigen",
