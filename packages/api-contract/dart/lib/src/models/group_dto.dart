@@ -15,7 +15,7 @@ part 'group_dto.g.dart';
 @JsonSerializable()
 class GroupDto {
   const GroupDto({
-    required this.whoCanPost,
+    required this.whoCanAdd,
     required this.title,
     required this.createdAt,
     required this.pinned,
@@ -28,8 +28,8 @@ class GroupDto {
     required this.unreadCount,
     required this.pendingRequests,
     required this.inviteEnabled,
+    required this.whoCanPost,
     required this.id,
-    required this.whoCanAdd,
     required this.whoCanEditInfo,
     required this.whoCanCall,
     required this.whoCanMedia,
@@ -38,6 +38,7 @@ class GroupDto {
     required this.myRights,
     required this.showServiceMessages,
     required this.isAdmin,
+    required this.protectContent,
     required this.canPost,
     required this.canAdd,
     required this.updatedAt,
@@ -99,6 +100,9 @@ class GroupDto {
 
   /// Disappearing messages: seconds a new message lives (86400 / 604800 / 7776000); null = off.
   final num? disappearAfterS;
+
+  /// Restrict saving content: no forwarding, copying or saving of the messages; sharing sends the link.
+  final bool protectContent;
 
   /// What I may do here (derived from the above).
   final bool canPost;

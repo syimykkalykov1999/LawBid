@@ -31,6 +31,7 @@ ChannelPostDto _$ChannelPostDtoFromJson(Map<String, dynamic> json) =>
       editedAt: json['editedAt'] == null
           ? null
           : DateTime.parse(json['editedAt'] as String),
+      forwardedFrom: json['forwardedFrom'] as String?,
     );
 
 Map<String, dynamic> _$ChannelPostDtoToJson(ChannelPostDto instance) =>
@@ -48,4 +49,5 @@ Map<String, dynamic> _$ChannelPostDtoToJson(ChannelPostDto instance) =>
       'myReaction': ?instance.myReaction,
       'createdAt': instance.createdAt.toIso8601String(),
       'editedAt': ?instance.editedAt?.toIso8601String(),
+      'forwardedFrom': ?instance.forwardedFrom,
     };

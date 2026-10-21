@@ -31,6 +31,7 @@ class UpdateGroupDto {
     this.whoCanPoll,
     this.whoCanPin,
     this.showServiceMessages,
+    this.protectContent,
     this.inviteEnabled,
     this.type,
     this.username,
@@ -75,6 +76,9 @@ class UpdateGroupDto {
 
   /// Admins only: show service lines (created, joined, left, renamed…) to everyone.
   final bool? showServiceMessages;
+
+  /// Admins with «edit info»: restrict saving content (no forwarding, copying or saving; sharing sends the link). Telegram.
+  final bool? protectContent;
 
   /// Admins only: the join link on/off.
   final bool? inviteEnabled;

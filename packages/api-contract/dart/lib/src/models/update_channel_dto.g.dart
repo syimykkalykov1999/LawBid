@@ -14,6 +14,7 @@ UpdateChannelDto _$UpdateChannelDtoFromJson(Map<String, dynamic> json) =>
       avatarFileId: json['avatarFileId'] as String?,
       removeAvatar: json['removeAvatar'] as bool?,
       commentsEnabled: json['commentsEnabled'] as bool?,
+      protectContent: json['protectContent'] as bool?,
     );
 
 Map<String, dynamic> _$UpdateChannelDtoToJson(UpdateChannelDto instance) =>
@@ -24,4 +25,5 @@ Map<String, dynamic> _$UpdateChannelDtoToJson(UpdateChannelDto instance) =>
       'avatarFileId': ?instance.avatarFileId,
       'removeAvatar': ?instance.removeAvatar,
       'commentsEnabled': ?instance.commentsEnabled,
+      'protectContent': ?instance.protectContent,
     };

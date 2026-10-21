@@ -25,6 +25,7 @@ class GroupMessageDto {
     required this.mentionsMe,
     required this.deleted,
     required this.createdAt,
+    required this.forwarded,
     this.topicId,
     this.sender,
     this.systemKind,
@@ -35,6 +36,7 @@ class GroupMessageDto {
     this.poll,
     this.editedAt,
     this.expiresAt,
+    this.forwardedFrom,
   });
 
   factory GroupMessageDto.fromJson(Map<String, Object?> json) =>
@@ -53,7 +55,7 @@ class GroupMessageDto {
   final bool mine;
   final String clientMessageId;
 
-  /// System messages: created | added | removed | left | joined | renamed | photo | description | promoted | demoted | pinned | poll_closed | disappearing (systemText = seconds, "0" = off).
+  /// System messages: created | added | removed | left | joined | renamed | photo | description | promoted | demoted | pinned | poll_closed | disappearing (systemText = seconds, "0" = off) | protect_content (systemText "1" on / "0" off).
   final String? systemKind;
 
   /// System messages: who acted (first) and who it concerned.
@@ -76,6 +78,12 @@ class GroupMessageDto {
 
   /// Disappearing messages: when the message goes; the app hides it from this time on. Null = stays.
   final DateTime? expiresAt;
+
+  /// Forwarded («Forwarded from …»).
+  final bool forwarded;
+
+  /// The first author (or channel) of a forwarded message.
+  final String? forwardedFrom;
 
   Map<String, Object?> toJson() => _$GroupMessageDtoToJson(this);
 }

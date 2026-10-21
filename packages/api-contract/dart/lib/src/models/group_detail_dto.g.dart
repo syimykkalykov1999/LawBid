@@ -27,13 +27,13 @@ GroupDetailDto _$GroupDetailDtoFromJson(
   myRights: (json['myRights'] as List<dynamic>)
       .map((e) => GroupDetailDtoMyRights.fromJson(e as String))
       .toList(),
-  inviteEnabled: json['inviteEnabled'] as bool,
+  isAdmin: json['isAdmin'] as bool,
+  protectContent: json['protectContent'] as bool,
   canPost: json['canPost'] as bool,
   canAdd: json['canAdd'] as bool,
   canEditInfo: json['canEditInfo'] as bool,
   canCall: json['canCall'] as bool,
-  isAdmin: json['isAdmin'] as bool,
-  callsMuted: json['callsMuted'] as bool,
+  inviteEnabled: json['inviteEnabled'] as bool,
   pinned: json['pinned'] as bool,
   invited: (json['invited'] as List<dynamic>)
       .map((e) => GroupPersonDto.fromJson(e as Map<String, dynamic>))
@@ -44,6 +44,7 @@ GroupDetailDto _$GroupDetailDtoFromJson(
   createdAt: DateTime.parse(json['createdAt'] as String),
   updatedAt: DateTime.parse(json['updatedAt'] as String),
   unreadMentions: json['unreadMentions'] as num,
+  callsMuted: json['callsMuted'] as bool,
   unreadCount: json['unreadCount'] as num,
   pinnedMessage: json['pinnedMessage'] == null
       ? null
@@ -97,6 +98,7 @@ Map<String, dynamic> _$GroupDetailDtoToJson(GroupDetailDto instance) =>
       'myRights': instance.myRights.map((e) => e.toJson()).toList(),
       'showServiceMessages': instance.showServiceMessages,
       'disappearAfterS': ?instance.disappearAfterS,
+      'protectContent': instance.protectContent,
       'canPost': instance.canPost,
       'canAdd': instance.canAdd,
       'canEditInfo': instance.canEditInfo,

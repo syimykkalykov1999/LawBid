@@ -27,6 +27,7 @@ class ChannelPostDto {
     this.video,
     this.myReaction,
     this.editedAt,
+    this.forwardedFrom,
   });
 
   factory ChannelPostDto.fromJson(Map<String, Object?> json) =>
@@ -45,6 +46,9 @@ class ChannelPostDto {
   final String? myReaction;
   final DateTime createdAt;
   final DateTime? editedAt;
+
+  /// Owner 2026-10-21: a forwarded post — «Forwarded from <name>».
+  final String? forwardedFrom;
 
   Map<String, Object?> toJson() => _$ChannelPostDtoToJson(this);
 }

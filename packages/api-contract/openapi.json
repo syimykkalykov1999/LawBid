@@ -100552,6 +100552,113 @@
         ]
       }
     },
+    "/messages/forward": {
+      "post": {
+        "operationId": "forward",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ForwardMessagesDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForwardResponseEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORWARD_NOT_ALLOWED, CONTENT_PROTECTED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND, CONVERSATION_NOT_FOUND, GROUP_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Forward messages / posts into chats, groups and channels (idempotent on requestId)",
+        "tags": [
+          "chat"
+        ]
+      }
+    },
     "/users/me/running-timer": {
       "get": {
         "operationId": "runningTimer",
@@ -107386,7 +107493,10 @@
           "CONSULTATION_NOT_AVAILABLE",
           "CONSULTATION_STATE_CONFLICT",
           "QA_ANSWERS_ENOUGH",
-          "QA_QUESTION_CLOSED"
+          "QA_QUESTION_CLOSED",
+          "FORWARD_NOT_ALLOWED",
+          "CONTENT_PROTECTED",
+          "UNSUPPORTED_IN_TARGET"
         ]
       },
       "ErrorBodyDto": {
@@ -139210,6 +139320,10 @@
           "commentsEnabled": {
             "type": "boolean"
           },
+          "protectContent": {
+            "type": "boolean",
+            "description": "Owner 2026-10-21 (Telegram): restrict saving content — no\nforwarding, copying or saving of the posts; sharing sends the link."
+          },
           "status": {
             "description": "Hidden / banned are only reported to the channel's admins.",
             "allOf": [
@@ -139257,6 +139371,7 @@
           "title",
           "username",
           "commentsEnabled",
+          "protectContent",
           "status",
           "subscriberCount",
           "postCount",
@@ -139354,6 +139469,10 @@
           },
           "commentsEnabled": {
             "type": "boolean"
+          },
+          "protectContent": {
+            "type": "boolean",
+            "description": "Owner 2026-10-21 (Telegram «Запретить копирование и пересылку»)."
           }
         }
       },
@@ -139553,6 +139672,11 @@
             "type": "string",
             "nullable": true,
             "format": "date-time"
+          },
+          "forwardedFrom": {
+            "type": "string",
+            "nullable": true,
+            "description": "Owner 2026-10-21: a forwarded post — «Forwarded from <name>»."
           }
         },
         "required": [
@@ -153931,7 +154055,7 @@
           "systemKind": {
             "type": "string",
             "nullable": true,
-            "description": "System messages: created | added | removed | left | joined | renamed | photo | description | promoted | demoted | pinned | poll_closed | disappearing (systemText = seconds, \"0\" = off)."
+            "description": "System messages: created | added | removed | left | joined | renamed | photo | description | promoted | demoted | pinned | poll_closed | disappearing (systemText = seconds, \"0\" = off) | protect_content (systemText \"1\" on / \"0\" off)."
           },
           "systemPeople": {
             "description": "System messages: who acted (first) and who it concerned.",
@@ -154000,6 +154124,15 @@
             "type": "string",
             "nullable": true,
             "description": "Disappearing messages: when the message goes; the app hides it from this time on. Null = stays."
+          },
+          "forwarded": {
+            "type": "boolean",
+            "description": "Forwarded («Forwarded from …»)."
+          },
+          "forwardedFrom": {
+            "type": "string",
+            "nullable": true,
+            "description": "The first author (or channel) of a forwarded message."
           }
         },
         "required": [
@@ -154012,7 +154145,8 @@
           "mentions",
           "mentionsMe",
           "deleted",
-          "createdAt"
+          "createdAt",
+          "forwarded"
         ]
       },
       "GroupDto": {
@@ -154152,6 +154286,10 @@
             "nullable": true,
             "description": "Disappearing messages: seconds a new message lives (86400 / 604800 / 7776000); null = off."
           },
+          "protectContent": {
+            "type": "boolean",
+            "description": "Restrict saving content: no forwarding, copying or saving of the messages; sharing sends the link."
+          },
           "canPost": {
             "type": "boolean",
             "description": "What I may do here (derived from the above)."
@@ -154246,6 +154384,7 @@
           "whoCanPin",
           "myRights",
           "showServiceMessages",
+          "protectContent",
           "canPost",
           "canAdd",
           "canEditInfo",
@@ -154480,6 +154619,10 @@
             "nullable": true,
             "description": "Disappearing messages: seconds a new message lives (86400 / 604800 / 7776000); null = off."
           },
+          "protectContent": {
+            "type": "boolean",
+            "description": "Restrict saving content: no forwarding, copying or saving of the messages; sharing sends the link."
+          },
           "canPost": {
             "type": "boolean",
             "description": "What I may do here (derived from the above)."
@@ -154594,6 +154737,7 @@
           "whoCanPin",
           "myRights",
           "showServiceMessages",
+          "protectContent",
           "canPost",
           "canAdd",
           "canEditInfo",
@@ -155013,6 +155157,10 @@
           "showServiceMessages": {
             "type": "boolean",
             "description": "Admins only: show service lines (created, joined, left, renamed…) to everyone."
+          },
+          "protectContent": {
+            "type": "boolean",
+            "description": "Admins with «edit info»: restrict saving content (no forwarding, copying or saving; sharing sends the link). Telegram."
           },
           "inviteEnabled": {
             "type": "boolean",
@@ -160693,6 +160841,172 @@
         },
         "required": [
           "version"
+        ]
+      },
+      "ForwardTargetKind": {
+        "type": "string",
+        "enum": [
+          "conversation",
+          "group",
+          "channel"
+        ]
+      },
+      "ForwardTargetDto": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ForwardTargetKind"
+              }
+            ]
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "topicId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Forum groups: the topic to write in (default «General»)."
+          }
+        },
+        "required": [
+          "kind",
+          "id"
+        ]
+      },
+      "ForwardStatus": {
+        "type": "string",
+        "enum": [
+          "sent",
+          "failed"
+        ]
+      },
+      "ForwardResultDto": {
+        "type": "object",
+        "properties": {
+          "target": {
+            "$ref": "#/components/schemas/ForwardTargetDto"
+          },
+          "sourceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ForwardStatus"
+              }
+            ]
+          },
+          "code": {
+            "type": "string",
+            "nullable": true,
+            "description": "failed: the error code of the target (UNSUPPORTED_IN_TARGET, GROUP_FORBIDDEN, CONVERSATION_CLOSED, MESSAGE_REQUEST_DECLINED, FORBIDDEN…)."
+          },
+          "messageId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid",
+            "description": "sent: the new message (or channel post)."
+          }
+        },
+        "required": [
+          "target",
+          "sourceId",
+          "status"
+        ]
+      },
+      "ForwardResponseDto": {
+        "type": "object",
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ForwardResultDto"
+            }
+          }
+        },
+        "required": [
+          "results"
+        ]
+      },
+      "ForwardSourceKind": {
+        "type": "string",
+        "enum": [
+          "message",
+          "group_message",
+          "channel_post",
+          "group_link",
+          "channel_link"
+        ],
+        "description": "message: a direct / case chat message; group_message; channel_post; group_link / channel_link: a protected group / channel shared as its link (id = the group / channel)."
+      },
+      "ForwardSourceDto": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "description": "message: a direct / case chat message; group_message; channel_post; group_link / channel_link: a protected group / channel shared as its link (id = the group / channel).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ForwardSourceKind"
+              }
+            ]
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "kind",
+          "id"
+        ]
+      },
+      "ForwardMessagesDto": {
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "App-generated, one per forward: a retry with the same id sends nothing twice."
+          },
+          "sources": {
+            "minItems": 1,
+            "description": "What to forward, oldest first (1–50); the order is kept.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ForwardSourceDto"
+            }
+          },
+          "targets": {
+            "minItems": 1,
+            "description": "Where to (1–20); at most 200 message × chat pairs.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ForwardTargetDto"
+            }
+          }
+        },
+        "required": [
+          "requestId",
+          "sources",
+          "targets"
+        ]
+      },
+      "ForwardResponseEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ForwardResponseDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
         ]
       },
       "RunningTimerDto": {

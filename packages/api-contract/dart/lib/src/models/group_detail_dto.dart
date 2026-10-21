@@ -33,19 +33,20 @@ class GroupDetailDto {
     required this.whoCanPoll,
     required this.whoCanPin,
     required this.myRights,
-    required this.inviteEnabled,
+    required this.isAdmin,
+    required this.protectContent,
     required this.canPost,
     required this.canAdd,
     required this.canEditInfo,
     required this.canCall,
-    required this.isAdmin,
-    required this.callsMuted,
+    required this.inviteEnabled,
     required this.pinned,
     required this.invited,
     required this.members,
     required this.createdAt,
     required this.updatedAt,
     required this.unreadMentions,
+    required this.callsMuted,
     required this.unreadCount,
     this.pinnedMessage,
     this.lastMessage,
@@ -104,6 +105,9 @@ class GroupDetailDto {
 
   /// Disappearing messages: seconds a new message lives (86400 / 604800 / 7776000); null = off.
   final num? disappearAfterS;
+
+  /// Restrict saving content: no forwarding, copying or saving of the messages; sharing sends the link.
+  final bool protectContent;
 
   /// What I may do here (derived from the above).
   final bool canPost;

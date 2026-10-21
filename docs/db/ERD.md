@@ -801,6 +801,7 @@ erDiagram
     enum_GroupWho who_can_call
     Boolean show_service_messages
     Int disappear_after_s "nullable"
+    Boolean protect_content
     enum_GroupWho who_can_media
     enum_GroupWho who_can_poll
     enum_GroupWho who_can_pin
@@ -844,6 +845,8 @@ erDiagram
     DateTime edited_at "nullable"
     DateTime deleted_at "nullable"
     DateTime expires_at "nullable"
+    Boolean forwarded
+    String forwarded_from_name "nullable"
     DateTime created_at
   }
   chat_group_topics {
@@ -2481,6 +2484,7 @@ erDiagram
     String description "nullable"
     String avatar_file_id FK "nullable"
     Boolean comments_enabled
+    Boolean protect_content
     String status
     String moderation_note "nullable"
     Int subscriber_count
@@ -2512,6 +2516,8 @@ erDiagram
     Int view_count
     Int comment_count
     Int share_count
+    String forwarded_from_name "nullable"
+    String forward_key "nullable"
     DateTime created_at
     DateTime edited_at "nullable"
     DateTime deleted_at "nullable"

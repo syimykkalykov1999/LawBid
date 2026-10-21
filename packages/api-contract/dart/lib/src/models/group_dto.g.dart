@@ -7,7 +7,7 @@ part of 'group_dto.dart';
 // **************************************************************************
 
 GroupDto _$GroupDtoFromJson(Map<String, dynamic> json) => GroupDto(
-  whoCanPost: GroupWho.fromJson(json['whoCanPost'] as String),
+  whoCanAdd: GroupWho.fromJson(json['whoCanAdd'] as String),
   title: json['title'] as String,
   createdAt: DateTime.parse(json['createdAt'] as String),
   pinned: json['pinned'] as bool,
@@ -20,8 +20,8 @@ GroupDto _$GroupDtoFromJson(Map<String, dynamic> json) => GroupDto(
   unreadCount: json['unreadCount'] as num,
   pendingRequests: json['pendingRequests'] as num,
   inviteEnabled: json['inviteEnabled'] as bool,
+  whoCanPost: GroupWho.fromJson(json['whoCanPost'] as String),
   id: json['id'] as String,
-  whoCanAdd: GroupWho.fromJson(json['whoCanAdd'] as String),
   whoCanEditInfo: GroupWho.fromJson(json['whoCanEditInfo'] as String),
   whoCanCall: GroupWho.fromJson(json['whoCanCall'] as String),
   whoCanMedia: GroupWho.fromJson(json['whoCanMedia'] as String),
@@ -32,6 +32,7 @@ GroupDto _$GroupDtoFromJson(Map<String, dynamic> json) => GroupDto(
       .toList(),
   showServiceMessages: json['showServiceMessages'] as bool,
   isAdmin: json['isAdmin'] as bool,
+  protectContent: json['protectContent'] as bool,
   canPost: json['canPost'] as bool,
   canAdd: json['canAdd'] as bool,
   updatedAt: DateTime.parse(json['updatedAt'] as String),
@@ -85,6 +86,7 @@ Map<String, dynamic> _$GroupDtoToJson(GroupDto instance) => <String, dynamic>{
   'myRights': instance.myRights.map((e) => e.toJson()).toList(),
   'showServiceMessages': instance.showServiceMessages,
   'disappearAfterS': ?instance.disappearAfterS,
+  'protectContent': instance.protectContent,
   'canPost': instance.canPost,
   'canAdd': instance.canAdd,
   'canEditInfo': instance.canEditInfo,

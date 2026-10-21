@@ -454,6 +454,12 @@ enum ErrorCode {
   qaAnswersEnough('QA_ANSWERS_ENOUGH'),
   @JsonValue('QA_QUESTION_CLOSED')
   qaQuestionClosed('QA_QUESTION_CLOSED'),
+  @JsonValue('FORWARD_NOT_ALLOWED')
+  forwardNotAllowed('FORWARD_NOT_ALLOWED'),
+  @JsonValue('CONTENT_PROTECTED')
+  contentProtected('CONTENT_PROTECTED'),
+  @JsonValue('UNSUPPORTED_IN_TARGET')
+  unsupportedInTarget('UNSUPPORTED_IN_TARGET'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

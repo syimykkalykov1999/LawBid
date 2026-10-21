@@ -37,6 +37,7 @@ UpdateGroupDto _$UpdateGroupDtoFromJson(
       ? null
       : UpdateGroupDtoWhoCanPin.fromJson(json['whoCanPin'] as String),
   showServiceMessages: json['showServiceMessages'] as bool?,
+  protectContent: json['protectContent'] as bool?,
   inviteEnabled: json['inviteEnabled'] as bool?,
   type: json['type'] == null
       ? null
@@ -60,6 +61,7 @@ Map<String, dynamic> _$UpdateGroupDtoToJson(UpdateGroupDto instance) =>
       'whoCanPoll': ?instance.whoCanPoll?.toJson(),
       'whoCanPin': ?instance.whoCanPin?.toJson(),
       'showServiceMessages': ?instance.showServiceMessages,
+      'protectContent': ?instance.protectContent,
       'inviteEnabled': ?instance.inviteEnabled,
       'type': ?instance.type?.toJson(),
       'username': ?instance.username,

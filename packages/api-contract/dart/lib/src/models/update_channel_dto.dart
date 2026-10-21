@@ -15,6 +15,7 @@ class UpdateChannelDto {
     this.avatarFileId,
     this.removeAvatar,
     this.commentsEnabled,
+    this.protectContent,
   });
 
   factory UpdateChannelDto.fromJson(Map<String, Object?> json) =>
@@ -30,6 +31,9 @@ class UpdateChannelDto {
   /// true removes the avatar.
   final bool? removeAvatar;
   final bool? commentsEnabled;
+
+  /// Owner 2026-10-21 (Telegram «Запретить копирование и пересылку»).
+  final bool? protectContent;
 
   Map<String, Object?> toJson() => _$UpdateChannelDtoToJson(this);
 }

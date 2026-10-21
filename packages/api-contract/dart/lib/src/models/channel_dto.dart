@@ -17,6 +17,7 @@ class ChannelDto {
     required this.title,
     required this.username,
     required this.commentsEnabled,
+    required this.protectContent,
     required this.status,
     required this.subscriberCount,
     required this.postCount,
@@ -41,6 +42,10 @@ class ChannelDto {
   final String? description;
   final String? avatarUrl;
   final bool commentsEnabled;
+
+  /// Owner 2026-10-21 (Telegram): restrict saving content — no.
+  /// forwarding, copying or saving of the posts; sharing sends the link.
+  final bool protectContent;
 
   /// Hidden / banned are only reported to the channel's admins.
   final ChannelStatus status;

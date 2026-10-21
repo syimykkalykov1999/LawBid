@@ -14,6 +14,8 @@ import '../models/delete_scope.dart';
 import '../models/delivered_conversation_dto.dart';
 import '../models/delivered_result_envelope.dart';
 import '../models/edit_message_dto.dart';
+import '../models/forward_messages_dto.dart';
+import '../models/forward_response_envelope.dart';
 import '../models/message_envelope.dart';
 import '../models/message_list_envelope.dart';
 import '../models/message_translation_envelope.dart';
@@ -240,6 +242,13 @@ abstract class ChatClient {
   @GET('/conversations/{id}/pins')
   Future<PinsEnvelope> listChatPins({
     @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Forward messages / posts into chats, groups and channels (idempotent on requestId)
+  @POST('/messages/forward')
+  Future<ForwardResponseEnvelope> forward({
+    @Body() required ForwardMessagesDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 }
