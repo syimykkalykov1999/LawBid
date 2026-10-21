@@ -189,7 +189,9 @@ final chatFolderCountsProvider = FutureProvider.autoDispose<
     ({int waiting, int requests, int cases, int archived})>(
   (ref) {
     final sub = ref.watch(realtimeEventsProvider).listen((e) {
-      if (e.name == 'message:new' || e.name == 'conversation:update') {
+      if (e.name == 'message:new' ||
+          e.name == 'conversation:update' ||
+          e.name == 'group:invite') {
         ref.invalidateSelf();
       }
     });
@@ -212,7 +214,9 @@ void refreshChatFolders(WidgetRef ref) {
 final messageRequestsCountProvider = FutureProvider.autoDispose<int>(
   (ref) {
     final sub = ref.watch(realtimeEventsProvider).listen((e) {
-      if (e.name == 'message:new' || e.name == 'conversation:update') {
+      if (e.name == 'message:new' ||
+          e.name == 'conversation:update' ||
+          e.name == 'group:invite') {
         ref.invalidateSelf();
       }
     });

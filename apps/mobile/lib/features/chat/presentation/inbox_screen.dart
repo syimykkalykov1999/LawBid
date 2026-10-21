@@ -30,8 +30,10 @@ import 'package:lawbid/features/chat/presentation/chat_selection_bar.dart';
 import 'package:lawbid/features/chat/presentation/chat_swipe.dart';
 import 'package:lawbid/features/chat/presentation/chats_filter_row.dart';
 import 'package:lawbid/features/groups/application/chat_list_merge.dart';
+import 'package:lawbid/features/groups/application/group_providers.dart';
 import 'package:lawbid/features/groups/group_routes.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_chat_tile.dart';
+import 'package:lawbid/features/groups/presentation/widgets/group_invite_card.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
 import 'package:lawbid/features/notifications/presentation/notifications_view.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
@@ -45,6 +47,7 @@ import 'package:lawbid/features/team/presentation/team_inbox_tab.dart';
 import 'package:lawbid/features/team/team_routes.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 import 'package:lawbid/shared/presentation/collapsing_header.dart';
+import 'package:lawbid_api/lawbid_api.dart' as api;
 
 // OQ-048: [team] — assistants' approval requests and activity (attorney).
 enum InboxTab { chats, notifications, requests, team }
@@ -898,25 +901,38 @@ class MessageRequestsView extends ConsumerWidget {
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final value = ref.watch(messageRequestsProvider);
     final n = ref.read(messageRequestsProvider.notifier);
+    final invites =
+        ref.watch(groupInvitesProvider).value ?? const <api.GroupInviteDto>[];
     return PagedListBody<Conversation>(
       value: value,
       t: t,
       itemKey: (c) => c.id,
       edgeToEdge: true,
       itemBuilder: (context, c, _) => ConversationRow(conversation: c),
+      // Owner 2026-10-21: group invitations wait here too, above the chats.
       header: Padding(
         padding: const EdgeInsets.only(bottom: AppSpacing.md),
-        child: Text(
-          t.t('chat.requests.explain'),
-          style: type.bodySmall.copyWith(color: colors.textSecondary),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              t.t('chat.requests.explain'),
+              style: type.bodySmall.copyWith(color: colors.textSecondary),
+            ),
+            for (final invite in invites) GroupInviteCard(invite: invite),
+          ],
         ),
       ),
-      empty: AppEmptyState(
-        icon: AppIcons.markEmailReadOutlined,
-        message: t.t('chat.requests.empty'),
-      ),
+      empty: invites.isNotEmpty
+          ? const SizedBox.shrink()
+          : AppEmptyState(
+              icon: AppIcons.markEmailReadOutlined,
+              message: t.t('chat.requests.empty'),
+            ),
       onRefresh: () async {
-        ref.invalidate(messageRequestsCountProvider);
+        ref
+          ..invalidate(messageRequestsCountProvider)
+          ..invalidate(groupInvitesProvider);
         await n.refresh();
       },
       onLoadMore: n.loadMore,

@@ -66,6 +66,7 @@ class RealtimeClient {
     // Owner 2026-10-20: group chats and polls.
     'group:message',
     'group:update',
+    'group:invite',
     'group:member_removed',
     'poll:update',
   ];

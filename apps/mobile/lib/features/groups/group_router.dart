@@ -6,6 +6,7 @@ import 'package:lawbid/features/groups/presentation/create_group_screen.dart';
 import 'package:lawbid/features/groups/presentation/find_groups_screen.dart';
 import 'package:lawbid/features/groups/presentation/group_conversation_screen.dart';
 import 'package:lawbid/features/groups/presentation/group_info_screen.dart';
+import 'package:lawbid/features/groups/presentation/group_invite_screen.dart';
 import 'package:lawbid/features/groups/presentation/join_group_screen.dart';
 
 /// Owner 2026-10-20: the routes of the group chats feature. `/group/new`
@@ -29,6 +30,14 @@ List<RouteBase> groupRoutes(GlobalKey<NavigatorState> root) => [
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
           JoinGroupScreen(code: state.pathParameters['code'] ?? ''),
+        ),
+      ),
+      GoRoute(
+        path: GroupRoutes.invitePattern,
+        parentNavigatorKey: root,
+        pageBuilder: (context, state) => AppPageTransitions.push(
+          state,
+          GroupInviteScreen(inviteId: state.pathParameters['id'] ?? ''),
         ),
       ),
       GoRoute(

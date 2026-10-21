@@ -20,6 +20,8 @@ class FakeGroupRepository implements GroupRepository {
     this.found = const [],
     this.previewed,
     this.voterList = const [],
+    this.inviteList = const [],
+    this.invitePeek,
   ]);
 
   final List<api.GroupDto> items;
@@ -32,6 +34,8 @@ class FakeGroupRepository implements GroupRepository {
   final List<api.GroupInvitePreviewDto> found;
   final api.GroupInvitePreviewDto? previewed;
   final List<api.PollVoterOptionDto> voterList;
+  final List<api.GroupInviteDto> inviteList;
+  final api.GroupInvitePreviewDetailDto? invitePeek;
   final updates = <String>[];
 
   /// The shared-media tabs: the rows of each kind (newest first), served
@@ -68,6 +72,25 @@ class FakeGroupRepository implements GroupRepository {
       nextCursor: to < all.length ? '$to' : null,
     );
   }
+
+  @override
+  Future<List<api.GroupInviteDto>> invites() async => inviteList;
+
+  @override
+  Future<api.GroupInvitePreviewDetailDto> invitePreview(String id) async =>
+      invitePeek!;
+
+  @override
+  Future<api.GroupJoinResultDto> acceptInvite(String id) async {
+    updates.add('accept:$id');
+    return const api.GroupJoinResultDto(
+      status: api.GroupJoinResultDtoStatus.joined,
+      groupId: 'g1',
+    );
+  }
+
+  @override
+  Future<void> declineInvite(String id) async => updates.add('decline:$id');
 
   @override
   Future<CursorPage<api.GroupMessageDto>> messages(
@@ -162,6 +185,8 @@ final people = [
   person('u2', 'Anastasia Konstantinopolskaya'),
   person('u3', 'Jo'),
   person('u4', 'Wolfeschlegelsteinhausenberger Dorff', attorney: true),
+  person('u5', 'Maximilian Oppenheimer-Vandenberghe'),
+  person('u6', 'Li'),
 ];
 
 api.GroupMemberDto member(api.GroupPersonDto p, api.GroupRole role) =>
@@ -353,6 +378,7 @@ api.GroupDetailDto groupDetail({
   bool withPinned = true,
   int? disappearAfterS,
   bool canEditInfo = true,
+  bool withInvited = false,
 }) {
   final canPost = !readOnly;
   return api.GroupDetailDto(
@@ -406,6 +432,7 @@ api.GroupDetailDto groupDetail({
     pinned: false,
     createdAt: _at,
     updatedAt: _at,
+    invited: withInvited ? [people[5], people[6]] : const [],
     members: [
       member(people[0], api.GroupRole.owner),
       member(people[1], api.GroupRole.admin),
@@ -522,4 +549,24 @@ api.GroupDto listGroup(
       pinned: pinned,
       createdAt: _at,
       updatedAt: _at.add(Duration(minutes: minutes)),
+    );
+
+api.GroupInviteDto groupInvite({String id = 'i1', bool longName = true}) =>
+    api.GroupInviteDto(
+      id: id,
+      groupId: 'g1',
+      title: _longTitle,
+      memberCount: 128,
+      type: api.GroupType.public,
+      inviter: longName ? people[1] : person('u9', 'Ann'),
+      createdAt: _at,
+    );
+
+api.GroupInvitePreviewDetailDto groupInvitePeek({bool readable = true}) =>
+    api.GroupInvitePreviewDetailDto(
+      invite: groupInvite(),
+      description: _longDescription,
+      readable: readable,
+      members: readable ? [people[1], people[2], people[3]] : const [],
+      messages: readable ? richThread().take(3).toList() : const [],
     );

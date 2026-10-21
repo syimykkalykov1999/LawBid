@@ -106,6 +106,32 @@ final recommendedGroupsProvider = AsyncNotifierProvider.autoDispose<
   retry: _noRetry,
 );
 
+// --- Invitations (owner 2026-10-21) ---
+
+/// Group invitations waiting for my answer; re-read on `group:invite`.
+final groupInvitesProvider =
+    FutureProvider.autoDispose<List<api.GroupInviteDto>>(
+  (ref) {
+    final sub = ref.watch(realtimeEventsProvider).listen((e) {
+      if (e.name == 'group:invite' ||
+          e.name == 'badge:update' ||
+          e.name == RealtimeEvent.reconnected) {
+        ref.invalidateSelf();
+      }
+    });
+    ref.onDispose(sub.cancel);
+    return ref.watch(groupRepositoryProvider).invites();
+  },
+  retry: _noRetry,
+);
+
+/// What lies behind one invitation; one read per card, no automatic retry.
+final groupInvitePreviewProvider =
+    FutureProvider.autoDispose.family<api.GroupInvitePreviewDetailDto, String>(
+  (ref, id) => ref.watch(groupRepositoryProvider).invitePreview(id),
+  retry: _noRetry,
+);
+
 // --- One group ---
 
 /// The group with its members; re-read on every `group:update` for it.

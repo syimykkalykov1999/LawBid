@@ -8,5 +8,19 @@
   "group.menu.mute": {"en": "Mute", "ru": "Отключить звук"},
   "group.menu.unmute": {"en": "Unmute", "ru": "Включить звук"},
   "group.menu.hide": {"en": "Remove from list", "ru": "Убрать из списка"},
-  "group.select.hideMessage": {"en": "Groups leave your list and come back with a new message. Chats are removed from your list only.", "ru": "Группы уйдут из списка и вернутся с новым сообщением. Чаты удаляются только из вашего списка."}
+  "group.select.hideMessage": {"en": "Groups leave your list and come back with a new message. Chats are removed from your list only.", "ru": "Группы уйдут из списка и вернутся с новым сообщением. Чаты удаляются только из вашего списка."},
+  "group.inv.title": {"en": "Invitation", "ru": "Приглашение"},
+  "group.inv.from": {"en": "{name} invites you to the group", "ru": "{name} приглашает вас в группу"},
+  "group.inv.accept": {"en": "Accept", "ru": "Принять"},
+  "group.inv.decline": {"en": "Decline", "ru": "Отклонить"},
+  "group.inv.look": {"en": "You can look inside before you answer", "ru": "Можно заглянуть внутрь, пока вы не ответили"},
+  "group.inv.closed": {"en": "A closed group: only its name, photo and description are visible", "ru": "Закрытая группа: видны только название, фото и описание"},
+  "group.inv.latest": {"en": "Latest messages", "ru": "Последние сообщения"},
+  "group.inv.sent": {"en": "Invited: {count}", "ru": "Приглашены: {count}"},
+  "group.inv.chip": {"en": "Invited", "ru": "Приглашён"},
+  "group.inv.toast": {"en": "Invitations sent: {count}", "ru": "Приглашений отправлено: {count}"},
+  "group.inv.add": {"en": "Invite", "ru": "Пригласить"},
+  "group.inv.addTitle": {"en": "Invite people", "ru": "Пригласить людей"},
+  "group.inv.gone": {"en": "This invitation is no longer valid", "ru": "Приглашение больше не действует"},
+  "notif.list.group_invite": {"en": "You were invited to a group", "ru": "Вас пригласили в группу"}
 }
