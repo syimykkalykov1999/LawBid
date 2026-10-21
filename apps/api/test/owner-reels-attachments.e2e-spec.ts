@@ -25,6 +25,7 @@ describe('Reels and post documents (e2e, owner 2026-10-05)', () => {
   let tokens: TokenService;
   let baseUrl = '';
   const created: { title: string; thumbnailTimeMs?: number | null }[] = [];
+  let bunnyStatus = 1;
 
   const fakeBunny = {
     devFake: false,
@@ -43,7 +44,16 @@ describe('Reels and post documents (e2e, owner 2026-10-05)', () => {
       created.push({ title, thumbnailTimeMs });
       return Promise.resolve(randomUUID());
     },
-    getVideo: () => Promise.resolve(null),
+    // 1 = Bunny still encodes; 4 = finished.
+    getVideo: (guid: string) =>
+      Promise.resolve({
+        guid,
+        status: bunnyStatus,
+        length: 5,
+        width: 720,
+        height: 1280,
+        storageSize: 1000,
+      }),
     deleteVideo: () => Promise.resolve(),
   };
 
@@ -336,6 +346,33 @@ describe('Reels and post documents (e2e, owner 2026-10-05)', () => {
     });
     expect(row.media).toHaveLength(1);
     expect(row.attachments[0].file_name).toBe('Checklist.pdf');
+  });
+
+  it('the author polling a processing reel publishes it the moment Bunny is done (owner 2026-10-21)', async () => {
+    const att = await attorney();
+    const up = await api()
+      .post('/api/v1/videos/uploads')
+      .set(att.auth)
+      .send({ sizeBytes: 1000, durationSec: 5 });
+    expect(up.status).toBe(201);
+    const r = await post(att.auth, {
+      body: 'Five seconds.',
+      videoAssetId: up.body.data.videoAssetId as string,
+    });
+    expect(r.status).toBe(201);
+    expect(r.body.data.status).toBe('processing');
+    const id = r.body.data.id as string;
+
+    bunnyStatus = 1;
+    const still = await api().get(`/api/v1/posts/${id}`).set(att.auth);
+    expect(still.body.data.status).toBe('processing');
+
+    bunnyStatus = 4;
+    const done = await api().get(`/api/v1/posts/${id}`).set(att.auth);
+    bunnyStatus = 1;
+    expect(done.status).toBe(200);
+    expect(done.body.data.status).toBe('published');
+    expect(done.body.data.video.status).toBe('ready');
   });
 
   it('a reel cover can be an own clean gallery image (owner 2026-10-15)', async () => {

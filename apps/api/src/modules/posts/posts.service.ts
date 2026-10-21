@@ -10,7 +10,7 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import type { ContentStatus, File, Prisma } from '@prisma/client';
+import type { ContentStatus, File, Post, Prisma } from '@prisma/client';
 import { classifyPost, isPostContentClass } from './content-filter.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
@@ -802,7 +802,46 @@ export class PostsService {
       },
     });
     if (!post) throw postNotFound();
-    return (await this.presenter.present([post], user.sub))[0];
+    const settled = await this.settleOwnVideo(user.sub, post);
+    return (await this.presenter.present([settled], user.sub))[0];
+  }
+
+  /** The author's phone polls its new video post: ask Bunny right now
+   * instead of waiting for the webhook or the once-a-minute sweep (which
+   * only looks at uploads a minute old). Owner 2026-10-21: a 5 s video took
+   * minutes to appear. Publishes exactly once, like the webhook does. */
+  private async settleOwnVideo(userId: string, post: Post): Promise<Post> {
+    if (
+      post.status !== 'processing' ||
+      !post.video_asset_id ||
+      post.author_id !== userId
+    ) {
+      return post;
+    }
+    const asset = await this.prisma.videoAsset.findUnique({
+      where: { id: post.video_asset_id },
+    });
+    if (
+      !asset ||
+      (asset.status !== 'awaiting_upload' && asset.status !== 'processing')
+    ) {
+      return post;
+    }
+    const next = await this.videos.refresh(asset).catch(() => asset);
+    if (next.status === 'ready') {
+      const { count } = await this.prisma.post.updateMany({
+        where: { id: post.id, status: 'processing' },
+        data: { status: 'published', created_at: new Date() },
+      });
+      if (count === 1) await this.afterPublish(post.id);
+      return (
+        (await this.prisma.post.findUnique({ where: { id: post.id } })) ?? post
+      );
+    }
+    if (next.status === 'failed' || next.status === 'rejected') {
+      await this.notifyVideoFailed(post, next.failure_reason);
+    }
+    return post;
   }
 
   /** GET /attorneys/:id/posts — newest first (§2.4 profile grid). */
