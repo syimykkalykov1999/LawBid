@@ -278,8 +278,29 @@ void main() {
     expect(find.text('Медиа, ссылки и документы'), findsOneWidget);
     // Count from the chat's storage: 1 photo + 2 documents.
     expect(find.text('3'), findsOneWidget);
+    final contactScroll = find
+        .descendant(
+          of: find.byType(ContactInfoScreen),
+          matching: find.byType(Scrollable),
+        )
+        .first;
+    await tester.scrollUntilVisible(
+      find.text('Заблокировать Anna Kowalski'),
+      200,
+      scrollable: contactScroll,
+    );
     expect(find.text('Заблокировать Anna Kowalski'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Пожаловаться на Anna Kowalski'),
+      200,
+      scrollable: contactScroll,
+    );
     expect(find.text('Пожаловаться на Anna Kowalski'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('contact-profile')),
+      -200,
+      scrollable: contactScroll,
+    );
 
     await tester.tap(find.byKey(const ValueKey('contact-profile')));
     await tester.pumpAndSettle();

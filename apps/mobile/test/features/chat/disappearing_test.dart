@@ -156,7 +156,7 @@ void main() {
     // Off again.
     await tester.tap(row);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Выкл.').last);
+    await tester.tap(find.text('Выкл.').hitTestable().last);
     await tester.pumpAndSettle();
     expect(chat.lastSet, isNull);
   });

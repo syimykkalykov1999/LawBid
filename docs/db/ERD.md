@@ -663,6 +663,7 @@ erDiagram
     String requested_by FK "nullable"
     enum_ChatPairKind pair_kind
     DateTime last_message_at "nullable"
+    Int disappear_after_s "nullable"
     String last_message_id "nullable"
     DateTime created_at
     DateTime updated_at
@@ -742,6 +743,7 @@ erDiagram
     String sticker_id FK "nullable"
     String gift_send_id FK "nullable"
     DateTime deleted_at "nullable"
+    DateTime expires_at "nullable"
     DateTime edited_at "nullable"
     DateTime revoked_at "nullable"
     String reply_to_id FK "nullable"
@@ -793,6 +795,7 @@ erDiagram
     enum_GroupWho who_can_edit_info
     enum_GroupWho who_can_call
     Boolean show_service_messages
+    Int disappear_after_s "nullable"
     enum_GroupWho who_can_media
     enum_GroupWho who_can_poll
     enum_GroupWho who_can_pin
@@ -835,6 +838,7 @@ erDiagram
     String file_name "nullable"
     DateTime edited_at "nullable"
     DateTime deleted_at "nullable"
+    DateTime expires_at "nullable"
     DateTime created_at
   }
   chat_group_topics {
