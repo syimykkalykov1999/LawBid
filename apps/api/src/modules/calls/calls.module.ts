@@ -8,6 +8,8 @@ import { GroupsModule } from '../groups/groups.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { PrivacySettingsModule } from '../privacy-settings/privacy-settings.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
+import { CallHistoryController } from './call-history.controller';
+import { CallHistoryService } from './call-history.service';
 import { CallsController } from './calls.controller';
 import { CallsService } from './calls.service';
 
@@ -25,8 +27,9 @@ import { CallsService } from './calls.service';
     SubscriptionsModule,
     PrivacySettingsModule,
   ],
-  controllers: [CallsController],
-  providers: [CallsService],
+  // CallHistoryController first: `calls/history` must not match `calls/:id`.
+  controllers: [CallHistoryController, CallsController],
+  providers: [CallsService, CallHistoryService],
   exports: [CallsService],
 })
 export class CallsModule {}

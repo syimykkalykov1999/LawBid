@@ -85136,6 +85136,171 @@
         ]
       }
     },
+    "/calls/history": {
+      "get": {
+        "operationId": "callHistory",
+        "parameters": [
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "meta.nextCursor of the previous page.",
+            "schema": {
+              "maxLength": 300,
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 50,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CallHistoryItemListEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "My finished calls, newest first (cursor)",
+        "tags": [
+          "calls"
+        ]
+      }
+    },
+    "/calls/ongoing": {
+      "get": {
+        "operationId": "ongoingGroupCalls",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OngoingGroupCallListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Group calls running now in my groups",
+        "tags": [
+          "calls"
+        ]
+      }
+    },
     "/conversations/{id}/calls": {
       "post": {
         "operationId": "startCall",
@@ -151891,11 +152056,9 @@
           "data"
         ]
       },
-      "CallStatus": {
+      "CallHistoryStatus": {
         "type": "string",
         "enum": [
-          "ringing",
-          "active",
           "ended",
           "missed",
           "declined",
@@ -151934,6 +152097,163 @@
         "required": [
           "id",
           "kind"
+        ]
+      },
+      "CallHistoryItemDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CallHistoryStatus"
+              }
+            ]
+          },
+          "outgoing": {
+            "type": "boolean",
+            "description": "The viewer placed the call."
+          },
+          "video": {
+            "type": "boolean"
+          },
+          "peer": {
+            "$ref": "#/components/schemas/CallPeerDto"
+          },
+          "conversationId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "groupId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid",
+            "description": "The group chat the call was started from (else null)."
+          },
+          "groupTitle": {
+            "type": "string",
+            "nullable": true
+          },
+          "groupAvatarUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "group": {
+            "type": "boolean",
+            "default": false
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "durationSec": {
+            "type": "integer",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "outgoing",
+          "video",
+          "peer",
+          "group",
+          "createdAt"
+        ]
+      },
+      "CallHistoryItemListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CallHistoryItemDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "OngoingGroupCallDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "groupId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "groupTitle": {
+            "type": "string"
+          },
+          "groupAvatarUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "video": {
+            "type": "boolean"
+          },
+          "joined": {
+            "type": "integer",
+            "description": "People in the call now."
+          },
+          "mine": {
+            "type": "boolean",
+            "description": "I am in it now (the button says «Return»)."
+          },
+          "startedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "groupId",
+          "groupTitle",
+          "video",
+          "joined",
+          "mine",
+          "startedAt"
+        ]
+      },
+      "OngoingGroupCallListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OngoingGroupCallDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "CallStatus": {
+        "type": "string",
+        "enum": [
+          "ringing",
+          "active",
+          "ended",
+          "missed",
+          "declined",
+          "busy",
+          "canceled",
+          "failed"
         ]
       },
       "CallParticipantStatus": {

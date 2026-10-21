@@ -6,11 +6,13 @@ import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
 import '../models/call_envelope.dart';
+import '../models/call_history_item_list_envelope.dart';
 import '../models/call_mute_dto.dart';
 import '../models/cast_call_vote_dto.dart';
 import '../models/end_call_dto.dart';
 import '../models/ice_servers_envelope.dart';
 import '../models/invite_call_dto.dart';
+import '../models/ongoing_group_call_list_envelope.dart';
 import '../models/start_call_dto.dart';
 import '../models/start_call_vote_dto.dart';
 import '../models/start_group_call_dto.dart';
@@ -21,6 +23,22 @@ part 'calls_client.g.dart';
 @RestApi()
 abstract class CallsClient {
   factory CallsClient(Dio dio, {String? baseUrl}) = _CallsClient;
+
+  /// My finished calls, newest first (cursor).
+  ///
+  /// [cursor] - meta.nextCursor of the previous page.
+  @GET('/calls/history')
+  Future<CallHistoryItemListEnvelope> callHistory({
+    @Query('cursor') String? cursor,
+    @Query('limit') int? limit,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Group calls running now in my groups
+  @GET('/calls/ongoing')
+  Future<OngoingGroupCallListEnvelope> ongoingGroupCalls({
+    @Extras() Map<String, dynamic>? extras,
+  });
 
   /// Call the other chat member (audio or video)
   @POST('/conversations/{id}/calls')
