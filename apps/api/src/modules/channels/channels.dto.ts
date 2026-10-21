@@ -58,6 +58,10 @@ export class ChannelDto {
   @ApiPropertyOptional({ type: String, nullable: true })
   avatarUrl!: string | null;
 
+  /** The full-size picture for the full-screen view. */
+  @ApiPropertyOptional({ type: String, nullable: true })
+  avatarFullUrl?: string | null;
+
   @ApiProperty()
   commentsEnabled!: boolean;
 

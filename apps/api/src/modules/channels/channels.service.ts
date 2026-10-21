@@ -1137,6 +1137,9 @@ export class ChannelsService {
           avatarUrl: r.avatar_file_id
             ? (avatars.get(r.avatar_file_id)?.url256 ?? null)
             : null,
+          avatarFullUrl: r.avatar_file_id
+            ? (avatars.get(r.avatar_file_id)?.url ?? null)
+            : null,
           commentsEnabled: r.comments_enabled,
           protectContent: r.protect_content,
           // Moderation state is the admins' business only.

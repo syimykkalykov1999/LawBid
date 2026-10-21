@@ -75,6 +75,7 @@ class Channel {
     required this.createdAt,
     this.description,
     this.avatarUrl,
+    this.avatarFullUrl,
     this.myRole,
     this.lastPostAt,
     this.protectContent = false,
@@ -87,6 +88,9 @@ class Channel {
   final String username;
   final String? description;
   final String? avatarUrl;
+
+  /// Full-size picture for the full-screen view.
+  final String? avatarFullUrl;
   final bool commentsEnabled;
   final ChannelState state;
   final int subscriberCount;
@@ -119,6 +123,7 @@ class Channel {
         username: username,
         description: description,
         avatarUrl: avatarUrl,
+        avatarFullUrl: avatarFullUrl,
         commentsEnabled: commentsEnabled,
         state: state,
         subscriberCount: subscriberCount ?? this.subscriberCount,
