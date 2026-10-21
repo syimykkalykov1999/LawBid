@@ -2697,6 +2697,7 @@ erDiagram
     Int answer_count
     String best_answer_id "nullable"
     DateTime deleted_at "nullable"
+    DateTime closed_at "nullable"
     DateTime created_at
     DateTime updated_at
   }

@@ -329,6 +329,7 @@ class _Body extends ConsumerWidget {
           children: [
             if (area != null) QaTag(label: qaAreaLabel(t, area)),
             if (q.stateCode != null) QaTag(label: q.stateCode!),
+            if (q.closed) QaTag(label: t.t('qa.closed')),
             if (q.solved) QaBestBadge(label: t.t('qa.solved')),
           ],
         ),
@@ -576,7 +577,12 @@ class _Composer extends ConsumerWidget {
       final hint = q.myAnswerId != null
           ? t.t('qa.answered')
           : attorney && !q.isMine
-              ? t.t('qa.answer.only')
+              // Owner 2026-10-21: say why the box is gone.
+              ? q.closed
+                  ? t.t('qa.closed')
+                  : q.answersEnough
+                      ? t.t('qa.enough')
+                      : t.t('qa.answer.only')
               : null;
       if (hint == null) return const SizedBox.shrink();
       return Container(

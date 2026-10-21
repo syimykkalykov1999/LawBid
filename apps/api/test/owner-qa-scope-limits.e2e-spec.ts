@@ -265,7 +265,12 @@ describe('Q&A feed scope, answer cap, privacy, close and sweep (e2e)', () => {
       where: { id: mineArea.id },
       data: { parent_id: parent.id },
     });
-    const qParent = await ask(cl, 'Scope parent question', parent.id);
+    // question_create is capped per day; a second client asks this one.
+    const qParent = await ask(
+      await client(),
+      'Scope parent question',
+      parent.id,
+    );
     const withParent = await api()
       .get('/api/v1/questions')
       .query({ scope: 'mine' })
@@ -276,6 +281,66 @@ describe('Q&A feed scope, answer cap, privacy, close and sweep (e2e)', () => {
       where: { id: mineArea.id },
       data: { parent_id: null },
     });
+  });
+
+  it('search combines q, filter=unanswered, stateCode and scope=mine', async () => {
+    await prisma.state.upsert({
+      where: { code: 'CA' },
+      create: { code: 'CA', name: 'California', is_active: true },
+      update: {},
+    });
+    const mineArea = await leafArea();
+    const other = await otherArea('e2e_qa_scope_other');
+    const att = await attorney({ areaId: mineArea.id });
+    // scope=mine keeps only the states of verified licences.
+    await prisma.attorneyLicense.create({
+      data: {
+        attorney_id: att.id,
+        state_code: 'NY',
+        bar_number: `E2E${randomUUID().slice(0, 8)}`,
+        license_status: 'verified',
+        verified_at: new Date(),
+      },
+    });
+    const word = `zq${randomUUID()
+      .replace(/[^a-f]/g, '')
+      .slice(0, 10)}`;
+    const askIn = async (
+      cl: { auth: Record<string, string> },
+      title: string,
+      areaId: string,
+      stateCode: string,
+    ) =>
+      (
+        await api()
+          .post('/api/v1/questions')
+          .set(cl.auth)
+          .set('Idempotency-Key', randomUUID())
+          .send({
+            title: `${title} ${word}`,
+            body: `${title} ${word} — details of the matter`,
+            practiceAreaId: areaId,
+            stateCode,
+          })
+          .expect(201)
+      ).body.data.id as string;
+    const c1 = await client();
+    const c2 = await client();
+    const hit = await askIn(c1, 'Combo match', mineArea.id, 'NY');
+    const answered = await askIn(c1, 'Combo answered', mineArea.id, 'NY');
+    const otherState = await askIn(c2, 'Combo state', mineArea.id, 'CA');
+    const otherArea_ = await askIn(c2, 'Combo area', other.id, 'NY');
+    await answer(await attorney(), answered).expect(200);
+
+    const res = await api()
+      .get('/api/v1/questions')
+      .query({ q: word, filter: 'unanswered', stateCode: 'NY', scope: 'mine' })
+      .set(att.auth)
+      .expect(200);
+    expect(ids(res)).toContain(hit);
+    for (const id of [answered, otherState, otherArea_]) {
+      expect(ids(res)).not.toContain(id);
+    }
   });
 
   it('close hides a question from attorneys; the sweep closes and purges', async () => {

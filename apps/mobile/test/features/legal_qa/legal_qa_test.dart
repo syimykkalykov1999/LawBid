@@ -33,6 +33,8 @@ Question _q({
   String? best,
   String? myAnswer,
   bool anonymous = false,
+  bool closed = false,
+  bool enough = false,
   List<QaAnswer> answers = const [],
 }) =>
     Question(
@@ -54,6 +56,8 @@ Question _q({
           anonymous ? null : const QaPerson(id: 'u1', displayName: 'Anna K.'),
       bestAnswerId: best,
       myAnswerId: myAnswer,
+      closed: closed,
+      answersEnough: enough,
       answers: answers,
     );
 
@@ -77,11 +81,13 @@ class _Repo extends LegalQaRepository {
   _Repo({this.items = const [], this.detailQuestion}) : super(Dio());
 
   final List<Question> items;
-  final Question? detailQuestion;
+  Question? detailQuestion;
   final queries = <QuestionsQuery>[];
   final asked = <String>[];
   final answered = <String>[];
   final best = <String?>[];
+  final closedIds = <String>[];
+  final liked = <String>[];
 
   @override
   Future<CursorPage<Question>> list(
@@ -115,6 +121,18 @@ class _Repo extends LegalQaRepository {
 
   @override
   Future<void> setBest(String id, String? answerId) async => best.add(answerId);
+
+  @override
+  Future<void> close(String id) async {
+    closedIds.add(id);
+    detailQuestion = _q(mine: true, closed: true);
+  }
+
+  @override
+  Future<QaAnswer> like(String id, String answerId, {required bool on}) async {
+    liked.add(answerId);
+    return _a();
+  }
 }
 
 void main() {
@@ -325,6 +343,67 @@ void main() {
     );
     expect(find.text('Аноним'), findsOneWidget);
     expect(find.text('Anna K.'), findsNothing);
+  });
+
+  // Owner 2026-10-21: a tap on a question lifts the answers sheet.
+  testWidgets('a tap on a question opens the sheet; a client likes', (
+    tester,
+  ) async {
+    final repo = _Repo(items: [_q()], detailQuestion: _q(answers: [_a()]));
+    await pump(tester, const QaFeedScreen(), repo);
+    await tester.tap(find.textContaining('Can my landlord'));
+    await tester.pumpAndSettle();
+    expect(find.byType(QuestionDetailScreen), findsOneWidget);
+    expect(find.text('Jordan Lee'), findsOneWidget);
+    await tester.tap(find.bySemanticsLabel('Полезно'));
+    await tester.pump();
+    expect(repo.liked, ['a1']);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('the author closes the question; it shows «Закрыт»', (
+    tester,
+  ) async {
+    final repo = _Repo(detailQuestion: _q(mine: true));
+    await pump(tester, const QuestionDetailScreen(id: 'q1'), repo);
+    expect(find.text('Закрыт'), findsNothing);
+    await tester.tap(find.bySemanticsLabel('Ещё'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Закрыть вопрос'));
+    await tester.pumpAndSettle();
+    expect(find.text('Закрыть вопрос?'), findsOneWidget);
+    await tester.tap(find.text('Закрыть вопрос').last);
+    await tester.pumpAndSettle();
+    expect(repo.closedIds, ['q1']);
+    expect(find.text('Закрыт'), findsOneWidget);
+    // A closed question has nothing more to close.
+    await tester.tap(find.bySemanticsLabel('Ещё'));
+    await tester.pumpAndSettle();
+    expect(find.text('Закрыть вопрос'), findsNothing);
+  });
+
+  testWidgets('an attorney sees why the answer box is gone', (tester) async {
+    await pump(
+      tester,
+      const QuestionDetailScreen(id: 'q1'),
+      _Repo(detailQuestion: _q(enough: true)),
+      attorney: true,
+    );
+    expect(find.text('Ответов достаточно'), findsOneWidget);
+    expect(find.text('Ваш ответ'), findsNothing);
+  });
+
+  testWidgets('an attorney on a closed question sees «Закрыт»', (
+    tester,
+  ) async {
+    await pump(
+      tester,
+      const QuestionDetailScreen(id: 'q1'),
+      _Repo(detailQuestion: _q(closed: true)),
+      attorney: true,
+    );
+    // The tag and the note under the answers.
+    expect(find.text('Закрыт'), findsNWidgets(2));
   });
 
   group('notification routing', () {
