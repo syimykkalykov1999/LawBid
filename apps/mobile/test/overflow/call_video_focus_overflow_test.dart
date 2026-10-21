@@ -16,7 +16,9 @@ import 'package:lawbid/features/calls/presentation/call_widgets.dart';
 import '../helpers/long_locale.dart';
 import '../helpers/ux_harness.dart';
 
-/// Owner 2026-10-21 (video focus): one person big, the rest in a strip, in all four themes. Based on the group call suite (2026-10-20): the call screen with three to seven
+/// Owner 2026-10-21 (video focus): one person big, the rest in a strip, in
+/// all four themes. Based on the group call suite (2026-10-20): the call
+/// screen with three to seven
 /// people, the people sheet (host and guest) and the add sheet on a 360 dp
 /// phone in the longest translation of every key, the same right-to-left,
 /// Nepali, Arabic and Russian — at text scale 1 and 1.1. Any overflow fails.
@@ -98,8 +100,8 @@ void main() {
     for (final scale in [1.0, 1.1]) {
       for (final MapEntry(key: name, value: (t, dir)) in locales.entries) {
         group(
-            'group call, one person big: ${id.name}, 360 dp ($name, text x$scale)',
-            () {
+            'group call, one person big: ${id.name}, 360 dp '
+            '($name, text x$scale)', () {
           Future<void> pump(
             WidgetTester tester,
             CallSession s,
