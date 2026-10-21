@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
@@ -392,7 +394,7 @@ class GiftMessageBody extends ConsumerWidget {
   }
 }
 
-/// «Подарки» on a profile: the strip of received gifts and «Подарить».
+/// «Подарки» on a profile: the strip of received gifts.
 class GiftShowcase extends ConsumerWidget {
   const GiftShowcase({required this.userId, this.isMe = false, super.key});
 
@@ -410,35 +412,17 @@ class GiftShowcase extends ConsumerWidget {
       for (final s in list)
         if (s.shown && !s.converted) s,
     ];
-    final canGive = !isMe && !ref.watch(isAssistantProvider);
-    if (shown.isEmpty && !canGive) return const SizedBox.shrink();
+    // Owner 2026-10-21: «Подарить» lives in the profile's «⋯» menu
+    // ([GiftMenuRow]), not on the profile itself; here only the strip.
+    if (shown.isEmpty) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.only(top: AppSpacing.sm),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              if (shown.isNotEmpty)
-                Expanded(
-                  child: Text(
-                    t.t('stars.profile.title'),
-                    style: type.titleMedium.copyWith(color: colors.text),
-                  ),
-                )
-              else
-                const Spacer(),
-              if (canGive)
-                TextButton.icon(
-                  key: const ValueKey('profile-give-gift'),
-                  onPressed: () => showGiftCatalogSheet(context, ref, userId),
-                  icon: AppIcon(AppIcons.giftOutlined, color: colors.iconTint),
-                  label: Text(
-                    t.t('stars.profile.give'),
-                    style: TextStyle(color: colors.goldDark),
-                  ),
-                ),
-            ],
+          Text(
+            t.t('stars.profile.title'),
+            style: type.titleMedium.copyWith(color: colors.text),
           ),
           if (shown.isNotEmpty)
             SizedBox(
@@ -457,6 +441,44 @@ class GiftShowcase extends ConsumerWidget {
             ),
         ],
       ),
+    );
+  }
+}
+
+/// «Подарить» row of a profile's «⋯» menu (owner 2026-10-21): closes the
+/// menu [sheet] and opens the catalog over [screen]. Nothing when stars are
+/// off, for oneself, for an assistant, or when blocked either way.
+class GiftMenuRow extends ConsumerWidget {
+  const GiftMenuRow({
+    required this.userId,
+    required this.sheet,
+    required this.screen,
+    this.blocked = false,
+    super.key,
+  });
+
+  final String userId;
+  final BuildContext sheet;
+  final BuildContext screen;
+  final bool blocked;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (blocked ||
+        !ref.watch(starsEnabledProvider) ||
+        ref.watch(isAssistantProvider)) {
+      return const SizedBox.shrink();
+    }
+    final t = ref.watch(translatorProvider);
+    return AppListRow(
+      key: const ValueKey('profile-give-gift'),
+      icon: AppIcons.giftOutlined,
+      label: t.t('stars.profile.give'),
+      showChevron: false,
+      onTap: () {
+        Navigator.of(sheet).pop();
+        unawaited(showGiftCatalogSheet(screen, ref, userId));
+      },
     );
   }
 }

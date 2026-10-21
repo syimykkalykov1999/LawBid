@@ -218,6 +218,32 @@ Future<void> main() async {
           expect(tester.takeException(), isNull);
         });
 
+        testWidgets('profile menu «Подарить» row, $tag', (tester) async {
+          await pump(
+            tester,
+            Builder(
+              builder: (context) => Scaffold(
+                body: Column(
+                  children: [
+                    GiftMenuRow(userId: 'u1', sheet: context, screen: context),
+                    GiftMenuRow(
+                      userId: 'u1',
+                      sheet: context,
+                      screen: context,
+                      blocked: true,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+          expect(
+            find.byKey(const ValueKey('profile-give-gift')),
+            findsOneWidget,
+          );
+          expect(tester.takeException(), isNull);
+        });
+
         testWidgets('gift sheet, $tag', (tester) async {
           await pump(
             tester,
