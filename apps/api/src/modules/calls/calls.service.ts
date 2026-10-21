@@ -700,7 +700,8 @@ export class CallsService {
       return c;
     });
     for (const id of invitees) {
-      this.realtime.toUsers([id], 'call:incoming', {
+      // A call from a group chat is a light invitation, not a ring.
+      this.realtime.toUsers([id], 'call:invite', {
         call: await this.toDto(call, id),
       });
       await this.push.enqueueCall({ recipientId: id, callId: call.id });
@@ -1010,9 +1011,11 @@ export class CallsService {
         muted_by_host: false,
       },
     });
-    this.realtime.toUsers([targetId], 'call:incoming', {
-      call: await this.toDto(call, targetId),
-    });
+    this.realtime.toUsers(
+      [targetId],
+      call.group_id ? 'call:invite' : 'call:incoming',
+      { call: await this.toDto(call, targetId) },
+    );
     await this.push.enqueueCall({ recipientId: targetId, callId: call.id });
     await this.broadcastParticipants(call.id);
     return this.toDto(call, user.sub);
@@ -1343,12 +1346,8 @@ export class CallsService {
     if (!target || target.status !== 'joined' || targetId === user.sub) {
       throw notFound();
     }
-    if (await this.isModerated(call, rows)) {
-      throw new ForbiddenException({
-        code: ErrorCode.FORBIDDEN,
-        message: 'The host or an admin is in the call: ask them.',
-      });
-    }
+    // Owner 2026-10-21: a vote to remove someone is open to everyone in the
+    // call, the host and admins included — whether or not they are there.
     if (await this.openVoteOf(call.id)) throw conflict();
     // Two people left besides the candidate or fewer: nobody to outvote.
     if (rows.filter((r) => r.status === 'joined').length < 3) throw conflict();

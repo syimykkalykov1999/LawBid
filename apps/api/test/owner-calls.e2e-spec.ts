@@ -359,7 +359,7 @@ describe('In-app calls (e2e, OQ-041)', () => {
         video: true,
       },
     });
-    await prisma.$executeRaw`UPDATE calls SET updated_at = now() - interval '2 minutes' WHERE id = ${stuck.id}::uuid`;
+    await prisma.$executeRaw`UPDATE calls SET updated_at = now() - interval '4 minutes' WHERE id = ${stuck.id}::uuid`;
     const fresh = await api()
       .post(`/api/v1/conversations/${c.id}/calls`)
       .set(c.client.auth)

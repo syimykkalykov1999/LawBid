@@ -128,6 +128,10 @@ class PushService {
               }
               return;
             }
+            if (msg.data['type'] == 'group_call') {
+              _showCallInvite(msg.data);
+              return;
+            }
             if (msg.data['type'] == 'incoming_call' &&
                 msg.data['callId'] is String) {
               unawaited(
@@ -241,8 +245,25 @@ class PushService {
     }
   }
 
+  /// A call from a group chat: a light prompt in the app, not a ring.
+  void _showCallInvite(Map<String, dynamic> data) {
+    final id = data['callId'];
+    if (id is! String) return;
+    final gid = data['groupId'];
+    _ref.read(callInviteProvider.notifier).set(
+          CallInvite(
+            callId: id,
+            groupId: gid is String && gid.isNotEmpty ? gid : null,
+            who: '${data['callerName'] ?? ''}',
+            title: '${data['groupTitle'] ?? ''}',
+            video: data['video'] == '1',
+          ),
+        );
+  }
+
   void _open(RemoteMessage message) {
     final data = message.data;
+    if (data['type'] == 'group_call') _showCallInvite(data);
     if (data['type'] == 'incoming_call' && data['callId'] is String) {
       unawaited(
         _ref

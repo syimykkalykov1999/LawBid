@@ -47,7 +47,7 @@ String? notificationRoute({
   final postId = s('postId');
   switch (type) {
     // Owner 2026-10-20: a group message opens the group.
-    case 'new_message' when s('groupId') != null:
+    case 'new_message' || 'group_call' when s('groupId') != null:
       return GroupRoutes.group(s('groupId')!);
     case 'new_message' || 'missed_call' || 'incoming_call':
       final c = s('conversationId');

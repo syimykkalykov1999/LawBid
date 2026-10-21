@@ -392,8 +392,7 @@ class _MembersSheet extends ConsumerWidget {
                       isMe: m.userId == me,
                       isHost: m.userId == call.hostId,
                       canManage: iAmHost && m.userId != me,
-                      canPropose: !call.moderated &&
-                          call.vote == null &&
+                      canPropose: call.vote == null &&
                           m.joined &&
                           m.userId != me &&
                           s.phase == CallPhase.active,

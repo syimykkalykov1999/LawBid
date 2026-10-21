@@ -159,6 +159,8 @@ export class PushDispatcher
         conversation_id: true,
         video: true,
         is_group: true,
+        group_id: true,
+        caller_id: true,
         callee: { select: { status: true, ui_language: true } },
         caller: {
           select: { first_name: true, last_name: true },
@@ -167,6 +169,7 @@ export class PushDispatcher
         participants: {
           where: { user_id: data.recipientId, status: 'invited' },
           select: {
+            invited_by_id: true,
             invited_by: { select: { first_name: true, last_name: true } },
             user: { select: { status: true, ui_language: true } },
           },
@@ -183,6 +186,13 @@ export class PushDispatcher
       if (call.status !== 'ringing') return 'no_push';
     }
     const language = invite ? invite.user.ui_language : call.callee.ui_language;
+    // Owner 2026-10-21 (Telegram): a call started in a group chat does not
+    // ring like a phone call — a light notification «X started a call ·
+    // Join», and the same for being invited into it. No ringtone, no
+    // CallKit / VoIP push.
+    if (call.group_id) {
+      return this.dispatchGroupCallNotice(data, call, invite, language);
+    }
     // Owner 2026-10-02: calls switched off still come through — silently
     // (no ringtone), so a call is never lost.
     const silent = !(await this.pushAllowed(data.recipientId, 'calls'));
@@ -227,6 +237,70 @@ export class PushDispatcher
         skipTokens,
       },
       `c:${data.callId}`,
+    );
+    return 'sent';
+  }
+
+  private async dispatchGroupCallNotice(
+    data: CallJobData,
+    call: {
+      group_id: string | null;
+      caller_id: string;
+      video: boolean;
+      caller: { first_name: string | null; last_name: string | null };
+    },
+    invite:
+      | {
+          invited_by_id: string | null;
+          invited_by: {
+            first_name: string | null;
+            last_name: string | null;
+          } | null;
+        }
+      | undefined,
+    language: string | null,
+  ): Promise<DispatchResult> {
+    const group = await this.prisma.chatGroup.findUnique({
+      where: { id: call.group_id ?? '' },
+      select: { title: true },
+    });
+    const who = invite?.invited_by ?? call.caller;
+    const name =
+      [who.first_name, who.last_name].filter(Boolean).join(' ') || 'LawBid';
+    const ru = language === 'ru';
+    // The starter's own invitees get «started a call»; a later invite from a
+    // member says «invites you».
+    const starter =
+      !invite?.invited_by || invite.invited_by_id === call.caller_id;
+    const kind = call.video
+      ? ru
+        ? 'видеозвонок'
+        : 'a video call'
+      : ru
+        ? 'звонок'
+        : 'a call';
+    const body = starter
+      ? ru
+        ? `${name} начал(а) ${kind} · Присоединиться`
+        : `${name} started ${kind} · Join`
+      : ru
+        ? `${name} приглашает в ${kind} · Присоединиться`
+        : `${name} invites you to ${kind} · Join`;
+    await this.sender.send(
+      {
+        userId: data.recipientId,
+        title: group?.title ?? name,
+        body,
+        data: {
+          type: 'group_call',
+          callId: data.callId,
+          groupId: call.group_id ?? '',
+          callerName: name,
+          groupTitle: group?.title ?? '',
+          ...(call.video ? { video: '1' } : {}),
+        },
+      },
+      `gc:${data.callId}`,
     );
     return 'sent';
   }

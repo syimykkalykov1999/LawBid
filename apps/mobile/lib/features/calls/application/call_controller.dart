@@ -18,6 +18,7 @@ import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/chat/data/realtime_client.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
+import 'package:lawbid/features/notifications/application/system_notifications.dart';
 import 'package:lawbid/features/notifications/data/notifications_repository.dart'
     show NotifCategory;
 import 'package:lawbid/features/team/application/team_providers.dart';
@@ -652,7 +653,17 @@ class CallController extends Notifier<CallSession> {
     // "link lost" before anything else, and it must not beat the hang-up
     // (it showed "Reconnecting…" for seconds on a video call).
     final gid = call?.groupId;
-    if (call != null && call.group && gid != null && !forAll && wasActive) {
+    final me = _me;
+    final othersIn = call == null
+        ? 0
+        : call.participants.where((m) => m.joined && m.userId != me).length;
+    // The way back is only offered into a call that goes on without us.
+    if (call != null &&
+        call.group &&
+        gid != null &&
+        !forAll &&
+        wasActive &&
+        othersIn > 0) {
       ref.read(groupRejoinProvider.notifier).set(
             GroupRejoin(
               groupId: gid,
@@ -1003,6 +1014,32 @@ class CallController extends Notifier<CallSession> {
     }
   }
 
+  /// «Join» on the light invitation of a call from a group chat.
+  /// Returns the API error code, or null when it worked.
+  Future<String?> joinInvite(CallInvite invite) async {
+    ref.read(callInviteProvider.notifier).set(null);
+    if (state.busy) {
+      ref.read(callOpenRequestProvider.notifier).bump();
+      return null;
+    }
+    try {
+      final call = await _repo.get(invite.callId);
+      if (!call.live) return 'CALL_STATE_CONFLICT';
+      return await joinGroupCall(
+        call,
+        peer: CallPeer(
+          id: invite.groupId ?? call.id,
+          isAttorney: false,
+          displayName: invite.title.isNotEmpty ? invite.title : invite.who,
+        ),
+      );
+    } on ApiException catch (e) {
+      return e.code;
+    } on Object {
+      return 'ERROR';
+    }
+  }
+
   /// A ring that arrived by push / the system call UI (app was in the
   /// background): load it and show it here.
   Future<void> ringFromPush(String callId, {bool accept = false}) async {
@@ -1115,17 +1152,28 @@ class CallController extends Notifier<CallSession> {
     // system call screen rings on both (push / callkit).
     final foreground =
         WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
-    // Web: no system call screen — the open tab rings and shows its own.
-    if (kIsWeb ||
-        (foreground && defaultTargetPlatform == TargetPlatform.android)) {
+    final android = !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+    if (kIsWeb) {
+      // Web: no system call screen — the open tab rings and shows its own.
       unawaited(ref.read(appSoundsProvider).startRingtone());
-    } else if (showSystemUi) {
+      return;
+    }
+    // Owner 2026-10-21 (WhatsApp): one ringing surface. The phone's own call
+    // sheet rings, also with the app open; the in-app strip stays away for
+    // it. Only a phone that forbids notifications (the sheet cannot show)
+    // gets the strip and the app's own ringtone.
+    ref.read(systemRingingCallProvider.notifier).set(call.id);
+    if (showSystemUi) {
       unawaited(ref.read(systemCallUiProvider).showIncoming(call));
     }
-    // iOS: the system call sheet is the ringing screen — the in-app strip
-    // would be a second one (owner 2026-10-20).
-    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
-      ref.read(systemRingingCallProvider.notifier).set(call.id);
+    if (android && foreground) {
+      unawaited(() async {
+        final shown = await ref.read(systemNotificationsProvider).enabled();
+        if (shown || !ref.mounted || state.call?.id != call.id) return;
+        if (state.phase != CallPhase.incoming) return;
+        ref.read(systemRingingCallProvider.notifier).set(null);
+        await ref.read(appSoundsProvider).startRingtone();
+      }());
     }
   }
 
@@ -1421,6 +1469,18 @@ class CallController extends Notifier<CallSession> {
         // OQ-048: an assistant rings only with the "calls" duty.
         if (!ref.read(canDoProvider(AssistantDuty.calls))) return;
         _ring(call);
+      case 'call:invite':
+        final call = CallMappers.fromEvent(data);
+        if (call == null || state.busy) return;
+        if (!ref.read(canDoProvider(AssistantDuty.calls))) return;
+        ref.read(callInviteProvider.notifier).set(
+              CallInvite(
+                callId: call.id,
+                groupId: call.groupId,
+                who: call.peer.displayName ?? '',
+                video: call.video,
+              ),
+            );
       case 'call:accepted':
         final call = CallMappers.fromEvent(data);
         if (call == null || call.id != state.call?.id) return;
@@ -1570,6 +1630,21 @@ class CallController extends Notifier<CallSession> {
     if (endedId != null) {
       final ui = ref.read(systemCallUiProvider);
       unawaited(ui.dismiss(endedId).then<void>((_) => ui.endAll()));
+      // Device test 2026-10-21: after a group call «Leave» the ongoing-call
+      // notification (7003) and the plugin's records stayed in the shade.
+      // The end is stated outright, not left to the state listener, and
+      // again a moment later for a start that was still in flight.
+      final fg = ref.read(callForegroundProvider);
+      _fgKey = null;
+      unawaited(fg.stop());
+      unawaited(
+        Future<void>.delayed(const Duration(seconds: 2), () async {
+          if (ref.mounted && !state.busy) {
+            await fg.stop();
+            await ui.endAll();
+          }
+        }),
+      );
     }
     _reset();
     // OQ-044: "busy" beeps, or the short end-of-call tone.
@@ -1660,10 +1735,43 @@ class GroupRejoinNotifier extends Notifier<GroupRejoin?> {
   void set(GroupRejoin? value) => state = value;
 }
 
-final groupRejoinProvider =
-    NotifierProvider<GroupRejoinNotifier, GroupRejoin?>(
+final groupRejoinProvider = NotifierProvider<GroupRejoinNotifier, GroupRejoin?>(
   GroupRejoinNotifier.new,
 );
+
+/// Owner 2026-10-21 (Telegram): a call started in a group chat, or an
+/// invitation into it, is a light prompt — «X · Join» — not a ringing call.
+@immutable
+class CallInvite {
+  const CallInvite({
+    required this.callId,
+    required this.who,
+    this.groupId,
+    this.title = '',
+    this.video = false,
+  });
+
+  final String callId;
+  final String? groupId;
+
+  /// Who started the call / invited us.
+  final String who;
+
+  /// The group's name (empty when unknown).
+  final String title;
+  final bool video;
+}
+
+class CallInviteNotifier extends Notifier<CallInvite?> {
+  @override
+  CallInvite? build() => null;
+
+  // ignore: use_setters_to_change_properties
+  void set(CallInvite? value) => state = value;
+}
+
+final callInviteProvider =
+    NotifierProvider<CallInviteNotifier, CallInvite?>(CallInviteNotifier.new);
 
 final callControllerProvider =
     NotifierProvider<CallController, CallSession>(CallController.new);

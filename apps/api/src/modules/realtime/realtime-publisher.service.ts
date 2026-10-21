@@ -30,6 +30,7 @@ export type RealtimeEvent =
   | 'call:muted'
   | 'call:removed'
   | 'call:vote'
+  | 'call:invite'
   // Owner 2026-10-20 group chats: a new / changed message (poll edits and
   // deletions included), the group's settings or member list changed, my
   // own removal (the calls thread drops the person from a running call),

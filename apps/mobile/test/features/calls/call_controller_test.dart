@@ -679,6 +679,31 @@ void main() {
     expect(h.s.reconnecting, isFalse);
   });
 
+  test('a ringing call is the system sheet\'s: no second strip in the app',
+      () async {
+    final h = _Harness();
+    addTearDown(h.dispose);
+    h.emit(
+      'call:incoming',
+      _event(_call('c3', CallStatus.ringing, outgoing: false)),
+    );
+    await _settle();
+    expect(h.container.read(systemRingingCallProvider), 'c3');
+  });
+
+  test('an invitation into a chat-group call is a light prompt, not a ring',
+      () async {
+    final h = _Harness();
+    addTearDown(h.dispose);
+    h.emit(
+      'call:invite',
+      _event(_call('c4', CallStatus.active, outgoing: false)),
+    );
+    await _settle();
+    expect(h.s.phase, CallPhase.idle);
+    expect(h.container.read(callInviteProvider)?.callId, 'c4');
+  });
+
   test('ringing in: accept answers the offer', () async {
     final h = _Harness();
     addTearDown(h.dispose);
@@ -1261,6 +1286,37 @@ void main() {
       await _settle();
       expect(h.repo.endedForAll, isEmpty);
       expect(h.container.read(groupRejoinProvider)?.groupId, 'grp');
+    });
+
+    test('the last one out is offered no way back into a finished call',
+        () async {
+      final h = await joined();
+      h.media.onState!(CallMediaState.connected);
+      h.emit('call:participants', {
+        'callId': 'g1',
+        'hostId': 'p1',
+        'participants': [
+          for (final x in [
+            m('p1', CallMemberStatus.left),
+            m('p2', CallMemberStatus.left),
+            m('me', CallMemberStatus.joined, at: 5),
+          ])
+            {
+              'userId': x.userId,
+              'displayName': x.displayName,
+              'username': null,
+              'avatarUrl': null,
+              'status': x.status.name,
+              'muted': false,
+              'mutedByHost': false,
+              'joinedAt': x.joinedAt?.toIso8601String(),
+            },
+        ],
+      });
+      await _settle();
+      await h.c.hangUp();
+      await _settle();
+      expect(h.container.read(groupRejoinProvider), isNull);
     });
 
     test('vote to remove: shown, answered, and its end announced', () async {

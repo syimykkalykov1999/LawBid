@@ -9,6 +9,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/call_foreground.dart';
 import 'package:lawbid/features/calls/application/callkit_bridge.dart';
+import 'package:lawbid/features/calls/presentation/call_invite_bar.dart';
 import 'package:lawbid/features/calls/presentation/call_rejoin.dart';
 import 'package:lawbid/features/chat/application/voice_recorder.dart'
     show voiceClock;
@@ -35,6 +36,23 @@ class CallHost extends ConsumerWidget {
   bool _inChatOf(String groupId) =>
       router.routerDelegate.currentConfiguration.uri.path.contains(groupId);
 
+  /// Answered on the phone's call sheet with the app minimised (device test
+  /// 2026-10-21): the push can land while the app is still waking up and the
+  /// screen never opens. A moment later, if the call runs and no call screen
+  /// is up, open it — the person always lands in the call.
+  void _ensureOpen(WidgetRef ref) {
+    unawaited(
+      Future<void>.delayed(const Duration(milliseconds: 700), () {
+        final s = ref.read(callControllerProvider);
+        final talking =
+            s.phase == CallPhase.connecting || s.phase == CallPhase.active;
+        if (talking && !_onCallScreen(ref)) {
+          unawaited(router.push<void>(ChatRoutes.call));
+        }
+      }),
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     // System call UI answers/declines → the controller.
@@ -50,10 +68,12 @@ class CallHost extends ConsumerWidget {
       // Outgoing opens the call screen; an incoming call in the open app is
       // a compact banner (Accept / Decline) until it is answered — then the
       // screen opens, like WhatsApp.
-      final opened = (!wasLive && next == CallPhase.outgoing) ||
+      final opened = (!wasLive &&
+              (next == CallPhase.outgoing || next == CallPhase.connecting)) ||
           (prev == CallPhase.incoming && next == CallPhase.connecting);
       if (!opened) return;
       if (!_onCallScreen(ref)) unawaited(router.push<void>(ChatRoutes.call));
+      _ensureOpen(ref);
     });
     ref.listen(callOpenRequestProvider, (_, __) {
       if (ref.read(callControllerProvider).busy && !_onCallScreen(ref)) {
@@ -70,6 +90,7 @@ class CallHost extends ConsumerWidget {
     final pip = s.video && talking && screenOpen;
     unawaited(ref.read(callPipProvider).setActive(active: pip));
     final rejoin = ref.watch(groupRejoinProvider);
+    final invite = ref.watch(callInviteProvider);
     return ListenableBuilder(
       listenable: router.routerDelegate,
       builder: (context, _) {
@@ -87,6 +108,10 @@ class CallHost extends ConsumerWidget {
             session: s,
             onTap: () => unawaited(router.push<void>(ChatRoutes.call)),
           );
+        } else if (!s.busy &&
+            invite != null &&
+            !(invite.groupId != null && _inChatOf(invite.groupId!))) {
+          top = CallInviteBar(key: ValueKey(invite.callId), invite: invite);
         } else if (!s.busy && rejoin != null && !_inChatOf(rejoin.groupId)) {
           top = CallRejoinBar(key: ValueKey(rejoin.groupId), rejoin: rejoin);
         } else {

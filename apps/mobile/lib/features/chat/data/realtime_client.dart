@@ -56,6 +56,7 @@ class RealtimeClient {
     'call:muted',
     'call:removed',
     'call:vote',
+    'call:invite',
     'typing',
     'notification:new',
     'badge:update',

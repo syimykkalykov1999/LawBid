@@ -279,7 +279,7 @@ describe('Group chat calls (e2e)', () => {
     // Bob's app is killed: no heartbeat for a minute. The others keep theirs.
     await prisma.callParticipant.updateMany({
       where: { call_id: callId, user_id: bob.id },
-      data: { updated_at: new Date(Date.now() - 120_000) },
+      data: { updated_at: new Date(Date.now() - 240_000) },
     });
     await api().get(`/api/v1/calls/${callId}`).set(auth(owner.id)).expect(200);
     const bobRow = await prisma.callParticipant.findUniqueOrThrow({
@@ -298,7 +298,7 @@ describe('Group chat calls (e2e)', () => {
     // The last other person silent too: the call is over.
     await prisma.callParticipant.updateMany({
       where: { call_id: callId, user_id: { in: [ann.id, owner.id] } },
-      data: { updated_at: new Date(Date.now() - 120_000) },
+      data: { updated_at: new Date(Date.now() - 240_000) },
     });
     await api().get(`/api/v1/groups/${gid}/call`).set(auth(ann.id)).expect(404);
     expect(
@@ -523,9 +523,16 @@ describe('Group chat calls (e2e)', () => {
         }
       ).data;
 
-    // The starter (and group owner) is in the call: nobody votes.
+    // Owner 2026-10-21: a vote is open to everyone, the starter (and group
+    // owner) being in the call too — the members may outvote the proposal.
     expect((await openVote(a)).moderated).toBe(true);
-    await vote(a, x).expect(403);
+    await vote(a, x).expect(200);
+    const idHost = (await openVote(b)).vote!.id;
+    await ballot(b, idHost, false);
+    await ballot(c, idHost, false);
+    await ballot(d, idHost, false);
+    expect(await rowOf(x.id)).toBe('joined');
+    expect((await openVote(a)).vote).toBeNull();
 
     // The starter leaves, no admin is left: the members decide.
     await api()

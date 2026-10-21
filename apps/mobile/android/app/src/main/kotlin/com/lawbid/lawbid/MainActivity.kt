@@ -218,6 +218,14 @@ class MainActivity : FlutterFragmentActivity() {
                     }
                     "stop" -> {
                         stopService(Intent(this, CallForegroundService::class.java))
+                        // The service may be gone already (or never got to
+                        // run): its notification must be too.
+                        try {
+                            getSystemService(NotificationManager::class.java)
+                                ?.cancel(CallForegroundService.NOTIFICATION_ID)
+                        } catch (e: Exception) {
+                        }
+                        clearCallNotifications()
                         result.success(null)
                     }
                     "clear" -> {
