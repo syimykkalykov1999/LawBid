@@ -7,6 +7,11 @@ import { StarsService } from '../stars/stars.service';
 import type { GiftSendDto } from '../stars/stars.dto';
 import type { StickerDto } from '../stickers/stickers.dto';
 import {
+  SharedPostCardsService,
+  type SharedPostCardDto,
+} from '../posts/shared-post-cards.service';
+import { postNotFound } from '../posts/posts.service';
+import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
@@ -153,6 +158,8 @@ export class ChatService {
     @Optional() private readonly textLimits?: TextLimitsService,
     // Owner 2026-10-20: "who can write to me first" (Settings → Privacy).
     @Optional() private readonly privacy?: PrivacySettingsService,
+    // Owner 2026-10-21 (Instagram «Поделиться»): posts sent as cards.
+    @Optional() private readonly postCards?: SharedPostCardsService,
   ) {}
 
   /**
@@ -655,6 +662,8 @@ export class ChatService {
         src.forwarded_from_name ??
         (authorName.length > 0 ? authorName : undefined),
     };
+    // Owner 2026-10-21: a post card stays a card.
+    if (src.type === 'post') return { ...base, type: 'post', postId: text };
     if (src.type === 'sticker') {
       return {
         ...base,
@@ -697,12 +706,17 @@ export class ChatService {
     const gift = dto.type === 'gift';
     const contact = dto.type === 'contact';
     const place = dto.type === 'place';
+    // Owner 2026-10-21 (Instagram «Поделиться»): a post card (the body is
+    // the post's id; the app draws the card, the note goes as a text).
+    const post = dto.type === 'post';
     const body =
       voice || sticker
         ? ''
         : contact
           ? (dto.contactUserId ?? '')
-          : (dto.body ?? '').trim();
+          : post
+            ? (dto.postId ?? '')
+            : (dto.body ?? '').trim();
     await this.fraud?.assertNotRestricted(user.sub);
     // OQ-048: an assistant sends documents/photos only with "files".
     if (
@@ -761,6 +775,17 @@ export class ChatService {
           message: 'Only an attorney profile can be shared.',
           details: { field: 'contactUserId' },
         });
+      }
+    } else if (post) {
+      if (!dto.postId) {
+        throw new BadRequestException({
+          code: ErrorCode.VALIDATION_ERROR,
+          message: 'A post card needs postId.',
+          details: { field: 'postId' },
+        });
+      }
+      if (!(await this.sharablePost(user.sub, dto.postId))) {
+        throw postNotFound();
       }
     } else if (voice) {
       if (!dto.fileId || dto.durationMs === undefined) {
@@ -936,7 +961,7 @@ export class ChatService {
           });
         }
         const masked =
-          voice || contact || locked.contacts_unlocked
+          voice || contact || post || locked.contacts_unlocked
             ? { text: body, masked: false }
             : maskContactInfo(body);
         const giftNote = gift && masked.text ? masked.text.slice(0, 200) : null;
@@ -968,7 +993,9 @@ export class ChatService {
                       ? 'contact'
                       : place
                         ? 'place'
-                        : 'text',
+                        : post
+                          ? 'post'
+                          : 'text',
             body_original: this.seal(gift ? '' : body),
             body_display: this.seal(gift ? '' : masked.text),
             contact_masked: masked.masked,
@@ -1658,23 +1685,31 @@ export class ChatService {
   async mediaLinks(rows: Message[]): Promise<MediaLinks> {
     const ids = (type: Message['type']) =>
       rows.flatMap((m) => (m.type === type && m.file_id ? [m.file_id] : []));
-    const [voice, attachments, stickers, gifts, contacts] = await Promise.all([
-      this.files.voiceUrls(ids('voice')),
-      this.files.attachmentUrls(ids('attachment')),
-      this.stickers.forMessages(
-        rows.flatMap((m) => (m.sticker_id ? [m.sticker_id] : [])),
-      ),
-      this.stars.forMessages(
-        rows.flatMap((m) => (m.gift_send_id ? [m.gift_send_id] : [])),
-      ),
-      this.contactCards(
-        rows.flatMap((m) =>
-          m.type === 'contact' ? [this.openBody(m.body_display)] : [],
+    const [voice, attachments, stickers, gifts, contacts, posts] =
+      await Promise.all([
+        this.files.voiceUrls(ids('voice')),
+        this.files.attachmentUrls(ids('attachment')),
+        this.stickers.forMessages(
+          rows.flatMap((m) => (m.sticker_id ? [m.sticker_id] : [])),
         ),
-      ),
-    ]);
+        this.stars.forMessages(
+          rows.flatMap((m) => (m.gift_send_id ? [m.gift_send_id] : [])),
+        ),
+        this.contactCards(
+          rows.flatMap((m) =>
+            m.type === 'contact' ? [this.openBody(m.body_display)] : [],
+          ),
+        ),
+        // Owner 2026-10-21: the cards of shared posts, in one batch.
+        this.postCards?.cards(
+          rows.flatMap((m) => {
+            const postId = this.openBody(m.body_display);
+            return m.type === 'post' && UUID_RE.test(postId) ? [postId] : [];
+          }),
+        ) ?? Promise.resolve(new Map<string, SharedPostCardDto>()),
+      ]);
     const extras = await loadMessageExtras(this.prisma, rows);
-    return { voice, attachments, stickers, gifts, contacts, extras };
+    return { voice, attachments, stickers, gifts, contacts, posts, extras };
   }
 
   private findOwn(id: string, senderId: string, clientMessageId: string) {
@@ -1710,6 +1745,18 @@ export class ChatService {
       select: { id: true },
     });
     return u !== null;
+  }
+
+  /** Owner 2026-10-21 (Instagram «Поделиться»): a post the sender can see
+   * whose author did not block them (nor they the author). */
+  private async sharablePost(
+    viewerId: string,
+    postId: string,
+  ): Promise<boolean> {
+    const authorId = await this.postCards?.sharableAuthor(viewerId, postId);
+    if (!authorId) return false;
+    if (authorId === viewerId) return true;
+    return !(await this.blocks.hiddenIds(viewerId)).has(authorId);
   }
 
   /** The public cards of the attorneys shared in a page of messages. */
@@ -1875,6 +1922,10 @@ export class ChatService {
       contact:
         m.type === 'contact'
           ? (media?.contacts.get(this.openBody(m.body_display)) ?? null)
+          : null,
+      post:
+        m.type === 'post' && !revoked
+          ? (media?.posts.get(this.openBody(m.body_display)) ?? null)
           : null,
       body: revoked
         ? ''
@@ -2099,6 +2150,7 @@ interface MediaLinks {
   gifts: Map<string, GiftSendDto>;
   attachments: Awaited<ReturnType<FilesService['attachmentUrls']>>;
   contacts: Map<string, ContactCardDto>;
+  posts: Map<string, SharedPostCardDto>;
 }
 
 /** A display name: no path, no control characters, ≤200 chars. */

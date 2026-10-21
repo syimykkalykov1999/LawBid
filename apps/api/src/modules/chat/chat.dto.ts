@@ -1,5 +1,6 @@
 import { StickerDto } from '../stickers/stickers.dto';
 import { GiftSendDto } from '../stars/stars.dto';
+import { SharedPostCardDto } from '../posts/shared-post-cards.service';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import {
@@ -236,14 +237,31 @@ export class SendMessageDto {
       'gift',
       'contact',
       'place',
+      'post',
     ],
     enumName: 'SendMessageType',
     default: 'text',
   })
   @IsOptional()
-  @IsIn(['text', 'voice', 'attachment', 'sticker', 'gift', 'contact', 'place'])
+  @IsIn([
+    'text',
+    'voice',
+    'attachment',
+    'sticker',
+    'gift',
+    'contact',
+    'place',
+    'post',
+  ])
   type?:
-    'text' | 'voice' | 'attachment' | 'sticker' | 'gift' | 'contact' | 'place';
+    | 'text'
+    | 'voice'
+    | 'attachment'
+    | 'sticker'
+    | 'gift'
+    | 'contact'
+    | 'place'
+    | 'post';
 
   /** Owner 2026-10-20: a gift message (type=gift) paid in stars; `body` is
    * the optional note (≤200). */
@@ -257,6 +275,13 @@ export class SendMessageDto {
   @IsOptional()
   @IsUUID('all')
   contactUserId?: string;
+
+  /** Owner 2026-10-21 (Instagram «Поделиться»): the post sent as a card
+   * (type=post). */
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID('all')
+  postId?: string;
 
   /** Owner 2026-10-01: a sticker message (type=sticker). */
   @ApiPropertyOptional({ format: 'uuid' })
@@ -597,6 +622,7 @@ export class MessageDto {
       'gift',
       'contact',
       'place',
+      'post',
     ],
   })
   type!:
@@ -608,7 +634,8 @@ export class MessageDto {
     | 'sticker'
     | 'gift'
     | 'contact'
-    | 'place';
+    | 'place'
+    | 'post';
 
   /** Owner 2026-10-20: the gift of a gift message. */
   @ApiPropertyOptional({ type: () => GiftSendDto, nullable: true })
@@ -617,6 +644,10 @@ export class MessageDto {
   /** Owner 2026-10-20: the attorney card of a `contact` message. */
   @ApiPropertyOptional({ type: () => ContactCardDto, nullable: true })
   contact!: ContactCardDto | null;
+
+  /** Owner 2026-10-21 (Instagram): the post card of a `post` message. */
+  @ApiPropertyOptional({ type: () => SharedPostCardDto, nullable: true })
+  post!: SharedPostCardDto | null;
 
   /** Owner 2026-10-01: the sticker of a sticker message. */
   @ApiPropertyOptional({ type: () => StickerDto, nullable: true })

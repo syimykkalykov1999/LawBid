@@ -449,6 +449,9 @@ enum MessageType {
   contact
   // Owner 2026-10-20: a place (body = the address; opens in the phone's maps).
   place
+  // Owner 2026-10-21 (Instagram «Поделиться»): a shared post (body = the
+  // post's id; the app draws the card).
+  post
 
   @@map("message_type")
 }

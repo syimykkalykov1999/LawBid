@@ -27,6 +27,9 @@ MessageDto _$MessageDtoFromJson(Map<String, dynamic> json) => MessageDto(
   contact: json['contact'] == null
       ? null
       : ContactCardDto.fromJson(json['contact'] as Map<String, dynamic>),
+  post: json['post'] == null
+      ? null
+      : SharedPostCardDto.fromJson(json['post'] as Map<String, dynamic>),
   sticker: json['sticker'] == null
       ? null
       : StickerDto.fromJson(json['sticker'] as Map<String, dynamic>),
@@ -61,6 +64,7 @@ Map<String, dynamic> _$MessageDtoToJson(MessageDto instance) =>
       'type': instance.type.toJson(),
       'gift': ?instance.gift?.toJson(),
       'contact': ?instance.contact?.toJson(),
+      'post': ?instance.post?.toJson(),
       'sticker': ?instance.sticker?.toJson(),
       'voice': ?instance.voice?.toJson(),
       'attachment': ?instance.attachment?.toJson(),

@@ -14,6 +14,7 @@ class SendMessageDto {
     required this.clientMessageId,
     this.giftId,
     this.contactUserId,
+    this.postId,
     this.stickerId,
     this.fileName,
     this.replyToId,
@@ -39,6 +40,10 @@ class SendMessageDto {
 
   /// Owner 2026-10-20: the attorney whose card is shared (type=contact).
   final String? contactUserId;
+
+  /// Owner 2026-10-21 (Instagram «Поделиться»): the post sent as a card.
+  /// (type=post).
+  final String? postId;
 
   /// Owner 2026-10-01: a sticker message (type=sticker).
   final String? stickerId;

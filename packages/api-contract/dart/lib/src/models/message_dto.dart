@@ -11,6 +11,7 @@ import 'gift_send_dto.dart';
 import 'message_dto_type.dart';
 import 'reaction_dto.dart';
 import 'reply_preview_dto.dart';
+import 'shared_post_card_dto.dart';
 import 'sticker_dto.dart';
 import 'voice_note_dto.dart';
 
@@ -33,6 +34,7 @@ class MessageDto {
     this.sentByAssistant,
     this.gift,
     this.contact,
+    this.post,
     this.sticker,
     this.voice,
     this.attachment,
@@ -60,6 +62,9 @@ class MessageDto {
 
   /// Owner 2026-10-20: the attorney card of a `contact` message.
   final ContactCardDto? contact;
+
+  /// Owner 2026-10-21 (Instagram): the post card of a `post` message.
+  final SharedPostCardDto? post;
 
   /// Owner 2026-10-01: the sticker of a sticker message.
   final StickerDto? sticker;

@@ -17,6 +17,7 @@ import { PostVideosService } from './post-videos.service';
 import { PostPresenter } from './post-presenter.service';
 import { PostsController } from './posts.controller';
 import { PostsService } from './posts.service';
+import { SharedPostCardsService } from './shared-post-cards.service';
 
 /** docs/05 §3 posts (stage 5.2). PostPresenter is shared by the feed,
  * tags, search and saved lists. */
@@ -40,6 +41,7 @@ import { PostsService } from './posts.service';
     PostVideosService,
     ContentFilterService,
     PostAttachmentsPolicy,
+    SharedPostCardsService,
   ],
   exports: [
     PostsService,
@@ -49,6 +51,8 @@ import { PostsService } from './posts.service';
     PostVideosService,
     ContentFilterService,
     PostAttachmentsPolicy,
+    // Owner 2026-10-21: post cards in chats (Instagram «Поделиться»).
+    SharedPostCardsService,
   ],
 })
 export class PostsModule {}

@@ -24,6 +24,8 @@ enum MessageDtoType {
   contact('contact'),
   @JsonValue('place')
   place('place'),
+  @JsonValue('post')
+  post('post'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

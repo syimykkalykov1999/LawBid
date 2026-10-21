@@ -151677,6 +151677,91 @@
           "licensedStates"
         ]
       },
+      "SharedPostAuthorDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "attorney",
+              "client"
+            ]
+          },
+          "username": {
+            "type": "string"
+          },
+          "firstName": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastName": {
+            "type": "string",
+            "nullable": true
+          },
+          "avatarUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "verifiedBadge": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "role",
+          "username",
+          "verifiedBadge"
+        ]
+      },
+      "SharedPostCardDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "author": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SharedPostAuthorDto"
+              }
+            ]
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "excerpt": {
+            "type": "string",
+            "nullable": true,
+            "description": "The start of the text (≤200 chars)."
+          },
+          "thumbnailUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "The first photo, or the video cover."
+          },
+          "isVideo": {
+            "type": "boolean",
+            "description": "A video post / reel (the card shows ▶)."
+          },
+          "available": {
+            "type": "boolean",
+            "description": "False once the post is gone or hidden."
+          }
+        },
+        "required": [
+          "id",
+          "isVideo",
+          "available"
+        ]
+      },
       "VoiceNoteDto": {
         "type": "object",
         "properties": {
@@ -151872,7 +151957,8 @@
               "sticker",
               "gift",
               "contact",
-              "place"
+              "place",
+              "post"
             ],
             "type": "string"
           },
@@ -151893,6 +151979,16 @@
             "allOf": [
               {
                 "$ref": "#/components/schemas/ContactCardDto"
+              }
+            ]
+          },
+          "post": {
+            "nullable": true,
+            "description": "Owner 2026-10-21 (Instagram): the post card of a `post` message.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SharedPostCardDto"
               }
             ]
           },
@@ -152378,7 +152474,8 @@
           "sticker",
           "gift",
           "contact",
-          "place"
+          "place",
+          "post"
         ]
       },
       "SendMessageDto": {
@@ -152406,6 +152503,11 @@
           "contactUserId": {
             "type": "string",
             "description": "Owner 2026-10-20: the attorney whose card is shared (type=contact).",
+            "format": "uuid"
+          },
+          "postId": {
+            "type": "string",
+            "description": "Owner 2026-10-21 (Instagram «Поделиться»): the post sent as a card\n(type=post).",
             "format": "uuid"
           },
           "stickerId": {

@@ -730,7 +730,12 @@ export class PushDispatcher
                   : '👤 Contact'
                 : message.type === 'place'
                   ? `📍 ${caption}`
-                  : caption;
+                  : // Owner 2026-10-21: a shared post (the body is its id).
+                    message.type === 'post'
+                    ? ru
+                      ? '📰 Публикация'
+                      : '📰 Post'
+                    : caption;
     // Owner 2026-10-01: an assistant's message says so (not who exactly).
     const from = message.sent_by_name
       ? ru

@@ -8,6 +8,7 @@ import { UsageLimitsModule } from '../../common/usage-limits/usage-limits.module
 import { BlocksModule } from '../blocks/blocks.module';
 import { FilesModule } from '../files/files.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { PostsModule } from '../posts/posts.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { ChatController } from './chat.controller';
 import { ChatActionsController } from './chat-actions.controller';
@@ -30,6 +31,8 @@ import { TranslationCoreModule } from '../translation/translation.module';
     StarsCoreModule,
     FeatureFlagsModule,
     TranslationCoreModule,
+    // Owner 2026-10-21: a post shared into a chat (Instagram).
+    PostsModule,
   ],
   controllers: [ChatController, ChatActionsController],
   providers: [ChatService, ChatTranslationService, ChatActionsService],
