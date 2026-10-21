@@ -176,8 +176,7 @@ void main() {
     await end(tester);
   });
 
-  testWidgets(
-      'a channel is pinned and archived into the channels\' own Archive',
+  testWidgets("a channel is pinned and archived into the channels' own Archive",
       (tester) async {
     final channels = FakeChannelsRepository()
       ..listed = [fakeChannel(subscribed: true)];
