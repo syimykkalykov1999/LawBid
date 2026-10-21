@@ -324,13 +324,21 @@ class _Body extends ConsumerWidget {
             if (area != null) QaTag(label: qaAreaLabel(t, area)),
             if (q.stateCode != null) QaTag(label: q.stateCode!),
             if (q.closed) QaTag(label: t.t('qa.closed')),
-            if (q.solved) QaBestBadge(label: t.t('qa.solved')),
           ],
         ),
         const SizedBox(height: AppSpacing.lg),
-        Text(
-          t.t('qa.answersTitle'),
-          style: type.titleMedium.copyWith(color: colors.text),
+        // Owner 2026-10-21: «Решён» on the «Ответы» row, at the end.
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                t.t('qa.answersTitle'),
+                style: type.titleMedium.copyWith(color: colors.text),
+              ),
+            ),
+            if (q.solved)
+              Flexible(child: QaBestBadge(label: t.t('qa.solved'))),
+          ],
         ),
         const SizedBox(height: AppSpacing.sm),
         if (q.answers.isEmpty)

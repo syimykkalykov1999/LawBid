@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show RenderParagraph;
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -185,7 +186,7 @@ void main() {
     final repo = _Repo(items: [best]);
     await pump(tester, const QaFeedScreen(), repo);
     // The header carries the four tabs, in the owner's order.
-    for (final tab in ['Все', 'Мои', 'С лучшим', 'Без ответа']) {
+    for (final tab in ['Все', 'Мои', 'Лучшие', 'Без ответа']) {
       expect(find.text(tab), findsWidgets);
     }
     expect(find.textContaining('Can my landlord'), findsOneWidget);
@@ -223,7 +224,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('qa-filter-button')));
     await tester.pumpAndSettle();
     expect(find.text('Без ответа'), findsWidgets);
-    expect(find.text('С лучшим'), findsWidgets);
+    expect(find.text('Лучшие'), findsWidgets);
     await tester.tap(find.text('Показать результаты'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(EditableText), 'deposit');
@@ -232,7 +233,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(repo.queries.last.filter, QaFilter.unanswered);
     expect(repo.queries.last.q, 'deposit');
-    await tester.tap(find.text('С лучшим'));
+    await tester.tap(find.text('Лучшие'));
     await tester.pumpAndSettle();
     expect(repo.queries.last.filter, QaFilter.solved);
     expect(repo.queries.last.q, 'deposit');
@@ -245,6 +246,8 @@ void main() {
     ('longest rtl', LongestTranslator(), TextDirection.rtl),
     ('ne', ShippedTranslator('ne'), TextDirection.ltr),
     ('ar', ShippedTranslator('ar'), TextDirection.rtl),
+    ('de', ShippedTranslator('de'), TextDirection.ltr),
+    ('mr', ShippedTranslator('mr'), TextDirection.ltr),
   ]) {
     for (final attorney in [false, true]) {
       testWidgets('tabs and card fit at 360 dp ($name, '
@@ -264,6 +267,17 @@ void main() {
         expect(bar.width, lessThanOrEqualTo(300));
         expect(bar.right, lessThanOrEqualTo(360));
         expect(bar.left, greaterThanOrEqualTo(0));
+        // No tab label is cut: a long one shrinks instead.
+        final labels = tester.renderObjectList<RenderParagraph>(
+          find.descendant(
+            of: find.byKey(const ValueKey('qa-tabs')),
+            matching: find.byType(RichText),
+          ),
+        );
+        expect(labels, hasLength(4));
+        for (final label in labels) {
+          expect(label.didExceedMaxLines, isFalse);
+        }
       });
     }
   }
@@ -309,6 +323,33 @@ void main() {
     await tester.pump();
     expect(repo.best, ['a1']);
   });
+
+  // Owner 2026-10-21: «Решён» sits on the «Ответы» row, at the end.
+  for (final dir in TextDirection.values) {
+    testWidgets('detail: «Решён» on the answers row (${dir.name})', (
+      tester,
+    ) async {
+      final repo = _Repo(
+        detailQuestion: _q(best: 'a1', answers: [_a(best: true)]),
+      );
+      await pump(
+        tester,
+        const QuestionDetailScreen(id: 'q1'),
+        repo,
+        dir: dir,
+        textScale: 1.1,
+      );
+      expect(tester.takeException(), isNull);
+      final title = tester.getRect(find.text('Ответы'));
+      final solved = tester.getRect(find.text('Решён'));
+      expect(solved.center.dy, closeTo(title.center.dy, 4));
+      if (dir == TextDirection.ltr) {
+        expect(solved.left, greaterThan(title.right));
+      } else {
+        expect(solved.right, lessThan(title.left));
+      }
+    });
+  }
 
   testWidgets('detail: a verified attorney sees the answer box', (
     tester,
