@@ -192,8 +192,8 @@ class ChannelsRepository {
         isSubscribed: s.isSubscribed,
         isMuted: s.isMuted,
         subscriberCount: s.subscriberCount,
-        isPinned: s.isPinned,
-        isArchived: s.isArchived,
+        isPinned: s.isPinned ?? false,
+        isArchived: s.isArchived ?? false,
         mutedUntil: s.mutedUntil,
         clearMutedUntil: s.mutedUntil == null,
       );
@@ -583,8 +583,8 @@ class ChannelsRepository {
         createdAt: d.createdAt,
         protectContent: d.protectContent ?? false,
         ongoingCall: OngoingCallSummary.fromDto(d.ongoingCall),
-        isPinned: d.isPinned,
-        isArchived: d.isArchived,
+        isPinned: d.isPinned ?? false,
+        isArchived: d.isArchived ?? false,
         mutedUntil: d.mutedUntil,
       );
 

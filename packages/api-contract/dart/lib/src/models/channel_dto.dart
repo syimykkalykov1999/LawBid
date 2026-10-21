@@ -24,14 +24,14 @@ class ChannelDto {
     required this.owner,
     required this.isSubscribed,
     required this.isMuted,
-    required this.isPinned,
-    required this.isArchived,
     required this.createdAt,
     this.description,
     this.avatarUrl,
     this.avatarFullUrl,
     this.protectContent,
     this.mutedUntil,
+    this.isPinned,
+    this.isArchived,
     this.myRole,
     this.lastPostAt,
     this.ongoingCall,
@@ -68,10 +68,10 @@ class ChannelDto {
   final DateTime? mutedUntil;
 
   /// Pinned to the top of my list.
-  final bool isPinned;
+  final bool? isPinned;
 
   /// In my channels' Archive.
-  final bool isArchived;
+  final bool? isArchived;
 
   /// My role in the channel, null for a plain reader.
   final ChannelRole? myRole;

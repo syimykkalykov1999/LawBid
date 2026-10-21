@@ -13,6 +13,7 @@ import 'package:lawbid/features/channels/channels_routes.dart';
 import 'package:lawbid/features/channels/domain/channel_models.dart';
 import 'package:lawbid/features/channels/presentation/channel_widgets.dart';
 import 'package:lawbid/features/channels/presentation/channels_groups.dart';
+import 'package:lawbid/features/channels/presentation/sections_archive.dart';
 import 'package:lawbid/features/chat/application/chat_selection.dart';
 import 'package:lawbid/features/chat/presentation/chat_selection_bar.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
@@ -504,6 +505,14 @@ class _ScopeListState extends ConsumerState<_ScopeList> {
         .extension<AppTypographyTokens>()!
         .caption
         .copyWith(color: colors.textSecondary, fontWeight: FontWeight.w600);
+    // Owner 2026-10-21 (inbox 22c): each section has its own Archive row
+    // (not on Discover or in a search).
+    final archivable = !recommended && query.isEmpty;
+    final archivedGroups = archivable
+        ? ref.watch(archivedGroupsProvider).value?.items.length ?? 0
+        : 0;
+    final archivedChannels =
+        archivable ? ref.watch(archivedChannelsProvider).value?.length ?? 0 : 0;
     Widget list(_Kind kind, List<Widget> rows) => RefreshIndicator(
           color: colors.gold,
           backgroundColor: colors.sheet,
@@ -515,6 +524,16 @@ class _ScopeListState extends ConsumerState<_ScopeList> {
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
               children: [
+                if (kind == _Kind.groups && archivedGroups > 0)
+                  SectionArchiveRow(
+                    count: archivedGroups,
+                    route: GroupRoutes.archive,
+                  ),
+                if (kind == _Kind.channels && archivedChannels > 0)
+                  SectionArchiveRow(
+                    count: archivedChannels,
+                    route: ChannelsRoutes.archive,
+                  ),
                 if (recommended && rows.isNotEmpty)
                   Padding(
                     padding: const EdgeInsetsDirectional.fromSTEB(

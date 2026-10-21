@@ -19,9 +19,8 @@ import 'package:lawbid_api/lawbid_api.dart' as api;
 /// a new message). Picked groups take part in pin · mute · delete (hide);
 /// «Move» (folders) is off while a group is picked.
 /// Owner 2026-10-21 (Telegram): the same bar on the Channels screen; a picked
-/// channel only takes part in «mute» (the server keeps no pin / archive /
-/// read / hide of a channel), so the other actions grey out while one is
-/// picked.
+/// channel takes part in «pin», «archive» and «mute» (each section has its
+/// own Archive); «read» and «delete» grey out while one is picked.
 class ChatSelectionBar extends ConsumerStatefulWidget {
   const ChatSelectionBar({
     required this.chats,
@@ -98,7 +97,11 @@ class _ChatSelectionBarState extends ConsumerState<ChatSelectionBar> {
     // «something went wrong» for a chat that did move.
     try {
       refreshChatFolders(ref);
-      if (channels.isNotEmpty) ref.invalidate(channelListProvider);
+      if (channels.isNotEmpty) {
+        ref
+          ..invalidate(channelListProvider)
+          ..invalidate(archivedChannelsProvider);
+      }
       if (failure == null) ref.read(chatSelectionProvider.notifier).stop();
     } on Object {
       // Disposed with the selection: nothing left to refresh.
@@ -115,11 +118,14 @@ class _ChatSelectionBarState extends ConsumerState<ChatSelectionBar> {
   Future<void> _pin() {
     final picked = _picked;
     // All pinned → unpin them; otherwise pin them all.
-    final pin =
-        picked.any((c) => !c.pinned) || _pickedGroups.any((g) => !g.pinned);
+    final pin = picked.any((c) => !c.pinned) ||
+        _pickedGroups.any((g) => !g.pinned) ||
+        _pickedChannels.any((c) => !c.isPinned);
     return _each(
       (c) => ref.read(chatRepositoryProvider).organize(c.id, pinned: pin),
       groupCall: (g) => updateMyGroup(ref, g.id, pinned: pin),
+      channelCall: (c) =>
+          ref.read(channelsRepositoryProvider).organize(c, pinned: pin),
       done: pin ? 'chat.organize.pinned' : 'chat.organize.unpinned',
     );
   }
@@ -146,6 +152,9 @@ class _ChatSelectionBarState extends ConsumerState<ChatSelectionBar> {
             .read(chatRepositoryProvider)
             .organize(c.id, archived: !widget.inArchive),
         groupCall: (g) => updateMyGroup(ref, g.id, archived: !widget.inArchive),
+        channelCall: (c) => ref
+            .read(channelsRepositoryProvider)
+            .organize(c, archived: !widget.inArchive),
         done: widget.inArchive ? 'chat.unarchive' : 'tasks.bulk.archive',
       );
 
@@ -200,14 +209,15 @@ class _ChatSelectionBarState extends ConsumerState<ChatSelectionBar> {
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final ids = ref.watch(chatSelectionProvider) ?? const <String>{};
     final active = ids.isNotEmpty && !_busy;
-    // A channel only mutes: the rest is off while one is picked.
+    // «Read» and «delete» are not for a channel.
     final noChannel = _pickedChannels.isEmpty;
     final muteAll = _picked.every((c) => c.muted) &&
         _pickedGroups.every(isGroupMuted) &&
         _pickedChannels.every((c) => c.isMuted);
     final pinAll = ids.isNotEmpty &&
         _picked.every((c) => c.pinned) &&
-        _pickedGroups.every((g) => g.pinned);
+        _pickedGroups.every((g) => g.pinned) &&
+        _pickedChannels.every((c) => c.isPinned);
 
     final specs = <_BarAction>[
       _BarAction(
@@ -217,14 +227,12 @@ class _ChatSelectionBarState extends ConsumerState<ChatSelectionBar> {
             : AppIcons.inventory2Outlined,
         t.t(widget.inArchive ? 'chat.unarchive' : 'tasks.bulk.archive'),
         _archive,
-        enabled: noChannel,
       ),
       _BarAction(
         'select-pin',
         AppIcons.pushPinOutlined,
         t.t(pinAll ? 'group.menu.unpin' : 'chat.select.pin'),
         _pin,
-        enabled: noChannel,
       ),
       _BarAction(
         'select-mute',

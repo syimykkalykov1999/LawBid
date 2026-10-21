@@ -14,6 +14,9 @@ abstract final class GroupRoutes {
   /// «New group» (pick people, name, type).
   static const create = '/group/new';
 
+  /// Owner 2026-10-21 (inbox 22c): the Archive of the groups.
+  static const archive = '/groups/archive';
+
   /// «Find groups» (public search).
   static const find = '/groups/find';
 

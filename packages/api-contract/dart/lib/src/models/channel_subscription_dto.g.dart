@@ -11,12 +11,12 @@ ChannelSubscriptionDto _$ChannelSubscriptionDtoFromJson(
 ) => ChannelSubscriptionDto(
   isSubscribed: json['isSubscribed'] as bool,
   isMuted: json['isMuted'] as bool,
-  isPinned: json['isPinned'] as bool,
-  isArchived: json['isArchived'] as bool,
   subscriberCount: (json['subscriberCount'] as num).toInt(),
   mutedUntil: json['mutedUntil'] == null
       ? null
       : DateTime.parse(json['mutedUntil'] as String),
+  isPinned: json['isPinned'] as bool?,
+  isArchived: json['isArchived'] as bool?,
 );
 
 Map<String, dynamic> _$ChannelSubscriptionDtoToJson(
@@ -25,7 +25,7 @@ Map<String, dynamic> _$ChannelSubscriptionDtoToJson(
   'isSubscribed': instance.isSubscribed,
   'isMuted': instance.isMuted,
   'mutedUntil': ?instance.mutedUntil?.toIso8601String(),
-  'isPinned': instance.isPinned,
-  'isArchived': instance.isArchived,
+  'isPinned': ?instance.isPinned,
+  'isArchived': ?instance.isArchived,
   'subscriberCount': instance.subscriberCount,
 };

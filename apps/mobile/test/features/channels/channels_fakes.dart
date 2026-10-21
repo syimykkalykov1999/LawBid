@@ -113,6 +113,9 @@ class FakeChannelsRepository implements ChannelsRepository {
   ];
   List<Channel> listed = [];
 
+  /// The channels in the channels' own Archive.
+  List<Channel> archivedListed = [];
+
   /// A page cursor: the posts after the first [pageSize] are on page two.
   int pageSize = 50;
 
@@ -140,8 +143,15 @@ class FakeChannelsRepository implements ChannelsRepository {
       );
 
   @override
-  Future<List<Channel>> list(ChannelScope scope, {String? q}) =>
-      _run('list:${scope.name}:${q ?? ''}', () => listed);
+  Future<List<Channel>> list(
+    ChannelScope scope, {
+    String? q,
+    bool archived = false,
+  }) =>
+      _run(
+        'list:${scope.name}:${q ?? ''}${archived ? ':archived' : ''}',
+        () => archived ? archivedListed : listed,
+      );
 
   @override
   Future<Channel> get(String ref) => _run('get:$ref', () => channel);
@@ -183,6 +193,29 @@ class FakeChannelsRepository implements ChannelsRepository {
       _run('mute:$muted', () {
         return channel = c.copyWith(isMuted: muted);
       });
+
+  @override
+  Future<Channel> organize(
+    Channel c, {
+    bool? muted,
+    DateTime? mutedUntil,
+    bool? pinned,
+    bool? archived,
+  }) =>
+      _run(
+        'organize:${[
+          if (muted != null) 'muted=$muted',
+          if (mutedUntil != null)
+            'until=${mutedUntil.toUtc().toIso8601String()}',
+          if (pinned != null) 'pinned=$pinned',
+          if (archived != null) 'archived=$archived',
+        ].join(',')}',
+        () => channel = c.copyWith(
+          isMuted: muted,
+          isPinned: pinned,
+          isArchived: archived,
+        ),
+      );
 
   @override
   Future<List<ChannelAdmin>> admins(String id) => _run('admins', () => admins0);

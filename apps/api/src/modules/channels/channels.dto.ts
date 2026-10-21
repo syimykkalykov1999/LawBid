@@ -96,11 +96,11 @@ export class ChannelDto {
   mutedUntil!: string | null;
 
   /** Pinned to the top of my list. */
-  @ApiProperty()
+  @ApiPropertyOptional()
   isPinned!: boolean;
 
   /** In my channels' Archive. */
-  @ApiProperty()
+  @ApiPropertyOptional()
   isArchived!: boolean;
 
   /** My role in the channel, null for a plain reader. */
@@ -375,10 +375,10 @@ export class ChannelSubscriptionDto {
   @ApiPropertyOptional({ type: String, format: 'date-time', nullable: true })
   mutedUntil!: string | null;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
   isPinned!: boolean;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
   isArchived!: boolean;
 
   @ApiProperty({ type: 'integer' })

@@ -139683,8 +139683,6 @@
           "owner",
           "isSubscribed",
           "isMuted",
-          "isPinned",
-          "isArchived",
           "createdAt"
         ]
       },
@@ -139810,8 +139808,6 @@
         "required": [
           "isSubscribed",
           "isMuted",
-          "isPinned",
-          "isArchived",
           "subscriberCount"
         ]
       },

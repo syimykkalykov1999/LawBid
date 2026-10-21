@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/navigation/app_page_transitions.dart';
+import 'package:lawbid/features/channels/presentation/sections_archive.dart';
 import 'package:lawbid/features/groups/group_routes.dart';
 import 'package:lawbid/features/groups/presentation/create_group_screen.dart';
 import 'package:lawbid/features/groups/presentation/find_groups_screen.dart';
@@ -17,6 +18,12 @@ List<RouteBase> groupRoutes(GlobalKey<NavigatorState> root) => [
         parentNavigatorKey: root,
         pageBuilder: (context, state) =>
             AppPageTransitions.push(state, const CreateGroupScreen()),
+      ),
+      GoRoute(
+        path: GroupRoutes.archive,
+        parentNavigatorKey: root,
+        pageBuilder: (context, state) =>
+            AppPageTransitions.push(state, const GroupsArchiveScreen()),
       ),
       GoRoute(
         path: GroupRoutes.find,

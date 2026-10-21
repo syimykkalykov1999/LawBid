@@ -11,10 +11,10 @@ class ChannelSubscriptionDto {
   const ChannelSubscriptionDto({
     required this.isSubscribed,
     required this.isMuted,
-    required this.isPinned,
-    required this.isArchived,
     required this.subscriberCount,
     this.mutedUntil,
+    this.isPinned,
+    this.isArchived,
   });
 
   factory ChannelSubscriptionDto.fromJson(Map<String, Object?> json) =>
@@ -23,8 +23,8 @@ class ChannelSubscriptionDto {
   final bool isSubscribed;
   final bool isMuted;
   final DateTime? mutedUntil;
-  final bool isPinned;
-  final bool isArchived;
+  final bool? isPinned;
+  final bool? isArchived;
   final int subscriberCount;
 
   Map<String, Object?> toJson() => _$ChannelSubscriptionDtoToJson(this);

@@ -93,7 +93,14 @@ void main() {
     testWidgets('no subscriptions is a plain empty state, not an error',
         (tester) async {
       final repo = FakeChannelsRepository();
-      await pump(tester, const ChannelsScreen(), repo);
+      await pump(
+        tester,
+        const ChannelsScreen(),
+        repo,
+        extra: [
+          groupRepositoryProvider.overrideWithValue(FakeGroupRepository([])),
+        ],
+      );
       expect(find.byType(AppErrorState), findsNothing);
       expect(find.byType(ChannelsEmpty), findsWidgets);
     });
