@@ -17,6 +17,7 @@ import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/navigation/shell/shell_layout.dart';
 import 'package:lawbid/core/navigation/shell/web_media_width.dart';
 import 'package:lawbid/core/navigation/shell/web_page_frame.dart';
+import 'package:lawbid/core/text/bidi.dart';
 import 'package:lawbid/core/text/tidy_text.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
@@ -78,7 +79,11 @@ class PostVideoCaption extends ConsumerWidget {
     required this.post,
     required this.line,
     required this.onMore,
+    this.author,
   });
+
+  /// Owner 2026-10-21 (Instagram): the author's username, bold, first.
+  final String? author;
 
   /// Owner 2026-10-18: «ещё» even for a short line when the post has files.
   bool get _force => post.attachments.isNotEmpty;
@@ -92,8 +97,21 @@ class PostVideoCaption extends ConsumerWidget {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    final oneLine = line.replaceAll(RegExp(r'\s+'), ' ').trim();
-    if (oneLine.isEmpty) return const SizedBox.shrink();
+    final text = line.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (text.isEmpty) return const SizedBox.shrink();
+    final lead =
+        author == null || author!.isEmpty ? '' : '${ltrIsolate(author!)} ';
+    final oneLine = '$lead$text';
+    List<InlineSpan> led(String shown) =>
+        lead.isNotEmpty && shown.startsWith(lead)
+            ? [
+                TextSpan(
+                  text: lead,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                TextSpan(text: shown.substring(lead.length)),
+              ]
+            : [TextSpan(text: shown)];
     final more = t.t('post.more');
     // Measured with the same style the Text draws (DefaultTextStyle merged),
     // or «ещё» can fall to a third line and be clipped (owner 2026-10-15).
@@ -160,13 +178,17 @@ class PostVideoCaption extends ConsumerWidget {
                 },
               );
               if (shownOrNull == null) {
-                return Text(oneLine, maxLines: 2, style: base);
+                return Text.rich(
+                  TextSpan(children: led(oneLine)),
+                  maxLines: 2,
+                  style: base,
+                );
               }
               final shown = shownOrNull;
               return Text.rich(
                 TextSpan(
                   children: [
-                    TextSpan(text: shown),
+                    ...led(shown),
                     TextSpan(
                       text: '  $more',
                       style: TextStyle(color: colors.textSecondary),
@@ -585,6 +607,7 @@ class PostCard extends ConsumerWidget {
               line: title.isNotEmpty && !text.startsWith(title)
                   ? '$title $text'
                   : text,
+              author: p.author.username,
               onMore: () => showPostTextSheet(context, p),
             )
           else
@@ -594,6 +617,7 @@ class PostCard extends ConsumerWidget {
             FeedCaption(
               // A new text (translation) starts collapsed again.
               key: ValueKey('${p.id}:${title.hashCode}:${text.hashCode}'),
+              author: p.author.username,
               title: title,
               text: text,
               hashtags: hashtags,
@@ -2761,6 +2785,13 @@ class PostActionsBar extends ConsumerWidget {
                           commentsEnabled: post.commentsEnabled,
                         ),
                       ),
+                    if (post.repostCount > 0)
+                      _Stat(
+                        icon: AppIcons.autoModeRounded,
+                        value: post.repostCount,
+                        color: colors.textSecondary,
+                        onTap: () => showRepostersList(context, post.id),
+                      ),
                     if (post.shareCount > 0)
                       _Stat(
                         icon: AppIcons.sendOutlined,
@@ -2801,6 +2832,24 @@ class PostActionsBar extends ConsumerWidget {
                     ),
                     // A zero shows no number (Instagram), like likes / shares.
                     if (post.commentCount > 0) _Count(post.commentCount),
+                    // Owner 2026-10-21: photo and video posts get the repost
+                    // and its number too — the same row as a text post.
+                    BounceIcon(
+                      extent: _kBarExtent,
+                      active: post.repostedByMe,
+                      activeIcon: AppIcons.autoModeRounded,
+                      icon: AppIcons.autoModeRounded,
+                      activeColor: colors.success,
+                      label: t.t(
+                        post.repostedByMe ? 'post.unrepost' : 'post.repost',
+                      ),
+                      onTap: () => showRepostSheet(context, ref, post),
+                    ),
+                    if (post.repostCount > 0)
+                      _Count(
+                        post.repostCount,
+                        onTap: () => showRepostersList(context, post.id),
+                      ),
                     BounceIcon(
                       extent: _kBarExtent,
                       active: false,
@@ -3153,6 +3202,38 @@ class _FeedCarouselState extends State<_FeedCarousel> {
                 onDoubleTap: widget.onDoubleTap,
                 onPage: (i) => setState(() => _page = i),
               ),
+              // Owner 2026-10-21 (Instagram): the dots sit on the photo's
+              // bottom, so the icons come right under the picture.
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 8,
+                child: IgnorePointer(
+                  child: ExcludeSemantics(
+                    child: Row(
+                      key: const ValueKey('feed-carousel-dots'),
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        for (var i = 0; i < count; i++)
+                          Container(
+                            margin: const EdgeInsets.symmetric(horizontal: 2),
+                            width: 6,
+                            height: 6,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: i == _page
+                                  ? colors.gold
+                                  : Colors.white.withValues(alpha: 0.7),
+                              boxShadow: [
+                                BoxShadow(color: colors.shadow, blurRadius: 2),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
               Positioned(
                 top: 10,
                 right: 10,
@@ -3181,26 +3262,6 @@ class _FeedCarouselState extends State<_FeedCarousel> {
                 ),
               ),
             ],
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.only(top: 8),
-          child: ExcludeSemantics(
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                for (var i = 0; i < count; i++)
-                  Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 2),
-                    width: 6,
-                    height: 6,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: i == _page ? colors.gold : colors.border,
-                    ),
-                  ),
-              ],
-            ),
           ),
         ),
       ],
@@ -3311,6 +3372,7 @@ class FeedCaption extends ConsumerStatefulWidget {
     required this.text,
     required this.hashtags,
     required this.onOpen,
+    this.author,
     this.onExpand,
     this.inPlaceOnly = false,
     this.onMore,
@@ -3333,6 +3395,10 @@ class FeedCaption extends ConsumerStatefulWidget {
   final String text;
   final List<String> hashtags;
   final VoidCallback onOpen;
+
+  /// Owner 2026-10-21 (Instagram): the author's username, bold, opens the
+  /// caption's first line (the title's, or the text's when no title).
+  final String? author;
 
   /// The text opened in place (the card gives up its fixed height).
   final VoidCallback? onExpand;
@@ -3452,6 +3518,24 @@ class FeedCaptionState extends ConsumerState<FeedCaption> {
       color: colors.textSecondary,
       fontWeight: FontWeight.w500,
     );
+    final lead = widget.author == null || widget.author!.isEmpty
+        ? ''
+        : '${ltrIsolate(widget.author!)} ';
+    // The username rides on the first line: the title's, else the text's.
+    final title = widget.title.isNotEmpty ? '$lead${widget.title}' : '';
+    final text = widget.title.isEmpty && widget.text.trim().isNotEmpty
+        ? '$lead${widget.text}'
+        : widget.text;
+    List<InlineSpan> led(String shown) =>
+        lead.isNotEmpty && shown.startsWith(lead)
+            ? [
+                TextSpan(
+                  text: lead,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                TextSpan(text: shown.substring(lead.length)),
+              ]
+            : [TextSpan(text: shown)];
     final hasText = widget.text.trim().isNotEmpty;
     final hasTags = widget.hashtags.isNotEmpty;
     for (final r in _tagTaps) {
@@ -3493,10 +3577,10 @@ class FeedCaptionState extends ConsumerState<FeedCaption> {
           // at the end of the text whenever there is text and anything is
           // cut (the title or the text); at the end of the title's line
           // when there is no text; none when everything fits.
-          final titleCut = widget.title.isNotEmpty &&
+          final titleCut = title.isNotEmpty &&
               !_expanded &&
               _overflows(
-                widget.title,
+                title,
                 titleStyle,
                 outer.maxWidth,
                 context,
@@ -3518,7 +3602,7 @@ class FeedCaptionState extends ConsumerState<FeedCaption> {
               // No text: «ещё» ends the title's own line.
               _more.onTap = openMore;
               final cut = _fit(
-                widget.title,
+                title,
                 '… $moreLabel',
                 titleStyle,
                 outer.maxWidth - 4,
@@ -3530,10 +3614,10 @@ class FeedCaptionState extends ConsumerState<FeedCaption> {
                   TextSpan(
                     style: titleStyle,
                     children: [
-                      TextSpan(
-                        text: cut >= widget.title.length
-                            ? '${widget.title} '
-                            : '${widget.title.substring(0, cut).trimRight()}… ',
+                      ...led(
+                        cut >= title.length
+                            ? '$title '
+                            : '${title.substring(0, cut).trimRight()}… ',
                       ),
                       TextSpan(
                         text: moreLabel,
@@ -3547,8 +3631,8 @@ class FeedCaptionState extends ConsumerState<FeedCaption> {
             }
             return AppPressable(
               onTap: widget.onOpen,
-              child: Text(
-                widget.title,
+              child: Text.rich(
+                TextSpan(children: led(title)),
                 maxLines: _expanded ? null : _titleLines,
                 overflow:
                     _expanded ? TextOverflow.visible : TextOverflow.ellipsis,
@@ -3560,14 +3644,14 @@ class FeedCaptionState extends ConsumerState<FeedCaption> {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (widget.title.isNotEmpty) titleWidget(),
+              if (title.isNotEmpty) titleWidget(),
               if (hasText)
                 LayoutBuilder(
                   builder: (context, box) {
                     // Owner 2026-10-18 (speed): counted up to 5 lines and
                     // cached (only "> 2" and "> 4" are asked below).
                     final lines = _lines(
-                      widget.text,
+                      text,
                       bodyStyle,
                       box.maxWidth,
                       context,
@@ -3591,18 +3675,18 @@ class FeedCaptionState extends ConsumerState<FeedCaption> {
                     };
                     final cut = collapsed
                         ? _fit(
-                            widget.text,
+                            text,
                             '… $moreLabel',
                             bodyStyle,
                             box.maxWidth - 4,
                             context,
                           )
-                        : widget.text.length;
+                        : text.length;
                     final shown = !collapsed
-                        ? widget.text
-                        : cut < widget.text.length
-                            ? '${widget.text.substring(0, cut).trimRight()}… '
-                            : '${widget.text} ';
+                        ? text
+                        : cut < text.length
+                            ? '${text.substring(0, cut).trimRight()}… '
+                            : '$text ';
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -3614,7 +3698,7 @@ class FeedCaptionState extends ConsumerState<FeedCaption> {
                               TextSpan(
                                 style: bodyStyle,
                                 children: [
-                                  TextSpan(text: shown),
+                                  ...led(shown),
                                   if (collapsed)
                                     TextSpan(
                                       text: moreLabel,

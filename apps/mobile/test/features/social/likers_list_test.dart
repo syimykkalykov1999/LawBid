@@ -52,8 +52,18 @@ void main() {
       ),
     );
     await t.pump(const Duration(seconds: 1));
-    final emoji = t.widget<Text>(find.text('😎'));
-    expect(emoji.style?.fontSize, 14);
+    // Owner 2026-10-21 (Instagram): the author's username leads the line,
+    // bold; the caption keeps the regular size.
+    final caption = t.widget<RichText>(
+      find.textContaining('😎', findRichText: true).first,
+    );
+    final root = caption.text as TextSpan;
+    expect(root.style?.fontSize, 14);
+    final spans = (root.children!.first as TextSpan).children ?? root.children!;
+    final lead = spans.first as TextSpan;
+    expect(lead.text, contains(post.author.username));
+    expect(lead.style?.fontWeight, FontWeight.w700);
+    expect((spans[1] as TextSpan).text, contains('😎'));
     await t.pumpWidget(const SizedBox());
     await t.pump(const Duration(seconds: 30));
   });
