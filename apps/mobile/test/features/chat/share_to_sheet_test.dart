@@ -363,7 +363,7 @@ void main() {
     expect(r.sender.chats, isEmpty);
   });
 
-  // Owner rule: 4 themes x longest / ru / ne / ar at 360 dp, x1 and x1.1.
+  // Owner rule: 4 themes x longest / ru / ne / ar / de / mr at 360 dp, x1 and x1.1.
   final locales = <String, (Translator, TextDirection)>{
     'longest': (
       PendingTranslator.of(LongestTranslator(), 'share', 'longest'),
@@ -384,6 +384,14 @@ void main() {
     'ar': (
       PendingTranslator.of(ShippedTranslator('ar'), 'share', 'ar'),
       TextDirection.rtl,
+    ),
+    'de': (
+      PendingTranslator.of(ShippedTranslator('de'), 'share', 'de'),
+      TextDirection.ltr,
+    ),
+    'mr': (
+      PendingTranslator.of(ShippedTranslator('mr'), 'share', 'mr'),
+      TextDirection.ltr,
     ),
   };
   for (final theme in AppThemeId.values) {
