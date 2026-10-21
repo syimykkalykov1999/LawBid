@@ -56,6 +56,42 @@ class CallHistoryController
     }
   }
 
+  /// Owner 2026-10-21 (WhatsApp): calls off my list — gone at once, back
+  /// when the server refused.
+  Future<void> hide(Set<String> ids) => _drop(
+        (current) => PaginatedList(
+          items: [
+            for (final e in current.items)
+              if (!ids.contains(e.id)) e,
+          ],
+          nextCursor: current.nextCursor,
+        ),
+        () => _repo.hide(ids.toList()),
+      );
+
+  /// «Clear»: the whole list.
+  Future<void> clear() => _drop(
+        (_) => const PaginatedList(items: []),
+        _repo.clear,
+      );
+
+  Future<void> _drop(
+    PaginatedList<CallHistoryEntry> Function(PaginatedList<CallHistoryEntry>)
+        next,
+    Future<void> Function() write,
+  ) async {
+    final current = state.value;
+    if (current == null) return;
+    _generation++;
+    state = AsyncData(next(current));
+    try {
+      await write();
+    } on Object {
+      if (ref.mounted) state = AsyncData(current);
+      rethrow;
+    }
+  }
+
   Future<void> retryLoadMore() async {
     final current = state.value;
     if (current == null || current.loadMoreError == null) return;
@@ -64,6 +100,34 @@ class CallHistoryController
     );
     await loadMore();
   }
+}
+
+/// Owner 2026-10-21 (WhatsApp): the calls picked in the list (null = not
+/// picking). A folded line picks all its calls.
+final callLogSelectionProvider =
+    NotifierProvider.autoDispose<CallLogSelection, Set<String>?>(
+  CallLogSelection.new,
+);
+
+class CallLogSelection extends Notifier<Set<String>?> {
+  @override
+  Set<String>? build() => null;
+
+  /// Picks (or un-picks) [ids]; the last one out ends picking.
+  void toggle(Iterable<String> ids) {
+    final next = {...?state};
+    if (ids.every(next.contains)) {
+      next.removeAll(ids);
+    } else {
+      next.addAll(ids);
+    }
+    state = next.isEmpty ? null : next;
+  }
+
+  // ignore: use_setters_to_change_properties
+  void set(Set<String> ids) => state = ids;
+
+  void stop() => state = null;
 }
 
 /// Group calls running now in my groups. Owner 2026-10-21: the «+» of the

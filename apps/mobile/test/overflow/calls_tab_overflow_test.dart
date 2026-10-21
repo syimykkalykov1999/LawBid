@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -51,6 +52,12 @@ class _History implements CallHistoryRepository {
 
   @override
   Future<List<OngoingGroupCall>> ongoing() async => const [];
+
+  @override
+  Future<void> hide(List<String> ids) async {}
+
+  @override
+  Future<void> clear() async {}
 }
 
 void main() {
@@ -125,6 +132,63 @@ void main() {
           await t.pump(const Duration(milliseconds: 600));
           expect(t.takeException(), isNull);
           expect(find.byType(CallHistoryRow), findsWidgets);
+          await t.pumpWidget(const SizedBox());
+          await t.pump(const Duration(seconds: 30));
+        });
+
+        // Owner 2026-10-21 (WhatsApp): picking, its bar and «Clear».
+        testWidgets('calls picking + clear: ${id.name} ${e.key} x$scale',
+            (t) async {
+          useNarrowPhone(t);
+          final (tr, dir) = e.value;
+          await t.pumpWidget(
+            uxApp(
+              Directionality(
+                textDirection: dir,
+                child: Consumer(
+                  builder: (context, ref, _) {
+                    final picked = ref.watch(callLogSelectionProvider);
+                    return Scaffold(
+                      appBar: picked != null
+                          ? CallLogSelectionBar(picked: picked)
+                          : AppTopBar(
+                              title: ContactsCallsSegment(
+                                calls: true,
+                                contactsLabel: tr.t('phoneContacts.title'),
+                                callsLabel: tr.t('calls.title'),
+                                onChanged: (_) {},
+                              ),
+                              actions: const [CallLogMenuButton()],
+                            ),
+                      body: const CallsTab(),
+                    );
+                  },
+                ),
+              ),
+              theme: AppTheme.of(id),
+              size: narrowPhone,
+              textScale: scale,
+              disableAnimations: true,
+              overrides: [
+                ...uxOverrides(translator: tr),
+                callHistoryRepositoryProvider.overrideWithValue(_History()),
+              ],
+            ),
+          );
+          await t.pump(const Duration(milliseconds: 600));
+          await t.longPress(find.byType(CallHistoryRow).first);
+          await t.pump();
+          await t.tap(find.byKey(const ValueKey('calls-select-all')));
+          await t.pump();
+          expect(t.takeException(), isNull);
+          await t.tap(find.byKey(const ValueKey('calls-select-cancel')));
+          await t.pump();
+          await t.tap(find.byKey(const ValueKey('calls-menu')));
+          await t.pumpAndSettle();
+          await t.tap(find.byKey(const ValueKey('calls-menu-clear')));
+          await t.pumpAndSettle();
+          expect(t.takeException(), isNull);
+          expect(find.byKey(const ValueKey('calls-clear-confirm')), findsOne);
           await t.pumpWidget(const SizedBox());
           await t.pump(const Duration(seconds: 30));
         });

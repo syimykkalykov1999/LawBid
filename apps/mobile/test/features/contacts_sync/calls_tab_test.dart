@@ -69,6 +69,15 @@ class _Repo implements CallHistoryRepository {
 
   @override
   Future<List<OngoingGroupCall>> ongoing() async => running;
+
+  final hidden = <List<String>>[];
+  int clears = 0;
+
+  @override
+  Future<void> hide(List<String> ids) async => hidden.add(ids);
+
+  @override
+  Future<void> clear() async => clears++;
 }
 
 void main() {
@@ -307,12 +316,73 @@ void main() {
     await pump(tester, const ContactsScreen());
     expect(find.byType(CallsTab), findsNothing);
     await tester.tap(find.text('Calls'));
-    await tester.pump();
-    await tester.pump();
+    await tester.pumpAndSettle();
     expect(find.byType(CallsTab), findsOneWidget);
     await tester.tap(find.text('Contacts').last);
-    await tester.pump();
+    await tester.pumpAndSettle();
     expect(find.byType(CallsTab), findsNothing);
+  });
+
+  // Owner 2026-10-21: the segment is small, in the middle of the top bar,
+  // and the two sections swipe.
+  testWidgets('the segment sits in the top bar; a swipe changes the section',
+      (tester) async {
+    await pump(tester, const ContactsScreen());
+    final seg = tester.getRect(
+      find.byKey(const ValueKey('contacts-calls-segment')),
+    );
+    expect(seg.height, 32);
+    expect(seg.center.dx, closeTo(narrowPhone.width / 2, 2));
+    expect(seg.top, lessThan(56));
+    await tester.fling(find.byType(PageView), const Offset(-300, 0), 1000);
+    await tester.pumpAndSettle();
+    expect(find.byType(CallsTab), findsOneWidget);
+    await tester.fling(find.byType(PageView), const Offset(300, 0), 1000);
+    await tester.pumpAndSettle();
+    expect(find.byType(CallsTab), findsNothing);
+  });
+
+  // Owner 2026-10-21 (WhatsApp): pick calls, all of them, delete them from
+  // my list; «Clear» asks first.
+  testWidgets('long press picks; all; delete hides the picked calls',
+      (tester) async {
+    final repo = _Repo(pages(), running: running);
+    await pump(tester, const ContactsScreen(initialCalls: true), repo: repo);
+    await tester.longPress(find.text('$_long (2)'));
+    await tester.pump();
+    expect(find.text('2 selected'), findsOneWidget);
+    expect(find.byKey(const ValueKey('call-picked')), findsOneWidget);
+    await tester.tap(find.text('Ann Lee'));
+    await tester.pump();
+    expect(find.text('3 selected'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('calls-select-delete')));
+    await tester.pump();
+    expect(repo.hidden.single.toSet(), {'1', '2', '3'});
+    expect(find.text('Ann Lee'), findsNothing);
+    expect(find.byKey(const ValueKey('calls-select-delete')), findsNothing);
+
+    await tester.longPress(find.text('Bob'));
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('calls-select-all')));
+    await tester.pump();
+    expect(find.text('All'), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('calls-select-cancel')));
+    await tester.pump();
+    expect(find.byKey(const ValueKey('call-picked')), findsNothing);
+  });
+
+  testWidgets('«Clear call log» asks, then empties the list', (tester) async {
+    final repo = _Repo(pages());
+    await pump(tester, const ContactsScreen(initialCalls: true), repo: repo);
+    await tester.tap(find.byKey(const ValueKey('calls-menu')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('calls-menu-clear')));
+    await tester.pumpAndSettle();
+    expect(find.text('Calls are removed only for you.'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('calls-clear-confirm')));
+    await tester.pumpAndSettle();
+    expect(repo.clears, 1);
+    expect(find.text('No calls yet'), findsOneWidget);
   });
 
   // 360 dp, text x1.0 / x1.1, four themes with the longest text, the real

@@ -9,6 +9,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
+import 'package:lawbid/features/calls/application/call_history_providers.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
@@ -43,39 +44,86 @@ class ContactsScreen extends ConsumerStatefulWidget {
 
 class _ContactsScreenState extends ConsumerState<ContactsScreen> {
   late bool _calls = widget.initialCalls;
+  late final PageController _pages =
+      PageController(initialPage: _calls ? 1 : 0);
+
+  @override
+  void dispose() {
+    _pages.dispose();
+    super.dispose();
+  }
+
+  /// A tap on the segment slides to the section; a swipe lands here too.
+  void _show(bool calls, {bool slide = true}) {
+    if (calls == _calls) return;
+    ref.read(callLogSelectionProvider.notifier).stop();
+    setState(() => _calls = calls);
+    if (!slide || !_pages.hasClients) return;
+    if (context.reduceMotion) {
+      _pages.jumpToPage(calls ? 1 : 0);
+    } else {
+      unawaited(
+        _pages.animateToPage(
+          calls ? 1 : 0,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOutCubic,
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
-    return Scaffold(
-      backgroundColor: colors.bg,
-      appBar: AppTopBar(
-        leading: AppBackButton(
-          semanticLabel: t.t('common.back'),
-          onPressed: () => Navigator.of(context).maybePop(),
+    final picked = ref.watch(callLogSelectionProvider);
+    // Owner 2026-10-21: the segment sits small in the middle of the top bar
+    // (Telegram); a slot on the right keeps it centred on both sections.
+    final bar = picked != null
+        ? CallLogSelectionBar(picked: picked)
+        : AppTopBar(
+            leading: AppBackButton(
+              semanticLabel: t.t('common.back'),
+              onPressed: () => Navigator.of(context).maybePop(),
+            ),
+            title: ContactsCallsSegment(
+              calls: _calls,
+              contactsLabel: t.t('phoneContacts.title'),
+              callsLabel: t.t('calls.title'),
+              onChanged: _show,
+            ),
+            actions: [
+              if (_calls)
+                const CallLogMenuButton()
+              else
+                const SizedBox(width: AppSizes.hitTarget),
+            ],
+          );
+    return PopScope(
+      // Back first ends picking (WhatsApp).
+      canPop: picked == null,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) ref.read(callLogSelectionProvider.notifier).stop();
+      },
+      child: Scaffold(
+        backgroundColor: colors.bg,
+        appBar: bar,
+        // Owner 2026-10-21: the two sections slide like the other tabs of
+        // the app (the same on Android and iOS).
+        body: PageView(
+          controller: _pages,
+          onPageChanged: (i) => _show(i == 1, slide: false),
+          children: [
+            if (kIsWeb)
+              AppEmptyState(
+                icon: AppIcons.contactPhoneOutlined,
+                message: t.t('phoneContacts.webOnly'),
+              )
+            else
+              _Body(t: t),
+            const CallsTab(),
+          ],
         ),
-        title: Text(t.t(_calls ? 'calls.title' : 'phoneContacts.title')),
-      ),
-      body: Column(
-        children: [
-          ContactsCallsSegment(
-            calls: _calls,
-            contactsLabel: t.t('phoneContacts.title'),
-            callsLabel: t.t('calls.title'),
-            onChanged: (v) => setState(() => _calls = v),
-          ),
-          Expanded(
-            child: _calls
-                ? const CallsTab()
-                : kIsWeb
-                    ? AppEmptyState(
-                        icon: AppIcons.contactPhoneOutlined,
-                        message: t.t('phoneContacts.webOnly'),
-                      )
-                    : _Body(t: t),
-          ),
-        ],
       ),
     );
   }

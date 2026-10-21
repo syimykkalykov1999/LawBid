@@ -20,7 +20,8 @@ import 'package:lawbid/features/contacts_sync/presentation/contact_rows.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 
 /// Owner 2026-10-21: «Contacts | Calls» — the two sections of the screen the
-/// «+» of the chats opens, a compact segmented switch under the top bar.
+/// «+» of the chats opens. A compact segment in the middle of the top bar
+/// (Telegram); the sections also swipe.
 class ContactsCallsSegment extends StatelessWidget {
   const ContactsCallsSegment({
     required this.calls,
@@ -50,7 +51,6 @@ class ContactsCallsSegment extends StatelessWidget {
           child: AppPressable(
             onTap: () => onChanged(isCalls),
             child: Container(
-              constraints: const BoxConstraints(minHeight: 36),
               alignment: Alignment.center,
               padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
               decoration: BoxDecoration(
@@ -58,13 +58,16 @@ class ContactsCallsSegment extends StatelessWidget {
                 borderRadius: BorderRadius.circular(AppRadii.pill),
                 border: on ? Border.all(color: colors.gold) : null,
               ),
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: type.bodySmall.copyWith(
-                  color: on ? colors.text : colors.textSecondary,
-                  fontWeight: on ? FontWeight.w700 : FontWeight.w500,
+              // A long language shrinks the word instead of cutting it.
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  style: type.caption.copyWith(
+                    color: on ? colors.text : colors.textSecondary,
+                    fontWeight: on ? FontWeight.w700 : FontWeight.w500,
+                  ),
                 ),
               ),
             ),
@@ -73,14 +76,11 @@ class ContactsCallsSegment extends StatelessWidget {
       );
     }
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.screenSide,
-        AppSpacing.sm,
-        AppSpacing.screenSide,
-        0,
-      ),
+    return Center(
       child: Container(
+        key: const ValueKey('contacts-calls-segment'),
+        constraints: const BoxConstraints(maxWidth: 220),
+        height: 32,
         padding: const EdgeInsets.all(2),
         decoration: BoxDecoration(
           color: colors.chip,
@@ -141,6 +141,7 @@ class _CallsTabState extends ConsumerState<CallsTab> {
     final t = ref.watch(translatorProvider);
     final history = ref.watch(callHistoryProvider);
     final ongoing = ref.watch(ongoingGroupCallsProvider).value ?? const [];
+    final picked = ref.watch(callLogSelectionProvider);
     return history.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => AppEmptyState(
@@ -185,7 +186,11 @@ class _CallsTabState extends ConsumerState<CallsTab> {
               ],
               if (groups.isNotEmpty) ContactsSectionTitle(t.t('calls.recent')),
               for (final g in groups)
-                CallHistoryRow(key: ValueKey('call-${g.latest.id}'), group: g),
+                CallHistoryRow(
+                  key: ValueKey('call-${g.latest.id}'),
+                  group: g,
+                  picked: picked,
+                ),
               if (list.isLoadingMore)
                 const Padding(
                   padding: EdgeInsets.all(AppSpacing.lg),
@@ -286,11 +291,15 @@ class _OngoingCallRowState extends ConsumerState<OngoingCallRow> {
 }
 
 /// One line of the history. Tap = call back (the same sort: audio / video);
-/// a group's line opens the group chat.
+/// a group's line opens the group chat. Owner 2026-10-21 (WhatsApp): a long
+/// press starts picking; while picking a tap picks or un-picks the line.
 class CallHistoryRow extends ConsumerWidget {
-  const CallHistoryRow({required this.group, super.key});
+  const CallHistoryRow({required this.group, this.picked, super.key});
 
   final CallHistoryGroup group;
+
+  /// The calls picked in the list; null = not picking.
+  final Set<String>? picked;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -312,12 +321,46 @@ class CallHistoryRow extends ConsumerWidget {
     final talk = e.durationSec != null && e.durationSec! > 0
         ? ' · ${_duration(f, e.durationSec!)}'
         : '';
+    final ids = [for (final x in group.entries) x.id];
+    final picking = picked != null;
+    final on = picked?.contains(e.id) ?? false;
+    void pick() {
+      unawaited(HapticFeedback.selectionClick());
+      ref.read(callLogSelectionProvider.notifier).toggle(ids);
+    }
+
     return _CallRowShell(
-      onTap: () => _callBack(context, ref, e, video: e.video),
-      avatar: GoldRingAvatar(
-        url: e.isGroup ? e.groupAvatarUrl : e.peer.avatarUrl,
-        initials: avatarInitials(name),
-        size: 44,
+      onTap: picking ? pick : () => _callBack(context, ref, e, video: e.video),
+      onLongPress: pick,
+      picked: on,
+      avatar: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          GoldRingAvatar(
+            url: e.isGroup ? e.groupAvatarUrl : e.peer.avatarUrl,
+            initials: avatarInitials(name),
+            size: 44,
+          ),
+          if (on)
+            PositionedDirectional(
+              end: -2,
+              bottom: -2,
+              child: Container(
+                key: const ValueKey('call-picked'),
+                padding: const EdgeInsets.all(2),
+                decoration: BoxDecoration(
+                  color: colors.success,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: colors.bg, width: 2),
+                ),
+                child: const AppIcon(
+                  AppIcons.checkRounded,
+                  size: 12,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+        ],
       ),
       title: title,
       titleColor: missed ? colors.dangerText : null,
@@ -328,7 +371,7 @@ class CallHistoryRow extends ConsumerWidget {
           Flexible(child: _Sub('$when$talk')),
         ],
       ),
-      trailing: e.isGroup
+      trailing: e.isGroup || picking
           ? null
           : Row(
               mainAxisSize: MainAxisSize.min,
@@ -437,10 +480,14 @@ class _CallRowShell extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.onTap,
+    this.onLongPress,
+    this.picked = false,
     this.titleColor,
     this.trailing,
   });
 
+  final VoidCallback? onLongPress;
+  final bool picked;
   final Widget avatar;
   final String title;
   final Color? titleColor;
@@ -454,7 +501,9 @@ class _CallRowShell extends StatelessWidget {
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     return InkWell(
       onTap: onTap,
-      child: Padding(
+      onLongPress: onLongPress,
+      child: Container(
+        color: picked ? colors.chip : null,
         padding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.screenSide,
           vertical: AppSpacing.sm,
@@ -488,5 +537,173 @@ class _CallRowShell extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// Owner 2026-10-21 (WhatsApp): the top bar while calls are picked —
+/// cancel · «N selected» · all / none · delete (from my list only).
+class CallLogSelectionBar extends ConsumerWidget
+    implements PreferredSizeWidget {
+  const CallLogSelectionBar({required this.picked, super.key});
+
+  final Set<String> picked;
+
+  @override
+  Size get preferredSize => const AppTopBar().preferredSize;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    final f = ref.watch(l10nFormatsProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final all = {
+      for (final e in ref.watch(callHistoryProvider).value?.items ??
+          const <CallHistoryEntry>[])
+        e.id,
+    };
+    final everything = all.isNotEmpty && picked.containsAll(all);
+    final sel = ref.read(callLogSelectionProvider.notifier);
+    return AppTopBar(
+      leading: AppIconButton(
+        key: const ValueKey('calls-select-cancel'),
+        icon: AppIcon(AppIcons.closeRounded, color: colors.text),
+        semanticLabel: t.t('common.cancel'),
+        onPressed: sel.stop,
+      ),
+      title: Text(
+        t.t('chat.select.count', {'count': f.digits('${picked.length}')}),
+      ),
+      actions: [
+        TextButton(
+          key: const ValueKey('calls-select-all'),
+          onPressed: () => everything ? sel.stop() : sel.set(all),
+          child: Text(
+            t.t(everything ? 'chat.select.none' : 'chat.select.all'),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        AppIconButton(
+          key: const ValueKey('calls-select-delete'),
+          icon: AppIcon(AppIcons.deleteOutlineRounded, color: colors.danger),
+          semanticLabel: t.t('common.delete'),
+          onPressed: () => unawaited(_delete(context, ref)),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _delete(BuildContext context, WidgetRef ref) async {
+    final t = ref.read(translatorProvider);
+    ref.read(callLogSelectionProvider.notifier).stop();
+    try {
+      await ref.read(callHistoryProvider.notifier).hide(picked);
+    } on Object catch (e) {
+      if (context.mounted) showAppSnackBar(context, errorText(t, e));
+    }
+  }
+}
+
+/// ⋮ on «Calls»: «Select» and «Clear call log» (asks first).
+class CallLogMenuButton extends ConsumerWidget {
+  const CallLogMenuButton({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final empty = ref.watch(callHistoryProvider).value?.items.isEmpty ?? true;
+    return AppIconButton(
+      key: const ValueKey('calls-menu'),
+      icon: AppIcon(AppIcons.moreVertRounded, color: colors.text),
+      semanticLabel: t.t('chat.select.menu'),
+      onPressed: empty ? null : () => unawaited(_menu(context, ref)),
+    );
+  }
+
+  Future<void> _menu(BuildContext context, WidgetRef ref) async {
+    final t = ref.read(translatorProvider);
+    final pick = await showAppBottomSheet<String>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: AppSpacing.sm),
+            const AppSheetHandle(),
+            AppListRow(
+              key: const ValueKey('calls-menu-select'),
+              icon: AppIcons.checkCircleOutlineRounded,
+              label: t.t('chat.act.select'),
+              showChevron: false,
+              onTap: () => Navigator.of(ctx).pop('select'),
+            ),
+            AppListRow(
+              key: const ValueKey('calls-menu-clear'),
+              icon: AppIcons.deleteOutlineRounded,
+              label: t.t('calls.clear'),
+              showChevron: false,
+              onTap: () => Navigator.of(ctx).pop('clear'),
+            ),
+            const SizedBox(height: AppSpacing.md),
+          ],
+        ),
+      ),
+    );
+    if (!context.mounted) return;
+    switch (pick) {
+      case 'select':
+        final first = ref.read(callHistoryProvider).value?.items.firstOrNull;
+        if (first != null) {
+          ref.read(callLogSelectionProvider.notifier).set({first.id});
+        }
+      case 'clear':
+        await _clear(context, ref);
+    }
+  }
+
+  Future<void> _clear(BuildContext context, WidgetRef ref) async {
+    final t = ref.read(translatorProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    final ok = await showAppBottomSheet<bool>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(t.t('calls.clear'), style: type.titleMedium),
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                t.t('calls.clearHint'),
+                style: type.bodySmall.copyWith(color: colors.textSecondary),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              AppButton(
+                key: const ValueKey('calls-clear-confirm'),
+                label: t.t('calls.clearAction'),
+                variant: AppButtonVariant.danger,
+                onPressed: () => Navigator.of(ctx).pop(true),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              AppButton(
+                label: t.t('common.cancel'),
+                variant: AppButtonVariant.secondary,
+                onPressed: () => Navigator.of(ctx).pop(false),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await ref.read(callHistoryProvider.notifier).clear();
+    } on Object catch (e) {
+      if (context.mounted) showAppSnackBar(context, errorText(t, e));
+    }
   }
 }

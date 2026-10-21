@@ -5,13 +5,19 @@ import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
-/// Owner 2026-10-21: the «Calls» tab — read only. Throws [ApiException].
+/// Owner 2026-10-21: the «Calls» tab. Throws [ApiException].
 abstract interface class CallHistoryRepository {
   /// My finished calls, newest first; [cursor] null = the first page.
   Future<CursorPage<CallHistoryEntry>> history({String? cursor, int? limit});
 
   /// Group calls running now in my groups.
   Future<List<OngoingGroupCall>> ongoing();
+
+  /// Owner 2026-10-21 (WhatsApp): deletes calls from my list only.
+  Future<void> hide(List<String> ids);
+
+  /// «Clear»: my whole list (the other side keeps theirs).
+  Future<void> clear();
 }
 
 class ApiCallHistoryRepository implements CallHistoryRepository {
@@ -49,6 +55,20 @@ class ApiCallHistoryRepository implements CallHistoryRepository {
         ),
     ];
   }
+
+  @override
+  Future<void> hide(List<String> ids) async {
+    // The server takes up to 200 at a time.
+    for (var i = 0; i < ids.length; i += 200) {
+      final part = ids.sublist(i, i + 200 > ids.length ? ids.length : i + 200);
+      await guardApiCall(
+        () => _api.hideCalls(body: api.HideCallsDto(ids: part)),
+      );
+    }
+  }
+
+  @override
+  Future<void> clear() async => guardApiCall(_api.clearCalls);
 
   CallHistoryEntry _entry(api.CallHistoryItemDto d) => CallHistoryEntry(
         id: d.id,
