@@ -445,6 +445,99 @@ class GiftShowcase extends ConsumerWidget {
   }
 }
 
+/// Owner 2026-10-21: the gift icon in the profile's top bar (the «Gifts»
+/// block under the name is gone) — the same size as the QR code and the
+/// gear. Mine: always, opens «My gifts». Someone else's: only when they
+/// show gifts, opens them in a sheet.
+class GiftHeaderButton extends ConsumerWidget {
+  const GiftHeaderButton({required this.userId, this.isMe = false, super.key});
+
+  final String userId;
+  final bool isMe;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (!ref.watch(starsEnabledProvider)) return const SizedBox.shrink();
+    final t = ref.watch(translatorProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final shown = isMe
+        ? const <GiftSend>[]
+        : [
+            for (final s in ref.watch(giftShowcaseProvider(userId)).value ??
+                const <GiftSend>[])
+              if (s.shown && !s.converted) s,
+          ];
+    if (!isMe && shown.isEmpty) return const SizedBox.shrink();
+    return Semantics(
+      button: true,
+      label: t.t(isMe ? 'stars.myGifts' : 'stars.profile.title'),
+      excludeSemantics: true,
+      child: AppPressable(
+        key: const ValueKey('profile-gifts'),
+        onTap: () => isMe
+            ? context.push(AppRoutes.myGifts)
+            : _showGifts(context, t, shown),
+        child: SizedBox.square(
+          dimension: AppSizes.touchTarget,
+          child: AppIcon(
+            AppIcons.giftOutlined,
+            color: colors.text,
+            size: AppSizes.iconMd,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showGifts(
+    BuildContext context,
+    Translator t,
+    List<GiftSend> shown,
+  ) =>
+      showAppBottomSheet<void>(
+        context: context,
+        builder: (sheet) {
+          final colors = Theme.of(sheet).extension<AppColorTokens>()!;
+          final type = Theme.of(sheet).extension<AppTypographyTokens>()!;
+          return SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.screenSide,
+                AppSpacing.sm,
+                AppSpacing.screenSide,
+                AppSpacing.lg,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Center(child: AppSheetHandle()),
+                  const SizedBox(height: AppSpacing.sm),
+                  Text(
+                    t.t('stars.profile.title'),
+                    style: type.titleMedium.copyWith(color: colors.text),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  Wrap(
+                    spacing: AppSpacing.sm,
+                    runSpacing: AppSpacing.sm,
+                    children: [
+                      for (final s in shown)
+                        Semantics(
+                          label: giftTitle(t, s.gift),
+                          excludeSemantics: true,
+                          child: GiftImage(url: s.gift.url),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+}
+
 /// «Подарить» row of a profile's «⋯» menu (owner 2026-10-21): closes the
 /// menu [sheet] and opens the catalog over [screen]. Nothing when stars are
 /// off, for oneself, for an assistant, or when blocked either way.

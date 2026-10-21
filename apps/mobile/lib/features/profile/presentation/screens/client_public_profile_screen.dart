@@ -96,6 +96,9 @@ class ClientPublicProfileScreen extends ConsumerWidget {
           onPressed: () => _leave(context),
         ),
         actions: [
+          // Owner 2026-10-21: their gifts behind an icon up here.
+          if (profile.value case final p? when !(p.isBlocked || p.hasBlockedMe))
+            GiftHeaderButton(userId: p.id, isMe: p.isSelf),
           if (profile.value case final p? when !p.isSelf)
             AppIconButton(
               icon: AppIcon(AppIcons.moreHorizRounded, color: colors.text),

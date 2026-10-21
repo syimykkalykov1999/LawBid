@@ -337,9 +337,7 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
           _AboutSection(profile: p),
           const SizedBox(height: AppSpacing.md),
           _ChipRows(profile: p),
-          // Owner 2026-10-20: gifts on the profile (flag `stars`).
-          if (!(p.isBlocked || p.hasBlockedMe))
-            GiftShowcase(userId: p.id, isMe: p.isSelf),
+          // Owner 2026-10-21: the gifts moved to an icon in the top bar.
           const SizedBox(height: AppSpacing.sm),
           // Instagram order: buttons right above the tabs — Follow |
           // Message | share icon (owner request).
