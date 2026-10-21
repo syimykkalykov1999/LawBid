@@ -109,10 +109,22 @@ class ChannelAvatar extends StatelessWidget {
 /// A channel in a list: picture, title, @username, subscribers, and whether
 /// its owner is verified.
 class ChannelRow extends ConsumerWidget {
-  const ChannelRow({required this.channel, required this.onTap, super.key});
+  const ChannelRow({
+    required this.channel,
+    required this.onTap,
+    this.onLongPress,
+    this.picked,
+    super.key,
+  });
 
   final Channel channel;
   final VoidCallback onTap;
+
+  /// Owner 2026-10-21: a long press picks the channel (selection mode).
+  final VoidCallback? onLongPress;
+
+  /// In selection mode: whether this row is picked (null = not selecting).
+  final bool? picked;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -126,15 +138,20 @@ class ChannelRow extends ConsumerWidget {
       'channel.subscribers',
       channel.subscriberCount,
     );
+    final picked = this.picked;
     return Semantics(
       button: true,
+      checked: picked,
       label: '${channel.title}, @${channel.username}',
       excludeSemantics: true,
       onTap: onTap,
+      onLongPress: onLongPress,
       child: InkWell(
         onTap: onTap,
+        onLongPress: onLongPress,
         borderRadius: BorderRadius.circular(AppRadii.field),
-        child: ConstrainedBox(
+        child: Container(
+          color: picked ?? false ? colors.chip : null,
           constraints: const BoxConstraints(minHeight: AppSizes.touchTarget),
           child: Padding(
             padding: const EdgeInsets.symmetric(
@@ -143,6 +160,16 @@ class ChannelRow extends ConsumerWidget {
             ),
             child: Row(
               children: [
+                if (picked != null) ...[
+                  AppIcon(
+                    picked
+                        ? AppIcons.checkCircleRounded
+                        : AppIcons.radioButtonUncheckedRounded,
+                    key: ValueKey('channel-pick-${channel.id}'),
+                    color: picked ? colors.iconTint : colors.textSecondary,
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+                ],
                 ChannelAvatar(
                   title: channel.title,
                   url: channel.avatarUrl,

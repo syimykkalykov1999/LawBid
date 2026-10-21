@@ -245,7 +245,7 @@ void main() {
   });
 
   testWidgets(
-      'Chats: one ⋮ menu with select / new group / find groups, one search '
+      'Chats: one ⋮ menu with select (no new / find groups), one search '
       'magnifier, no second groups button', (tester) async {
     final repo = _Chats();
     tester.view.physicalSize = const Size(1000, 2000);
@@ -289,12 +289,15 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('chat-search-close')));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('chats-new-chat')), findsOneWidget);
-    // ⋮ is the one place for all three actions.
+    // Owner 2026-10-21 (п.22b): ⋮ keeps «Select chats»; «New group» and
+    // «Find groups» live on the Channels screen («+» and the magnifier).
     await tester.tap(find.byKey(const ValueKey('chats-menu')));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('chats-menu-select')), findsOneWidget);
-    expect(find.byKey(const ValueKey('menu-new-group')), findsOneWidget);
-    expect(find.byKey(const ValueKey('menu-find-groups')), findsOneWidget);
+    expect(find.byKey(const ValueKey('menu-new-group')), findsNothing);
+    expect(find.byKey(const ValueKey('menu-find-groups')), findsNothing);
+    expect(find.text('New group'), findsNothing);
+    expect(find.text('Find groups'), findsNothing);
     expect(
       find.descendant(
         of: find.byType(BottomSheet),
