@@ -56,6 +56,7 @@ import { LegalQaModule } from './modules/legal-qa/legal-qa.module';
 import { ConsultationsModule } from './modules/consultations/consultations.module';
 import { ChatModule } from './modules/chat/chat.module';
 import { GroupsModule } from './modules/groups/groups.module';
+import { ForwardModule } from './modules/forward/forward.module';
 import { ChatSavedModule } from './modules/chat-saved/chat-saved.module';
 import { TranslationModule } from './modules/translation/translation.module';
 import { CallsModule } from './modules/calls/calls.module';
@@ -341,6 +342,8 @@ const isDev =
     CountryPartnersModule,
     // Owner 2026-10-20: group chats and polls.
     GroupsModule,
+    // Owner 2026-10-21 (Telegram «Переслать»): one forward into many chats.
+    ForwardModule,
     // Owner 2026-10-20: time, expenses, invoice, e-signature, document forms.
     CaseToolsModule,
     // BullMQ `cron` queue (session/OTP cleanup, disposable-domain refresh).

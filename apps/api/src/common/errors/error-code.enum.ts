@@ -500,4 +500,12 @@ export enum ErrorCode {
   QA_ANSWERS_ENOUGH = 'QA_ANSWERS_ENOUGH',
   // 409: the author closed the question (or it was closed after 30 days).
   QA_QUESTION_CLOSED = 'QA_QUESTION_CLOSED',
+  // Owner 2026-10-21 (Telegram «Переслать»).
+  // 403: a disappearing message is never forwarded.
+  FORWARD_NOT_ALLOWED = 'FORWARD_NOT_ALLOWED',
+  // 403: the group / channel restricts saving content (no forward, no copy).
+  CONTENT_PROTECTED = 'CONTENT_PROTECTED',
+  // 400: the target cannot hold this kind of message (a voice note into a
+  // group, a document into a channel…).
+  UNSUPPORTED_IN_TARGET = 'UNSUPPORTED_IN_TARGET',
 }

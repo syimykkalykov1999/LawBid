@@ -61,6 +61,11 @@ export class ChannelDto {
   @ApiProperty()
   commentsEnabled!: boolean;
 
+  /** Owner 2026-10-21 (Telegram): restrict saving content — no
+   * forwarding, copying or saving of the posts; sharing sends the link. */
+  @ApiProperty()
+  protectContent!: boolean;
+
   /** Hidden / banned are only reported to the channel's admins. */
   @ApiProperty({ enum: CHANNEL_STATUSES, enumName: 'ChannelStatus' })
   status!: ChannelStatus;
@@ -195,6 +200,12 @@ export class UpdateChannelDto {
   @IsOptional()
   @IsBoolean()
   commentsEnabled?: boolean;
+
+  /** Owner 2026-10-21 (Telegram «Запретить копирование и пересылку»). */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  protectContent?: boolean;
 }
 
 export class ChannelMediaDto {
@@ -255,6 +266,10 @@ export class ChannelPostDto {
 
   @ApiPropertyOptional({ type: String, format: 'date-time', nullable: true })
   editedAt!: string | null;
+
+  /** Owner 2026-10-21: a forwarded post — «Forwarded from <name>». */
+  @ApiPropertyOptional({ type: String, nullable: true })
+  forwardedFrom!: string | null;
 }
 
 export class CreateChannelPostDto {

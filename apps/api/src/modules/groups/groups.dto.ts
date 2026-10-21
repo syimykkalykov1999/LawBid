@@ -251,6 +251,14 @@ export class UpdateGroupDto {
   @IsBoolean()
   showServiceMessages?: boolean;
 
+  @ApiPropertyOptional({
+    description:
+      'Admins with «edit info»: restrict saving content (no forwarding, copying or saving; sharing sends the link). Telegram.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  protectContent?: boolean;
+
   @ApiPropertyOptional({ description: 'Admins only: the join link on/off.' })
   @IsOptional()
   @IsBoolean()
@@ -693,7 +701,7 @@ export class GroupMessageDto {
     type: String,
     nullable: true,
     description:
-      'System messages: created | added | removed | left | joined | renamed | photo | description | promoted | demoted | pinned | poll_closed | disappearing (systemText = seconds, "0" = off).',
+      'System messages: created | added | removed | left | joined | renamed | photo | description | promoted | demoted | pinned | poll_closed | disappearing (systemText = seconds, "0" = off) | protect_content (systemText "1" on / "0" off).',
   })
   systemKind!: string | null;
 
@@ -741,6 +749,16 @@ export class GroupMessageDto {
       'Disappearing messages: when the message goes; the app hides it from this time on. Null = stays.',
   })
   expiresAt!: Date | null;
+
+  @ApiProperty({ description: 'Forwarded («Forwarded from …»).' })
+  forwarded!: boolean;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description: 'The first author (or channel) of a forwarded message.',
+  })
+  forwardedFrom!: string | null;
 }
 
 export class GroupDto {
@@ -833,6 +851,12 @@ export class GroupDto {
       'Disappearing messages: seconds a new message lives (86400 / 604800 / 7776000); null = off.',
   })
   disappearAfterS!: number | null;
+
+  @ApiProperty({
+    description:
+      'Restrict saving content: no forwarding, copying or saving of the messages; sharing sends the link.',
+  })
+  protectContent!: boolean;
 
   @ApiProperty({ description: 'What I may do here (derived from the above).' })
   canPost!: boolean;

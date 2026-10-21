@@ -43,6 +43,12 @@ import type {
 } from './channels.dto';
 import { CHANNEL_REACTIONS } from './channels.dto';
 import { UsernamePolicyService } from '../usernames/username-policy.service';
+import { ConfigService } from '@nestjs/config';
+import {
+  type ForwardContent,
+  contentProtected,
+  unsupportedInTarget,
+} from '../../common/forward/forward-content';
 
 export const CHANNELS_FLAG = 'channels';
 const PAGE = 20;
@@ -91,6 +97,7 @@ export class ChannelsService {
     private readonly notifications: NotificationsService,
     private readonly usernames: UsernamePolicyService,
     private readonly reco: RecommendationsService,
+    private readonly config: ConfigService,
   ) {}
 
   async assertEnabled(): Promise<void> {
@@ -261,6 +268,11 @@ export class ChannelsService {
     }
     if (dto.commentsEnabled !== undefined) {
       data.comments_enabled = dto.commentsEnabled;
+    }
+    // Owner 2026-10-21 (Telegram): channels have no service posts, so the
+    // switch leaves no line in the feed.
+    if (dto.protectContent !== undefined) {
+      data.protect_content = dto.protectContent;
     }
     if (dto.username !== undefined && dto.username !== channel.username) {
       if (role !== 'owner')
@@ -535,6 +547,11 @@ export class ChannelsService {
     user: RequestUser,
     id: string,
     dto: CreateChannelPostDto,
+    opts: {
+      forwardedFromName?: string | null;
+      forwardKey?: string;
+      notify?: boolean;
+    } = {},
   ): Promise<ChannelPostDto> {
     await this.assertEnabled();
     const me = user.sub;
@@ -543,6 +560,11 @@ export class ChannelsService {
       throw forbidden('This channel is closed by moderation.');
     }
     await this.assertCanPublish(me);
+    // Owner 2026-10-21: a retried forward finds its post.
+    const again = opts.forwardKey
+      ? await this.byForwardKey(channel.id, me, opts.forwardKey)
+      : null;
+    if (again) return (await this.presentPosts([again], me))[0];
     const body = (dto.body ?? '').trim();
     const mediaIds = [...new Set(dto.mediaFileIds ?? [])];
     const maxMedia = await this.settings.number('channels.max_post_media');
@@ -573,6 +595,8 @@ export class ChannelsService {
           body,
           media_file_ids: mediaIds,
           video_asset_id: dto.videoAssetId ?? null,
+          forwarded_from_name: opts.forwardedFromName ?? null,
+          forward_key: opts.forwardKey ?? null,
         },
       });
       await tx.channel.update({
@@ -581,11 +605,131 @@ export class ChannelsService {
       });
       return p;
     });
-    void this.fanout(channel, row).catch((e: unknown) =>
-      this.logger.warn(`channel fan-out failed: ${String(e)}`),
-    );
+    if (opts.notify !== false) {
+      void this.fanout(channel, row).catch((e: unknown) =>
+        this.logger.warn(`channel fan-out failed: ${String(e)}`),
+      );
+    }
     const [out] = await this.presentPosts([row], me);
     return out;
+  }
+
+  private byForwardKey(channelId: string, authorId: string, key: string) {
+    return this.prisma.channelPost.findUnique({
+      where: {
+        channel_id_author_id_forward_key: {
+          channel_id: channelId,
+          author_id: authorId,
+          forward_key: key,
+        },
+      },
+    });
+  }
+
+  /** `https://lawbid.dev/c/<username>` (`?post=<id>` for one post). */
+  private link(username: string, postId?: string): string {
+    const base = (
+      this.config.get<string>('WEB_APP_URL') ?? 'https://lawbid.dev'
+    ).replace(/\/+$/, '');
+    return `${base}/c/${username}${postId ? `?post=${postId}` : ''}`;
+  }
+
+  /**
+   * Owner 2026-10-21 (Telegram «Переслать»): a post of a channel I can
+   * open as forward content — «Forwarded from <channel>»; 403
+   * CONTENT_PROTECTED when the channel restricts saving content. A video
+   * is not a file: the post's link goes with the text.
+   */
+  async forwardSource(
+    user: RequestUser,
+    postId: string,
+  ): Promise<ForwardContent> {
+    await this.assertEnabled();
+    const post = await this.prisma.channelPost.findFirst({
+      where: { id: postId, status: 'active', deleted_at: null },
+    });
+    if (!post) throw notFound('Post');
+    const ch = await this.findReadable(user.sub, post.channel_id);
+    if (ch.protect_content) throw contentProtected();
+    return {
+      kind: 'post',
+      text: post.body,
+      photoFileIds: post.media_file_ids,
+      postLink: post.video_asset_id
+        ? this.link(ch.username, post.id)
+        : undefined,
+      fromName: post.forwarded_from_name ?? ch.title.slice(0, 120),
+    };
+  }
+
+  /** Owner 2026-10-21: «Share» of a protected channel sends its link. */
+  async linkSource(
+    user: RequestUser,
+    channelId: string,
+  ): Promise<ForwardContent> {
+    await this.assertEnabled();
+    const ch = await this.findReadable(user.sub, channelId);
+    return {
+      kind: 'text',
+      text: `${ch.title}\n${this.link(ch.username)}`,
+      fromName: null,
+      own: true,
+    };
+  }
+
+  /**
+   * Owner 2026-10-21: [content] forwarded into channel [id] as a post
+   * through [createPost] (admins only, the publish bar, the post limit,
+   * subscribers notified). A channel holds text and photos: a document,
+   * a voice note, a sticker, a contact card or a gift is
+   * UNSUPPORTED_IN_TARGET. A retry with the same [forwardKey] is a no-op.
+   */
+  async sendForwarded(
+    user: RequestUser,
+    id: string,
+    forwardKey: string,
+    content: ForwardContent,
+    opts: { silent?: boolean } = {},
+  ): Promise<ChannelPostDto> {
+    const photos =
+      content.kind === 'post'
+        ? (content.photoFileIds ?? [])
+        : content.kind === 'attachment' &&
+            (content.mime ?? '').startsWith('image/')
+          ? [content.fileId!]
+          : [];
+    if (
+      !['text', 'place', 'post'].includes(content.kind) &&
+      photos.length === 0
+    ) {
+      throw unsupportedInTarget();
+    }
+    await this.assertEnabled();
+    const { channel } = await this.asAdmin(user.sub, id);
+    const again = await this.byForwardKey(channel.id, user.sub, forwardKey);
+    if (again) return (await this.presentPosts([again], user.sub))[0];
+    const mediaFileIds: string[] = [];
+    for (const fid of photos) {
+      mediaFileIds.push(
+        (await this.files.copyForUser(fid, user.sub, 'post_image')).id,
+      );
+    }
+    return this.createPost(
+      user,
+      id,
+      {
+        body: [content.text, content.postLink]
+          .filter(Boolean)
+          .join('\n')
+          .slice(0, 4000),
+        mediaFileIds,
+      },
+      {
+        forwardedFromName: content.fromName,
+        forwardKey,
+        notify: !opts.silent,
+      },
+    );
   }
 
   async editPost(
@@ -1025,6 +1169,7 @@ export class ChannelsService {
             ? (avatars.get(r.avatar_file_id)?.url256 ?? null)
             : null,
           commentsEnabled: r.comments_enabled,
+          protectContent: r.protect_content,
           // Moderation state is the admins' business only.
           status: role ? (r.status as ChannelStatus) : 'active',
           subscriberCount: r.subscriber_count,
@@ -1103,6 +1248,7 @@ export class ChannelsService {
           myReaction: mineBy.get(r.id) ?? null,
           createdAt: r.created_at.toISOString(),
           editedAt: r.edited_at ? r.edited_at.toISOString() : null,
+          forwardedFrom: r.forwarded_from_name,
         },
       ];
     });

@@ -74,6 +74,13 @@ import { MessageBodyCipher } from '../../common/secrets/message-body-cipher';
 import { loadMessageExtras, type MessageExtras } from './chat-message-extras';
 import { expiresAtFor, notExpired } from './disappearing';
 import { touchClientActive } from '../cases/cases.public';
+import {
+  type ForwardContent,
+  forwardName,
+  forwardNotAllowed,
+  forwardPartId,
+  unsupportedInTarget,
+} from '../../common/forward/forward-content';
 
 const CONVERSATIONS_PAGE = 20;
 const MESSAGES_PAGE = 30;
@@ -83,6 +90,12 @@ const PLACE_MAX_CHARS = 200;
 const URL_RE = /(?:https?:\/\/|www\.)[^\s<>"]+/i;
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** A file name for a forwarded post photo (photo.jpg / photo.png…). */
+function photoName(mime: string | null | undefined): string {
+  const ext = (mime ?? '').split('/')[1]?.replace('jpeg', 'jpg') || 'jpg';
+  return `photo.${ext}`;
+}
 
 /** ~80 characters of [text] around the first typed word. */
 function snippetAround(text: string, words: string[]): string {
@@ -623,9 +636,20 @@ export class ChatService {
     user: RequestUser,
     dto: SendMessageDto,
   ): Promise<SendMessageDto & { forwardedFromName?: string }> {
+    const content = await this.forwardSource(user, dto.forwardFromId!);
+    return this.forwardDto(user, content, dto.clientMessageId, dto.replyToId);
+  }
+
+  /**
+   * Owner 2026-10-21 (Telegram «Переслать»): a message of a chat I take
+   * part in as forward content — 404 when I cannot read it, 403
+   * FORWARD_NOT_ALLOWED for a disappearing message (it stays where it was
+   * sent). A message that was already forwarded keeps the first author.
+   */
+  async forwardSource(user: RequestUser, id: string): Promise<ForwardContent> {
     const src = await this.prisma.message.findFirst({
       where: {
-        id: dto.forwardFromId,
+        id,
         deleted_at: null,
         revoked_at: null,
         hidden_for: { none: { user_id: user.sub } },
@@ -641,7 +665,8 @@ export class ChatService {
         details: { field: 'forwardFromId' },
       });
     }
-    const text = this.cipher?.open(src.body_display) ?? src.body_display;
+    if (src.expires_at) throw forwardNotAllowed();
+    const text = this.openBody(src.body_display);
     // Telegram: "Forwarded from <name>". A message that was already
     // forwarded keeps the first author's name.
     const author = src.sender_id
@@ -650,51 +675,185 @@ export class ChatService {
           select: { first_name: true, last_name: true },
         })
       : null;
-    const authorName = [author?.first_name, author?.last_name]
-      .filter(Boolean)
-      .join(' ')
-      .slice(0, 120);
+    const fromName =
+      src.forwarded_from_name ??
+      forwardName(author?.first_name, author?.last_name);
+    switch (src.type) {
+      case 'sticker':
+        return {
+          kind: 'sticker',
+          text: '',
+          stickerId: src.sticker_id ?? undefined,
+          fromName,
+        };
+      case 'voice':
+      case 'attachment': {
+        if (!src.file_id) throw notFound();
+        if (src.type === 'voice') {
+          return {
+            kind: 'voice',
+            text: '',
+            fileId: src.file_id,
+            durationMs: src.duration_ms ?? 0,
+            waveform: src.waveform,
+            fromName,
+          };
+        }
+        const file = await this.prisma.file.findUnique({
+          where: { id: src.file_id },
+          select: { mime: true },
+        });
+        return {
+          kind: 'attachment',
+          text,
+          fileId: src.file_id,
+          fileName: src.file_name ?? 'file',
+          mime: file?.mime,
+          fromName,
+        };
+      }
+      // Owner 2026-10-21: a shared attorney card stays a card (it used to
+      // arrive as a text with the attorney's id).
+      case 'contact':
+        return { kind: 'contact', text: '', contactUserId: text, fromName };
+      case 'place':
+        return { kind: 'place', text, fromName };
+      case 'gift':
+        return { kind: 'gift', text: '', fromName };
+      // Owner 2026-10-21: a shared feed post — a card in a chat, its link
+      // in a group or a channel.
+      case 'post':
+        return {
+          kind: 'text',
+          text: `${(process.env.WEB_APP_URL ?? 'https://lawbid.dev').replace(/\/+$/, '')}/post/${text}`,
+          postId: text,
+          fromName,
+        };
+      default:
+        return { kind: 'text', text, fromName };
+    }
+  }
+
+  /**
+   * Owner 2026-10-21: [content] forwarded into chat [id] through the normal
+   * send (the same checks, sockets and pushes). A channel post with photos
+   * makes one message per photo (the caption on the first, an album in the
+   * app). A retry with the same [clientMessageId] copies nothing again.
+   * [silent]: no push (only the last message of a batch rings).
+   */
+  async sendForwarded(
+    user: RequestUser,
+    id: string,
+    clientMessageId: string,
+    content: ForwardContent,
+    opts: { silent?: boolean } = {},
+  ): Promise<MessageDto> {
+    const photos = content.kind === 'post' ? (content.photoFileIds ?? []) : [];
+    const parts: ForwardContent[] =
+      photos.length > 0
+        ? photos.map((fileId, i) => ({
+            kind: 'attachment',
+            text:
+              i === 0
+                ? [content.text, content.postLink].filter(Boolean).join('\n')
+                : '',
+            fileId,
+            fromName: content.fromName,
+          }))
+        : [content];
+    let first: MessageDto | null = null;
+    for (const [i, part] of parts.entries()) {
+      const cmid = forwardPartId(clientMessageId, i);
+      const existing = await this.findOwn(id, user.sub, cmid);
+      const sent = existing
+        ? this.toMessage(
+            existing,
+            user.sub,
+            undefined,
+            await this.mediaLinks([existing]),
+          )
+        : await this.sendContent(
+            user,
+            id,
+            await this.forwardDto(user, part, cmid),
+            { silent: opts.silent || i < parts.length - 1 },
+          );
+      first ??= sent;
+    }
+    return first!;
+  }
+
+  /** [content] as a send request; a file is copied for [user] first. */
+  private async forwardDto(
+    user: RequestUser,
+    content: ForwardContent,
+    clientMessageId: string,
+    replyToId?: string,
+  ): Promise<SendMessageDto & { forwardedFromName?: string }> {
     const base = {
-      clientMessageId: dto.clientMessageId,
-      forwarded: true,
-      replyToId: dto.replyToId,
-      forwardedFromName:
-        src.forwarded_from_name ??
-        (authorName.length > 0 ? authorName : undefined),
+      clientMessageId,
+      forwarded: !content.own,
+      replyToId,
+      forwardedFromName: content.fromName ?? undefined,
     };
-    // Owner 2026-10-21: a post card stays a card.
-    if (src.type === 'post') return { ...base, type: 'post', postId: text };
-    if (src.type === 'sticker') {
-      return {
-        ...base,
-        type: 'sticker',
-        stickerId: src.sticker_id ?? undefined,
-      };
+    // Owner 2026-10-21: a shared feed post stays a card in a chat.
+    if (content.postId)
+      return { ...base, type: 'post', postId: content.postId };
+    switch (content.kind) {
+      case 'sticker':
+        return { ...base, type: 'sticker', stickerId: content.stickerId };
+      case 'contact':
+        return {
+          ...base,
+          type: 'contact',
+          contactUserId: content.contactUserId,
+        };
+      case 'place':
+        return { ...base, type: 'place', body: content.text };
+      // A gift is paid once, by its giver.
+      case 'gift':
+        throw unsupportedInTarget();
+      case 'voice':
+        return {
+          ...base,
+          type: 'voice',
+          fileId: (
+            await this.files.copyForUser(
+              content.fileId!,
+              user.sub,
+              'chat_voice',
+            )
+          ).id,
+          durationMs: content.durationMs ?? 0,
+          waveform: content.waveform,
+        };
+      case 'attachment': {
+        const copy = await this.files.copyForUser(
+          content.fileId!,
+          user.sub,
+          'chat_attachment',
+        );
+        return {
+          ...base,
+          type: 'attachment',
+          body: content.text,
+          fileId: copy.id,
+          fileName: content.fileName ?? photoName(copy.mime),
+        };
+      }
+      default:
+        return {
+          ...base,
+          body: [content.text, content.postLink].filter(Boolean).join('\n'),
+        };
     }
-    if (src.type === 'voice' || src.type === 'attachment') {
-      if (!src.file_id) throw notFound();
-      const copy = await this.files.copyForUser(
-        src.file_id,
-        user.sub,
-        src.type === 'voice' ? 'chat_voice' : 'chat_attachment',
-      );
-      return {
-        ...base,
-        type: src.type,
-        body: src.type === 'attachment' ? text : undefined,
-        fileId: copy.id,
-        ...(src.type === 'voice'
-          ? { durationMs: src.duration_ms ?? 0, waveform: src.waveform }
-          : { fileName: src.file_name ?? 'file' }),
-      };
-    }
-    return { ...base, body: text };
   }
 
   private async sendContent(
     user: RequestUser,
     id: string,
     dto: SendMessageDto & { forwardedFromName?: string },
+    opts: { silent?: boolean } = {},
   ): Promise<MessageDto> {
     const voice = dto.type === 'voice';
     const attachment = dto.type === 'attachment';
@@ -1080,7 +1239,8 @@ export class ChatService {
     const pendingRequest =
       conv.request_status === 'pending' && conv.requested_by === user.sub;
     if (!pendingRequest) await this.badges.messageArrived(other);
-    if (!pendingRequest || requestFirst) {
+    // Owner 2026-10-21: a forwarded batch rings once (its last message).
+    if ((!pendingRequest || requestFirst) && !opts.silent) {
       await this.notifications.emit({
         type: 'new_message',
         recipientId: other,

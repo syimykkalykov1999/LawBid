@@ -73,6 +73,14 @@ import {
   expiresAtFor,
   notExpired,
 } from '../chat/disappearing';
+import {
+  type ForwardContent,
+  contentProtected,
+  forwardName,
+  forwardNotAllowed,
+  forwardPartId,
+  unsupportedInTarget,
+} from '../../common/forward/forward-content';
 
 const GROUPS_PAGE = 30;
 const MESSAGES_PAGE = 30;
@@ -452,7 +460,8 @@ export class GroupsService {
       dto.type !== undefined ||
       dto.username !== undefined ||
       dto.joinApproval !== undefined ||
-      dto.topicsEnabled !== undefined;
+      dto.topicsEnabled !== undefined ||
+      dto.protectContent !== undefined;
     const info =
       dto.title !== undefined ||
       dto.description !== undefined ||
@@ -518,6 +527,11 @@ export class GroupsService {
     }
     if (dto.inviteEnabled !== undefined)
       data.invite_enabled = dto.inviteEnabled;
+    // Owner 2026-10-21 (Telegram «Запретить копирование и пересылку»).
+    const protectChanged =
+      dto.protectContent !== undefined &&
+      dto.protectContent !== m.group.protect_content;
+    if (protectChanged) data.protect_content = dto.protectContent;
 
     // Type switch: the rules move with it (public needs a @username, a
     // private group has no link, closed keeps the approval flag).
@@ -606,6 +620,19 @@ export class GroupsService {
             user.sub,
             [],
             String(dto.disappearAfterS || 0),
+          ),
+        );
+      }
+      if (protectChanged) {
+        // The text is "1" (on) or "0" (off).
+        out.push(
+          await this.system(
+            tx,
+            id,
+            'protect_content',
+            user.sub,
+            [],
+            dto.protectContent ? '1' : '0',
           ),
         );
       }
@@ -1408,6 +1435,7 @@ export class GroupsService {
     user: RequestUser,
     id: string,
     dto: SendGroupMessageDto,
+    opts: { forwardedFromName?: string | null; push?: boolean } = {},
   ): Promise<GroupMessageDto> {
     const m = await this.requireMember(user.sub, id);
     if (!(m.admin || m.group.who_can_post === 'all')) {
@@ -1492,6 +1520,13 @@ export class GroupsService {
             expires_at: expiresAtFor(m.group.disappear_after_s),
             file_id: attachment ? dto.fileId : null,
             file_name: attachment ? dto.fileName : null,
+            // Owner 2026-10-21 (Telegram): «Forwarded from <name>».
+            ...(opts.forwardedFromName !== undefined
+              ? {
+                  forwarded: true,
+                  forwarded_from_name: opts.forwardedFromName,
+                }
+              : {}),
           },
         });
         await tx.chatGroup.update({
@@ -1514,8 +1549,171 @@ export class GroupsService {
       }
       throw error;
     }
-    await this.fanOut(id, row);
+    await this.fanOut(id, row, { push: opts.push });
     return this.one(row, user.sub);
+  }
+
+  /**
+   * Owner 2026-10-21 (Telegram «Переслать»): a message of a group I am in
+   * as forward content — 404 when I cannot read it, 403 CONTENT_PROTECTED
+   * when the group restricts saving content, FORWARD_NOT_ALLOWED for a
+   * disappearing one. Polls and service lines are not forwarded.
+   */
+  async forwardSource(
+    user: RequestUser,
+    messageId: string,
+  ): Promise<ForwardContent> {
+    const row = await this.prisma.chatGroupMessage.findUnique({
+      where: { id: messageId },
+    });
+    if (!row || row.deleted_at) throw notFound();
+    const m = await this.requireMember(user.sub, row.group_id);
+    if (m.group.protect_content) throw contentProtected();
+    if (row.type !== 'text' && row.type !== 'attachment') {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_ERROR,
+        message: 'This message cannot be forwarded.',
+        details: { field: 'sources' },
+      });
+    }
+    if (row.expires_at) throw forwardNotAllowed();
+    const author = row.sender_id
+      ? await this.prisma.user.findUnique({
+          where: { id: row.sender_id },
+          select: { first_name: true, last_name: true },
+        })
+      : null;
+    const fromName =
+      row.forwarded_from_name ??
+      forwardName(author?.first_name, author?.last_name);
+    if (row.type === 'text') return { kind: 'text', text: row.body, fromName };
+    if (!row.file_id) throw notFound();
+    const file = await this.prisma.file.findUnique({
+      where: { id: row.file_id },
+      select: { mime: true },
+    });
+    return {
+      kind: 'attachment',
+      text: row.body,
+      fileId: row.file_id,
+      fileName: row.file_name ?? 'file',
+      mime: file?.mime,
+      fromName,
+    };
+  }
+
+  /**
+   * Owner 2026-10-21 (Telegram): «Share» of a protected group sends its
+   * link instead of its content — a public group's @username or the
+   * invite link; 403 CONTENT_PROTECTED when it has no link to give.
+   */
+  async linkSource(
+    user: RequestUser,
+    groupId: string,
+  ): Promise<ForwardContent> {
+    const { group: g } = await this.requireMember(user.sub, groupId);
+    const handle =
+      g.group_type === 'public' && g.username
+        ? g.username
+        : g.group_type !== 'private' && g.invite_enabled
+          ? g.invite_code
+          : null;
+    if (!handle) throw contentProtected();
+    return {
+      kind: 'text',
+      text: `${g.title}\n${this.presenter.inviteLink(handle)}`,
+      fromName: null,
+      own: true,
+    };
+  }
+
+  /**
+   * Owner 2026-10-21: [content] forwarded into group [id] through [send]
+   * (membership, «who can post / send media», topics, sockets, pushes).
+   * Groups hold texts and files: a voice note, a sticker, a contact card
+   * or a gift is UNSUPPORTED_IN_TARGET. A retry copies nothing again.
+   */
+  async sendForwarded(
+    user: RequestUser,
+    id: string,
+    clientMessageId: string,
+    content: ForwardContent,
+    opts: { topicId?: string; silent?: boolean } = {},
+  ): Promise<GroupMessageDto> {
+    const photos = content.kind === 'post' ? (content.photoFileIds ?? []) : [];
+    const parts: ForwardContent[] =
+      photos.length > 0
+        ? photos.map((fileId, i) => ({
+            kind: 'attachment',
+            text:
+              i === 0
+                ? [content.text, content.postLink].filter(Boolean).join('\n')
+                : '',
+            fileId,
+            fromName: content.fromName,
+          }))
+        : [content];
+    if (
+      parts.some(
+        (p) => !['text', 'place', 'post', 'attachment'].includes(p.kind),
+      )
+    ) {
+      throw unsupportedInTarget();
+    }
+    const m = await this.requireMember(user.sub, id);
+    if (!(m.admin || m.group.who_can_post === 'all')) {
+      throw forbidden('Only admins can write in this group.');
+    }
+    if (
+      parts.some((p) => p.kind === 'attachment') &&
+      !(m.admin || m.group.who_can_media === 'all')
+    ) {
+      throw forbidden('Media is not allowed in this group.');
+    }
+    let first: GroupMessageDto | null = null;
+    for (const [i, part] of parts.entries()) {
+      const cmid = forwardPartId(clientMessageId, i);
+      const dup = await this.findOwn(id, user.sub, cmid);
+      let sent: GroupMessageDto;
+      if (dup) {
+        sent = await this.one(dup, user.sub);
+      } else {
+        const file =
+          part.kind === 'attachment'
+            ? await this.files.copyForUser(
+                part.fileId!,
+                user.sub,
+                'chat_attachment',
+              )
+            : null;
+        sent = await this.send(
+          user,
+          id,
+          {
+            clientMessageId: cmid,
+            type: file ? 'attachment' : 'text',
+            body: file
+              ? part.text
+              : [part.text, part.postLink].filter(Boolean).join('\n'),
+            topicId: opts.topicId,
+            ...(file
+              ? {
+                  fileId: file.id,
+                  fileName:
+                    part.fileName ??
+                    `photo.${(file.mime.split('/')[1] ?? 'jpg').replace('jpeg', 'jpg')}`,
+                }
+              : {}),
+          },
+          {
+            forwardedFromName: content.own ? undefined : part.fromName,
+            push: !(opts.silent || i < parts.length - 1),
+          },
+        );
+      }
+      first ??= sent;
+    }
+    return first!;
   }
 
   async edit(
@@ -2044,8 +2242,13 @@ export class GroupsService {
     }
   }
 
-  /** A new user-written message: unhide, broadcast, badge and push. */
-  async fanOut(groupId: string, row: ChatGroupMessage): Promise<void> {
+  /** A new user-written message: unhide, broadcast, badge and push
+   * ([push] false: no push — the earlier messages of a forwarded batch). */
+  async fanOut(
+    groupId: string,
+    row: ChatGroupMessage,
+    opts: { push?: boolean } = {},
+  ): Promise<void> {
     await this.prisma.chatGroupMember.updateMany({
       where: { group_id: groupId, hidden_at: { not: null }, left_at: null },
       data: { hidden_at: null },
@@ -2058,6 +2261,7 @@ export class GroupsService {
       await Promise.all(
         ids.slice(i, i + FANOUT_CHUNK).map(async (uid) => {
           await this.badges.messageArrived(uid);
+          if (opts.push === false) return;
           await this.notifications.emit({
             type: 'new_message',
             recipientId: uid,

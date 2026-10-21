@@ -761,7 +761,8 @@ export class FilesService {
    * another purpose (a document template → the user's chat or case
    * attachment). Same bytes as an already-scanned file, so the copy is
    * clean at once; the target purpose's types, size limit, upload rate
-   * limit and storage budget still apply.
+   * limit (only when the bytes are really copied) and storage budget
+   * still apply.
    */
   async copyForUser(
     sourceFileId: string,
@@ -789,21 +790,6 @@ export class FilesService {
     const maxBytes = await this.maxBytes(purpose);
     if (Number(src.size_bytes) > maxBytes) throw this.tooLarge(maxBytes);
     const bucket = this.storage.bucket(rule.bucket);
-    const limit = await this.rateLimit.consumeFixedWindow(
-      ['files-presign', 'user', userId],
-      this.config.getOrThrow<number>('FILES_PRESIGN_LIMIT_PER_USER_PER_HOUR'),
-      3600,
-    );
-    if (!limit.allowed) {
-      throw new HttpException(
-        {
-          code: ErrorCode.RATE_LIMITED,
-          message: 'Too many uploads. Try again later.',
-          details: { retryAfterSeconds: limit.retryAfterSeconds },
-        },
-        HttpStatus.TOO_MANY_REQUESTS,
-      );
-    }
     if (!QUOTA_FREE_PURPOSES.includes(purpose)) {
       await this.assertQuota(userId, Number(src.size_bytes));
     }
@@ -829,6 +815,23 @@ export class FilesService {
         },
       });
       return this.get(userId, fileId);
+    }
+    // Owner 2026-10-21: only a real copy counts as an upload (forwarding
+    // one file into many chats used to hit the upload limit).
+    const limit = await this.rateLimit.consumeFixedWindow(
+      ['files-presign', 'user', userId],
+      this.config.getOrThrow<number>('FILES_PRESIGN_LIMIT_PER_USER_PER_HOUR'),
+      3600,
+    );
+    if (!limit.allowed) {
+      throw new HttpException(
+        {
+          code: ErrorCode.RATE_LIMITED,
+          message: 'Too many uploads. Try again later.',
+          details: { retryAfterSeconds: limit.retryAfterSeconds },
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
     }
     await this.costGuard.consume('storage');
     const data = await this.storage.read(src.s3_bucket, src.s3_key);

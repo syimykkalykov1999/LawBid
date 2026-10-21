@@ -352,6 +352,8 @@ export class GroupPresenter {
         deleted,
         createdAt: m.created_at,
         expiresAt: m.expires_at,
+        forwarded: m.forwarded && !deleted,
+        forwardedFrom: m.forwarded && !deleted ? m.forwarded_from_name : null,
       };
     });
   }
@@ -422,6 +424,7 @@ export class GroupPresenter {
         whoCanCall: g.who_can_call,
         showServiceMessages: g.show_service_messages,
         disappearAfterS: g.disappear_after_s,
+        protectContent: g.protect_content,
         whoCanMedia: g.who_can_media,
         whoCanPoll: g.who_can_poll,
         whoCanPin: g.who_can_pin,
