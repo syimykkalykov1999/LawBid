@@ -11,6 +11,7 @@ import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/call_foreground.dart';
 import 'package:lawbid/features/calls/application/call_media.dart';
+import 'package:lawbid/features/calls/application/call_quality.dart';
 import 'package:lawbid/features/calls/data/calls_repository.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
@@ -282,6 +283,15 @@ class _FakeMedia implements CallMedia {
 
   @override
   final ValueListenable<Set<String>> speaking = ValueNotifier(const {});
+
+  @override
+  final ValueListenable<LinkQuality> quality = ValueNotifier(LinkQuality.good);
+
+  final iceUpdates = <List<IceServer>>[];
+
+  @override
+  Future<void> updateIceServers(List<IceServer> iceServers) async =>
+      iceUpdates.add(iceServers);
 
   @override
   Set<String> get peers => links.keys.toSet();

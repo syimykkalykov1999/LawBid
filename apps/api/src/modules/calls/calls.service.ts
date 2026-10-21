@@ -52,13 +52,28 @@ import {
 
 /** Unanswered after this → missed (the app gives up at 60 s, like WhatsApp). */
 export const CALL_RING_TIMEOUT_MS = 65_000;
-/** A call nobody ended (both apps died) is closed after this. */
-export const CALL_MAX_ACTIVE_MS = 12 * 60 * 60 * 1000;
-
 /** A running call nobody has asked about for this long is over: the apps
- * read it every ~8 s (heartbeat), so silence means both are gone. */
-export const CALL_SILENT_MS = 90 * 1000;
+ * read it every ~8 s (heartbeat), so silence means both are gone. Owner
+ * 2026-10-21: no cap on how long people talk (days are fine) — only
+ * silence ends a call — and a dead-zone gap of a few minutes must not
+ * (the app waits 150 s for the network before it gives up). */
+export const CALL_SILENT_MS = 240 * 1000;
 const LIVE: CallStatus[] = ['ringing', 'active'];
+
+/** Owner 2026-10-21: a network that blocks UDP (offices, some mobile
+ * carriers) still gets a call — every plain `turn:` address is also offered
+ * over TCP (coturn listens on 3478 for both). UDP stays first. */
+export function withTcpFallback(urls: string[]): string[] {
+  const out = [...urls];
+  for (const u of urls) {
+    if (/^turn:/i.test(u) && !/[?&]transport=/i.test(u)) {
+      const tcp = `${u}?transport=tcp`;
+      if (!out.includes(tcp)) out.push(tcp);
+    }
+  }
+  return out;
+}
+
 /** Mesh calls: every member sends audio to every other — a safe size. */
 export const GROUP_MAX_AUDIO = 9;
 export const GROUP_MAX_VIDEO = 6;
@@ -67,7 +82,7 @@ const IN_CALL = ['joined', 'invited'];
 export const CALL_VOTE_MS = 30_000;
 // coturn checks the login on every refresh of a relay too: it must outlive
 // the longest call, or a relayed call drops when it expires.
-const TURN_TTL_SEC = 13 * 60 * 60;
+const TURN_TTL_SEC = 24 * 60 * 60;
 
 type Outcome = 'ended' | 'missed' | 'declined' | 'busy' | 'canceled' | 'failed';
 
@@ -454,9 +469,10 @@ export class CallsService {
       .filter(Boolean);
     const secret = turnKeys.secret ?? this.config.get<string>('TURN_SECRET');
     if (turn.length > 0 && secret) {
+      const urls = withTcpFallback(turn);
       const username = `${Math.floor(Date.now() / 1000) + TURN_TTL_SEC}:${user.sub}`;
       out.iceServers.push({
-        urls: turn,
+        urls,
         username,
         credential: createHmac('sha1', secret)
           .update(username)
@@ -487,12 +503,6 @@ export class CallsService {
           {
             status: 'ringing',
             created_at: { lt: new Date(now.getTime() - CALL_RING_TIMEOUT_MS) },
-          },
-          {
-            status: 'active',
-            answered_at: {
-              lt: new Date(now.getTime() - CALL_MAX_ACTIVE_MS),
-            },
           },
           {
             status: 'active',

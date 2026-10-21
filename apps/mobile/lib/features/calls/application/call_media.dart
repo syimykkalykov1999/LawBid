@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
+import 'package:lawbid/features/calls/application/call_quality.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:record/record.dart' show AudioRecorder;
 
@@ -73,6 +74,14 @@ abstract interface class CallMedia {
   /// candidates; the callee answers it like the first one.
   Future<Map<String, Object?>> restartIce();
 
+  /// Owner 2026-10-21: the worst link right now. Video is thinned or paused
+  /// by itself as it drops; the call screen may say so.
+  ValueListenable<LinkQuality> get quality;
+
+  /// A fresh TURN login (the old one runs out in hours): taken by every
+  /// link for its next ICE restart / relay refresh.
+  Future<void> updateIceServers(List<IceServer> iceServers);
+
   // --- Group calls: one link per member ------------------------------------
 
   /// Members we have a link with (user ids).
@@ -118,6 +127,38 @@ class _Link {
   final RTCPeerConnection pc;
   final pending = <RTCIceCandidate>[];
   bool remoteSet = false;
+  final tracker = QualityTracker();
+  VideoTier? tier;
+}
+
+/// A reading of one link from `getStats` (W3C names): the nominated
+/// candidate pair gives the round trip and the bandwidth estimate, the
+/// remote-inbound report the loss the other side saw. Null before a pair
+/// exists.
+LinkStats? linkStatsFrom(Iterable<StatsReport> reports) {
+  double? rtt;
+  var bps = 0.0;
+  var loss = 0.0;
+  var pair = false;
+  double toD(Object? v) => v is num ? v.toDouble() : double.tryParse('$v') ?? 0;
+  for (final r in reports) {
+    final v = r.values;
+    if (r.type == 'candidate-pair' &&
+        (v['nominated'] == true || '${v['state']}' == 'succeeded')) {
+      pair = true;
+      final t = toD(v['currentRoundTripTime']);
+      if (t > 0) rtt = t * 1000;
+      final a = toD(v['availableOutgoingBitrate']);
+      if (a > 0) bps = a;
+    } else if (r.type == 'remote-inbound-rtp') {
+      final l = toD(v['fractionLost']) * 100;
+      if (l > loss) loss = l;
+      final t = toD(v['roundTripTime']);
+      if (rtt == null && t > 0) rtt = t * 1000;
+    }
+  }
+  if (!pair && rtt == null) return null;
+  return LinkStats(rttMs: rtt ?? 0, lossPct: loss, availableBps: bps);
 }
 
 /// flutter_webrtc: echo cancellation on; an audio call starts on the
@@ -193,14 +234,7 @@ class WebRtcCallMedia implements CallMedia {
     required void Function(Map<String, Object?> signal) onSignal,
     required void Function(CallMediaState state) onState,
   }) async {
-    final pc = await createPeerConnection({
-      'iceServers': [for (final s in _servers) s.toJson()],
-      'sdpSemantics': 'unified-plan',
-      // Gather candidates as soon as the connection exists and share one
-      // transport: the first sound is heard sooner.
-      'iceCandidatePoolSize': 2,
-      'bundlePolicy': 'max-bundle',
-    });
+    final pc = await createPeerConnection(_config());
     final link = _Link(peer, pc);
     _links[peer] = link;
     for (final track in _mic!.getTracks()) {
@@ -239,8 +273,95 @@ class WebRtcCallMedia implements CallMedia {
         }
       };
     _watchLevels();
+    _watchQuality();
     return link;
   }
+
+  // --- Link quality: thin the picture, keep the voice ----------------------
+
+  final _quality = ValueNotifier<LinkQuality>(LinkQuality.good);
+  Timer? _qualityTimer;
+
+  @override
+  ValueListenable<LinkQuality> get quality => _quality;
+
+  void _watchQuality() {
+    _qualityTimer ??= Timer.periodic(
+      const Duration(seconds: 3),
+      (_) => unawaited(_pollQuality()),
+    );
+  }
+
+  Future<void> _pollQuality() async {
+    var worst = LinkQuality.good;
+    final links = _links.values.toList();
+    for (final link in links) {
+      try {
+        final stats = linkStatsFrom(await link.pc.getStats());
+        if (stats == null) continue;
+        final q = link.tracker.add(stats);
+        if (q.index > worst.index) worst = q;
+        if (_video) {
+          await _applyTier(link, videoTierFor(q, links: links.length));
+        }
+      } on Object {
+        // The link is closing.
+      }
+    }
+    if (_quality.value != worst) _quality.value = worst;
+  }
+
+  Future<void> _applyTier(_Link link, VideoTier t) async {
+    final old = link.tier;
+    if (old != null &&
+        old.active == t.active &&
+        old.maxBitrate == t.maxBitrate &&
+        old.scaleDown == t.scaleDown) {
+      return;
+    }
+    for (final sender in await link.pc.getSenders()) {
+      if (sender.track?.kind != 'video') continue;
+      final p = sender.parameters;
+      final enc = (p.encodings?.isNotEmpty ?? false)
+          ? p.encodings!
+          : [RTCRtpEncoding()];
+      for (final e in enc) {
+        e
+          ..active = t.active
+          ..maxBitrate = t.maxBitrate
+          ..scaleResolutionDownBy = t.scaleDown
+          ..maxFramerate = t.maxFps;
+      }
+      p
+        ..encodings = enc
+        // A weak link keeps the picture moving and gets blurrier, not choppy.
+        ..degradationPreference = RTCDegradationPreference.MAINTAIN_FRAMERATE;
+      await sender.setParameters(p);
+    }
+    link.tier = t;
+  }
+
+  @override
+  Future<void> updateIceServers(List<IceServer> iceServers) async {
+    _servers = iceServers;
+    for (final link in _links.values.toList()) {
+      try {
+        await link.pc.setConfiguration(_config());
+      } on Object {
+        // The link is closing.
+      }
+    }
+  }
+
+  Map<String, dynamic> _config() => {
+        'iceServers': [for (final s in _servers) s.toJson()],
+        'sdpSemantics': 'unified-plan',
+        'iceCandidatePoolSize': 2,
+        'bundlePolicy': 'max-bundle',
+        'continualGatheringPolicy': 'gather_continually',
+        'iceConnectionReceivingTimeout': 10000,
+        'iceBackupCandidatePairPingInterval': 2000,
+      };
 
   Future<void> _playWebAudio(String peer, MediaStream stream) async {
     final r = _webAudio[peer] ??= RTCVideoRenderer();
@@ -296,8 +417,9 @@ class WebRtcCallMedia implements CallMedia {
       'offerToReceiveAudio': true,
       'offerToReceiveVideo': _video,
     });
-    await link.pc.setLocalDescription(offer);
-    return {'type': 'offer', 'sdp': offer.sdp};
+    final sdp = tuneOpusSdp(offer.sdp ?? '');
+    await link.pc.setLocalDescription(RTCSessionDescription(sdp, 'offer'));
+    return {'type': 'offer', 'sdp': sdp};
   }
 
   Future<Map<String, Object?>> _answer(
@@ -312,8 +434,9 @@ class WebRtcCallMedia implements CallMedia {
       'offerToReceiveAudio': true,
       'offerToReceiveVideo': _video,
     });
-    await link.pc.setLocalDescription(ans);
-    return {'type': 'answer', 'sdp': ans.sdp};
+    final sdp = tuneOpusSdp(ans.sdp ?? '');
+    await link.pc.setLocalDescription(RTCSessionDescription(sdp, 'answer'));
+    return {'type': 'answer', 'sdp': sdp};
   }
 
   Future<void> _setAnswer(_Link link, Map<String, Object?> answer) async {
@@ -482,6 +605,9 @@ class WebRtcCallMedia implements CallMedia {
   Future<void> close() async {
     _levelTimer?.cancel();
     _levelTimer = null;
+    _qualityTimer?.cancel();
+    _qualityTimer = null;
+    _quality.value = LinkQuality.good;
     for (final t in _mic?.getTracks() ?? const <MediaStreamTrack>[]) {
       await t.stop();
     }

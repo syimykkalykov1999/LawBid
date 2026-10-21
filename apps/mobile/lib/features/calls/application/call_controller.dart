@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/audio/app_sounds.dart';
+import 'package:lawbid/core/connectivity/connectivity_providers.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/network/api_error.dart';
@@ -141,12 +142,46 @@ typedef CallSignalSender = Future<bool> Function(
   String? to,
 });
 
+/// A signal that did not get through (the socket blinked on a weak signal)
+/// is sent again after these pauses — without an offer, an answer or a
+/// candidate the link never comes up.
+const kCallSignalRetries = [
+  Duration(milliseconds: 400),
+  Duration(seconds: 1),
+  Duration(seconds: 2),
+  Duration(seconds: 4),
+  Duration(seconds: 8),
+];
+
 final callSignalSenderProvider = Provider<CallSignalSender>((ref) {
-  return (callId, data, {to}) async =>
-      await ref
-          .read(realtimeClientProvider)
-          ?.callSignal(callId, data, to: to) ??
-      false;
+  var offerSeq = 0;
+  Future<bool> once(
+    String callId,
+    Map<String, Object?> data,
+    String? to,
+  ) async {
+    try {
+      return await ref
+              .read(realtimeClientProvider)
+              ?.callSignal(callId, data, to: to) ??
+          false;
+    } on Object {
+      return false;
+    }
+  }
+
+  return (callId, data, {to}) async {
+    // A newer offer replaces an older one that is still being retried.
+    final isOffer = data['type'] == 'offer';
+    final seq = isOffer ? ++offerSeq : 0;
+    if (await once(callId, data, to)) return true;
+    for (final pause in kCallSignalRetries) {
+      await Future<void>.delayed(pause);
+      if (isOffer && seq != offerSeq) return false;
+      if (await once(callId, data, to)) return true;
+    }
+    return false;
+  };
 });
 
 /// The phone's own ringing UI (CallKit / ConnectionService); a no-op in
@@ -229,7 +264,7 @@ const kNoticeVotePassed = 'VOTE_PASSED';
 const kNoticeVoteFailed = 'VOTE_FAILED';
 
 /// The link must come up this fast after pick-up, else "failed".
-const kCallConnectTimeout = Duration(seconds: 25);
+const kCallConnectTimeout = Duration(seconds: 45);
 
 /// While a call lives, its state is re-read from the server this often (a
 /// missed `call:ended` must not leave the other phone ringing or talking).
@@ -238,10 +273,18 @@ const kCallSyncInterval = Duration(seconds: 8);
 /// An incoming ring stops by itself this long after the caller's timeout.
 const kCallRingGrace = Duration(seconds: 10);
 
-/// A dropped link gets this long to come back (new Wi-Fi / 4G network)
-/// before the call ends; the caller restarts ICE every few seconds.
-const kCallReconnectGrace = Duration(seconds: 60);
+/// A dropped link gets this long to come back (new Wi-Fi / 4G network, a
+/// tunnel, a lift) before the call ends; the caller restarts ICE every few
+/// seconds. Owner 2026-10-21: the worst internet must not end a call.
+const kCallReconnectGrace = Duration(seconds: 150);
 const kCallReconnectRetry = Duration(seconds: 6);
+
+/// The TURN login lives 24 h on the server; a running call takes a fresh one
+/// this often, so a call of days never meets an expired relay.
+const kCallTurnRefresh = Duration(hours: 6);
+
+/// A change of network (Wi-Fi ↔ 4G) restarts ICE after this short pause.
+const kCallNetworkSettle = Duration(seconds: 1);
 
 /// How long the "Call ended" screen stays.
 const kCallEndedLinger = Duration(milliseconds: 1600);
@@ -274,6 +317,9 @@ class CallController extends Notifier<CallSession> {
   Timer? _connectTimer;
   Timer? _syncTimer;
   Timer? _linger;
+  Timer? _turnTimer;
+  Timer? _netTimer;
+  StreamSubscription<bool>? _netSub;
   final _earlySignals = <({String? from, Map<String, Object?> data})>[];
   bool _mediaOpen = false;
 
@@ -1115,6 +1161,71 @@ class CallController extends Notifier<CallSession> {
     // background, Doze): ask the server now and then, so the call and its
     // ringing/ongoing UI never outlive it.
     _startSync();
+    _watchNetwork();
+    _turnTimer?.cancel();
+    _turnTimer = Timer.periodic(kCallTurnRefresh, (_) {
+      unawaited(_refreshTurn());
+    });
+  }
+
+  /// Takes a fresh TURN login into the running links and re-routes through it
+  /// (the old login would stop working when its hours run out).
+  Future<void> _refreshTurn() async {
+    final media = _media;
+    if (media == null || !state.busy) return;
+    try {
+      _ice = null;
+      final servers = await _iceServers();
+      await media.updateIceServers(servers);
+      await _restartAll();
+    } on Object {
+      // The next round (or the next network change) tries again.
+    }
+  }
+
+  /// The phone changed network (Wi-Fi ↔ 4G) or lost it: the old routes may
+  /// be dead long before the library notices, so look for new ones now.
+  void _watchNetwork() {
+    unawaited(_netSub?.cancel());
+    try {
+      _netSub = ref.read(networkInterfaceMonitorProvider).changes.listen(
+        (up) {
+          if (!up) return;
+          _netTimer?.cancel();
+          _netTimer = Timer(kCallNetworkSettle, () {
+            if (ref.mounted && state.busy) unawaited(_restartAll());
+          });
+        },
+        onError: (Object _) {},
+      );
+    } on Object {
+      // No platform monitor (tests, web): the link states decide.
+    }
+  }
+
+  /// A new route for every link: the side that offered restarts ICE, the
+  /// other asks it to.
+  Future<void> _restartAll() async {
+    final media = _media;
+    if (media == null || !state.busy) return;
+    for (final p in media.peers.toList()) {
+      await _restartOrAsk(p);
+    }
+  }
+
+  Future<void> _restartOrAsk(String peer) async {
+    if (_offered.contains(peer)) return _restartIce(peer);
+    final call = state.call;
+    if (call == null || !state.busy) return;
+    try {
+      await ref.read(callSignalSenderProvider)(
+        call.id,
+        const {'type': 'restart'},
+        to: peer,
+      );
+    } on Object {
+      // The retry timer asks again.
+    }
   }
 
   void _startSync() {
@@ -1198,11 +1309,11 @@ class CallController extends Notifier<CallSession> {
       }),
       retry: Timer.periodic(kCallReconnectRetry, (_) {
         _askServer();
-        unawaited(_restartIce(peer));
+        unawaited(_restartOrAsk(peer));
       }),
     );
     _syncReconnecting();
-    unawaited(_restartIce(peer));
+    unawaited(_restartOrAsk(peer));
   }
 
   void _stopReconnect(String peer) {
@@ -1291,6 +1402,9 @@ class CallController extends Notifier<CallSession> {
           if (media.peers.contains(peer)) {
             await media.addCandidateFor(peer, data);
           }
+        case 'restart':
+          // The side that answered lost the route: the offerer renews it.
+          if (_offered.contains(peer)) await _restartIce(peer);
       }
     } on Object {
       _linkLost(peer);
@@ -1372,9 +1486,7 @@ class CallController extends Notifier<CallSession> {
           unawaited(_resync(id));
           // The socket came back: the network changed (Wi-Fi ↔ LTE) — the
           // old media routes may be dead without any link state change yet.
-          for (final p in _offered.toList()) {
-            unawaited(_restartIce(p));
-          }
+          unawaited(_restartAll());
         }
     }
   }
@@ -1501,6 +1613,12 @@ class CallController extends Notifier<CallSession> {
   }
 
   void _clearTimers() {
+    _turnTimer?.cancel();
+    _turnTimer = null;
+    _netTimer?.cancel();
+    _netTimer = null;
+    unawaited(_netSub?.cancel());
+    _netSub = null;
     _ringTimer?.cancel();
     _connectTimer?.cancel();
     _syncTimer?.cancel();
