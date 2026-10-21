@@ -176,8 +176,8 @@ final searchConversationsProvider = AsyncNotifierProvider.autoDispose.family<
 );
 
 /// Waiting / Requests badges; re-read on chat events.
-final chatFolderCountsProvider =
-    FutureProvider.autoDispose<({int waiting, int requests, int archived})>(
+final chatFolderCountsProvider = FutureProvider.autoDispose<
+    ({int waiting, int requests, int cases, int archived})>(
   (ref) {
     final sub = ref.watch(realtimeEventsProvider).listen((e) {
       if (e.name == 'message:new' || e.name == 'conversation:update') {

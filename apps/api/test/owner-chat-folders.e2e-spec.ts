@@ -138,6 +138,8 @@ describe('Chat folders (e2e, owner 2026-10-01)', () => {
     expect(await ids('primary')).toEqual([caseChat]);
     expect(await ids('general')).toEqual([direct]);
     expect(await ids('waiting')).toEqual([]);
+    // Owner 2026-10-21: «Cases» — only the chat tied to a case.
+    expect(await ids('cases')).toEqual([caseChat]);
 
     // "I'll check and come back": waiting + a note visible in the list.
     const w = await api()
@@ -156,7 +158,13 @@ describe('Chat folders (e2e, owner 2026-10-01)', () => {
       .get('/api/v1/conversations/folders/counts')
       .set(auth)
       .expect(200);
-    expect(counts.body.data).toEqual({ waiting: 1, requests: 0, archived: 0 });
+    expect(counts.body.data).toEqual({
+      waiting: 1,
+      requests: 0,
+      // The case chat's last message is the client's: it waits for me.
+      cases: 1,
+      archived: 0,
+    });
 
     // Move the direct chat to Primary; pin the case chat to the top.
     await api()

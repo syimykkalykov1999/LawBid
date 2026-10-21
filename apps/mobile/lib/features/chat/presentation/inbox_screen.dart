@@ -756,7 +756,10 @@ class ConversationsView extends ConsumerWidget {
         t: t,
         itemKey: (c) => c.id,
         edgeToEdge: true,
-        itemBuilder: (context, c, _) => ConversationRow(conversation: c),
+        itemBuilder: (context, c, _) => ConversationRow(
+          conversation: c,
+          showAwaiting: folder == ChatListFolder.cases,
+        ),
         header: folder == ChatListFolder.waiting
             ? Padding(
                 padding: const EdgeInsets.only(bottom: AppSpacing.md),
@@ -964,6 +967,7 @@ class ConversationRow extends ConsumerWidget {
     required this.conversation,
     this.highlight = '',
     this.inArchive = false,
+    this.showAwaiting = false,
   });
 
   final Conversation conversation;
@@ -974,6 +978,10 @@ class ConversationRow extends ConsumerWidget {
 
   /// Shown on the Archive screen: the menu offers «Unarchive».
   final bool inArchive;
+
+  /// Owner 2026-10-21 («Cases»): mark the chat whose last message is the other
+  /// side's — it waits for my answer.
+  final bool showAwaiting;
 
   static const double _avatar = 54;
 
@@ -1159,6 +1167,33 @@ class ConversationRow extends ConsumerWidget {
                                 key: ValueKey('chat-read-note-${c.id}'),
                                 label: t.t('chat.note.read'),
                                 onTap: () => showChatNoteSheet(context, ref, c),
+                              ),
+                            ],
+                            if (showAwaiting &&
+                                picking == null &&
+                                last != null &&
+                                last.senderId != me &&
+                                last.kind != MessageKind.system) ...[
+                              const SizedBox(width: AppSpacing.sm),
+                              Container(
+                                key: ValueKey('chat-awaiting-${c.id}'),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 1,
+                                ),
+                                decoration: BoxDecoration(
+                                  border: Border.all(color: colors.gold),
+                                  borderRadius:
+                                      BorderRadius.circular(AppRadii.pill),
+                                ),
+                                child: Text(
+                                  t.t('chat.awaitsMe'),
+                                  maxLines: 1,
+                                  style: type.caption.copyWith(
+                                    color: colors.text,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
                               ),
                             ],
                             if (time != null) ...[

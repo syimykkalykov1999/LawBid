@@ -66,8 +66,8 @@ class _Chats implements ChatRepository {
   }
 
   @override
-  Future<({int waiting, int requests, int archived})> folderCounts() async =>
-      (waiting: 0, requests: 0, archived: 0);
+  Future<({int waiting, int requests, int cases, int archived})>
+      folderCounts() async => (waiting: 0, requests: 0, cases: 0, archived: 0);
 
   @override
   dynamic noSuchMethod(Invocation invocation) => Future<void>.value();

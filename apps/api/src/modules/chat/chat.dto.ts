@@ -73,6 +73,7 @@ export const CONVERSATION_FOLDERS = [
   'general',
   'waiting',
   'requests',
+  'cases',
   'archive',
 ] as const;
 export type ConversationFolderName = (typeof CONVERSATION_FOLDERS)[number];
@@ -97,7 +98,7 @@ export class ConversationsQueryDto {
     enumName: 'ConversationFolder',
     default: 'all',
     description:
-      'Owner 2026-10-01: all · primary (case chats by default) · general · waiting (marked "waiting for my answer") · requests (OQ-043, message requests sent to me) · archive (Owner 2026-10-20: my archived chats; every other folder leaves them out).',
+      'Owner 2026-10-01: all · primary (case chats by default) · general · waiting (marked "waiting for my answer") · requests (OQ-043, message requests sent to me) · cases (Owner 2026-10-21: only the chats tied to a case) · archive (Owner 2026-10-20: my archived chats; every other folder leaves them out).',
   })
   @IsOptional()
   @IsIn(CONVERSATION_FOLDERS)
@@ -171,6 +172,11 @@ export class OrganizeConversationDto {
 export class ChatFolderCountsDto {
   @ApiProperty() waiting!: number;
   @ApiProperty() requests!: number;
+  @ApiProperty({
+    description:
+      'Owner 2026-10-21: case chats whose last message is the other side’s (waiting for my answer).',
+  })
+  cases!: number;
   @ApiProperty({ description: 'Chats and groups in my Archive.' })
   archived!: number;
 }

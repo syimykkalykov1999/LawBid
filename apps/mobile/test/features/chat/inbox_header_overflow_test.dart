@@ -36,8 +36,8 @@ class _Chats implements ChatRepository {
       const CursorPage(items: []);
 
   @override
-  Future<({int waiting, int requests, int archived})> folderCounts() async =>
-      (waiting: 1, requests: 2, archived: 0);
+  Future<({int waiting, int requests, int cases, int archived})>
+      folderCounts() async => (waiting: 1, requests: 2, cases: 0, archived: 0);
 
   @override
   dynamic noSuchMethod(Invocation invocation) => Future<void>.value();
