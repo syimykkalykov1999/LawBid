@@ -23,6 +23,7 @@ import 'package:lawbid/features/groups/application/group_providers.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_avatar.dart';
 import 'package:lawbid/features/stories/application/stories_providers.dart';
 import 'package:lawbid/features/stories/presentation/story_navigation.dart';
+import 'package:lawbid/shared/people/people_suggest_list.dart';
 import 'package:lawbid/shared/presentation/list_search_field.dart';
 import 'package:lawbid/shared/presentation/share_sheet.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
@@ -139,6 +140,11 @@ class _ShareToSheetState extends ConsumerState<ShareToSheet> {
         switch (p.kind) {
           case 'chat':
             await sender.toChat(p.id, widget.postId, note: note);
+          case 'person':
+            // Found in the whole app: open (or start) our chat first.
+            final conv =
+                await ref.read(chatRepositoryProvider).startDirect(p.id);
+            await sender.toChat(conv.id, widget.postId, note: note);
           case 'group':
             final g = _groups[p.id];
             if (g == null) continue;
@@ -261,10 +267,13 @@ class _ShareToSheetState extends ConsumerState<ShareToSheet> {
       for (final c in list.value?.items ?? const <Conversation>[])
         if (_canWrite(c)) c,
     ];
-    if (list.isLoading && items.isEmpty) {
+    // Owner 2026-10-21 (inbox 25b, Instagram): anyone in the app by name or
+    // @username, under the matching chats.
+    final searching = peopleSuggestQuery(_q).length >= peopleSuggestMinChars;
+    if (list.isLoading && items.isEmpty && !searching) {
       return const Center(child: CircularProgressIndicator());
     }
-    if (items.isEmpty) {
+    if (items.isEmpty && !searching) {
       return _Empty(t.t(_q.isEmpty ? 'share.to.noChats' : 'share.to.empty'));
     }
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
@@ -277,9 +286,7 @@ class _ShareToSheetState extends ConsumerState<ShareToSheet> {
         6 +
         4 +
         2 * scaler.scale((type.caption.fontSize ?? 12) * 1.3);
-    return GridView.builder(
-      key: const ValueKey('share-to-chats'),
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+    final grid = SliverGrid.builder(
       gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
         maxCrossAxisExtent: 96,
         mainAxisExtent: extent,
@@ -300,6 +307,33 @@ class _ShareToSheetState extends ConsumerState<ShareToSheet> {
           onTap: () => _toggle('chat', c.id),
         );
       },
+    );
+    return CustomScrollView(
+      key: const ValueKey('share-to-chats'),
+      slivers: [
+        SliverPadding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+          sliver: grid,
+        ),
+        if (searching)
+          SliverToBoxAdapter(
+            child: PeopleSuggestList(
+              key: const ValueKey('share-to-people'),
+              query: _q,
+              scrollable: false,
+              title: t.t('search.tab.people'),
+              excludeIds: {
+                for (final c in items)
+                  if (c.counterpart.id != null) c.counterpart.id!,
+              },
+              selectedIds: {
+                for (final p in _picked)
+                  if (p.kind == 'person') p.id,
+              },
+              onPick: (p) => _toggle('person', p.id),
+            ),
+          ),
+      ],
     );
   }
 

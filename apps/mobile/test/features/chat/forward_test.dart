@@ -14,6 +14,7 @@ import 'package:lawbid/features/chat/presentation/message_actions.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
+import 'package:lawbid/shared/people/people_suggest_list.dart';
 
 import '../../helpers/ux_harness.dart';
 import '../groups/fake_group_repository.dart';
@@ -69,6 +70,14 @@ class _Chats implements ChatRepository {
   }) async {
     plainSends++;
     throw StateError('a forward must not be a plain send');
+  }
+
+  final started = <String>[];
+
+  @override
+  Future<Conversation> startDirect(String userId) async {
+    started.add(userId);
+    return _conv('dm-$userId', userId);
   }
 
   @override
@@ -171,6 +180,17 @@ void main() {
             ),
             channelsEnabledProvider.overrideWithValue(false),
             currentUserIdProvider.overrideWithValue('me'),
+            // Owner 2026-10-21 (inbox 25b): anyone in the app by name.
+            peopleSuggestSearchProvider.overrideWithValue(
+              (q) async => const [
+                SuggestedPerson(id: 'u-c1', username: 'anna_p', name: 'Anna'),
+                SuggestedPerson(
+                  id: 's9',
+                  username: 'anna_new',
+                  name: 'Anna Stranger',
+                ),
+              ],
+            ),
           ],
         ),
       ),
@@ -243,6 +263,35 @@ void main() {
       ForwardTarget(ForwardTargetKind.group, 'g-open'),
     ]);
     expect(find.text(_en.t('chat.forward.done')), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(minutes: 6));
+  });
+
+  testWidgets('a person found in the app: their chat opens, then forward',
+      (tester) async {
+    final chats = _Chats();
+    await pump(tester, chats);
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey('forward-search')),
+      'anna',
+    );
+    await tester.pump(peopleSuggestDebounce);
+    await tester.pumpAndSettle();
+    // Already a chat of mine: listed once, under «Chats».
+    expect(find.byKey(const ValueKey('people-suggest-u-c1')), findsNothing);
+    expect(find.text('Anna Stranger'), findsOneWidget);
+    expect(find.textContaining('anna_new'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('people-suggest-s9')));
+    await tester.pump();
+    expect(find.text('${_en.t('chat.forward.send')} · 1'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('forward-send')));
+    await tester.pumpAndSettle();
+    expect(chats.started, ['s9']);
+    expect(chats.batches.single.to, const [
+      ForwardTarget(ForwardTargetKind.conversation, 'dm-s9'),
+    ]);
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(minutes: 6));
   });

@@ -7,6 +7,7 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/groups/application/people_candidates.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_avatar.dart';
+import 'package:lawbid/shared/people/people_suggest_list.dart';
 
 export 'package:lawbid/features/groups/application/people_candidates.dart'
     show PickedPerson;
@@ -190,24 +191,49 @@ class _PeopleSelectorState extends ConsumerState<PeopleSelector> {
   }
 
   Widget _list(Translator t, List<PickedPerson> all) {
-    if (all.isEmpty) {
+    final searching =
+        peopleSuggestQuery(_query).length >= peopleSuggestMinChars;
+    if (all.isEmpty && !searching) {
       return AppEmptyState(
         icon: AppIcons.peopleOutlineRounded,
         message: t.t('group.picker.empty'),
       );
     }
     final shown = filterPeople(all, _query);
-    if (shown.isEmpty) {
+    final ticked = {for (final p in widget.selected) p.userId};
+    // Owner 2026-10-21 (inbox 25b, Instagram): my people first, then anyone
+    // in the app found by name or @username.
+    final everyone = searching
+        ? PeopleSuggestList(
+            key: const ValueKey('people-picker-suggest'),
+            query: _query,
+            scrollable: false,
+            title: t.t('search.tab.people'),
+            excludeIds: {
+              ...widget.excludeIds,
+              for (final p in shown) p.userId,
+            },
+            selectedIds: ticked,
+            onPick: (p) => widget.onToggle(
+              PickedPerson(
+                userId: p.id,
+                name: p.title,
+                avatarUrl: p.avatarUrl,
+              ),
+            ),
+          )
+        : null;
+    if (shown.isEmpty && everyone == null) {
       return AppEmptyState(
         icon: AppIcons.searchOffRounded,
         message: t.t('group.picker.noMatch'),
       );
     }
-    final ticked = {for (final p in widget.selected) p.userId};
     return ListView.builder(
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-      itemCount: shown.length,
+      itemCount: shown.length + (everyone == null ? 0 : 1),
       itemBuilder: (context, i) {
+        if (i == shown.length) return everyone;
         final p = shown[i];
         return _PersonRow(
           key: ValueKey('person-${p.userId}'),

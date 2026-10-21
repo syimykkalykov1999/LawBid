@@ -25,6 +25,7 @@ import 'package:lawbid/features/contacts_sync/presentation/contacts_states.dart'
 import 'package:lawbid/features/contacts_sync/presentation/invite_contact.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
+import 'package:lawbid/shared/people/people_suggest_list.dart';
 
 /// Owner 2026-10-20: "Contacts" like WhatsApp — the phone-book people who
 /// are on LawBid (with message / call / video) and the rest to invite.
@@ -237,6 +238,18 @@ class _BodyState extends ConsumerState<_Body> {
                     trailing: _Actions(contact: onLawBid[i]),
                   ),
                 ),
+              // Owner 2026-10-21 (inbox 25b, Instagram): anyone in the app
+              // by name or @username, under my contacts.
+              SliverToBoxAdapter(
+                child: PeopleSuggestList(
+                  key: const ValueKey('contacts-suggest'),
+                  query: _query,
+                  scrollable: false,
+                  title: t.t('search.tab.people'),
+                  excludeIds: {for (final c in data.onLawBid) c.userId},
+                  onPick: (p) => _openPerson(context, ref, p),
+                ),
+              ),
               if (invite.isNotEmpty) ...[
                 SliverToBoxAdapter(
                   child: ContactsSectionTitle(
@@ -300,6 +313,17 @@ void _openProfile(BuildContext context, WidgetRef ref, LawBidContact c) {
       c.person.isAttorney
           ? AppRoutes.lawyer(username)
           : AppRoutes.client(username),
+    ),
+  );
+}
+
+/// A person found in the whole app: their profile.
+void _openPerson(BuildContext context, WidgetRef ref, SuggestedPerson p) {
+  unawaited(
+    context.push(
+      p.isAttorney
+          ? AppRoutes.lawyer(p.username)
+          : AppRoutes.client(p.username),
     ),
   );
 }
