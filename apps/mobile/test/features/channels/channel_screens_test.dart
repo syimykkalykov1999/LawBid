@@ -14,7 +14,9 @@ import 'package:lawbid/features/channels/presentation/channel_form_screen.dart';
 import 'package:lawbid/features/channels/presentation/channel_pickers.dart';
 import 'package:lawbid/features/channels/presentation/channel_screen.dart';
 import 'package:lawbid/features/channels/presentation/channel_widgets.dart'
-    show ChannelsEmpty;
+    show ChannelRow, ChannelsEmpty;
+import 'package:lawbid/features/channels/presentation/channels_groups.dart'
+    show SectionCaption;
 import 'package:lawbid/features/channels/presentation/channels_screen.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_chat_tile.dart';
@@ -93,11 +95,12 @@ void main() {
       final repo = FakeChannelsRepository();
       await pump(tester, const ChannelsScreen(), repo);
       expect(find.byType(AppErrorState), findsNothing);
-      expect(find.byType(ChannelsEmpty), findsOneWidget);
+      expect(find.byType(ChannelsEmpty), findsWidgets);
     });
 
-    // Owner 2026-10-21: the groups I am in live here, under «Groups».
-    testWidgets('my groups show in Subscriptions under their own caption',
+    // Owner 2026-10-21: every tab has «Groups | Channels» on top: groups
+    // only under Groups, channels only under Channels, no captions inside.
+    testWidgets('Groups | Channels: separate lists, tap and swipe, no captions',
         (tester) async {
       final repo = FakeChannelsRepository()..listed = [fakeChannel()];
       await pump(
@@ -110,32 +113,39 @@ void main() {
           ),
         ],
       );
-      expect(
-        find.byKey(const ValueKey('channels-section-channels')),
-        findsOneWidget,
+      expect(find.byKey(const ValueKey('channels-caption')), findsNothing);
+      expect(find.byType(SectionCaption), findsNothing);
+      expect(find.byType(GroupChatTile), findsNWidgets(2));
+      expect(find.byType(ChannelRow), findsNothing);
+      // A swipe inside the page goes to Channels.
+      await tester.drag(
+        find.byKey(const ValueKey('channels-list-groups')).first,
+        const Offset(-400, 0),
       );
-      expect(
-        find.byKey(const ValueKey('channels-section-groups')),
-        findsOneWidget,
-      );
+      await tester.pumpAndSettle();
+      expect(find.byType(ChannelRow), findsOneWidget);
+      expect(find.byType(GroupChatTile), findsNothing);
+      // A tap brings Groups back.
+      await tester.tap(find.text('Groups').first);
+      await tester.pumpAndSettle();
       expect(find.byType(GroupChatTile), findsNWidgets(2));
       await tester.pumpWidget(const SizedBox());
       await tester.pump(const Duration(minutes: 5));
     });
 
-    testWidgets('swiping moves between Mine, Subscriptions and Discover',
+    testWidgets('Mine, Subscriptions and Discover change by a tap, not a swipe',
         (tester) async {
       final repo = FakeChannelsRepository()..listed = [fakeChannel()];
       await pump(tester, const ChannelsScreen(), repo);
       expect(repo.calls, contains('list:subscribed:'));
-      await tester.drag(find.byType(PageView), const Offset(-400, 0));
+      await tester.tap(find.text('Discover'));
       await tester.pumpAndSettle();
       expect(repo.calls, contains('recommended:'));
-      await tester.drag(find.byType(PageView), const Offset(400, 0));
-      await tester.pumpAndSettle();
-      await tester.drag(find.byType(PageView), const Offset(400, 0));
+      await tester.tap(find.text('Mine'));
       await tester.pumpAndSettle();
       expect(repo.calls, contains('list:managed:'));
+      final outer = tester.widget<PageView>(find.byType(PageView).first);
+      expect(outer.physics, isA<NeverScrollableScrollPhysics>());
       await tester.pumpWidget(const SizedBox());
       await tester.pump(const Duration(minutes: 5));
     });

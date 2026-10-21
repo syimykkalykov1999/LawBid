@@ -1050,6 +1050,7 @@
 "channel.delete.title":"Diesen Kanal löschen?",
 "channel.edit":"Kanal bearbeiten",
 "channel.empty.discover":"Noch keine Kanäle mit Beiträgen.",
+"channel.empty.groups":"Noch keine Gruppen",
 "channel.empty.mine":"Erstelle einen Kanal, um Neuigkeiten und Einblicke mit Abonnenten zu teilen.",
 "channel.empty.mine.title":"Noch keine Kanäle",
 "channel.empty.posts":"Die Beiträge des Kanals erscheinen hier.",

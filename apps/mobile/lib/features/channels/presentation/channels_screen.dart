@@ -126,30 +126,6 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
         ),
         body: Column(
           children: [
-            // Owner 2026-10-20 (Telegram sections): a small caption so it is
-            // clear what the list is.
-            Align(
-              alignment: AlignmentDirectional.centerStart,
-              child: Padding(
-                padding: const EdgeInsetsDirectional.fromSTEB(
-                  AppSpacing.screenSide,
-                  AppSpacing.sm,
-                  AppSpacing.screenSide,
-                  AppSpacing.xs,
-                ),
-                child: Text(
-                  t.t('channel.title'),
-                  key: const ValueKey('channels-caption'),
-                  style: Theme.of(context)
-                      .extension<AppTypographyTokens>()!
-                      .caption
-                      .copyWith(
-                        color: colors.textSecondary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                ),
-              ),
-            ),
             if (_searchOpen)
               ListSearchField(
                 fieldKey: const ValueKey('channels-search'),
@@ -166,6 +142,9 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                     )
                   : PageView(
                       controller: _pages,
+                      // Owner 2026-10-21: Mine · Following · Discover change
+                      // by a tap only; the swipe belongs to Groups | Channels.
+                      physics: const NeverScrollableScrollPhysics(),
                       onPageChanged: (i) => setState(() => _tab = _order[i]),
                       children: [
                         for (final scope in _order)
@@ -221,9 +200,12 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   }
 }
 
-/// One page of the channels screen: «Channels» and «Groups» sections of a
-/// scope (or of a search). Owner 2026-10-21: groups live here, not in Chats.
-class _ScopeList extends ConsumerWidget {
+enum _Kind { groups, channels }
+
+/// One page of the channels screen: the groups and the channels of a scope
+/// (or of a search). Owner 2026-10-21: groups live here, not in Chats; each
+/// page has «Groups | Channels» on top (tap or swipe), no captions inside.
+class _ScopeList extends ConsumerStatefulWidget {
   const _ScopeList({
     required this.scope,
     required this.query,
@@ -236,7 +218,39 @@ class _ScopeList extends ConsumerWidget {
   final Widget empty;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_ScopeList> createState() => _ScopeListState();
+}
+
+class _ScopeListState extends ConsumerState<_ScopeList> {
+  _Kind _kind = _Kind.groups;
+  final _pages = PageController();
+
+  @override
+  void dispose() {
+    _pages.dispose();
+    super.dispose();
+  }
+
+  void _pick(_Kind v) {
+    setState(() => _kind = v);
+    if (!_pages.hasClients) return;
+    final motion = context.reduceMotion
+        ? Duration.zero
+        : const Duration(milliseconds: 260);
+    unawaited(
+      _pages.animateToPage(
+        v.index,
+        duration: motion,
+        curve: Curves.easeOutCubic,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scope = widget.scope;
+    final query = widget.query;
+    final empty = widget.empty;
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final recommended = scope == ChannelScope.discover && query.isEmpty;
@@ -295,7 +309,6 @@ class _ScopeList extends ConsumerWidget {
         groupRows.isEmpty) {
       return const CasesListSkeleton();
     }
-    if (channelRows.isEmpty && groupRows.isEmpty) return empty;
 
     Future<void> refresh() async {
       ref.invalidate(channelListProvider(key));
@@ -316,58 +329,84 @@ class _ScopeList extends ConsumerWidget {
       return false;
     }
 
-    return RefreshIndicator(
-      color: colors.gold,
-      backgroundColor: colors.sheet,
-      onRefresh: refresh,
-      child: NotificationListener<ScrollNotification>(
-        onNotification: more,
-        child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
-          children: [
-            if (recommended)
-              Padding(
-                padding: const EdgeInsetsDirectional.fromSTEB(
-                  AppSpacing.screenSide,
-                  AppSpacing.sm,
-                  AppSpacing.screenSide,
-                  0,
-                ),
-                child: Text(
-                  t.t('reco.title'),
-                  key: const ValueKey('channels-reco-title'),
-                  style: Theme.of(context)
-                      .extension<AppTypographyTokens>()!
-                      .caption
-                      .copyWith(
-                        color: colors.textSecondary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                ),
-              ),
-            if (channelRows.isNotEmpty) ...[
-              SectionCaption(
-                t.t('channel.title'),
-                key: const ValueKey('channels-section-channels'),
-              ),
-              for (final c in channelRows)
-                ChannelRow(
-                  key: ValueKey('channel-row-${c.id}'),
-                  channel: c,
-                  onTap: () => context.push(ChannelsRoutes.channel(c.id)),
-                ),
-            ],
-            if (groupRows.isNotEmpty) ...[
-              SectionCaption(
-                t.t('channel.section.groups'),
-                key: const ValueKey('channels-section-groups'),
-              ),
-              ...groupRows,
-            ],
+    final caption = Theme.of(context)
+        .extension<AppTypographyTokens>()!
+        .caption
+        .copyWith(color: colors.textSecondary, fontWeight: FontWeight.w600);
+    Widget list(_Kind kind, List<Widget> rows) => RefreshIndicator(
+          color: colors.gold,
+          backgroundColor: colors.sheet,
+          onRefresh: refresh,
+          child: NotificationListener<ScrollNotification>(
+            onNotification: more,
+            child: ListView(
+              key: ValueKey('channels-list-${kind.name}'),
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
+              children: [
+                if (recommended && rows.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsetsDirectional.fromSTEB(
+                      AppSpacing.screenSide,
+                      AppSpacing.xs,
+                      AppSpacing.screenSide,
+                      AppSpacing.xs,
+                    ),
+                    child: Text(
+                      t.t('reco.title'),
+                      key: const ValueKey('channels-reco-title'),
+                      style: caption,
+                    ),
+                  ),
+                if (rows.isEmpty)
+                  SizedBox(
+                    height: 320,
+                    child: kind == _Kind.channels
+                        ? empty
+                        : ChannelsEmpty(message: t.t('channel.empty.groups')),
+                  )
+                else
+                  ...rows,
+              ],
+            ),
+          ),
+        );
+
+    return Column(
+      children: [
+        PillTabs<_Kind>(
+          key: const ValueKey('channels-kind'),
+          value: _kind,
+          tabs: [
+            (_Kind.groups, t.t('channel.section.groups')),
+            (_Kind.channels, t.t('channel.title')),
           ],
+          onChanged: _pick,
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.screenSide,
+            AppSpacing.xs,
+            AppSpacing.screenSide,
+            AppSpacing.xs,
+          ),
         ),
-      ),
+        Expanded(
+          child: PageView(
+            controller: _pages,
+            onPageChanged: (i) => setState(() => _kind = _Kind.values[i]),
+            children: [
+              list(_Kind.groups, groupRows),
+              list(_Kind.channels, [
+                for (final c in channelRows)
+                  ChannelRow(
+                    key: ValueKey('channel-row-${c.id}'),
+                    channel: c,
+                    onTap: () => context.push(ChannelsRoutes.channel(c.id)),
+                  ),
+              ]),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

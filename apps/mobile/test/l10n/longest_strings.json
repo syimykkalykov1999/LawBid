@@ -1050,6 +1050,7 @@
 "channel.delete.title":"Διαγραφή αυτού του καναλιού;",
 "channel.edit":"Cuir an cainéal in eagar",
 "channel.empty.discover":"Aucune chaîne avec des publications pour le moment.",
+"channel.empty.groups":"Aucun groupe pour l'instant",
 "channel.empty.mine":"Hozz létre egy csatornát, hogy híreket és meglátásokat oszthass meg a feliratkozókkal.",
 "channel.empty.mine.title":"Aucune chaîne pour le moment",
 "channel.empty.posts":"Les publications de la chaîne apparaîtront ici.",

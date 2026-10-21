@@ -1050,6 +1050,7 @@
 "channel.delete.title":"हे चॅनेल हटवायचे?",
 "channel.edit":"चॅनेल संपादित करा",
 "channel.empty.discover":"पोस्ट असलेले चॅनेल अजून नाहीत.",
+"channel.empty.groups":"अजून गट नाहीत",
 "channel.empty.mine":"सदस्यांसोबत बातम्या आणि विश्लेषण शेअर करण्यासाठी चॅनेल तयार करा.",
 "channel.empty.mine.title":"तुमच्याकडे अजून चॅनेल नाहीत",
 "channel.empty.posts":"चॅनेलच्या पोस्ट येथे दिसतील.",

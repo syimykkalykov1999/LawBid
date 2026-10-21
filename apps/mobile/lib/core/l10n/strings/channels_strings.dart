@@ -6,6 +6,7 @@ const channelsRu = <String, String>{
   // List / discover
   'channel.title': 'Каналы',
   'channel.section.groups': 'Группы',
+  'channel.empty.groups': 'Групп пока нет',
   'channel.create': 'Создать канал',
   'channel.search.hint': 'Название или @username',
   'channel.tab.mine': 'Мои',
@@ -143,6 +144,7 @@ const channelsEn = <String, String>{
   // List / discover
   'channel.title': 'Channels',
   'channel.section.groups': 'Groups',
+  'channel.empty.groups': 'No groups yet',
   'channel.create': 'Create channel',
   'channel.search.hint': 'Title or @username',
   'channel.tab.mine': 'Mine',

@@ -1050,6 +1050,7 @@
 "channel.delete.title":"حذف هذه القناة؟",
 "channel.edit":"تعديل القناة",
 "channel.empty.discover":"لا توجد قنوات تحتوي على منشورات بعد.",
+"channel.empty.groups":"لا توجد مجموعات بعد",
 "channel.empty.mine":"أنشئ قناة لمشاركة الأخبار والتحليلات مع المشتركين.",
 "channel.empty.mine.title":"لا توجد قنوات بعد",
 "channel.empty.posts":"ستظهر منشورات القناة هنا.",

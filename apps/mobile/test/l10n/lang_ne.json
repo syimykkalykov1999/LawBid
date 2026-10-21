@@ -1050,6 +1050,7 @@
 "channel.delete.title":"यो च्यानल मेटाउने?",
 "channel.edit":"च्यानल सम्पादन गर्नुहोस्",
 "channel.empty.discover":"पोस्ट भएका च्यानल अहिलेसम्म छैनन्।",
+"channel.empty.groups":"अहिले सम्म समूह छैन",
 "channel.empty.mine":"सब्स्क्राइबरहरूसँग समाचार र विश्लेषण सेयर गर्न च्यानल बनाउनुहोस्।",
 "channel.empty.mine.title":"अहिलेसम्म कुनै च्यानल छैन",
 "channel.empty.posts":"च्यानलका पोस्ट यहाँ देखिनेछन्।",
