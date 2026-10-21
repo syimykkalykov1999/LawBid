@@ -296,6 +296,18 @@ export const NOTIFICATION_TEMPLATES: Partial<
     },
     ru: { title: 'Вас отметили', body: 'Вас отметили в LawBid.' },
   },
+  // Owner 2026-10-21: an invitation to a group (Requests).
+  group_invite: {
+    group: 'social',
+    en: {
+      title: 'Group invitation',
+      body: 'You were invited to a group. Open Requests to answer.',
+    },
+    ru: {
+      title: 'Приглашение в группу',
+      body: 'Вас пригласили в группу. Ответьте во вкладке «Запросы».',
+    },
+  },
   // Owner 2026-10-20: a post in a channel I subscribed to.
   channel_post: {
     group: 'social',

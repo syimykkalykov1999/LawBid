@@ -4,6 +4,7 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
+import { acceptInvites } from './support/group-invites';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
 
@@ -94,6 +95,11 @@ describe('Group chat calls (e2e)', () => {
         memberIds: [ann.id, bob.id, cy.id],
       })
       .expect(201);
+    await acceptInvites(api, auth, g.body.data.id as string, [
+      ann.id,
+      bob.id,
+      cy.id,
+    ]);
     const gid = g.body.data.id as string;
 
     // Nobody in the group: 404. A plain member may not start (admins only).
@@ -235,6 +241,12 @@ describe('Group chat calls (e2e)', () => {
         memberIds: crowd.map((c) => c.id),
       })
       .expect(201);
+    await acceptInvites(
+      api,
+      auth,
+      g.body.data.id as string,
+      crowd.map((c) => c.id),
+    );
     const gid = g.body.data.id as string;
     const started = await api()
       .post(`/api/v1/groups/${gid}/calls`)
@@ -305,6 +317,7 @@ describe('Group chat calls (e2e)', () => {
       .set(auth(owner.id))
       .send({ title: 'Silent', type: 'closed', memberIds: [ann.id, bob.id] })
       .expect(201);
+    await acceptInvites(api, auth, g.body.data.id as string, [ann.id, bob.id]);
     const gid = g.body.data.id as string;
     const started = await api()
       .post(`/api/v1/groups/${gid}/calls`)
@@ -364,6 +377,11 @@ describe('Group chat calls (e2e)', () => {
         memberIds: [ann.id, bob.id, cy.id],
       })
       .expect(201);
+    await acceptInvites(api, auth, g.body.data.id as string, [
+      ann.id,
+      bob.id,
+      cy.id,
+    ]);
     const gid = g.body.data.id as string;
     const started = await api()
       .post(`/api/v1/groups/${gid}/calls`)
@@ -458,6 +476,7 @@ describe('Group chat calls (e2e)', () => {
       .set(auth(owner.id))
       .send({ title: 'Seq', type: 'closed', memberIds: [ann.id, bob.id] })
       .expect(201);
+    await acceptInvites(api, auth, g.body.data.id as string, [ann.id, bob.id]);
     const started = await api()
       .post(`/api/v1/groups/${g.body.data.id as string}/calls`)
       .set(auth(owner.id))
@@ -498,6 +517,12 @@ describe('Group chat calls (e2e)', () => {
         memberIds: crowd.map((c) => c.id),
       })
       .expect(201);
+    await acceptInvites(
+      api,
+      auth,
+      g.body.data.id as string,
+      crowd.map((c) => c.id),
+    );
     const started = await api()
       .post(`/api/v1/groups/${g.body.data.id as string}/calls`)
       .set(auth(owner.id))
@@ -520,6 +545,12 @@ describe('Group chat calls (e2e)', () => {
       .set(auth(owner.id))
       .send({ title: 'Vote', type: 'closed', memberIds: m.map((x) => x.id) })
       .expect(201);
+    await acceptInvites(
+      api,
+      auth,
+      g.body.data.id as string,
+      m.map((x) => x.id),
+    );
     const started = await api()
       .post(`/api/v1/groups/${g.body.data.id as string}/calls`)
       .set(auth(owner.id))

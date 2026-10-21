@@ -4,6 +4,7 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
+import { acceptInvites } from './support/group-invites';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
 
@@ -105,6 +106,7 @@ describe('Mute calls and notification switches (e2e)', () => {
       .set(bearer(owner.id))
       .send({ title: 'Calls', type: 'private', memberIds: [ann.id] })
       .expect(201);
+    await acceptInvites(api, bearer, created.body.data.id as string, [ann.id]);
     const id = created.body.data.id as string;
     expect(created.body.data.callsMuted).toBe(false);
     const res = await api()

@@ -1226,15 +1226,25 @@ export class ChatService {
   }
 
   async requestsCount(user: RequestUser): Promise<{ count: number }> {
-    const count = await this.prisma.conversation.count({
-      where: {
-        OR: [{ client_id: user.sub }, { attorney_id: user.sub }],
-        request_status: 'pending',
-        requested_by: { not: user.sub },
-        last_message_at: { not: null },
-      },
-    });
-    return { count };
+    const [chats, invites] = await Promise.all([
+      this.prisma.conversation.count({
+        where: {
+          OR: [{ client_id: user.sub }, { attorney_id: user.sub }],
+          request_status: 'pending',
+          requested_by: { not: user.sub },
+          last_message_at: { not: null },
+        },
+      }),
+      // Owner 2026-10-21: group invitations wait in Requests too.
+      this.prisma.chatGroupInvite.count({
+        where: {
+          invitee_id: user.sub,
+          status: 'pending',
+          group: { deleted_at: null },
+        },
+      }),
+    ]);
+    return { count: chats + invites };
   }
 
   /** POST /conversations/:id/request/accept | decline (OQ-043). */

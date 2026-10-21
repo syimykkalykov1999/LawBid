@@ -82,7 +82,29 @@ describe('Group chats and polls (e2e)', () => {
         memberIds: [ann.id, bob.id],
       })
       .expect(201);
-    return { owner, ann, bob, cy, id: res.body.data.id as string, res };
+    const id = res.body.data.id as string;
+    // Owner 2026-10-21: nobody is put in; the people accept the invitation.
+    for (const u of [ann, bob]) await acceptInviteTo(u.id, id);
+    const detail = await api()
+      .get(`/api/v1/groups/${id}`)
+      .set(bearer(owner.id))
+      .expect(200);
+    return { owner, ann, bob, cy, id, res: { body: detail.body } };
+  }
+
+  async function acceptInviteTo(userId: string, groupId: string) {
+    const list = await api()
+      .get('/api/v1/groups/invites')
+      .set(bearer(userId))
+      .expect(200);
+    const invite = (list.body.data as { id: string; groupId: string }[]).find(
+      (i) => i.groupId === groupId,
+    );
+    expect(invite).toBeDefined();
+    return api()
+      .post(`/api/v1/groups/invites/${invite!.id}/accept`)
+      .set(bearer(userId))
+      .expect(200);
   }
 
   it('creates a group: owner + members, system lines, list and detail', async () => {
@@ -101,7 +123,7 @@ describe('Group chats and polls (e2e)', () => {
       .expect(200);
     expect(
       msgs.body.data.map((m: { systemKind: string }) => m.systemKind),
-    ).toEqual(['added', 'created']);
+    ).toEqual(['added', 'added', 'created']);
     const list = await api()
       .get('/api/v1/groups')
       .set(bearer(ann.id))
@@ -255,7 +277,9 @@ describe('Group chats and polls (e2e)', () => {
       .set(bearer(ann.id))
       .send({ userIds: [cy.id] })
       .expect(200);
-    expect(added.body.data.memberCount).toBe(4);
+    // Owner 2026-10-21: an invitation, not a member yet.
+    expect(added.body.data.memberCount).toBe(3);
+    await acceptInviteTo(cy.id, id);
     // An admin cannot remove the owner or another admin.
     await api()
       .delete(`/api/v1/groups/${id}/members/${owner.id}`)
@@ -467,7 +491,17 @@ describe('Group chats and polls (e2e)', () => {
       .send({ userIds: [cy.id] })
       .expect(200);
     expect(again.body.data.notAdded).toEqual([]);
-    expect(again.body.data.memberCount).toBe(4);
+    expect(again.body.data.memberCount).toBe(3);
+    expect(
+      again.body.data.invited.map((p: { userId: string }) => p.userId),
+    ).toEqual([cy.id]);
+    await acceptInviteTo(cy.id, id);
+    const joined = await api()
+      .get(`/api/v1/groups/${id}`)
+      .set(bearer(owner.id))
+      .expect(200);
+    expect(joined.body.data.memberCount).toBe(4);
+    expect(joined.body.data.invited).toEqual([]);
   });
 
   it('service lines can be switched off by an admin: hidden for everyone, on by default', async () => {
@@ -718,6 +752,7 @@ describe('Group chats and polls (e2e)', () => {
       .expect(201);
     expect(priv.body.data.type).toBe('private');
     expect(priv.body.data.inviteLink).toBeNull();
+    await acceptInviteTo(ann.id, priv.body.data.id as string);
     await api()
       .patch(`/api/v1/groups/${priv.body.data.id}`)
       .set(bearer(ann.id))

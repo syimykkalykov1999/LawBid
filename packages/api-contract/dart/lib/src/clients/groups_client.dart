@@ -12,6 +12,8 @@ import '../models/create_topic_dto.dart';
 import '../models/edit_group_message_dto.dart';
 import '../models/group_detail_envelope.dart';
 import '../models/group_envelope.dart';
+import '../models/group_invite_list_envelope.dart';
+import '../models/group_invite_preview_detail_envelope.dart';
 import '../models/group_invite_preview_envelope.dart';
 import '../models/group_invite_preview_list_envelope.dart';
 import '../models/group_join_request_list_envelope.dart';
@@ -74,6 +76,33 @@ abstract class GroupsClient {
   @GET('/groups/search')
   Future<GroupInvitePreviewListEnvelope> searchPublicGroups({
     @Query('q') required String q,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// My pending group invitations (cards in Requests)
+  @GET('/groups/invites')
+  Future<GroupInviteListEnvelope> listMyGroupInvitations({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Look inside the group before answering: open group shows description, members and messages read-only
+  @GET('/groups/invites/{inviteId}/preview')
+  Future<GroupInvitePreviewDetailEnvelope> previewGroupInvitation({
+    @Path('inviteId') required String inviteId,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Accept a group invitation
+  @POST('/groups/invites/{inviteId}/accept')
+  Future<GroupJoinResultEnvelope> acceptGroupInvitation({
+    @Path('inviteId') required String inviteId,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Decline a group invitation
+  @POST('/groups/invites/{inviteId}/decline')
+  Future<void> declineGroupInvitation({
+    @Path('inviteId') required String inviteId,
     @Extras() Map<String, dynamic>? extras,
   });
 

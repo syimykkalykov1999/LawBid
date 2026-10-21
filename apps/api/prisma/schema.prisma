@@ -454,6 +454,8 @@ enum MessageType {
 }
 
 enum NotificationType {
+  // Owner 2026-10-21: «X invites you to a group» (Requests).
+  group_invite
   // Owner 2026-10-20: a new post in a channel I subscribed to.
   channel_post
   /// Owner 2026-10-20: a booked consultation (payload.kind: requested,
@@ -2702,6 +2704,7 @@ model ChatGroup {
   updated_at            DateTime  @updatedAt @db.Timestamptz
 
   members  ChatGroupMember[]
+  invites  ChatGroupInvite[]
   messages ChatGroupMessage[]
   polls    ChatGroupPoll[]
   topics   ChatGroupTopic[]
@@ -2834,6 +2837,26 @@ model ChatGroupJoinRequest {
   @@id([group_id, user_id])
   @@index([user_id])
   @@map("chat_group_join_requests")
+}
+
+/// Owner 2026-10-21 (Instagram): nobody is put into a group — they are
+/// invited and join after «Accept» (or join a public group on their own).
+/// One row per (group, person): a new invite reuses it.
+model ChatGroupInvite {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  group_id     String    @db.Uuid
+  group        ChatGroup @relation(fields: [group_id], references: [id], onDelete: Cascade)
+  /// Bare pointers (no FK) like the other group links.
+  invitee_id   String    @db.Uuid
+  inviter_id   String    @db.Uuid
+  /// pending | accepted | declined
+  status       String    @default("pending") @db.VarChar(10)
+  created_at   DateTime  @default(now()) @db.Timestamptz
+  responded_at DateTime? @db.Timestamptz
+
+  @@unique([group_id, invitee_id])
+  @@index([invitee_id, status])
+  @@map("chat_group_invites")
 }
 
 model ChatGroupPoll {
