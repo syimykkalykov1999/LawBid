@@ -104,6 +104,12 @@ Future<void> showAttorneyMoreSheet(
         mainAxisSize: MainAxisSize.min,
         children: [
           const AppSheetHandle(),
+          GiftMenuRow(
+            userId: p.id,
+            sheet: sheet,
+            screen: context,
+            blocked: p.isBlocked || p.hasBlockedMe,
+          ),
           BlockListRow(
             userId: p.id,
             displayName: p.fullName.isEmpty ? atHandle(p.username) : p.fullName,
