@@ -295,10 +295,20 @@ class _ChannelHeaderState extends ConsumerState<ChannelHeader> {
         // name, @username and the counters beside it.
         Row(
           children: [
-            ChannelAvatar(
-              title: channel.title,
-              url: channel.avatarUrl,
-              size: 56,
+            GestureDetector(
+              key: const ValueKey('channel-header-avatar'),
+              onTap: channel.avatarUrl == null
+                  ? null
+                  : () => showPhotoGallery(
+                        context,
+                        urls: [channel.avatarFullUrl ?? channel.avatarUrl!],
+                        closeLabel: t.t('common.close'),
+                      ),
+              child: ChannelAvatar(
+                title: channel.title,
+                url: channel.avatarUrl,
+                size: 56,
+              ),
             ),
             const SizedBox(width: AppSpacing.md),
             Expanded(

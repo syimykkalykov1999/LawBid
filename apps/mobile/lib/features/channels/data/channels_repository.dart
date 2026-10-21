@@ -534,6 +534,7 @@ class ChannelsRepository {
         username: d.username,
         description: d.description,
         avatarUrl: d.avatarUrl,
+        avatarFullUrl: d.avatarFullUrl,
         commentsEnabled: d.commentsEnabled,
         state: switch (d.status) {
           api.ChannelStatus.hidden => ChannelState.hidden,

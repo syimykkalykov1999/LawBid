@@ -38,12 +38,15 @@ Channel fakeChannel({
   int posts = 3,
   String? description = 'Weekly tax notes, see https://example.test/tax.',
   ChannelState state = ChannelState.active,
+  String? avatarUrl,
 }) =>
     Channel(
       id: id,
       title: title,
       username: username,
       description: description,
+      avatarUrl: avatarUrl,
+      avatarFullUrl: avatarUrl == null ? null : '$avatarUrl?full',
       commentsEnabled: comments,
       state: state,
       subscriberCount: subscribers,

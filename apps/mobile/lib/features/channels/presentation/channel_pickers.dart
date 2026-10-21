@@ -84,17 +84,18 @@ final channelVideoPickerProvider = Provider<ChannelVideoPicker>(
   },
 );
 
-/// Picks the channel's picture from the gallery and frames it as a square;
-/// null = cancelled. Overridden in tests.
+/// Picks the channel's picture from the camera or the gallery and frames it
+/// as a square; null = cancelled. Overridden in tests.
 typedef ChannelAvatarPicker = Future<Uint8List?> Function(
   BuildContext context,
+  ImageSource source,
 );
 
 final channelAvatarPickerProvider = Provider<ChannelAvatarPicker>(
-  (ref) => (context) async {
+  (ref) => (context, source) async {
     final limits = avatarLimitsOf(ref.read(featureFlagsControllerProvider));
     final file = await ImagePicker().pickImage(
-      source: ImageSource.gallery,
+      source: source,
       maxWidth: limits.maxPx,
       maxHeight: limits.maxPx,
       imageQuality: limits.quality,
