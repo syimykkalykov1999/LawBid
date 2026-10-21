@@ -15,6 +15,12 @@ abstract final class StoriesRoutes {
       '/stories/view/${Uri.encodeComponent(userId)}';
 
   static const create = '/stories/new';
+
+  /// Owner 2026-10-21: `?post=<id>` puts the post on the story as a sticker.
+  static String createWith({String? postId}) => postId == null
+      ? create
+      : '$create?post=${Uri.encodeQueryComponent(postId)}';
+
   static const settings = '/stories/settings';
   static const archive = '/stories/archive';
 }
@@ -31,8 +37,10 @@ List<RouteBase> storiesRoutes(GlobalKey<NavigatorState> root) => [
       GoRoute(
         path: StoriesRoutes.create,
         parentNavigatorKey: root,
-        pageBuilder: (context, state) =>
-            AppPageTransitions.push(state, const StoryCreatorScreen()),
+        pageBuilder: (context, state) => AppPageTransitions.push(
+          state,
+          StoryCreatorScreen(postId: state.uri.queryParameters['post']),
+        ),
       ),
       GoRoute(
         path: StoriesRoutes.settings,
