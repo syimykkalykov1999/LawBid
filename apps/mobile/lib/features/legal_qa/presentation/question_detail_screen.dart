@@ -91,6 +91,19 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen> {
     }
   }
 
+  Future<void> _closeQuestion() async {
+    final t = ref.read(translatorProvider);
+    final yes = await showConfirmSheet(
+      context,
+      t: t,
+      title: t.t('qa.close.title'),
+      message: t.t('qa.close.msg'),
+      confirmLabel: t.t('qa.close'),
+    );
+    if (!yes || !mounted) return;
+    await _run(() => ref.read(legalQaRepositoryProvider).close(widget.id));
+  }
+
   Future<void> _deleteQuestion() async {
     final t = ref.read(translatorProvider);
     final yes = await showConfirmSheet(
@@ -105,7 +118,7 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen> {
     try {
       await ref.read(legalQaRepositoryProvider).delete(widget.id);
       ref.invalidate(questionsProvider);
-      if (mounted) context.pop();
+      if (mounted) unawaited(Navigator.of(context).maybePop());
     } on Object catch (e) {
       if (mounted) showAppSnackBar(context, errorText(t, e));
     }
@@ -137,6 +150,16 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               const AppSheetHandle(),
+              if (q.isMine && !q.closed)
+                AppListRow(
+                  icon: AppIcons.checkRounded,
+                  label: t.t('qa.close'),
+                  showChevron: false,
+                  onTap: () {
+                    Navigator.of(sheet).pop();
+                    unawaited(_closeQuestion());
+                  },
+                ),
               if (q.isMine)
                 AppListRow(
                   icon: AppIcons.deleteOutlineRounded,
@@ -633,4 +656,27 @@ class _Composer extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// Owner 2026-10-21: a tap on a question lifts this sheet (like the comments
+/// of Instagram) with the question and the attorneys' answers; the full
+/// screen stays for deep links.
+Future<void> showQuestionSheet(BuildContext context, String id) {
+  final colors = Theme.of(context).extension<AppColorTokens>()!;
+  return showAppBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    builder: (_) => SizedBox(
+      height: MediaQuery.sizeOf(context).height * 0.92,
+      child: ClipRRect(
+        borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(AppRadii.sheet),
+        ),
+        child: ColoredBox(
+          color: colors.bg,
+          child: QuestionDetailScreen(id: id),
+        ),
+      ),
+    ),
+  );
 }

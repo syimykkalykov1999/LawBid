@@ -162,9 +162,17 @@ class QaBestBadge extends ConsumerWidget {
 
 /// One question in the feed.
 class QuestionCard extends ConsumerWidget {
-  const QuestionCard({required this.question, required this.onTap, super.key});
+  const QuestionCard({
+    required this.question,
+    required this.onTap,
+    this.attorney = false,
+    super.key,
+  });
 
   final Question question;
+
+  /// An attorney sees «N of 10» instead of the bare count.
+  final bool attorney;
   final VoidCallback onTap;
 
   @override
@@ -218,6 +226,7 @@ class QuestionCard extends ConsumerWidget {
                   ),
                 if (question.stateCode != null)
                   QaTag(label: question.stateCode!),
+                if (question.closed) QaTag(label: t.t('qa.closed')),
               ],
             ),
             const SizedBox(height: AppSpacing.sm),
@@ -231,7 +240,14 @@ class QuestionCard extends ConsumerWidget {
                 const SizedBox(width: AppSpacing.xs),
                 Flexible(
                   child: Text(
-                    SocialFormat.count(formats, question.answerCount),
+                    question.answersEnough && attorney
+                        ? t.t('qa.enough')
+                        : attorney
+                            ? t.t('qa.count.of', {
+                                'n': formats.number(question.answerCount),
+                                'max': formats.number(10),
+                              })
+                            : SocialFormat.count(formats, question.answerCount),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: type.caption.copyWith(color: colors.textSecondary),

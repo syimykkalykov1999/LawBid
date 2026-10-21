@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/static_translator.dart';
+import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/features/legal_qa/application/legal_qa_providers.dart';
 import 'package:lawbid/features/legal_qa/data/legal_qa_repository.dart';
@@ -136,6 +137,8 @@ void main() {
     _Repo repo, {
     bool attorney = false,
     TextDirection dir = TextDirection.ltr,
+    Translator translator = const StaticTranslatorRu(),
+    double textScale = 1.0,
   }) async {
     useNarrowPhone(tester);
     await tester.pumpWidget(
@@ -143,9 +146,10 @@ void main() {
         Directionality(textDirection: dir, child: child),
         theme: AppTheme.light(),
         size: narrowPhone,
+        textScale: textScale,
         disableAnimations: true,
         overrides: uxOverrides(
-          translator: const StaticTranslatorRu(),
+          translator: translator,
           extra: [
             ...base,
             legalQaRepositoryProvider.overrideWithValue(repo),
@@ -164,7 +168,10 @@ void main() {
     final best = _q(best: 'a1', answers: [_a(best: true)]);
     final repo = _Repo(items: [best]);
     await pump(tester, const QaFeedScreen(), repo);
-    expect(find.text('Вопрос юристу'), findsOneWidget);
+    // The header carries the four tabs, in the owner's order.
+    for (final tab in ['Все', 'Мои', 'С лучшим', 'Без ответа']) {
+      expect(find.text(tab), findsWidgets);
+    }
     expect(find.textContaining('Can my landlord'), findsOneWidget);
     expect(find.text('NY'), findsOneWidget);
     // Owner 2026-10-20: icon + number only in the card.
@@ -176,28 +183,77 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('an attorney has no «Ask» button and no «Mine» tab', (
+  testWidgets('an attorney has no «Ask» button; «All» stays in the practice', (
     tester,
   ) async {
-    await pump(tester, const QaFeedScreen(), _Repo(), attorney: true);
+    final repo = _Repo();
+    await pump(tester, const QaFeedScreen(), repo, attorney: true);
     expect(find.text('Задать вопрос'), findsNothing);
-    expect(find.text('Мои'), findsNothing);
     expect(find.text('Вопросов нет'), findsOneWidget);
+    expect(repo.queries.first.mineScope, isTrue);
+    // «Mine» = the questions I answered: no practice narrowing.
+    await tester.tap(find.text('Мои'));
+    await tester.pumpAndSettle();
+    expect(repo.queries.last.filter, QaFilter.mine);
+    expect(repo.queries.last.mineScope, isFalse);
   });
 
-  testWidgets('the unanswered tab re-queries with its filter', (tester) async {
+  testWidgets('tabs re-query with their filter and keep search and topic', (
+    tester,
+  ) async {
     final repo = _Repo();
     await pump(tester, const QaFeedScreen(), repo);
-    // The filters sit behind the button inside the search field.
-    expect(find.text('Без ответа'), findsNothing);
+    // Owner 2026-10-21: the status filters are tabs, not filter chips.
     await tester.tap(find.byKey(const ValueKey('qa-filter-button')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Без ответа'));
-    await tester.pump();
+    expect(find.text('Без ответа'), findsWidgets);
+    expect(find.text('С лучшим'), findsWidgets);
     await tester.tap(find.text('Показать результаты'));
     await tester.pumpAndSettle();
+    await tester.enterText(find.byType(EditableText), 'deposit');
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.tap(find.text('Без ответа'));
+    await tester.pumpAndSettle();
     expect(repo.queries.last.filter, QaFilter.unanswered);
+    expect(repo.queries.last.q, 'deposit');
+    await tester.tap(find.text('С лучшим'));
+    await tester.pumpAndSettle();
+    expect(repo.queries.last.filter, QaFilter.solved);
+    expect(repo.queries.last.q, 'deposit');
   });
+
+  // Owner 2026-10-21: the four tabs fit the header at 360 dp.
+  for (final (name, t, dir) in [
+    ('ru', const StaticTranslatorRu() as Translator, TextDirection.ltr),
+    ('longest', LongestTranslator(), TextDirection.ltr),
+    ('longest rtl', LongestTranslator(), TextDirection.rtl),
+    ('ne', ShippedTranslator('ne'), TextDirection.ltr),
+    ('ar', ShippedTranslator('ar'), TextDirection.rtl),
+  ]) {
+    for (final attorney in [false, true]) {
+      testWidgets(
+        'tabs and card fit at 360 dp ($name, '
+        '${attorney ? 'attorney' : 'client'})',
+        (tester) async {
+          final full = _q(best: 'a1', answers: [_a(best: true)]);
+          await pump(
+            tester,
+            const QaFeedScreen(),
+            _Repo(items: [full]),
+            attorney: attorney,
+            dir: dir,
+            translator: t,
+            textScale: 1.1,
+          );
+          expect(tester.takeException(), isNull);
+          final bar = tester.getRect(find.byKey(const ValueKey('qa-tabs')));
+          expect(bar.width, lessThanOrEqualTo(300));
+          expect(bar.right, lessThanOrEqualTo(360));
+          expect(bar.left, greaterThanOrEqualTo(0));
+        },
+      );
+    }
+  }
 
   testWidgets('ask: «Send» stays off until topic, title and text are set', (
     tester,

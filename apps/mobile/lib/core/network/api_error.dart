@@ -84,6 +84,8 @@ abstract final class ApiErrorCodes {
   static const consultationSlotTaken = 'CONSULTATION_SLOT_TAKEN';
   static const consultationNotAvailable = 'CONSULTATION_NOT_AVAILABLE';
   static const consultationStateConflict = 'CONSULTATION_STATE_CONFLICT';
+  static const qaAnswersEnough = 'QA_ANSWERS_ENOUGH';
+  static const qaQuestionClosed = 'QA_QUESTION_CLOSED';
   static const chatAttachmentsLocked = 'CHAT_ATTACHMENTS_LOCKED';
   // OQ-048 plans and assistants.
   static const subscriptionPlanIncludesSeats =
@@ -344,6 +346,8 @@ abstract final class ApiErrorCodes {
     consultationSlotTaken,
     consultationNotAvailable,
     consultationStateConflict,
+    qaAnswersEnough,
+    qaQuestionClosed,
     chatAttachmentsLocked,
     subscriptionPlanIncludesSeats,
     assistantSeatsInUse,

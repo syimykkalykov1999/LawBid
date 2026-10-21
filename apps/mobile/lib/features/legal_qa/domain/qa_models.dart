@@ -178,7 +178,8 @@ class QuestionsQuery {
       other.mineScope == mineScope;
 
   @override
-  int get hashCode => Object.hash(q, practiceAreaId, stateCode, filter, mineScope);
+  int get hashCode =>
+      Object.hash(q, practiceAreaId, stateCode, filter, mineScope);
 }
 
 /// Owner 2026-10-20: the attorney's quiet count of fresh questions and the
