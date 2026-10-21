@@ -41,16 +41,37 @@ class CallHost extends ConsumerWidget {
   /// screen never opens. A moment later, if the call runs and no call screen
   /// is up, open it — the person always lands in the call.
   void _ensureOpen(WidgetRef ref) {
-    unawaited(
-      Future<void>.delayed(const Duration(milliseconds: 700), () {
-        final s = ref.read(callControllerProvider);
-        final talking =
-            s.phase == CallPhase.connecting || s.phase == CallPhase.active;
-        if (talking && !_onCallScreen(ref)) {
-          unawaited(router.push<void>(ChatRoutes.call));
-        }
-      }),
-    );
+    void open() {
+      final s = ref.read(callControllerProvider);
+      final talking =
+          s.phase == CallPhase.connecting || s.phase == CallPhase.active;
+      if (talking && !_onCallScreen(ref)) {
+        unawaited(router.push<void>(ChatRoutes.call));
+      }
+    }
+
+    unawaited(Future<void>.delayed(const Duration(milliseconds: 700), open));
+    // Answered while the app was minimised: the app may only now be coming
+    // to the front — open the call as soon as it is there.
+    if (WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed) {
+      var done = false;
+      late final AppLifecycleListener listener;
+      void stop() {
+        if (done) return;
+        done = true;
+        listener.dispose();
+      }
+
+      listener = AppLifecycleListener(
+        onResume: () {
+          unawaited(
+            Future<void>.delayed(const Duration(milliseconds: 300), open),
+          );
+          stop();
+        },
+      );
+      unawaited(Future<void>.delayed(const Duration(seconds: 20), stop));
+    }
   }
 
   @override
