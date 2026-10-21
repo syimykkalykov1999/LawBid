@@ -14,6 +14,7 @@ import 'package:lawbid/features/calls/application/call_end_port_stub.dart'
 import 'package:lawbid/features/calls/data/calls_repository.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:lawbid/features/notifications/application/task_reminder_scheduler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// OQ-041: the phone's own incoming-call screen (Android full-screen
 /// ringing notification / iOS CallKit) — rings on a locked screen and
@@ -149,6 +150,40 @@ bool systemEndHangsUp(CallSession s, String id) =>
     s.call?.id == id &&
     s.phase != CallPhase.incoming;
 
+final _claimedRings = <String, DateTime>{};
+
+/// True for the first caller within a minute for [callId], in this isolate
+/// (memory) and across isolates (a marker in the shared preferences).
+Future<bool> _claimRing(String callId) async {
+  final now = DateTime.now();
+  final mine = _claimedRings[callId];
+  if (mine != null && now.difference(mine) < const Duration(minutes: 1)) {
+    return false;
+  }
+  _claimedRings[callId] = now;
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    final key = 'call.ring.$callId';
+    final at = prefs.getInt(key);
+    if (at != null &&
+        now.millisecondsSinceEpoch - at <
+            const Duration(minutes: 1).inMilliseconds) {
+      return false;
+    }
+    await prefs.setInt(key, now.millisecondsSinceEpoch);
+  } on Object {
+    // No preferences here: the in-memory claim has to do.
+  }
+  return true;
+}
+
+@visibleForTesting
+Future<bool> claimRingForTest(String callId) => _claimRing(callId);
+
+@visibleForTesting
+void forgetRingClaimsForTest() => _claimedRings.clear();
+
 /// Shows the system ringing UI for [callId] (also from the push
 /// background isolate).
 Future<void> showLawbidIncoming({
@@ -160,6 +195,11 @@ Future<void> showLawbidIncoming({
   // Owner 2026-10-05: the system screen says "video call".
   bool video = false,
 }) async {
+  // Device test 2026-10-21: the push (background isolate) and the socket
+  // (app isolate) rang the same call 54 ms apart — two Telecom calls, of
+  // which «end» closed one and the other stayed as a ghost. One claim per
+  // call id, shared by both isolates.
+  if (!await _claimRing(callId)) return;
   try {
     // Already on screen (iOS: PushKit reported it before the socket did):
     // a second report would replace the call and end the one being answered.

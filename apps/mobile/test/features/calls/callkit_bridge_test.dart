@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/callkit_bridge.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 const _peer = CallPeer(id: 'p1', isAttorney: true, displayName: 'Paul Phone');
 
@@ -21,6 +22,7 @@ AppCall _call(String id) => AppCall(
 /// screen came back as an "ended" event and hung up the call just answered.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  ringClaimTests();
 
   test('our own dismiss never counts as the user hanging up', () async {
     final s = CallSession(phase: CallPhase.connecting, call: _call('a1'));
@@ -68,5 +70,31 @@ void main() {
     );
     await const CallkitSystemUi().endAll();
     expect(seen, ['clear']);
+  });
+}
+
+void ringClaimTests() {
+  group('one system ring per call id (push and socket both ring it)', () {
+    setUp(() {
+      SharedPreferences.setMockInitialValues({});
+      forgetRingClaimsForTest();
+    });
+
+    test('the second report of the same call is refused', () async {
+      expect(await claimRingForTest('c1'), isTrue);
+      expect(await claimRingForTest('c1'), isFalse);
+    });
+
+    test('another call is its own', () async {
+      expect(await claimRingForTest('c1'), isTrue);
+      expect(await claimRingForTest('c2'), isTrue);
+    });
+
+    test('a claim made by the other isolate (preferences) counts', () async {
+      SharedPreferences.setMockInitialValues({
+        'call.ring.c9': DateTime.now().millisecondsSinceEpoch,
+      });
+      expect(await claimRingForTest('c9'), isFalse);
+    });
   });
 }
