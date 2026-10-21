@@ -7,6 +7,7 @@ import 'package:json_annotation/json_annotation.dart';
 import 'group_detail_dto_my_rights.dart';
 import 'group_member_dto.dart';
 import 'group_message_dto.dart';
+import 'group_person_dto.dart';
 import 'group_role.dart';
 import 'group_type.dart';
 import 'group_who.dart';
@@ -16,48 +17,49 @@ part 'group_detail_dto.g.dart';
 @JsonSerializable()
 class GroupDetailDto {
   const GroupDetailDto({
-    required this.myRights,
+    required this.showServiceMessages,
     required this.title,
-    required this.members,
-    required this.updatedAt,
-    required this.createdAt,
     required this.memberCount,
     required this.type,
-    required this.whoCanPost,
+    required this.whoCanAdd,
     required this.joinApproval,
     required this.topicsEnabled,
-    required this.pinned,
     required this.pendingRequests,
-    required this.callsMuted,
+    required this.whoCanPost,
     required this.id,
-    required this.whoCanAdd,
     required this.whoCanEditInfo,
     required this.whoCanCall,
     required this.whoCanMedia,
     required this.whoCanPoll,
     required this.whoCanPin,
-    required this.isAdmin,
-    required this.showServiceMessages,
-    required this.unreadCount,
+    required this.myRights,
+    required this.inviteEnabled,
     required this.canPost,
     required this.canAdd,
     required this.canEditInfo,
     required this.canCall,
-    required this.inviteEnabled,
+    required this.isAdmin,
+    required this.callsMuted,
+    required this.pinned,
+    required this.invited,
+    required this.members,
+    required this.createdAt,
+    required this.updatedAt,
     required this.unreadMentions,
-    this.inviteLink,
+    required this.unreadCount,
     this.pinnedMessage,
     this.lastMessage,
     this.lastMessageAt,
-    this.disappearAfterS,
-    this.username,
+    this.inviteLink,
+    this.notAdded,
     this.mutedUntil,
+    this.disappearAfterS,
     this.myRole,
     this.generalTopicId,
     this.avatarFullUrl,
     this.avatarUrl,
     this.description,
-    this.notAdded,
+    this.username,
   });
 
   factory GroupDetailDto.fromJson(Map<String, Object?> json) =>
@@ -133,7 +135,10 @@ class GroupDetailDto {
   final DateTime updatedAt;
   final List<GroupMemberDto> members;
 
-  /// Only after adding members: people who could not be added (blocked, inactive or their privacy settings).
+  /// Owner 2026-10-21: people invited and not answered yet (only for those who can invite).
+  final List<GroupPersonDto> invited;
+
+  /// Only after inviting: people who could not be invited (blocked, inactive, their privacy settings, or declined less than a day ago).
   final List<String>? notAdded;
 
   Map<String, Object?> toJson() => _$GroupDetailDtoToJson(this);
