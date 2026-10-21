@@ -95,7 +95,7 @@ class ChannelPostCard extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             const AppSheetHandle(),
-            if (channel.isAdmin)
+            if (channel.isAdmin || post.mine)
               AppListRow(
                 key: const ValueKey('channel-post-edit'),
                 icon: AppIcons.editOutlined,
@@ -126,7 +126,7 @@ class ChannelPostCard extends ConsumerWidget {
                 shareChannel(context, ref, channel, postId: post.id);
               },
             ),
-            if (!channel.isAdmin)
+            if (!channel.isAdmin && !post.mine)
               AppListRow(
                 key: const ValueKey('channel-post-report'),
                 icon: AppIcons.flagOutlined,
@@ -142,7 +142,7 @@ class ChannelPostCard extends ConsumerWidget {
                   );
                 },
               ),
-            if (channel.isAdmin)
+            if (channel.isAdmin || post.mine)
               AppListRow(
                 key: const ValueKey('channel-post-delete'),
                 icon: AppIcons.deleteOutlineRounded,

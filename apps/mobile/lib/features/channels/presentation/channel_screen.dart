@@ -434,6 +434,19 @@ class _ChannelHeaderState extends ConsumerState<ChannelHeader> {
                 ),
               ),
             ],
+            // Owner 2026-10-21 (inbox 26b): a subscriber publishes too
+            // while the owner has opened the channel to all.
+            if (channel.canPostAsMember) ...[
+              const SizedBox(width: AppSpacing.sm),
+              AppIconButton(
+                key: const ValueKey('channel-new-post-member'),
+                plain: false,
+                icon: AppIcon(AppIcons.editNoteRounded, color: colors.text),
+                semanticLabel: t.t('channel.newPost'),
+                onPressed: () =>
+                    context.push(ChannelsRoutes.compose(channel.id)),
+              ),
+            ],
             const SizedBox(width: AppSpacing.sm),
             AppIconButton(
               key: const ValueKey('channel-share'),

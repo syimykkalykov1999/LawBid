@@ -4,6 +4,8 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'channel_who.dart';
+
 part 'update_channel_dto.g.dart';
 
 @JsonSerializable()
@@ -16,6 +18,7 @@ class UpdateChannelDto {
     this.removeAvatar,
     this.commentsEnabled,
     this.protectContent,
+    this.whoCanPost,
   });
 
   factory UpdateChannelDto.fromJson(Map<String, Object?> json) =>
@@ -34,6 +37,9 @@ class UpdateChannelDto {
 
   /// Owner 2026-10-21 (Telegram «Запретить копирование и пересылку»).
   final bool? protectContent;
+
+  /// Owner only (inbox 26b): 'all' lets every subscriber publish.
+  final ChannelWho? whoCanPost;
 
   Map<String, Object?> toJson() => _$UpdateChannelDtoToJson(this);
 }

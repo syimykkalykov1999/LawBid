@@ -32,6 +32,7 @@ import 'package:lawbid/core/l10n/strings/file05_strings.dart';
 import 'package:lawbid/core/l10n/strings/file06_strings.dart';
 import 'package:lawbid/core/l10n/strings/file07_strings.dart';
 import 'package:lawbid/core/l10n/strings/forward_strings.dart';
+import 'package:lawbid/core/l10n/strings/parity_strings.dart';
 import 'package:lawbid/core/l10n/strings/group_strings.dart';
 import 'package:lawbid/core/l10n/strings/invite_strings.dart';
 import 'package:lawbid/core/l10n/strings/legal_docs_strings.dart';
@@ -1172,6 +1173,7 @@ class StaticTranslatorRu extends _MapTranslator {
         ...contactInfoRu,
         ...disappearingRu,
         ...forwardRu,
+        ...parityRu,
         ...file07Ru,
         ...reelsRu,
         ...auditCasesRu,
@@ -2611,6 +2613,7 @@ class StaticTranslatorEn extends _MapTranslator {
         ...contactInfoEn,
         ...disappearingEn,
         ...forwardEn,
+        ...parityEn,
         ...file07En,
         ...reelsEn,
         ...auditCasesEn,

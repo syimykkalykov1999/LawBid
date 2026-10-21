@@ -139278,6 +139278,14 @@
           "data"
         ]
       },
+      "ChannelWho": {
+        "type": "string",
+        "enum": [
+          "admins",
+          "all"
+        ],
+        "description": "Owner 2026-10-21 (inbox 26b): who publishes posts."
+      },
       "ChannelStatus": {
         "type": "string",
         "enum": [
@@ -139328,6 +139336,18 @@
           "protectContent": {
             "type": "boolean",
             "description": "Owner 2026-10-21 (Telegram): restrict saving content — no\nforwarding, copying or saving of the posts; sharing sends the link."
+          },
+          "whoCanPost": {
+            "description": "Owner 2026-10-21 (inbox 26b): who publishes posts.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ChannelWho"
+              }
+            ]
+          },
+          "canPost": {
+            "type": "boolean",
+            "description": "I may publish here: an admin, or a subscriber while it is open to all."
           },
           "status": {
             "description": "Hidden / banned are only reported to the channel's admins.",
@@ -139477,6 +139497,14 @@
           "protectContent": {
             "type": "boolean",
             "description": "Owner 2026-10-21 (Telegram «Запретить копирование и пересылку»)."
+          },
+          "whoCanPost": {
+            "description": "Owner only (inbox 26b): 'all' lets every subscriber publish.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ChannelWho"
+              }
+            ]
           }
         }
       },
@@ -139681,6 +139709,10 @@
             "type": "string",
             "nullable": true,
             "description": "Owner 2026-10-21: a forwarded post — «Forwarded from <name>»."
+          },
+          "mine": {
+            "type": "boolean",
+            "description": "I wrote it (I may edit and delete it)."
           }
         },
         "required": [

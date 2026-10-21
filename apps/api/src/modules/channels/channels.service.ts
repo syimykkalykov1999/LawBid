@@ -265,6 +265,16 @@ export class ChannelsService {
     if (dto.protectContent !== undefined) {
       data.protect_content = dto.protectContent;
     }
+    // Owner 2026-10-21 (inbox 26b): only the owner opens publishing to all.
+    if (
+      dto.whoCanPost !== undefined &&
+      dto.whoCanPost !== channel.who_can_post
+    ) {
+      if (role !== 'owner') {
+        throw forbidden('Only the owner decides who publishes.');
+      }
+      data.who_can_post = dto.whoCanPost;
+    }
     if (dto.username !== undefined && dto.username !== channel.username) {
       if (role !== 'owner')
         throw forbidden('Only the owner renames @username.');
@@ -546,7 +556,7 @@ export class ChannelsService {
   ): Promise<ChannelPostDto> {
     await this.assertEnabled();
     const me = user.sub;
-    const { channel } = await this.asAdmin(me, id);
+    const { channel } = await this.asPoster(me, id);
     if (channel.status !== 'active') {
       throw forbidden('This channel is closed by moderation.');
     }
@@ -696,7 +706,7 @@ export class ChannelsService {
       throw unsupportedInTarget();
     }
     await this.assertEnabled();
-    const { channel } = await this.asAdmin(user.sub, id);
+    const { channel } = await this.asPoster(user.sub, id);
     const again = await this.byForwardKey(channel.id, user.sub, forwardKey);
     if (again) return (await this.presentPosts([again], user.sub))[0];
     const mediaFileIds: string[] = [];
@@ -730,10 +740,11 @@ export class ChannelsService {
     body: string,
   ): Promise<ChannelPostDto> {
     await this.assertEnabled();
-    await this.asAdmin(user.sub, id);
     const post = await this.prisma.channelPost.findFirst({
       where: { id: postId, channel_id: id, status: 'active' },
     });
+    // Owner 2026-10-21 (inbox 26b): the admins, or the author of the post.
+    if (!post || post.author_id !== user.sub) await this.asAdmin(user.sub, id);
     if (!post) throw notFound('Post');
     const row = await this.prisma.channelPost.update({
       where: { id: postId },
@@ -749,10 +760,10 @@ export class ChannelsService {
     postId: string,
   ): Promise<void> {
     await this.assertEnabled();
-    await this.asAdmin(user.sub, id);
     const post = await this.prisma.channelPost.findFirst({
-      where: { id: postId, channel_id: id },
+      where: { id: postId, channel_id: id, deleted_at: null },
     });
+    if (!post || post.author_id !== user.sub) await this.asAdmin(user.sub, id);
     if (!post) throw notFound('Post');
     await this.prisma.$transaction([
       this.prisma.channelPost.update({
@@ -1033,6 +1044,32 @@ export class ChannelsService {
     return { channel, role };
   }
 
+  /**
+   * Owner 2026-10-21 (inbox 26b): who may publish — the admins, or any
+   * subscriber while the owner has opened the channel to all.
+   */
+  private async asPoster(
+    userId: string,
+    id: string,
+  ): Promise<{ channel: Channel; role: ChannelRole | null }> {
+    const channel = await this.prisma.channel.findFirst({ where: { id } });
+    if (!channel) throw notFound();
+    const role = await this.roleOf(userId, id);
+    if (role) return { channel, role };
+    if (channel.status === 'banned') throw notFound();
+    if (channel.who_can_post === 'all') {
+      if (await this.blocks.isBlockedEitherWay(userId, channel.owner_id)) {
+        throw notFound();
+      }
+      const sub = await this.prisma.channelSubscription.findUnique({
+        where: { channel_id_user_id: { channel_id: id, user_id: userId } },
+        select: { user_id: true },
+      });
+      if (sub) return { channel, role: null };
+    }
+    throw forbidden('Only channel admins can do this.');
+  }
+
   /** The same bar as a feed post: a verified attorney, or a client with a
    * verified phone. */
   private async assertCanPublish(userId: string): Promise<void> {
@@ -1142,6 +1179,10 @@ export class ChannelsService {
             : null,
           commentsEnabled: r.comments_enabled,
           protectContent: r.protect_content,
+          whoCanPost: r.who_can_post === 'all' ? 'all' : 'admins',
+          canPost:
+            r.status === 'active' &&
+            (role !== null || (r.who_can_post === 'all' && subBy.has(r.id))),
           // Moderation state is the admins' business only.
           status: role ? (r.status as ChannelStatus) : 'active',
           subscriberCount: r.subscriber_count,
@@ -1221,6 +1262,7 @@ export class ChannelsService {
           createdAt: r.created_at.toISOString(),
           editedAt: r.edited_at ? r.edited_at.toISOString() : null,
           forwardedFrom: r.forwarded_from_name,
+          mine: r.author_id === viewerId,
         },
       ];
     });

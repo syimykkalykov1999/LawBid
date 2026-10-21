@@ -6,6 +6,7 @@ import 'package:json_annotation/json_annotation.dart';
 
 import 'channel_role.dart';
 import 'channel_status.dart';
+import 'channel_who.dart';
 import 'user_brief_dto.dart';
 
 part 'channel_dto.g.dart';
@@ -28,6 +29,8 @@ class ChannelDto {
     this.avatarUrl,
     this.avatarFullUrl,
     this.protectContent,
+    this.whoCanPost,
+    this.canPost,
     this.myRole,
     this.lastPostAt,
   });
@@ -50,6 +53,12 @@ class ChannelDto {
   /// Owner 2026-10-21 (Telegram): restrict saving content — no.
   /// forwarding, copying or saving of the posts; sharing sends the link.
   final bool? protectContent;
+
+  /// Owner 2026-10-21 (inbox 26b): who publishes posts.
+  final ChannelWho? whoCanPost;
+
+  /// I may publish here: an admin, or a subscriber while it is open to all.
+  final bool? canPost;
 
   /// Hidden / banned are only reported to the channel's admins.
   final ChannelStatus status;

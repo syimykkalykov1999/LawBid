@@ -39,6 +39,8 @@ Channel fakeChannel({
   String? description = 'Weekly tax notes, see https://example.test/tax.',
   ChannelState state = ChannelState.active,
   String? avatarUrl,
+  ChannelWho whoCanPost = ChannelWho.admins,
+  bool? canPost,
 }) =>
     Channel(
       id: id,
@@ -56,6 +58,8 @@ Channel fakeChannel({
       isMuted: muted,
       myRole: role,
       createdAt: DateTime(2026, 10),
+      whoCanPost: whoCanPost,
+      canPost: canPost ?? role != null,
     );
 
 ChannelPost fakePost(
@@ -68,6 +72,7 @@ ChannelPost fakePost(
   List<ChannelReactionCount> reactions = const [],
   PostVideo? video,
   List<ChannelMedia> media = const [],
+  bool own = false,
 }) =>
     ChannelPost(
       id: id,
@@ -81,6 +86,7 @@ ChannelPost fakePost(
       reactions: reactions,
       myReaction: mine,
       createdAt: DateTime(2026, 10, 19, 10),
+      mine: own,
     );
 
 ChannelComment fakeComment(String id, {bool canDelete = false}) =>
@@ -154,7 +160,13 @@ class FakeChannelsRepository implements ChannelsRepository {
 
   @override
   Future<Channel> update(String id, ChannelDraft d, {String? username}) =>
-      _run('update:$id:${username ?? ''}', () => channel);
+      _run('update:$id:${username ?? ''}', () {
+        lastDraft = d;
+        return channel;
+      });
+
+  /// The last draft [update] sent.
+  ChannelDraft? lastDraft;
 
   @override
   Future<void> delete(String id) => _run('delete:$id', () {});

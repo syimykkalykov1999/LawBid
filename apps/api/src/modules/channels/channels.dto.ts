@@ -24,6 +24,11 @@ export type ChannelStatus = (typeof CHANNEL_STATUSES)[number];
 export const CHANNEL_ROLES = ['owner', 'admin'] as const;
 export type ChannelRole = (typeof CHANNEL_ROLES)[number];
 
+/** Owner 2026-10-21 (inbox 26b): who publishes — the admins or everyone
+ * subscribed. */
+export const CHANNEL_WHO = ['admins', 'all'] as const;
+export type ChannelWho = (typeof CHANNEL_WHO)[number];
+
 /** The reactions a subscriber can put on a post. */
 export const CHANNEL_REACTIONS = ['👍', '❤️', '🔥', '👏', '😮', '🙏'] as const;
 
@@ -69,6 +74,14 @@ export class ChannelDto {
    * forwarding, copying or saving of the posts; sharing sends the link. */
   @ApiPropertyOptional()
   protectContent!: boolean;
+
+  /** Owner 2026-10-21 (inbox 26b): who publishes posts. */
+  @ApiPropertyOptional({ enum: CHANNEL_WHO, enumName: 'ChannelWho' })
+  whoCanPost?: ChannelWho;
+
+  /** I may publish here: an admin, or a subscriber while it is open to all. */
+  @ApiPropertyOptional()
+  canPost?: boolean;
 
   /** Hidden / banned are only reported to the channel's admins. */
   @ApiProperty({ enum: CHANNEL_STATUSES, enumName: 'ChannelStatus' })
@@ -210,6 +223,12 @@ export class UpdateChannelDto {
   @IsOptional()
   @IsBoolean()
   protectContent?: boolean;
+
+  /** Owner only (inbox 26b): 'all' lets every subscriber publish. */
+  @ApiPropertyOptional({ enum: CHANNEL_WHO, enumName: 'ChannelWho' })
+  @IsOptional()
+  @IsIn(CHANNEL_WHO)
+  whoCanPost?: ChannelWho;
 }
 
 export class ChannelMediaDto {
@@ -274,6 +293,10 @@ export class ChannelPostDto {
   /** Owner 2026-10-21: a forwarded post — «Forwarded from <name>». */
   @ApiPropertyOptional({ type: String, nullable: true })
   forwardedFrom!: string | null;
+
+  /** I wrote it (I may edit and delete it). */
+  @ApiPropertyOptional()
+  mine?: boolean;
 }
 
 export class CreateChannelPostDto {

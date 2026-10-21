@@ -15,6 +15,8 @@ import 'package:lawbid/features/channels/domain/channel_models.dart';
 import 'package:lawbid/features/channels/presentation/channel_actions.dart';
 import 'package:lawbid/features/channels/presentation/channel_pickers.dart';
 import 'package:lawbid/features/channels/presentation/channel_widgets.dart';
+import 'package:lawbid/features/groups/presentation/widgets/group_info_sheets.dart'
+    show GroupChoice, showGroupChoiceSheet;
 import 'package:lawbid/shared/presentation/handle_hints.dart';
 
 /// Owner 2026-10-20: create a channel (verified attorneys) or, with
@@ -75,6 +77,7 @@ class _FormState extends ConsumerState<_Form> {
       TextEditingController(text: widget.editing?.description ?? '');
   late bool _comments = widget.editing?.commentsEnabled ?? true;
   late bool _protect = widget.editing?.protectContent ?? false;
+  late ChannelWho _who = widget.editing?.whoCanPost ?? ChannelWho.admins;
 
   Uint8List? _avatarBytes;
   String? _avatarFileId;
@@ -199,6 +202,7 @@ class _FormState extends ConsumerState<_Form> {
       avatarFileId: _avatarFileId,
       removeAvatar: _removeAvatar,
       protectContent: editing == null ? null : _protect,
+      whoCanPost: editing != null && editing.isOwner ? _who : null,
     );
     setState(() {
       _saving = true;
@@ -265,6 +269,29 @@ class _FormState extends ConsumerState<_Form> {
         showAppSnackBar(context, channelErrorText(t, e));
       }
     }
+  }
+
+  /// Owner 2026-10-21 (inbox 26b): who publishes — the owner decides.
+  Future<void> _pickWho() async {
+    final t = ref.read(translatorProvider);
+    final picked = await showGroupChoiceSheet<ChannelWho>(
+      context,
+      title: t.t('channel.form.whoPost'),
+      current: _who,
+      choices: [
+        GroupChoice(
+          value: ChannelWho.admins,
+          label: t.t('group.info.who.admins'),
+          icon: AppIcons.adminPanelSettingsOutlined,
+        ),
+        GroupChoice(
+          value: ChannelWho.all,
+          label: t.t('channel.who.all'),
+          icon: AppIcons.groups2Outlined,
+        ),
+      ],
+    );
+    if (picked != null && mounted) setState(() => _who = picked);
   }
 
   String? _usernameError(Translator t) {
@@ -485,6 +512,18 @@ class _FormState extends ConsumerState<_Form> {
                             ),
                           ],
                         ),
+                      ),
+                    ],
+                    if (editing != null && editing.isOwner) ...[
+                      const SizedBox(height: AppSpacing.md),
+                      AppListRow(
+                        key: const ValueKey('channel-who-post'),
+                        icon: AppIcons.editNoteRounded,
+                        label: t.t('channel.form.whoPost'),
+                        subtitle: _who == ChannelWho.all
+                            ? t.t('channel.who.all')
+                            : t.t('group.info.who.admins'),
+                        onTap: _saving ? null : _pickWho,
                       ),
                     ],
                     if (editing != null && editing.isOwner) ...[

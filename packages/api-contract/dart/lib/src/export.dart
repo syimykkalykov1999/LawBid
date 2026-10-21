@@ -1162,6 +1162,7 @@ export 'models/create_story_dto.dart';
 export 'models/story_envelope.dart';
 export 'models/story_viewer_dto.dart';
 export 'models/story_viewer_list_envelope.dart';
+export 'models/channel_who.dart';
 export 'models/channel_status.dart';
 export 'models/channel_role.dart';
 export 'models/channel_dto.dart';

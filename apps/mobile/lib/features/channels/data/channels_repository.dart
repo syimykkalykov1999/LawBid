@@ -132,6 +132,11 @@ class ChannelsRepository {
               removeAvatar: d.removeAvatar ? true : null,
               commentsEnabled: d.commentsEnabled,
               protectContent: d.protectContent,
+              whoCanPost: switch (d.whoCanPost) {
+                ChannelWho.all => api.ChannelWho.all,
+                ChannelWho.admins => api.ChannelWho.admins,
+                null => null,
+              },
             ),
           ),
         ))
@@ -554,6 +559,10 @@ class ChannelsRepository {
         lastPostAt: d.lastPostAt,
         createdAt: d.createdAt,
         protectContent: d.protectContent ?? false,
+        whoCanPost: d.whoCanPost == api.ChannelWho.all
+            ? ChannelWho.all
+            : ChannelWho.admins,
+        canPost: d.canPost ?? d.myRole != null,
       );
 
   static ChannelPost postOf(api.ChannelPostDto d) => ChannelPost(
@@ -581,6 +590,7 @@ class ChannelsRepository {
         createdAt: d.createdAt,
         editedAt: d.editedAt,
         forwardedFrom: d.forwardedFrom,
+        mine: d.mine ?? false,
       );
 
   static PostVideo videoOf(api.PostVideoDto v) => PostVideo(

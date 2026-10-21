@@ -33,6 +33,10 @@ enum ChannelRole { owner, admin }
 
 enum ChannelState { active, hidden, banned }
 
+/// Owner 2026-10-21 (inbox 26b): who publishes — the admins or every
+/// subscriber.
+enum ChannelWho { admins, all }
+
 @immutable
 class ChannelPerson {
   const ChannelPerson({
@@ -79,6 +83,8 @@ class Channel {
     this.myRole,
     this.lastPostAt,
     this.protectContent = false,
+    this.whoCanPost = ChannelWho.admins,
+    this.canPost = false,
   });
 
   final String id;
@@ -105,6 +111,13 @@ class Channel {
   /// Owner 2026-10-21 (Telegram «Запретить копирование и пересылку»): the
   /// posts are not forwarded, copied or saved; sharing gives the link.
   final bool protectContent;
+
+  /// Owner 2026-10-21 (inbox 26b): who publishes, and whether I may.
+  final ChannelWho whoCanPost;
+  final bool canPost;
+
+  /// A subscriber (not an admin) who may publish while it is open to all.
+  bool get canPostAsMember => !isAdmin && canPost && !isClosed;
 
   bool get isOwner => myRole == ChannelRole.owner;
   bool get isAdmin => myRole != null;
@@ -135,6 +148,8 @@ class Channel {
         lastPostAt: lastPostAt,
         createdAt: createdAt,
         protectContent: protectContent,
+        whoCanPost: whoCanPost,
+        canPost: canPost,
       );
 }
 
@@ -176,6 +191,7 @@ class ChannelPost {
     this.myReaction,
     this.editedAt,
     this.forwardedFrom,
+    this.mine = false,
   });
 
   final String id;
@@ -194,6 +210,9 @@ class ChannelPost {
 
   /// Owner 2026-10-21: a forwarded post — «Forwarded from <name>».
   final String? forwardedFrom;
+
+  /// I wrote it (owner 2026-10-21, inbox 26b: a subscriber's own post).
+  final bool mine;
 
   int get reactionTotal => reactions.fold(0, (s, r) => s + r.count);
 
@@ -259,6 +278,7 @@ class ChannelPost {
         createdAt: createdAt,
         editedAt: editedAt ?? this.editedAt,
         forwardedFrom: forwardedFrom,
+        mine: mine,
       );
 }
 
@@ -298,6 +318,7 @@ class ChannelDraft {
     this.avatarFileId,
     this.removeAvatar = false,
     this.protectContent,
+    this.whoCanPost,
   });
 
   final String title;
@@ -307,6 +328,9 @@ class ChannelDraft {
 
   /// Editing only (null: unchanged).
   final bool? protectContent;
+
+  /// Editing by the owner only (null: unchanged).
+  final ChannelWho? whoCanPost;
   final String? avatarFileId;
   final bool removeAvatar;
 }
