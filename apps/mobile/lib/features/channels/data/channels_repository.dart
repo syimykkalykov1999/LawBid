@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart' show XFile;
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/request_flags.dart';
 import 'package:lawbid/features/channels/domain/channel_models.dart';
+import 'package:lawbid/features/groups/domain/ongoing_call.dart';
 import 'package:lawbid/features/social/domain/social_models.dart'
     show PostVideo;
 import 'package:lawbid/shared/domain/cursor_page.dart';
@@ -534,6 +535,7 @@ class ChannelsRepository {
         username: d.username,
         description: d.description,
         avatarUrl: d.avatarUrl,
+        avatarFullUrl: d.avatarFullUrl,
         commentsEnabled: d.commentsEnabled,
         state: switch (d.status) {
           api.ChannelStatus.hidden => ChannelState.hidden,
@@ -553,6 +555,7 @@ class ChannelsRepository {
         lastPostAt: d.lastPostAt,
         createdAt: d.createdAt,
         protectContent: d.protectContent ?? false,
+        ongoingCall: OngoingCallSummary.fromDto(d.ongoingCall),
       );
 
   static ChannelPost postOf(api.ChannelPostDto d) => ChannelPost(

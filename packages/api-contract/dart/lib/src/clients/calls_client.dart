@@ -78,6 +78,21 @@ abstract class CallsClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
+  /// Start the call of a channel (owner / admins; joins the running one)
+  @POST('/channels/{id}/calls')
+  Future<CallEnvelope> startChannelCall({
+    @Path('id') required String id,
+    @Body() StartCallDto? body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// The call running in a channel (404 when none)
+  @GET('/channels/{id}/call')
+  Future<CallEnvelope> channelCall({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
   /// Join the call running in your group chat
   @POST('/calls/{id}/join')
   Future<CallEnvelope> joinCall({

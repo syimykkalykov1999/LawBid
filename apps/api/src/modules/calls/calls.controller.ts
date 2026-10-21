@@ -111,6 +111,44 @@ export class CallsController {
     return this.calls.groupCall(user, p.id);
   }
 
+  @Post('channels/:id/calls')
+  @ApiOperation({
+    summary:
+      'Start the call of a channel (owner / admins; joins the running one)',
+  })
+  @ApiBody({ type: StartCallDto, required: false })
+  @ApiEnvelopeResponse(CallDto, { status: 201 })
+  @ApiErrors({
+    403: [
+      ErrorCode.FORBIDDEN,
+      ErrorCode.ENTITLEMENT_REQUIRED,
+      ErrorCode.FEATURE_DISABLED,
+    ],
+    404: [ErrorCode.NOT_FOUND],
+    409: [ErrorCode.CALL_IN_PROGRESS, ErrorCode.CALL_STATE_CONFLICT],
+  })
+  startChannelCall(
+    @CurrentUser() user: RequestUser,
+    @Param() p: GroupCallParamDto,
+    @Body() dto: StartCallDto,
+  ): Promise<CallDto> {
+    return this.calls.startChannelCall(user, p.id, dto ?? {});
+  }
+
+  @Get('channels/:id/call')
+  @ApiOperation({ summary: 'The call running in a channel (404 when none)' })
+  @ApiEnvelopeResponse(CallDto)
+  @ApiErrors({
+    403: [ErrorCode.FORBIDDEN, ErrorCode.FEATURE_DISABLED],
+    404: [ErrorCode.NOT_FOUND, ErrorCode.CALL_NOT_FOUND],
+  })
+  channelCall(
+    @CurrentUser() user: RequestUser,
+    @Param() p: GroupCallParamDto,
+  ): Promise<CallDto> {
+    return this.calls.channelCall(user, p.id);
+  }
+
   @Post('calls/:id/join')
   @HttpCode(200)
   @ApiOperation({ summary: 'Join the call running in your group chat' })

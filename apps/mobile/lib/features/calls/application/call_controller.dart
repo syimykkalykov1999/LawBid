@@ -325,6 +325,10 @@ class CallController extends Notifier<CallSession> {
 
   // Per-member links (a two-person call has one).
   final _offered = <String>{};
+
+  /// An offer (we answer) or an answer (we offered) has come through: the
+  /// signalling reaches us, no need to nudge it again (see [_nudgeSignals]).
+  bool _signalSeen = false;
   final _connected = <String>{};
   final _reconnect = <String, ({Timer grace, Timer retry})>{};
   bool _syncingLinks = false;
@@ -616,6 +620,7 @@ class CallController extends Notifier<CallSession> {
         await _offerTo(call.id, call.peer.id);
         await _syncLinks();
       }
+      unawaited(_nudgeSignals(call.id));
     } on ApiException catch (e) {
       if (gen != _gen) return;
       state = state.copyWith(errorCode: e.code);
@@ -722,6 +727,19 @@ class CallController extends Notifier<CallSession> {
         peer: peer,
         video: video,
         open: () => _repo.startGroup(groupId, video: video, userIds: userIds),
+      );
+
+  /// Owner 2026-10-21 (inbox 20e): the phone / video button of a channel
+  /// (owner / admins). Nobody rings; subscribers join from the channel.
+  Future<String?> startChannelCall(
+    String channelId, {
+    required CallPeer peer,
+    bool video = false,
+  }) =>
+      _enterGroupCall(
+        peer: peer,
+        video: video,
+        open: () => _repo.startChannel(channelId, video: video),
       );
 
   /// "Join" on the banner of a group chat with a call running.
@@ -1356,7 +1374,8 @@ class CallController extends Notifier<CallSession> {
               if (p != peer && _connected.contains(p)) p,
           ];
     if (state.call?.group ?? false) {
-      if (others.isNotEmpty) {
+      // A channel's call goes on with nobody else in it (Telegram).
+      if (others.isNotEmpty || state.call?.channelId != null) {
         _forgetLink(peer);
         unawaited(media?.removePeer(peer));
         return;
@@ -1460,12 +1479,14 @@ class CallController extends Notifier<CallSession> {
     try {
       switch (data['type']) {
         case 'offer':
+          _signalSeen = true;
           // A member we have no link with yet: they joined after us.
           if (!media.peers.contains(peer)) await _addLink(call.id, peer);
           final answer = await media.answerFor(peer, data);
           await ref.read(callSignalSenderProvider)(call.id, answer, to: peer);
         case 'answer':
           if (!_offered.contains(peer)) return;
+          _signalSeen = true;
           await media.setAnswerFor(peer, data);
         case 'candidate':
           if (media.peers.contains(peer)) {
@@ -1515,6 +1536,7 @@ class CallController extends Notifier<CallSession> {
           state = state.copyWith(phase: CallPhase.connecting, call: call);
           _armConnectTimeout();
           unawaited(_sendOffer(call));
+          unawaited(_nudgeSignals(call.id));
         } else if (!call.outgoing && state.phase == CallPhase.incoming) {
           // Picked up on another of our devices.
           unawaited(ref.read(systemCallUiProvider).dismiss(call.id));
@@ -1580,6 +1602,27 @@ class CallController extends Notifier<CallSession> {
     }
   }
 
+  /// Device test 2026-10-21 (Samsung → locked iPhone, answered on the
+  /// CallKit screen): the offer / answer went to the server while the
+  /// phone's socket was not yet in its room, and signalling is never stored
+  /// — the call rang on for ever. Until one has come through, renew the
+  /// route now and then: the offerer sends a fresh offer, the answerer asks
+  /// for one.
+  Future<void> _nudgeSignals(String callId) async {
+    final gen = _gen;
+    for (var i = 0; i < 6; i++) {
+      await Future<void>.delayed(const Duration(seconds: 3));
+      if (!ref.mounted ||
+          gen != _gen ||
+          _signalSeen ||
+          state.call?.id != callId ||
+          state.phase != CallPhase.connecting) {
+        return;
+      }
+      await _restartAll();
+    }
+  }
+
   Future<void> _sendOffer(AppCall call) => _offerTo(call.id, call.peer.id);
 
   /// A "call over" push (the socket may be asleep): the server decides.
@@ -1610,7 +1653,7 @@ class CallController extends Notifier<CallSession> {
           ? null
           : call.participants.where((m) => m.userId == me).firstOrNull;
       if (call.group &&
-          call.groupId != null &&
+          (call.groupId != null || call.channelId != null) &&
           state.phase == CallPhase.active &&
           (mine == null || !mine.joined) &&
           mine?.status != CallMemberStatus.invited) {
@@ -1713,6 +1756,7 @@ class CallController extends Notifier<CallSession> {
     _mediaOpen = false;
     _earlySignals.clear();
     _offered.clear();
+    _signalSeen = false;
     _connected.clear();
     _syncAgain = false;
   }

@@ -168,12 +168,18 @@ void main() {
     );
   });
 
-  testWidgets('a full video call (6) shows the limit instead of the field',
+  testWidgets('a full video call (9) shows the limit instead of the field',
       (tester) async {
-    await _open(tester, session: _session(people: 6, video: true));
+    await _open(tester, session: _session(people: 9, video: true));
     expect(find.byKey(const ValueKey('call-add-full')), findsOneWidget);
-    expect(find.text(_t.t('call.fullMax', {'count': '6'})), findsOneWidget);
+    expect(find.text(_t.t('call.fullMax', {'count': '9'})), findsOneWidget);
     expect(find.byKey(const ValueKey('call-add-field')), findsNothing);
+  });
+
+  testWidgets('a video call holds 9 too: 8 people still may add',
+      (tester) async {
+    await _open(tester, session: _session(people: 8, video: true));
+    expect(find.byKey(const ValueKey('call-add-field')), findsOneWidget);
   });
 
   testWidgets('an audio call holds 9: 8 people still may add', (tester) async {
@@ -181,10 +187,11 @@ void main() {
     expect(find.byKey(const ValueKey('call-add-field')), findsOneWidget);
   });
 
-  test('call capacity follows the server (9 audio / 6 video)', () {
+  test('call capacity follows the server (9 audio / 9 video, mesh)', () {
     expect(_session(people: 9).call!.full, isTrue);
     expect(_session(people: 8).call!.full, isFalse);
-    expect(_session(people: 6, video: true).call!.full, isTrue);
-    expect(_session(people: 5, video: true).call!.capacity, 6);
+    expect(_session(people: 9, video: true).call!.full, isTrue);
+    expect(_session(people: 8, video: true).call!.full, isFalse);
+    expect(_session(people: 5, video: true).call!.capacity, 9);
   });
 }

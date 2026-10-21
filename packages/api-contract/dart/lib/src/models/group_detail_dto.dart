@@ -11,42 +11,43 @@ import 'group_person_dto.dart';
 import 'group_role.dart';
 import 'group_type.dart';
 import 'group_who.dart';
+import 'ongoing_call_dto.dart';
 
 part 'group_detail_dto.g.dart';
 
 @JsonSerializable()
 class GroupDetailDto {
   const GroupDetailDto({
-    required this.showServiceMessages,
+    required this.callsMuted,
     required this.title,
     required this.memberCount,
     required this.type,
-    required this.whoCanAdd,
+    required this.whoCanEditInfo,
     required this.joinApproval,
     required this.topicsEnabled,
     required this.pendingRequests,
     required this.whoCanPost,
+    required this.whoCanAdd,
     required this.id,
-    required this.whoCanEditInfo,
     required this.whoCanCall,
     required this.whoCanMedia,
     required this.whoCanPoll,
     required this.whoCanPin,
     required this.myRights,
-    required this.isAdmin,
+    required this.showServiceMessages,
+    required this.inviteEnabled,
     required this.canPost,
     required this.canAdd,
     required this.canEditInfo,
     required this.canCall,
-    required this.inviteEnabled,
-    required this.callsMuted,
+    required this.isAdmin,
     required this.unreadMentions,
-    required this.pinned,
     required this.invited,
     required this.members,
     required this.createdAt,
-    required this.unreadCount,
     required this.updatedAt,
+    required this.pinned,
+    required this.unreadCount,
     this.inviteLink,
     this.pinnedMessage,
     this.lastMessage,
@@ -54,13 +55,14 @@ class GroupDetailDto {
     this.notAdded,
     this.protectContent,
     this.mutedUntil,
-    this.disappearAfterS,
+    this.username,
+    this.ongoingCall,
     this.myRole,
     this.generalTopicId,
     this.avatarFullUrl,
     this.avatarUrl,
     this.description,
-    this.username,
+    this.disappearAfterS,
   });
 
   factory GroupDetailDto.fromJson(Map<String, Object?> json) =>
@@ -134,6 +136,9 @@ class GroupDetailDto {
 
   /// Group calls ring silently for me.
   final bool callsMuted;
+
+  /// Owner 2026-10-21 (Telegram «Видеочат»): the call running in the group now (members only).
+  final OngoingCallDto? ongoingCall;
   final bool pinned;
   final DateTime createdAt;
   final DateTime updatedAt;

@@ -24,14 +24,15 @@ class CallDto {
     required this.peer,
     required this.participants,
     required this.createdAt,
+    this.video = false,
+    this.group = false,
+    this.moderated = false,
+    this.channelId,
     this.hostId,
     this.vote,
     this.answeredAt,
     this.endedAt,
     this.durationSec,
-    this.video = false,
-    this.group = false,
-    this.moderated = false,
   });
 
   factory CallDto.fromJson(Map<String, Object?> json) =>
@@ -44,6 +45,9 @@ class CallDto {
 
   /// The group chat the call was started from (else null).
   final String? groupId;
+
+  /// Owner 2026-10-21 (inbox 20e): the channel the call belongs to (else null).
+  final String? channelId;
   final String callerId;
   final String calleeId;
   final CallStatus status;

@@ -108,33 +108,33 @@ Future<void> runLawBid(AppFlavor flavor) async {
                     video: video,
                     userIds: userIds,
                   ),
-          running: (groupId) async {
-            final call = await ref.read(callsRepositoryProvider).groupCall(
-                  groupId,
-                );
-            if (call == null) return null;
-            final me = ref.read(callMyIdProvider);
-            final mine =
-                call.participants.where((m) => m.userId == me).firstOrNull;
-            // Taken out by the host / a vote: no way back into this call.
-            if (mine?.status == CallMemberStatus.removed) return null;
-            return GroupRunningCall(
-              video: call.video,
-              members: call.participants.where((m) => m.joined).length,
-              returning: mine != null &&
-                  (mine.joined || mine.status == CallMemberStatus.left),
-              join: (title, avatarUrl) =>
-                  ref.read(callControllerProvider.notifier).joinGroupCall(
-                        call,
-                        peer: CallPeer(
-                          id: groupId,
-                          isAttorney: false,
-                          displayName: title,
-                          avatarUrl: avatarUrl,
-                        ),
-                      ),
-            );
-          },
+          running: (groupId) async => _runningCall(
+            ref,
+            await ref.read(callsRepositoryProvider).groupCall(groupId),
+            ownerId: groupId,
+          ),
+          // Owner 2026-10-21 (inbox 20e): the call of a channel.
+          startChannel: (
+            channelId, {
+            required title,
+            avatarUrl,
+            video = false,
+          }) =>
+              ref.read(callControllerProvider.notifier).startChannelCall(
+                    channelId,
+                    peer: CallPeer(
+                      id: channelId,
+                      isAttorney: false,
+                      displayName: title,
+                      avatarUrl: avatarUrl,
+                    ),
+                    video: video,
+                  ),
+          runningChannel: (channelId) async => _runningCall(
+            ref,
+            await ref.read(callsRepositoryProvider).channelCall(channelId),
+            ownerId: channelId,
+          ),
         ),
       ),
       callContactPickerProvider.overrideWithValue(
@@ -176,5 +176,52 @@ Future<void> runLawBid(AppFlavor flavor) async {
       container: container,
       child: const LawBidApp(),
     ),
+  );
+}
+
+/// A running group / channel call as the «Join» bar and its people list see
+/// it (host first); null when there is none or we were taken out of it.
+GroupRunningCall? _runningCall(
+  Ref ref,
+  AppCall? call, {
+  required String ownerId,
+}) {
+  if (call == null) return null;
+  final me = ref.read(callMyIdProvider);
+  final mine = call.participants.where((m) => m.userId == me).firstOrNull;
+  // Taken out by the host / a vote: no way back into this call.
+  if (mine?.status == CallMemberStatus.removed) return null;
+  final joined = [
+    for (final m in call.participants)
+      if (m.joined) m,
+  ]..sort(
+      (a, b) => (b.userId == call.hostId ? 1 : 0)
+          .compareTo(a.userId == call.hostId ? 1 : 0),
+    );
+  return GroupRunningCall(
+    video: call.video,
+    members: joined.length,
+    people: [
+      for (final m in joined)
+        RunningCallMember(
+          userId: m.userId,
+          name: m.name,
+          avatarUrl: m.avatarUrl,
+          muted: m.muted,
+          host: m.userId == call.hostId,
+        ),
+    ],
+    returning:
+        mine != null && (mine.joined || mine.status == CallMemberStatus.left),
+    join: (title, avatarUrl) =>
+        ref.read(callControllerProvider.notifier).joinGroupCall(
+              call,
+              peer: CallPeer(
+                id: ownerId,
+                isAttorney: false,
+                displayName: title,
+                avatarUrl: avatarUrl,
+              ),
+            ),
   );
 }

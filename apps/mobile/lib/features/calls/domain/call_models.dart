@@ -10,7 +10,7 @@ enum CallStatus {
   declined,
   busy,
   canceled,
-  failed
+  failed,
 }
 
 /// The other member of a call.
@@ -120,6 +120,7 @@ class AppCall {
     required this.peer,
     required this.createdAt,
     this.groupId,
+    this.channelId,
     this.answeredAt,
     this.endedAt,
     this.durationSec,
@@ -153,6 +154,9 @@ class AppCall {
   /// Null for a call started from a group chat ([groupId] is set then).
   final String? conversationId;
   final String? groupId;
+
+  /// Owner 2026-10-21 (inbox 20e): the channel the call belongs to.
+  final String? channelId;
   final CallStatus status;
   final bool outgoing;
   final CallPeer peer;
@@ -173,6 +177,7 @@ class AppCall {
         id: id,
         conversationId: conversationId,
         groupId: groupId,
+        channelId: channelId,
         status: status,
         outgoing: outgoing,
         peer: peer,
@@ -208,9 +213,10 @@ class AppCall {
   bool get full => size >= capacity;
 }
 
-/// Mesh calls: the server's GROUP_MAX_AUDIO / GROUP_MAX_VIDEO.
+/// Mesh calls: the server's GROUP_MAX_AUDIO / GROUP_MAX_VIDEO — 9 / 9 (inbox
+/// 20d). Hundreds of people would need an SFU media server.
 const callMaxAudio = 9;
-const callMaxVideo = 6;
+const callMaxVideo = 9;
 
 /// One ICE server (STUN or TURN) for WebRTC.
 @immutable

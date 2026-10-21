@@ -1967,9 +1967,16 @@ class _ComposerState extends ConsumerState<_Composer> {
   /// quick tap may lift the finger before it runs — then nothing records.
   bool _pressed = false;
   Offset _drag = Offset.zero;
-  final List<double> _levels = [];
-  StreamSubscription<double>? _levelSub;
+
+  /// A start is in flight: a second press must not start the recorder again
+  /// (owner inbox 32: that reset the clock and the bars mid-note).
+  bool _starting = false;
+
+  /// «recording a voice message…» pings (no rebuilds: the clock and the
+  /// bars of the strip tick by themselves).
   Timer? _tick;
+
+  /// The length shown while paused or for a held draft.
   Duration _elapsed = Duration.zero;
 
   // Owned by the composer: lives exactly as long as the chat screen.
@@ -1996,7 +2003,6 @@ class _ComposerState extends ConsumerState<_Composer> {
 
   @override
   void dispose() {
-    _levelSub?.cancel();
     _tick?.cancel();
     unawaited(_player.stopDraft());
     unawaited(_saveDraft());
@@ -2028,7 +2034,6 @@ class _ComposerState extends ConsumerState<_Composer> {
   /// call. The note is closed into a paused draft the user can send later.
   Future<void> _onCall() async {
     if (!_recording || _held != null) return;
-    await _levelSub?.cancel();
     _tick?.cancel();
     final r = await _rec.stop();
     if (!mounted) return;
@@ -2045,6 +2050,16 @@ class _ComposerState extends ConsumerState<_Composer> {
   }
 
   Future<void> _start() async {
+    if (_starting || _recording) return;
+    _starting = true;
+    try {
+      await _startRecording();
+    } finally {
+      _starting = false;
+    }
+  }
+
+  Future<void> _startRecording() async {
     final t = ref.read(translatorProvider);
     if (_callBusy) {
       showAppSnackBar(context, t.t('chat.voice.duringCall'));
@@ -2069,8 +2084,7 @@ class _ComposerState extends ConsumerState<_Composer> {
       if (mounted) showAppSnackBar(context, t.t('chat.voice.hold'));
       return;
     }
-    _levels.clear();
-    _listenLevels();
+    _pingTyping();
     setState(() {
       _recording = true;
       _locked = false;
@@ -2080,21 +2094,13 @@ class _ComposerState extends ConsumerState<_Composer> {
     });
   }
 
-  void _listenLevels() {
-    _levelSub = _rec.levels.listen((l) {
-      if (!mounted) return;
-      setState(() {
-        _levels.add(l);
-        if (_levels.length > 120) _levels.removeAt(0);
-      });
-    });
-    var ticks = 0;
-    _tick = Timer.periodic(const Duration(milliseconds: 200), (_) {
-      if (!mounted) return;
-      setState(() => _elapsed = _rec.elapsed);
-      // Owner 2026-10-20: the other side sees «recording a voice
-      // message…» (re-sent every ~2 s; it fades 5 s after the last one).
-      if (ticks++ % 10 == 0) widget.onTyping(true, voice: true);
+  void _pingTyping() {
+    _tick?.cancel();
+    // Owner 2026-10-20: the other side sees «recording a voice
+    // message…» (re-sent every ~2 s; it fades 5 s after the last one).
+    widget.onTyping(true, voice: true);
+    _tick = Timer.periodic(const Duration(seconds: 2), (_) {
+      if (mounted) widget.onTyping(true, voice: true);
     });
   }
 
@@ -2111,7 +2117,6 @@ class _ComposerState extends ConsumerState<_Composer> {
 
   Future<void> _finish({required bool send}) async {
     if (!_recording) return;
-    await _levelSub?.cancel();
     _tick?.cancel();
     await _player.stop();
     final held = _held;
@@ -2144,7 +2149,6 @@ class _ComposerState extends ConsumerState<_Composer> {
   Future<void> _pauseRec() async {
     await _rec.pause();
     _tick?.cancel();
-    await _levelSub?.cancel();
     if (!mounted) return;
     setState(() {
       _paused = true;
@@ -2157,7 +2161,7 @@ class _ComposerState extends ConsumerState<_Composer> {
     await _player.stop();
     await _rec.resume();
     if (!mounted) return;
-    _listenLevels();
+    _pingTyping();
     setState(() => _paused = false);
   }
 
@@ -2195,7 +2199,6 @@ class _ComposerState extends ConsumerState<_Composer> {
   Future<void> _sendLocked() async {
     final h = _held;
     if (h == null) return _finish(send: true);
-    await _levelSub?.cancel();
     _tick?.cancel();
     await _player.stop();
     setState(_reset);
@@ -2295,89 +2298,22 @@ class _ComposerState extends ConsumerState<_Composer> {
       },
     );
 
-    final recordingRow = Container(
-      height: AppSizes.touchTarget + 4,
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
-      decoration: BoxDecoration(
-        color: colors.bg,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: colors.iconTint),
-      ),
-      child: Row(
-        children: [
-          if (_locked)
-            AppIconButton(
-              icon:
-                  AppIcon(AppIcons.deleteOutlineRounded, color: colors.danger),
-              semanticLabel: t.t('chat.voice.cancel'),
-              onPressed: () => _finish(send: false),
-            )
-          else ...[
-            const SizedBox(width: AppSpacing.sm),
-            _RecDot(color: colors.danger),
-          ],
-          if (_paused)
-            AppIconButton(
-              icon: AppIcon(
-                previewPlaying
-                    ? AppIcons.pauseRounded
-                    : AppIcons.playArrowRounded,
-                color: colors.iconTint,
-              ),
-              semanticLabel: t.t(
-                previewPlaying ? 'chat.voice.pause' : 'chat.voice.play',
-              ),
-              onPressed: _togglePreview,
-            )
-          else
-            const SizedBox(width: AppSpacing.sm),
-          Text(
-            voiceClock(
-              _paused && previewAt > Duration.zero ? previewAt : _elapsed,
-            ),
-            style: type.body.copyWith(
-              color: colors.text,
-              fontFeatures: const [FontFeature.tabularFigures()],
-            ),
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(
-            child: _paused
-                ? VoiceWave(
-                    bars: _held?.waveform ?? _rec.waveformNow,
-                    progress: _held == null || _held!.durationMs == 0
-                        ? 0
-                        : previewAt.inMilliseconds / _held!.durationMs,
-                    onSeek: _held == null ? null : _seekPreview,
-                  )
-                : _locked
-                    ? RecordingMeter(levels: _levels)
-                    : Opacity(
-                        opacity: (1 + _drag.dx / -_cancelDx).clamp(0.2, 1.0),
-                        child: Text(
-                          '‹ ${t.t('chat.voice.slideCancel')}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.center,
-                          style: type.bodySmall
-                              .copyWith(color: colors.textSecondary),
-                        ),
-                      ),
-          ),
-          if (_locked && !_paused)
-            AppIconButton(
-              icon: AppIcon(AppIcons.pauseRounded, color: colors.danger),
-              semanticLabel: t.t('chat.voice.pauseRec'),
-              onPressed: _pauseRec,
-            ),
-          if (_paused && _held == null)
-            AppIconButton(
-              icon: AppIcon(AppIcons.micRounded, color: colors.danger),
-              semanticLabel: t.t('chat.voice.resume'),
-              onPressed: _resumeRec,
-            ),
-        ],
-      ),
+    final recordingRow = VoiceRecordingBar(
+      source: _rec,
+      locked: _locked,
+      paused: _paused,
+      pausedAt: previewAt > Duration.zero ? previewAt : _elapsed,
+      previewPlaying: previewPlaying,
+      waveform: _held?.waveform ?? _rec.waveformNow,
+      progress: _held == null || _held!.durationMs == 0
+          ? 0
+          : previewAt.inMilliseconds / _held!.durationMs,
+      onSeek: _held == null ? null : _seekPreview,
+      slideOpacity: (1 + _drag.dx / -_cancelDx).clamp(0.2, 1.0),
+      onCancel: () => _finish(send: false),
+      onTogglePreview: _togglePreview,
+      onPause: _pauseRec,
+      onResume: _held == null ? _resumeRec : null,
     );
 
     Widget circle({
@@ -2536,43 +2472,6 @@ class _ComposerState extends ConsumerState<_Composer> {
       ),
     );
   }
-}
-
-/// Blinking red dot of a running recording.
-class _RecDot extends StatefulWidget {
-  const _RecDot({required this.color});
-
-  final Color color;
-
-  @override
-  State<_RecDot> createState() => _RecDotState();
-}
-
-class _RecDotState extends State<_RecDot> with SingleTickerProviderStateMixin {
-  late final AnimationController _c = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 900),
-  )..repeat(reverse: true);
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => FadeTransition(
-        opacity: context.reduceMotion
-            ? const AlwaysStoppedAnimation(1)
-            // ignore: prefer_int_literals
-            : Tween(begin: 0.25, end: 1.0).animate(_c),
-        child: Container(
-          width: 10,
-          height: 10,
-          decoration:
-              BoxDecoration(shape: BoxShape.circle, color: widget.color),
-        ),
-      );
 }
 
 /// Owner 2026-10-17: the chat wallpaper's pattern — small legal signs

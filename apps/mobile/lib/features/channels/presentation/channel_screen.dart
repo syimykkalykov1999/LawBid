@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -11,6 +13,8 @@ import 'package:lawbid/features/channels/domain/channel_models.dart';
 import 'package:lawbid/features/channels/presentation/channel_actions.dart';
 import 'package:lawbid/features/channels/presentation/channel_post_card.dart';
 import 'package:lawbid/features/channels/presentation/channel_widgets.dart';
+import 'package:lawbid/features/groups/application/group_call_port.dart';
+import 'package:lawbid/features/groups/presentation/widgets/group_call_ui.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart'
     show VerifiedCheck;
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
@@ -30,12 +34,75 @@ class ChannelScreen extends ConsumerStatefulWidget {
 
 class _ChannelScreenState extends ConsumerState<ChannelScreen> {
   String? _focusedFor;
+  Timer? _callTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    // Inbox 20e: a channel may have thousands of subscribers, so nobody is
+    // told about its call — the open channel asks every 10 s instead.
+    _callTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      final id = ref.read(channelProvider(widget.channelRef)).value?.id;
+      if (mounted && id != null) {
+        ref.invalidate(channelRunningCallProvider(id));
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _callTimer?.cancel();
+    super.dispose();
+  }
+
+  /// The phone / video button (owner and admins): starts the channel's call.
+  Future<void> _startCall(Channel channel, {required bool video}) async {
+    final start = ref.read(groupCallPortProvider)?.startChannel;
+    if (start == null) return;
+    final code = await start(
+      channel.id,
+      title: channel.title,
+      avatarUrl: channel.avatarUrl,
+      video: video,
+    );
+    _callChanged(channel, code);
+  }
+
+  Future<void> _joinCall(Channel channel, GroupRunningCall running) async {
+    final code = await running.join(channel.title, channel.avatarUrl);
+    _callChanged(channel, code);
+  }
+
+  void _callChanged(Channel channel, String? code) {
+    if (!mounted) return;
+    if (code != null) {
+      showAppSnackBar(
+        context,
+        groupCallError(
+          ref.read(translatorProvider),
+          code,
+          max: context.digits(groupCallMax),
+        ),
+      );
+    }
+    ref
+      ..invalidate(channelRunningCallProvider(channel.id))
+      ..invalidate(channelListProvider);
+  }
 
   @override
   Widget build(BuildContext context) {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final channel = ref.watch(channelProvider(widget.channelRef));
+    final value = channel.value;
+    final canStart = value != null &&
+        value.isAdmin &&
+        ref.watch(groupCallPortProvider)?.startChannel != null;
+    final live = value == null || !(value.isAdmin || value.isSubscribed)
+        ? null
+        : channelRunningCallProvider(value.id);
+    final running = live == null ? null : ref.watch(live).value;
 
     return ChannelsGate(
       child: Scaffold(
@@ -49,6 +116,31 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
           ),
           title: Text(channel.value?.title ?? t.t('channel.title')),
           actions: [
+            // Owner 2026-10-21 (inbox 20e, Telegram): the channel's video
+            // chat — owner and admins start it, subscribers join.
+            if (canStart) ...[
+              if (ref.watch(groupVideoCallsProvider))
+                AppIconButton(
+                  key: const ValueKey('channel-video-call'),
+                  icon: AppIcon(
+                    AppIcons.videoCameraOutlined,
+                    size: 22,
+                    color: colors.text,
+                  ),
+                  semanticLabel: t.t('call.videoButton'),
+                  onPressed: () => _startCall(value, video: true),
+                ),
+              AppIconButton(
+                key: const ValueKey('channel-audio-call'),
+                icon: AppIcon(
+                  AppIcons.callOutlined,
+                  size: 22,
+                  color: colors.text,
+                ),
+                semanticLabel: t.t('call.button'),
+                onPressed: () => _startCall(value, video: false),
+              ),
+            ],
             if (channel.value != null)
               AppIconButton(
                 key: const ValueKey('channel-menu'),
@@ -58,21 +150,34 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
               ),
           ],
         ),
-        body: switch (channel) {
-          AsyncData(:final value) => _Feed(
-              channel: value,
-              channelRef: widget.channelRef,
-              focusPostId: widget.focusPostId,
-              onFocusStarted: () => _focusedFor = value.id,
-              alreadyFocused: _focusedFor == value.id,
+        body: Column(
+          children: [
+            if (value != null && running != null)
+              GroupCallJoinBar(
+                running: running,
+                live: live,
+                onJoin: () => _joinCall(value, running),
+              ),
+            Expanded(
+              child: switch (channel) {
+                AsyncData(:final value) => _Feed(
+                    channel: value,
+                    channelRef: widget.channelRef,
+                    focusPostId: widget.focusPostId,
+                    onFocusStarted: () => _focusedFor = value.id,
+                    alreadyFocused: _focusedFor == value.id,
+                  ),
+                AsyncError(:final error) => CasesErrorView(
+                    error: error,
+                    t: t,
+                    onRetry: () =>
+                        ref.invalidate(channelProvider(widget.channelRef)),
+                  ),
+                _ => const DetailSkeleton(),
+              },
             ),
-          AsyncError(:final error) => CasesErrorView(
-              error: error,
-              t: t,
-              onRetry: () => ref.invalidate(channelProvider(widget.channelRef)),
-            ),
-          _ => const DetailSkeleton(),
-        },
+          ],
+        ),
       ),
     );
   }
@@ -295,10 +400,20 @@ class _ChannelHeaderState extends ConsumerState<ChannelHeader> {
         // name, @username and the counters beside it.
         Row(
           children: [
-            ChannelAvatar(
-              title: channel.title,
-              url: channel.avatarUrl,
-              size: 56,
+            GestureDetector(
+              key: const ValueKey('channel-header-avatar'),
+              onTap: channel.avatarUrl == null
+                  ? null
+                  : () => showPhotoGallery(
+                        context,
+                        urls: [channel.avatarFullUrl ?? channel.avatarUrl!],
+                        closeLabel: t.t('common.close'),
+                      ),
+              child: ChannelAvatar(
+                title: channel.title,
+                url: channel.avatarUrl,
+                size: 56,
+              ),
             ),
             const SizedBox(width: AppSpacing.md),
             Expanded(

@@ -138,8 +138,10 @@ final groupInvitePreviewProvider =
 final groupDetailProvider =
     FutureProvider.autoDispose.family<api.GroupDetailDto, String>((ref, id) {
   final sub = ref.watch(realtimeEventsProvider).listen((e) {
+    // A call starting / changing (kind «call») refreshes only the call bar.
     if ((e.name == 'group:update' || e.name == RealtimeEvent.reconnected) &&
-        (e.name == RealtimeEvent.reconnected || _groupIdOf(e.data) == id)) {
+        (e.name == RealtimeEvent.reconnected ||
+            (_groupIdOf(e.data) == id && !_isCallChange(e.data)))) {
       ref.invalidateSelf();
     }
   });
@@ -630,3 +632,6 @@ class GroupThread extends Notifier<GroupThreadState> {
 
 final groupThreadProvider = NotifierProvider.autoDispose
     .family<GroupThread, GroupThreadState, GroupThreadKey>(GroupThread.new);
+
+/// A `group:update` about the group's running call only (inbox 20e).
+bool _isCallChange(Object? data) => data is Map && data['kind'] == 'call';

@@ -112,6 +112,13 @@ class _FakeRepo implements CallsRepository {
   Future<AppCall?> groupCall(String groupId) async => null;
 
   @override
+  Future<AppCall> startChannel(String channelId, {bool video = false}) async =>
+      throw UnimplementedError();
+
+  @override
+  Future<AppCall?> channelCall(String channelId) async => null;
+
+  @override
   Future<AppCall> join(String callId) async => throw UnimplementedError();
 
   @override
@@ -583,6 +590,29 @@ void main() {
     h.media.onState!(CallMediaState.connected);
     expect(h.s.reconnecting, isFalse);
     expect(h.s.phase, CallPhase.active);
+    await h.c.hangUp();
+  });
+
+  test('an offer that nobody heard is renewed until an answer comes', () async {
+    final h = _Harness();
+    addTearDown(h.dispose);
+    await h.c.call('conv', peer: _peer);
+    h.emit(
+      'call:accepted',
+      _event(_call('c1', CallStatus.active, outgoing: true)),
+    );
+    await _settle();
+    expect(h.media.iceRestarts, 0);
+    // The callee's socket was not in its room yet: no answer for 3 s.
+    await Future<void>.delayed(const Duration(milliseconds: 3300));
+    expect(h.media.iceRestarts, 1);
+    h.emit('call:signal', {
+      'callId': 'c1',
+      'data': {'type': 'answer', 'sdp': 'a'},
+    });
+    await _settle();
+    await Future<void>.delayed(const Duration(milliseconds: 3300));
+    expect(h.media.iceRestarts, 1);
     await h.c.hangUp();
   });
 

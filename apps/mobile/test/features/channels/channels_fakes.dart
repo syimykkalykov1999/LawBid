@@ -11,6 +11,7 @@ import 'package:lawbid/features/channels/application/channel_compose.dart';
 import 'package:lawbid/features/channels/application/channels_providers.dart';
 import 'package:lawbid/features/channels/data/channels_repository.dart';
 import 'package:lawbid/features/channels/domain/channel_models.dart';
+import 'package:lawbid/features/groups/domain/ongoing_call.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/domain/social_models.dart'
     show PostVideo;
@@ -38,12 +39,16 @@ Channel fakeChannel({
   int posts = 3,
   String? description = 'Weekly tax notes, see https://example.test/tax.',
   ChannelState state = ChannelState.active,
+  String? avatarUrl,
+  OngoingCallSummary? ongoingCall,
 }) =>
     Channel(
       id: id,
       title: title,
       username: username,
       description: description,
+      avatarUrl: avatarUrl,
+      avatarFullUrl: avatarUrl == null ? null : '$avatarUrl?full',
       commentsEnabled: comments,
       state: state,
       subscriberCount: subscribers,
@@ -53,6 +58,7 @@ Channel fakeChannel({
       isMuted: muted,
       myRole: role,
       createdAt: DateTime(2026, 10),
+      ongoingCall: ongoingCall,
     );
 
 ChannelPost fakePost(

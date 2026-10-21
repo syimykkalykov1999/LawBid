@@ -19,6 +19,10 @@ CallDto _$CallDtoFromJson(Map<String, dynamic> json) => CallDto(
       .map((e) => CallParticipantDto.fromJson(e as Map<String, dynamic>))
       .toList(),
   createdAt: DateTime.parse(json['createdAt'] as String),
+  video: json['video'] as bool? ?? false,
+  group: json['group'] as bool? ?? false,
+  moderated: json['moderated'] as bool? ?? false,
+  channelId: json['channelId'] as String?,
   hostId: json['hostId'] as String?,
   vote: json['vote'] == null
       ? null
@@ -30,15 +34,13 @@ CallDto _$CallDtoFromJson(Map<String, dynamic> json) => CallDto(
       ? null
       : DateTime.parse(json['endedAt'] as String),
   durationSec: (json['durationSec'] as num?)?.toInt(),
-  video: json['video'] as bool? ?? false,
-  group: json['group'] as bool? ?? false,
-  moderated: json['moderated'] as bool? ?? false,
 );
 
 Map<String, dynamic> _$CallDtoToJson(CallDto instance) => <String, dynamic>{
   'id': instance.id,
   'conversationId': ?instance.conversationId,
   'groupId': ?instance.groupId,
+  'channelId': ?instance.channelId,
   'callerId': instance.callerId,
   'calleeId': instance.calleeId,
   'status': instance.status.toJson(),

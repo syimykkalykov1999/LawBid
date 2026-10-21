@@ -6,6 +6,7 @@ import 'package:json_annotation/json_annotation.dart';
 
 import 'channel_role.dart';
 import 'channel_status.dart';
+import 'ongoing_call_dto.dart';
 import 'user_brief_dto.dart';
 
 part 'channel_dto.g.dart';
@@ -26,9 +27,11 @@ class ChannelDto {
     required this.createdAt,
     this.description,
     this.avatarUrl,
+    this.avatarFullUrl,
     this.protectContent,
     this.myRole,
     this.lastPostAt,
+    this.ongoingCall,
   });
 
   factory ChannelDto.fromJson(Map<String, Object?> json) =>
@@ -41,6 +44,9 @@ class ChannelDto {
   final String username;
   final String? description;
   final String? avatarUrl;
+
+  /// The full-size picture for the full-screen view.
+  final String? avatarFullUrl;
   final bool commentsEnabled;
 
   /// Owner 2026-10-21 (Telegram): restrict saving content — no.
@@ -59,6 +65,9 @@ class ChannelDto {
   final ChannelRole? myRole;
   final DateTime? lastPostAt;
   final DateTime createdAt;
+
+  /// Owner 2026-10-21 (Telegram «Видеочат»): the call running in the channel now (subscribers and admins).
+  final OngoingCallDto? ongoingCall;
 
   Map<String, Object?> toJson() => _$ChannelDtoToJson(this);
 }

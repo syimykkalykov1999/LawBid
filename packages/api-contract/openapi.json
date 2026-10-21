@@ -85891,6 +85891,220 @@
         ]
       }
     },
+    "/channels/{id}/calls": {
+      "post": {
+        "operationId": "startChannelCall",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartCallDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CallEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN, ENTITLEMENT_REQUIRED, FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: CALL_IN_PROGRESS, CALL_STATE_CONFLICT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Start the call of a channel (owner / admins; joins the running one)",
+        "tags": [
+          "calls"
+        ]
+      }
+    },
+    "/channels/{id}/call": {
+      "get": {
+        "operationId": "channelCall",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CallEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN, FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND, CALL_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "The call running in a channel (404 when none)",
+        "tags": [
+          "calls"
+        ]
+      }
+    },
     "/calls/{id}/join": {
       "post": {
         "operationId": "joinCall",
@@ -139295,6 +139509,60 @@
         ],
         "description": "My role in the channel, null for a plain reader."
       },
+      "OngoingCallPersonDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "displayName": {
+            "type": "string",
+            "nullable": true
+          },
+          "avatarUrl": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "userId"
+        ]
+      },
+      "OngoingCallDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "video": {
+            "type": "boolean"
+          },
+          "participantCount": {
+            "type": "number",
+            "description": "People in the call now."
+          },
+          "participants": {
+            "description": "The first few people in the call (up to 3), for faces.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OngoingCallPersonDto"
+            }
+          },
+          "startedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "video",
+          "participantCount",
+          "participants",
+          "startedAt"
+        ]
+      },
       "ChannelDto": {
         "type": "object",
         "properties": {
@@ -139316,6 +139584,11 @@
           "avatarUrl": {
             "type": "string",
             "nullable": true
+          },
+          "avatarFullUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "The full-size picture for the full-screen view."
           },
           "commentsEnabled": {
             "type": "boolean"
@@ -139364,6 +139637,16 @@
           "createdAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "ongoingCall": {
+            "nullable": true,
+            "description": "Owner 2026-10-21 (Telegram «Видеочат»): the call running in the channel now (subscribers and admins).",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/OngoingCallDto"
+              }
+            ]
           }
         },
         "required": [
@@ -153500,6 +153783,12 @@
             "format": "uuid",
             "description": "The group chat the call was started from (else null)."
           },
+          "channelId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid",
+            "description": "Owner 2026-10-21 (inbox 20e): the channel the call belongs to (else null)."
+          },
           "callerId": {
             "type": "string",
             "format": "uuid"
@@ -154353,6 +154642,16 @@
             "type": "boolean",
             "description": "Group calls ring silently for me."
           },
+          "ongoingCall": {
+            "nullable": true,
+            "description": "Owner 2026-10-21 (Telegram «Видеочат»): the call running in the group now (members only).",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/OngoingCallDto"
+              }
+            ]
+          },
           "pinned": {
             "type": "boolean"
           },
@@ -154684,6 +154983,16 @@
           "callsMuted": {
             "type": "boolean",
             "description": "Group calls ring silently for me."
+          },
+          "ongoingCall": {
+            "nullable": true,
+            "description": "Owner 2026-10-21 (Telegram «Видеочат»): the call running in the group now (members only).",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/OngoingCallDto"
+              }
+            ]
           },
           "pinned": {
             "type": "boolean"
