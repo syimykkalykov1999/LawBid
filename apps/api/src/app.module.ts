@@ -1,3 +1,4 @@
+import { SloMetricsModule } from './common/ops/slo-metrics.service';
 import { ServerTextsModule } from './common/i18n/server-texts.service';
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
@@ -277,6 +278,8 @@ const isDev =
     MediaModerationModule.register({ mode: 'api' }),
     // Owner 2026-10-22 (audit #4 §4): server texts in every app language.
     ServerTextsModule,
+    // Owner 2026-10-22 (audit #4 §7): business SLO counters.
+    SloMetricsModule,
     UsersModule,
     I18nModule,
     CasesModule,

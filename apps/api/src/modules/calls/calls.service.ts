@@ -1,3 +1,4 @@
+import { SloMetricsService } from '../../common/ops/slo-metrics.service';
 import { viewerContext } from '../../common/viewer/viewer-context';
 import { createHmac } from 'node:crypto';
 import {
@@ -141,6 +142,8 @@ export class CallsService {
     @Optional() private readonly privacy?: PrivacySettingsService,
     // Owner 2026-10-20: calls from a group chat.
     @Optional() private readonly groups?: GroupsService,
+    // Owner 2026-10-22 (audit #4 §7): call connect SLO.
+    @Optional() private readonly slo?: SloMetricsService,
   ) {
     this.videoProvider = new WebRtcVideoProvider(secrets, config);
     // Someone left / was removed from a group: out of its running call too.
@@ -431,6 +434,10 @@ export class CallsService {
     } else {
       outcome = reason === 'no_answer' ? 'missed' : 'canceled';
     }
+    // A call that was up and ended normally connected; `failed` is the
+    // app saying the media never came up (ICE / TURN).
+    if (outcome === 'ended') this.slo?.count('callConnected');
+    if (outcome === 'failed') this.slo?.count('callFailed');
     return this.finish(call, outcome, user.sub);
   }
 
