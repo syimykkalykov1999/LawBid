@@ -182,3 +182,7 @@ POST /admin/auth/2fa/disable api path removed without deprecation
 POST /admin/auth/step-up the `code` request property became required
 POST /admin/auth/step-up the request property `code` became required
 POST /admin/auth/login/password added the new required response property `data/totpSetupRequired`
+# Owner 2026-10-22 (security audit #3, finding 2): a new admin-editable e-mail ("your sign-in details changed"); only the admin panel reads these keys and shows any key it gets
+GET /admin/email-templates added the new `sign_in_changed` enum value to the `data/items/key` response property for the response status `200`
+GET /admin/email-templates/{key}/{locale} added the new `sign_in_changed` enum value to the `data/key` response property for the response status `200`
+PUT /admin/email-templates/{key}/{locale} added the new `sign_in_changed` enum value to the `data/key` response property for the response status `200`
