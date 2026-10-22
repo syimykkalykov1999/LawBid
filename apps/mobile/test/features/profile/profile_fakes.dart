@@ -79,6 +79,8 @@ PublicAttorneyProfile attorneyProfile({
   bool verified = true,
   String username = 'jane.doe',
   String? avatarUrl,
+  bool advertisingLabel = false,
+  String? publicUrl,
 }) =>
     PublicAttorneyProfile(
       id: 'att-1',
@@ -127,6 +129,8 @@ PublicAttorneyProfile attorneyProfile({
           const ProfileCounters(posts: 24, followers: 1280, following: 36),
       isSelf: isSelf,
       avatarUrl: avatarUrl,
+      advertisingLabel: advertisingLabel,
+      publicUrl: publicUrl,
     );
 
 const practiceTree = [

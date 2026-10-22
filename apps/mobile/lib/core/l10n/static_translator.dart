@@ -3,6 +3,7 @@ import 'package:lawbid/core/l10n/app_language.dart';
 import 'package:lawbid/core/l10n/plural_rules.dart';
 import 'package:lawbid/core/l10n/strings/assistant_code_strings.dart';
 import 'package:lawbid/core/l10n/strings/attorney_setup_strings.dart';
+import 'package:lawbid/core/l10n/strings/audit4_strings.dart';
 import 'package:lawbid/core/l10n/strings/audit_cases_strings.dart';
 import 'package:lawbid/core/l10n/strings/audit_chat_strings.dart';
 import 'package:lawbid/core/l10n/strings/audit_social_strings.dart';
@@ -1213,6 +1214,7 @@ class StaticTranslatorRu extends _MapTranslator {
         ...starsRu,
         ...feedContentRu,
         ...newsOffRu,
+        ...audit4Ru,
         ...seatRolesRu,
         ...feedFreshRu,
         ...chatNoteRu,
@@ -2656,6 +2658,7 @@ class StaticTranslatorEn extends _MapTranslator {
         ...starsEn,
         ...feedContentEn,
         ...newsOffEn,
+        ...audit4En,
         ...seatRolesEn,
         ...feedFreshEn,
         ...chatNoteEn,

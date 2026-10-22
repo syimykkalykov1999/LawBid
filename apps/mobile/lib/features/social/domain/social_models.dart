@@ -19,7 +19,13 @@ class PostAuthor {
     this.trustLevel = 0,
     this.identityRejected = false,
     this.practiceKeys = const [],
+    this.advertisingLabel = false,
   });
+
+  /// Owner 2026-10-22 (audit #4 §5, NY Rule 7.1(f)): show «Attorney
+  /// Advertising» on this author's posts; the server decides (never for
+  /// clients).
+  final bool advertisingLabel;
 
   /// Owner 2026-10-13: Identity level 0..3 (the circle on the avatar).
   final int trustLevel;

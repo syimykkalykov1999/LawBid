@@ -9,7 +9,7 @@ void main() {
   test('web/index.html og:image is an absolute https URL', () {
     final html = File('web/index.html').readAsStringSync();
     final match =
-        RegExp(r'<meta property="og:image" content="([^"]+)"').firstMatch(html);
+        RegExp('<meta property="og:image" content="([^"]+)"').firstMatch(html);
     expect(match, isNotNull);
     final uri = Uri.parse(match!.group(1)!);
     expect(uri.isAbsolute, isTrue);

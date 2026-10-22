@@ -45,6 +45,7 @@ import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/features/translation/data/content_translation_repository.dart';
 import 'package:lawbid/features/translation/presentation/translatable_text.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
+import 'package:lawbid/shared/presentation/attorney_advertising_label.dart';
 import 'package:lawbid/shared/presentation/share_sheet.dart';
 
 // Owner 2026-09-30: News — the attorney's news posts, apart.
@@ -57,9 +58,18 @@ import 'package:lawbid/shared/presentation/share_sheet.dart';
 enum AttorneyProfileTab { posts, reels, threads, reposts, news, reviews }
 
 /// Public link of an attorney profile (docs/03 §4.2 «Поделиться», deep
-/// link of docs/01 §12).
-String attorneyShareLink(String host, String username) =>
-    'https://$host/lawyer/$username';
+/// link of docs/01 §12). Owner 2026-10-22 (audit #4 §9): the server's
+/// canonical [publicUrl] (the SEO page `/attorneys/<username>/`) when it
+/// sends one, else the app link `/lawyer/<username>`.
+String attorneyShareLink(String host, String username, {String? publicUrl}) {
+  final canonical = publicUrl?.trim();
+  if (canonical != null &&
+      canonical.isNotEmpty &&
+      (Uri.tryParse(canonical)?.isScheme('https') ?? false)) {
+    return canonical;
+  }
+  return 'https://$host/lawyer/$username';
+}
 
 /// docs/03 §4.2 attorney profile, top to bottom: header (photo, @username
 /// + blue check, counters) → gold rating card → "Attorney" chip + bio →
@@ -256,7 +266,7 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
     await showShareSheet(
       context,
       t: t,
-      link: attorneyShareLink(host, p.username),
+      link: attorneyShareLink(host, p.username, publicUrl: p.publicUrl),
       text: p.fullName,
     );
   }
@@ -893,6 +903,12 @@ class _AboutSection extends ConsumerWidget {
       children: [
         // Owner 2026-09-30: the "★ — · New" line is gone; ratings live on
         // the Reviews tab.
+        // Owner 2026-10-22 (audit #4 §5): «Attorney Advertising» where the
+        // attorney's state requires it (the server decides).
+        if (profile.advertisingLabel) ...[
+          const SizedBox(height: AppSpacing.sm),
+          const AttorneyAdvertisingLabel(),
+        ],
         if (bio != null && bio.isNotEmpty) ...[
           const SizedBox(height: AppSpacing.sm),
           // Owner 2026-10-05: «Перевести» (profiles zone).

@@ -1897,6 +1897,13 @@ class AuthorHeader extends ConsumerWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final a = author;
+    // Owner 2026-10-22 (audit #4 §5, NY Rule 7.1(f)): «Attorney
+    // Advertising» first on every post / reel of an author whose state
+    // requires it (the server decides).
+    final subtitle = [
+      if (a.advertisingLabel && !a.isClient) t.t('legal.attorneyAdvertising'),
+      this.subtitle,
+    ].where((s) => s.isNotEmpty).join(' · ');
     return Row(
       children: [
         Expanded(
@@ -1935,6 +1942,7 @@ class AuthorHeader extends ConsumerWidget {
                         ),
                         if (preferPractices &&
                             !a.isClient &&
+                            !a.advertisingLabel &&
                             a.practiceKeys.isNotEmpty)
                           _AuthorPractices(
                             keys: a.practiceKeys,

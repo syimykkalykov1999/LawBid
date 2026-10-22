@@ -1,3 +1,4 @@
+import 'package:lawbid/core/network/contract_extras.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
@@ -77,6 +78,9 @@ abstract final class ProfileMappers {
         // 256 px variant looked soft at ~100 dp on a Retina screen);
         // AppAvatar decodes it at the size it is drawn.
         avatarUrl: d.avatarUrl ?? d.avatarUrl256,
+        advertisingLabel:
+            contractField<bool>(d, ContractExtra.advertisingLabel) ?? false,
+        publicUrl: contractField<String>(d, ContractExtra.publicUrl),
       );
 
   static LicenseState license(api.LicenseStatus s) => switch (s) {

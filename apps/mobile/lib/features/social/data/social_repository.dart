@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/limits/text_limits.dart';
 import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/core/network/contract_extras.dart';
 import 'package:lawbid/core/network/request_flags.dart';
 import 'package:lawbid/features/profile/data/avatar_upload_repository.dart'
     show ScanOutcome, sha256Hex, sniffImageMime;
@@ -1104,6 +1105,9 @@ abstract final class SocialMappers {
           trustLevel: d.author.trustLevel.toInt(),
           identityRejected: d.author.identityRejected ?? false,
           practiceKeys: d.author.practiceI18nKeys,
+          advertisingLabel:
+              contractField<bool>(d.author, ContractExtra.advertisingLabel) ??
+                  false,
         ),
         body: d.body,
         media: [
