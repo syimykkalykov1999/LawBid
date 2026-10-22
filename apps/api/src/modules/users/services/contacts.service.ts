@@ -21,6 +21,7 @@ import {
   AuthEventService,
   AUTH_EVENT_TYPES,
 } from '../../auth/services/auth-event.service';
+import { SignInChangeNotifier } from '../../auth/notifications/sign-in-change-notifier.service';
 
 /**
  * POST /users/me/contacts/request + /verify (docs/01_FOUNDATION_AUTH.md
@@ -50,6 +51,8 @@ export class ContactsService {
     private readonly rateLimit: RateLimitService,
     private readonly config: ConfigService,
     @Optional() private readonly flags?: FeatureFlagsService,
+    // Owner 2026-10-22 (security audit #3): "your contact changed".
+    @Optional() private readonly signInChange?: SignInChangeNotifier,
   ) {}
 
   /** True when the user already has a verified contact of this type —
@@ -265,6 +268,16 @@ export class ContactsService {
       identifier: normalized,
       meta: { type, replaced },
     });
+    if (previous !== normalized) {
+      // Owner 2026-10-22 (security audit #3, finding 2): told on every
+      // device and to the e-mail the account had before this change.
+      await this.signInChange?.notify({
+        userId,
+        kind: type,
+        previousEmail:
+          before.email && before.email_verified_at ? before.email : null,
+      });
+    }
   }
 
   private normalize(type: 'phone' | 'email', value: string): string {

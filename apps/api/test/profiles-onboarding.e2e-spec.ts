@@ -490,6 +490,15 @@ describe('Profiles onboarding (e2e) — client_profiles / attorney_profiles', ()
       where: { user_id: userId },
       data: { created_at: new Date(Date.now() - 3_600_000) },
     });
+    // An account older than its own sign-up: changes are announced.
+    await prisma.user.update({
+      where: { id: userId },
+      data: { created_at: new Date(Date.now() - 2 * 86_400_000) },
+    });
+    const notices = () =>
+      prisma.notification.count({
+        where: { user_id: userId, type: 'security_sign_in_changed' },
+      });
     const newPhone = nextPhone();
     const noReauth = await api()
       .post('/api/v1/users/me/contacts/request')
@@ -533,6 +542,8 @@ describe('Profiles onboarding (e2e) — client_profiles / attorney_profiles', ()
     ]);
     const me = await api().get('/api/v1/users/me').set(auth).expect(200);
     expect(me.body.data.phone).toBe(newPhone);
+    // Owner 2026-10-22 (audit #3): the change is announced on every device.
+    expect(await notices()).toBe(1);
 
     // Linking an ADDITIONAL phone sign-in method via POST /auth/identifiers
     // (email delivery isn't runnable here, see onboarding.e2e-spec.ts).
@@ -576,5 +587,7 @@ describe('Profiles onboarding (e2e) — client_profiles / attorney_profiles', ()
       expect.objectContaining({ value: newPhone, isPrimaryContact: true }),
       expect.objectContaining({ value: extra, isPrimaryContact: false }),
     ]);
+    // ...and so is a new sign-in method.
+    expect(await notices()).toBe(2);
   });
 });

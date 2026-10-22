@@ -33,6 +33,7 @@ import type {
   PasswordResetRequestDto,
   SetPasswordDto,
 } from './dto/password.dto';
+import { SignInChangeNotifier } from './notifications/sign-in-change-notifier.service';
 
 const WINDOW_SECONDS = 3600;
 /** Wrong-password guesses per phone / e-mail and per IP, per hour. */
@@ -89,6 +90,8 @@ export class PasswordAuthService {
     private readonly revocation: SessionRevocationService,
     // Owner 2026-10-16: reset-code caps are admin-editable.
     @Optional() private readonly settings?: AppSettingsService,
+    // Owner 2026-10-22 (security audit #3): "your password changed".
+    @Optional() private readonly signInChange?: SignInChangeNotifier,
   ) {}
 
   // POST /auth/password/login
@@ -207,6 +210,11 @@ export class PasswordAuthService {
       eventType: AUTH_EVENT_TYPES.PASSWORD_SET,
       success: true,
       meta: { changed: Boolean(user.password_hash) },
+    });
+    await this.signInChange?.notify({
+      userId: user.id,
+      kind: 'password',
+      previousEmail: user.email && user.email_verified_at ? user.email : null,
     });
   }
 

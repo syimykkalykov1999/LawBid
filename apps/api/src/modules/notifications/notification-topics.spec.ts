@@ -42,6 +42,7 @@ describe('notification topics', () => {
         'payout_account_status',
         'security_new_device',
         'security_phone_changed',
+        'security_sign_in_changed',
         'subscription_payment_failed',
         'subscription_status',
         'subscription_trial_ending',
