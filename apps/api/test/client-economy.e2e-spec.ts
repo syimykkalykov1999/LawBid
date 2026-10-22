@@ -6,6 +6,7 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
+import { BadgesService } from '../src/modules/notifications/badges.service';
 
 /**
  * Owner 2026-10-22 — client economy plan (docs/perf/CLIENT_ECONOMY_PLAN_
@@ -264,6 +265,49 @@ describe('Client economy (e2e, owner 2026-10-22)', () => {
       following: false,
       followersCount: 0,
     });
+  });
+
+  // ------------------------------------------------------------ package G
+
+  it('G: GET /me/session answers everything once and 304 to its own ETag; a new unread moves the tag', async () => {
+    const att = await attorney();
+    const first = await api()
+      .get('/api/v1/me/session')
+      .set(att.auth)
+      .expect(200);
+    const d = first.body.data;
+    expect(d.me.id).toBe(att.id);
+    expect(d.badges).toMatchObject({ chatsUnread: 0, notificationsUnread: 0 });
+    expect(typeof d.bootstrapVersion).toBe('string');
+    expect(typeof d.flags).toBe('object');
+    expect(d.unreadSupport).toBe(0);
+    expect(d.hasOngoingCalls).toBe(false);
+    const etag = first.headers.etag;
+    expect(etag).toMatch(/^W\/"sess-/);
+    const again = await api()
+      .get('/api/v1/me/session')
+      .set(att.auth)
+      .set('If-None-Match', etag)
+      .expect(304);
+    expect(again.text ?? '').toBe('');
+
+    await prisma.notification.create({
+      data: {
+        user_id: att.id,
+        type: 'new_follower',
+        category: 'social',
+        payload: { actorKind: 'client' },
+      },
+    });
+    const badges = app.get(BadgesService);
+    await badges.notificationsChanged(att.id);
+    const moved = await api()
+      .get('/api/v1/me/session')
+      .set(att.auth)
+      .set('If-None-Match', etag)
+      .expect(200);
+    expect(moved.headers.etag).not.toBe(etag);
+    expect(moved.body.data.badges.notificationsUnread).toBe(1);
   });
 
   it('D: reference lists carry a private / public Cache-Control with stale-while-revalidate', async () => {
