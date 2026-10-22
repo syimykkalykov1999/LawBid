@@ -59,6 +59,26 @@ abstract interface class CallMedia {
   /// Front ↔ back camera.
   Future<void> switchCamera();
 
+  /// Owner 2026-10-22 (WhatsApp: the camera button of a voice call): opens
+  /// the front camera mid-call and hands it to every link — a link that
+  /// already had a picture gets the new one in its place, the others get a
+  /// new video track. The caller then renegotiates each link (a new offer)
+  /// so the other side starts receiving it.
+  Future<void> enableVideo();
+
+  /// The camera goes off for real (its light too): the track stops, every
+  /// link keeps its video slot empty, so turning it on again needs no new
+  /// slot.
+  Future<void> disableVideo();
+
+  /// Glare (perfect negotiation): our own offer to [peer] is still waiting
+  /// for its answer.
+  Future<bool> offerPendingFor(String peer);
+
+  /// Glare, the polite side: our waiting offer to [peer] is taken back so
+  /// theirs can be answered; ours is sent again afterwards.
+  Future<void> rollbackFor(String peer);
+
   /// Caller: the SDP offer to send.
   Future<Map<String, Object?>> createOffer();
 
@@ -129,6 +149,15 @@ class _Link {
   bool remoteSet = false;
   final tracker = QualityTracker();
   VideoTier? tier;
+
+  /// Owner 2026-10-22: the slot our camera goes out through (kept when the
+  /// camera is off, refilled when it comes back on).
+  RTCRtpSender? videoSender;
+
+  /// Our offer is out and its answer not yet in (glare check). Kept here,
+  /// not read from the plugin: its signalling state arrives by an event,
+  /// a beat after the call that changed it.
+  bool offering = false;
 }
 
 /// A reading of one link from `getStats` (W3C names): the nominated
@@ -214,14 +243,7 @@ class WebRtcCallMedia implements CallMedia {
         'noiseSuppression': true,
         'autoGainControl': true,
       },
-      'video': video
-          ? {
-              'facingMode': 'user',
-              'width': {'ideal': 1280},
-              'height': {'ideal': 720},
-              'frameRate': {'ideal': 30},
-            }
-          : false,
+      'video': video ? _cameraConstraints() : false,
     });
     if (video) _local.value = _mic;
     await _newLink(peer, onSignal: onSignal, onState: onState);
@@ -238,13 +260,21 @@ class WebRtcCallMedia implements CallMedia {
     final link = _Link(peer, pc);
     _links[peer] = link;
     for (final track in _mic!.getTracks()) {
-      await pc.addTrack(track, _mic!);
+      final sender = await pc.addTrack(track, _mic!);
+      if (track.kind == 'video') link.videoSender = sender;
     }
     pc
       ..onTrack = (e) {
         if (e.track.kind == 'video' && e.streams.isNotEmpty) {
-          if (peer == _first) _remote.value = e.streams.first;
-          _remotes.value = {..._remotes.value, peer: e.streams.first};
+          final stream = e.streams.first;
+          if (peer == _first) {
+            // Owner 2026-10-22: a picture added mid-call may come in the
+            // stream object the voice already arrived in — the screen must
+            // still hear that it now has video.
+            if (identical(_remote.value, stream)) _remote.value = null;
+            _remote.value = stream;
+          }
+          _remotes.value = {..._remotes.value, peer: stream};
         }
         if (kIsWeb && e.track.kind == 'audio' && e.streams.isNotEmpty) {
           unawaited(_playWebAudio(peer, e.streams.first));
@@ -412,13 +442,17 @@ class WebRtcCallMedia implements CallMedia {
     _Link link, {
     bool restart = false,
   }) async {
+    // Owner 2026-10-22: every offer / answer leaves room for a picture, so
+    // either side can switch its camera on mid-call (WhatsApp) — an audio
+    // call simply sends nothing through it.
     final offer = await link.pc.createOffer({
       if (restart) 'iceRestart': true,
       'offerToReceiveAudio': true,
-      'offerToReceiveVideo': _video,
+      'offerToReceiveVideo': true,
     });
     final sdp = tuneOpusSdp(offer.sdp ?? '');
     await link.pc.setLocalDescription(RTCSessionDescription(sdp, 'offer'));
+    link.offering = true;
     return {'type': 'offer', 'sdp': sdp};
   }
 
@@ -432,17 +466,22 @@ class WebRtcCallMedia implements CallMedia {
     await _flush(link);
     final ans = await link.pc.createAnswer({
       'offerToReceiveAudio': true,
-      'offerToReceiveVideo': _video,
+      'offerToReceiveVideo': true,
     });
     final sdp = tuneOpusSdp(ans.sdp ?? '');
     await link.pc.setLocalDescription(RTCSessionDescription(sdp, 'answer'));
+    link.offering = false;
     return {'type': 'answer', 'sdp': sdp};
   }
 
   Future<void> _setAnswer(_Link link, Map<String, Object?> answer) async {
+    // Owner 2026-10-22: an answer to an offer we took back (glare) or a
+    // repeat of one already taken is dropped, not treated as a dead link.
+    if (!link.offering) return;
     await link.pc.setRemoteDescription(
       RTCSessionDescription(answer['sdp'] as String?, 'answer'),
     );
+    link.offering = false;
     await _flush(link);
   }
 
@@ -564,6 +603,81 @@ class WebRtcCallMedia implements CallMedia {
   }
 
   @override
+  Future<bool> offerPendingFor(String peer) async =>
+      _links[peer]?.offering ?? false;
+
+  @override
+  Future<void> rollbackFor(String peer) async {
+    final link = _links[peer];
+    if (link == null || !link.offering) return;
+    await link.pc.setLocalDescription(RTCSessionDescription('', 'rollback'));
+    link.offering = false;
+  }
+
+  static Map<String, Object?> _cameraConstraints({bool front = true}) => {
+        'facingMode': front ? 'user' : 'environment',
+        'width': {'ideal': 1280},
+        'height': {'ideal': 720},
+        'frameRate': {'ideal': 30},
+      };
+
+  @override
+  Future<void> enableVideo() async {
+    final mic = _mic;
+    if (mic == null) return;
+    final live = mic.getVideoTracks();
+    if (live.isNotEmpty) {
+      // Still here (a video call's camera that was only paused).
+      for (final t in live) {
+        t.enabled = true;
+      }
+      _video = true;
+      _local
+        ..value = null
+        ..value = mic;
+      return;
+    }
+    _frontCamera = true;
+    final cam = await navigator.mediaDevices.getUserMedia({
+      'audio': false,
+      'video': _cameraConstraints(),
+    });
+    final track = cam.getVideoTracks().first;
+    await mic.addTrack(track);
+    for (final link in _links.values.toList()) {
+      final sender = link.videoSender;
+      if (sender != null) {
+        await sender.replaceTrack(track);
+      } else {
+        link.videoSender = await link.pc.addTrack(track, mic);
+      }
+    }
+    _video = true;
+    _local
+      ..value = null
+      ..value = mic;
+  }
+
+  @override
+  Future<void> disableVideo() async {
+    final mic = _mic;
+    if (mic == null) return;
+    for (final link in _links.values.toList()) {
+      try {
+        await link.videoSender?.replaceTrack(null);
+      } on Object {
+        // The link is closing.
+      }
+    }
+    for (final t in mic.getVideoTracks()) {
+      await t.stop();
+      await mic.removeTrack(t);
+    }
+    _video = false;
+    _local.value = null;
+  }
+
+  @override
   Future<void> switchCamera() async {
     final tracks = _mic?.getVideoTracks() ?? const <MediaStreamTrack>[];
     if (tracks.isEmpty) return;
@@ -579,18 +693,11 @@ class WebRtcCallMedia implements CallMedia {
     _frontCamera = !_frontCamera;
     final cam = await navigator.mediaDevices.getUserMedia({
       'audio': false,
-      'video': {
-        'facingMode': _frontCamera ? 'user' : 'environment',
-        'width': {'ideal': 1280},
-        'height': {'ideal': 720},
-        'frameRate': {'ideal': 30},
-      },
+      'video': _cameraConstraints(front: _frontCamera),
     });
     final track = cam.getVideoTracks().first;
     for (final link in _links.values) {
-      for (final sender in await link.pc.getSenders()) {
-        if (sender.track?.kind == 'video') await sender.replaceTrack(track);
-      }
+      await link.videoSender?.replaceTrack(track);
     }
     await old.stop();
     await mic.removeTrack(old);
