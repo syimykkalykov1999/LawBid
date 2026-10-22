@@ -100,6 +100,8 @@ const ASYNC_METHODS = new Set([
   'previewSeatIncrease',
   'chargeSeatIncrease',
   'voidInvoice',
+  // Owner 2026-10-22: account deletion removes the Stripe customer.
+  'deleteCustomer',
   'switchToYearly',
   'retrieveInvoice',
   'retrieveCharge',

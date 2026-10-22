@@ -19,7 +19,9 @@ import { CaseLifecycleService } from '../cases/lifecycle/case-lifecycle.service'
 import { FileReleaseService } from '../files/storage/file-release.service';
 import { CaseJournalService } from '../journal/case-journal.service';
 import { SubscriptionAccessService } from '../subscriptions/subscription-access.service';
+import { VideosService } from '../videos/videos.service';
 import {
+  ANONYMIZED_FILE_PURPOSES,
   DELETED_FIRST_NAME,
   DELETED_LAST_NAME,
   DELETED_MESSAGE_BODY,
@@ -35,6 +37,9 @@ export interface AnonymizationResult {
 const blacklistKey = (chainId: string) => `authbl:${chainId}`;
 const BLACKLIST_TTL_SEC = 15 * 60;
 const BATCH = 100;
+/** Bunny deletions done inline per account; the rest goes to the
+ * `videos.sweep` (it purges every `deleted` asset). */
+const BUNNY_PURGE_INLINE = 50;
 
 /**
  * docs/06 §5.1 (stage 6.9): after the 14-day grace period the account is
@@ -61,31 +66,67 @@ export class AccountAnonymizationService {
     // Owner 2026-10-05 (docs/CLIENT_FRAUD.md): a blocked account deleted
     // keeps its hashes blocking.
     @Optional() private readonly fraud?: ClientFraudService,
+    // Owner 2026-10-22 (audit #4 §5): reels and story videos at Bunny.
+    @Optional() private readonly videos?: VideosService,
   ) {
     this.logger.setContext(AccountAnonymizationService.name);
   }
 
-  /** Daily job: every `deletion_pending` user past the grace period. */
-  async anonymizeDue(now: Date = new Date()): Promise<AnonymizationResult> {
+  /** Users past the grace period, oldest request first (one page). */
+  async dueUserIds(
+    now: Date = new Date(),
+    skip: string[] = [],
+    take = BATCH,
+  ): Promise<string[]> {
     const before = new Date(now.getTime() - DELETION_GRACE_DAYS * 86_400_000);
+    const due = await this.prisma.user.findMany({
+      where: {
+        status: 'deletion_pending',
+        deletion_requested_at: { lt: before },
+        anonymized_at: null,
+        ...(skip.length > 0 ? { id: { notIn: skip } } : {}),
+      },
+      select: { id: true },
+      orderBy: { deletion_requested_at: 'asc' },
+      take,
+    });
+    return due.map((u) => u.id);
+  }
+
+  /** Owner 2026-10-22: GDPR Art. 17(3)(e) — a legal hold on the person
+   * (an official request in progress) keeps the account until released;
+   * the daily job tries again. */
+  async isOnLegalHold(
+    userId: string,
+    now: Date = new Date(),
+  ): Promise<boolean> {
+    const hold = await this.prisma.legalHold.findFirst({
+      where: {
+        target_type: 'user',
+        target_id: userId,
+        released_at: null,
+        OR: [{ expires_at: null }, { expires_at: { gt: now } }],
+      },
+      select: { id: true },
+    });
+    return hold !== null;
+  }
+
+  /** Daily job (inline fallback of AccountDeletionRunner): every
+   * `deletion_pending` user past the grace period. */
+  async anonymizeDue(now: Date = new Date()): Promise<AnonymizationResult> {
     const result: AnonymizationResult = { anonymized: [], failed: [] };
+    const skipped: string[] = [];
     for (;;) {
-      const due = await this.prisma.user.findMany({
-        where: {
-          status: 'deletion_pending',
-          deletion_requested_at: { lt: before },
-          anonymized_at: null,
-          id: { notIn: result.failed.map((f) => f.userId) },
-        },
-        select: { id: true },
-        orderBy: { deletion_requested_at: 'asc' },
-        take: BATCH,
-      });
+      const due = await this.dueUserIds(now, [
+        ...skipped,
+        ...result.failed.map((f) => f.userId),
+      ]);
       if (due.length === 0) break;
-      for (const { id } of due) {
+      for (const id of due) {
         try {
-          await this.anonymize(id, now);
-          result.anonymized.push(id);
+          if (await this.anonymize(id, now)) result.anonymized.push(id);
+          else skipped.push(id);
         } catch (error) {
           const message =
             error instanceof Error ? error.message : String(error);
@@ -99,6 +140,59 @@ export class AccountAnonymizationService {
       if (due.length < BATCH) break;
     }
     return result;
+  }
+
+  /**
+   * Owner 2026-10-22 (audit #4 §5, Stripe "Delete a customer"): the
+   * person's Stripe customers go — the platform one (subscriptions) and
+   * the ones on attorneys' connected accounts (saved cards for case
+   * payments). Stripe keeps their invoices and payments; our finance rows
+   * stay. Idempotent: a customer already deleted is a no-op.
+   */
+  private async deleteStripeCustomers(userId: string): Promise<void> {
+    if (!this.payments.deleteCustomer) return;
+    const platform = await this.prisma.stripeCustomer.findUnique({
+      where: { user_id: userId },
+      select: { stripe_customer_id: true },
+    });
+    if (platform) {
+      await this.payments.deleteCustomer(platform.stripe_customer_id);
+    }
+    const connected = await this.prisma.connectedCustomer.findMany({
+      where: { client_id: userId },
+      select: { stripe_account_id: true, stripe_customer_id: true },
+    });
+    for (const c of connected) {
+      await this.payments.deleteCustomer(c.stripe_customer_id, {
+        stripeAccount: c.stripe_account_id,
+      });
+      await this.prisma.connectedCustomer.deleteMany({
+        where: { client_id: userId, stripe_account_id: c.stripe_account_id },
+      });
+    }
+  }
+
+  /** Owner 2026-10-22 (audit #4 §5): the person's videos (reels, story and
+   * channel videos) are marked deleted and removed at Bunny; what fails
+   * here is retried by the `videos.sweep`. */
+  private async deleteVideos(userId: string): Promise<void> {
+    const assets = await this.prisma.videoAsset.findMany({
+      where: { owner_user_id: userId, purged_at: null },
+      select: { id: true, external_id: true, deleted_at: true },
+    });
+    if (assets.length === 0) return;
+    const live = assets.filter((a) => a.deleted_at === null).map((a) => a.id);
+    if (this.videos) {
+      await this.videos.markDeleted(live);
+      for (const a of assets.slice(0, BUNNY_PURGE_INLINE)) {
+        await this.videos.purgeNow(a);
+      }
+    } else if (live.length > 0) {
+      await this.prisma.videoAsset.updateMany({
+        where: { id: { in: live }, deleted_at: null },
+        data: { status: 'deleted', deleted_at: new Date() },
+      });
+    }
   }
 
   /** Own messages → `[deleted]` (§5.1), 5 000 rows per statement so the
@@ -157,6 +251,10 @@ export class AccountAnonymizationService {
       },
     });
     if (!user || user.anonymized_at) return false;
+    if (await this.isOnLegalHold(userId, now)) {
+      this.logger.info({ userId }, 'anonymization deferred: legal hold');
+      return false;
+    }
 
     // 1. Stripe: cancel immediately (§5.1); payments stay as finance rows.
     const sub = user.subscription;
@@ -175,24 +273,23 @@ export class AccountAnonymizationService {
           : await this.payments.cancelNow(sub.stripe_subscription_id);
       await this.sync.apply(remote);
     }
+    // Owner 2026-10-22: then the Stripe customers themselves (Art. 17).
+    await this.deleteStripeCustomers(userId);
 
-    // 2. Files: avatar, verification documents and voice notes out of S3
-    // (idempotent).
+    // 2. Files: every purpose with the person's content out of S3
+    // (privacy.constants ANONYMIZED_FILE_PURPOSES; idempotent). Owner
+    // 2026-10-22 (audit #4 §5): posts, reels, stories, cases, reviews and
+    // support files too — not only avatar, verification and chat files.
+    // Stories go first (their rows point at post_image files).
+    await this.prisma.story.deleteMany({ where: { author_id: userId } });
+    await this.prisma.storyHidden.deleteMany({ where: { owner_id: userId } });
+    await this.prisma.storySetting.deleteMany({ where: { user_id: userId } });
+    await this.deleteVideos(userId);
     const files = await this.prisma.file.findMany({
       where: {
         owner_user_id: userId,
         deleted_at: null,
-        purpose: {
-          // OQ-040: voice notes are the sender's messages — gone too.
-          in: [
-            'avatar',
-            'verification_document',
-            'verification_selfie',
-            'chat_voice',
-            // OQ-047: files the user sent in chats.
-            'chat_attachment',
-          ],
-        },
+        purpose: { in: [...ANONYMIZED_FILE_PURPOSES] },
       },
       select: { id: true, s3_bucket: true, s3_key: true },
     });
@@ -373,6 +470,11 @@ export class AccountAnonymizationService {
         data: { status: 'removed', deleted_at: now },
       });
       postsRemoved = published;
+      // Owner 2026-10-22: channel posts lose their media above — hidden too.
+      await tx.channelPost.updateMany({
+        where: { author_id: userId, deleted_at: null },
+        data: { status: 'removed', deleted_at: now },
+      });
       const between = {
         OR: [{ follower_id: userId }, { followee_id: userId }],
       };

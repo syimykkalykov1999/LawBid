@@ -215,6 +215,15 @@ export class FakePaymentProvider implements PaymentProvider {
     });
   }
 
+  /** Owner 2026-10-22: deleted customers (tests check the anonymization). */
+  readonly deletedCustomers = new Set<string>();
+
+  deleteCustomer(customerId: string): Promise<void> {
+    this.customers.delete(customerId);
+    this.deletedCustomers.add(customerId);
+    return Promise.resolve();
+  }
+
   voidInvoice(invoiceId: string): Promise<void> {
     const cur = this.invoices.get(invoiceId);
     if (cur && cur.status === 'open') {

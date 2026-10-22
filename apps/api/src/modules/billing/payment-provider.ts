@@ -244,6 +244,14 @@ export interface PaymentProvider {
   createCoupon?(input: ProviderCouponInput): Promise<ProviderCoupon>;
   /** Stops new redemptions of the coupon (and its promotion codes). */
   deleteCoupon?(couponId: string): Promise<void>;
+  /** Owner 2026-10-22 (GDPR Art. 17, audit #4 §5): deletes the customer
+   * (on a connected account when [stripeAccount] is given). Stripe keeps
+   * its invoices and payments for finance; a customer already deleted is a
+   * no-op, so account anonymization can retry it. */
+  deleteCustomer?(
+    customerId: string,
+    options?: { stripeAccount?: string },
+  ): Promise<void>;
   /** Owner 2026-10-02 (admin refunds): refund part or all of a payment. */
   refund?(input: {
     paymentIntentId: string;
