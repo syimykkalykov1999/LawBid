@@ -49,6 +49,8 @@ object ChatNotifications {
     const val EXTRA_CONVERSATION = "conversationId"
     const val EXTRA_GROUP = "groupId"
     const val CHANNEL = "chats"
+    /** MainActivity.NO_BADGE: the twin channel without a launcher badge. */
+    const val NO_BADGE = MainActivity.NO_BADGE
 
     /** The notification id under each chat's tag. */
     private const val NOTIFICATION_ID = 7100
@@ -63,7 +65,10 @@ object ChatNotifications {
         val group = data["isGroup"] == "1"
         val manager = NotificationManagerCompat.from(context)
         if (!manager.areNotificationsEnabled()) return
-        ensureChannel(context)
+        // Owner 2026-10-22 (inbox 29): «Счётчик на иконке в меню» off —
+        // the twin channel that puts no badge / dot on the launcher icon.
+        val noBadge = data["iconBadge"] == "0"
+        ensureChannel(context, noBadge)
 
         val senderId = data["senderId"].orEmpty()
         val name = contactName(context, senderId)
@@ -138,7 +143,7 @@ object ChatNotifications {
             person = if (group) null else sender,
             group = group,
         )
-        val builder = NotificationCompat.Builder(context, CHANNEL)
+        val builder = NotificationCompat.Builder(context, if (noBadge) CHANNEL + NO_BADGE else CHANNEL)
             .setSmallIcon(context.applicationInfo.icon)
             .setStyle(style)
             .setContentTitle(if (group) chatTitle else name)
@@ -149,6 +154,7 @@ object ChatNotifications {
             .setContentIntent(open)
             .setWhen(line.optLong("at"))
             .setShowWhen(true)
+        if (noBadge) builder.setBadgeIconType(NotificationCompat.BADGE_ICON_NONE).setNumber(0)
         shortcutId?.let { builder.setShortcutId(it) }
         if (!group) avatarBitmap(context, senderKey)?.let { builder.setLargeIcon(it) }
         try {
@@ -209,20 +215,24 @@ object ChatNotifications {
 
     /** The «Chats» channel, as MainActivity creates it (a push may come
      * before the app was opened after an update). */
-    fun ensureChannel(context: Context) {
+    fun ensureChannel(context: Context, noBadge: Boolean = false) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val nm = context.getSystemService(NotificationManager::class.java) ?: return
-        if (nm.getNotificationChannel(CHANNEL) != null) return
+        val id = if (noBadge) CHANNEL + NO_BADGE else CHANNEL
+        if (nm.getNotificationChannel(id) != null) return
         val attrs = AudioAttributes.Builder()
             .setUsage(AudioAttributes.USAGE_NOTIFICATION)
             .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
             .build()
         nm.createNotificationChannel(
             NotificationChannel(
-                CHANNEL,
+                id,
                 context.getString(R.string.channel_chats),
                 NotificationManager.IMPORTANCE_HIGH,
-            ).apply { setSound(Settings.System.DEFAULT_NOTIFICATION_URI, attrs) },
+            ).apply {
+                setSound(Settings.System.DEFAULT_NOTIFICATION_URI, attrs)
+                if (noBadge) setShowBadge(false)
+            },
         )
     }
 

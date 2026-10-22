@@ -86,4 +86,24 @@ describe('FcmPushSender chat-style message', () => {
     expect(chatStyleTokens).not.toHaveBeenCalled();
     expect(sent.every((m) => m.notification)).toBe(true);
   });
+
+  // Owner 2026-10-22 (inbox 29): the app draws this alert itself, so it is
+  // told to use the channel without a launcher badge; iPhones get badge 0.
+  it('icon badge off: the data-only chat says so, iPhones get badge 0', async () => {
+    const { sender } = build();
+    await sender.send({ ...message, badge: 0, iconBadge: false }, 'm:m2');
+    expect(sent.find((m) => m.token === 'own')!.data.iconBadge).toBe('0');
+    expect(sent.find((m) => m.token === 'iphone')!.apns.payload.aps.badge).toBe(
+      0,
+    );
+    expect(
+      sent.find((m) => m.token === 'old')!.android.notification.channel_id,
+    ).toBe('chats_nobadge');
+  });
+
+  it('icon badge on: no flag in the data-only chat', async () => {
+    const { sender } = build();
+    await sender.send({ ...message, badge: 4 }, 'm:m3');
+    expect(sent.find((m) => m.token === 'own')!.data.iconBadge).toBeUndefined();
+  });
 });

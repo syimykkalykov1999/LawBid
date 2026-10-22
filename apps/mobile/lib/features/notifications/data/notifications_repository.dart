@@ -81,19 +81,29 @@ class AppNotification {
 /// docs/05 §10 badges.
 @immutable
 class Badges {
-  const Badges({this.chats = 0, this.notifications = 0});
+  const Badges({this.chats = 0, this.notifications = 0, this.iconBadge = true});
 
   final int chats;
   final int notifications;
 
+  /// Owner 2026-10-21 (inbox 29): false = keep the app icon clear.
+  final bool iconBadge;
+
   int get total => chats + notifications;
+
+  /// The number on the app icon (0 while «Счётчик на иконке» is off).
+  int get iconCount => iconBadge ? total : 0;
 
   static Badges? fromEvent(Object? data) {
     if (data is! Map) return null;
     final c = data['chatsUnread'];
     final n = data['notificationsUnread'];
     if (c is! num || n is! num) return null;
-    return Badges(chats: c.toInt(), notifications: n.toInt());
+    return Badges(
+      chats: c.toInt(),
+      notifications: n.toInt(),
+      iconBadge: data['iconBadge'] != false,
+    );
   }
 }
 
@@ -133,12 +143,66 @@ class QuietHours {
   final String timezone;
 }
 
+/// Owner 2026-10-21 (inbox 30): one switch of Settings → Notifications
+/// (apps/api notification-topics.ts). [block] groups it on screen.
+@immutable
+class TopicSetting {
+  const TopicSetting({
+    required this.key,
+    required this.block,
+    required this.push,
+    this.locked = false,
+    this.attorneyOnly = false,
+    this.parent,
+  });
+
+  final String key;
+  final String block;
+  final bool push;
+  final bool locked;
+  final bool attorneyOnly;
+
+  /// Needs this switch on too (nested under it).
+  final String? parent;
+
+  TopicSetting copyWith({required bool push}) => TopicSetting(
+        key: key,
+        block: block,
+        push: push,
+        locked: locked,
+        attorneyOnly: attorneyOnly,
+        parent: parent,
+      );
+}
+
 @immutable
 class NotificationSettings {
-  const NotificationSettings({required this.categories, this.quietHours});
+  const NotificationSettings({
+    required this.categories,
+    this.quietHours,
+    this.iconBadge = true,
+    this.topics = const [],
+  });
 
   final List<CategorySetting> categories;
   final QuietHours? quietHours;
+
+  /// Owner 2026-10-21 (inbox 29): the unread number on the app icon.
+  final bool iconBadge;
+  final List<TopicSetting> topics;
+
+  NotificationSettings copyWith({
+    List<CategorySetting>? categories,
+    QuietHours? Function()? quietHours,
+    bool? iconBadge,
+    List<TopicSetting>? topics,
+  }) =>
+      NotificationSettings(
+        categories: categories ?? this.categories,
+        quietHours: quietHours != null ? quietHours() : this.quietHours,
+        iconBadge: iconBadge ?? this.iconBadge,
+        topics: topics ?? this.topics,
+      );
 }
 
 /// docs/05 §9, §10, §15 "Уведомления и push". Throws [ApiException].
@@ -186,6 +250,12 @@ abstract interface class NotificationsRepository {
   Future<NotificationSettings> settings();
   Future<NotificationSettings> updateSettings(List<CategorySetting> items);
   Future<NotificationSettings> setQuietHours(QuietHours? quietHours);
+
+  /// Owner 2026-10-21 (inbox 29): «Счётчик на иконке в меню».
+  Future<NotificationSettings> setIconBadge({required bool enabled});
+
+  /// Owner 2026-10-21 (inbox 30): a switch per kind of notification.
+  Future<NotificationSettings> updateTopics(List<TopicSetting> items);
   Future<NewCaseAlerts> newCaseAlerts();
 
   /// [practiceAreaIds] null keeps the saved list (switching modes only);
@@ -262,6 +332,48 @@ class ApiNotificationsRepository implements NotificationsRepository {
                 end: d.quietHours!.end ?? d.quietHours!.start!,
                 timezone: d.quietHours!.timezone ?? 'UTC',
               ),
+        iconBadge: d.iconBadge,
+        topics: [
+          for (final x in d.topics)
+            // A switch this build doesn't know yet is left out.
+            if (x.topic.json != null && x.block.json != null)
+              TopicSetting(
+                key: x.topic.json!,
+                block: x.block.json!,
+                push: x.pushEnabled,
+                locked: x.locked,
+                attorneyOnly: x.attorneyOnly,
+                parent: x.parent,
+              ),
+        ],
+      );
+
+  @override
+  Future<NotificationSettings> setIconBadge({required bool enabled}) async =>
+      _settings(
+        (await guardApiCall(
+          () => _api.setIconBadge(body: api.IconBadgeDto(enabled: enabled)),
+        ))
+            .data,
+      );
+
+  @override
+  Future<NotificationSettings> updateTopics(List<TopicSetting> items) async =>
+      _settings(
+        (await guardApiCall(
+          () => _api.updateNotificationTopics(
+            body: api.UpdateTopicSettingsDto(
+              items: [
+                for (final i in items)
+                  api.TopicSettingDto(
+                    topic: api.NotificationTopic.fromJson(i.key),
+                    pushEnabled: i.push,
+                  ),
+              ],
+            ),
+          ),
+        ))
+            .data,
       );
 
   @override
@@ -324,6 +436,7 @@ class ApiNotificationsRepository implements NotificationsRepository {
     return Badges(
       chats: d.chatsUnread.toInt(),
       notifications: d.notificationsUnread.toInt(),
+      iconBadge: d.iconBadge ?? true,
     );
   }
 
@@ -342,8 +455,9 @@ class ApiNotificationsRepository implements NotificationsRepository {
               items: [
                 for (final i in items)
                   api.CategorySettingDto(
-                    category: api.CategorySettingDtoCategory.values
-                        .byName(i.category.name),
+                    category: api.CategorySettingDtoCategory.values.byName(
+                      i.category.name,
+                    ),
                     pushEnabled: i.push,
                     emailEnabled: i.email,
                   ),

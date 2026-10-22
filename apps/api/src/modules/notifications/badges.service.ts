@@ -87,11 +87,17 @@ export class BadgesService {
   /** The number a push puts on the app icon: the total, or 0 while the
    * switch is off (0 also clears an older number, like Telegram). */
   async forIcon(userId: string): Promise<number> {
+    return (await this.iconFor(userId)).badge;
+  }
+
+  /** [forIcon] plus the switch itself: off also sends the Android alert
+   * through a channel without a launcher badge (PushMessage.iconBadge). */
+  async iconFor(userId: string): Promise<{ badge: number; on: boolean }> {
     const [b, on] = await Promise.all([
       this.get(userId),
       this.iconBadgeOn(userId),
     ]);
-    return on ? b.total : 0;
+    return { badge: on ? b.total : 0, on };
   }
 
   /** [b] plus the [ownerId]'s icon switch (GET /badges, `badge:update`). */

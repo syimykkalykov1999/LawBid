@@ -445,12 +445,34 @@ class MainActivity : FlutterFragmentActivity() {
             getString(R.string.channel_notifications),
             NotificationManager.IMPORTANCE_HIGH,
         ).apply { setSound(sound, attrs) }
-        manager.createNotificationChannels(listOf(chats, general))
+        // Owner 2026-10-21 (inbox 29): «Счётчик на иконке в меню» off —
+        // the server sends alerts through these twins, which put no badge /
+        // dot on the launcher icon (a channel's badge can't change later).
+        val chatsNoBadge = NotificationChannel(
+            CHANNEL_CHATS + NO_BADGE,
+            getString(R.string.channel_chats),
+            NotificationManager.IMPORTANCE_HIGH,
+        ).apply {
+            setSound(sound, attrs)
+            setShowBadge(false)
+        }
+        val generalNoBadge = NotificationChannel(
+            CHANNEL_NOTIFICATIONS + NO_BADGE,
+            getString(R.string.channel_notifications),
+            NotificationManager.IMPORTANCE_HIGH,
+        ).apply {
+            setSound(sound, attrs)
+            setShowBadge(false)
+        }
+        manager.createNotificationChannels(
+            listOf(chats, general, chatsNoBadge, generalNoBadge),
+        )
     }
 
     companion object {
         const val CHANNEL_CHATS = "chats"
         const val CHANNEL_NOTIFICATIONS = "general"
+        const val NO_BADGE = "_nobadge"
         const val REQUEST_NOTIFICATIONS = 7001
     }
 }

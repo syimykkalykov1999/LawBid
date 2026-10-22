@@ -59,6 +59,7 @@ function setup(opts: { lastReadAt?: Date } = {}) {
     {
       get: () => Promise.resolve({ total: 3 }),
       forIcon: () => Promise.resolve(3),
+      iconFor: () => Promise.resolve({ badge: 3, on: true }),
       topicSwitches: () =>
         Promise.resolve({ on: () => true, own: () => true, raw: {} }),
     } as never,

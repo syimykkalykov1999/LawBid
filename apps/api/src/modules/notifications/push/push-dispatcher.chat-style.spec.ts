@@ -24,7 +24,13 @@ const people: Record<string, Record<string, unknown>> = {
   },
 };
 
-function setup(message: Record<string, unknown>, group = false) {
+function setup(
+  message: Record<string, unknown>,
+  group = false,
+  opts: { iconOn?: boolean; off?: string[] } = {},
+) {
+  const iconOn = opts.iconOn ?? true;
+  const off = new Set(opts.off ?? []);
   const sent: PushMessage[] = [];
   const viewers: (string | null)[] = [];
   const prisma = {
@@ -49,7 +55,18 @@ function setup(message: Record<string, unknown>, group = false) {
           avatar_file_id: 'f-team',
         }),
     },
-    notificationSetting: { findUnique: () => Promise.resolve(null) },
+    notificationSetting: {
+      findUnique: ({
+        where,
+      }: {
+        where: { user_id_category: { category: string } };
+      }) =>
+        Promise.resolve(
+          off.has(where.user_id_category.category)
+            ? { push_enabled: false }
+            : null,
+        ),
+    },
     notificationQuietHours: { findUnique: () => Promise.resolve(null) },
   };
   const files = {
@@ -82,7 +99,15 @@ function setup(message: Record<string, unknown>, group = false) {
     },
     {} as never,
     {} as never,
-    { get: () => Promise.resolve({ total: 1 }) } as never,
+    {
+      get: () => Promise.resolve({ total: 1 }),
+      iconFor: () => Promise.resolve({ badge: iconOn ? 1 : 0, on: iconOn }),
+      topicSwitches: () =>
+        Promise.resolve({
+          on: (k: string) => !off.has(k),
+          raw: Object.fromEntries([...off].map((k) => [k, false])),
+        }),
+    } as never,
     { isViewing: () => Promise.resolve(false) } as never,
     { setContext: () => undefined, warn: () => undefined } as never,
     undefined,
@@ -209,5 +234,47 @@ describe('PushDispatcher chat pushes like WhatsApp', () => {
     await d.dispatch(job, 'j');
     expect(sent[0].body).toBe('@bob_k: 📷 Фото');
     expect(sent[0].data.text).toBe('📷 Фото');
+  });
+
+  // Owner 2026-10-22 (inbox 29): «Счётчик на иконке в меню» and the
+  // per-kind switches hold for the WhatsApp-style chat pushes too.
+  describe('settings', () => {
+    it('icon badge off: 1:1 push carries badge 0 and no launcher badge', async () => {
+      const { d, sent, job } = setup(base, false, { iconOn: false });
+      expect(await d.dispatch(job, 'j')).toBe('sent');
+      expect(sent[0].badge).toBe(0);
+      expect(sent[0].iconBadge).toBe(false);
+      expect(sent[0].chat).toBe(true);
+    });
+
+    it('icon badge off: group push too', async () => {
+      const { d, sent, job } = setup({ ...base, group_id: 'g1' }, true, {
+        iconOn: false,
+      });
+      expect(await d.dispatch(job, 'j')).toBe('sent');
+      expect(sent[0].badge).toBe(0);
+      expect(sent[0].iconBadge).toBe(false);
+    });
+
+    it('icon badge on: the unread total, no flag', async () => {
+      const { d, sent, job } = setup(base);
+      await d.dispatch(job, 'j');
+      expect(sent[0].badge).toBe(1);
+      expect(sent[0].iconBadge).toBeUndefined();
+    });
+
+    it('«Messages» off: no 1:1 push', async () => {
+      const { d, sent, job } = setup(base, false, { off: ['messages'] });
+      expect(await d.dispatch(job, 'j')).toBe('disabled');
+      expect(sent).toHaveLength(0);
+    });
+
+    it('«Groups» off: no group push', async () => {
+      const { d, sent, job } = setup({ ...base, group_id: 'g1' }, true, {
+        off: ['groups'],
+      });
+      expect(await d.dispatch(job, 'j')).toBe('disabled');
+      expect(sent).toHaveLength(0);
+    });
   });
 });

@@ -99,6 +99,26 @@ describe('app icon badge switch', () => {
       });
     });
 
+    it('switch off: Android alert goes through the no-badge channel', async () => {
+      await sender().send({ ...message, badge: 0, iconBadge: false }, 'm:4');
+      expect(sent[0].android.notification.channel_id).toBe('chats_nobadge');
+      await sender().send(
+        { ...message, sound: 'notification', badge: 0, iconBadge: false },
+        'm:5',
+      );
+      expect(sent[0].android.notification.channel_id).toBe('general_nobadge');
+    });
+
+    it('switch on: the usual channel', async () => {
+      await sender().send({ ...message, badge: 5 }, 'm:6');
+      expect(sent[0].android.notification.channel_id).toBe('chats');
+    });
+
+    it('iconFor: the number and the switch', async () => {
+      expect(await badges(false).iconFor('u')).toEqual({ badge: 0, on: false });
+      expect(await badges(true).iconFor('u')).toEqual({ badge: 5, on: true });
+    });
+
     it('no badge given: aps has no badge key', async () => {
       await sender().send(message, 'm:3');
       expect('badge' in sent[0].apns.payload.aps).toBe(false);

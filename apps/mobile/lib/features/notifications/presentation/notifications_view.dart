@@ -108,7 +108,8 @@ String? notificationRoute({
     // Owner 2026-09-30 (opt-in alerts).
     case 'followed_post':
       return postId == null ? null : SocialRoutes.post(postId);
-    case 'new_case' || 'new_urgent_case':
+    // Owner 2026-10-21 (inbox 30): an assistant's bid draft opens the case.
+    case 'new_case' || 'new_urgent_case' || 'assistant_bid_draft':
       return caseId == null ? null : AppRoutes.caseDetail(caseId);
     // Owner 2026-10-05: a case's date (court hearing…) is near, today,
     // passed, or was moved by the other side.
