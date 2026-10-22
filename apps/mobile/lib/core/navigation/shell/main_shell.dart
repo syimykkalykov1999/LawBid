@@ -52,6 +52,16 @@ class _MainShellState extends ConsumerState<MainShell> {
   final _bodyKey = GlobalKey();
   bool _reselecting = false;
 
+  /// Owner 2026-10-22: the feed's pages run on into Chats; the bottom bar
+  /// slides down with them (0 = shown, 1 = gone), as a pushed Chats had it.
+  final _navAway = ValueNotifier<double>(0);
+
+  @override
+  void dispose() {
+    _navAway.dispose();
+    super.dispose();
+  }
+
   void _onTabSelected(int index) {
     final reselect = index == navigationShell.currentIndex;
     // Owner 2026-10-19: switching tabs drops the keyboard of the tab left.
@@ -112,6 +122,7 @@ class _MainShellState extends ConsumerState<MainShell> {
     final layout = shellLayoutFor(MediaQuery.sizeOf(context).width);
     final side = layout != ShellLayout.bottom;
     final body = InsideMainShell(
+      navAway: _navAway,
       child: DemoBannerHost(
         child: Column(
           children: [
@@ -170,12 +181,25 @@ class _MainShellState extends ConsumerState<MainShell> {
           : body,
       bottomNavigationBar: side
           ? null
-          : AppBottomNav(
-              tabs: tabs,
-              currentIndex: navigationShell.currentIndex,
-              onTabSelected: _onTabSelected,
-              onCreatePressed: () => showCreateSheet(context, ref),
-              createSemanticLabel: translator.t('nav.create'),
+          : ValueListenableBuilder<double>(
+              valueListenable: _navAway,
+              builder: (context, away, nav) {
+                // Only the feed tab runs into Chats.
+                final a = navigationShell.currentIndex == 0 ? away : 0.0;
+                if (a >= 1) return const SizedBox.shrink();
+                if (a <= 0) return nav!;
+                return FractionalTranslation(
+                  translation: Offset(0, a),
+                  child: nav,
+                );
+              },
+              child: AppBottomNav(
+                tabs: tabs,
+                currentIndex: navigationShell.currentIndex,
+                onTabSelected: _onTabSelected,
+                onCreatePressed: () => showCreateSheet(context, ref),
+                createSemanticLabel: translator.t('nav.create'),
+              ),
             ),
     );
   }

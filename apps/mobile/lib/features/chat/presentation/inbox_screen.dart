@@ -59,9 +59,17 @@ enum InboxTab { chats, notifications, requests, team }
 const _headerSide = EdgeInsets.symmetric(horizontal: 116);
 
 class InboxScreen extends ConsumerStatefulWidget {
-  const InboxScreen({this.initialTab = InboxTab.chats, super.key});
+  const InboxScreen({
+    this.initialTab = InboxTab.chats,
+    this.onBack,
+    super.key,
+  });
 
   final InboxTab initialTab;
+
+  /// Owner 2026-10-22: as the feed's last page the back arrow slides back
+  /// to the feed (null = pop the pushed screen).
+  final VoidCallback? onBack;
 
   @override
   ConsumerState<InboxScreen> createState() => _InboxScreenState();
@@ -169,8 +177,8 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                               children: [
                                 AppBackButton(
                                   semanticLabel: t.t('common.back'),
-                                  onPressed: () =>
-                                      Navigator.of(context).maybePop(),
+                                  onPressed: widget.onBack ??
+                                      () => Navigator.of(context).maybePop(),
                                 ),
                               ],
                             ),

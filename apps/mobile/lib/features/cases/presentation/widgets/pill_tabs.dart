@@ -518,12 +518,18 @@ class _EdgeAwareDrag extends HorizontalDragGestureRecognizer {
 /// ways); a tap on a tab slides to it (~250 ms). Every section stays alive
 /// once built (its scroll position, its lists), nothing fades or blinks.
 /// A swipe that starts at the left edge is left to "back".
+///
+/// Owner 2026-10-22 («дальше слайд переходит в Чаты и обратно выходит»):
+/// pages inside pages (Chats | Team inside the feed's pages) — a swipe past
+/// the inner first or last page is left to the outer pages, so the finger
+/// carries on into the next outer page; inside, the inner pages move.
 class SwipePages<T> extends StatefulWidget {
   const SwipePages({
     required this.value,
     required this.values,
     required this.onChanged,
     required this.pageBuilder,
+    this.onPosition,
     super.key,
   });
 
@@ -531,6 +537,10 @@ class SwipePages<T> extends StatefulWidget {
   final List<T> values;
   final ValueChanged<T> onChanged;
   final Widget Function(BuildContext context, T value) pageBuilder;
+
+  /// Where the pages are, every frame (0 = the first page, 1.5 = half way
+  /// between the second and the third).
+  final ValueChanged<double>? onPosition;
 
   @override
   State<SwipePages<T>> createState() => _SwipePagesState<T>();
@@ -548,11 +558,25 @@ class _SwipePagesState<T> extends State<SwipePages<T>> {
   /// A tap's slide is running (the pages it passes are not chosen).
   bool _animating = false;
 
+  // Nested pages drive their own drag (see [_YieldingDrag]).
+  Drag? _drag;
+  ScrollHoldController? _hold;
+
   @override
   void initState() {
     super.initState();
     _target = math.max(0, widget.values.indexOf(widget.value));
-    _pages = PageController(initialPage: _target);
+    _pages = PageController(initialPage: _target)..addListener(_report);
+  }
+
+  void _report() {
+    final on = widget.onPosition;
+    if (on == null ||
+        !_pages.hasClients ||
+        !_pages.position.hasContentDimensions) {
+      return;
+    }
+    on(_pages.page ?? _target.toDouble());
   }
 
   @override
@@ -585,22 +609,120 @@ class _SwipePagesState<T> extends State<SwipePages<T>> {
     super.dispose();
   }
 
+  /// A drag that moved [dx] (global, + = to the right) runs past this
+  /// view's first or last page: it belongs to the pages around it.
+  bool _yields(double dx) {
+    if (!_pages.hasClients || dx == 0) return false;
+    final page = _pages.page ?? _target.toDouble();
+    final rtl = Directionality.of(context) == TextDirection.rtl;
+    final forward = rtl ? dx > 0 : dx < 0;
+    return forward ? page >= widget.values.length - 1.01 : page <= 0.01;
+  }
+
   @override
-  Widget build(BuildContext context) => PageView.builder(
-        controller: _pages,
-        itemCount: widget.values.length,
-        onPageChanged: (i) {
-          // Mid-animation pages of a tap are passed by, not chosen.
-          if (_animating && i != _target) return;
-          _target = i;
-          if (widget.values[i] != widget.value) {
-            widget.onChanged(widget.values[i]);
-          }
-        },
-        itemBuilder: (context, i) => _KeepPage(
-          child: widget.pageBuilder(context, widget.values[i]),
+  Widget build(BuildContext context) {
+    final nested =
+        context.dependOnInheritedWidgetOfExactType<_SwipePagesScope>() != null;
+    final view = PageView.builder(
+      controller: _pages,
+      // Nested: the drag below moves the pages, not the page view's own.
+      physics: nested ? const _OwnDragPhysics() : null,
+      itemCount: widget.values.length,
+      onPageChanged: (i) {
+        // Mid-animation pages of a tap are passed by, not chosen.
+        if (_animating && i != _target) return;
+        _target = i;
+        if (widget.values[i] != widget.value) {
+          widget.onChanged(widget.values[i]);
+        }
+      },
+      itemBuilder: (context, i) => _KeepPage(
+        child: widget.pageBuilder(context, widget.values[i]),
+      ),
+    );
+    final scoped = _SwipePagesScope(child: view);
+    if (!nested) return scoped;
+    final config = ScrollConfiguration.of(context);
+    final physics = config.getScrollPhysics(context);
+    return RawGestureDetector(
+      gestures: {
+        _YieldingDrag: GestureRecognizerFactoryWithHandlers<_YieldingDrag>(
+          () => _YieldingDrag(supportedDevices: config.dragDevices),
+          (r) => r
+            ..yields = _yields
+            ..onDown = (_) {
+              if (_pages.hasClients) {
+                _hold = _pages.position.hold(() => _hold = null);
+              }
+            }
+            ..onStart = (d) {
+              if (_pages.hasClients) {
+                _drag = _pages.position.drag(d, () => _drag = null);
+              }
+            }
+            ..onUpdate = ((d) {
+              _drag?.update(d);
+            })
+            ..onEnd = ((d) {
+              _drag?.end(d);
+            })
+            ..onCancel = () {
+              _hold?.cancel();
+              _drag?.cancel();
+            }
+            ..minFlingDistance = physics.minFlingDistance
+            ..minFlingVelocity = physics.minFlingVelocity
+            ..maxFlingVelocity = physics.maxFlingVelocity
+            ..velocityTrackerBuilder = config.velocityTrackerBuilder(context)
+            ..multitouchDragStrategy = config.getMultitouchDragStrategy(context)
+            ..gestureSettings = MediaQuery.maybeGestureSettingsOf(context),
         ),
-      );
+      },
+      child: scoped,
+    );
+  }
+}
+
+/// Marks the pages inside [SwipePages]: a [SwipePages] below is nested.
+class _SwipePagesScope extends InheritedWidget {
+  const _SwipePagesScope({required super.child});
+
+  @override
+  bool updateShouldNotify(_SwipePagesScope old) => false;
+}
+
+/// The page view of nested [SwipePages] takes no drag itself (its
+/// [_YieldingDrag] moves it); everything else is the platform's.
+class _OwnDragPhysics extends ScrollPhysics {
+  const _OwnDragPhysics({super.parent});
+
+  @override
+  _OwnDragPhysics applyTo(ScrollPhysics? ancestor) =>
+      _OwnDragPhysics(parent: buildParent(ancestor));
+
+  @override
+  bool shouldAcceptUserOffset(ScrollMetrics position) => false;
+}
+
+/// A horizontal drag that does not claim the finger when it runs past the
+/// first or last page ([yields]): the pages around take it instead.
+class _YieldingDrag extends HorizontalDragGestureRecognizer {
+  _YieldingDrag({super.supportedDevices});
+
+  bool Function(double dx) yields = _never;
+
+  static bool _never(double _) => false;
+
+  @override
+  bool hasSufficientGlobalDistanceToAccept(
+    PointerDeviceKind pointerDeviceKind,
+    double? deviceTouchSlop,
+  ) =>
+      super.hasSufficientGlobalDistanceToAccept(
+        pointerDeviceKind,
+        deviceTouchSlop,
+      ) &&
+      !yields(globalDistanceMoved);
 }
 
 class _KeepPage extends StatefulWidget {
