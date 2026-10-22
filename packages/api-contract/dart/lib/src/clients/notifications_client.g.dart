@@ -23,6 +23,7 @@ class _NotificationsClient implements NotificationsClient {
   @override
   Future<NotificationListEnvelope> listNotifications({
     String? cursor,
+    DateTime? updatedSince,
     NotificationGroup? group,
     String? q,
     Map<String, dynamic>? extras,
@@ -31,6 +32,7 @@ class _NotificationsClient implements NotificationsClient {
     _extra.addAll(extras ?? <String, dynamic>{});
     final queryParameters = <String, dynamic>{
       r'cursor': cursor,
+      r'updatedSince': updatedSince?.toIso8601String(),
       r'group': group?.toJson(),
       r'q': q,
     };

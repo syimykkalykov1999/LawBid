@@ -46,10 +46,13 @@ abstract class ConsultationsClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// My consultations (both roles)
+  /// My consultations (both roles).
+  ///
+  /// [updatedSince] - Owner 2026-10-22 (client economy plan, package E): only my consultations changed since (ISO); meta.deletedIds = the ones that left this view; meta.syncedAt = pass it back next time. Older than 7 days → 409 SYNC_TOO_OLD.
   @GET('/consultations')
   Future<ConsultationListEnvelope> listConsultations({
     @Query('cursor') String? cursor,
+    @Query('updatedSince') DateTime? updatedSince,
     @Query('view') View? view = View.upcoming,
     @Extras() Map<String, dynamic>? extras,
   });

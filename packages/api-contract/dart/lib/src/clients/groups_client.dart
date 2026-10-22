@@ -47,10 +47,13 @@ abstract class GroupsClient {
   ///
   /// [cursor] - meta.nextCursor of the previous page.
   ///
+  /// [updatedSince] - Owner 2026-10-22 (client economy plan, package B): only the groups whose row or my membership changed since (ISO) — the catch-up after a reconnect. meta.deletedIds = groups that left this list (I left / was removed / hid / archived or unarchived it, or it was deleted); meta.syncedAt = pass it back next time. Older than 7 days → 409 SYNC_TOO_OLD. Pinned groups are not repeated with it.
+  ///
   /// [archived] - Owner 2026-10-20: true = only my archived groups; otherwise archived ones are left out.
   @GET('/groups')
   Future<GroupListEnvelope> listGroups({
     @Query('cursor') String? cursor,
+    @Query('updatedSince') DateTime? updatedSince,
     @Query('archived') bool? archived,
     @Extras() Map<String, dynamic>? extras,
   });
@@ -197,12 +200,15 @@ abstract class GroupsClient {
   ///
   /// [topicId] - Forum groups: only this topic («General» includes old chat).
   ///
+  /// [afterId] - Owner 2026-10-22 (client economy plan, package B): everything after this message (oldest first, up to 200; more than that → 409 SYNC_TOO_OLD, reload the page). Catch-up after a reconnect instead of reloading. `cursor` and `limit` are ignored with it.
+  ///
   /// [cursor] - meta.nextCursor of the previous page.
   @GET('/groups/{id}/messages')
   Future<GroupMessageListEnvelope> listGroupMessages({
     @Path('id') required String id,
     @Query('limit') num? limit = 30,
     @Query('topicId') String? topicId,
+    @Query('afterId') String? afterId,
     @Query('cursor') String? cursor,
     @Extras() Map<String, dynamic>? extras,
   });
@@ -279,10 +285,13 @@ abstract class GroupsClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Topics of a forum group («General» first)
+  /// Topics of a forum group («General» first).
+  ///
+  /// [updatedSince] - Owner 2026-10-22 (package B): only the topics changed since (ISO); meta.syncedAt = pass it back next time. Topics are never deleted (deletedIds stays empty). Older than 7 days → 409 SYNC_TOO_OLD.
   @GET('/groups/{id}/topics')
   Future<GroupTopicListEnvelope> listGroupTopics({
     @Path('id') required String id,
+    @Query('updatedSince') DateTime? updatedSince,
     @Extras() Map<String, dynamic>? extras,
   });
 

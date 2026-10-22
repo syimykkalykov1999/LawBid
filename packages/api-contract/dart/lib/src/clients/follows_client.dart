@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
 import '../models/attorney_list_item_list_envelope.dart';
+import '../models/follow_state_envelope.dart';
 import '../models/person_item_list_envelope.dart';
 
 part 'follows_client.g.dart';
@@ -16,14 +17,14 @@ abstract class FollowsClient {
 
   /// Follow an attorney (idempotent, docs/05 §6.1)
   @POST('/attorneys/{id}/follow')
-  Future<void> followAttorney({
+  Future<FollowStateEnvelope> followAttorney({
     @Path('id') required String id,
     @Extras() Map<String, dynamic>? extras,
   });
 
   /// Unfollow (idempotent)
   @DELETE('/attorneys/{id}/follow')
-  Future<void> unfollowAttorney({
+  Future<FollowStateEnvelope> unfollowAttorney({
     @Path('id') required String id,
     @Extras() Map<String, dynamic>? extras,
   });

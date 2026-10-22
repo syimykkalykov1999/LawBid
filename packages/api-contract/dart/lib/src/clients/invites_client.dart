@@ -35,10 +35,13 @@ abstract class InvitesClient {
   /// My invites from clients (attorney).
   ///
   /// [status] - pending (default): waiting for an answer; all: history too.
+  ///
+  /// [updatedSince] - Owner 2026-10-22 (client economy plan, package E): only my invites changed since (ISO); meta.deletedIds = invites no longer pending (with status=pending); meta.syncedAt = pass it back next time. Older than 7 days → 409 SYNC_TOO_OLD.
   @GET('/invites')
   Future<CaseInviteListEnvelope> listMyInvites({
     @Query('status') InviteListStatus? status,
     @Query('cursor') String? cursor,
+    @Query('updatedSince') DateTime? updatedSince,
     @Extras() Map<String, dynamic>? extras,
   });
 

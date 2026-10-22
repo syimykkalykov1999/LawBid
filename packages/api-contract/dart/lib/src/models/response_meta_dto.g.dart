@@ -7,7 +7,19 @@ part of 'response_meta_dto.dart';
 // **************************************************************************
 
 ResponseMetaDto _$ResponseMetaDtoFromJson(Map<String, dynamic> json) =>
-    ResponseMetaDto(nextCursor: json['nextCursor'] as String?);
+    ResponseMetaDto(
+      nextCursor: json['nextCursor'] as String?,
+      deletedIds: (json['deletedIds'] as List<dynamic>?)
+          ?.map((e) => e as String)
+          .toList(),
+      syncedAt: json['syncedAt'] == null
+          ? null
+          : DateTime.parse(json['syncedAt'] as String),
+    );
 
 Map<String, dynamic> _$ResponseMetaDtoToJson(ResponseMetaDto instance) =>
-    <String, dynamic>{'nextCursor': ?instance.nextCursor};
+    <String, dynamic>{
+      'nextCursor': ?instance.nextCursor,
+      'deletedIds': ?instance.deletedIds,
+      'syncedAt': ?instance.syncedAt?.toIso8601String(),
+    };

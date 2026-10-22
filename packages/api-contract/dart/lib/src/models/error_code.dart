@@ -476,6 +476,8 @@ enum ErrorCode {
   contentProtected('CONTENT_PROTECTED'),
   @JsonValue('UNSUPPORTED_IN_TARGET')
   unsupportedInTarget('UNSUPPORTED_IN_TARGET'),
+  @JsonValue('SYNC_TOO_OLD')
+  syncTooOld('SYNC_TOO_OLD'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

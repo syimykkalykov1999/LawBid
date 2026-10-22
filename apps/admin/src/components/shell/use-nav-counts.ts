@@ -1,44 +1,30 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { api } from '@/lib/api/client';
-import { dashboardQuery, livePoll, supportStatsQuery, trustStatsQuery } from '@/lib/live';
+import { countsQuery, livePoll } from '@/lib/live';
 import { can, canOpen, type CountKey } from '@/lib/rbac';
 import type { Me } from '@/lib/hooks';
 
 /**
  * Sidebar badges: work waiting in each queue (refreshes every minute).
- * The only place these three keys are polled; pages read the same cache.
+ * Owner 2026-10-22 (client economy plan, package J): ONE request
+ * (GET /admin/counts, five indexed counts, 304 when unchanged) instead of
+ * the dashboard aggregate + support stats + trust stats + approvals count
+ * — four requests a minute per open tab. Pages that show the full stats
+ * poll their own query while open.
  */
 export function useNavCounts(me: Me | undefined): Partial<Record<CountKey, number>> {
-  const dash = useQuery({
-    ...dashboardQuery,
+  const counts = useQuery({
+    ...countsQuery,
     refetchInterval: livePoll(),
-    enabled: can(me, 'dashboard'),
+    enabled: !!me,
   }).data;
-  const support = useQuery({
-    ...supportStatsQuery,
-    refetchInterval: livePoll(),
-    enabled: can(me, 'support'),
-  }).data;
-  // Owner 2026-10-05: «Борьба с мошенниками» — attorneys waiting for a person.
-  const trust = useQuery({
-    ...trustStatsQuery,
-    refetchInterval: livePoll(),
-    enabled: can(me, 'verification'),
-  }).data;
-  // Owner 2026-10-22 (maker-checker): requests this admin could approve.
-  const approvals = useQuery({
-    queryKey: ['approvals-count'],
-    queryFn: async () => (await api.GET('/admin/approvals/count')).data!.data,
-    refetchInterval: livePoll(),
-    enabled: !!me && canOpen(me, '/approvals'),
-  }).data;
+  if (!counts || !me) return {};
   return {
-    approvals: approvals?.pending,
-    verification: dash?.verification.queueSize,
-    trust: trust?.inQueue,
-    reports: dash?.openReports,
-    support: support ? support.unreadByAdmin : undefined,
+    approvals: canOpen(me, '/approvals') ? counts.approvalsPending : undefined,
+    verification: can(me, 'dashboard') ? counts.verificationQueue : undefined,
+    trust: can(me, 'verification') ? counts.trustQueue : undefined,
+    reports: can(me, 'dashboard') ? counts.openReports : undefined,
+    support: can(me, 'support') ? counts.supportUnread : undefined,
   };
 }

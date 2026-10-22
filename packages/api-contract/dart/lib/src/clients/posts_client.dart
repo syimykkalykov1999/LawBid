@@ -154,14 +154,19 @@ abstract class PostsClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Count a view of a video post / reel (idempotent, one per viewer)
+  /// Count a view of a video post / reel (idempotent, one per viewer).
+  ///
+  /// Deprecated (owner 2026-10-22): send kind "view" in POST /posts/events instead — one request for many posts.
+  @Deprecated('This method is marked as deprecated')
   @POST('/posts/{id}/view')
   Future<void> viewPost({
     @Path('id') required String id,
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Record post impressions / profile visits from a post (batch)
+  /// Record post impressions / views / profile visits (batch).
+  ///
+  /// Owner 2026-10-22: kind "view" (a post or reel seen ≥ 50 % for ≥ 1 s) counts like POST /posts/:id/view — once per viewer per 24 h, never the author. Send up to 50 events per request.
   @POST('/posts/events')
   Future<void> recordPostEvents({
     @Body() required RecordPostEventsDto body,

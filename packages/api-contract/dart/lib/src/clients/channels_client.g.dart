@@ -25,6 +25,7 @@ class _ChannelsClient implements ChannelsClient {
     bool? archived,
     String? q,
     String? cursor,
+    DateTime? updatedSince,
     Scope2? scope = Scope2.discover,
     Map<String, dynamic>? extras,
   }) async {
@@ -34,6 +35,7 @@ class _ChannelsClient implements ChannelsClient {
       r'archived': archived,
       r'q': q,
       r'cursor': cursor,
+      r'updatedSince': updatedSince?.toIso8601String(),
       r'scope': scope?.toJson(),
     };
     queryParameters.removeWhere((k, v) => v == null);

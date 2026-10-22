@@ -10,6 +10,8 @@ enum PostEventItemDtoKind {
   impression('impression'),
   @JsonValue('profile_visit')
   profileVisit('profile_visit'),
+  @JsonValue('view')
+  view('view'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

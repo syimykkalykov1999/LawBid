@@ -15,6 +15,7 @@ import '../models/case_feed_item_list_envelope.dart';
 import '../models/case_summary_list_envelope.dart';
 import '../models/case_tasks_envelope.dart';
 import '../models/case_update_list_envelope.dart';
+import '../models/case_views_dto.dart';
 import '../models/case_workspace_envelope.dart';
 import '../models/cases_feed_sort.dart';
 import '../models/client_contacts_envelope.dart';
@@ -185,6 +186,8 @@ abstract class CasesClient {
   ///
   /// [q] - Words of the case: title, description, city, state, topic (any language).
   ///
+  /// [updatedSince] - Owner 2026-10-22 (client economy plan, package E): only my cases changed since (ISO); meta.deletedIds = cases that left this tab (status moved, deleted); meta.syncedAt = pass it back next time. Older than 7 days → 409 SYNC_TOO_OLD.
+  ///
   /// [cursor] - meta.nextCursor of the previous page.
   @GET('/users/me/cases')
   Future<CaseSummaryListEnvelope> listMyCases({
@@ -193,14 +196,25 @@ abstract class CasesClient {
     @Query('q') String? q,
     @Query('practice') String? practice,
     @Query('state') String? state,
+    @Query('updatedSince') DateTime? updatedSince,
     @Query('cursor') String? cursor,
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Record a view, deduplicated per (attorney, case) (docs/04 §4.3)
+  /// Record a view, deduplicated per (attorney, case) (docs/04 §4.3).
+  ///
+  /// Deprecated (owner 2026-10-22): send the ids in POST /cases/views instead — one request for many cases.
+  @Deprecated('This method is marked as deprecated')
   @POST('/cases/{id}/view')
   Future<void> recordCaseView({
     @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Record views of several cases (batch; replaces POST /cases/:id/view)
+  @POST('/cases/views')
+  Future<void> recordCaseViews({
+    @Body() required CaseViewsDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

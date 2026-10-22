@@ -4307,6 +4307,83 @@
         ]
       }
     },
+    "/admin/counts": {
+      "get": {
+        "operationId": "getCounts",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminCountsEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Sidebar badges: verification queue, open reports, support unread, trust queue, approvals (ETag → 304)",
+        "tags": [
+          "admin-dashboard"
+        ]
+      }
+    },
     "/admin/audit-log": {
       "get": {
         "operationId": "listAuditLog",
@@ -24150,6 +24227,8 @@
     },
     "/posts/{id}/view": {
       "post": {
+        "deprecated": true,
+        "description": "Deprecated (owner 2026-10-22): send kind \"view\" in POST /posts/events instead — one request for many posts.",
         "operationId": "viewPost",
         "parameters": [
           {
@@ -24225,11 +24304,13 @@
         "summary": "Count a view of a video post / reel (idempotent, one per viewer)",
         "tags": [
           "posts"
-        ]
+        ],
+        "x-sunset": "2027-06-30"
       }
     },
     "/posts/events": {
       "post": {
+        "description": "Owner 2026-10-22: kind \"view\" (a post or reel seen ≥ 50 % for ≥ 1 s) counts like POST /posts/:id/view — once per viewer per 24 h, never the author. Send up to 50 events per request.",
         "operationId": "recordPostEvents",
         "parameters": [],
         "requestBody": {
@@ -24302,7 +24383,7 @@
             "bearer": []
           }
         ],
-        "summary": "Record post impressions / profile visits from a post (batch)",
+        "summary": "Record post impressions / views / profile visits (batch)",
         "tags": [
           "posts"
         ]
@@ -25418,8 +25499,15 @@
           }
         ],
         "responses": {
-          "204": {
-            "description": ""
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FollowStateEnvelope"
+                }
+              }
+            }
           },
           "401": {
             "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
@@ -25506,8 +25594,15 @@
           }
         ],
         "responses": {
-          "204": {
-            "description": ""
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FollowStateEnvelope"
+                }
+              }
+            }
           },
           "401": {
             "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
@@ -31131,6 +31226,16 @@
             }
           },
           {
+            "name": "updatedSince",
+            "required": false,
+            "in": "query",
+            "description": "Owner 2026-10-22 (client economy plan, package E): only my cases changed since (ISO); meta.deletedIds = cases that left this tab (status moved, deleted); meta.syncedAt = pass it back next time. Older than 7 days → 409 SYNC_TOO_OLD.",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
             "name": "cursor",
             "required": false,
             "in": "query",
@@ -31237,6 +31342,8 @@
     },
     "/cases/{id}/view": {
       "post": {
+        "deprecated": true,
+        "description": "Deprecated (owner 2026-10-22): send the ids in POST /cases/views instead — one request for many cases.",
         "operationId": "recordCaseView",
         "parameters": [
           {
@@ -31310,6 +31417,87 @@
           }
         ],
         "summary": "Record a view, deduplicated per (attorney, case) (docs/04 §4.3)",
+        "tags": [
+          "cases"
+        ],
+        "x-sunset": "2027-06-30"
+      }
+    },
+    "/cases/views": {
+      "post": {
+        "operationId": "recordCaseViews",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CaseViewsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Record views of several cases (batch; replaces POST /cases/:id/view)",
         "tags": [
           "cases"
         ]
@@ -32147,6 +32335,16 @@
             "in": "query",
             "schema": {
               "maxLength": 200,
+              "type": "string"
+            }
+          },
+          {
+            "name": "updatedSince",
+            "required": false,
+            "in": "query",
+            "description": "Owner 2026-10-22 (client economy plan, package E): only my invites changed since (ISO); meta.deletedIds = invites no longer pending (with status=pending); meta.syncedAt = pass it back next time. Older than 7 days → 409 SYNC_TOO_OLD.",
+            "schema": {
+              "format": "date-time",
               "type": "string"
             }
           }
@@ -35129,6 +35327,16 @@
                 "completed"
               ]
             }
+          },
+          {
+            "name": "updatedSince",
+            "required": false,
+            "in": "query",
+            "description": "Owner 2026-10-22 (client economy plan, package E): only my bids changed since (ISO); meta.deletedIds = bids that left this tab; meta.syncedAt = pass it back next time. Older than 7 days → 409 SYNC_TOO_OLD.",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -35277,6 +35485,16 @@
                 "active",
                 "closed"
               ]
+            }
+          },
+          {
+            "name": "updatedSince",
+            "required": false,
+            "in": "query",
+            "description": "Owner 2026-10-22 (client economy plan, package E): only the work rows (accepted bid or its case) changed since (ISO); meta.deletedIds = rows that left this tab (the case closed / reopened); meta.syncedAt = pass it back next time. Older than 7 days → 409 SYNC_TOO_OLD.",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
             }
           }
         ],
@@ -60134,6 +60352,16 @@
             "description": "Discover without q: opaque cursor of the ranked list.",
             "schema": {
               "maxLength": 32,
+              "type": "string"
+            }
+          },
+          {
+            "name": "updatedSince",
+            "required": false,
+            "in": "query",
+            "description": "Owner 2026-10-22 (client economy plan, package F): subscribed / managed only — the channels whose row changed since (a post, settings); meta.deletedIds = channels that left the list (banned, deleted); meta.syncedAt = pass it back next time. My own unsubscribe / pin / archive is applied locally. Older than 7 days → 409 SYNC_TOO_OLD.",
+            "schema": {
+              "format": "date-time",
               "type": "string"
             }
           }
@@ -88428,6 +88656,16 @@
             }
           },
           {
+            "name": "updatedSince",
+            "required": false,
+            "in": "query",
+            "description": "Owner 2026-10-22 (client economy plan, package B): only the groups whose row or my membership changed since (ISO) — the catch-up after a reconnect. meta.deletedIds = groups that left this list (I left / was removed / hid / archived or unarchived it, or it was deleted); meta.syncedAt = pass it back next time. Older than 7 days → 409 SYNC_TOO_OLD. Pinned groups are not repeated with it.",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
             "name": "archived",
             "required": false,
             "in": "query",
@@ -90226,6 +90464,16 @@
             }
           },
           {
+            "name": "afterId",
+            "required": false,
+            "in": "query",
+            "description": "Owner 2026-10-22 (client economy plan, package B): everything after this message (oldest first, up to 200; more than that → 409 SYNC_TOO_OLD, reload the page). Catch-up after a reconnect instead of reloading. `cursor` and `limit` are ignored with it.",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
             "name": "cursor",
             "required": false,
             "in": "query",
@@ -91297,6 +91545,16 @@
             "in": "path",
             "schema": {
               "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "updatedSince",
+            "required": false,
+            "in": "query",
+            "description": "Owner 2026-10-22 (package B): only the topics changed since (ISO); meta.syncedAt = pass it back next time. Topics are never deleted (deletedIds stays empty). Older than 7 days → 409 SYNC_TOO_OLD.",
+            "schema": {
+              "format": "date-time",
               "type": "string"
             }
           }
@@ -92602,6 +92860,16 @@
             }
           },
           {
+            "name": "updatedSince",
+            "required": false,
+            "in": "query",
+            "description": "Owner 2026-10-22 (client economy plan, package F): only the notifications created or read since (ISO), newest first — the catch-up after a reconnect (`group` applies, `q` and `cursor` are ignored). meta.syncedAt = pass it back next time; meta.deletedIds stays empty (old rows expire by age). Older than 7 days → 409 SYNC_TOO_OLD.",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
             "name": "group",
             "required": false,
             "in": "query",
@@ -93887,6 +94155,83 @@
         "summary": "Stop call (VoIP) pushes to this iPhone",
         "tags": [
           "notifications"
+        ]
+      }
+    },
+    "/me/session": {
+      "get": {
+        "operationId": "getSession",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppSessionEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "App start in one answer: me + badges + flags + config version + support unread + ongoing calls (cheap ETag → 304)",
+        "tags": [
+          "users"
         ]
       }
     },
@@ -105157,6 +105502,16 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "updatedSince",
+            "required": false,
+            "in": "query",
+            "description": "Owner 2026-10-22 (client economy plan, package E): only my consultations changed since (ISO); meta.deletedIds = the ones that left this view; meta.syncedAt = pass it back next time. Older than 7 days → 409 SYNC_TOO_OLD.",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -106037,6 +106392,16 @@
             "required": false,
             "in": "query",
             "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "updatedSince",
+            "required": false,
+            "in": "query",
+            "description": "Owner 2026-10-22 (client economy plan, package F): with filter=mine only — my questions (a client) changed since (ISO), removed ones as meta.deletedIds; meta.syncedAt = pass it back next time. Ignored for the other tabs (pull). Older than 7 days → 409 SYNC_TOO_OLD.",
+            "schema": {
+              "format": "date-time",
               "type": "string"
             }
           },
@@ -108883,7 +109248,8 @@
           "QA_QUESTION_CLOSED",
           "FORWARD_NOT_ALLOWED",
           "CONTENT_PROTECTED",
-          "UNSUPPORTED_IN_TARGET"
+          "UNSUPPORTED_IN_TARGET",
+          "SYNC_TOO_OLD"
         ]
       },
       "ErrorBodyDto": {
@@ -109069,6 +109435,18 @@
             "type": "string",
             "nullable": true,
             "description": "Opaque cursor for the next page; null on the last page."
+          },
+          "deletedIds": {
+            "description": "Owner 2026-10-22 (delta sync): with ?updatedSince — ids of rows that left the list (deleted, hidden, no longer mine).",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "syncedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Owner 2026-10-22 (delta sync): with ?updatedSince — the newest updated_at of this answer; pass it back as updatedSince next time."
           }
         }
       },
@@ -110938,6 +111316,52 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/DashboardDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "AdminCountsDto": {
+        "type": "object",
+        "properties": {
+          "verificationQueue": {
+            "type": "integer",
+            "description": "Verification requests waiting."
+          },
+          "openReports": {
+            "type": "integer",
+            "description": "Open reports."
+          },
+          "supportUnread": {
+            "type": "integer",
+            "description": "Support tickets unread by the team."
+          },
+          "trustQueue": {
+            "type": "integer",
+            "description": "Attorneys in the trust queue."
+          },
+          "approvalsPending": {
+            "type": "integer",
+            "description": "Approvals this admin could decide."
+          }
+        },
+        "required": [
+          "verificationQueue",
+          "openReports",
+          "supportUnread",
+          "trustQueue",
+          "approvalsPending"
+        ]
+      },
+      "AdminCountsEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminCountsDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"
@@ -121943,7 +122367,8 @@
           "kind": {
             "enum": [
               "impression",
-              "profile_visit"
+              "profile_visit",
+              "view"
             ],
             "type": "string"
           }
@@ -122476,6 +122901,37 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/VideoAssetDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "FollowStateDto": {
+        "type": "object",
+        "properties": {
+          "following": {
+            "type": "boolean",
+            "description": "Whether I follow this person now."
+          },
+          "followersCount": {
+            "type": "integer",
+            "description": "Their followers now (not-yet-flushed deltas included)."
+          }
+        },
+        "required": [
+          "following",
+          "followersCount"
+        ]
+      },
+      "FollowStateEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/FollowStateDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"
@@ -126748,6 +127204,23 @@
         },
         "required": [
           "data"
+        ]
+      },
+      "CaseViewsDto": {
+        "type": "object",
+        "properties": {
+          "caseIds": {
+            "minItems": 1,
+            "maxItems": 50,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        },
+        "required": [
+          "caseIds"
         ]
       },
       "SavedItemType": {
@@ -158547,6 +159020,13 @@
         "properties": {
           "updated": {
             "type": "number"
+          },
+          "readIds": {
+            "description": "Owner 2026-10-22 (package F): the ids that were unread and are read now — the app flips exactly those rows.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         },
         "required": [
@@ -159083,6 +159563,58 @@
         },
         "required": [
           "token"
+        ]
+      },
+      "AppSessionDto": {
+        "type": "object",
+        "properties": {
+          "me": {
+            "$ref": "#/components/schemas/MeDto"
+          },
+          "badges": {
+            "$ref": "#/components/schemas/BadgesDto"
+          },
+          "bootstrapVersion": {
+            "type": "string",
+            "description": "The server config version (flags, app_config, legal documents). When it differs from the one you stored, re-read GET /config/bootstrap."
+          },
+          "flags": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "description": "The same gated flags GET /config/bootstrap answers."
+          },
+          "unreadSupport": {
+            "type": "integer",
+            "description": "Support tickets with an unread answer from the team."
+          },
+          "hasOngoingCalls": {
+            "type": "boolean",
+            "description": "A call is running now in one of my groups — only then ask GET /calls/ongoing."
+          }
+        },
+        "required": [
+          "me",
+          "badges",
+          "bootstrapVersion",
+          "flags",
+          "unreadSupport",
+          "hasOngoingCalls"
+        ]
+      },
+      "AppSessionEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AppSessionDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
         ]
       },
       "FirmEmailResultDto": {

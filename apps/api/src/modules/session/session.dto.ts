@@ -8,7 +8,7 @@ import { MeDto } from '../users/dto/user-responses.dto';
  * /config/bootstrap flags + support unread + /calls/ongoing. Cheap ETag:
  * a 304 costs a few indexed reads and no body.
  */
-export class SessionDto {
+export class AppSessionDto {
   @ApiProperty({ type: MeDto })
   me!: MeDto;
 

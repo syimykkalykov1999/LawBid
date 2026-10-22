@@ -659,6 +659,7 @@ function PayDialog({
       // Owner 2026-10-22: from the limit on it waits for a second admin.
       if (e instanceof ApiError && e.code === 'ADMIN_APPROVAL_PENDING') {
         void qc.invalidateQueries({ queryKey: ['approvals-count'] });
+        void qc.invalidateQueries({ queryKey: ['admin-counts'] });
         onDone();
       }
     },

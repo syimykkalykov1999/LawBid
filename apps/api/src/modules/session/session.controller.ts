@@ -13,7 +13,7 @@ import {
   CurrentUser,
   type RequestUser,
 } from '../auth/decorators/current-user.decorator';
-import { SessionDto } from './session.dto';
+import { AppSessionDto } from './session.dto';
 import { SessionService, type SessionView } from './session.service';
 
 /**
@@ -34,7 +34,7 @@ export class SessionController {
     summary:
       'App start in one answer: me + badges + flags + config version + support unread + ongoing calls (cheap ETag → 304)',
   })
-  @ApiEnvelopeResponse(SessionDto)
+  @ApiEnvelopeResponse(AppSessionDto)
   @ApiErrors({ 404: [ErrorCode.NOT_FOUND] })
   async getSession(
     @CurrentUser() user: RequestUser,

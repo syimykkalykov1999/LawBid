@@ -21,7 +21,7 @@ class _FollowsClient implements FollowsClient {
   final ParseErrorLogger? errorLogger;
 
   @override
-  Future<void> followAttorney({
+  Future<FollowStateEnvelope> followAttorney({
     required String id,
     Map<String, dynamic>? extras,
   }) async {
@@ -31,7 +31,7 @@ class _FollowsClient implements FollowsClient {
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};
     const Map<String, dynamic>? _data = null;
-    final _options = _setStreamType<void>(
+    final _options = _setStreamType<FollowStateEnvelope>(
       Options(method: 'POST', headers: _headers, extra: _extra)
           .compose(
             _dio.options,
@@ -41,11 +41,19 @@ class _FollowsClient implements FollowsClient {
           )
           .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
     );
-    await _dio.fetch<void>(_options);
+    final _result = await _dio.fetch<Map<String, Object?>>(_options);
+    late FollowStateEnvelope _value;
+    try {
+      _value = FollowStateEnvelope.fromJson(_result.data!);
+    } on Object catch (e, s) {
+      errorLogger?.logError(e, s, _options, response: _result);
+      rethrow;
+    }
+    return _value;
   }
 
   @override
-  Future<void> unfollowAttorney({
+  Future<FollowStateEnvelope> unfollowAttorney({
     required String id,
     Map<String, dynamic>? extras,
   }) async {
@@ -55,7 +63,7 @@ class _FollowsClient implements FollowsClient {
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};
     const Map<String, dynamic>? _data = null;
-    final _options = _setStreamType<void>(
+    final _options = _setStreamType<FollowStateEnvelope>(
       Options(method: 'DELETE', headers: _headers, extra: _extra)
           .compose(
             _dio.options,
@@ -65,7 +73,15 @@ class _FollowsClient implements FollowsClient {
           )
           .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
     );
-    await _dio.fetch<void>(_options);
+    final _result = await _dio.fetch<Map<String, Object?>>(_options);
+    late FollowStateEnvelope _value;
+    try {
+      _value = FollowStateEnvelope.fromJson(_result.data!);
+    } on Object catch (e, s) {
+      errorLogger?.logError(e, s, _options, response: _result);
+      rethrow;
+    }
+    return _value;
   }
 
   @override
