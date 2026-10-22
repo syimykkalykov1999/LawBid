@@ -6,15 +6,16 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:lawbid/core/app_update/app_version.dart';
 import 'package:lawbid/core/config/app_environment.dart';
+import 'package:lawbid/core/diagnostics/sentry_native.dart';
 
 /// Owner 2026-10-20: the app's errors also go to Sentry (project
 /// `lawbid-mobile`), next to our own crash list (admin → Вылеты). The DSN is
 /// saved in Admin → Ключи и сервисы → Sentry and arrives in the bootstrap's
 /// `app_config` (`sentry.mobile_dsn`), so changing it needs no new build.
 ///
-/// A plain HTTPS envelope over dio — no native SDK, so it adds nothing to the
-/// iOS/Android builds; native (C++/Kotlin/Swift) crashes are not covered, the
-/// Dart-side ones (Flutter framework, async, platform channel) are.
+/// A plain HTTPS envelope over dio. Owner 2026-10-22: on a prod release
+/// phone the same DSN also starts the native SDK (sentry_native.dart) for
+/// native crashes and ANRs; while it runs, Dart errors go through it.
 ///
 /// Nothing personal leaves the phone: only the error type, a masked message
 /// (e-mails, phone numbers and URL queries removed), the stack, the screen
@@ -61,6 +62,9 @@ class SentryReporter {
   /// Called with each bootstrap answer. An empty/invalid DSN switches it off.
   static void configure(String? dsn, AppFlavor flavor) {
     _flavor = flavor;
+    // Owner 2026-10-22: the same DSN starts the native SDK (native crashes,
+    // ANRs) on a prod release phone.
+    unawaited(SentryNative.configure(dsn, flavor));
     _dsn = _Dsn.tryParse(dsn);
     if (!_active || _dsn == null) {
       _pending.clear();
@@ -92,6 +96,12 @@ class SentryReporter {
       );
       final key = '${c.type}|${c.message}|${c.stack.split('\n').take(3)}';
       if (!_seen.add(key)) return;
+      // Owner 2026-10-22: with the native SDK up the error goes through it
+      // (obfuscated Dart stacks are symbolicated there).
+      if (SentryNative.running) {
+        SentryNative.capture(error, stack, fatal: fatal, route: route);
+        return;
+      }
       if (_dsn == null) {
         if (_flavor != null) return; // answered: no DSN → off
         _pending.add(c);
@@ -108,12 +118,17 @@ class SentryReporter {
   /// queries removed; a network error is reduced to its kind, status, path.
   @visibleForTesting
   static String scrubMessage(Object error) {
-    var text = error is DioException
+    final text = error is DioException
         ? 'DioException(${error.type.name}) '
             '${error.response?.statusCode ?? ''} '
             '${error.requestOptions.method} ${error.requestOptions.path}'
         : error.toString();
-    text = text
+    return scrubText(text);
+  }
+
+  /// E-mails, phone-like numbers and URL queries removed, cut to 500.
+  static String scrubText(String input) {
+    final text = input
         .replaceAll(RegExp(r'[^\s@]+@[^\s@]+\.[^\s@]+'), '[email]')
         .replaceAll(RegExp(r'\+?\d[\d\s().-]{7,}\d'), '[number]')
         .replaceAllMapped(RegExp(r'(https?://[^\s?#]+)[?#]\S*'), (m) => m[1]!);
