@@ -17,6 +17,7 @@ import 'package:lawbid/core/network/device_key.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/core/platform/web_consent_notice.dart';
 import 'package:lawbid/core/platform/web_gate.dart';
+import 'package:lawbid/core/security/app_check.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/callkit_bridge.dart';
 import 'package:lawbid/features/calls/data/calls_repository.dart';
@@ -70,6 +71,10 @@ Future<void> runLawBid(AppFlavor flavor) async {
   // events start only after a yes.
   applyWebNoticeChoice(prefs);
   AppEvents.install(prefs, AppEnvironment.current);
+  // Security research #5 (2026-10-22), B1: Firebase App Check starts now so
+  // the first code request already carries its token; a build without the
+  // Firebase files just logs «off» (core/security/app_check.dart).
+  unawaited(FirebaseAppCheckClient.instance.start());
 
   final container = ProviderContainer(
     overrides: [
