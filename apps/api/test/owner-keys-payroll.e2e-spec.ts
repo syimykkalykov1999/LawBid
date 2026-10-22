@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import type { Prisma } from '@prisma/client';
+import type Redis from 'ioredis';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
@@ -11,6 +12,7 @@ import { totpCode } from '../src/modules/admin-auth/totp.util';
 import { FeatureFlagsService } from '../src/modules/feature-flags/services/feature-flags.service';
 import { PayrollAccrualsService } from '../src/modules/admin-payroll/payroll-accruals.service';
 import { PlansService } from '../src/modules/plans/plans.service';
+import { REDIS_CLIENT } from '../src/redis/redis.constants';
 import {
   adminSession,
   adminStepUp,
@@ -60,7 +62,26 @@ describe('Key sets + payroll (e2e)', () => {
     await prisma.integrationCredential.deleteMany({
       where: { provider: 'stripe' },
     });
+    // Owner 2026-10-22 (maker-checker): these payroll runs are above the
+    // $500 second-admin limit; its own test below lowers it again.
+    await setDualLimit(1_000_000_000);
   });
+
+  afterAll(async () => {
+    await prisma.appConfig.deleteMany({
+      where: { key: 'billing.dual_approval_min_cents' },
+    });
+    await app.get<Redis>(REDIS_CLIENT).del('config:app_config');
+  });
+
+  async function setDualLimit(cents: number): Promise<void> {
+    await prisma.appConfig.upsert({
+      where: { key: 'billing.dual_approval_min_cents' },
+      create: { key: 'billing.dual_approval_min_cents', value: cents },
+      update: { value: cents },
+    });
+    await app.get<Redis>(REDIS_CLIENT).del('config:app_config');
+  }
 
   afterAll(async () => {
     await setStripeFlag(false);
@@ -696,6 +717,75 @@ describe('Key sets + payroll (e2e)', () => {
       await setAreas(['money', 'payroll', 'moderation', 'sanctions']).expect(
         200,
       );
+    }
+  });
+  it('maker-checker: a payout from the limit on waits for a second admin and runs once', async () => {
+    const maker = await adminSession(base, prisma, 'finance');
+    const checker = await adminSession(base, prisma, 'finance');
+    for (const s of [maker, checker]) await adminStepUp(base, s);
+    const mPeriod = `${period}-m`;
+    const id = (
+      (
+        await api()
+          .post('/api/v1/admin/payroll/employees')
+          .set(maker.auth)
+          .send({ name: `Maker ${period}`, amountCents: 60_000 })
+          .expect(201)
+      ).body as { data: { id: string } }
+    ).data.id;
+    await setDualLimit(60_000);
+    try {
+      const asked = await api()
+        .post('/api/v1/admin/payroll/payouts/bulk')
+        .set(maker.auth)
+        .send({ employeeIds: [id], period: mPeriod })
+        .expect(409);
+      expect(asked.body.error.code).toBe('ADMIN_APPROVAL_PENDING');
+      const approvalId = asked.body.error.details.approvalId as string;
+      expect(
+        await prisma.payrollPayout.count({ where: { period: mPeriod } }),
+      ).toBe(0);
+
+      // The requester cannot approve their own request.
+      const self = await api()
+        .post(`/api/v1/admin/approvals/${approvalId}/approve`)
+        .set(maker.auth)
+        .expect(403);
+      expect(self.body.error.code).toBe('ADMIN_APPROVAL_SELF');
+
+      const badge = await api()
+        .get('/api/v1/admin/approvals/count')
+        .set(checker.auth)
+        .expect(200);
+      expect(badge.body.data.pending).toBeGreaterThanOrEqual(1);
+
+      const ok = await api()
+        .post(`/api/v1/admin/approvals/${approvalId}/approve`)
+        .set(checker.auth)
+        .expect(200);
+      expect(ok.body.data).toMatchObject({
+        status: 'approved',
+        requestedBy: { id: maker.userId },
+        approvedBy: { id: checker.userId },
+      });
+      await api()
+        .post(`/api/v1/admin/approvals/${approvalId}/approve`)
+        .set(checker.auth)
+        .expect(409);
+      expect(
+        await prisma.payrollPayout.count({ where: { period: mPeriod } }),
+      ).toBe(1);
+      const trail = await prisma.auditLog.findMany({
+        where: { target_id: approvalId },
+        orderBy: { created_at: 'asc' },
+      });
+      expect(trail.map((r) => r.action)).toEqual([
+        'admin.approval_requested',
+        'admin.approval_approved',
+        'admin.approval_executed',
+      ]);
+    } finally {
+      await setDualLimit(1_000_000_000);
     }
   });
 });

@@ -18,7 +18,7 @@ import '../models/payroll_payout_envelope.dart';
 import '../models/payroll_payout_list_envelope.dart';
 import '../models/payroll_stripe_link_envelope.dart';
 import '../models/payroll_summary_envelope.dart';
-import '../models/status8.dart';
+import '../models/status9.dart';
 import '../models/update_payroll_employee_dto.dart';
 
 part 'admin_payroll_client.g.dart';
@@ -92,7 +92,7 @@ abstract class AdminPayrollClient {
   @GET('/admin/payroll/accruals')
   Future<PayrollAccrualListEnvelope> listPayrollAccruals({
     @Query('employeeId') String? employeeId,
-    @Query('status') Status8? status,
+    @Query('status') Status9? status,
     @Extras() Map<String, dynamic>? extras,
   });
 

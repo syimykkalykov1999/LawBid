@@ -291,7 +291,7 @@ class _AdminPayrollClient implements AdminPayrollClient {
   @override
   Future<PayrollAccrualListEnvelope> listPayrollAccruals({
     String? employeeId,
-    Status8? status,
+    Status9? status,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};

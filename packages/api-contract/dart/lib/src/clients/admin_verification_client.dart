@@ -21,7 +21,7 @@ import '../models/request_info_dto.dart';
 import '../models/save_state_registry_dto.dart';
 import '../models/state_registries_overview_envelope.dart';
 import '../models/state_registry_envelope.dart';
-import '../models/status2.dart';
+import '../models/status3.dart';
 import '../models/suspend_attorney_dto.dart';
 import '../models/test_state_registry_dto.dart';
 import '../models/verification_queue_item_list_envelope.dart';
@@ -41,7 +41,7 @@ abstract class AdminVerificationClient {
   @GET('/admin/verification/requests')
   Future<VerificationQueueItemListEnvelope> listVerificationQueue({
     @Query('limit') int? limit = 20,
-    @Query('status') Status2? status,
+    @Query('status') Status3? status,
     @Query('stateCode') String? stateCode,
     @Query('cursor') String? cursor,
     @Extras() Map<String, dynamic>? extras,

@@ -1,6 +1,8 @@
 import { Global, Module } from '@nestjs/common';
 import { AdminAccessModule } from '../admin-access/admin-access.module';
 import { AuthModule } from '../auth/auth.module';
+import { AdminApprovalsController } from './admin-approvals.controller';
+import { AdminApprovalsService } from './admin-approvals.service';
 import { AdminAuditInterceptor } from './admin-audit.interceptor';
 import { AdminAuthController } from './admin-auth.controller';
 import { AdminAuthGuard } from './admin-auth.guard';
@@ -16,9 +18,12 @@ import { AdminSessionService } from './admin-session.service';
 @Global()
 @Module({
   imports: [AuthModule, AdminAccessModule],
-  controllers: [AdminAuthController],
+  // Owner 2026-10-22: maker-checker approvals (money modules register
+  // their kinds with AdminApprovalsService).
+  controllers: [AdminAuthController, AdminApprovalsController],
   providers: [
     AdminAuthService,
+    AdminApprovalsService,
     AdminSessionService,
     AdminAuthGuard,
     AdminAuditInterceptor,
@@ -28,6 +33,7 @@ import { AdminSessionService } from './admin-session.service';
   // visible there too: re-exported from this global module.
   exports: [
     AdminAuthService,
+    AdminApprovalsService,
     AuthModule,
     AdminAccessModule,
     AdminSessionService,

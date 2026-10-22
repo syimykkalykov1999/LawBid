@@ -7,6 +7,7 @@ import 'package:dio/dio.dart';
 import 'clients/config_client.dart';
 import 'clients/auth_client.dart';
 import 'clients/admin_auth_client.dart';
+import 'clients/admin_approvals_client.dart';
 import 'clients/admin_dashboard_client.dart';
 import 'clients/admin_audit_log_client.dart';
 import 'clients/admin_admins_client.dart';
@@ -138,6 +139,7 @@ class LawbidApi {
   ConfigClient? _config;
   AuthClient? _auth;
   AdminAuthClient? _adminAuth;
+  AdminApprovalsClient? _adminApprovals;
   AdminDashboardClient? _adminDashboard;
   AdminAuditLogClient? _adminAuditLog;
   AdminAdminsClient? _adminAdmins;
@@ -261,6 +263,9 @@ class LawbidApi {
 
   AdminAuthClient get adminAuth =>
       _adminAuth ??= AdminAuthClient(_dio, baseUrl: _baseUrl);
+
+  AdminApprovalsClient get adminApprovals =>
+      _adminApprovals ??= AdminApprovalsClient(_dio, baseUrl: _baseUrl);
 
   AdminDashboardClient get adminDashboard =>
       _adminDashboard ??= AdminDashboardClient(_dio, baseUrl: _baseUrl);

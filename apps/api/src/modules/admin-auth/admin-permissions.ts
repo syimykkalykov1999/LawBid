@@ -165,6 +165,10 @@ const SEGMENT_AREA: Record<string, RouteArea> = {
   // Owner 2026-10-05: every admin's own workspace (it lists only what the
   // admin's areas allow).
   workspace: 'workspace',
+  // Owner 2026-10-22: «Требуют подтверждения» (maker-checker). Open like
+  // the workspace; AdminApprovalsService shows each admin only what they
+  // asked for or could run themself.
+  approvals: 'workspace',
 };
 
 /** `/api/v1/admin/users/123?x=1` → `users`; null when not an admin route. */

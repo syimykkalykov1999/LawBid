@@ -27,6 +27,9 @@ type Case = {
   method: string;
 };
 
+/** Below the second-admin limit: the gate lets the action run. */
+const GATE = { gate: jest.fn().mockResolvedValue(undefined) };
+
 const svcMock = () =>
   new Proxy({} as Record<string, jest.Mock>, {
     get: (t, k: string) => (t[k] ??= jest.fn().mockResolvedValue({})),
@@ -37,22 +40,24 @@ const CASES: Case[] = [
     name: 'POST /admin/payroll/payouts/bulk',
     method: 'payBulk',
     run: (auth, svc) =>
-      new AdminPayrollController(svc as never, auth as never).payPayrollBulk(
-        actor,
-        {
-          employeeIds: ['e1'],
-          period: '2026-10',
-        },
-      ),
+      new AdminPayrollController(
+        svc as never,
+        auth as never,
+        GATE as never,
+      ).payPayrollBulk(actor, {
+        employeeIds: ['e1'],
+        period: '2026-10',
+      }),
   },
   {
     name: 'POST /admin/payroll/employees/:id/stripe-link',
     method: 'stripeLink',
     run: (auth, svc) =>
-      new AdminPayrollController(svc as never, auth as never).payrollStripeLink(
-        actor,
-        { id: 'e1' },
-      ),
+      new AdminPayrollController(
+        svc as never,
+        auth as never,
+        GATE as never,
+      ).payrollStripeLink(actor, { id: 'e1' }),
   },
   {
     name: 'POST /admin/billing/refunds',
@@ -64,6 +69,7 @@ const CASES: Case[] = [
         {} as never,
         svc as never,
         auth as never,
+        GATE as never,
       ).createRefund(actor, {
         paymentId: 'p1',
         amountCents: 100,
