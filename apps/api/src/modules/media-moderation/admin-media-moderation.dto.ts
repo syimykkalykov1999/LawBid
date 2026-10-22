@@ -19,7 +19,11 @@ const LIST_STATUSES = [
 ] as const;
 
 export class MediaModerationQueryDto {
-  @ApiPropertyOptional({ enum: LIST_STATUSES, default: 'all' })
+  @ApiPropertyOptional({
+    enum: LIST_STATUSES,
+    enumName: 'MediaCheckListStatus',
+    default: 'all',
+  })
   @IsOptional()
   @IsIn(LIST_STATUSES)
   status?: (typeof LIST_STATUSES)[number];

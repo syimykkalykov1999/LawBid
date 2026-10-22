@@ -34,6 +34,8 @@ export class LegalDocTypeParamDto {
 export class LegalDocLocaleQueryDto {
   @ApiPropertyOptional({
     enum: LEGAL_LOCALES,
+    // Owner 2026-10-22: a stable generated type name (ten languages now).
+    enumName: 'LegalLocale',
     description:
       'Falls back to English when there is no text in this language.',
   })
@@ -157,7 +159,7 @@ export class AdminLegalDocumentDetailDto {
 }
 
 export class LegalDocLocaleParamDto extends LegalDocTypeParamDto {
-  @ApiProperty({ enum: LEGAL_LOCALES })
+  @ApiProperty({ enum: LEGAL_LOCALES, enumName: 'LegalLocale' })
   @IsIn(LEGAL_LOCALES)
   locale!: (typeof LEGAL_LOCALES)[number];
 }

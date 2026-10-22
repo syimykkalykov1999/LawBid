@@ -18,6 +18,8 @@ enum BudgetLimitDtoProvider {
   translate('translate'),
   @JsonValue('video')
   video('video'),
+  @JsonValue('image_moderation')
+  imageModeration('image_moderation'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

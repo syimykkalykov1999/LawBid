@@ -192,6 +192,7 @@ export const GROUPS: readonly SectionGroup[] = [
     icon: 'flag',
     items: [
       { href: '/moderation', label: 'Жалобы', icon: 'flag', area: 'moderation', count: 'reports', hint: 'очередь модерации' },
+      { href: '/media-moderation', label: 'Фото и видео', icon: 'flag', area: 'moderation', hint: 'автопроверка картинок: скрытые, подозрительные, CSAM' },
       { href: '/review-appeals', label: 'Обжалования отзывов', icon: 'scales', area: 'moderation', count: 'appeals' },
       { href: '/moderation-appeals', label: 'Обжалования решений', icon: 'scales', area: 'moderation', hint: 'автор просит вернуть скрытый пост, комментарий или сообщение' },
       { href: '/moderation-journal', label: 'Журнал решений', icon: 'article', area: 'moderation', hint: 'кто, когда и почему скрыл, удалил, предупредил' },

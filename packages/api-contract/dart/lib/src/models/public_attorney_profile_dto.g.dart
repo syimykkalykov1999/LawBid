@@ -25,6 +25,8 @@ PublicAttorneyProfileDto _$PublicAttorneyProfileDtoFromJson(
       .map((e) => e as String)
       .toList(),
   verifiedBadge: json['verifiedBadge'] as bool,
+  advertisingLabel: json['advertisingLabel'] as bool,
+  publicUrl: json['publicUrl'] as String,
   trustLevel: (json['trustLevel'] as num).toInt(),
   licensedStates: (json['licensedStates'] as List<dynamic>)
       .map((e) => StateRefDto.fromJson(e as Map<String, dynamic>))
@@ -59,6 +61,8 @@ Map<String, dynamic> _$PublicAttorneyProfileDtoToJson(
   'avatarUrl256': ?instance.avatarUrl256,
   'languages': instance.languages,
   'verifiedBadge': instance.verifiedBadge,
+  'advertisingLabel': instance.advertisingLabel,
+  'publicUrl': instance.publicUrl,
   'trustLevel': instance.trustLevel,
   'licensedStates': instance.licensedStates.map((e) => e.toJson()).toList(),
   'practiceAreas': instance.practiceAreas.map((e) => e.toJson()).toList(),

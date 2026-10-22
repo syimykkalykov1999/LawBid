@@ -66,6 +66,7 @@ import 'clients/admin_treasury_client.dart';
 import 'clients/admin_rewards_client.dart';
 import 'clients/admin_workspace_client.dart';
 import 'clients/admin_email_templates_client.dart';
+import 'clients/admin_media_moderation_client.dart';
 import 'clients/i18n_client.dart';
 import 'clients/admin_i18n_client.dart';
 import 'clients/case_history_client.dart';
@@ -198,6 +199,7 @@ class LawbidApi {
   AdminRewardsClient? _adminRewards;
   AdminWorkspaceClient? _adminWorkspace;
   AdminEmailTemplatesClient? _adminEmailTemplates;
+  AdminMediaModerationClient? _adminMediaModeration;
   I18nClient? _i18n;
   AdminI18nClient? _adminI18n;
   CaseHistoryClient? _caseHistory;
@@ -432,6 +434,12 @@ class LawbidApi {
 
   AdminEmailTemplatesClient get adminEmailTemplates => _adminEmailTemplates ??=
       AdminEmailTemplatesClient(_dio, baseUrl: _baseUrl);
+
+  AdminMediaModerationClient get adminMediaModeration =>
+      _adminMediaModeration ??= AdminMediaModerationClient(
+        _dio,
+        baseUrl: _baseUrl,
+      );
 
   I18nClient get i18n => _i18n ??= I18nClient(_dio, baseUrl: _baseUrl);
 

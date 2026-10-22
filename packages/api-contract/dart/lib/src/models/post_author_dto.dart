@@ -18,6 +18,7 @@ class PostAuthorDto {
     required this.isFollowing,
     required this.trustLevel,
     required this.practiceI18nKeys,
+    required this.advertisingLabel,
     this.firstName,
     this.lastName,
     this.avatarUrl,
@@ -57,6 +58,9 @@ class PostAuthorDto {
 
   /// Owner 2026-10-13: attorney: licensed states ("NY, CA"); client: state.
   final String? location;
+
+  /// Show the «Attorney Advertising» label on this post (the author is licensed in a state that requires it).
+  final bool advertisingLabel;
 
   Map<String, Object?> toJson() => _$PostAuthorDtoToJson(this);
 }

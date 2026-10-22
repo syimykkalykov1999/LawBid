@@ -318,7 +318,7 @@ class _AdminLegalClient implements AdminLegalClient {
   @override
   Future<AdminLegalVersionListEnvelope> getAdminLegalHistory({
     required Type3 type,
-    required Locale locale,
+    required LegalLocale locale,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
@@ -351,7 +351,7 @@ class _AdminLegalClient implements AdminLegalClient {
   @override
   Future<AdminLegalVersionEnvelope> saveAdminLegalDraft({
     required Type3 type,
-    required Locale locale,
+    required LegalLocale locale,
     required SaveLegalDraftDto body,
     Map<String, dynamic>? extras,
   }) async {
@@ -386,7 +386,7 @@ class _AdminLegalClient implements AdminLegalClient {
   @override
   Future<void> discardAdminLegalDraft({
     required Type3 type,
-    required Locale locale,
+    required LegalLocale locale,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
@@ -411,7 +411,7 @@ class _AdminLegalClient implements AdminLegalClient {
   @override
   Future<AdminLegalVersionEnvelope> publishAdminLegalDocument({
     required Type3 type,
-    required Locale locale,
+    required LegalLocale locale,
     required PublishLegalDto body,
     Map<String, dynamic>? extras,
   }) async {

@@ -66,7 +66,7 @@ abstract class AdminCountriesClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Switch a region on or off
+  /// Switch a region on or off, or its «Attorney Advertising» label
   @PATCH('/admin/countries/{code}/regions/{region}')
   Future<CountryRegionAdminEnvelope> updateAdminCountryRegion({
     @Path('code') required String code,

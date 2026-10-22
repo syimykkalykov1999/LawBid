@@ -8,8 +8,14 @@ part of 'update_country_region_dto.dart';
 
 UpdateCountryRegionDto _$UpdateCountryRegionDtoFromJson(
   Map<String, dynamic> json,
-) => UpdateCountryRegionDto(isActive: json['isActive'] as bool);
+) => UpdateCountryRegionDto(
+  isActive: json['isActive'] as bool?,
+  attorneyAdvertisingLabel: json['attorneyAdvertisingLabel'] as bool?,
+);
 
 Map<String, dynamic> _$UpdateCountryRegionDtoToJson(
   UpdateCountryRegionDto instance,
-) => <String, dynamic>{'isActive': instance.isActive};
+) => <String, dynamic>{
+  'isActive': ?instance.isActive,
+  'attorneyAdvertisingLabel': ?instance.attorneyAdvertisingLabel,
+};

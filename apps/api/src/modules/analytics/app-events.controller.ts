@@ -1,11 +1,12 @@
 import {
   Body,
   Controller,
-  Headers,
+  Req,
   HttpCode,
   HttpStatus,
   Post,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { TokenService } from '../auth/services/token.service';
 import { AnalyticsConsentService } from './analytics-consent.service';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -40,9 +41,11 @@ export class AppEventsController {
   })
   async reportEvents(
     @Body() dto: AppEventBatchDto,
-    @Headers('authorization') authorization?: string,
+    // The optional bearer is read from the request (not a documented
+    // header: the endpoint stays public and the client contract unchanged).
+    @Req() req: Request,
   ): Promise<void> {
-    const userId = this.userOf(authorization);
+    const userId = this.userOf(req.headers.authorization);
     if (userId && !(await this.consent.allowed(userId))) return;
     await this.events.ingest(dto.events);
   }
