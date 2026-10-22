@@ -13,7 +13,7 @@ import { api, errorText } from '@/lib/api/client';
 import { useMe } from '@/lib/hooks';
 import { ROLE_LABEL } from '@/lib/rbac';
 
-/** Own sign-in: optional two-factor; the super admin also changes their own
+/** Own sign-in (the authenticator is mandatory); the super admin also changes their own
  * login and password and sets the recovery question. */
 export default function ProfilePage() {
   const { data: me } = useMe();
@@ -25,8 +25,8 @@ export default function ProfilePage() {
         title="Профиль и безопасность"
         subtitle={
           me.role === 'super_admin'
-            ? 'Ваш логин и пароль, секретный вопрос для восстановления и необязательный двухфакторный вход. Пароль хранится в зашифрованном виде и никому не виден.'
-            : 'Ваши данные для входа. Логин и пароль вам выдаёт супер-админ или тот, кто управляет админами; двухфакторный вход можно включить самому.'
+            ? 'Ваш логин и пароль, секретный вопрос для восстановления и аутентификатор (обязателен при каждом входе). Пароль хранится в зашифрованном виде и никому не виден.'
+            : 'Ваши данные для входа. Логин и пароль вам выдаёт супер-админ или тот, кто управляет админами; код из приложения-аутентификатора спрашивается при каждом входе.'
         }
       />
       <div className="grid max-w-5xl gap-4 lg:grid-cols-2">
@@ -45,8 +45,8 @@ export default function ProfilePage() {
               value={me.hasPassword ? <Badge tone="success">задан</Badge> : <Badge tone="warning">не задан</Badge>}
             />
             <Row
-              label="Двухфакторный вход"
-              value={me.totpEnabled ? <Badge tone="gold">включён</Badge> : <Badge>выключен</Badge>}
+              label="Аутентификатор"
+              value={me.totpEnabled ? <Badge tone="gold">подключён</Badge> : <Badge tone="warning">не подключён</Badge>}
             />
           </CardContent>
         </Card>

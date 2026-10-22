@@ -1,23 +1,25 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
-part of 'admin_two_factor_enabled_envelope.dart';
+part of 'admin_approval_list_envelope.dart';
 
 // **************************************************************************
 // JsonSerializableGenerator
 // **************************************************************************
 
-AdminTwoFactorEnabledEnvelope _$AdminTwoFactorEnabledEnvelopeFromJson(
+AdminApprovalListEnvelope _$AdminApprovalListEnvelopeFromJson(
   Map<String, dynamic> json,
-) => AdminTwoFactorEnabledEnvelope(
-  data: AdminTwoFactorEnabledDto.fromJson(json['data'] as Map<String, dynamic>),
+) => AdminApprovalListEnvelope(
+  data: (json['data'] as List<dynamic>)
+      .map((e) => AdminApprovalDto.fromJson(e as Map<String, dynamic>))
+      .toList(),
   meta: json['meta'] == null
       ? null
       : ResponseMetaDto.fromJson(json['meta'] as Map<String, dynamic>),
 );
 
-Map<String, dynamic> _$AdminTwoFactorEnabledEnvelopeToJson(
-  AdminTwoFactorEnabledEnvelope instance,
+Map<String, dynamic> _$AdminApprovalListEnvelopeToJson(
+  AdminApprovalListEnvelope instance,
 ) => <String, dynamic>{
-  'data': instance.data.toJson(),
+  'data': instance.data.map((e) => e.toJson()).toList(),
   'meta': ?instance.meta?.toJson(),
 };

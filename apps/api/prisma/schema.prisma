@@ -891,6 +891,9 @@ model User {
   admin_credential            AdminCredential?
   data_export_jobs            DataExportJob[]
   audit_entries               AuditLog[]                     @relation("AuditAdmin")
+  admin_approvals_requested   AdminApproval[]                @relation("AdminApprovalRequester")
+  admin_approvals_approved    AdminApproval[]                @relation("AdminApprovalApprover")
+  admin_approvals_rejected    AdminApproval[]                @relation("AdminApprovalRejecter")
   data_requests_handled       DataAccessRequest[]            @relation("DataRequestHandler")
   data_access_entries         DataAccessLog[]                @relation("DataAccessAdmin")
   case_comments               CaseComment[]                  @relation("CaseCommentAuthor")
@@ -3370,6 +3373,44 @@ model DataAccessLog {
 // docs/06 §2.1, §10 (stage 6.1): admin 2FA. The TOTP secret is stored
 // encrypted (AES-256-GCM with ADMIN_TOTP_ENC_KEY; KMS envelope when the AWS
 // stack exists — OQ-016), recovery codes only as hashes.
+/// Owner 2026-10-22 (system audit #2, item 11 — maker-checker): a bulk
+/// payout or a refund at or above `billing.dual_approval_min_cents` is not
+/// run by the admin who asks for it. It waits here until ANOTHER admin
+/// approves it (with a fresh 2FA step-up); only then it runs, exactly once
+/// (the pending → approved switch is atomic). Banks call it dual control /
+/// four-eyes; Stripe lets teams require a second person for payouts.
+model AdminApproval {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// 'payroll_bulk_payout' | 'billing_refund'
+  kind          String    @db.VarChar(40)
+  /// The request body the action runs with once approved.
+  payload       Json
+  /// SHA-256 of kind + payload: the same ask twice is one request.
+  payload_hash  String    @db.VarChar(64)
+  /// What the limit was compared with (cents, all currencies summed).
+  amount_cents  Int
+  summary       String    @db.VarChar(300)
+  /// pending | approved | rejected | failed | expired (CHECK in SQL)
+  status        String    @default("pending") @db.VarChar(16)
+  requested_by  String    @db.Uuid
+  requester     User      @relation("AdminApprovalRequester", fields: [requested_by], references: [id], onDelete: Restrict)
+  approved_by   String?   @db.Uuid
+  approver      User?     @relation("AdminApprovalApprover", fields: [approved_by], references: [id], onDelete: Restrict)
+  rejected_by   String?   @db.Uuid
+  rejecter      User?     @relation("AdminApprovalRejecter", fields: [rejected_by], references: [id], onDelete: Restrict)
+  decision_note String?   @db.VarChar(500)
+  /// The action's answer (or its error) after it ran.
+  result        Json?
+  error         String?   @db.VarChar(500)
+  created_at    DateTime  @default(now()) @db.Timestamptz
+  decided_at    DateTime? @db.Timestamptz
+  executed_at   DateTime? @db.Timestamptz
+
+  @@index([status, created_at(sort: Desc)])
+  @@index([requested_by, created_at(sort: Desc)])
+  @@map("admin_approvals")
+}
+
 model AdminCredential {
   user_id              String    @id @db.Uuid
   user                 User      @relation(fields: [user_id], references: [id], onDelete: Cascade)

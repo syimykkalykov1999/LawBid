@@ -24,7 +24,7 @@ class _AdminModerationClient implements AdminModerationClient {
   Future<ModerationQueueItemListEnvelope> moderationQueue({
     TargetType? targetType,
     String? cursor,
-    Status10? status = Status10.open,
+    Status11? status = Status11.open,
     int? limit = 20,
     Map<String, dynamic>? extras,
   }) async {
@@ -131,7 +131,7 @@ class _AdminModerationClient implements AdminModerationClient {
   @override
   Future<AppealItemListEnvelope> moderationAppealsQueue({
     String? cursor,
-    Status11? status = Status11.pending,
+    Status12? status = Status12.pending,
     int? limit = 20,
     Map<String, dynamic>? extras,
   }) async {

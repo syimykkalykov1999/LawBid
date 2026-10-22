@@ -63,13 +63,16 @@ function setup(opts: Opts) {
       .mockResolvedValue(opts.session === undefined ? 'u1' : opts.session),
     noteActivity: jest.fn().mockResolvedValue(undefined),
   } as unknown as AdminSessionService;
+  const row = opts.row === undefined ? admin('verifier') : opts.row;
   const prisma = {
     user: {
-      findUnique: jest
-        .fn()
-        .mockResolvedValue(
-          opts.row === undefined ? admin('verifier') : opts.row,
-        ),
+      findUnique: jest.fn().mockResolvedValue(
+        // Owner 2026-10-22: every admin has an authenticator; a row
+        // without the key is an enrolled admin.
+        row && !('admin_credential' in row)
+          ? { ...row, admin_credential: { totp_enabled_at: new Date() } }
+          : row,
+      ),
     },
   } as unknown as PrismaService;
   const headers: Record<string, string> = {
@@ -109,6 +112,26 @@ const admin = (role: AdminRole | null, extra: Partial<Row> = {}): Row => ({
       }
     : null,
   ...extra,
+});
+
+describe('AdminAuthGuard: mandatory authenticator (owner 2026-10-22)', () => {
+  it.each([
+    ['no credential row', null],
+    ['authenticator not set up (or reset)', { totp_enabled_at: null }],
+  ])(
+    'a session of an admin with %s → 401, back to sign-in',
+    async (_, cred) => {
+      const { guard, ctx, req } = setup({
+        allowed: ['verifier'],
+        row: { ...admin('verifier'), admin_credential: cred } as Row,
+      });
+      await expect(guard.canActivate(ctx)).rejects.toMatchObject({
+        status: 401,
+        response: { code: 'ADMIN_TOTP_SETUP_REQUIRED' },
+      });
+      expect(req.admin).toBeUndefined();
+    },
+  );
 });
 
 describe('AdminAuthGuard (docs/06 §2.1–2.2, deny by default)', () => {

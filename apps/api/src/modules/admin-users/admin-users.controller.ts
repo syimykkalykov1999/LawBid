@@ -38,12 +38,18 @@ import {
 } from './admin-users.dto';
 import { AdminBulkResultDto } from '../admin-content/admin-content.dto';
 import { AdminUsersService } from './admin-users.service';
+import { AdminAuthService } from '../admin-auth/admin-auth.service';
 
 const E = ErrorCode;
 const TARGET_ERRORS = {
   400: [E.VALIDATION_ERROR],
   403: [E.FORBIDDEN],
   404: [E.NOT_FOUND],
+};
+/** Account-takeover paths also need a fresh step-up (owner 2026-10-22). */
+const STEP_UP_TARGET_ERRORS = {
+  ...TARGET_ERRORS,
+  403: [E.FORBIDDEN, E.ADMIN_STEP_UP_REQUIRED],
 };
 
 /**
@@ -55,7 +61,10 @@ const TARGET_ERRORS = {
 @AdminEndpoint('super_admin', 'moderator', 'support')
 @Controller('admin/users')
 export class AdminUsersController {
-  constructor(private readonly users: AdminUsersService) {}
+  constructor(
+    private readonly users: AdminUsersService,
+    private readonly auth: AdminAuthService,
+  ) {}
 
   // Audit 2026-10-02: finance reads user basics for subscriptions
   // (contacts stay restricted to the class roles).
@@ -110,11 +119,16 @@ export class AdminUsersController {
       'Owner 2026-10-04: suspend, restore or end sessions of up to 500 users; one reason, audited per user',
   })
   @ApiEnvelopeResponse(AdminBulkResultDto)
-  @ApiErrors({ 400: [E.VALIDATION_ERROR], 403: [E.FORBIDDEN] })
-  bulk(
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    403: [E.FORBIDDEN, E.ADMIN_STEP_UP_REQUIRED],
+  })
+  async bulk(
     @CurrentAdmin() admin: AdminActor,
     @Body() dto: AdminUsersBulkDto,
   ): Promise<AdminBulkResultDto> {
+    // System audit #2, item 2: up to 500 accounts at once — step-up.
+    await this.auth.assertStepUp(admin.sessionId);
     return this.users.bulk(admin, dto);
   }
 
@@ -142,11 +156,13 @@ export class AdminUsersController {
       "Reset the user's password (sessions signed out; SMS code to sign in once)",
   })
   @ApiEnvelopeResponse(SanctionResultDto)
-  @ApiErrors(TARGET_ERRORS)
-  resetUserPassword(
+  @ApiErrors(STEP_UP_TARGET_ERRORS)
+  async resetUserPassword(
     @CurrentAdmin() admin: AdminActor,
     @Param() params: AdminUserIdParamDto,
   ): Promise<SanctionResultDto> {
+    // Owner 2026-10-22: an account takeover path — step-up.
+    await this.auth.assertStepUp(admin.sessionId);
     return this.users.resetPassword(admin, params.id);
   }
 
@@ -161,15 +177,17 @@ export class AdminUsersController {
   })
   @ApiEnvelopeResponse(PhoneChangedDto)
   @ApiErrors({
-    ...TARGET_ERRORS,
+    ...STEP_UP_TARGET_ERRORS,
     409: [E.IDENTIFIER_ALREADY_LINKED],
     429: [E.RATE_LIMITED],
   })
-  changeUserPhone(
+  async changeUserPhone(
     @CurrentAdmin() admin: AdminActor,
     @Param() params: AdminUserIdParamDto,
     @Body() dto: ChangeUserPhoneDto,
   ): Promise<PhoneChangedDto> {
+    // System audit #2, item 2: the phone signs in — step-up.
+    await this.auth.assertStepUp(admin.sessionId);
     return this.users.changePhone(admin, params.id, dto.phone, dto.reason);
   }
 

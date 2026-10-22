@@ -25,7 +25,7 @@ import '../models/file_envelope.dart';
 import '../models/kind2.dart';
 import '../models/presigned_file_envelope.dart';
 import '../models/set_sticker_pack_price_dto.dart';
-import '../models/status6.dart';
+import '../models/status7.dart';
 
 part 'admin_media_client.g.dart';
 
@@ -80,7 +80,7 @@ abstract class AdminMediaClient {
   Future<AdminStickerPackRowListEnvelope> listAdminStickerPacks({
     @Query('cursor') String? cursor,
     @Query('kind') Kind2? kind,
-    @Query('status') Status6? status,
+    @Query('status') Status7? status,
     @Query('q') String? q,
     @Extras() Map<String, dynamic>? extras,
   });

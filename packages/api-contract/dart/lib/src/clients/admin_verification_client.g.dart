@@ -23,7 +23,7 @@ class _AdminVerificationClient implements AdminVerificationClient {
   @override
   Future<VerificationQueueItemListEnvelope> listVerificationQueue({
     int? limit = 20,
-    Status2? status,
+    Status3? status,
     String? stateCode,
     String? cursor,
     Map<String, dynamic>? extras,

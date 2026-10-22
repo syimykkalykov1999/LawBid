@@ -19,7 +19,7 @@ import '../models/file_envelope.dart';
 import '../models/presigned_file_envelope.dart';
 import '../models/priority.dart';
 import '../models/sla.dart';
-import '../models/status9.dart';
+import '../models/status10.dart';
 import '../models/support_agent_envelope.dart';
 import '../models/support_agent_list_envelope.dart';
 import '../models/support_desk_settings_envelope.dart';
@@ -51,7 +51,7 @@ abstract class AdminSupportClient {
   @GET('/admin/support/tickets')
   Future<AdminSupportTicketRowListEnvelope> listAdminSupportTickets({
     @Query('cursor') String? cursor,
-    @Query('status') Status9? status,
+    @Query('status') Status10? status,
     @Query('category') Category? category,
     @Query('priority') Priority? priority,
     @Query('assignee') String? assignee,
