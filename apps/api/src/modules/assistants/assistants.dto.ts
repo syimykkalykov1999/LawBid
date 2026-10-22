@@ -149,6 +149,12 @@ export class TeamDto {
   @ApiProperty({ type: 'integer' }) used!: number;
   @ApiProperty({ enum: ['monthly', 'yearly', 'none'] })
   plan!: 'monthly' | 'yearly' | 'none';
+  @ApiProperty({
+    type: 'integer',
+    description:
+      'Owner 2026-10-22: the most duties one assistant may hold (admin setting assistants.max_duties).',
+  })
+  maxDuties!: number;
 }
 
 /** What the assistant app needs about itself. */

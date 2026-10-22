@@ -233,6 +233,8 @@ export const WIPE_TABLES: Readonly<Record<string, string>> = {
   assistant_activity: 'assistant activity',
   assistant_requests: 'assistant requests',
   assistant_liability_acceptances: 'assistant liability acceptances',
+  // Owner 2026-10-22: seat purchases / removals (test payments).
+  assistant_seat_changes: 'assistant seat purchases',
   attorney_profile_views: 'profile views',
   bid_pack_purchases: 'offer pack purchases',
   bid_credits: 'bought offers',

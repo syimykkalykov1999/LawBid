@@ -16982,16 +16982,16 @@
         ]
       }
     },
-    "/subscriptions/seats": {
+    "/subscriptions/seats/preview": {
       "post": {
-        "operationId": "setSeats",
+        "operationId": "previewSeats",
         "parameters": [],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/SetSeatsDto"
+                "$ref": "#/components/schemas/SeatPreviewRequestDto"
               }
             }
           }
@@ -17002,7 +17002,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SubscriptionMeEnvelope"
+                  "$ref": "#/components/schemas/SeatPreviewEnvelope"
                 }
               }
             }
@@ -17048,7 +17048,7 @@
             }
           },
           "409": {
-            "description": "Conflict: SUBSCRIPTION_PLAN_INCLUDES_SEATS, ASSISTANT_SEATS_IN_USE",
+            "description": "Conflict: SUBSCRIPTION_PLAN_INCLUDES_SEATS, SEATS_TRIAL_NOT_ALLOWED, SEATS_NOT_PAID_YET",
             "content": {
               "application/json": {
                 "schema": {
@@ -17103,7 +17103,134 @@
             "bearer": []
           }
         ],
-        "summary": "Monthly plan: set the number of assistant seats (OQ-048)",
+        "summary": "What buying seats costs now (prorated rest of the period) and per month after (owner 2026-10-22)",
+        "tags": [
+          "subscriptions"
+        ]
+      }
+    },
+    "/subscriptions/seats": {
+      "post": {
+        "operationId": "setSeats",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetSeatsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeatChangeResultEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN, ATTORNEY_NOT_VERIFIED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: SUBSCRIPTION_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: SUBSCRIPTION_PLAN_INCLUDES_SEATS, ASSISTANT_SEATS_IN_USE, SEATS_TRIAL_NOT_ALLOWED, SEATS_NOT_PAID_YET, SEATS_PREVIEW_STALE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable: PAYMENTS_NOT_CONFIGURED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Set the extra assistant seats: more = charged now (3-D Secure may be asked), fewer = from the period end, no refund (owner 2026-10-22)",
         "tags": [
           "subscriptions"
         ]
@@ -45962,6 +46089,121 @@
           }
         ],
         "summary": "Payments with refunded amounts (cursor)",
+        "tags": [
+          "admin-billing"
+        ]
+      }
+    },
+    "/admin/billing/seat-changes": {
+      "get": {
+        "operationId": "listSeatChanges",
+        "parameters": [
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "meta.nextCursor of the previous page.",
+            "schema": {
+              "maxLength": 300,
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/AssistantSeatChangeStatus"
+            }
+          },
+          {
+            "name": "userId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminSeatChangeListEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Assistant seat purchases and removals with the Stripe invoice (owner 2026-10-22, cursor)",
         "tags": [
           "admin-billing"
         ]
@@ -107721,8 +107963,12 @@
           "APPEAL_NOT_ALLOWED",
           "CHAT_ATTACHMENTS_LOCKED",
           "SUBSCRIPTION_PLAN_INCLUDES_SEATS",
+          "SEATS_TRIAL_NOT_ALLOWED",
+          "SEATS_NOT_PAID_YET",
+          "SEATS_PREVIEW_STALE",
           "ASSISTANT_SEATS_IN_USE",
           "ASSISTANT_NO_FREE_SEAT",
+          "ASSISTANT_TOO_MANY_DUTIES",
           "ASSISTANT_NOT_ALLOWED",
           "ASSISTANT_PHONE_TAKEN",
           "ASSISTANT_INVITE_NOT_FOUND",
@@ -116974,6 +117220,143 @@
           "data"
         ]
       },
+      "SeatPreviewDto": {
+        "type": "object",
+        "properties": {
+          "seats": {
+            "type": "integer",
+            "description": "The wanted extra seats."
+          },
+          "currentSeats": {
+            "type": "integer",
+            "description": "Extra seats usable now (paid through the period end)."
+          },
+          "amountNowCents": {
+            "type": "integer",
+            "description": "Charged now: the prorated rest of the current period."
+          },
+          "currency": {
+            "type": "string"
+          },
+          "prorationDate": {
+            "type": "integer",
+            "description": "Send back with POST /subscriptions/seats (unix seconds)."
+          },
+          "periodEnd": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time",
+            "description": "The paid period ends (the «до {date}» of the sheet)."
+          },
+          "seatCents": {
+            "type": "integer",
+            "description": "One seat per month."
+          },
+          "monthlyIncreaseCents": {
+            "type": "integer",
+            "description": "How much the monthly invoice grows («затем +$Y/мес»)."
+          },
+          "nextChargeCents": {
+            "type": "integer",
+            "description": "The next monthly invoice with the new seats."
+          }
+        },
+        "required": [
+          "seats",
+          "currentSeats",
+          "amountNowCents",
+          "currency",
+          "prorationDate",
+          "periodEnd",
+          "seatCents",
+          "monthlyIncreaseCents",
+          "nextChargeCents"
+        ]
+      },
+      "SeatPreviewRequestDto": {
+        "type": "object",
+        "properties": {
+          "seats": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 50,
+            "description": "The wanted EXTRA seats (on top of the plan's included)."
+          }
+        },
+        "required": [
+          "seats"
+        ]
+      },
+      "SeatPreviewEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SeatPreviewDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "SeatChangeResult": {
+        "type": "string",
+        "enum": [
+          "applied",
+          "requires_action",
+          "failed",
+          "scheduled"
+        ],
+        "description": "applied = paid and usable now; requires_action = confirm the payment (3-D Secure) with clientSecret, then GET /subscriptions/me; failed = the card was declined, nothing changed; scheduled = fewer seats from effectiveAt (the period end), no refund."
+      },
+      "SeatChangeResultDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "description": "applied = paid and usable now; requires_action = confirm the payment (3-D Secure) with clientSecret, then GET /subscriptions/me; failed = the card was declined, nothing changed; scheduled = fewer seats from effectiveAt (the period end), no refund.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SeatChangeResult"
+              }
+            ]
+          },
+          "clientSecret": {
+            "type": "string",
+            "nullable": true,
+            "description": "The PaymentIntent's client secret (requires_action only)."
+          },
+          "amountCents": {
+            "type": "integer"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "effectiveAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "changeId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "overview": {
+            "$ref": "#/components/schemas/SubscriptionMeDto"
+          }
+        },
+        "required": [
+          "status",
+          "clientSecret",
+          "amountCents",
+          "currency",
+          "effectiveAt",
+          "changeId",
+          "overview"
+        ]
+      },
       "SetSeatsDto": {
         "type": "object",
         "properties": {
@@ -116982,10 +117365,29 @@
             "minimum": 0,
             "maximum": 50,
             "description": "Extra seats on top of the ones the plan includes."
+          },
+          "prorationDate": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Owner 2026-10-22: `prorationDate` from POST /subscriptions/seats/preview, so the charge equals the amount shown (unix seconds; now when absent)."
           }
         },
         "required": [
           "seats"
+        ]
+      },
+      "SeatChangeResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SeatChangeResultDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
         ]
       },
       "CompleteCheckoutDto": {
@@ -117961,13 +118363,18 @@
               "none"
             ],
             "type": "string"
+          },
+          "maxDuties": {
+            "type": "integer",
+            "description": "Owner 2026-10-22: the most duties one assistant may hold (admin setting assistants.max_duties)."
           }
         },
         "required": [
           "members",
           "seats",
           "used",
-          "plan"
+          "plan",
+          "maxDuties"
         ]
       },
       "TeamEnvelope": {
@@ -131287,6 +131694,112 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/AdminPaymentDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "AssistantSeatChangeStatus": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "paid",
+          "failed",
+          "expired",
+          "scheduled",
+          "applied",
+          "canceled"
+        ]
+      },
+      "AdminSeatChangeDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "user": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AdminBillingUserDto"
+              }
+            ]
+          },
+          "fromSeats": {
+            "type": "integer",
+            "description": "Extra seats before."
+          },
+          "toSeats": {
+            "type": "integer",
+            "description": "Extra seats after."
+          },
+          "amountCents": {
+            "type": "integer",
+            "description": "Charged now (0 for a removal)."
+          },
+          "currency": {
+            "type": "string"
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AssistantSeatChangeStatus"
+              }
+            ]
+          },
+          "stripeInvoiceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "invoiceUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "The invoice in the Stripe Dashboard (null for the fake)."
+          },
+          "effectiveAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time",
+            "description": "A removal: when the seats go (the period end)."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "userId",
+          "user",
+          "fromSeats",
+          "toSeats",
+          "amountCents",
+          "currency",
+          "status",
+          "stripeInvoiceId",
+          "invoiceUrl",
+          "effectiveAt",
+          "createdAt"
+        ]
+      },
+      "AdminSeatChangeListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminSeatChangeDto"
             }
           },
           "meta": {

@@ -14,6 +14,7 @@ import { BillingPromoController } from './billing-promo.controller';
 import { ContractGrantsService } from './contract-grants.service';
 import { PromoCodesService } from './promo-codes.service';
 import { RefundsService } from './refunds.service';
+import { SeatChangesAdminService } from './seat-changes-admin.service';
 import {
   AdminSeatLimitRequestsController,
   SeatLimitRequestsController,
@@ -45,6 +46,8 @@ import { SubscriptionAdminService } from './subscription-admin.service';
     ContractGrantsService,
     PromoCodesService,
     RefundsService,
+    // Owner 2026-10-22: «Покупки мест».
+    SeatChangesAdminService,
     BillingOverviewService,
     AdminPricingService,
     AdminPlansService,
