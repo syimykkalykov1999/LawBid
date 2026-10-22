@@ -6410,7 +6410,7 @@
             }
           },
           "403": {
-            "description": "Forbidden: FORBIDDEN",
+            "description": "Forbidden: FORBIDDEN, ADMIN_STEP_UP_REQUIRED",
             "content": {
               "application/json": {
                 "schema": {
@@ -6614,7 +6614,7 @@
             }
           },
           "403": {
-            "description": "Forbidden: FORBIDDEN",
+            "description": "Forbidden: FORBIDDEN, ADMIN_STEP_UP_REQUIRED",
             "content": {
               "application/json": {
                 "schema": {
@@ -6731,7 +6731,7 @@
             }
           },
           "403": {
-            "description": "Forbidden: FORBIDDEN",
+            "description": "Forbidden: FORBIDDEN, ADMIN_STEP_UP_REQUIRED",
             "content": {
               "application/json": {
                 "schema": {
@@ -45863,7 +45863,7 @@
             }
           },
           "403": {
-            "description": "Forbidden: FORBIDDEN",
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
             "content": {
               "application/json": {
                 "schema": {
@@ -48479,7 +48479,7 @@
             }
           },
           "403": {
-            "description": "Forbidden: FORBIDDEN",
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
             "content": {
               "application/json": {
                 "schema": {
@@ -48782,7 +48782,7 @@
             }
           },
           "403": {
-            "description": "Forbidden: FORBIDDEN",
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
             "content": {
               "application/json": {
                 "schema": {
@@ -80779,7 +80779,7 @@
             }
           },
           "403": {
-            "description": "Forbidden: FORBIDDEN",
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
             "content": {
               "application/json": {
                 "schema": {

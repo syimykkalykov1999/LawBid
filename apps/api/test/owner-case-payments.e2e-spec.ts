@@ -13,7 +13,7 @@ import type { FakePaymentProvider } from '../src/modules/billing/fake-payment.pr
 import { FeatureFlagsService } from '../src/modules/feature-flags/services/feature-flags.service';
 import { CasePaymentsService } from '../src/modules/case-payments/case-payments.service';
 import { PAYMENT_SETTINGS_KEY } from '../src/modules/case-payments/case-payments.settings';
-import { adminSession } from './support/admin-login';
+import { adminSession, adminStepUp } from './support/admin-login';
 
 jest.setTimeout(180_000);
 
@@ -934,6 +934,7 @@ describe('owner — client → attorney payments (e2e, fake provider)', () => {
       ((sync.body as Body).data.account as Record<string, unknown>).status,
     ).toBe('active');
 
+    await adminStepUp(baseUrl, root);
     const refund = await api()
       .post(`/api/v1/admin/case-payments/${id}/refund`)
       .set(root.auth)

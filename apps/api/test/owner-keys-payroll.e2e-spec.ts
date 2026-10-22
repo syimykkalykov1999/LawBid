@@ -11,7 +11,11 @@ import { totpCode } from '../src/modules/admin-auth/totp.util';
 import { FeatureFlagsService } from '../src/modules/feature-flags/services/feature-flags.service';
 import { PayrollAccrualsService } from '../src/modules/admin-payroll/payroll-accruals.service';
 import { PlansService } from '../src/modules/plans/plans.service';
-import { adminSession, type AdminSession } from './support/admin-login';
+import {
+  adminSession,
+  adminStepUp,
+  type AdminSession,
+} from './support/admin-login';
 
 /**
  * Owner 2026-10-05:
@@ -213,6 +217,7 @@ describe('Key sets + payroll (e2e)', () => {
       support: 'manage',
       manage_admins: true,
     });
+    for (const s of [finance, deputy]) await adminStepUp(base, s);
 
     // No right: the section looks absent (404), and the try is audited.
     await api()
@@ -334,6 +339,7 @@ describe('Key sets + payroll (e2e)', () => {
 
   it('payroll via Stripe Connect: off by default, link, transfer, failure', async () => {
     const finance = await adminSession(base, prisma, 'finance');
+    await adminStepUp(base, finance);
     const sPeriod = `${period}-s`;
     const add = async (name: string, email: string) =>
       (
@@ -404,6 +410,7 @@ describe('Key sets + payroll (e2e)', () => {
 
   it('flexible pay: commissions + bonus paid with the salary, once', async () => {
     const finance = await adminSession(base, prisma, 'finance');
+    await adminStepUp(base, finance);
     const partner = await adminSession(base, prisma, 'support');
     const accruals = app.get(PayrollAccrualsService);
     const cPeriod = `${period}-c`;
@@ -636,6 +643,7 @@ describe('Key sets + payroll (e2e)', () => {
   it('reason: never for the owner, per section for other admins', async () => {
     const owner = await adminSession(base, prisma, 'super_admin');
     const finance = await adminSession(base, prisma, 'finance');
+    await adminStepUp(base, finance);
     const rPeriod = `${period}-r`;
     const add = async (name: string) =>
       (

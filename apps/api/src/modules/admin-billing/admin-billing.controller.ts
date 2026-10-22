@@ -56,6 +56,7 @@ import { BillingOverviewService } from './billing-overview.service';
 import { ContractGrantsService } from './contract-grants.service';
 import { PromoCodesService } from './promo-codes.service';
 import { RefundsService } from './refunds.service';
+import { AdminAuthService } from '../admin-auth/admin-auth.service';
 
 const E = ErrorCode;
 
@@ -75,6 +76,7 @@ export class AdminBillingController {
     private readonly grants: ContractGrantsService,
     private readonly promos: PromoCodesService,
     private readonly refundsService: RefundsService,
+    private readonly auth: AdminAuthService,
   ) {}
 
   // --- dashboard -------------------------------------------------------------
@@ -312,6 +314,7 @@ export class AdminBillingController {
   @ApiEnvelopeResponse(RefundDto, { status: HttpStatus.CREATED })
   @ApiErrors({
     400: [E.VALIDATION_ERROR, E.IDEMPOTENCY_KEY_REQUIRED],
+    403: [E.ADMIN_STEP_UP_REQUIRED],
     404: [E.NOT_FOUND],
     409: [
       E.REFUND_AMOUNT_EXCEEDED,
@@ -321,10 +324,12 @@ export class AdminBillingController {
     502: [E.REFUND_PROVIDER_FAILED],
     503: [E.PAYMENTS_NOT_CONFIGURED],
   })
-  createRefund(
+  async createRefund(
     @CurrentAdmin() admin: AdminActor,
     @Body() dto: CreateRefundDto,
   ): Promise<RefundDto> {
+    // System audit #2, item 2: money back to a card — fresh 2FA code.
+    await this.auth.assertStepUp(admin.sessionId);
     return this.refundsService.refund(admin, dto);
   }
 }

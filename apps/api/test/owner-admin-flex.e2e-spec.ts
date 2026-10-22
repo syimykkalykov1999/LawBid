@@ -4,7 +4,7 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
-import { adminSession } from './support/admin-login';
+import { adminSession, adminStepUp } from './support/admin-login';
 
 /**
  * Owner 2026-10-04 ("везде удобства гибкими сделай"): users list filters by
@@ -96,6 +96,7 @@ describe('Admin flexibility: user filters + bulk users / cases (e2e)', () => {
       .expect(200);
     expect(future.body.data).toHaveLength(0);
 
+    await adminStepUp(base, admin);
     const suspend = await api()
       .post('/api/v1/admin/users/bulk')
       .set(admin.auth)

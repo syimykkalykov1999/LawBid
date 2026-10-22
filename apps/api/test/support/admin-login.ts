@@ -168,3 +168,22 @@ export async function adminSignIn(
     .data;
   return { auth: { Authorization: `Bearer ${accessToken}` }, accessToken };
 }
+
+/**
+ * Owner 2026-10-22 (system audit #2, item 2): money and identity actions
+ * need a fresh step-up (5 minutes per session). Tries the neighbouring
+ * 30-second codes too, since the code just used to sign in is single-use.
+ */
+export async function adminStepUp(
+  baseUrl: string,
+  session: Pick<AdminSession, 'auth' | 'totpSecret'>,
+): Promise<void> {
+  for (const shift of [-30_000, 0, 30_000, 60_000]) {
+    const r = await request(baseUrl)
+      .post('/api/v1/admin/auth/step-up')
+      .set(session.auth)
+      .send({ code: totpCode(session.totpSecret, Date.now() + shift) });
+    if (r.status === 200) return;
+  }
+  throw new Error('adminStepUp(): no code was accepted');
+}

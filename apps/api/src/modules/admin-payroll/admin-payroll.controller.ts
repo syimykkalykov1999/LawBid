@@ -21,6 +21,7 @@ import {
   SkipAutoAudit,
   type AdminActor,
 } from '../admin-auth/admin-auth.decorators';
+import { AdminAuthService } from '../admin-auth/admin-auth.service';
 import { AdminIdParamDto } from '../admin-cases/admin-cases.dto';
 import {
   CreatePayrollAccrualDto,
@@ -53,7 +54,10 @@ const E = ErrorCode;
 @SkipAutoAudit()
 @Controller('admin/payroll')
 export class AdminPayrollController {
-  constructor(private readonly payroll: AdminPayrollService) {}
+  constructor(
+    private readonly payroll: AdminPayrollService,
+    private readonly auth: AdminAuthService,
+  ) {}
 
   @Get('employees')
   @ApiOperation({ summary: 'People on payroll with their fixed amount' })
@@ -94,11 +98,17 @@ export class AdminPayrollController {
       'Stripe link where the person adds their bank account or card (payroll_stripe_payouts)',
   })
   @ApiEnvelopeResponse(PayrollStripeLinkDto)
-  @ApiErrors({ 404: [E.NOT_FOUND], 409: [E.VALIDATION_ERROR] })
-  payrollStripeLink(
+  @ApiErrors({
+    403: [E.ADMIN_STEP_UP_REQUIRED],
+    404: [E.NOT_FOUND],
+    409: [E.VALIDATION_ERROR],
+  })
+  async payrollStripeLink(
     @CurrentAdmin() admin: AdminActor,
     @Param() p: AdminIdParamDto,
   ): Promise<PayrollStripeLinkDto> {
+    // Owner 2026-10-22: the link decides where salary goes — step-up.
+    await this.auth.assertStepUp(admin.sessionId);
     return this.payroll.stripeLink(admin, p.id);
   }
 
@@ -129,13 +139,16 @@ export class AdminPayrollController {
   @ApiEnvelopeResponse(PayrollBulkResultDto)
   @ApiErrors({
     400: [E.VALIDATION_ERROR],
+    403: [E.ADMIN_STEP_UP_REQUIRED],
     404: [E.NOT_FOUND],
     409: [E.VALIDATION_ERROR],
   })
-  payPayrollBulk(
+  async payPayrollBulk(
     @CurrentAdmin() admin: AdminActor,
     @Body() dto: PayrollBulkPayDto,
   ): Promise<PayrollBulkResultDto> {
+    // System audit #2, item 2: real Stripe transfers — fresh 2FA code.
+    await this.auth.assertStepUp(admin.sessionId);
     return this.payroll.payBulk(admin, dto);
   }
 
