@@ -180,7 +180,7 @@ describe('Client profile: posts, follows, attorney reviews (e2e, OQ-038)', () =>
     expect(
       (await api().post(`/api/v1/attorneys/${cli.id}/follow`).set(att.auth))
         .status,
-    ).toBe(204);
+    ).toBe(200);
     const followers = await api()
       .get(`/api/v1/attorneys/${cli.id}/followers`)
       .set(att.auth);
