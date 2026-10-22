@@ -161,9 +161,14 @@ class RealAuthRepository implements AuthRepository {
   Future<PasswordAuthResult> setPassword(
     String password, {
     String? currentPassword,
+    String? reauthToken,
   }) async {
     try {
-      await _client.setPassword(password, currentPassword: currentPassword);
+      await _client.setPassword(
+        password,
+        currentPassword: currentPassword,
+        reauthToken: reauthToken,
+      );
       return const PasswordAuthResult.success();
     } on ApiException catch (e) {
       return _passwordFailure(e);
@@ -225,6 +230,9 @@ class RealAuthRepository implements AuthRepository {
       case ApiErrorCodes.authProviderDisabled:
       case ApiErrorCodes.featureDisabled:
         return const PasswordAuthResult(PasswordAuthStatus.providerDisabled);
+      case ApiErrorCodes.reauthRequired:
+      case ApiErrorCodes.reauthInvalid:
+        return const PasswordAuthResult(PasswordAuthStatus.reauthRequired);
       default:
         return const PasswordAuthResult(PasswordAuthStatus.networkError);
     }

@@ -2827,6 +2827,7 @@
 "notif.list.review_requested":"قيّم محاميك",
 "notif.list.security_new_device":"تسجيل دخول جديد من جهاز آخر",
 "notif.list.security_phone_changed":"غيّر الدعم رقم هاتفك بناءً على طلبك",
+"notif.list.security_sign_in_changed":"تم تغيير بيانات تسجيل الدخول",
 "notif.list.subscription_payment_failed":"تعذّر تحصيل رسوم اشتراكك",
 "notif.list.subscription_status":"تغيّرت حالة اشتراكك",
 "notif.list.subscription_status.contract":"أعدّ LawBid لك اشتراكًا بموجب عقد",

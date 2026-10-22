@@ -54,6 +54,7 @@ class StubAuthRepository implements AuthRepository {
   Future<PasswordAuthResult> setPassword(
     String password, {
     String? currentPassword,
+    String? reauthToken,
   }) async {
     await Future<void>.delayed(const Duration(milliseconds: 500));
     return const PasswordAuthResult.success();

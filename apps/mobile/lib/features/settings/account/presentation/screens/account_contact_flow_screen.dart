@@ -82,9 +82,12 @@ class _AccountContactFlowScreenState
 
   Future<void> _submitCode(ContactVerificationState state, String code) {
     if (widget.mode == AccountContactMode.link) {
-      return ref
-          .read(identifierLinkProvider(widget.type).notifier)
-          .verify(code);
+      // Owner 2026-10-22 (security audit #3): "it's me" first, then the
+      // new contact's code.
+      final link = ref.read(identifierLinkProvider(widget.type).notifier);
+      return state.stage == ContactVerificationStage.confirmIdentity
+          ? link.confirmIdentity(code)
+          : link.verify(code);
     }
     final notifier =
         ref.read(contactVerificationProvider(widget.type).notifier);
@@ -140,7 +143,7 @@ class _AccountContactFlowScreenState
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final t = ref.watch(translatorProvider);
     final state = _watch();
-    final total = _replacing ? 3 : 2;
+    final total = _replacing || widget.mode == AccountContactMode.link ? 3 : 2;
     final current = switch (state.stage) {
       ContactVerificationStage.editing => 1,
       ContactVerificationStage.confirmIdentity => 2,
