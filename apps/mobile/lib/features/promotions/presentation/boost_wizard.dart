@@ -7,6 +7,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/payments/pay_page_look.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
     show showConfirmSheet;
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
@@ -20,7 +21,7 @@ import 'package:lawbid/features/promotions/presentation/pending_payment_sheet.da
 import 'package:lawbid/features/referrals/domain/referral_models.dart';
 import 'package:lawbid/features/stars/application/stars_providers.dart';
 import 'package:lawbid/features/subscription/application/subscription_providers.dart'
-    show checkoutLauncherProvider, withAppPayPageLook;
+    show checkoutLauncherProvider;
 import 'package:lawbid/features/subscription/domain/subscription_models.dart';
 import 'package:lawbid/features/subscription/presentation/promo_code_field.dart';
 

@@ -44,7 +44,13 @@
       seatsTitle: function (n) { return n === 1 ? '1 assistant seat' : n + ' assistant seats'; },
       seatsAfter: function (a, d) { return 'Charged now for the rest of this period. From ' + d + ' your bill is ' + a + ' a month.'; },
       boostTitle: function (d) { return 'Boost · ' + d + (d === 1 ? ' day' : ' days'); },
-      boostAfter: 'One payment. Your promotion starts once it is paid.' },
+      boostAfter: 'One payment. Your promotion starts once it is paid.',
+      starsTitle: function (n) { return n + ' stars'; }, starsAfter: 'One payment. The stars land in your balance at once.',
+      bidsTitle: function (n) { return n + ' offers'; }, bidsAfter: 'One payment. The offers are added to your balance at once.',
+      planTitle: 'LawBid plan', badgeTitle: 'Gold badge',
+      monthlyAfter: function (a) { return a + ' a month. Cancel anytime in the app.'; },
+      okStars: 'Paid. Your new balance is in the app.', okPlan: 'Your plan is active. Return to the LawBid app.',
+      okBadge: 'Your gold badge is on. Return to the LawBid app.' },
     ru: { secure: 'Безопасная оплата · Stripe', loading: 'Готовим оплату…', number: 'Номер карты', exp: 'Срок', cvc: 'Код безопасности',
       cvchint: '3 или 4 цифры на карте.', trial: function (d) { return d + ' дней бесплатно'; },
       after: function (d, a) { return 'Затем ' + a + ' в месяц. Можно отменить до конца пробного периода и ничего не платить.'; },
@@ -62,7 +68,13 @@
       seatsTitle: function (n) { return 'Мест для помощников: ' + n; },
       seatsAfter: function (a, d) { return 'Сейчас — за остаток периода. С ' + d + ' счёт ' + a + ' в месяц.'; },
       boostTitle: function (d) { return 'Продвижение · дней: ' + d; },
-      boostAfter: 'Один платёж. Продвижение начнётся после оплаты.' }
+      boostAfter: 'Один платёж. Продвижение начнётся после оплаты.',
+      starsTitle: function (n) { return 'Звёзд: ' + n; }, starsAfter: 'Один платёж. Звёзды сразу придут на баланс.',
+      bidsTitle: function (n) { return 'Откликов: ' + n; }, bidsAfter: 'Один платёж. Отклики сразу добавятся на баланс.',
+      planTitle: 'План LawBid', badgeTitle: 'Золотой значок',
+      monthlyAfter: function (a) { return a + ' в месяц. Отменить можно в приложении.'; },
+      okStars: 'Оплачено. Новый баланс — в приложении.', okPlan: 'План активен. Вернитесь в приложение LawBid.',
+      okBadge: 'Золотой значок включён. Вернитесь в приложение LawBid.' }
   };
   var lang = (langParam || navigator.language || 'en').slice(0, 2).toLowerCase();
   var L = T[lang] || T.en;
@@ -94,7 +106,10 @@
   function leave(how) {
     if (!ret) { history.length > 1 ? history.back() : window.close(); return; }
     var done = how === 'ok' ? 'success' : 'cancel';
-    var path = kind() === 'promotion' ? '/promotion/' + done : '/subscription/' + done;
+    // The server names the app screen for this purchase (/stars, /plan…).
+    var back = (state.session && state.session.returnPath) || (kind() === 'promotion' ? '/promotion' : '/subscription');
+    if (!/^\/[a-z-]+$/.test(back)) back = '/subscription';
+    var path = back + '/' + done;
     if (native) {
       // Opened from the phone app: bring the app itself back (custom scheme,
       // registered on iOS and Android); the web copy only if it did not open.
@@ -120,7 +135,7 @@
 
   function label() {
     var s = state.session;
-    state.trial = !!(s && s.kind === 'subscription' && s.trialEligible && s.trialDays > 0);
+    state.trial = !!(s && (s.kind === 'subscription' || s.kind === 'client_plan') && s.trialEligible && s.trialDays > 0);
   }
   function refreshButton() {
     var ready = state.done.number && state.done.exp && state.done.cvc && !state.busy;
@@ -141,7 +156,8 @@
   }
   function okScreen() {
     var k = kind();
-    setText('t-ok2', k === 'seats' ? L.okSeats : k === 'promotion' ? L.okBoost : L.ok2);
+    setText('t-ok2', ({ seats: L.okSeats, promotion: L.okBoost, stars: L.okStars, bid_pack: L.okStars,
+      client_plan: L.okPlan, client_badge: L.okBadge })[k] || L.ok2);
     state.busy = false;
     show('ok');
   }
@@ -270,7 +286,7 @@
     err(''); setText('brandlabel', '');
     show('form'); refreshButton();
     // The old SetupIntent may be used up: a fresh one for the next card.
-    if (kind() !== 'promotion') load(true);
+    if (state.session && state.session.mode === 'setup') load(true);
   });
 
   $('pay').addEventListener('click', function () {
@@ -313,12 +329,15 @@
       setText('fine', L.fineOnce);
       return;
     }
-    if (s.kind === 'promotion') {
-      setText('plan', L.boostTitle(s.days));
+    if (s.kind === 'promotion' || s.kind === 'stars' || s.kind === 'bid_pack') {
+      setText('plan', s.kind === 'stars' ? L.starsTitle(s.stars) : s.kind === 'bid_pack' ? L.bidsTitle(s.bids) : L.boostTitle(s.days));
       setText('per', '');
-      setText('after', L.boostAfter);
+      setText('after', s.kind === 'stars' ? L.starsAfter : s.kind === 'bid_pack' ? L.bidsAfter : L.boostAfter);
       setText('fine', L.fineOnce);
       return;
+    }
+    if (s.kind === 'client_plan' || s.kind === 'client_badge') {
+      setText('plan', s.kind === 'client_badge' ? L.badgeTitle : L.planTitle);
     }
     if (state.trial) { t.textContent = L.trial(s.trialDays); t.classList.remove('hide'); setText('after', L.after(s.trialDays, money(s.priceCents))); }
     else { setText('after', L.afterNoTrial(money(s.priceCents))); }

@@ -32,13 +32,15 @@ window.Stripe = function(){ return {
 const sessions = {
   subscription: { kind: 'subscription', mode: 'setup', pageToken: 'page.tok', publishableKey: 'pk_test_x', clientSecret: 'seti_x_secret', setupIntentId: 'seti_x', priceCents: 39900, currency: 'usd', trialDays: 7, trialEligible: true },
   seats: { kind: 'seats', mode: 'setup', pageToken: 'page.tok', publishableKey: 'pk_test_x', clientSecret: 'seti_x_secret', setupIntentId: 'seti_x', priceCents: 2450, currency: 'usd', seats: 3, currentSeats: 1, nextChargeCents: 49700, periodEnd: '2026-11-22T00:00:00.000Z', prorationDate: 1800000000 },
-  promotion: { kind: 'promotion', mode: 'payment', pageToken: 'page.tok', publishableKey: 'pk_test_x', clientSecret: 'pi_x_secret', priceCents: 3000, currency: 'usd', days: 3, target: 'post' },
+  promotion: { kind: 'promotion', mode: 'payment', pageToken: 'page.tok', publishableKey: 'pk_test_x', clientSecret: 'pi_x_secret', priceCents: 3000, currency: 'usd', days: 3, target: 'post', returnPath: '/promotion' },
+  stars: { kind: 'stars', mode: 'payment', pageToken: 'page.tok', publishableKey: 'pk_test_x', clientSecret: 'pi_x_secret', priceCents: 499, currency: 'usd', stars: 100, returnPath: '/stars' },
+  client_badge: { kind: 'client_badge', mode: 'setup', pageToken: 'page.tok', publishableKey: 'pk_test_x', clientSecret: 'seti_x_secret', setupIntentId: 'seti_x', priceCents: 1000, currency: 'usd', trialDays: 0, trialEligible: false, returnPath: '/verification' },
 };
-const confirms = { subscription: { status: 'ok' }, seats: { status: 'requires_action', clientSecret: 'pi_s' }, promotion: { status: 'ok' } };
+const confirms = { subscription: { status: 'ok' }, seats: { status: 'requires_action', clientSecret: 'pi_s' }, promotion: { status: 'ok' }, stars: { status: 'ok' }, client_badge: { status: 'pending' } };
 
 const b = await chromium.launch();
 let failed = false;
-for (const [kind, w, h, theme] of [['subscription', 390, 844, 'day'], ['seats', 390, 844, 'night'], ['promotion', 1280, 900, 'navy'], ['promotion', 390, 844, 'glass']]) {
+for (const [kind, w, h, theme] of [['subscription', 390, 844, 'day'], ['seats', 390, 844, 'night'], ['promotion', 1280, 900, 'navy'], ['promotion', 390, 844, 'glass'], ['stars', 390, 844, 'day'], ['client_badge', 390, 844, 'night']]) {
   const ctx = await b.newContext({ viewport: { width: w, height: h } });
   const p = await ctx.newPage();
   const errors = [];

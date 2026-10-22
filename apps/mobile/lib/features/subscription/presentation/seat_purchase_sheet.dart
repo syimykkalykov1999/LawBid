@@ -8,6 +8,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/core/payments/pay_page_look.dart';
 import 'package:lawbid/features/subscription/application/subscription_providers.dart';
 import 'package:lawbid/features/subscription/data/card_collector.dart';
 import 'package:lawbid/features/subscription/domain/subscription_models.dart';

@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/network/dio_client.dart';
+import 'package:lawbid/core/payments/pay_page_look.dart';
 import 'package:lawbid/features/client_plan/data/client_plan_repository.dart';
 import 'package:lawbid/features/client_plan/domain/client_plan_models.dart';
 import 'package:lawbid/features/subscription/application/subscription_providers.dart';
@@ -106,7 +107,10 @@ class ClientCheckoutController extends Notifier<ClientCheckoutState> {
       final okScheme = checkout.url.scheme == 'https' ||
           (kDebugMode && checkout.url.scheme == 'http');
       if (!okScheme ||
-          !await ref.read(checkoutLauncherProvider)(checkout.url)) {
+          // Owner 2026-10-22: our card page in the app's theme and language.
+          !await ref.read(checkoutLauncherProvider)(
+            withAppPayPageLook(ref.read, checkout.url),
+          )) {
         throw const CheckoutNotOpened();
       }
       _phase(ClientCheckoutPhase.awaitingPayment);

@@ -10,6 +10,7 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/payments/pay_page_look.dart';
 import 'package:lawbid/features/stars/application/stars_providers.dart';
 import 'package:lawbid/features/stars/domain/stars_models.dart';
 import 'package:lawbid/shared/domain/payment_page_launch_mode.dart';
@@ -91,8 +92,12 @@ class _StarsScreenState extends ConsumerState<StarsScreen>
     try {
       final r = await ref.read(starsRepositoryProvider).buy(packId);
       _purchaseId = r.purchaseId;
+      // Owner 2026-10-22: our card page, in the app's theme and language
+      // (Safari on the iPhone: stars are never bought inside the iOS app).
       final url = Uri.tryParse(r.checkoutUrl);
-      if ((url == null || !await openPaymentPage(url)) && mounted) {
+      if ((url == null ||
+              !await openPaymentPage(withAppPayPageLook(ref.read, url))) &&
+          mounted) {
         showAppSnackBar(context, t.t('plans.cantOpen'));
       }
     } on Object catch (e) {
