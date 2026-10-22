@@ -18,7 +18,10 @@ export type RevokeReason =
   | 'signed_in_elsewhere'
   // Owner 2026-10-22 (security audit #3, finding 5): the phone, e-mail or
   // password changed — every other session ends, this one stays.
-  | 'credentials_changed';
+  | 'credentials_changed'
+  // Owner 2026-10-22 (security audit #3, finding 6): the attorney (or the
+  // admin) removed the assistant — their own sign-ins end too.
+  | 'assistant_removed';
 
 /**
  * Single choke point for every way a session can end (logout, logout-all,

@@ -1041,4 +1041,49 @@ describe('Assistants (e2e, OQ-048)', () => {
       expect(r.body.error.code).toBe('ASSISTANT_NOT_ALLOWED');
     }
   });
+  it('security audit #3 (finding 6): removing an assistant ends their own sessions', async () => {
+    const att = await attorney(1);
+    const asst = await assistantUser();
+    await api()
+      .post('/api/v1/team')
+      .set(att.auth)
+      .send({ phone: asst.phone })
+      .expect(201);
+    await api()
+      .post('/api/v1/assistants/join/accept')
+      .set(asst.auth)
+      .expect(201);
+    const chain = randomUUID();
+    await prisma.session.create({
+      data: {
+        user_id: asst.id,
+        session_chain_id: chain,
+        refresh_hash: `audit3-${randomUUID()}`,
+        expires_at: new Date(Date.now() + 86_400_000),
+      },
+    });
+    const live = {
+      Authorization: `Bearer ${tokens.signAccessToken({
+        sub: asst.id,
+        role: 'assistant',
+        sid: chain,
+        verified: false,
+        subscriptionStatus: 'none',
+      })}`,
+    };
+    await api().get('/api/v1/users/me').set(live).expect(200);
+
+    const team = await api().get('/api/v1/team').set(att.auth).expect(200);
+    await api()
+      .delete(`/api/v1/team/${team.body.data.members[0].id as string}`)
+      .set(att.auth)
+      .expect(200);
+
+    const gone = await api().get('/api/v1/users/me').set(live).expect(401);
+    expect(gone.body.error.code).toBe('AUTH_SESSION_REVOKED');
+    const row = await prisma.session.findFirstOrThrow({
+      where: { session_chain_id: chain },
+    });
+    expect(row.revoked_reason).toBe('assistant_removed');
+  });
 });

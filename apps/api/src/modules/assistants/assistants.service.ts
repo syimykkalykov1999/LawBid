@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  Optional,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -46,6 +47,8 @@ import {
   JoinCodeCipher,
   newJoinCode,
 } from './join-code';
+import { SessionRevocationService } from '../auth/services/session-revocation.service';
+import { endAssistantSessions } from './end-assistant-sessions';
 
 const PAGE = 30;
 
@@ -85,6 +88,8 @@ export class AssistantsService {
     private readonly caseComments: CaseCommentsService,
     private readonly profiles: AttorneyProfilesService,
     private readonly files: FilesService,
+    // Owner 2026-10-22 (security audit #3, finding 6).
+    @Optional() private readonly revocation?: SessionRevocationService,
   ) {}
 
   // --- the assistant themself ------------------------------------------
@@ -443,7 +448,8 @@ export class AssistantsService {
     return this.team(user);
   }
 
-  /** Removed: their access ends at once (the cache is dropped). */
+  /** Removed: their access ends at once (the cache is dropped, and every
+   * session of the assistant ends — see [endAssistantSessions]). */
   async remove(user: RequestUser, id: string): Promise<TeamDto> {
     const m = await this.own(user, id);
     await this.prisma.assistantMembership.update({
@@ -457,6 +463,7 @@ export class AssistantsService {
       },
     });
     await this.context.invalidate(m.assistant_user_id);
+    await endAssistantSessions(this.revocation, m.assistant_user_id);
     return this.team(user);
   }
 
