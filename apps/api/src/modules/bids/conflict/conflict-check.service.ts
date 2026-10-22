@@ -3,6 +3,9 @@ import { ErrorCode } from '../../../common/errors/error-code.enum';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { matchesIn, type MatchBy, type Person } from './conflict.logic';
+import { CaseAccessPolicy } from '../../cases/policies/case-access.policy';
+import { caseNotFound } from '../../cases/domain/case-state-machine';
+import { assertNoBlockBetween } from '../../blocks/block-check';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class ConflictMatchDto {
@@ -60,7 +63,32 @@ const publicTextOf = (c: { title: string; description: string }): string =>
  */
 @Injectable()
 export class ConflictCheckService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly access: CaseAccessPolicy,
+  ) {}
+
+  /**
+   * Owner 2026-10-22 (security audit #3, finding 7): the check used to load
+   * ANY case by id — another client's closed case answered whether that
+   * client's name appears in the attorney's own past cases. Now the case
+   * must be one this attorney may open (CaseAccessPolicy: 404 otherwise,
+   * never a hint it exists), and a block either way refuses it (the block
+   * screen promises no contact at all).
+   */
+  async assertAllowed(attorneyId: string, caseId: string): Promise<void> {
+    const access = await this.access.decide(
+      { userId: attorneyId, role: 'attorney' },
+      caseId,
+    );
+    if (!access) throw caseNotFound();
+    const kase = await this.prisma.case.findUnique({
+      where: { id: caseId },
+      select: { client_id: true },
+    });
+    if (!kase) throw caseNotFound();
+    await assertNoBlockBetween(this.prisma, attorneyId, kase.client_id);
+  }
 
   async check(attorneyId: string, caseId: string): Promise<ConflictCheckDto> {
     const kase = await this.prisma.case.findFirst({
