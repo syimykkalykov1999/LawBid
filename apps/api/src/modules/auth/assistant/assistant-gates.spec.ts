@@ -13,6 +13,8 @@ import { LegalQaController } from '../../legal-qa/legal-qa.controller';
 import { ReferralsController } from '../../referrals/referrals.controller';
 import { PartnersController } from '../../partners/partners.controller';
 import { LegalController } from '../../legal/legal.controller';
+import { StarsController } from '../../stars/stars.controller';
+import { PromotionsController } from '../../promotions/promotions.controller';
 
 /**
  * Owner 2026-10-22 (security audit #3, finding 1): the JwtAuthGuard swaps
@@ -67,6 +69,20 @@ describe('assistant gates (security audit #3)', () => {
     expect(attorneyOnlyHandlers(LegalQaController, 'publish').sort()).toEqual([
       'answerQuestion',
       'deleteQuestionAnswer',
+    ]);
+  });
+
+  it('finding 3: stars and paid promotions spend the attorney’s money', () => {
+    expect(attorneyOnlyHandlers(StarsController).sort()).toEqual([
+      'buyStars',
+      'convertGift',
+      'sendGiftToProfile',
+      'setGiftShown',
+    ]);
+    expect(attorneyOnlyHandlers(PromotionsController).sort()).toEqual([
+      'createCasePromotion',
+      'createPostPromotion',
+      'stopPromotion',
     ]);
   });
 

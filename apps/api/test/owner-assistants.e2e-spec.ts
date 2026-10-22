@@ -1025,5 +1025,20 @@ describe('Assistants (e2e, OQ-048)', () => {
       .send({})
       .expect(403);
     expect(partner.body.error.code).toBe('ASSISTANT_NOT_ALLOWED');
+
+    // Finding 3: the attorney's stars and promotion credits.
+    for (const path of [
+      `/api/v1/stars/received-gifts/${randomUUID()}/convert`,
+      `/api/v1/stars/gifts/${randomUUID()}/send`,
+      `/api/v1/promotions/${randomUUID()}/stop`,
+    ]) {
+      const r = await api()
+        .post(path)
+        .set(asst.auth)
+        .set('Idempotency-Key', randomUUID())
+        .send({})
+        .expect(403);
+      expect(r.body.error.code).toBe('ASSISTANT_NOT_ALLOWED');
+    }
   });
 });
