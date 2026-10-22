@@ -164,4 +164,9 @@ export const PUSH_SOUNDS: Record<
  * that already got it. */
 export interface PushSender {
   send(message: PushMessage, dedupeKey: string): Promise<void>;
+  /** Owner 2026-10-22 (server load audit, finding 7): the same logical push
+   * to many people at once (a group message), devices in parallel in
+   * chunks of FCM's multicast size. Optional: callers fall back to
+   * [send] per message. */
+  sendMany?(messages: PushMessage[], dedupeKey: string): Promise<void>;
 }
