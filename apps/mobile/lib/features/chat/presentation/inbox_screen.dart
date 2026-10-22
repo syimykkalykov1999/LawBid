@@ -26,6 +26,7 @@ import 'package:lawbid/features/chat/application/presence_providers.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/presentation/chat_folders.dart';
+import 'package:lawbid/features/chat/presentation/chat_note_sheet.dart';
 import 'package:lawbid/features/chat/presentation/chat_selection_bar.dart';
 import 'package:lawbid/features/chat/presentation/chat_swipe.dart';
 import 'package:lawbid/features/chat/presentation/chats_filter_row.dart';
@@ -128,8 +129,21 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
     final chatsAllowed = ref.watch(canDoProvider(AssistantDuty.chats));
     var tab = !showTeam && _tab == InboxTab.team ? InboxTab.chats : _tab;
     if (!chatsAllowed && tab == InboxTab.chats) tab = InboxTab.notifications;
+    final bell = _Bell(
+      count: badges.notifications,
+      selected: tab == InboxTab.notifications,
+      label: t.t('inbox.tab.notifications'),
+      onTap: () => setState(
+        () => _tab = tab == InboxTab.notifications && chatsAllowed
+            ? InboxTab.chats
+            : InboxTab.notifications,
+      ),
+    );
     return Scaffold(
       backgroundColor: colors.bg,
+      floatingActionButton: tab == InboxTab.chats && !selecting
+          ? _NewChatButton(label: t.t('phoneContacts.title'))
+          : null,
       body: SafeArea(
         bottom: false,
         child: Column(
@@ -313,7 +327,11 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                                         .read(notificationsProvider.notifier)
                                         .markRead(),
                                   ),
-                                if (tab == InboxTab.notifications)
+                                // Owner 2026-10-22: on the notifications screen the
+                                // header holds, close together, bell · filter ·
+                                // magnifier (left to right).
+                                if (tab == InboxTab.notifications) ...[
+                                  bell,
                                   AppIconButton(
                                     key: const ValueKey('notif-filter'),
                                     compact: true,
@@ -326,6 +344,23 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                                     onPressed: () => context
                                         .push(ChatRoutes.notificationSettings),
                                   ),
+                                  AppIconButton(
+                                    key: const ValueKey('notif-search-top'),
+                                    compact: true,
+                                    icon: AppIcon(
+                                      AppIcons.searchRounded,
+                                      size: 22,
+                                      color: colors.text,
+                                    ),
+                                    semanticLabel: t.t('notif.search.hint'),
+                                    onPressed: ref
+                                        .read(
+                                          notificationSearchOpenProvider
+                                              .notifier,
+                                        )
+                                        .open,
+                                  ),
+                                ] else
                                 // Owner 2026-10-01: in Team the bell gives
                                 // way to the team settings.
                                 if (tab == InboxTab.team)
@@ -344,18 +379,7 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                                     ),
                                   )
                                 else
-                                  _Bell(
-                                    count: badges.notifications,
-                                    selected: tab == InboxTab.notifications,
-                                    label: t.t('inbox.tab.notifications'),
-                                    onTap: () => setState(
-                                      () => _tab =
-                                          tab == InboxTab.notifications &&
-                                                  chatsAllowed
-                                              ? InboxTab.chats
-                                              : InboxTab.notifications,
-                                    ),
-                                  ),
+                                  bell,
                               ],
                             ),
                     ),
@@ -782,10 +806,10 @@ class ConversationsView extends ConsumerWidget {
             onFolder: onFolder!,
             query: query,
             onQuery: onQuery!,
-            trailing: _NewChatButton(label: t.t('phoneContacts.title')),
             openSignal: ref.watch(chatSearchOpenProvider),
             // Owner 2026-10-20: the channels' door at the start of the row.
-            leading: ref.watch(channelsComingSoonProvider) ||
+            // Owner 2026-10-22: hidden while channels are «coming soon».
+            leading: !ref.watch(channelsComingSoonProvider) &&
                     ref.watch(channelsEnabledProvider)
                 ? _ChannelsDoor(
                     unread: ref.watch(unreadGroupsProvider),
@@ -798,12 +822,7 @@ class ConversationsView extends ConsumerWidget {
                         color: colors.text,
                       ),
                       semanticLabel: t.t('channel.title'),
-                      onPressed: () => ref.read(channelsComingSoonProvider)
-                          ? showAppSnackBar(
-                              context,
-                              t.t('channel.comingSoon'),
-                            )
-                          : context.push(ChannelsRoutes.list),
+                      onPressed: () => context.push(ChannelsRoutes.list),
                     ),
                   )
                 : null,
@@ -1380,172 +1399,6 @@ class ConversationRow extends ConsumerWidget {
   }
 }
 
-/// Owner 2026-10-19: a chat's note read from the chat list — a sheet with
-/// the note, whether the chat waits for my answer, «Открыть чат» and
-/// «Изменить» (the chat's own menu), without opening the chat.
-Future<void> showChatNoteSheet(
-  BuildContext context,
-  WidgetRef ref,
-  Conversation c,
-) =>
-    showAppBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      builder: (sheet) =>
-          _ChatNoteSheet(conversation: c, host: context, hostRef: ref),
-    );
-
-class _ChatNoteSheet extends ConsumerWidget {
-  const _ChatNoteSheet({
-    required this.conversation,
-    required this.host,
-    required this.hostRef,
-  });
-
-  /// The list row's ref (alive after the sheet closes).
-  final WidgetRef hostRef;
-
-  final Conversation conversation;
-
-  /// The list's context (the sheet's own one is gone once it closes).
-  final BuildContext host;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final t = ref.watch(translatorProvider);
-    final f = ref.watch(l10nFormatsProvider);
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    final c = conversation;
-    final canEdit = !c.awaitingMyAnswer && !ref.watch(isAssistantProvider);
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.screenSide,
-          AppSpacing.sm,
-          AppSpacing.screenSide,
-          AppSpacing.lg,
-        ),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.sizeOf(context).height * 0.8,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const AppSheetHandle(),
-              Row(
-                children: [
-                  CounterpartAvatar(counterpart: c.counterpart, size: 36),
-                  const SizedBox(width: AppSpacing.sm),
-                  Expanded(
-                    child: Text(
-                      counterpartName(t, c),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: type.body.copyWith(
-                        color: colors.text,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.md),
-              Flexible(
-                child: Container(
-                  padding: const EdgeInsets.all(AppSpacing.md),
-                  decoration: BoxDecoration(
-                    color: colors.goldTint,
-                    borderRadius: BorderRadius.circular(AppRadii.card),
-                  ),
-                  child: SingleChildScrollView(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            AppIcon(
-                              AppIcons.stickyNote2Outlined,
-                              size: 16,
-                              color: colors.iconTint,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              t.t('chat.note.title'),
-                              style: type.caption.copyWith(
-                                color: colors.textSecondary,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: AppSpacing.sm),
-                        SelectableText(
-                          c.note ?? '',
-                          style: type.body.copyWith(color: colors.text),
-                        ),
-                        if (c.waiting && c.waitingSince != null) ...[
-                          const SizedBox(height: AppSpacing.sm),
-                          Row(
-                            children: [
-                              AppIcon(
-                                AppIcons.hourglassTopRounded,
-                                size: 14,
-                                color: colors.textSecondary,
-                              ),
-                              const SizedBox(width: 4),
-                              Expanded(
-                                child: Text(
-                                  t.t('chat.waiting.chip', {
-                                    'ago':
-                                        SocialFormat.ago(t, f, c.waitingSince!),
-                                  }),
-                                  style: type.caption.copyWith(
-                                    color: colors.textSecondary,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              AppButton(
-                key: const ValueKey('chat-note-open'),
-                label: t.t('chat.note.openChat'),
-                icon: AppIcons.chatBubbleOutlineRounded,
-                onPressed: () {
-                  Navigator.of(context).pop();
-                  host.push(ChatRoutes.conversation(c.id));
-                },
-              ),
-              if (canEdit) ...[
-                const SizedBox(height: AppSpacing.sm),
-                AppButton(
-                  key: const ValueKey('chat-note-edit'),
-                  label: t.t('common.edit'),
-                  icon: AppIcons.editOutlined,
-                  variant: AppButtonVariant.secondary,
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                    showChatOrganizeSheet(host, hostRef, c);
-                  },
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 /// Owner 2026-10-19: «Прочитать» at a chat's top right — opens its note.
 class _ReadNoteChip extends StatelessWidget {
   const _ReadNoteChip({required this.label, required this.onTap, super.key});
@@ -1767,25 +1620,26 @@ class _NewChatButton extends ConsumerWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final live =
         (ref.watch(ongoingGroupCallsProvider).value ?? const []).isNotEmpty;
-    return AppIconButton(
-      key: const ValueKey('chats-new-chat'),
-      compact: true,
-      icon: live
-          ? DecoratedBox(
-              key: const ValueKey('chats-new-chat-live'),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: colors.success,
-              ),
-              child: const Padding(
-                padding: EdgeInsets.all(2),
-                child: AppIcon(AppIcons.addRounded, color: Colors.white),
-              ),
-            )
-          : AppIcon(AppIcons.addRounded, color: colors.iconTint),
-      semanticLabel: label,
-      onPressed: () => context.push(
-        live ? '${AppRoutes.contacts}?tab=calls' : AppRoutes.contacts,
+    // Owner 2026-10-22 (WhatsApp): a floating button at the bottom right
+    // instead of the «+» in the filter row; green while a group call runs.
+    return Semantics(
+      button: true,
+      label: label,
+      excludeSemantics: true,
+      child: FloatingActionButton(
+        key: const ValueKey('chats-new-chat'),
+        heroTag: null,
+        backgroundColor: live ? colors.success : colors.accent,
+        foregroundColor: live ? Colors.white : colors.onAccent,
+        onPressed: () => context.push(
+          live ? '${AppRoutes.contacts}?tab=calls' : AppRoutes.contacts,
+        ),
+        child: live
+            ? const AppIcon(
+                AppIcons.addRounded,
+                key: ValueKey('chats-new-chat-live'),
+              )
+            : const AppIcon(AppIcons.addRounded),
       ),
     );
   }

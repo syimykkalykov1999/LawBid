@@ -20,6 +20,7 @@ class ChipsSearchRow extends ConsumerStatefulWidget {
     this.leading,
     this.trailing,
     this.openSignal = 0,
+    this.hideWhenClosed = false,
     this.openKey = const ValueKey('list-search-open'),
     this.fieldKey = const ValueKey('list-search'),
     this.closeKey = const ValueKey('list-search-close'),
@@ -36,6 +37,10 @@ class ChipsSearchRow extends ConsumerStatefulWidget {
   /// Owner 2026-10-21: a button in the magnifier's place (Chats: «+»; the
   /// magnifier then lives in the top bar and opens the row by [openSignal]).
   final Widget? trailing;
+
+  /// Owner 2026-10-22: nothing at all while closed (the magnifier is
+  /// elsewhere and the chips are gone) — only the opened search takes room.
+  final bool hideWhenClosed;
 
   /// Each change opens the search (a magnifier outside the row).
   final int openSignal;
@@ -148,6 +153,7 @@ class _ChipsSearchRowState extends ConsumerState<ChipsSearchRow> {
         ),
       );
     }
+    if (widget.hideWhenClosed) return const SizedBox.shrink();
     return bar(
       Row(
         children: [
