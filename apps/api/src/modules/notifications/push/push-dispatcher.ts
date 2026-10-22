@@ -1,3 +1,7 @@
+import {
+  ServerTextsService,
+  fillVars,
+} from '../../../common/i18n/server-texts.service';
 import { ApnsVoipSender } from './apns-voip.sender';
 import { VoipTokensService } from './voip-tokens.service';
 import { FeatureFlagsService } from '../../feature-flags/services/feature-flags.service';
@@ -54,6 +58,8 @@ import {
   chatPushKind,
   chatPushPreview,
   chatSenderName,
+  PUSH_TEXT_KEYS,
+  type PushTextName,
 } from './chat-push';
 
 export interface PushModuleOptions {
@@ -123,8 +129,25 @@ export class PushDispatcher
     @Optional() private readonly voipTokens?: VoipTokensService,
     // Owner 2026-10-22: the sender's photo on a message push (WhatsApp).
     @Optional() private readonly files?: FilesService,
+    // Owner 2026-10-22 (audit #4 §4): push words in every app language.
+    @Optional() private readonly texts?: ServerTextsService,
   ) {
     this.logger.setContext(PushDispatcher.name);
+  }
+
+  /** The push words in [lang] (the app's own 85-language keys; built-in
+   * en / ru until the translations are imported). */
+  private async pushTexts(
+    lang: string | null | undefined,
+  ): Promise<Record<PushTextName, string>> {
+    if (this.texts) return this.texts.texts(lang, PUSH_TEXT_KEYS);
+    const ru = (lang ?? '').startsWith('ru');
+    return Object.fromEntries(
+      Object.entries(PUSH_TEXT_KEYS).map(([k, [, fb]]) => [
+        k,
+        ru ? fb.ru : fb.en,
+      ]),
+    ) as Record<PushTextName, string>;
   }
 
   get enabled(): boolean {
@@ -249,18 +272,14 @@ export class PushDispatcher
     const skipTokens = rang.length
       ? ((await this.voipTokens?.fcmTokensCoveredBy(rang)) ?? [])
       : [];
+    const t = await this.pushTexts(language);
     await this.sender.send(
       {
         userId: data.recipientId,
         title: name,
-        // Owner 2026-10-05: video calls say so.
-        body: call.video
-          ? language === 'ru'
-            ? '📹 Входящий видеозвонок'
-            : '📹 Incoming video call'
-          : language === 'ru'
-            ? '📞 Входящий звонок'
-            : '📞 Incoming call',
+        // Owner 2026-10-05: video calls say so. Owner 2026-10-22 (audit
+        // #4 §4): in the person's language.
+        body: call.video ? `📹 ${t.videoCall}` : `📞 ${t.incomingCall}`,
         data: {
           type: 'incoming_call',
           callId: data.callId,
@@ -303,25 +322,12 @@ export class PushDispatcher
     const who = invite?.invited_by ?? call.caller;
     const name =
       [who.first_name, who.last_name].filter(Boolean).join(' ') || 'LawBid';
-    const ru = language === 'ru';
-    // The starter's own invitees get «started a call»; a later invite from a
-    // member says «invites you».
-    const starter =
-      !invite?.invited_by || invite.invited_by_id === call.caller_id;
-    const kind = call.video
-      ? ru
-        ? 'видеозвонок'
-        : 'a video call'
-      : ru
-        ? 'звонок'
-        : 'a call';
-    const body = starter
-      ? ru
-        ? `${name} начал(а) ${kind} · Присоединиться`
-        : `${name} started ${kind} · Join`
-      : ru
-        ? `${name} приглашает в ${kind} · Присоединиться`
-        : `${name} invites you to ${kind} · Join`;
+    // Owner 2026-10-22 (audit #4 §4): «Kim · 📞 Ongoing call · Join» in
+    // the person's language (the app's own call texts).
+    const t = await this.pushTexts(language);
+    const body = `${name} · ${
+      call.video ? `📹 ${t.videoCall}` : `📞 ${t.ongoingCall}`
+    } · ${t.join}`;
     await this.sender.send(
       {
         userId: data.recipientId,
@@ -624,7 +630,7 @@ export class PushDispatcher
     const [user, member, message, group] = await Promise.all([
       this.prisma.user.findUnique({
         where: { id: data.recipientId },
-        select: { status: true, ui_language: true },
+        select: { status: true, ui_language: true, first_name: true },
       }),
       this.prisma.chatGroupMember.findUnique({
         where: {
@@ -650,7 +656,7 @@ export class PushDispatcher
       return { result: 'no_user' };
     }
     if (message.deleted_at) return { result: 'no_push' };
-    const ru = user.ui_language === 'ru';
+    const t = await this.pushTexts(user.ui_language);
     const mentioned = message.mention_ids.includes(data.recipientId);
     let body: string;
     // Owner 2026-10-22: who wrote it, their photo and the bare text, for the
@@ -666,7 +672,13 @@ export class PushDispatcher
       ) {
         return { result: 'no_push' };
       }
-      body = ru ? 'Вас добавили в группу' : 'You were added to the group';
+      const adder = message.sender_id
+        ? chatSenderName(await this.chatSender(message.sender_id))
+        : '';
+      body = fillVars(t.added, {
+        name: adder || 'LawBid',
+        people: user.first_name?.trim() || '@',
+      });
     } else {
       const sender = shared
         ? shared.sender
@@ -683,9 +695,9 @@ export class PushDispatcher
         .slice(0, MESSAGE_PREVIEW_CHARS)
         .join('');
       const kind = chatPushKind(message.type, message.file?.mime);
-      let preview = chatPushPreview(kind, caption, ru);
+      let preview = chatPushPreview(kind, caption, t);
       if (mentioned) {
-        preview = (ru ? '@ Вас упомянули. ' : '@ Mentioned you. ') + preview;
+        preview = `@ ${fillVars(t.mentioned, { name: who || '' }).trim()}. ${preview}`;
       }
       // Telegram: the group on top, «Имя: текст» below.
       body = (who ? `${who}: ` : '') + preview;
@@ -848,7 +860,7 @@ export class PushDispatcher
     }
     const text = await this.templates.render('new_message', user.ui_language);
     // OQ-040: a voice note has no text — say what it is.
-    const ru = user.ui_language === 'ru';
+    const t = await this.pushTexts(user.ui_language);
     const caption = [
       ...(this.cipher?.open(message.body_display, data.messageId) ??
         message.body_display),
@@ -857,13 +869,9 @@ export class PushDispatcher
       .join('');
     // Owner 2026-10-22: «📷 Фото» / «🎥 Видео» / «📎 Файл» / «🎤 …».
     const kind = chatPushKind(message.type, message.file?.mime);
-    const preview = chatPushPreview(kind, caption, ru, message.duration_ms);
+    const preview = chatPushPreview(kind, caption, t, message.duration_ms);
     // Owner 2026-10-01: an assistant's message says so (not who exactly).
-    const from = message.sent_by_name
-      ? ru
-        ? 'Помощник адвоката: '
-        : "Attorney's assistant: "
-      : '';
+    const from = message.sent_by_name ? `${t.assistant}: ` : '';
     const icon = await this.badges.iconFor(data.recipientId);
     let body = from + (preview || text.body);
     let collapseKey: string | undefined;
@@ -887,12 +895,10 @@ export class PushDispatcher
       collapseKey = `msg-${data.messageId}`;
       dedupeKey = `e:${data.messageId}`;
     } else if (data.event === 'reaction' && data.actorId) {
-      const name =
-        sender?.first_name?.trim() || who || (ru ? 'Собеседник' : 'Someone');
+      const name = sender?.first_name?.trim() || who || 'LawBid';
       const quoted = preview ? ` «${[...preview].slice(0, 40).join('')}»` : '';
-      body = ru
-        ? `${name} отреагировал(а) ${data.emoji ?? ''} на${quoted || ' ваше сообщение'}`
-        : `${name} reacted ${data.emoji ?? ''} to${quoted || ' your message'}`;
+      // Owner 2026-10-22 (audit #4 §4): «Kim: Reaction 👍 «text»».
+      body = `${name}: ${fillVars(t.reaction, { emoji: data.emoji ?? '' })}${quoted}`;
       collapseKey = `react-${data.messageId}`;
       dedupeKey = `r:${data.messageId}:${data.actorId}:${data.emoji ?? ''}`;
     } else {

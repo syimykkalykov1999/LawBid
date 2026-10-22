@@ -1,3 +1,4 @@
+import { ServerTextsModule } from '../common/i18n/server-texts.service';
 import { CountriesCoreModule } from '../modules/countries/countries.module';
 import { Module } from '@nestjs/common';
 import { LoggerModule } from 'nestjs-pino';
@@ -81,6 +82,8 @@ import { ModerationModule } from '../modules/moderation/moderation.module';
     PrivacyModule.register({ mode: 'worker' }),
     // Owner 2026-10-22 (audit #4 §5): the `media-moderation` queue.
     MediaModerationModule.register({ mode: 'worker' }),
+    // Owner 2026-10-22 (audit #4 §4): pushes in every app language.
+    ServerTextsModule,
     // Audit 2026-10-02: admin broadcast fan-out (`admin-broadcast` queue).
     BroadcastFanoutModule.register({ mode: 'worker' }),
     // Owner 2026-10-22 (server load audit, finding 7): group messages
