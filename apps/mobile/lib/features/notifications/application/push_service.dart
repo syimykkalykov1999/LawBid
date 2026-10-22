@@ -8,6 +8,7 @@ import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/config/web_push_config.dart';
 import 'package:lawbid/core/navigation/app_router.dart';
+import 'package:lawbid/core/platform/chat_notifications_channel.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/call_media.dart';
 import 'package:lawbid/features/calls/application/callkit_bridge.dart';
@@ -63,6 +64,14 @@ class PushService {
     // Owner 2026-10-15: the phone's permission is asked here, whether or not
     // the push SDK is set up in this build.
     if (prompt) unawaited(_askSystemPermissions());
+    // Owner 2026-10-22: a chat notification the app draws itself (Android)
+    // opens its chat, also when it started the app.
+    _subs.add(chatNotificationsChannel.opens.listen(_openData));
+    unawaited(
+      chatNotificationsChannel.takeLaunchOpen().then((data) {
+        if (data != null) _openData(data);
+      }),
+    );
     // Owner 2026-10-17: iPhones ring for calls through Apple's VoIP pushes
     // (independent of Firebase).
     if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
@@ -189,6 +198,10 @@ class PushService {
             web: kIsWeb,
             // Owner 2026-10-20: this app arms the planner reminders itself.
             localReminders: TaskReminderScheduler.supported,
+            // Owner 2026-10-22: Android draws chat pushes itself (sender's
+            // photo, one notification per chat).
+            chatStyle:
+                !kIsWeb && defaultTargetPlatform == TargetPlatform.android,
           );
     } on Object {
       // Next app start registers again.
@@ -237,6 +250,8 @@ class PushService {
   /// Sign-out: this device stops receiving pushes.
   Future<void> unregister() async {
     _startedFor = null;
+    // Owner 2026-10-22: no chat of this account stays in the shade.
+    unawaited(chatNotificationsChannel.clearAll());
     final voip = _voipToken;
     _voipToken = null;
     if (voip != null) {
@@ -271,8 +286,9 @@ class PushService {
         );
   }
 
-  void _open(RemoteMessage message) {
-    final data = message.data;
+  void _open(RemoteMessage message) => _openData(message.data);
+
+  void _openData(Map<String, dynamic> data) {
     if (data['type'] == 'group_call') _showCallInvite(data);
     if (data['type'] == 'incoming_call' && data['callId'] is String) {
       unawaited(

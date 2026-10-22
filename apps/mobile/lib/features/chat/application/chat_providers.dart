@@ -11,6 +11,7 @@ import 'package:lawbid/core/media/image_size.dart';
 import 'package:lawbid/core/media/video_size.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/dio_client.dart';
+import 'package:lawbid/core/platform/chat_notifications_channel.dart';
 import 'package:lawbid/features/cases/application/paged_notifier.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/chat/data/chat_extras_repository.dart';
@@ -578,6 +579,8 @@ class ChatThread extends Notifier<ChatThreadState> {
     final owner = ref.watch(currentUserIdProvider);
     final realtime = ref.watch(realtimeClientProvider);
     realtime?.join(id);
+    // Owner 2026-10-22: the chat is open — its notification goes.
+    unawaited(chatNotificationsChannel.clearChat(id));
 
     final subs = <StreamSubscription<Object?>>[
       ref.watch(realtimeEventsProvider).listen(_onEvent),
