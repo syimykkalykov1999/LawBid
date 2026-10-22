@@ -29,6 +29,7 @@ import { StripeWebhookIntakeService } from './stripe-webhook.intake';
 import { SubscriptionSyncService } from './subscription-sync.service';
 import { SubscriptionsController } from './subscriptions.controller';
 import { PayPageController } from './pay-page.controller';
+import { PayLinkModule } from './pay-link.module';
 import { PayPageService } from './pay-page.service';
 import { SubscriptionsService } from './subscriptions.service';
 import { SeatsService } from './seats.service';
@@ -64,6 +65,8 @@ export class BillingModule {
         ReferralsCoreModule,
         PartnersCoreModule,
         PromotionsCoreModule,
+        // Owner 2026-10-22: the card page's signed links.
+        PayLinkModule,
         BidPacksCoreModule,
         StarsCoreModule,
         // Owner 2026-10-05: client → attorney payments (Connect webhooks).

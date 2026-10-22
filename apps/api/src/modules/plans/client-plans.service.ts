@@ -19,6 +19,11 @@ import type {
   ProviderCheckoutSession,
   ProviderSubscription,
 } from '../billing/payment-provider';
+import { savedCardOf } from '../billing/one-time-pay-page';
+import {
+  OWN_PAGE_SESSION_PREFIX,
+  PayLinkService,
+} from '../billing/pay-link.service';
 import { PricingService } from '../billing/pricing.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import type {
@@ -55,6 +60,8 @@ export class ClientPlansService {
     config: ConfigService,
     @Inject(PAYMENT_PROVIDER) private readonly provider: PaymentProvider,
     @Optional() private readonly notifications?: NotificationsService,
+    // Owner 2026-10-22: our own card page in place of Stripe's.
+    @Optional() private readonly payLink?: PayLinkService,
   ) {
     this.returnBase = (
       config.get<string>('APP_LINK_BASE_URL') ?? 'https://lawbid.app'
@@ -83,10 +90,18 @@ export class ClientPlansService {
     };
   }
 
-  async checkout(
+  /** What buying [planCode] costs, after every check (client, plan for
+   * sale, no plan active yet, a price configured). */
+  private async prepare(
     user: RequestUser,
     planCode?: string,
-  ): Promise<ClientPlanCheckoutDto> {
+  ): Promise<{
+    plan: Plan;
+    priceId: string;
+    amount: number;
+    trialDays: number;
+    customerId: string;
+  }> {
     this.requireClient(user);
     const plan = planCode
       ? await this.plans.byCode(planCode)
@@ -129,6 +144,46 @@ export class ClientPlansService {
       select: { email: true },
     });
     const customerId = await this.customerId(user.sub, u?.email ?? null);
+    return { plan, priceId, amount, trialDays, customerId };
+  }
+
+  async checkout(
+    user: RequestUser,
+    planCode?: string,
+    apiBase?: string,
+  ): Promise<ClientPlanCheckoutDto> {
+    const { plan, priceId, amount, trialDays, customerId } = await this.prepare(
+      user,
+      planCode,
+    );
+    // Owner 2026-10-22: our own card page (card, Apple Pay, Google Pay) in
+    // place of Stripe's hosted page; on the iPhone it opens in Safari.
+    if (apiBase && this.payLink && (await this.payLink.enabled())) {
+      const link = await this.payLink.link(
+        user.sub,
+        { kind: 'client_plan', planCode: plan.code },
+        apiBase,
+      );
+      const sessionId = `${OWN_PAGE_SESSION_PREFIX}${link.id}`;
+      await this.prisma.clientSubscription.upsert({
+        where: { user_id: user.sub },
+        create: {
+          user_id: user.sub,
+          plan_id: plan.id,
+          stripe_checkout_id: sessionId,
+          status: 'incomplete',
+          price_cents: amount,
+          entitlements: this.plans.entitlementsOf(plan),
+        },
+        update: {
+          plan_id: plan.id,
+          stripe_checkout_id: sessionId,
+          price_cents: amount,
+          entitlements: this.plans.entitlementsOf(plan),
+        },
+      });
+      return { url: link.url, sessionId, priceCents: amount, trialDays };
+    }
     const session = await this.provider.createCheckoutSession({
       customerId,
       lineItems: [{ priceId, quantity: 1 }],
@@ -174,11 +229,92 @@ export class ClientPlansService {
     };
   }
 
+  /** Owner 2026-10-22: the card page opened for a plan — a SetupIntent the
+   * card (or Apple Pay / Google Pay) is saved on. */
+  async payPageSession(
+    user: RequestUser,
+    planCode?: string,
+  ): Promise<{
+    priceCents: number;
+    trialDays: number;
+    clientSecret: string;
+    setupIntentId: string;
+  }> {
+    const o = await this.prepare(user, planCode);
+    const si = await this.provider.createSetupIntent(o.customerId, {
+      kind: CLIENT_PLAN_CHECKOUT_KIND,
+      userId: user.sub,
+      planCode: o.plan.code,
+    });
+    return {
+      priceCents: o.amount,
+      trialDays: o.trialDays,
+      clientSecret: si.clientSecret,
+      setupIntentId: si.id,
+    };
+  }
+
+  /** The card is saved: the plan's subscription is created on it. Returns
+   * true when the plan is on (false = the first charge is still being
+   * confirmed; the webhook finishes it). */
+  async payPageConfirm(
+    user: RequestUser,
+    planCode: string | undefined,
+    setupIntentId: string,
+  ): Promise<boolean> {
+    const o = await this.prepare(user, planCode);
+    const paymentMethodId = await savedCardOf(
+      this.provider,
+      o.customerId,
+      setupIntentId,
+    );
+    const remote = await this.provider.createSubscription({
+      customerId: o.customerId,
+      priceId: o.priceId,
+      lineItems: [{ priceId: o.priceId, quantity: 1 }],
+      paymentMethodId,
+      trialDays: o.trialDays > 0 ? o.trialDays : null,
+      metadata: {
+        kind: CLIENT_PLAN_CHECKOUT_KIND,
+        userId: user.sub,
+        planId: o.plan.id,
+        planCode: o.plan.code,
+        priceCents: String(o.amount),
+      },
+      // One subscription per saved card (audit #15): a retry of this
+      // confirm with the same SetupIntent reuses Stripe's answer.
+      idempotencyKey: `setup:${setupIntentId}`,
+    });
+    await this.prisma.clientSubscription.upsert({
+      where: { user_id: user.sub },
+      create: {
+        user_id: user.sub,
+        plan_id: o.plan.id,
+        stripe_checkout_id: setupIntentId,
+        stripe_subscription_id: remote.id,
+        status: 'incomplete',
+        price_cents: o.amount,
+        entitlements: this.plans.entitlementsOf(o.plan),
+      },
+      update: {
+        plan_id: o.plan.id,
+        stripe_checkout_id: setupIntentId,
+        stripe_subscription_id: remote.id,
+        price_cents: o.amount,
+        entitlements: this.plans.entitlementsOf(o.plan),
+      },
+    });
+    await this.applySubscription(remote);
+    return remote.status === 'active' || remote.status === 'trialing';
+  }
+
   async completeCheckout(
     user: RequestUser,
     sessionId: string,
   ): Promise<ClientPlanMeDto> {
     this.requireClient(user);
+    // Our card page: the subscription is made there, nothing to apply.
+    if (sessionId.startsWith(OWN_PAGE_SESSION_PREFIX)) return this.me(user);
     const session = await this.provider.retrieveCheckoutSession(sessionId);
     if (session && session.metadata.userId === user.sub) {
       await this.applyCheckout(session);

@@ -108,6 +108,12 @@ const ASYNC_METHODS = new Set([
   'refund',
   'creditCustomerBalance',
   'createOneTimeCheckout',
+  // Owner 2026-10-22: our own card page (PaymentIntents), cancel / restart.
+  'createPaymentIntent',
+  'retrievePaymentIntent',
+  'cancelPaymentIntent',
+  'expireCheckoutSession',
+  'setSubscriptionPaymentMethod',
   'createPrice',
   'replaceItemPrice',
   // Owner 2026-10-05: Stripe Connect (client → attorney payments).

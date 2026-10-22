@@ -15,6 +15,12 @@ import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { PAYMENT_PROVIDER } from '../billing/billing.constants';
+import {
+  checkoutOf,
+  oneTimePayPageSession,
+  type OneTimePaySession,
+} from '../billing/one-time-pay-page';
+import { PayLinkService } from '../billing/pay-link.service';
 import type {
   PaymentProvider,
   ProviderCheckoutSession,
@@ -79,6 +85,8 @@ export class BidPacksService {
     @Inject(PAYMENT_PROVIDER)
     private readonly provider?: PaymentProvider,
     @Optional() private readonly settings?: AppSettingsService,
+    // Owner 2026-10-22: our own card page in place of Stripe's.
+    @Optional() private readonly payLink?: PayLinkService,
   ) {}
 
   async enabled(): Promise<boolean> {
@@ -187,6 +195,7 @@ export class BidPacksService {
   async buy(
     userId: string,
     packId: string,
+    apiBase?: string,
   ): Promise<{ purchaseId: string; checkoutUrl: string }> {
     if (!(await this.enabled())) {
       throw new ConflictException({
@@ -216,6 +225,16 @@ export class BidPacksService {
         price_cents: pack.priceCents,
       },
     });
+    // Owner 2026-10-22: our own card page (card, Apple Pay, Google Pay);
+    // Stripe's page stays the fallback.
+    if (apiBase && this.payLink && (await this.payLink.enabled())) {
+      const link = await this.payLink.link(
+        userId,
+        { kind: 'bid_pack', purchaseId: row.id },
+        apiBase,
+      );
+      return { purchaseId: row.id, checkoutUrl: link.url };
+    }
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { email: true },
@@ -285,11 +304,44 @@ export class BidPacksService {
     };
   }
 
+  /** Owner 2026-10-22: the card page opened for a pack — its PaymentIntent. */
+  async payPageSession(
+    userId: string,
+    id: string,
+  ): Promise<OneTimePaySession & { bids: number }> {
+    const row = await this.prisma.bidPackPurchase.findUnique({ where: { id } });
+    const s = await oneTimePayPageSession({
+      provider: this.provider,
+      row,
+      userId,
+      kind: BID_PACK_CHECKOUT_KIND,
+      description: `LawBid — ${row?.bids ?? 0} offers`,
+      save: async (pi) => {
+        await this.prisma.bidPackPurchase.update({
+          where: { id },
+          data: { stripe_checkout_id: pi },
+        });
+      },
+      apply: (session) => this.applyCheckout(session),
+    });
+    return { ...s, bids: row?.bids ?? 0 };
+  }
+
+  /** The card page says it paid: check its PaymentIntent and credit. */
+  async payPageConfirm(userId: string, id: string): Promise<boolean> {
+    const row = await this.prisma.bidPackPurchase.findUnique({
+      where: { id },
+    });
+    if (!row || row.user_id !== userId) return false;
+    if (row.status === 'paid') return true;
+    return row.stripe_checkout_id
+      ? this.applyCheckoutById(row.stripe_checkout_id)
+      : false;
+  }
+
   async applyCheckoutById(sessionId: string): Promise<boolean> {
     try {
-      const s = this.provider
-        ? await this.provider.retrieveCheckoutSession(sessionId)
-        : null;
+      const s = await checkoutOf(this.provider, sessionId);
       return s ? await this.applyCheckout(s) : false;
     } catch (e) {
       this.logger.warn({ sessionId, err: String(e) }, 'pack check failed');

@@ -219,6 +219,9 @@ String? _paymentReturn(String kind, String step, Uri uri) {
       return '/profile/settings/bid-packs';
     case 'stars' when done:
       return '/profile/settings/stars';
+    // Owner 2026-10-22: Boost paid (or left) on our card page.
+    case 'promotion' when done:
+      return '/profile/settings/promotions';
   }
   return null;
 }
@@ -280,7 +283,10 @@ DeepLink? parseDeepLink(
 
   // Owner 2026-10-19: on the web Stripe's page opens in this tab; its
   // return URL lands on the screen that re-reads the purchase.
-  if (webTabs && parts.length == 2) {
+  // Owner 2026-10-22: on the phones the card page's «Return to LawBid»
+  // opens `lawbid:/subscription/success` (or `/promotion/…`) — the app
+  // lands on the screen that re-reads the purchase.
+  if ((webTabs || scheme == deepLinkScheme) && parts.length == 2) {
     final back = _paymentReturn(parts[0], parts[1], uri);
     if (back != null) return TabDeepLink(back);
   }

@@ -1,5 +1,19 @@
 import { UnauthorizedException } from '@nestjs/common';
+import { PayLinkService } from './pay-link.service';
 import { PayPageService } from './pay-page.service';
+
+/** A Redis stand-in with just SET ... EX ... NX. */
+function fakeRedis() {
+  const keys = new Set<string>();
+  return {
+    keys,
+    set: jest.fn((k: string) => {
+      if (keys.has(k)) return Promise.resolve(null);
+      keys.add(k);
+      return Promise.resolve('OK');
+    }),
+  };
+}
 
 function make(opts: { enabled?: boolean; key?: string | null } = {}) {
   const config = {
@@ -17,6 +31,7 @@ function make(opts: { enabled?: boolean; key?: string | null } = {}) {
       trialEligible: true,
     }),
     confirm: jest.fn().mockResolvedValue({ status: 'trialing' }),
+    customerId: jest.fn().mockResolvedValue('cus_1'),
   };
   const prisma = {
     user: {
@@ -34,18 +49,108 @@ function make(opts: { enabled?: boolean; key?: string | null } = {}) {
     boolean: jest.fn().mockResolvedValue(opts.enabled ?? true),
     number: jest.fn().mockResolvedValue(30),
   };
-  const svc = new PayPageService(
+  const seats = {
+    preview: jest.fn().mockResolvedValue({
+      seats: 3,
+      currentSeats: 1,
+      amountNowCents: 2500,
+      currency: 'usd',
+      nextChargeCents: 49900,
+      periodEnd: '2026-11-22T00:00:00.000Z',
+      prorationDate: 1_800_000_000,
+    }),
+    useCard: jest.fn().mockResolvedValue(undefined),
+    set: jest
+      .fn()
+      .mockResolvedValue({ status: 'requires_action', clientSecret: 'pi_s' }),
+  };
+  const promotions = {
+    payPageSession: jest.fn().mockResolvedValue({
+      paid: false,
+      amountCents: 3000,
+      currency: 'usd',
+      days: 3,
+      target: 'post',
+      clientSecret: 'pi_secret',
+      paymentIntentId: 'pi_1',
+    }),
+    payPageConfirm: jest.fn().mockResolvedValue(true),
+  };
+  const provider = {
+    createSetupIntent: jest
+      .fn()
+      .mockResolvedValue({ id: 'seti_9', clientSecret: 'seti_9_secret' }),
+  };
+  const redis = fakeRedis();
+  const links = new PayLinkService(
     config as never,
-    subscriptions as never,
-    prisma as never,
     secrets as never,
     settings as never,
-    config as never,
+    redis as never,
   );
-  return { svc, subscriptions, prisma };
+  const stars = {
+    payPageSession: jest.fn().mockResolvedValue({
+      paid: false,
+      amountCents: 499,
+      clientSecret: 'pi_stars_secret',
+      stars: 100,
+    }),
+    payPageConfirm: jest.fn().mockResolvedValue(true),
+  };
+  const bidPacks = {
+    payPageSession: jest.fn().mockResolvedValue({
+      paid: true,
+      amountCents: 1500,
+      clientSecret: null,
+      bids: 10,
+    }),
+    payPageConfirm: jest.fn().mockResolvedValue(false),
+  };
+  const clientPlans = {
+    payPageSession: jest.fn().mockResolvedValue({
+      priceCents: 999,
+      trialDays: 7,
+      clientSecret: 'seti_plan_secret',
+      setupIntentId: 'seti_plan',
+    }),
+    payPageConfirm: jest.fn().mockResolvedValue(true),
+  };
+  const clientBadge = {
+    payPageSession: jest.fn().mockResolvedValue({
+      priceCents: 1000,
+      clientSecret: 'seti_badge_secret',
+      setupIntentId: 'seti_badge',
+    }),
+    payPageConfirm: jest.fn().mockResolvedValue(false),
+  };
+  const svc = new PayPageService(
+    links,
+    subscriptions as never,
+    prisma as never,
+    seats as never,
+    promotions as never,
+    provider as never,
+    stars as never,
+    bidPacks as never,
+    clientPlans as never,
+    clientBadge as never,
+  );
+  return {
+    svc,
+    links,
+    subscriptions,
+    prisma,
+    seats,
+    promotions,
+    provider,
+    stars,
+    bidPacks,
+    clientPlans,
+    clientBadge,
+  };
 }
 
-describe('PayPageService (owner 2026-10-16, our own card page)', () => {
+describe('PayPageService (owner 2026-10-16 / 2026-10-22: our own card page)', () => {
   const user = {
     sub: 'u1',
     role: 'attorney',
@@ -62,7 +167,7 @@ describe('PayPageService (owner 2026-10-16, our own card page)', () => {
     expect(await make({ key: null }).svc.enabled()).toBe(false);
   });
 
-  it('the link carries a signed token; the page gets a SetupIntent for that attorney', async () => {
+  it('subscription: the link opens a SetupIntent for that attorney; the page token pays', async () => {
     const { svc, subscriptions } = make();
     const link = await svc.link(
       user,
@@ -74,21 +179,216 @@ describe('PayPageService (owner 2026-10-16, our own card page)', () => {
     expect(link.id.startsWith('own:')).toBe(true);
     const s = await svc.session(tokenOf(link.url));
     expect(s).toMatchObject({
+      kind: 'subscription',
+      mode: 'setup',
       publishableKey: 'pk_test_abcdefghijk',
       clientSecret: 'seti_secret',
       priceCents: 39900,
       trialDays: 7,
     });
+    expect(s.pageToken).not.toEqual(tokenOf(link.url));
     expect(subscriptions.start).toHaveBeenCalledWith(
       expect.objectContaining({ sub: 'u1', role: 'attorney' }),
       { planCode: 'pro' },
     );
-    await svc.confirm(tokenOf(link.url), 'seti_1', false);
+    const r = await svc.confirm(s.pageToken, {
+      setupIntentId: 'seti_1',
+      chargeNow: false,
+    });
+    expect(r.status).toBe('ok');
     expect(subscriptions.confirm).toHaveBeenCalledWith(
       expect.objectContaining({ sub: 'u1' }),
       'seti_1',
       false,
     );
+  });
+
+  it('the link is one-time; the page token can reopen the page', async () => {
+    const { svc } = make();
+    const link = await svc.link(user, {}, 'https://api.example/api/v1');
+    const first = await svc.session(tokenOf(link.url));
+    await expect(svc.session(tokenOf(link.url))).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+    // A reload of the open page keeps working.
+    await expect(svc.session(first.pageToken)).resolves.toMatchObject({
+      kind: 'subscription',
+    });
+  });
+
+  it('seats: the price now, a card can be swapped in, 3-D Secure is handed to the page', async () => {
+    const { svc, seats, provider } = make();
+    const link = await svc.seatsLink(user, 3, 'https://api.example/api/v1');
+    expect(seats.preview).toHaveBeenCalledWith(user, 3);
+    const s = await svc.session(tokenOf(link.url));
+    expect(s).toMatchObject({
+      kind: 'seats',
+      mode: 'setup',
+      priceCents: 2500,
+      seats: 3,
+      currentSeats: 1,
+      clientSecret: 'seti_9_secret',
+    });
+    expect(provider.createSetupIntent).toHaveBeenCalledWith(
+      'cus_1',
+      expect.objectContaining({ kind: 'assistant_seats' }),
+    );
+    const r = await svc.confirm(s.pageToken, {
+      setupIntentId: 'seti_9',
+      prorationDate: 1_800_000_000,
+    });
+    expect(seats.useCard).toHaveBeenCalledWith(
+      expect.objectContaining({ sub: 'u1' }),
+      'seti_9',
+    );
+    expect(seats.set).toHaveBeenCalledWith(
+      expect.objectContaining({ sub: 'u1' }),
+      3,
+      1_800_000_000,
+    );
+    expect(r).toEqual({ status: 'requires_action', clientSecret: 'pi_s' });
+  });
+
+  it('promotion: any active user pays their own Boost by PaymentIntent', async () => {
+    const { svc, links, prisma, promotions } = make();
+    prisma.user.findUnique.mockResolvedValue({
+      role: 'client',
+      status: 'active',
+    });
+    const link = await links.link(
+      'u1',
+      { kind: 'promotion', promotionId: 'promo-1' },
+      'https://api.example/api/v1',
+    );
+    const s = await svc.session(link.token);
+    expect(s).toMatchObject({
+      kind: 'promotion',
+      mode: 'payment',
+      clientSecret: 'pi_secret',
+      priceCents: 3000,
+      days: 3,
+    });
+    expect(promotions.payPageSession).toHaveBeenCalledWith('u1', 'promo-1');
+    expect(await svc.confirm(s.pageToken, {})).toEqual({
+      status: 'ok',
+      clientSecret: null,
+    });
+    promotions.payPageConfirm.mockResolvedValue(false);
+    expect((await svc.confirm(s.pageToken, {})).status).toBe('pending');
+  });
+
+  // Owner 2026-10-22 («лечи всё»): every other purchase on the same page.
+  it('stars: a PaymentIntent for the top-up, any active user, back to /stars', async () => {
+    const { svc, links, stars, prisma } = make();
+    prisma.user.findUnique.mockResolvedValue({
+      role: 'client',
+      status: 'active',
+    });
+    const l = await links.link(
+      'u1',
+      { kind: 'stars', purchaseId: 'buy1' },
+      'https://api.x/api/v1',
+    );
+    const s = await svc.session(l.token);
+    expect(s).toMatchObject({
+      kind: 'stars',
+      mode: 'payment',
+      clientSecret: 'pi_stars_secret',
+      priceCents: 499,
+      stars: 100,
+      returnPath: '/stars',
+    });
+    expect(stars.payPageSession).toHaveBeenCalledWith('u1', 'buy1');
+    expect((await svc.confirm(s.pageToken, {})).status).toBe('ok');
+    expect(stars.payPageConfirm).toHaveBeenCalledWith('u1', 'buy1');
+  });
+
+  it('offer pack: already paid → nothing to pay; not seen yet → pending', async () => {
+    const { svc, links } = make();
+    const l = await links.link(
+      'u1',
+      { kind: 'bid_pack', purchaseId: 'bp1' },
+      'https://api.x/api/v1',
+    );
+    const s = await svc.session(l.token);
+    expect(s).toMatchObject({
+      kind: 'bid_pack',
+      mode: 'none',
+      bids: 10,
+      returnPath: '/bid-packs',
+    });
+    expect((await svc.confirm(s.pageToken, {})).status).toBe('pending');
+  });
+
+  it('client plan: a SetupIntent, then the plan is made on the saved card', async () => {
+    const { svc, links, clientPlans, prisma } = make();
+    prisma.user.findUnique.mockResolvedValue({
+      role: 'client',
+      status: 'active',
+    });
+    const l = await links.link(
+      'u1',
+      { kind: 'client_plan', planCode: 'client_pro' },
+      'https://api.x/api/v1',
+    );
+    const s = await svc.session(l.token);
+    expect(s).toMatchObject({
+      kind: 'client_plan',
+      mode: 'setup',
+      clientSecret: 'seti_plan_secret',
+      priceCents: 999,
+      trialDays: 7,
+      trialEligible: true,
+      returnPath: '/plan',
+    });
+    expect(clientPlans.payPageSession).toHaveBeenCalledWith(
+      expect.objectContaining({ sub: 'u1', role: 'client' }),
+      'client_pro',
+    );
+    await expect(svc.confirm(s.pageToken, {})).rejects.toThrow(
+      'The card was not saved.',
+    );
+    expect(
+      (await svc.confirm(s.pageToken, { setupIntentId: 'seti_plan' })).status,
+    ).toBe('ok');
+    expect(clientPlans.payPageConfirm).toHaveBeenCalledWith(
+      expect.objectContaining({ sub: 'u1' }),
+      'client_pro',
+      'seti_plan',
+    );
+  });
+
+  it('gold badge: clients only; the first charge still confirming → pending', async () => {
+    const { svc, links, clientBadge, prisma } = make();
+    const l = await links.link(
+      'u1',
+      { kind: 'client_badge' },
+      'https://api.x/api/v1',
+    );
+    // An attorney's token for a client purchase does nothing.
+    await expect(svc.session(l.token)).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+    prisma.user.findUnique.mockResolvedValue({
+      role: 'client',
+      status: 'active',
+    });
+    const l2 = await links.link(
+      'u1',
+      { kind: 'client_badge' },
+      'https://api.x/api/v1',
+    );
+    const s = await svc.session(l2.token);
+    expect(s).toMatchObject({
+      kind: 'client_badge',
+      mode: 'setup',
+      priceCents: 1000,
+      returnPath: '/verification',
+    });
+    expect(
+      (await svc.confirm(s.pageToken, { setupIntentId: 'seti_badge' })).status,
+    ).toBe('pending');
+    expect(clientBadge.payPageConfirm).toHaveBeenCalledWith('u1', 'seti_badge');
   });
 
   it('a changed, foreign or expired token is refused', async () => {
@@ -116,7 +416,7 @@ describe('PayPageService (owner 2026-10-16, our own card page)', () => {
     }
   });
 
-  it('a link of a user who is not an active attorney does nothing', async () => {
+  it('a subscription / seats link of a user who is not an active attorney does nothing', async () => {
     const { svc, prisma } = make();
     prisma.user.findUnique.mockResolvedValue({
       role: 'client',

@@ -128,9 +128,10 @@ export function configureApp(
     app.use(responseCompression());
   }
 
-  // docs/06 §4.1 (stage 6.1): CORS for the admin panel (`ADMIN_ORIGINS`,
-  // with credentials) and the future client web app (`web.allowed_origins`
-  // in app_config, no credentials) — see CorsPolicy. The mobile app never
+  // docs/06 §4.1 (stage 6.1): CORS for the admin panel (`ADMIN_ORIGINS`)
+  // and the client web app (`web.allowed_origins` in app_config), both with
+  // credentials (owner 2026-10-22: the website's refresh-token cookie) —
+  // see CorsPolicy. The mobile app never
   // sends an Origin, so it is unaffected; any other origin gets no CORS
   // headers (the browser refuses the response).
   const adminOrigins = config
@@ -161,6 +162,8 @@ export function configureApp(
         'X-Device-Key',
         'X-LawBid-Demo',
         'X-Reauth-Token',
+        // Owner 2026-10-22: the website's refresh-token cookie mode.
+        'X-LawBid-Web-Session',
       ],
       maxAge: 600,
     }),

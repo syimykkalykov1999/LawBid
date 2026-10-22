@@ -16,6 +16,8 @@ import {
   type ProviderSeatItemInput,
   type ProviderSeatPreview,
   type ProviderOneTimeCheckoutInput,
+  type ProviderPaymentIntent,
+  type ProviderPaymentIntentInput,
   type ProviderPrice,
   type ProviderPriceInput,
   type ProviderSetupIntent,
@@ -335,6 +337,78 @@ export class FakePaymentProvider implements PaymentProvider {
       }
     }
     return Promise.resolve(s ? stripCheckout(s) : null);
+  }
+
+  // ---- Owner 2026-10-22: our own card page (PaymentIntents) -------------
+
+  readonly paymentIntents = new Map<string, ProviderPaymentIntent>();
+  readonly subscriptionCards = new Map<string, string>();
+
+  createPaymentIntent(
+    input: ProviderPaymentIntentInput,
+  ): Promise<ProviderPaymentIntent> {
+    // The idempotency key gives the same intent back, like Stripe.
+    const existing = [...this.paymentIntents.values()].find(
+      (p) => p.metadata._idem === input.idempotencyKey,
+    );
+    if (existing) return Promise.resolve(publicIntent(existing));
+    const id = `fake_pi_${randomUUID().slice(0, 12)}`;
+    const pi: ProviderPaymentIntent = {
+      id,
+      status: 'requires_payment_method',
+      amountCents: input.amountCents,
+      currency: input.currency,
+      clientSecret: `${id}_secret_fake`,
+      metadata: { ...input.metadata, _idem: input.idempotencyKey },
+    };
+    this.paymentIntents.set(id, pi);
+    return Promise.resolve(publicIntent(pi));
+  }
+
+  retrievePaymentIntent(id: string): Promise<ProviderPaymentIntent | null> {
+    const pi = this.paymentIntents.get(id);
+    return Promise.resolve(pi ? publicIntent(pi) : null);
+  }
+
+  cancelPaymentIntent(id: string): Promise<ProviderPaymentIntent | null> {
+    const pi = this.paymentIntents.get(id);
+    if (!pi) return Promise.resolve(null);
+    if (pi.status !== 'succeeded') pi.status = 'canceled';
+    return Promise.resolve(publicIntent(pi));
+  }
+
+  /** What the card page does in dev / tests: the payment succeeds. */
+  payPaymentIntent(id: string): void {
+    const pi = this.paymentIntents.get(id);
+    if (!pi) throw new Error('no such payment intent');
+    if (pi.status === 'canceled') throw new Error('payment intent canceled');
+    pi.status = 'succeeded';
+  }
+
+  expireCheckoutSession(id: string): Promise<ProviderCheckoutSession | null> {
+    const one = this.oneTimeCheckouts.get(id);
+    if (one && one.status === 'open') {
+      this.oneTimeCheckouts.set(id, { ...one, status: 'expired' });
+    }
+    const s = this.checkouts.get(id);
+    if (s && s.status === 'open')
+      this.checkouts.set(id, { ...s, status: 'expired' });
+    return this.retrieveCheckoutSession(id);
+  }
+
+  setSubscriptionPaymentMethod(
+    subscriptionId: string,
+    paymentMethodId: string,
+  ): Promise<void> {
+    this.subscriptionCards.set(subscriptionId, paymentMethodId);
+    const sub = this.subscriptions.get(subscriptionId);
+    if (sub) {
+      this.subscriptions.set(subscriptionId, {
+        ...sub,
+        defaultPaymentMethodId: paymentMethodId,
+      });
+    }
+    return Promise.resolve();
   }
 
   /** What paying on the hosted page does: a card, a subscription, the
@@ -922,6 +996,13 @@ function strip<T extends { _version: number }>(o: T): Omit<T, '_version'> {
   const { _version: _v, ...rest } = o;
   void _v;
   return rest;
+}
+
+/** The intent without the fake's own bookkeeping field. */
+function publicIntent(pi: ProviderPaymentIntent): ProviderPaymentIntent {
+  const { _idem: _i, ...metadata } = pi.metadata;
+  void _i;
+  return { ...pi, metadata };
 }
 
 function stripCheckout(s: ProviderCheckoutSession): ProviderCheckoutSession {

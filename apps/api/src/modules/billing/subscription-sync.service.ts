@@ -131,6 +131,18 @@ export class SubscriptionSyncService {
           await this.syncById(session.subscriptionId);
         return;
       }
+      // Owner 2026-10-22: a Boost paid on our own card page (PaymentIntent,
+      // no Checkout session). The page and the app's state read apply it
+      // too; this covers a buyer who closed the page at once.
+      case 'payment_intent.succeeded':
+        if (meta?.kind === 'case_promotion') {
+          await this.promotions?.applyCheckoutById(o.id);
+        } else if (meta?.kind === STARS_CHECKOUT_KIND) {
+          await this.stars?.applyCheckoutById(o.id);
+        } else if (meta?.kind === 'bid_pack') {
+          await this.bidPacks?.applyCheckoutById(o.id);
+        }
+        return;
       case 'setup_intent.succeeded':
         // The card is bound; POST /subscriptions/confirm reads it. Nothing
         // to sync yet.

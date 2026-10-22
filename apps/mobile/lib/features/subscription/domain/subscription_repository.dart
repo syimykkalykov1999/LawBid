@@ -31,6 +31,10 @@ abstract interface class SubscriptionRepository {
   /// asked), fewer go at the period end without a refund.
   Future<SeatChangeOutcome> setSeats(int seats, {int? prorationDate});
 
+  /// Owner 2026-10-22 (App Store 3.1.1): the iPhone buys seats on our card
+  /// page in the browser — a one-time link for [seats] extra seats.
+  Future<Uri> seatsCheckoutUrl(int seats);
+
   /// Owner 2026-10-01: monthly → yearly Prime (the difference is charged).
   Future<SubscriptionOverview> switchToYearly();
 

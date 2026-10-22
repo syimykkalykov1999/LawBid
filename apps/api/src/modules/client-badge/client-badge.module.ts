@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { PayLinkModule } from '../billing/pay-link.module';
 import { AdminAccessModule } from '../admin-access/admin-access.module';
 import { FilesModule } from '../files/files.module';
 import { NotificationsModule } from '../notifications/notifications.module';
@@ -12,7 +13,8 @@ import { ClientBadgeService } from './client-badge.service';
 /** The badge service alone — imported by billing (webhook events). Uses
  * the global PAYMENT_PROVIDER. */
 @Module({
-  imports: [FilesModule, NotificationsModule],
+  // PayLinkModule: the card page's links (owner 2026-10-22).
+  imports: [FilesModule, NotificationsModule, PayLinkModule],
   providers: [ClientBadgeService],
   exports: [ClientBadgeService],
 })
