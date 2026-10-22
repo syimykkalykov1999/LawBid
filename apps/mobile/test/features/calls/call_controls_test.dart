@@ -53,7 +53,6 @@ Future<void> _pump(WidgetTester tester, CallSession s) async {
       overrides: [
         ...uxOverrides(),
         callMyIdProvider.overrideWithValue('u0'),
-        callContactPickerProvider.overrideWithValue((_, __) async => null),
         callControllerProvider.overrideWith(() => _Fixed(s)),
       ],
       child: MaterialApp(

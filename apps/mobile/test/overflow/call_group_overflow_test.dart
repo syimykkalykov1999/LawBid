@@ -8,12 +8,14 @@ import 'package:lawbid/core/l10n/l10n_translator.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
+import 'package:lawbid/features/calls/presentation/call_add_panel.dart';
 import 'package:lawbid/features/calls/presentation/call_controls.dart';
 import 'package:lawbid/features/calls/presentation/call_group.dart';
 import 'package:lawbid/features/calls/presentation/call_screen.dart';
-import 'package:lawbid/features/calls/presentation/call_widgets.dart';
+import 'package:lawbid/shared/people/my_people.dart';
 
 import '../helpers/long_locale.dart';
+import '../helpers/long_people.dart';
 import '../helpers/ux_harness.dart';
 
 /// Owner 2026-10-20 (group calls): the call screen with three to seven
@@ -101,7 +103,7 @@ void main() {
           final overrides = <Override>[
             ...uxOverrides(translator: t),
             callMyIdProvider.overrideWithValue('u0'),
-            callContactPickerProvider.overrideWithValue((_, __) async => null),
+            myPeopleProvider.overrideWith((_) async => longPeople()),
             callControllerProvider.overrideWith(() => _Fixed(s)),
           ];
           await tester.pumpWidget(
@@ -231,14 +233,14 @@ void main() {
           });
         }
 
-        testWidgets('add sheet', (tester) async {
+        testWidgets('add panel', (tester) async {
           await pump(
             tester,
             _session(3),
             Scaffold(
               body: Builder(
                 builder: (context) => TextButton(
-                  onPressed: () => showAddToCallSheet(context),
+                  onPressed: () => showAddToCallPanel(context),
                   child: const Text('open'),
                 ),
               ),
