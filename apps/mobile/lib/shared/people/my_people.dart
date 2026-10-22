@@ -29,6 +29,8 @@ class MyPerson {
     this.name = '',
     this.username = '',
     this.avatarUrl,
+    this.lastAt,
+    this.role,
   });
 
   final String id;
@@ -40,6 +42,13 @@ class MyPerson {
   /// Without «@»; may be empty.
   final String username;
   final String? avatarUrl;
+
+  /// When the last message of our chat was (null for a mutual follow without
+  /// a chat) — the «Chats» tab sorts by it.
+  final DateTime? lastAt;
+
+  /// `attorney` / `client` / `assistant` when known.
+  final String? role;
 
   /// The name, or @username when there is none.
   String get title => name.isEmpty ? atHandle(username) : name;
@@ -73,9 +82,7 @@ List<MyPerson> mergeMyPeople({
     final group = [
       for (final p in source)
         if (p.id.isNotEmpty && seen.add(p.id)) p,
-    ]..sort(
-        (a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()),
-      );
+    ]..sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
     out.addAll(group);
   }
   return out;
@@ -107,6 +114,8 @@ List<MyPerson> myPeopleFromChats(Iterable<Conversation> chats) => [
             name: (c.counterpart.displayName ?? '').trim(),
             username: c.counterpart.username ?? '',
             avatarUrl: c.counterpart.avatarUrl,
+            lastAt: c.lastMessageAt ?? c.updatedAt,
+            role: c.counterpart.isAttorney ? 'attorney' : null,
           ),
     ];
 
@@ -190,6 +199,7 @@ Future<List<MyPerson>> _mutual(Ref ref, String? myId) async {
             name: e.value.name,
             username: e.value.username,
             avatarUrl: e.value.avatarUrl,
+            role: e.value.isAttorney ? 'attorney' : null,
           ),
     ];
   } on Object {
@@ -199,8 +209,9 @@ Future<List<MyPerson>> _mutual(Ref ref, String? myId) async {
 
 /// The people I may call in: see [MyPeopleGroup]. A source that fails is
 /// left out, the others still show. Overridden in tests.
-final myPeopleProvider =
-    FutureProvider.autoDispose<List<MyPerson>>((ref) async {
+final myPeopleProvider = FutureProvider.autoDispose<List<MyPerson>>((
+  ref,
+) async {
   final myId = ref.read(currentUserIdProvider);
   final parts = await Future.wait([
     _contacts(ref),
@@ -212,5 +223,32 @@ final myPeopleProvider =
     chats: parts[1],
     mutual: parts[2],
     myId: myId,
+  );
+});
+
+/// Owner 2026-10-22: the «Chats» tab of the «+» screen — the people I talk
+/// with: chats first, the most recent conversation on top, then the mutual
+/// follows I have no chat with, by name. Contacts are not here (their own
+/// tab), even when we also chat.
+List<MyPerson> sortMyChatPeople(Iterable<MyPerson> people) {
+  final list = people.toList()
+    ..sort((a, b) {
+      final x = a.lastAt;
+      final y = b.lastAt;
+      if (x != null && y != null) return y.compareTo(x);
+      if (x != null) return -1;
+      if (y != null) return 1;
+      return a.title.toLowerCase().compareTo(b.title.toLowerCase());
+    });
+  return list;
+}
+
+final myChatPeopleProvider = FutureProvider.autoDispose<List<MyPerson>>((
+  ref,
+) async {
+  final myId = ref.read(currentUserIdProvider);
+  final parts = await Future.wait([_chats(ref), _mutual(ref, myId)]);
+  return sortMyChatPeople(
+    mergeMyPeople(chats: parts[0], mutual: parts[1], myId: myId),
   );
 });

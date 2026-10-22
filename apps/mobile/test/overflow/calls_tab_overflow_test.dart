@@ -112,9 +112,12 @@ void main() {
                   body: Column(
                     children: [
                       ContactsCallsSegment(
-                        calls: true,
-                        contactsLabel: tr.t('phoneContacts.title'),
-                        callsLabel: tr.t('calls.title'),
+                        selected: 2,
+                        labels: [
+                          tr.t('inbox.tab.chats'),
+                          tr.t('phoneContacts.title'),
+                          tr.t('calls.title'),
+                        ],
                         onChanged: (_) {},
                       ),
                       const Expanded(child: CallsTab()),
@@ -153,9 +156,12 @@ void main() {
                           ? CallLogSelectionBar(picked: picked)
                           : AppTopBar(
                               title: ContactsCallsSegment(
-                                calls: true,
-                                contactsLabel: tr.t('phoneContacts.title'),
-                                callsLabel: tr.t('calls.title'),
+                                selected: 2,
+                                labels: [
+                                  tr.t('inbox.tab.chats'),
+                                  tr.t('phoneContacts.title'),
+                                  tr.t('calls.title'),
+                                ],
                                 onChanged: (_) {},
                               ),
                               actions: const [CallLogMenuButton()],

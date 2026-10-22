@@ -19,29 +19,30 @@ import 'package:lawbid/features/chat/presentation/open_direct_chat.dart';
 import 'package:lawbid/features/contacts_sync/presentation/contact_rows.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 
-/// Owner 2026-10-21: «Contacts | Calls» — the two sections of the screen the
-/// «+» of the chats opens. A compact segment in the middle of the top bar
+/// Owner 2026-10-21: «Contacts | Calls» — the sections of the screen the «+»
+/// of the chats opens. A compact segment in the middle of the top bar
 /// (Telegram); the sections also swipe.
+/// Owner 2026-10-22: three of them — «Chats», «Contacts», «Calls».
 class ContactsCallsSegment extends StatelessWidget {
   const ContactsCallsSegment({
-    required this.calls,
-    required this.contactsLabel,
-    required this.callsLabel,
+    required this.selected,
+    required this.labels,
     required this.onChanged,
     super.key,
   });
 
-  /// The «Calls» section is shown.
-  final bool calls;
-  final String contactsLabel;
-  final String callsLabel;
-  final ValueChanged<bool> onChanged;
+  /// The index in [labels] of the section shown.
+  final int selected;
+  final List<String> labels;
+  final ValueChanged<int> onChanged;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    Widget tab(String label, {required bool on, required bool isCalls}) {
+    Widget tab(int i) {
+      final label = labels[i];
+      final on = i == selected;
       return Expanded(
         child: Semantics(
           button: true,
@@ -49,10 +50,10 @@ class ContactsCallsSegment extends StatelessWidget {
           label: label,
           excludeSemantics: true,
           child: AppPressable(
-            onTap: () => onChanged(isCalls),
+            onTap: () => onChanged(i),
             child: Container(
               alignment: Alignment.center,
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
               decoration: BoxDecoration(
                 color: on ? colors.surface : null,
                 borderRadius: BorderRadius.circular(AppRadii.pill),
@@ -79,19 +80,14 @@ class ContactsCallsSegment extends StatelessWidget {
     return Center(
       child: Container(
         key: const ValueKey('contacts-calls-segment'),
-        constraints: const BoxConstraints(maxWidth: 220),
+        constraints: const BoxConstraints(maxWidth: 260),
         height: 32,
         padding: const EdgeInsets.all(2),
         decoration: BoxDecoration(
           color: colors.chip,
           borderRadius: BorderRadius.circular(AppRadii.pill),
         ),
-        child: Row(
-          children: [
-            tab(contactsLabel, on: !calls, isCalls: false),
-            tab(callsLabel, on: calls, isCalls: true),
-          ],
-        ),
+        child: Row(children: [for (var i = 0; i < labels.length; i++) tab(i)]),
       ),
     );
   }
@@ -442,11 +438,9 @@ class CallHistoryRow extends ConsumerWidget {
         return;
       }
       await HapticFeedback.mediumImpact();
-      await ref.read(callControllerProvider.notifier).call(
-            conv.id,
-            peer: e.peer,
-            video: video,
-          );
+      await ref
+          .read(callControllerProvider.notifier)
+          .call(conv.id, peer: e.peer, video: video);
     } on Object {
       if (context.mounted) {
         showAppSnackBar(context, t.t('error.default.message'));

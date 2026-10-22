@@ -90,9 +90,8 @@ class ContactsBackgroundSync with WidgetsBindingObserver {
       final data = await _ref.refresh(phoneContactsProvider.future);
       if (data.denied) return;
       final known = {
-        for (final id in (jsonDecode(
-          kv.getString(_key(_knownKey, me)) ?? '[]',
-        ) as List))
+        for (final id
+            in (jsonDecode(kv.getString(_key(_knownKey, me)) ?? '[]') as List))
           '$id',
       };
       // "First pass done" is its own flag: a first pass that finds nobody
@@ -102,10 +101,7 @@ class ContactsBackgroundSync with WidgetsBindingObserver {
       await kv.setString(_key(_knownKey, me), jsonEncode(now.keys.toList()));
       await kv.setString(_key(_initKey, me), '1');
       // Only after a pass that worked: a failed one is tried again soon.
-      await kv.setString(
-        _key(_lastKey, me),
-        DateTime.now().toIso8601String(),
-      );
+      await kv.setString(_key(_lastKey, me), DateTime.now().toIso8601String());
       if (firstPass || !notifyNew) return;
       final fresh = [
         for (final e in now.entries)
@@ -129,8 +125,9 @@ class ContactsBackgroundSync with WidgetsBindingObserver {
         await _ref.read(systemNotificationsProvider).showTest('LawBid', body);
     // iOS has no local channel here: the open app says it instead.
     if (!shown) {
-      rootMessengerKey.currentState
-          ?.showSnackBar(SnackBar(content: Text(body)));
+      rootMessengerKey.currentState?.showSnackBar(
+        SnackBar(content: Text(body)),
+      );
     }
   }
 }

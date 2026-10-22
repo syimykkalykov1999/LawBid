@@ -17,10 +17,10 @@ Future<void> inviteContact(
   final box = context.findRenderObject() as RenderBox?;
   await SharePlus.instance.share(
     ShareParams(
-      text: t.t(
-        'phoneContacts.inviteTo',
-        {'name': name, 'link': lawbidInviteLink},
-      ),
+      text: t.t('phoneContacts.inviteTo', {
+        'name': name,
+        'link': lawbidInviteLink,
+      }),
       sharePositionOrigin:
           box == null ? null : box.localToGlobal(Offset.zero) & box.size,
     ),

@@ -39,16 +39,14 @@ Future<List<PhoneBookEntry>?> readPhoneBookEntries() async {
   ];
 }
 
-final phoneBookEntriesReaderProvider =
-    Provider<PhoneBookEntriesReader>((_) => readPhoneBookEntries);
+final phoneBookEntriesReaderProvider = Provider<PhoneBookEntriesReader>(
+  (_) => readPhoneBookEntries,
+);
 
 /// A phone-book person who has a LawBid account. Owner 2026-10-20 (like
 /// WhatsApp): shown under the name saved in the phone.
 class LawBidContact {
-  const LawBidContact({
-    required this.person,
-    required this.phoneName,
-  });
+  const LawBidContact({required this.person, required this.phoneName});
 
   final ContactPerson person;
 
@@ -101,8 +99,9 @@ class ContactsConsent extends Notifier<bool> {
   void grant() => state = true;
 }
 
-final contactsConsentProvider =
-    NotifierProvider<ContactsConsent, bool>(ContactsConsent.new);
+final contactsConsentProvider = NotifierProvider<ContactsConsent, bool>(
+  ContactsConsent.new,
+);
 
 const _cacheKey = 'contacts_cache_v1';
 
@@ -178,10 +177,10 @@ final phoneContactsProvider = FutureProvider<PhoneContacts>((ref) async {
   // Allowed on this install: the daily background sync may run from now on.
   await ref.read(contactsSyncActionsProvider).markAsked();
   final region = status.phoneRegion;
-  final byHash = await compute(
-    hashPhoneBook,
-    (numbers: [for (final e in entries) e.numbers], region: region),
-  );
+  final byHash = await compute(hashPhoneBook, (
+    numbers: [for (final e in entries) e.numbers],
+    region: region,
+  ));
   final kv = ref.read(localKvStoreProvider);
   final cache = _Cache.decode(kv.getString(_cacheKey));
   final reuse = cache != null && cache.fresh && cache.region == region;

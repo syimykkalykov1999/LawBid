@@ -291,8 +291,9 @@ class PersonSuggestionTile extends StatelessWidget {
                           handle,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: type.caption
-                              .copyWith(color: colors.textSecondary),
+                          style: type.caption.copyWith(
+                            color: colors.textSecondary,
+                          ),
                         ),
                     ],
                   ),

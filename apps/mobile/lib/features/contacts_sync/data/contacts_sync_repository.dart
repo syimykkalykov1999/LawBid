@@ -83,9 +83,7 @@ class ApiContactsSyncRepository implements ContactsSyncRepository {
   @override
   Future<ContactsSyncStatus> status() async {
     final res = await guardApiCall(
-      () => _dio.get<Map<String, Object?>>(
-        '/contacts/sync',
-      ),
+      () => _dio.get<Map<String, Object?>>('/contacts/sync'),
     );
     final data = (res.data?['data'] as Map?)?.cast<String, Object?>();
     return ContactsSyncStatus(
