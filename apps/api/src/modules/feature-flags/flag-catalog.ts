@@ -15,6 +15,11 @@ export interface FlagDef {
   description: string;
   /** Part of the app's compiled-in first-paint defaults. */
   app?: boolean;
+  /** Owner 2026-10-22 (audit #4 §8): no longer used. Never created in
+   * the database (removed from it on boot), not in the admin; kept here
+   * only while the app's compiled defaults still list it — drop the entry
+   * and run `npm run flags:sync` with the next app change. */
+  retired?: boolean;
 }
 
 export const FLAG_CATALOG: readonly FlagDef[] = [
@@ -150,6 +155,7 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     key: 'guide_section_1',
     enabled: true,
     app: true,
+    retired: true,
     description: 'Guide («Справочник») section 1: What LawBid is',
   },
   {
@@ -157,6 +163,7 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     key: 'guide_section_2',
     enabled: true,
     app: true,
+    retired: true,
     description: 'Guide («Справочник») section 2: Who sees your case',
   },
   {
@@ -164,6 +171,7 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     key: 'guide_section_3',
     enabled: true,
     app: true,
+    retired: true,
     description: 'Guide («Справочник») section 3: Contacts and chat',
   },
   {
@@ -171,6 +179,7 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     key: 'guide_section_4',
     enabled: true,
     app: true,
+    retired: true,
     description: 'Guide («Справочник») section 4: Attorney assistants',
   },
   {
@@ -178,6 +187,7 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     key: 'guide_section_5',
     enabled: true,
     app: true,
+    retired: true,
     description: 'Guide («Справочник») section 5: Files and messages',
   },
   {
@@ -185,6 +195,7 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     key: 'guide_section_6',
     enabled: true,
     app: true,
+    retired: true,
     description:
       'Guide («Справочник») section 6: Bids, case stages and payment',
   },
@@ -193,6 +204,7 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     key: 'guide_section_7',
     enabled: true,
     app: true,
+    retired: true,
     description: 'Guide («Справочник») section 7: Reviews, reports and rules',
   },
   {
@@ -200,6 +212,7 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     key: 'guide_section_8',
     enabled: true,
     app: true,
+    retired: true,
     description: 'Guide («Справочник») section 8: Deleting your account',
   },
   {

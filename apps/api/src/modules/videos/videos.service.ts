@@ -1,3 +1,4 @@
+import { MediaModerationQueue } from '../media-moderation/media-moderation.queue';
 import { OpsStateService } from '../../common/ops/ops-state.service';
 import {
   ConflictException,
@@ -97,6 +98,8 @@ export class VideosService {
     private readonly costGuard: CostGuardService,
     @Optional() private readonly entitlements?: EntitlementsService,
     @Optional() private readonly ops?: OpsStateService,
+    // Owner 2026-10-22 (audit #4 §5): ready videos get a thumbnail check.
+    @Optional() private readonly moderation?: MediaModerationQueue,
   ) {}
 
   /** The flag is on and every Bunny key is set. */
@@ -214,7 +217,11 @@ export class VideosService {
       });
     }
     await this.limits.consume('video_upload', userId);
-    await this.costGuard.consume('video');
+    // Owner 2026-10-22 (audit #4 §6): priced per minute of video.
+    await this.costGuard.consume('video', 1, {
+      userId,
+      seconds: dto.durationSec,
+    });
     const keys = (await this.bunny.keys())!;
     const guid = await this.bunny.createVideo(
       dto.title?.trim() || 'LawBid',
@@ -354,7 +361,7 @@ export class VideosService {
           },
         });
       }
-      return this.prisma.videoAsset.update({
+      const ready = await this.prisma.videoAsset.update({
         where: { id: a.id },
         data: {
           status: 'ready',
@@ -365,6 +372,9 @@ export class VideosService {
           ready_at: new Date(),
         },
       });
+      // Owner 2026-10-22 (audit #4 §5): its thumbnail is checked.
+      await this.moderation?.enqueueVideo(ready.id);
+      return ready;
     }
     return this.prisma.videoAsset.update({
       where: { id: a.id },

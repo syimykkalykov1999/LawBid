@@ -52,7 +52,8 @@ async function seedStates(): Promise<void> {
   for (const state of US_STATES) {
     await prisma.state.upsert({
       where: { code: state.code },
-      create: state,
+      // Owner 2026-10-22: New York requires «Attorney Advertising».
+      create: { ...state, attorney_advertising_label: state.code === 'NY' },
       update: { name: state.name },
     });
   }
@@ -258,7 +259,8 @@ async function seedBlockedEmailDomains(): Promise<void> {
 // GET /config/bootstrap) is the stage-1.8 work added alongside this
 // function's app_config sibling below.
 async function seedFeatureFlags(): Promise<void> {
-  const flags = FLAG_CATALOG;
+  // Owner 2026-10-22: retired flags are never seeded.
+  const flags = FLAG_CATALOG.filter((f) => !f.retired);
   for (const flag of flags) {
     await prisma.featureFlag.upsert({
       where: { key: flag.key },
@@ -351,6 +353,10 @@ async function seedAppConfig(): Promise<void> {
     'budget.video.per_minute_max': 30,
     'budget.video.daily_max': 1000,
     'budget.video.monthly_max': 10000,
+    // Owner 2026-10-22: AWS Rekognition image moderation.
+    'budget.image_moderation.per_minute_max': 300,
+    'budget.image_moderation.daily_max': 20000,
+    'budget.image_moderation.monthly_max': 300000,
     'sms.allowed_country_codes': ['US'],
   };
   for (const [key, value] of Object.entries(costKeys)) {

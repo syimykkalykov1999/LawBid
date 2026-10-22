@@ -54,7 +54,7 @@ const base = {
 };
 
 describe('PushDispatcher call from a group chat', () => {
-  it('says «started a call · Join» without ringing', async () => {
+  it('says «name · Ongoing call · Join» without ringing', async () => {
     const { d, sent, ring } = build({
       ...base,
       group_id: 'g1',
@@ -78,7 +78,7 @@ describe('PushDispatcher call from a group chat', () => {
     // About a minute in the shade, one per call.
     expect(sent[0].ttlSec).toBe(60);
     expect(sent[0].collapseKey).toBe('gc:c1');
-    expect(sent[0].body).toBe('Ann Lee started a call · Join');
+    expect(sent[0].body).toBe('Ann Lee · 📞 Ongoing call · Join');
     expect(sent[0].data).toMatchObject({
       type: 'group_call',
       callId: 'c1',
@@ -86,7 +86,7 @@ describe('PushDispatcher call from a group chat', () => {
     });
   });
 
-  it('an invite by another member says «invites you»', async () => {
+  it('an invite by another member names who invites', async () => {
     const { d, sent } = build({
       ...base,
       group_id: 'g1',
@@ -102,7 +102,7 @@ describe('PushDispatcher call from a group chat', () => {
       { kind: 'call', recipientId: 'u1', callId: 'c1' } as never,
       'j',
     );
-    expect(sent[0].body).toBe('Bob invites you to a call · Join');
+    expect(sent[0].body).toBe('Bob · 📞 Ongoing call · Join');
   });
 
   it('a plain group call (no group chat) still rings', async () => {

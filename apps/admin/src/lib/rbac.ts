@@ -192,6 +192,7 @@ export const GROUPS: readonly SectionGroup[] = [
     icon: 'flag',
     items: [
       { href: '/moderation', label: 'Жалобы', icon: 'flag', area: 'moderation', count: 'reports', hint: 'очередь модерации' },
+      { href: '/media-moderation', label: 'Фото и видео', icon: 'flag', area: 'moderation', hint: 'автопроверка картинок: скрытые, подозрительные, CSAM' },
       { href: '/review-appeals', label: 'Обжалования отзывов', icon: 'scales', area: 'moderation', count: 'appeals' },
       { href: '/moderation-appeals', label: 'Обжалования решений', icon: 'scales', area: 'moderation', hint: 'автор просит вернуть скрытый пост, комментарий или сообщение' },
       { href: '/moderation-journal', label: 'Журнал решений', icon: 'article', area: 'moderation', hint: 'кто, когда и почему скрыл, удалил, предупредил' },
@@ -277,7 +278,6 @@ export const GROUPS: readonly SectionGroup[] = [
       { href: '/practice-areas', label: 'Квалификации', icon: 'books', area: 'content' },
       { href: '/i18n', label: 'Локализация', icon: 'translate', area: 'localization' },
       // Owner 2026-10-18: the app's «Справочник» texts, every language.
-      { href: '/guide', label: 'Справочник', icon: 'books', area: 'localization', hint: 'тексты кнопки «i» в списке дел' },
       { href: '/countries', label: 'Страны', icon: 'globe', area: 'localization', hint: 'где работает приложение' },
       { href: '/legal-documents', label: 'Юридические документы', icon: 'file-text', area: 'legal', hint: 'все документы: черновики, публикация, история' },
       // Owner 2026-10-05 (legal): DMCA notices, disclaimers, incident contact.

@@ -84,34 +84,109 @@ function clock(ms: number): string {
  * («📷 Фото», «🎥 Видео», «📎 Файл», «🎤 Голосовое сообщение 0:12» …) with
  * the caption when there is one. A file's name stays private (OQ-047).
  */
+/** Owner 2026-10-22 (audit #4 §4): the words of a push, in the
+ * recipient's language (ServerTextsService). */
+export interface ChatPushLabels {
+  photo: string;
+  video: string;
+  file: string;
+  voice: string;
+  sticker: string;
+  gift: string;
+  contact: string;
+  post: string;
+}
+
+const EN_LABELS: ChatPushLabels = {
+  photo: 'Photo',
+  video: 'Video',
+  file: 'File',
+  voice: 'Voice message',
+  sticker: 'Sticker',
+  gift: 'Gift',
+  contact: 'Contact',
+  post: 'Post',
+};
+const RU_LABELS: ChatPushLabels = {
+  photo: 'Фото',
+  video: 'Видео',
+  file: 'Файл',
+  voice: 'Голосовое сообщение',
+  sticker: 'Стикер',
+  gift: 'Подарок',
+  contact: 'Контакт',
+  post: 'Публикация',
+};
+
+/**
+ * The app's own 85-language keys reused for push texts (the server keeps
+ * no second copy): key + the built-in en / ru for before the import.
+ */
+export const PUSH_TEXT_KEYS = {
+  photo: ['chat.attach.photo', { en: 'Photo', ru: 'Фото' }],
+  video: ['chat.attach.video', { en: 'Video', ru: 'Видео' }],
+  file: ['chat.attach.label', { en: 'File', ru: 'Файл' }],
+  voice: [
+    'chat.voice.label',
+    { en: 'Voice message', ru: 'Голосовое сообщение' },
+  ],
+  sticker: ['stickers.label', { en: 'Sticker', ru: 'Стикер' }],
+  gift: ['gift.giftbox', { en: 'Gift', ru: 'Подарок' }],
+  contact: ['card.contact', { en: 'Contact', ru: 'Контакт' }],
+  post: ['chat.post.label', { en: 'Post', ru: 'Публикация' }],
+  incomingCall: [
+    'call.status.incoming',
+    { en: 'Incoming call', ru: 'Входящий звонок' },
+  ],
+  videoCall: ['call.videoButton', { en: 'Video call', ru: 'Видеозвонок' }],
+  ongoingCall: ['call.ongoing', { en: 'Ongoing call', ru: 'Идёт звонок' }],
+  join: ['group.call.join', { en: 'Join', ru: 'Присоединиться' }],
+  assistant: ['auth.welcome.assistant', { en: 'Assistant', ru: 'Помощник' }],
+  mentioned: [
+    'notif.list.mention',
+    { en: '{name} mentioned you', ru: '{name} упомянул(а) вас' },
+  ],
+  added: [
+    'group.system.added',
+    { en: '{name} added {people}', ru: '{name} добавил(а) {people}' },
+  ],
+  reaction: [
+    'channel.react.pick',
+    { en: 'Reaction {emoji}', ru: 'Реакция {emoji}' },
+  ],
+} satisfies Record<string, [string, { en: string; ru: string }]>;
+
+export type PushTextName = keyof typeof PUSH_TEXT_KEYS;
+
 export function chatPushPreview(
   kind: ChatPushKind,
   caption: string,
-  ru: boolean,
+  /** The labels in the recipient's language (true / false = the
+   * built-in ru / en ones). */
+  labels: ChatPushLabels | boolean,
   durationMs?: number | null,
 ): string {
+  const l =
+    typeof labels === 'boolean' ? (labels ? RU_LABELS : EN_LABELS) : labels;
   switch (kind) {
     case 'photo':
-      return caption ? `📷 ${caption}` : ru ? '📷 Фото' : '📷 Photo';
+      return caption ? `📷 ${caption}` : `📷 ${l.photo}`;
     case 'video':
-      return caption ? `🎥 ${caption}` : ru ? '🎥 Видео' : '🎥 Video';
+      return caption ? `🎥 ${caption}` : `🎥 ${l.video}`;
     case 'file':
-      return (ru ? '📎 Файл' : '📎 File') + (caption ? `: ${caption}` : '');
+      return `📎 ${l.file}` + (caption ? `: ${caption}` : '');
     case 'voice':
-      return (
-        (ru ? '🎤 Голосовое сообщение' : '🎤 Voice message') +
-        (durationMs ? ` ${clock(durationMs)}` : '')
-      );
+      return `🎤 ${l.voice}` + (durationMs ? ` ${clock(durationMs)}` : '');
     case 'sticker':
-      return ru ? 'Стикер' : 'Sticker';
+      return l.sticker;
     case 'gift':
-      return ru ? '🎁 Подарок' : '🎁 Gift';
+      return `🎁 ${l.gift}`;
     case 'contact':
-      return ru ? '👤 Контакт' : '👤 Contact';
+      return `👤 ${l.contact}`;
     case 'place':
       return `📍 ${caption}`;
     case 'post':
-      return ru ? '📰 Публикация' : '📰 Post';
+      return `📰 ${l.post}`;
     case 'poll':
       return `📊 ${caption}`;
     default:

@@ -1,6 +1,7 @@
+import { SloMetricsService } from '../../../common/ops/slo-metrics.service';
 import { parsePhoneNumberFromString } from 'libphonenumber-js';
 import { isKnownCountry } from '../../../common/reference-data/countries';
-import { ConflictException, Injectable } from '@nestjs/common';
+import { ConflictException, Injectable, Optional } from '@nestjs/common';
 import type { Prisma, PrismaClient, User } from '@prisma/client';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { PrismaService } from '../../../prisma/prisma.service';
@@ -36,7 +37,11 @@ export interface CollisionResult {
  */
 @Injectable()
 export class IdentityService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    // Owner 2026-10-22 (audit #4 §7): the signups SLO counter.
+    @Optional() private readonly slo?: SloMetricsService,
+  ) {}
 
   async findByIdentifier(
     provider: IdentityProvider,
@@ -95,6 +100,7 @@ export class IdentityService {
     }
 
     const now = new Date();
+    this.slo?.count('signup');
     const user = await client.user.create({
       data: {
         status: 'active',
@@ -155,6 +161,7 @@ export class IdentityService {
     }
 
     const now = new Date();
+    this.slo?.count('signup');
     const user = await this.prisma.user.create({
       data: {
         status: 'active',

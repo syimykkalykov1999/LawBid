@@ -124,7 +124,9 @@ export class AdminCountriesController {
   }
 
   @Patch(':code/regions/:region')
-  @ApiOperation({ summary: 'Switch a region on or off' })
+  @ApiOperation({
+    summary: 'Switch a region on or off, or its «Attorney Advertising» label',
+  })
   @ApiEnvelopeResponse(CountryRegionAdminDto)
   @ApiErrors({ 400: [E.VALIDATION_ERROR], 404: [E.NOT_FOUND] })
   updateAdminCountryRegion(
@@ -136,7 +138,7 @@ export class AdminCountriesController {
       admin,
       params.code,
       params.region,
-      dto.isActive,
+      dto,
     );
   }
 }

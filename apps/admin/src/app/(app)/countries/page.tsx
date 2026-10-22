@@ -347,10 +347,10 @@ function RegionsDialog({ country, onClose, onChanged }: { country: Country | nul
     onError: (e) => toast.error(e),
   });
   const setActive = useMutation({
-    mutationFn: async (v: { region: string; isActive: boolean }) => {
+    mutationFn: async (v: { region: string; isActive?: boolean; attorneyAdvertisingLabel?: boolean }) => {
       await api.PATCH('/admin/countries/{code}/regions/{region}', {
         params: { path: { code: cc, region: v.region } },
-        body: { isActive: v.isActive },
+        body: { isActive: v.isActive, attorneyAdvertisingLabel: v.attorneyAdvertisingLabel },
       });
     },
     onSuccess: reload,
@@ -368,7 +368,7 @@ function RegionsDialog({ country, onClose, onChanged }: { country: Country | nul
       onClose={onClose}
       eyebrow="Страны"
       title={country ? `${country.name}: ${word}` : ''}
-      description="Регионы, которые люди выбирают в профиле, кейсах и лицензиях. Выключенный регион пропадает из выбора."
+      description="Регионы, которые люди выбирают в профиле, кейсах и лицензиях. Выключенный регион пропадает из выбора. «Реклама» — юристы с лицензией этого региона получают пометку «Attorney Advertising» в профиле и постах (так требует, например, Нью-Йорк)."
       wide
     >
       <div className="space-y-4">
@@ -393,14 +393,23 @@ function RegionsDialog({ country, onClose, onChanged }: { country: Country | nul
         <div className="max-h-[50vh] overflow-y-auto">
           <Table>
             <tbody>
-              {regions.isPending ? <TableEmpty colSpan={3} loading /> : null}
-              {!regions.isPending && rows.length === 0 ? <TableEmpty colSpan={3}>Регионов пока нет.</TableEmpty> : null}
+              {regions.isPending ? <TableEmpty colSpan={4} loading /> : null}
+              {!regions.isPending && rows.length === 0 ? <TableEmpty colSpan={4}>Регионов пока нет.</TableEmpty> : null}
               {rows.map((r) => (
                 <tr key={r.code}>
                   <Td className="w-14 font-mono text-xs">{r.code}</Td>
                   <Td className="max-w-0 truncate text-ink" title={r.name}>
                     {r.name}
                     {r.isoCode ? <span className="ml-2 font-mono text-xs text-faint">{r.isoCode}</span> : null}
+                  </Td>
+                  <Td className="w-28 text-right text-xs text-faint">
+                    <span className="mr-2 align-middle">Реклама</span>
+                    <Switch
+                      checked={r.attorneyAdvertisingLabel}
+                      disabled={setActive.isPending}
+                      label={`${r.name}: Attorney Advertising`}
+                      onChange={(v) => setActive.mutate({ region: r.code, attorneyAdvertisingLabel: v })}
+                    />
                   </Td>
                   <Td className="w-14 text-right">
                     <Switch

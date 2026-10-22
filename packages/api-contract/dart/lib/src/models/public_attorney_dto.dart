@@ -18,6 +18,7 @@ class PublicAttorneyDto {
     required this.ratingAvg,
     required this.ratingCount,
     required this.trustBadge,
+    required this.photoUrl,
     required this.practiceAreas,
     required this.licensedStates,
     this.bio,
@@ -36,6 +37,11 @@ class PublicAttorneyDto {
 
   /// The blue check: license and identity confirmed.
   final bool trustBadge;
+
+  /// Owner 2026-10-22 (audit #4 §9): the attorney's photo on the media CDN.
+  /// (og:image of the SEO page); null without a CDN, a photo, or when the.
+  /// photo is not shown to everyone.
+  final String? photoUrl;
   final List<PublicPracticeDto> practiceAreas;
 
   /// States of verified licenses.

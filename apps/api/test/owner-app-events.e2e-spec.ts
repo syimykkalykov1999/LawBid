@@ -7,6 +7,7 @@ import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { FeatureFlagsService } from '../src/modules/feature-flags/services/feature-flags.service';
 import { adminSession } from './support/admin-login';
+import { TokenService } from '../src/modules/auth/services/token.service';
 
 /**
  * Owner 2026-10-15: events from the app, counted by day. The phone sends a
@@ -93,6 +94,64 @@ describe('App events + kill flags (e2e)', () => {
       .send({ events: [{ name: event }] })
       .expect(204);
     expect(await rowCount()).toBe(3);
+  });
+
+  // Owner 2026-10-22 (audit #4 §5): the «analytics» answer is enforced.
+  it('a person who said no to analytics is not counted; /users/me says so', async () => {
+    const own = `evc_${tag}`;
+    const ownCount = async () =>
+      (
+        await prisma.appEventDay.findFirst({
+          where: { name: own, screen: '' },
+        })
+      )?.count ?? 0;
+    const u = await prisma.user.create({
+      data: { role: 'client', first_name: 'No', last_name: 'Analytics' },
+    });
+    const sid = randomUUID();
+    const auth = {
+      Authorization: `Bearer ${app.get(TokenService).signAccessToken({
+        sub: u.id,
+        role: 'client',
+        sid,
+        verified: false,
+        subscriptionStatus: 'none',
+      })}`,
+    };
+    await prisma.userConsent.create({
+      data: { user_id: u.id, consent_type: 'analytics', granted: true },
+    });
+    const before = await ownCount();
+    await api()
+      .post('/api/v1/app-events')
+      .set(auth)
+      .send({ events: [{ name: own }] })
+      .expect(204);
+    expect(await ownCount()).toBe(before + 1);
+    // Changes the answer through the API (drops the cached «yes»).
+    await api()
+      .post('/api/v1/users/me/consents')
+      .set(auth)
+      .set('Idempotency-Key', randomUUID())
+      .send({ consents: [{ type: 'analytics', granted: false }] })
+      .expect((r) => expect([200, 201, 204]).toContain(r.status));
+    await api()
+      .post('/api/v1/app-events')
+      .set(auth)
+      .send({ events: [{ name: own }, { name: own }] })
+      .expect(204);
+    expect(await ownCount()).toBe(before + 1);
+    const me = await api().get('/api/v1/users/me').set(auth).expect(200);
+    expect(
+      (me.body as { data: { analyticsConsent: boolean | null } }).data
+        .analyticsConsent,
+    ).toBe(false);
+    // Without a token the anonymous count still works.
+    await api()
+      .post('/api/v1/app-events')
+      .send({ events: [{ name: own }] })
+      .expect(204);
+    expect(await ownCount()).toBe(before + 2);
   });
 
   it('refuses a malformed batch', async () => {

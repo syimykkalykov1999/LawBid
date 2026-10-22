@@ -23,9 +23,22 @@ type Row = components['schemas']['AdminLegalDocumentRowDto'];
 type LocaleState = components['schemas']['AdminLegalLocaleStateDto'];
 type Version = components['schemas']['AdminLegalVersionDto'];
 type DocType = Row['docType'];
-type Locale = 'en' | 'ru';
+// Owner 2026-10-22 (audit #4 §4): the ten legal languages of the API.
+const LOCALES = ['ru', 'en', 'es', 'fr', 'de', 'it', 'pt', 'nl', 'pl', 'uk'] as const;
+type Locale = (typeof LOCALES)[number];
 
-const LOCALE_LABEL: Record<Locale, string> = { ru: 'Русский', en: 'English' };
+const LOCALE_LABEL: Record<Locale, string> = {
+  ru: 'Русский',
+  en: 'English',
+  es: 'Español',
+  fr: 'Français',
+  de: 'Deutsch',
+  it: 'Italiano',
+  pt: 'Português',
+  nl: 'Nederlands',
+  pl: 'Polski',
+  uk: 'Українська',
+};
 
 const STATE_BADGE: Record<LocaleState['state'], { tone: Tone; text: string }> = {
   none: { tone: 'neutral', text: 'нет текста' },
@@ -75,19 +88,22 @@ export default function LegalDocumentsPage() {
         <thead>
           <tr>
             <Th>Документ</Th>
-            <Th>Русский</Th>
-            <Th>English</Th>
+            {LOCALES.map((l) => (
+              <Th key={l} title={LOCALE_LABEL[l]}>
+                {l.toUpperCase()}
+              </Th>
+            ))}
             <Th />
           </tr>
         </thead>
         <tbody>
-          {q.isPending ? <TableEmpty colSpan={4} loading /> : null}
+          {q.isPending ? <TableEmpty colSpan={LOCALES.length + 2} loading /> : null}
           {rows.map((r) => (
             <tr key={r.docType} className={openType === r.docType ? 'bg-accent-soft' : undefined}>
               <Td className="text-ink">
                 <span title={r.docType}>{label(LEGAL_DOC_TYPE, r.docType)}</span>
               </Td>
-              {(['ru', 'en'] as const).map((loc) => (
+              {LOCALES.map((loc) => (
                 <Td key={loc}>
                   <LocaleCell state={r.locales.find((l) => l.locale === loc)} />
                 </Td>
@@ -243,7 +259,7 @@ function Editor({ docType, onClose }: { docType: DocType; onClose: () => void })
               if (dirty && !window.confirm('Несохранённые правки пропадут. Перейти на другой язык?')) return;
               setLocale(v);
             }}
-            items={(['ru', 'en'] as const).map((l) => ({ value: l, label: LOCALE_LABEL[l] }))}
+            items={LOCALES.map((l) => ({ value: l, label: LOCALE_LABEL[l] }))}
           />
           <Button size="sm" variant="ghost" onClick={onClose}>
             Закрыть

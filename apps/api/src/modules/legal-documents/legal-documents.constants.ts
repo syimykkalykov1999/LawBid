@@ -17,7 +17,24 @@ export const LEGAL_DOC_TYPE_LIST = [
   'dmca_policy',
 ] as const satisfies readonly LegalDocType[];
 
-export const LEGAL_LOCALES = ['en', 'ru'] as const;
+/** Owner 2026-10-22 (audit #4 §4): the ten most used app languages (the
+ * order of i18n_languages). en / ru are written by hand; the others are
+ * machine translations of the English text made by
+ * scripts/legal-translate.mjs (committed files, reviewed and published
+ * from the admin like any draft). A language without its own text gets
+ * the English one. */
+export const LEGAL_LOCALES = [
+  'en',
+  'ru',
+  'es',
+  'fr',
+  'de',
+  'it',
+  'pt',
+  'nl',
+  'pl',
+  'uk',
+] as const;
 export type LegalLocale = (typeof LEGAL_LOCALES)[number];
 
 export const LEGAL_STATUSES = ['draft', 'published', 'archived'] as const;
@@ -28,7 +45,7 @@ export const DRAFT_VERSION = 'draft';
 /** Document titles (admin list, app, website). */
 export const LEGAL_DOC_TITLES: Record<
   LegalDocType,
-  Record<LegalLocale, string>
+  { en: string; ru: string } & Partial<Record<LegalLocale, string>>
 > = {
   terms: { en: 'Terms of Service', ru: 'Условия использования' },
   privacy: { en: 'Privacy Policy', ru: 'Политика конфиденциальности' },
@@ -100,12 +117,16 @@ export function requiredDocTypes(role: string | null): LegalDocType[] {
 
 export function titleOf(type: LegalDocType, locale: string): string {
   const t = LEGAL_DOC_TITLES[type];
-  return t[locale === 'ru' ? 'ru' : 'en'];
+  return t[locale as LegalLocale] ?? t.en;
 }
 
 /** Locale of the user's UI → a document locale (ru or en). */
 export function docLocaleOf(
   uiLanguage: string | null | undefined,
 ): LegalLocale {
-  return uiLanguage === 'ru' ? 'ru' : 'en';
+  // Owner 2026-10-22: every legal language, by base language (pt-BR → pt).
+  const base = (uiLanguage ?? '').split(/[-_]/)[0].toLowerCase();
+  return (LEGAL_LOCALES as readonly string[]).includes(base)
+    ? (base as LegalLocale)
+    : 'en';
 }

@@ -57,10 +57,10 @@ function build(stored: Record<string, unknown> = {}) {
 }
 
 describe('AdminBudgetsService', () => {
-  it('lists 6 providers × 3 windows with mode, bounds, cap and usage', async () => {
+  it('lists 7 providers × 3 windows with mode, bounds, cap and usage', async () => {
     const { service } = build({ 'budget.sms.daily_max': 800 });
     const list = await service.list();
-    expect(list).toHaveLength(18);
+    expect(list).toHaveLength(21);
     expect(
       list.find((r) => r.provider === 'sms' && r.window === 'daily'),
     ).toEqual({

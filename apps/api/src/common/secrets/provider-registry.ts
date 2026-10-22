@@ -695,6 +695,102 @@ export const PROVIDERS: ProviderDefinition[] = [
         { headers: { Authorization: `Bearer ${f.apiKey}` } },
       ),
   },
+  // Owner 2026-10-22 (audit #4 §5, App Store 1.2): image moderation of
+  // public photos, avatars and reel thumbnails (docs/SECURITY_TODO.md).
+  {
+    id: 'aws_rekognition',
+    label: 'Image moderation (AWS Rekognition)',
+    description:
+      'Scans public photos, avatars, review photos and reel covers for nudity, violence and other unsafe content; above the threshold the content is hidden and lands in Модерация → Медиа. On AWS the server role is used when the keys are empty.',
+    fields: [
+      {
+        name: 'region',
+        label: 'Region',
+        secret: false,
+        required: true,
+        pattern: /^[a-z]{2}(-[a-z]+)+-\d$/,
+        patternHint: 'us-east-1 (the media bucket region)',
+        env: 'REKOGNITION_REGION',
+      },
+      {
+        name: 'accessKeyId',
+        label: 'Access key ID (empty = the server role)',
+        secret: false,
+        required: false,
+        pattern: /^(AKIA|ASIA)[A-Z0-9]{16}$/,
+        env: 'REKOGNITION_ACCESS_KEY_ID',
+      },
+      {
+        name: 'secretAccessKey',
+        label: 'Secret access key',
+        secret: true,
+        required: false,
+        pattern: /^[A-Za-z0-9/+=]{40}$/,
+        env: 'REKOGNITION_SECRET_ACCESS_KEY',
+      },
+    ],
+  },
+  // Owner 2026-10-22 (18 U.S.C. §2258A): known-CSAM hash matching. Keys are
+  // granted by Microsoft after vetting (docs/SECURITY_TODO.md).
+  {
+    id: 'photodna',
+    label: 'PhotoDNA (known-CSAM hash match)',
+    description:
+      'Microsoft PhotoDNA Cloud Service: every public image is matched against known child-abuse hashes; a match hides it at once and opens an NCMEC report.',
+    fields: [
+      {
+        name: 'subscriptionKey',
+        label: 'Subscription key (Ocp-Apim-Subscription-Key)',
+        secret: true,
+        required: true,
+        pattern: /^[0-9a-f]{32}$/i,
+        env: 'PHOTODNA_SUBSCRIPTION_KEY',
+      },
+      {
+        name: 'endpoint',
+        label: 'Match endpoint',
+        secret: false,
+        required: false,
+        pattern: /^https:\/\/[^\s]+$/,
+        patternHint:
+          'https://api.microsoftmoderator.com/photodna/v1.0/Match (default)',
+        env: 'PHOTODNA_ENDPOINT',
+      },
+    ],
+  },
+  {
+    id: 'ncmec',
+    label: 'NCMEC CyberTipline (CSAM reports)',
+    description:
+      'Electronic Service Provider account of the NCMEC CyberTipline reporting API. Without it, reports wait in Модерация → Медиа as «file by hand».',
+    fields: [
+      {
+        name: 'username',
+        label: 'ESP username',
+        secret: false,
+        required: true,
+        pattern: /^\S{3,}$/,
+        env: 'NCMEC_USERNAME',
+      },
+      {
+        name: 'password',
+        label: 'ESP password',
+        secret: true,
+        required: true,
+        pattern: /^.{8,}$/,
+        env: 'NCMEC_PASSWORD',
+      },
+      {
+        name: 'environment',
+        label: 'Environment',
+        secret: false,
+        required: false,
+        pattern: /^(test|production)$/,
+        patternHint: 'test or production (default test)',
+        env: 'NCMEC_ENVIRONMENT',
+      },
+    ],
+  },
 ];
 
 export function providerById(id: string): ProviderDefinition | undefined {

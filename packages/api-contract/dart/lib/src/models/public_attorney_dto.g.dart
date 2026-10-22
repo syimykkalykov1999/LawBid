@@ -19,6 +19,7 @@ PublicAttorneyDto _$PublicAttorneyDtoFromJson(Map<String, dynamic> json) =>
       ratingAvg: json['ratingAvg'] as num,
       ratingCount: json['ratingCount'] as num,
       trustBadge: json['trustBadge'] as bool,
+      photoUrl: json['photoUrl'] as String?,
       practiceAreas: (json['practiceAreas'] as List<dynamic>)
           .map((e) => PublicPracticeDto.fromJson(e as Map<String, dynamic>))
           .toList(),
@@ -38,6 +39,7 @@ Map<String, dynamic> _$PublicAttorneyDtoToJson(PublicAttorneyDto instance) =>
       'ratingAvg': instance.ratingAvg,
       'ratingCount': instance.ratingCount,
       'trustBadge': instance.trustBadge,
+      'photoUrl': ?instance.photoUrl,
       'practiceAreas': instance.practiceAreas.map((e) => e.toJson()).toList(),
       'licensedStates': instance.licensedStates,
     };

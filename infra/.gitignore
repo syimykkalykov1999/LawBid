@@ -5,3 +5,5 @@
 !*.tfvars.example
 backend.hcl
 crash.log
+# Owner 2026-10-22: the zipped uptime canary script (generated at plan).
+.canary-*.zip

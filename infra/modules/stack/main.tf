@@ -247,6 +247,16 @@ variable "p95_target_ms" {
   type    = number
   default = 600
 }
+# Owner 2026-10-22 (audit #4 §7): the external uptime canary (~$10/month at
+# one run every 5 minutes) and the "signups stopped" alarm (0 = off).
+variable "uptime_canary_enabled" {
+  type    = bool
+  default = true
+}
+variable "min_daily_signups" {
+  type    = number
+  default = 0
+}
 variable "monthly_budget_usd" {
   type        = number
   default     = 200
@@ -696,7 +706,10 @@ module "monitoring" {
   p95_target_ms               = var.p95_target_ms
   runbook_base_url            = var.runbook_base_url
   kms_key_arn                 = module.kms.key_arn
-  tags                        = local.tags
+  # Owner 2026-10-22 (audit #4 §7): external uptime canary + SLO alarms.
+  canary_url        = var.uptime_canary_enabled ? "https://${var.api_host}/health/ready" : null
+  min_daily_signups = var.min_daily_signups
+  tags              = local.tags
 }
 
 resource "aws_route53_record" "hosts" {

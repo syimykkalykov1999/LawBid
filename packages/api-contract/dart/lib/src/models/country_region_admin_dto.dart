@@ -13,6 +13,7 @@ class CountryRegionAdminDto {
     required this.name,
     required this.isoCode,
     required this.isActive,
+    required this.attorneyAdvertisingLabel,
   });
 
   factory CountryRegionAdminDto.fromJson(Map<String, Object?> json) =>
@@ -23,6 +24,10 @@ class CountryRegionAdminDto {
   final String name;
   final String? isoCode;
   final bool isActive;
+
+  /// Owner 2026-10-22 (audit #4 §5): attorneys licensed here show the.
+  /// «Attorney Advertising» label (on by default for New York).
+  final bool attorneyAdvertisingLabel;
 
   Map<String, Object?> toJson() => _$CountryRegionAdminDtoToJson(this);
 }

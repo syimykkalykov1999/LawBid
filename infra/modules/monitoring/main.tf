@@ -6,6 +6,8 @@
 terraform {
   required_providers {
     aws = { source = "hashicorp/aws", version = "~> 5.60" }
+    # Owner 2026-10-22: zips the uptime canary script (slo.tf).
+    archive = { source = "hashicorp/archive", version = "~> 2.4" }
   }
 }
 

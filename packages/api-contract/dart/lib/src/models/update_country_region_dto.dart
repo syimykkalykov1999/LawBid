@@ -8,12 +8,15 @@ part 'update_country_region_dto.g.dart';
 
 @JsonSerializable()
 class UpdateCountryRegionDto {
-  const UpdateCountryRegionDto({required this.isActive});
+  const UpdateCountryRegionDto({this.isActive, this.attorneyAdvertisingLabel});
 
   factory UpdateCountryRegionDto.fromJson(Map<String, Object?> json) =>
       _$UpdateCountryRegionDtoFromJson(json);
 
-  final bool isActive;
+  final bool? isActive;
+
+  /// Owner 2026-10-22 (audit #4 §5): the «Attorney Advertising» switch.
+  final bool? attorneyAdvertisingLabel;
 
   Map<String, Object?> toJson() => _$UpdateCountryRegionDtoToJson(this);
 }

@@ -3,6 +3,7 @@ import type { AuditLogService } from '../admin-access/audit-log.service';
 import type { AdminActor } from '../admin-auth/admin-auth.decorators';
 import type { BootstrapService } from '../feature-flags/services/bootstrap.service';
 import { LegalDocumentsService } from './legal-documents.service';
+import { docLocaleOf, titleOf } from './legal-documents.constants';
 
 const ADMIN: AdminActor = {
   id: 'adm',
@@ -299,9 +300,13 @@ describe('LegalDocumentsService', () => {
     const list = await svc.list();
     expect(list.map((r) => r.docType)).toContain('dmca_policy');
     const eula = list.find((r) => r.docType === 'eula')!;
+    // Owner 2026-10-22: all ten legal languages are listed.
     expect(eula.locales.map((l) => [l.locale, l.state])).toEqual([
       ['en', 'published_draft'],
-      ['ru', 'none'],
+      ...['ru', 'es', 'fr', 'de', 'it', 'pt', 'nl', 'pl', 'uk'].map((l) => [
+        l,
+        'none',
+      ]),
     ]);
     expect(list.find((r) => r.docType === 'refund')!.locales[1].state).toBe(
       'draft',
@@ -322,5 +327,16 @@ describe('LegalDocumentsService', () => {
     await expect(svc.currentText('cookies', 'en')).rejects.toMatchObject({
       response: { code: 'NOT_FOUND' },
     });
+  });
+});
+
+describe('docLocaleOf (owner 2026-10-22, audit #4 §4)', () => {
+  it('maps the app language to one of the ten legal languages, else English', () => {
+    expect(docLocaleOf('de')).toBe('de');
+    expect(docLocaleOf('pt-BR')).toBe('pt');
+    expect(docLocaleOf('ru')).toBe('ru');
+    expect(docLocaleOf('ja')).toBe('en');
+    expect(docLocaleOf(null)).toBe('en');
+    expect(titleOf('terms', 'ja')).toBe('Terms of Service');
   });
 });

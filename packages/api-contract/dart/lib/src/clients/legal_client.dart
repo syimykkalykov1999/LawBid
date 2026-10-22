@@ -14,8 +14,8 @@ import '../models/dmca_notice_brief_envelope.dart';
 import '../models/dmca_notice_created_envelope.dart';
 import '../models/legal_document_brief_list_envelope.dart';
 import '../models/legal_document_public_envelope.dart';
+import '../models/legal_locale.dart';
 import '../models/legal_public_envelope.dart';
-import '../models/locale.dart';
 import '../models/pending_legal_document_list_envelope.dart';
 import '../models/type3.dart';
 
@@ -70,7 +70,7 @@ abstract class LegalClient {
   @GET('/legal/documents/{type}')
   Future<LegalDocumentPublicEnvelope> getCurrentLegalDocument({
     @Path('type') required Type3 type,
-    @Query('locale') Locale? locale,
+    @Query('locale') LegalLocale? locale,
     @Extras() Map<String, dynamic>? extras,
   });
 

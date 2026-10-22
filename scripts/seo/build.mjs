@@ -94,7 +94,11 @@ footer{color:var(--muted);font-size:14px;padding-top:24px;padding-bottom:40px;bo
 @media (max-width:560px){ul.cols{columns:1}h1{font-size:26px}}
 `;
 
-function layout({ title, description, path, body, robots = 'index,follow', jsonld = [], crumbs = [] }) {
+// Owner 2026-10-22 (audit #4 §9, ogp.me): og:image must be an absolute URL;
+// the brand image is the fallback, an attorney page uses the photo.
+const BRAND_IMAGE = `${SITE}/icons/Icon-512.png`;
+
+function layout({ title, description, path, body, robots = 'index,follow', jsonld = [], crumbs = [], image = BRAND_IMAGE }) {
   const url = `${SITE}${path}`;
   const ld = [
     ...jsonld,
@@ -110,6 +114,7 @@ function layout({ title, description, path, body, robots = 'index,follow', jsonl
 <link rel="canonical" href="${esc(url)}">
 <meta property="og:type" content="website"><meta property="og:site_name" content="LawBid">
 <meta property="og:title" content="${esc(title)}"><meta property="og:description" content="${esc(description)}"><meta property="og:url" content="${esc(url)}">
+<meta property="og:image" content="${esc(image)}"><meta name="twitter:card" content="${image === BRAND_IMAGE ? 'summary' : 'summary_large_image'}"><meta name="twitter:image" content="${esc(image)}">
 <style>${CSS}</style>
 ${ld.map((o) => `<script type="application/ld+json">${JSON.stringify(o).replace(/</g, '\\u003c')}</script>`).join('\n')}
 </head><body>
@@ -125,6 +130,9 @@ ${body}
 </body></html>
 `;
 }
+
+/** An https photo URL, else the brand image (og:image must be absolute). */
+export const absoluteImage = (u) => (typeof u === 'string' && /^https:\/\//.test(u) ? u : BRAND_IMAGE);
 
 const cta = (text) => `<p><a class="cta" href="${APP}/">${esc(text)}</a></p>`;
 
@@ -228,15 +236,19 @@ ${list.length
 
   // Attorney profiles.
   for (const a of attorneys) {
-    const path = `/attorneys/${a.username}/`;
+    // Owner 2026-10-22: lower case — the link the API hands the app
+    // (profile `publicUrl`) is /attorneys/<username lower case>/.
+    const path = `/attorneys/${encodeURIComponent(a.username.toLowerCase())}/`;
     const states = a.licensedStates.map((c) => stateBy[c]?.name ?? c);
     put(path, layout({
       title: `${a.displayName}, attorney${states.length ? ` in ${states.slice(0, 2).join(' & ')}` : ''} | LawBid`,
       description: `${a.displayName} is a verified attorney on LawBid${states.length ? `, licensed in ${states.join(', ')}` : ''}${a.practiceAreas.length ? `, practicing ${a.practiceAreas.slice(0, 3).map((p) => p.name).join(', ')}` : ''}.`.slice(0, 300),
       path,
       crumbs: [{ name: 'Lawyers', path: '/lawyers/' }, { name: a.displayName, path }],
+      image: absoluteImage(a.photoUrl),
       jsonld: [{
         '@context': 'https://schema.org', '@type': 'Attorney', name: a.displayName, url: `${SITE}${path}`,
+        ...(absoluteImage(a.photoUrl) !== BRAND_IMAGE ? { image: absoluteImage(a.photoUrl) } : {}),
         ...(a.bio ? { description: a.bio } : {}),
         ...(states.length ? { areaServed: states.map((n) => ({ '@type': 'State', name: n })) } : {}),
         knowsAbout: a.practiceAreas.map((p) => p.name),

@@ -48,3 +48,15 @@ test('no page mentions cases or clients data', () => {
   const html = page('/lawyers/california/family-law');
   assert.doesNotMatch(html, /client name|case title/i);
 });
+
+// Owner 2026-10-22 (audit #4 §9, ogp.me): absolute og:image everywhere.
+test('every page has an absolute og:image; an attorney page uses the CDN photo', () => {
+  assert.match(page('/lawyers'), /<meta property="og:image" content="https:\/\/example.test\/icons\/Icon-512.png">/);
+  const html = page('/attorneys/anna.lee');
+  assert.match(html, /<meta property="og:image" content="https:\/\/cdn.example.test\/avatars\/anna.jpg">/);
+  assert.match(html, /summary_large_image/);
+});
+
+test('an attorney page lives at the lower-case /attorneys/<username>/ the API shares', () => {
+  assert.ok(existsSync(join(out, 'attorneys', 'mixed.case', 'index.html')));
+});

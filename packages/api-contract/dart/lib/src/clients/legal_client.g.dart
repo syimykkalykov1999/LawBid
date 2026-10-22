@@ -212,7 +212,7 @@ class _LegalClient implements LegalClient {
   @override
   Future<LegalDocumentPublicEnvelope> getCurrentLegalDocument({
     required Type3 type,
-    Locale? locale,
+    LegalLocale? locale,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};

@@ -359,6 +359,24 @@ export class StripePaymentProvider implements PaymentProvider {
     }
   }
 
+  async deleteCustomer(
+    customerId: string,
+    options: { stripeAccount?: string } = {},
+  ): Promise<void> {
+    try {
+      await this.stripe.customers.del(
+        customerId,
+        {},
+        options.stripeAccount
+          ? { stripeAccount: options.stripeAccount }
+          : undefined,
+      );
+    } catch (e) {
+      // Owner 2026-10-22: already deleted (or never existed) = done.
+      if (!isNotFound(e)) throw e;
+    }
+  }
+
   async switchToYearly(
     subscriptionId: string,
     yearlyPriceId: string,

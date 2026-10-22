@@ -282,6 +282,11 @@ export const WIPE_TABLES: Readonly<Record<string, string>> = {
   // Owner 2026-10-22: maker-checker requests of the test period.
   admin_approvals:
     'second-admin approvals of test payouts / refunds (pending ones would run on real money)',
+  // Owner 2026-10-22: automated media moderation of the test period.
+  media_moderation_checks:
+    'image / reel-thumbnail moderation verdicts of tester uploads',
+  csam_reports:
+    'CSAM report records of the test period (real reports are filed with NCMEC, not kept only here)',
   // demo world registry (the demo database itself is reset from the admin)
   demo_accounts: 'demo accounts registry',
   storage_snapshots: 'daily storage statistics of the test period',

@@ -6,6 +6,9 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
+import type Redis from 'ioredis';
+import { REDIS_CLIENT } from '../src/redis/redis.constants';
+import { dropAppConfigCache } from '../src/modules/feature-flags/services/app-config.service';
 
 /** Owner 2026-10-20: channels end to end — create / edit, @username, only
  * admins post, subscribe / mute, views counted once, one reaction, comments
@@ -187,6 +190,32 @@ describe('Channels (e2e)', () => {
           .send({ title: 'Hacked' })
       ).status,
     ).toBe(403);
+  });
+
+  // Owner 2026-10-22 (audit #4 §6): generous caps, set in the admin.
+  it('channels per owner are capped by channels.max_owned', async () => {
+    const redis = app.get<Redis>(REDIS_CLIENT);
+    const owner = await attorney('Capped');
+    await prisma.appConfig.upsert({
+      where: { key: 'channels.max_owned' },
+      create: { key: 'channels.max_owned', value: 1 },
+      update: { value: 1 },
+    });
+    await dropAppConfigCache(redis);
+    try {
+      expect((await mkChannel(owner)).status).toBe(201);
+      const second = await mkChannel(owner);
+      expect(second.status).toBe(409);
+      expect(second.body.error).toMatchObject({
+        code: 'CHANNEL_LIMIT_REACHED',
+        details: { max: 1 },
+      });
+    } finally {
+      await prisma.appConfig.deleteMany({
+        where: { key: 'channels.max_owned' },
+      });
+      await dropAppConfigCache(redis);
+    }
   });
 
   it('subscribers read; only admins post; views count once; one reaction', async () => {

@@ -13,6 +13,7 @@ CountryRegionAdminDto _$CountryRegionAdminDtoFromJson(
   name: json['name'] as String,
   isoCode: json['isoCode'] as String?,
   isActive: json['isActive'] as bool,
+  attorneyAdvertisingLabel: json['attorneyAdvertisingLabel'] as bool,
 );
 
 Map<String, dynamic> _$CountryRegionAdminDtoToJson(
@@ -22,4 +23,5 @@ Map<String, dynamic> _$CountryRegionAdminDtoToJson(
   'name': instance.name,
   'isoCode': ?instance.isoCode,
   'isActive': instance.isActive,
+  'attorneyAdvertisingLabel': instance.attorneyAdvertisingLabel,
 };

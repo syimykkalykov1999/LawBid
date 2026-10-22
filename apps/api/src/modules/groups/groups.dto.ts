@@ -26,6 +26,9 @@ import { ChatAttachmentDto } from '../chat/chat.dto';
 export const GROUP_TITLE_MAX = 80;
 export const GROUP_DESCRIPTION_MAX = 500;
 export const GROUP_MAX_MEMBERS = 512;
+/** Owner 2026-10-22: the most `groups.max_members` may be set to (fan-out
+ * of one message stays bounded). */
+export const GROUP_HARD_MAX_MEMBERS = 5000;
 export const GROUP_MESSAGE_MAX_CHARS = 4000;
 export const POLL_QUESTION_MAX = 300;
 export const POLL_OPTION_MAX = 100;

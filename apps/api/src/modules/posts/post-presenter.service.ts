@@ -1,3 +1,4 @@
+import { AttorneyAdvertisingService } from '../countries/attorney-advertising.service';
 import { activeClientBadgeIds } from '../client-badge/client-badge.util';
 import { isHiddenTag } from './hidden-tags';
 import { Injectable, Optional } from '@nestjs/common';
@@ -50,6 +51,8 @@ export class PostPresenter {
     private readonly mentions: MentionsService,
     private readonly videos: VideosService,
     @Optional() private readonly attachmentsPolicy?: PostAttachmentsPolicy,
+    // Owner 2026-10-22 (audit #4 §5): the «Attorney Advertising» label.
+    @Optional() private readonly advertising?: AttorneyAdvertisingService,
   ) {}
 
   /** userId → {id, username} for the "reposted by" line. */
@@ -272,6 +275,10 @@ export class PostPresenter {
       ),
     ]);
     const practices = new Map(practiceRows.map((a) => [a.id, a]));
+    const labelled =
+      (await this.advertising?.labelledAttorneys(
+        authors.filter((a) => a.role !== 'client').map((a) => a.id),
+      )) ?? new Set<string>();
     const docsByPost = new Map<string, typeof docs>();
     for (const d of visibleDocs) {
       const list = docsByPost.get(d.post_id) ?? [];
@@ -338,6 +345,7 @@ export class PostPresenter {
             ? (a?.client_profile?.state_code ?? null)
             : (prof?.licenses ?? []).map((l) => l.state_code).join(', ') ||
               null,
+          advertisingLabel: !isClient && labelled.has(p.author_id),
         },
         title: p.title ?? null,
         kind: p.kind,

@@ -10,6 +10,22 @@ enum LegalDocumentPublicDtoLocale {
   en('en'),
   @JsonValue('ru')
   ru('ru'),
+  @JsonValue('es')
+  es('es'),
+  @JsonValue('fr')
+  fr('fr'),
+  @JsonValue('de')
+  de('de'),
+  @JsonValue('it')
+  it('it'),
+  @JsonValue('pt')
+  pt('pt'),
+  @JsonValue('nl')
+  nl('nl'),
+  @JsonValue('pl')
+  pl('pl'),
+  @JsonValue('uk')
+  uk('uk'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

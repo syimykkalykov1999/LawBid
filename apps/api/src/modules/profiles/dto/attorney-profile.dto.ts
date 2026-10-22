@@ -279,6 +279,18 @@ export class OwnAttorneyProfileDto {
   verifiedBadge!: boolean;
 
   @ApiProperty({
+    description:
+      'Owner 2026-10-22 (audit #4 §5): show the «Attorney Advertising» label — the attorney is licensed in a state that requires it (NY Rule 7.1(f); admin: Страны → регионы).',
+  })
+  advertisingLabel!: boolean;
+
+  @ApiProperty({
+    description:
+      'Owner 2026-10-22 (audit #4 §9): the canonical public page of this attorney (https://…/attorneys/<username>/) — the link the app shares.',
+  })
+  publicUrl!: string;
+
+  @ApiProperty({
     type: 'integer',
     minimum: 0,
     maximum: 3,
@@ -371,6 +383,18 @@ export class PublicAttorneyProfileDto {
 
   @ApiProperty({ description: 'Blue check (docs/03 §6.3).' })
   verifiedBadge!: boolean;
+
+  @ApiProperty({
+    description:
+      'Owner 2026-10-22 (audit #4 §5): show the «Attorney Advertising» label — the attorney is licensed in a state that requires it (NY Rule 7.1(f); admin: Страны → регионы).',
+  })
+  advertisingLabel!: boolean;
+
+  @ApiProperty({
+    description:
+      'Owner 2026-10-22 (audit #4 §9): the canonical public page of this attorney (https://…/attorneys/<username>/) — the link the app shares.',
+  })
+  publicUrl!: string;
 
   @ApiProperty({
     type: 'integer',

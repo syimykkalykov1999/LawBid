@@ -113,6 +113,15 @@ export const FILE_06_SETTINGS = {
   // §3.3 "массовые ссылки" / "повторяющийся текст от одного автора" → hold.
   'moderation.max_links': 3,
   'moderation.duplicate_window_hours': 24,
+  // Owner 2026-10-22 (audit #4 §5): image moderation (AWS Rekognition).
+  // Confidence 0–100: at `hide` the photo / reel is hidden at once and
+  // queued; at `review` it stays up and is queued; below that it is clean.
+  'moderation.image.enabled': true,
+  'moderation.image.hide_confidence': 90,
+  'moderation.image.review_confidence': 60,
+  /** The lowest label confidence the provider reports (Rekognition
+   * MinConfidence). */
+  'moderation.image.min_confidence': 50,
 } as const;
 
 // Owner 2026-10-01: video reels (Bunny Stream) and stickers — tunables the
@@ -136,10 +145,16 @@ export const OWNER_MEDIA_SETTINGS = {
   'stories.max_video_sec': 15,
   'stories.ttl_hours': 24,
   'rate_limit.story_create_per_day': 50,
-  'channels.max_owned': 5,
+  // Owner 2026-10-22 (audit #4 §6): generous caps instead of none (the
+  // 2026-10-21 removal opened spam and fan-out costs). Telegram allows 10
+  // public channels; WhatsApp groups hold 1 024 people.
+  'channels.max_owned': 50,
   'channels.max_admins': 10,
   'channels.max_post_media': 10,
-  'rate_limit.channel_create_per_day': 3,
+  'rate_limit.channel_create_per_day': 20,
+  'rate_limit.group_create_per_day': 50,
+  'groups.max_members': 1024,
+  'rate_limit.post_create_per_hour': 30,
   'rate_limit.channel_post_per_hour': 30,
   'rate_limit.channel_comment_per_hour': 60,
   'files.sticker_max_size_mb': 1,

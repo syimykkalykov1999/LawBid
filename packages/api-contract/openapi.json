@@ -16118,7 +16118,8 @@
                 "id_check",
                 "storage",
                 "translate",
-                "video"
+                "video",
+                "image_moderation"
               ]
             }
           },
@@ -55355,6 +55356,356 @@
         ]
       }
     },
+    "/admin/media-moderation": {
+      "get": {
+        "operationId": "listMediaChecks",
+        "parameters": [
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/MediaCheckListStatus"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "created_at of the last row seen",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 30,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaCheckPageEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Flagged / hidden / CSAM / unchecked pictures",
+        "tags": [
+          "admin-media-moderation"
+        ]
+      }
+    },
+    "/admin/media-moderation/{id}/decision": {
+      "post": {
+        "operationId": "decideMediaCheck",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MediaDecisionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaCheckEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: MODERATION_ACTION_NOT_APPLICABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "approve (restore what was hidden) or remove",
+        "tags": [
+          "admin-media-moderation"
+        ]
+      }
+    },
+    "/admin/media-moderation/{id}/csam-report": {
+      "post": {
+        "operationId": "reportMediaCheckCsam",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CsamReportEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Hide everywhere, keep the evidence and open an NCMEC CyberTipline report",
+        "tags": [
+          "admin-media-moderation"
+        ]
+      }
+    },
     "/i18n/languages": {
       "get": {
         "operationId": "listLanguages",
@@ -71737,11 +72088,7 @@
             "in": "query",
             "description": "Falls back to English when there is no text in this language.",
             "schema": {
-              "type": "string",
-              "enum": [
-                "en",
-                "ru"
-              ]
+              "$ref": "#/components/schemas/LegalLocale"
             }
           }
         ],
@@ -72389,11 +72736,7 @@
             "required": true,
             "in": "path",
             "schema": {
-              "type": "string",
-              "enum": [
-                "en",
-                "ru"
-              ]
+              "$ref": "#/components/schemas/LegalLocale"
             }
           }
         ],
@@ -72511,11 +72854,7 @@
             "required": true,
             "in": "path",
             "schema": {
-              "type": "string",
-              "enum": [
-                "en",
-                "ru"
-              ]
+              "$ref": "#/components/schemas/LegalLocale"
             }
           }
         ],
@@ -72641,11 +72980,7 @@
             "required": true,
             "in": "path",
             "schema": {
-              "type": "string",
-              "enum": [
-                "en",
-                "ru"
-              ]
+              "$ref": "#/components/schemas/LegalLocale"
             }
           }
         ],
@@ -72766,11 +73101,7 @@
             "required": true,
             "in": "path",
             "schema": {
-              "type": "string",
-              "enum": [
-                "en",
-                "ru"
-              ]
+              "$ref": "#/components/schemas/LegalLocale"
             }
           }
         ],
@@ -97814,7 +98145,7 @@
             "admin": []
           }
         ],
-        "summary": "Switch a region on or off",
+        "summary": "Switch a region on or off, or its «Attorney Advertising» label",
         "tags": [
           "admin-countries"
         ]
@@ -116843,7 +117174,8 @@
               "id_check",
               "storage",
               "translate",
-              "video"
+              "video",
+              "image_moderation"
             ],
             "type": "string"
           },
@@ -120901,6 +121233,10 @@
             "type": "string",
             "nullable": true,
             "description": "Owner 2026-10-13: attorney: licensed states (\"NY, CA\"); client: state."
+          },
+          "advertisingLabel": {
+            "type": "boolean",
+            "description": "Show the «Attorney Advertising» label on this post (the author is licensed in a state that requires it)."
           }
         },
         "required": [
@@ -120910,7 +121246,8 @@
           "verifiedBadge",
           "isFollowing",
           "trustLevel",
-          "practiceI18nKeys"
+          "practiceI18nKeys",
+          "advertisingLabel"
         ]
       },
       "PostMediaDto": {
@@ -122353,6 +122690,14 @@
             "type": "boolean",
             "description": "Blue check (docs/03 §6.3): verified status and at least one verified license."
           },
+          "advertisingLabel": {
+            "type": "boolean",
+            "description": "Owner 2026-10-22 (audit #4 §5): show the «Attorney Advertising» label — the attorney is licensed in a state that requires it (NY Rule 7.1(f); admin: Страны → регионы)."
+          },
+          "publicUrl": {
+            "type": "string",
+            "description": "Owner 2026-10-22 (audit #4 §9): the canonical public page of this attorney (https://…/attorneys/<username>/) — the link the app shares."
+          },
           "trustLevel": {
             "type": "integer",
             "minimum": 0,
@@ -122398,6 +122743,8 @@
           "languages",
           "verificationStatus",
           "verifiedBadge",
+          "advertisingLabel",
+          "publicUrl",
           "trustLevel",
           "nameMismatch",
           "usernameChangedAt",
@@ -122946,6 +123293,14 @@
             "type": "boolean",
             "description": "Blue check (docs/03 §6.3)."
           },
+          "advertisingLabel": {
+            "type": "boolean",
+            "description": "Owner 2026-10-22 (audit #4 §5): show the «Attorney Advertising» label — the attorney is licensed in a state that requires it (NY Rule 7.1(f); admin: Страны → регионы)."
+          },
+          "publicUrl": {
+            "type": "string",
+            "description": "Owner 2026-10-22 (audit #4 §9): the canonical public page of this attorney (https://…/attorneys/<username>/) — the link the app shares."
+          },
           "trustLevel": {
             "type": "integer",
             "minimum": 0,
@@ -123008,6 +123363,8 @@
           "avatarUrl256",
           "languages",
           "verifiedBadge",
+          "advertisingLabel",
+          "publicUrl",
           "trustLevel",
           "licensedStates",
           "practiceAreas",
@@ -123527,7 +123884,15 @@
             "type": "string",
             "enum": [
               "en",
-              "ru"
+              "ru",
+              "es",
+              "fr",
+              "de",
+              "it",
+              "pt",
+              "nl",
+              "pl",
+              "uk"
             ]
           },
           "version": {
@@ -123745,6 +124110,11 @@
           "requiredConsentsGranted": {
             "type": "boolean"
           },
+          "analyticsConsent": {
+            "type": "boolean",
+            "nullable": true,
+            "description": "Owner 2026-10-22 (audit #4 §5): my latest answer to the «analytics» consent; null = never asked. The app sends usage events only when this is true (the server drops them when it is false)."
+          },
           "pendingLegalDocuments": {
             "description": "Legal documents of my role I have not accepted at the current version (new or materially changed). Empty = nothing to accept. The app shows the acceptance screen; publishing a case and placing a bid answer LEGAL_REACCEPT_REQUIRED meanwhile.",
             "type": "array",
@@ -123797,6 +124167,7 @@
           "avatarFileId",
           "avatarUrl",
           "requiredConsentsGranted",
+          "analyticsConsent",
           "pendingLegalDocuments",
           "passwordSet",
           "passwordRequired",
@@ -138677,6 +139048,292 @@
           "data"
         ]
       },
+      "MediaLabelDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "parent": {
+            "type": "string",
+            "nullable": true
+          },
+          "confidence": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "name",
+          "parent",
+          "confidence"
+        ]
+      },
+      "MediaHiddenTargetDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "post",
+              "story",
+              "channel_post",
+              "review",
+              "client_review",
+              "avatar"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "type",
+          "id"
+        ]
+      },
+      "MediaCheckDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "fileId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "videoAssetId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "ownerUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "purpose": {
+            "type": "string",
+            "description": "File purpose, or reel"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "clean",
+              "flagged",
+              "hidden",
+              "csam_match",
+              "skipped",
+              "error"
+            ]
+          },
+          "csamStatus": {
+            "type": "string",
+            "enum": [
+              "not_checked",
+              "not_configured",
+              "no_match",
+              "match"
+            ]
+          },
+          "provider": {
+            "type": "string",
+            "nullable": true
+          },
+          "labels": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MediaLabelDto"
+            }
+          },
+          "maxConfidence": {
+            "type": "number",
+            "nullable": true
+          },
+          "topLabel": {
+            "type": "string",
+            "nullable": true
+          },
+          "skipReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "hiddenTargets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MediaHiddenTargetDto"
+            }
+          },
+          "decision": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "approved",
+              "removed"
+            ]
+          },
+          "previewUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "Signed 5-minute preview; never for a CSAM match"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "checkedAt": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "fileId",
+          "videoAssetId",
+          "ownerUserId",
+          "purpose",
+          "status",
+          "csamStatus",
+          "provider",
+          "labels",
+          "maxConfidence",
+          "topLabel",
+          "skipReason",
+          "hiddenTargets",
+          "decision",
+          "previewUrl",
+          "createdAt",
+          "checkedAt"
+        ]
+      },
+      "MediaCheckPageDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MediaCheckDto"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ]
+      },
+      "MediaCheckListStatus": {
+        "type": "string",
+        "enum": [
+          "all",
+          "flagged",
+          "hidden",
+          "csam_match",
+          "skipped"
+        ]
+      },
+      "MediaCheckPageEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/MediaCheckPageDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "MediaDecisionDto": {
+        "type": "object",
+        "properties": {
+          "decision": {
+            "enum": [
+              "approve",
+              "remove"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "decision"
+        ]
+      },
+      "MediaCheckEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/MediaCheckDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "CsamReportDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "checkId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "submitted",
+              "manual_required",
+              "failed"
+            ]
+          },
+          "externalReportId": {
+            "type": "string",
+            "nullable": true
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "checkId",
+          "status",
+          "externalReportId",
+          "error",
+          "createdAt"
+        ]
+      },
+      "CsamReportEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CsamReportDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
       "I18nLanguageListEnvelope": {
         "type": "object",
         "properties": {
@@ -146866,7 +147523,15 @@
             "type": "string",
             "enum": [
               "en",
-              "ru"
+              "ru",
+              "es",
+              "fr",
+              "de",
+              "it",
+              "pt",
+              "nl",
+              "pl",
+              "uk"
             ]
           },
           "version": {
@@ -146936,7 +147601,15 @@
             "type": "string",
             "enum": [
               "en",
-              "ru"
+              "ru",
+              "es",
+              "fr",
+              "de",
+              "it",
+              "pt",
+              "nl",
+              "pl",
+              "uk"
             ]
           },
           "version": {
@@ -146969,6 +147642,21 @@
           "publishedAt",
           "contentMd",
           "requiresReacceptance"
+        ]
+      },
+      "LegalLocale": {
+        "type": "string",
+        "enum": [
+          "en",
+          "ru",
+          "es",
+          "fr",
+          "de",
+          "it",
+          "pt",
+          "nl",
+          "pl",
+          "uk"
         ]
       },
       "LegalDocumentPublicEnvelope": {
@@ -147031,7 +147719,15 @@
             "type": "string",
             "enum": [
               "en",
-              "ru"
+              "ru",
+              "es",
+              "fr",
+              "de",
+              "it",
+              "pt",
+              "nl",
+              "pl",
+              "uk"
             ]
           },
           "currentVersion": {
@@ -147155,7 +147851,15 @@
             "type": "string",
             "enum": [
               "en",
-              "ru"
+              "ru",
+              "es",
+              "fr",
+              "de",
+              "it",
+              "pt",
+              "nl",
+              "pl",
+              "uk"
             ]
           },
           "version": {
@@ -147270,7 +147974,15 @@
             "type": "string",
             "enum": [
               "en",
-              "ru"
+              "ru",
+              "es",
+              "fr",
+              "de",
+              "it",
+              "pt",
+              "nl",
+              "pl",
+              "uk"
             ]
           },
           "current": {
@@ -160715,13 +161427,18 @@
           },
           "isActive": {
             "type": "boolean"
+          },
+          "attorneyAdvertisingLabel": {
+            "type": "boolean",
+            "description": "Owner 2026-10-22 (audit #4 §5): attorneys licensed here show the\n«Attorney Advertising» label (on by default for New York)."
           }
         },
         "required": [
           "code",
           "name",
           "isoCode",
-          "isActive"
+          "isActive",
+          "attorneyAdvertisingLabel"
         ]
       },
       "CountryRegionAdminListEnvelope": {
@@ -160785,11 +161502,12 @@
         "properties": {
           "isActive": {
             "type": "boolean"
+          },
+          "attorneyAdvertisingLabel": {
+            "type": "boolean",
+            "description": "Owner 2026-10-22 (audit #4 §5): the «Attorney Advertising» switch."
           }
-        },
-        "required": [
-          "isActive"
-        ]
+        }
       },
       "PublicPracticeDto": {
         "type": "object",
@@ -160851,6 +161569,11 @@
             "type": "boolean",
             "description": "The blue check: license and identity confirmed."
           },
+          "photoUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "Owner 2026-10-22 (audit #4 §9): the attorney's photo on the media CDN\n(og:image of the SEO page); null without a CDN, a photo, or when the\nphoto is not shown to everyone."
+          },
           "practiceAreas": {
             "type": "array",
             "items": {
@@ -160877,6 +161600,7 @@
           "ratingAvg",
           "ratingCount",
           "trustBadge",
+          "photoUrl",
           "practiceAreas",
           "licensedStates"
         ]

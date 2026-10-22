@@ -17,6 +17,7 @@ PostAuthorDto _$PostAuthorDtoFromJson(Map<String, dynamic> json) =>
       practiceI18nKeys: (json['practiceI18nKeys'] as List<dynamic>)
           .map((e) => e as String)
           .toList(),
+      advertisingLabel: json['advertisingLabel'] as bool,
       firstName: json['firstName'] as String?,
       lastName: json['lastName'] as String?,
       avatarUrl: json['avatarUrl'] as String?,
@@ -38,4 +39,5 @@ Map<String, dynamic> _$PostAuthorDtoToJson(PostAuthorDto instance) =>
       'identityRejected': ?instance.identityRejected,
       'practiceI18nKeys': instance.practiceI18nKeys,
       'location': ?instance.location,
+      'advertisingLabel': instance.advertisingLabel,
     };

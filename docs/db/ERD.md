@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-234 tables.
+236 tables.
 
 ```mermaid
 erDiagram
@@ -216,6 +216,7 @@ erDiagram
     Boolean is_active
     String country_code FK
     String iso_code "nullable"
+    Boolean attorney_advertising_label
   }
   case_extra_practices {
     String case_id PK,FK
@@ -2845,6 +2846,39 @@ erDiagram
     DateTime expires_at "nullable"
     DateTime released_at "nullable"
   }
+  media_moderation_checks {
+    String id PK
+    String file_id UK "nullable"
+    String video_asset_id UK "nullable"
+    String owner_user_id
+    String purpose
+    String content_sha256 "nullable"
+    String status
+    String csam_status
+    String provider "nullable"
+    Json labels
+    Float max_confidence "nullable"
+    String top_label "nullable"
+    String skip_reason "nullable"
+    String error "nullable"
+    Json hidden_targets
+    String decision "nullable"
+    String decided_by "nullable"
+    DateTime decided_at "nullable"
+    DateTime created_at
+    DateTime checked_at "nullable"
+  }
+  csam_reports {
+    String id PK
+    String check_id FK
+    String status
+    String provider
+    String external_report_id "nullable"
+    String error "nullable"
+    String created_by "nullable"
+    DateTime created_at
+    DateTime submitted_at "nullable"
+  }
   users }o--o| files : "avatar_file_id"
   users }o--|| countries : "country_code"
   files }o--|| users : "owner_user_id"
@@ -3140,4 +3174,5 @@ erDiagram
   legal_answer_likes }o--|| users : "user_id"
   legal_exports }o--|| data_access_requests : "request_id"
   legal_holds }o--|| data_access_requests : "request_id"
+  csam_reports }o--|| media_moderation_checks : "check_id"
 ```

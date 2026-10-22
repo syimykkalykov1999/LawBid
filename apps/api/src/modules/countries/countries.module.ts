@@ -1,3 +1,4 @@
+import { AttorneyAdvertisingService } from './attorney-advertising.service';
 import { Global, Module } from '@nestjs/common';
 import { AdminAccessModule } from '../admin-access/admin-access.module';
 import { AuthModule } from '../auth/auth.module';
@@ -11,8 +12,9 @@ import { CountriesService } from './countries.service';
  * sign-up, profiles, cases, payments and support all ask it. */
 @Global()
 @Module({
-  providers: [CountriesService],
-  exports: [CountriesService],
+  // Owner 2026-10-22: the «Attorney Advertising» states (profiles, posts).
+  providers: [CountriesService, AttorneyAdvertisingService],
+  exports: [CountriesService, AttorneyAdvertisingService],
 })
 export class CountriesCoreModule {}
 
