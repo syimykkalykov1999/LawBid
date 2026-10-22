@@ -1,0 +1,330 @@
+# Baseline of hardcoded colors (tool/ci/hardcoded_check.py, audit #15).
+# <path>\t<trimmed line>, one per occurrence. Shrink it, do not grow it.
+lib/core/account_status/account_restricted.dart	child: ColoredBox(color: Colors.black.withValues(alpha: 0.32)),
+lib/core/navigation/shell/content_column_frame.dart	sheetDrawnByColumn(context) ? Colors.transparent : color;
+lib/core/navigation/shell/web_media_width.dart	color: Colors.black,
+lib/core/navigation/shell/web_media_width.dart	webWideWindow ? pageColor : Colors.black;
+lib/features/auth/presentation/screens/web_qr_login_screen.dart	color: Colors.white,
+lib/features/auth/presentation/screens/web_qr_login_screen.dart	color: Colors.white,
+lib/features/auth/presentation/screens/web_qr_login_screen.dart	plateColor: Colors.white,
+lib/features/calls/presentation/call_group.dart	.copyWith(color: Colors.white.withValues(alpha: 0.8)),
+lib/features/calls/presentation/call_group.dart	color: Colors.black.withValues(alpha: 0.45),
+lib/features/calls/presentation/call_group.dart	color: Colors.black.withValues(alpha: 0.5),
+lib/features/calls/presentation/call_group.dart	color: Colors.white,
+lib/features/calls/presentation/call_group.dart	color: Colors.white.withValues(alpha: 0.14),
+lib/features/calls/presentation/call_group.dart	color: Colors.white.withValues(alpha: ringing ? 0.05 : 0.1),
+lib/features/calls/presentation/call_group.dart	color: speaking ? colors.gold : Colors.transparent,
+lib/features/calls/presentation/call_group.dart	style: type.caption.copyWith(color: Colors.white),
+lib/features/calls/presentation/call_group.dart	style: type.caption.copyWith(color: Colors.white),
+lib/features/calls/presentation/call_host.dart	child: AppIcon(icon, size: 20, color: Colors.white),
+lib/features/calls/presentation/call_host.dart	color: Colors.white,
+lib/features/calls/presentation/call_host.dart	color: Colors.white,
+lib/features/calls/presentation/call_log_entry.dart	final chat = ChatColors.of(context);
+lib/features/calls/presentation/call_rejoin.dart	color: Colors.white,
+lib/features/calls/presentation/call_rejoin.dart	color: Colors.white,
+lib/features/calls/presentation/call_screen.dart	.copyWith(color: Colors.white),
+lib/features/calls/presentation/call_screen.dart	: Colors.white.withValues(alpha: 0.75),
+lib/features/calls/presentation/call_screen.dart	Color.lerp(colors.navy, Colors.black, 0.55)!,
+lib/features/calls/presentation/call_vote.dart	border: Border.all(color: Colors.white.withValues(alpha: 0.6)),
+lib/features/calls/presentation/call_vote.dart	color: Colors.white.withValues(alpha: 0.16),
+lib/features/calls/presentation/call_vote.dart	color: Colors.white.withValues(alpha: 0.7),
+lib/features/calls/presentation/call_vote.dart	color: selected ? Colors.white : Colors.transparent,
+lib/features/calls/presentation/call_vote.dart	color: selected ? colors.navy : Colors.white,
+lib/features/calls/presentation/call_vote.dart	style: type.caption.copyWith(color: Colors.white),
+lib/features/calls/presentation/call_widgets.dart	? const ColoredBox(color: Colors.black)
+lib/features/cases/presentation/screens/case_history_screens.dart	? Colors.transparent
+lib/features/cases/presentation/widgets/active_case_card.dart	color: Colors.black,
+lib/features/cases/presentation/widgets/case_cards.dart	Colors.black.withValues(alpha: 0.05),
+lib/features/cases/presentation/widgets/case_cards.dart	Colors.black.withValues(alpha: 0.55),
+lib/features/cases/presentation/widgets/case_cards.dart	color: Colors.black.withValues(alpha: 0.18),
+lib/features/cases/presentation/widgets/case_cards.dart	color: Colors.white,
+lib/features/cases/presentation/widgets/case_cover.dart	Color get _ink => Color.lerp(navy, Colors.black, 0.82)!;
+lib/features/cases/presentation/widgets/case_parts.dart	? Colors.white
+lib/features/cases/presentation/widgets/case_wizard_steps.dart	: (dense ? Colors.transparent : colors.surface),
+lib/features/cases/presentation/widgets/client_review_sheet.dart	Colors.black,
+lib/features/cases/presentation/widgets/client_review_sheet.dart	backgroundColor: Colors.black54,
+lib/features/cases/presentation/widgets/client_review_sheet.dart	color: Colors.white,
+lib/features/cases/presentation/widgets/my_case_row.dart	onColor: Colors.white,
+lib/features/cases/presentation/widgets/negotiation_timeline.dart	? Colors.transparent
+lib/features/cases/presentation/widgets/pill_tabs.dart	: Colors.white.withValues(alpha: 0.7))
+lib/features/cases/presentation/widgets/pill_tabs.dart	? Colors.white
+lib/features/cases/presentation/widgets/pill_tabs.dart	Colors.black,
+lib/features/cases/presentation/widgets/pill_tabs.dart	Colors.black,
+lib/features/cases/presentation/widgets/pill_tabs.dart	color: onDark ? Colors.transparent : colors.border,
+lib/features/cases/presentation/widgets/pill_tabs.dart	color: onDark ? Colors.transparent : colors.border,
+lib/features/cases/presentation/widgets/pill_tabs.dart	color: onDark ? Colors.transparent : colors.surface,
+lib/features/cases/presentation/widgets/pill_tabs.dart	if (_fadeEnd) Colors.transparent else Colors.black,
+lib/features/cases/presentation/widgets/pill_tabs.dart	if (_fadeStart) Colors.transparent else Colors.black,
+lib/features/cases/presentation/widgets/practice_art.dart	return black > white ? Colors.black87 : Colors.white;
+lib/features/cases/presentation/widgets/practice_art.dart	return dark ? Colors.white : Colors.black;
+lib/features/cases/tools/signature_pad.dart	paintSignature(canvas, _strokes, Colors.black);
+lib/features/cases/workspace/file_actions.dart	color: have ? Colors.white : colors.text,
+lib/features/chat/presentation/attachment_widgets.dart	color: Colors.black26,
+lib/features/chat/presentation/attachment_widgets.dart	color: Colors.white,
+lib/features/chat/presentation/attachment_widgets.dart	color: const Color(0xFF1E5AA8)
+lib/features/chat/presentation/attachment_widgets.dart	color: const Color(0xFF1E7B45)
+lib/features/chat/presentation/attachment_widgets.dart	color: const Color(0xFF5B6478)
+lib/features/chat/presentation/attachment_widgets.dart	color: const Color(0xFFC62828)
+lib/features/chat/presentation/attachment_widgets.dart	color: const Color(0xFFC75B12)
+lib/features/chat/presentation/attachment_widgets.dart	final chat = ChatColors.of(context);
+lib/features/chat/presentation/chat_album.dart	AppIcon(look.icon, size: 20, color: Colors.white),
+lib/features/chat/presentation/chat_album.dart	color: Colors.black26,
+lib/features/chat/presentation/chat_album.dart	color: Colors.black38,
+lib/features/chat/presentation/chat_album.dart	color: Colors.white,
+lib/features/chat/presentation/chat_album.dart	color: Colors.white,
+lib/features/chat/presentation/chat_album.dart	final chat = ChatColors.of(context);
+lib/features/chat/presentation/chat_cards.dart	final chat = ChatColors.of(context);
+lib/features/chat/presentation/chat_cards.dart	final chat = ChatColors.of(context);
+lib/features/chat/presentation/chat_cards.dart	final chat = ChatColors.of(context);
+lib/features/chat/presentation/chat_files_screen.dart	child: AppIcon(look.icon, color: Colors.white, size: 20),
+lib/features/chat/presentation/chat_post_card.dart	color: Colors.black.withValues(alpha: 0.45),
+lib/features/chat/presentation/chat_post_card.dart	color: Colors.white,
+lib/features/chat/presentation/chat_post_card.dart	final chat = ChatColors.of(context);
+lib/features/chat/presentation/chat_video.dart	activeColor: Colors.white,
+lib/features/chat/presentation/chat_video.dart	backgroundColor: Colors.black,
+lib/features/chat/presentation/chat_video.dart	color: Colors.black54,
+lib/features/chat/presentation/chat_video.dart	color: Colors.black54,
+lib/features/chat/presentation/chat_video.dart	color: Colors.white,
+lib/features/chat/presentation/chat_video.dart	color: Colors.white,
+lib/features/chat/presentation/chat_video.dart	color: Colors.white,
+lib/features/chat/presentation/chat_video.dart	color: Colors.white,
+lib/features/chat/presentation/chat_video.dart	color: Colors.white,
+lib/features/chat/presentation/chat_video.dart	color: Colors.white,
+lib/features/chat/presentation/chat_video.dart	color: Colors.white,
+lib/features/chat/presentation/chat_video.dart	color: Colors.white,
+lib/features/chat/presentation/chat_video.dart	color: Colors.white54,
+lib/features/chat/presentation/chat_video.dart	colors: [Colors.black54, Colors.transparent],
+lib/features/chat/presentation/chat_video.dart	colors: [Colors.black54, Colors.transparent],
+lib/features/chat/presentation/chat_video.dart	const ColoredBox(color: Colors.black),
+lib/features/chat/presentation/chat_video.dart	inactiveColor: Colors.white30,
+lib/features/chat/presentation/chat_video.dart	thumbColor: Colors.white,
+lib/features/chat/presentation/chats_icon_button.dart	color: onDark ? Colors.white : colors.text,
+lib/features/chat/presentation/conversation_screen.dart	/// faint colour per theme (ChatColors.pattern).
+lib/features/chat/presentation/conversation_screen.dart	ChatColors.mediaFade,
+lib/features/chat/presentation/conversation_screen.dart	ChatColors.mediaScrim,
+lib/features/chat/presentation/conversation_screen.dart	backgroundColor: ChatColors.of(context).wallpaper,
+lib/features/chat/presentation/conversation_screen.dart	color: ChatColors.onMediaScrim,
+lib/features/chat/presentation/conversation_screen.dart	final chat = ChatColors.of(context);
+lib/features/chat/presentation/conversation_screen.dart	final chat = ChatColors.of(context);
+lib/features/chat/presentation/conversation_screen.dart	painter: _WallpaperPainter(ChatColors.of(context).pattern),
+lib/features/chat/presentation/conversation_screen.dart	ticks(ChatColors.onMediaScrim),
+lib/features/chat/presentation/inbox_screen.dart	final chat = ChatColors.of(context);
+lib/features/chat/presentation/inbox_screen.dart	foregroundColor: live ? Colors.white : colors.onAccent,
+lib/features/chat/presentation/message_actions.dart	: Colors.black.withValues(alpha: 0.06)),
+lib/features/chat/presentation/message_actions.dart	? Colors.black.withValues(alpha: 0.18)
+lib/features/chat/presentation/message_actions.dart	final chat = ChatColors.of(context);
+lib/features/chat/presentation/saved_chats_view.dart	final chat = ChatColors.of(context);
+lib/features/chat/presentation/share_to_sheet.dart	disc: Colors.white,
+lib/features/chat/presentation/voice_widgets.dart	final chat = ChatColors.of(context);
+lib/features/contacts_sync/presentation/calls_tab.dart	color: Colors.white,
+lib/features/demo/presentation/demo_section.dart	color: Colors.transparent,
+lib/features/feed/presentation/screens/feed_screen.dart	? Colors.black.withValues(alpha: 0.5)
+lib/features/feed/presentation/screens/feed_screen.dart	? Colors.white.withValues(alpha: 0.18)
+lib/features/feed/presentation/screens/feed_screen.dart	Colors.black.withValues(alpha: 0),
+lib/features/feed/presentation/screens/feed_screen.dart	Colors.black.withValues(alpha: 0.5),
+lib/features/feed/presentation/screens/feed_screen.dart	backgroundColor: Colors.black,
+lib/features/feed/presentation/screens/feed_screen.dart	color: Colors.black,
+lib/features/feed/presentation/screens/feed_screen.dart	dark ? Colors.white : colors.text,
+lib/features/feed/presentation/widgets/topic_filter_bar.dart	: (onDark ? Colors.white : colors.text),
+lib/features/feed/presentation/widgets/topic_filter_bar.dart	: Colors.white.withValues(alpha: 0.7))
+lib/features/feed/presentation/widgets/topic_filter_bar.dart	? Colors.white
+lib/features/feed/presentation/widgets/topic_filter_bar.dart	color: onDark ? Colors.white : colors.gold,
+lib/features/groups/presentation/group_conversation_screen.dart	backgroundColor: topicList ? null : ChatColors.of(context).wallpaper,
+lib/features/groups/presentation/group_conversation_screen.dart	final chat = ChatColors.of(context);
+lib/features/groups/presentation/poll/poll_bubble.dart	? const Icon(AppIcons.check, size: 14, color: Colors.white)
+lib/features/groups/presentation/poll/poll_bubble.dart	color: filled ? Colors.white : color,
+lib/features/groups/presentation/poll/poll_bubble.dart	color: selected ? color : Colors.transparent,
+lib/features/groups/presentation/poll/poll_bubble.dart	final chat = ChatColors.of(context);
+lib/features/groups/presentation/poll/poll_bubble.dart	final chat = ChatColors.of(context);
+lib/features/groups/presentation/widgets/group_info_topics.dart	color: Colors.white,
+lib/features/groups/presentation/widgets/group_message_bubble.dart	color: ChatColors.mediaScrim,
+lib/features/groups/presentation/widgets/group_message_bubble.dart	final chat = ChatColors.of(context);
+lib/features/groups/presentation/widgets/group_message_bubble.dart	final chat = ChatColors.of(context);
+lib/features/groups/presentation/widgets/group_message_bubble.dart	type.caption.copyWith(color: ChatColors.onMediaScrim),
+lib/features/groups/presentation/widgets/group_system_line.dart	final chat = ChatColors.of(context);
+lib/features/groups/presentation/widgets/group_topic_list.dart	color: Colors.white,
+lib/features/groups/presentation/widgets/group_topic_sheets.dart	: Colors.transparent,
+lib/features/groups/presentation/widgets/group_topic_sheets.dart	color: Colors.white,
+lib/features/mine/presentation/widgets/mine_grid.dart	color: Colors.white,
+lib/features/mine/presentation/widgets/mine_grid.dart	color: Colors.white,
+lib/features/mine/presentation/widgets/mine_grid.dart	color: Colors.white,
+lib/features/mine/presentation/widgets/mine_grid.dart	color: const Color(0xB30A1A3F),
+lib/features/mine/presentation/widgets/mine_grid.dart	colors: [Color(0x00000000), Color(0xCC0A1A3F)],
+lib/features/mine/presentation/widgets/mine_grid.dart	style: type.caption.copyWith(color: Colors.white),
+lib/features/notifications/presentation/notifications_view.dart	color: n.unread ? colors.gold : Colors.transparent,
+lib/features/onboarding/presentation/screens/attorney_verification_step_screen.dart	color: selected ? colors.goldTint : Colors.transparent,
+lib/features/promotions/presentation/promote_case_card.dart	? Colors.black54
+lib/features/promotions/presentation/promote_case_card.dart	color: onDark ? Colors.white : colors.boostInk(),
+lib/features/promotions/presentation/promote_case_card.dart	color: onDark ? Colors.white70 : colors.goldStroke,
+lib/features/promotions/presentation/promotion_cta_button.dart	color: onDark ? Colors.black38 : colors.goldTint,
+lib/features/promotions/presentation/promotion_cta_button.dart	final border = onDark ? Colors.white70 : colors.goldStroke;
+lib/features/promotions/presentation/promotion_cta_button.dart	final fg = onDark ? Colors.white : colors.boostInk();
+lib/features/qr/presentation/my_qr_screen.dart	color: Colors.white,
+lib/features/qr/presentation/my_qr_screen.dart	color: Colors.white,
+lib/features/qr/presentation/my_qr_screen.dart	plateColor: Colors.white,
+lib/features/qr/presentation/qr_scanner_screen.dart	: Colors.white.withValues(alpha: 0.18),
+lib/features/qr/presentation/qr_scanner_screen.dart	backgroundColor: Colors.black,
+lib/features/qr/presentation/qr_scanner_screen.dart	canvas.drawPath(dim, Paint()..color = Colors.black.withValues(alpha: 0.55));
+lib/features/qr/presentation/qr_scanner_screen.dart	color: Colors.black,
+lib/features/qr/presentation/qr_scanner_screen.dart	color: Colors.white,
+lib/features/qr/presentation/qr_scanner_screen.dart	color: Colors.white,
+lib/features/qr/presentation/qr_scanner_screen.dart	color: selected ? colors.navy : Colors.white,
+lib/features/qr/presentation/qr_scanner_screen.dart	const AppIcon(AppIcons.scan, color: Colors.white, size: 40),
+lib/features/qr/presentation/qr_scanner_screen.dart	style: typography.body.copyWith(color: Colors.white),
+lib/features/qr/presentation/qr_scanner_screen.dart	style: typography.body.copyWith(color: Colors.white),
+lib/features/qr/presentation/qr_scanner_screen.dart	style: typography.caption.copyWith(color: Colors.white),
+lib/features/reels/presentation/reel_publish_card.dart	: ChatColors.onMediaScrim,
+lib/features/reels/presentation/reel_video.dart	color: Colors.white70,
+lib/features/reels/presentation/reel_video.dart	color: widget.backdrop ? Colors.black : Colors.transparent,
+lib/features/reels/presentation/reels_screen.dart	: Colors.transparent,
+lib/features/reels/presentation/reels_screen.dart	? Colors.white.withValues(alpha: 0.18)
+lib/features/reels/presentation/reels_screen.dart	? const CircularProgressIndicator(color: Colors.white)
+lib/features/reels/presentation/reels_screen.dart	? const CircularProgressIndicator(color: Colors.white)
+lib/features/reels/presentation/reels_screen.dart	backgroundColor: Colors.black54,
+lib/features/reels/presentation/reels_screen.dart	backgroundColor: Colors.white24,
+lib/features/reels/presentation/reels_screen.dart	border: Border.all(color: Colors.white70),
+lib/features/reels/presentation/reels_screen.dart	color: Colors.black,
+lib/features/reels/presentation/reels_screen.dart	color: Colors.white,
+lib/features/reels/presentation/reels_screen.dart	color: Colors.white,
+lib/features/reels/presentation/reels_screen.dart	color: Colors.white,
+lib/features/reels/presentation/reels_screen.dart	color: Colors.white,
+lib/features/reels/presentation/reels_screen.dart	color: Colors.white,
+lib/features/reels/presentation/reels_screen.dart	color: Colors.white,
+lib/features/reels/presentation/reels_screen.dart	color: Colors.white,
+lib/features/reels/presentation/reels_screen.dart	color: Colors.white,
+lib/features/reels/presentation/reels_screen.dart	color: Colors.white,
+lib/features/reels/presentation/reels_screen.dart	color: Colors.white,
+lib/features/reels/presentation/reels_screen.dart	color: Colors.white,
+lib/features/reels/presentation/reels_screen.dart	color: Colors.white,
+lib/features/reels/presentation/reels_screen.dart	color: Colors.white,
+lib/features/reels/presentation/reels_screen.dart	color: Colors.white,
+lib/features/reels/presentation/reels_screen.dart	color: Colors.white,
+lib/features/reels/presentation/reels_screen.dart	color: Colors.white.withValues(alpha: 0.18),
+lib/features/reels/presentation/reels_screen.dart	color: Colors.white70,
+lib/features/reels/presentation/reels_screen.dart	color: Colors.white70,
+lib/features/reels/presentation/reels_screen.dart	color: color ?? Colors.white,
+lib/features/reels/presentation/reels_screen.dart	colors: [Colors.black87, Colors.transparent],
+lib/features/reels/presentation/reels_screen.dart	const shadow = [Shadow(blurRadius: 8, color: Colors.black54)];
+lib/features/reels/presentation/reels_screen.dart	side: const BorderSide(color: Colors.white38),
+lib/features/reels/presentation/reels_screen.dart	style: type.body.copyWith(color: Colors.white70),
+lib/features/reels/presentation/reels_screen.dart	style: type.body.copyWith(color: Colors.white70),
+lib/features/reels/presentation/reels_screen.dart	type.body.copyWith(color: Colors.white70),
+lib/features/reels/presentation/video_editor_screen.dart	border: Border.all(color: Colors.white, width: 3),
+lib/features/reels/presentation/video_editor_screen.dart	child: const ColoredBox(color: Colors.black54),
+lib/features/reels/presentation/video_editor_screen.dart	child: const ColoredBox(color: Colors.black54),
+lib/features/social/presentation/screens/create_post_screen.dart	color: Colors.transparent,
+lib/features/social/presentation/screens/create_post_screen.dart	color: Colors.white,
+lib/features/social/presentation/screens/create_post_screen.dart	color: Colors.white,
+lib/features/social/presentation/screens/create_post_screen.dart	color: Colors.white,
+lib/features/social/presentation/screens/create_post_screen.dart	color: selected ? Colors.white : colors.text,
+lib/features/social/presentation/screens/create_post_screen.dart	color: selected ? colors.navy : Colors.transparent,
+lib/features/social/presentation/screens/create_post_screen.dart	dark ? tint : Color.lerp(tint, Colors.black, 0.45)!,
+lib/features/social/presentation/screens/create_post_screen.dart	style: type.caption.copyWith(color: Colors.white),
+lib/features/social/presentation/screens/photo_crop_screen.dart	..color = Colors.white.withValues(alpha: 0.6)
+lib/features/social/presentation/screens/photo_crop_screen.dart	color: Colors.black,
+lib/features/social/presentation/screens/photo_crop_screen.dart	color: Colors.black,
+lib/features/social/presentation/screens/photo_crop_screen.dart	color: Colors.black.withValues(alpha: 0.55),
+lib/features/social/presentation/screens/photo_crop_screen.dart	color: Colors.white,
+lib/features/social/presentation/widgets/attorney_tile.dart	color: Colors.white,
+lib/features/social/presentation/widgets/attorney_tile.dart	color: following ? colors.text : Colors.white,
+lib/features/social/presentation/widgets/attorney_tile.dart	color: following ? colors.textSecondary : Colors.white,
+lib/features/social/presentation/widgets/attorney_tile.dart	const Color _followBlue = Color(0xFF0095F6);
+lib/features/social/presentation/widgets/post_attachments_sheet.dart	color: onDark ? Colors.black.withValues(alpha: 0.35) : null,
+lib/features/social/presentation/widgets/post_attachments_sheet.dart	color: onDark ? Colors.white38 : colors.border,
+lib/features/social/presentation/widgets/post_attachments_sheet.dart	final fg = onDark ? Colors.white : colors.text;
+lib/features/social/presentation/widgets/post_card.dart	: (main ? Colors.white : colors.textSecondary),
+lib/features/social/presentation/widgets/post_card.dart	: Colors.white.withValues(alpha: 0.7),
+lib/features/social/presentation/widgets/post_card.dart	: Colors.white.withValues(alpha: 0.7),
+lib/features/social/presentation/widgets/post_card.dart	? Colors.white.withValues(alpha: 0.9)
+lib/features/social/presentation/widgets/post_card.dart	? Colors.white.withValues(alpha: 0.9)
+lib/features/social/presentation/widgets/post_card.dart	ColoredBox(color: Colors.black.withValues(alpha: 0.18)),
+lib/features/social/presentation/widgets/post_card.dart	Colors.black.withValues(alpha: 0),
+lib/features/social/presentation/widgets/post_card.dart	Colors.black.withValues(alpha: 0.5),
+lib/features/social/presentation/widgets/post_card.dart	color: Colors.white,
+lib/features/social/presentation/widgets/post_card.dart	color: Colors.white,
+lib/features/social/presentation/widgets/post_card.dart	color: onDark ? Colors.white : colors.text,
+lib/features/social/presentation/widgets/post_card.dart	color: onDark ? Colors.white : null,
+lib/features/social/presentation/widgets/post_documents.dart	? Colors.white.withValues(alpha: 0.08)
+lib/features/social/presentation/widgets/post_documents.dart	AppIcon(look.icon, size: 18, color: Colors.white),
+lib/features/social/presentation/widgets/post_documents.dart	color: Colors.white,
+lib/features/social/presentation/widgets/post_documents.dart	color: onDark ? Colors.white24 : colors.border,
+lib/features/social/presentation/widgets/post_documents.dart	final fg = onDark ? Colors.white : colors.text;
+lib/features/social/presentation/widgets/post_documents.dart	final sub = onDark ? Colors.white70 : colors.textSecondary;
+lib/features/social/presentation/widgets/post_grid_tile.dart	Shadow(blurRadius: 4, color: Colors.black54),
+lib/features/social/presentation/widgets/post_grid_tile.dart	color: Colors.white,
+lib/features/social/presentation/widgets/post_grid_tile.dart	color: Colors.white,
+lib/features/social/presentation/widgets/post_grid_tile.dart	color: Colors.white,
+lib/features/social/presentation/widgets/post_grid_tile.dart	color: Colors.white,
+lib/features/social/presentation/widgets/post_grid_tile.dart	color: Colors.white,
+lib/features/social/presentation/widgets/post_grid_tile.dart	color: Colors.white,
+lib/features/social/presentation/widgets/post_grid_tile.dart	shadows: [Shadow(blurRadius: 4, color: Colors.black54)],
+lib/features/social/presentation/widgets/post_text_cover.dart	const white = Colors.white;
+lib/features/stories/presentation/story_archive_screen.dart	Colors.black.withValues(alpha: 0),
+lib/features/stories/presentation/story_archive_screen.dart	Colors.black.withValues(alpha: 0.6),
+lib/features/stories/presentation/story_archive_screen.dart	backgroundColor: Colors.black,
+lib/features/stories/presentation/story_archive_screen.dart	color: Colors.white,
+lib/features/stories/presentation/story_archive_screen.dart	const ColoredBox(color: Colors.black),
+lib/features/stories/presentation/story_archive_screen.dart	style: type.caption.copyWith(color: Colors.white),
+lib/features/stories/presentation/story_archive_screen.dart	style: type.caption.copyWith(color: Colors.white),
+lib/features/stories/presentation/story_camera_view.dart	backgroundColor: Colors.transparent,
+lib/features/stories/presentation/story_camera_view.dart	border: Border.all(color: Colors.white, width: 4),
+lib/features/stories/presentation/story_camera_view.dart	child: Icon(icon, color: Colors.white, size: AppSizes.iconLg),
+lib/features/stories/presentation/story_camera_view.dart	color: Colors.black,
+lib/features/stories/presentation/story_camera_view.dart	color: Colors.black.withValues(alpha: 0.4),
+lib/features/stories/presentation/story_camera_view.dart	color: recording ? colors.danger : Colors.white,
+lib/features/stories/presentation/story_creator_screen.dart	color: Colors.black.withValues(alpha: 0.6),
+lib/features/stories/presentation/story_creator_screen.dart	color: Colors.white.withValues(alpha: 0.6),
+lib/features/stories/presentation/story_creator_screen.dart	color: active ? colors.danger : Colors.black.withValues(alpha: 0.5),
+lib/features/stories/presentation/story_creator_screen.dart	color: active ? colors.onDanger : Colors.white,
+lib/features/stories/presentation/story_creator_screen.dart	const ColoredBox(color: Colors.black),
+lib/features/stories/presentation/story_creator_screen.dart	cursorColor: Colors.white,
+lib/features/stories/presentation/story_frame.dart	ColoredBox(color: Colors.black.withValues(alpha: 0.35)),
+lib/features/stories/presentation/story_frame.dart	ColoredBox(color: Colors.black.withValues(alpha: 0.35)),
+lib/features/stories/presentation/story_frame.dart	Colors.black.withValues(alpha: 0),
+lib/features/stories/presentation/story_frame.dart	Colors.black.withValues(alpha: 0.6),
+lib/features/stories/presentation/story_frame.dart	color: Colors.black,
+lib/features/stories/presentation/story_frame.dart	color: Colors.white,
+lib/features/stories/presentation/story_frame.dart	color: Colors.white,
+lib/features/stories/presentation/story_guides.dart	..color = Colors.black.withValues(alpha: 0.25)
+lib/features/stories/presentation/story_guides.dart	..color = Colors.white.withValues(alpha: 0.9)
+lib/features/stories/presentation/story_post_sticker.dart	color: Colors.black.withValues(alpha: 0.28),
+lib/features/stories/presentation/story_post_sticker.dart	color: Colors.black.withValues(alpha: 0.45),
+lib/features/stories/presentation/story_post_sticker.dart	color: Colors.white,
+lib/features/stories/presentation/story_viewer_screen.dart	Colors.black.withValues(alpha: 0),
+lib/features/stories/presentation/story_viewer_screen.dart	Colors.black.withValues(alpha: 0.72),
+lib/features/stories/presentation/story_viewer_screen.dart	Colors.white.withValues(alpha: 0.35),
+lib/features/stories/presentation/story_viewer_screen.dart	backgroundColor: Colors.black,
+lib/features/stories/presentation/story_viewer_screen.dart	borderSide: const BorderSide(color: Colors.white),
+lib/features/stories/presentation/story_viewer_screen.dart	child: Icon(icon, color: Colors.white, size: AppSizes.iconLg),
+lib/features/stories/presentation/story_viewer_screen.dart	child: const CircularProgressIndicator(color: Colors.white),
+lib/features/stories/presentation/story_viewer_screen.dart	color: Colors.white,
+lib/features/stories/presentation/story_viewer_screen.dart	color: Colors.white,
+lib/features/stories/presentation/story_viewer_screen.dart	color: Colors.white,
+lib/features/stories/presentation/story_viewer_screen.dart	color: Colors.white.withValues(alpha: 0.8),
+lib/features/stories/presentation/story_viewer_screen.dart	const Icon(AppIcons.checkRounded, color: Colors.white),
+lib/features/stories/presentation/story_viewer_screen.dart	cursorColor: Colors.white,
+lib/features/stories/presentation/story_viewer_screen.dart	final white = Colors.white.withValues(alpha: 0.7);
+lib/features/stories/presentation/story_viewer_screen.dart	style: type.body.copyWith(color: Colors.white),
+lib/features/stories/presentation/story_viewer_screen.dart	style: type.body.copyWith(color: Colors.white),
+lib/features/stories/presentation/story_viewer_screen.dart	style: type.body.copyWith(color: Colors.white),
+lib/features/subscription/presentation/plan_tier_card.dart	color: plus ? colors.gold : Colors.transparent,
+lib/features/subscription/presentation/plan_tier_card.dart	color: statusFilled ? colors.gold : Colors.transparent,
+lib/features/team/presentation/task_widgets.dart	: Colors.transparent,
+lib/features/team/presentation/task_widgets.dart	Colors.transparent,
+lib/features/team/presentation/task_widgets.dart	Colors.transparent,
+lib/features/team/presentation/task_widgets.dart	Colors.transparent,
+lib/features/team/presentation/task_widgets.dart	color: picked ? colors.gold : Colors.transparent,
+lib/features/team/presentation/team_widgets.dart	color: gold ? colors.goldDark : Colors.white,
+lib/features/trust/presentation/trust_signals_list.dart	color: reached ? c.fill : Colors.transparent,
+lib/shared/presentation/flip_search_bar.dart	fillColor: Colors.transparent,
+lib/shared/presentation/share_sheet.dart	color: Colors.white,
+lib/shared/presentation/share_sheet.dart	icon: brand(FontAwesomeIcons.commentSms, const Color(0xFF34C759)),
+lib/shared/presentation/share_sheet.dart	icon: brand(FontAwesomeIcons.facebook, const Color(0xFF1877F2)),
+lib/shared/presentation/share_sheet.dart	icon: brand(FontAwesomeIcons.facebookMessenger, const Color(0xFF0084FF)),
+lib/shared/presentation/share_sheet.dart	icon: brand(FontAwesomeIcons.instagram, const Color(0xFFE1306C)),
+lib/shared/presentation/share_sheet.dart	icon: brand(FontAwesomeIcons.linkedin, const Color(0xFF0A66C2)),
+lib/shared/presentation/share_sheet.dart	icon: brand(FontAwesomeIcons.telegram, const Color(0xFF29A9EB)),
+lib/shared/presentation/share_sheet.dart	icon: brand(FontAwesomeIcons.tiktok, const Color(0xFF111111)),
+lib/shared/presentation/share_sheet.dart	icon: brand(FontAwesomeIcons.viber, const Color(0xFF7360F2)),
+lib/shared/presentation/share_sheet.dart	icon: brand(FontAwesomeIcons.whatsapp, const Color(0xFF25D366)),
+lib/shared/presentation/share_sheet.dart	icon: brand(FontAwesomeIcons.xTwitter, const Color(0xFF111111)),

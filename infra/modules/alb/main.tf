@@ -64,6 +64,10 @@ resource "aws_lb" "this" {
   subnets                    = var.public_subnet_ids
   drop_invalid_header_fields = true
   # Socket.IO long-polling/WebSocket frames must outlive the default 60 s.
+  # PAIRED VALUE: the API's Node keepAliveTimeout (apps/api/src/main.ts,
+  # ALB_IDLE_TIMEOUT_S) must stay LONGER than this (currently 310 s vs 300 s),
+  # or the ALB reuses sockets Node already closed and users get random 502s.
+  # Change both together.
   idle_timeout = 300
   dynamic "access_logs" {
     for_each = var.access_logs_bucket == null ? [] : [var.access_logs_bucket]

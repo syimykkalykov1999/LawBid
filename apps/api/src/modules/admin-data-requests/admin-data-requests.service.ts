@@ -315,8 +315,9 @@ export class AdminDataRequestsService {
       data.conversations = conversations;
       data.messages = messages.map((m) => ({
         ...m,
-        body_original: this.cipher?.open(m.body_original) ?? m.body_original,
-        body_display: this.cipher?.open(m.body_display) ?? m.body_display,
+        body_original:
+          this.cipher?.open(m.body_original, m.id) ?? m.body_original,
+        body_display: this.cipher?.open(m.body_display, m.id) ?? m.body_display,
       }));
       log.push(
         ...conversations.map((c) => ({

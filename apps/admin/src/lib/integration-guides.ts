@@ -94,6 +94,10 @@ export const GUIDES: Record<string, ProviderGuide> = {
         how: 'Любая длинная случайная строка, 24+ символа. Нажмите «Сгенерировать».',
         generate: 'token',
       },
+      readOnlyApiKey: {
+        how: 'Там же, вкладка «API» → «Read-Only API Key». Необязательно, но лучше заполнить: сервер проверит подпись Bunny (X-BunnyStream-Signature), и чужой запрос с подсмотренным токеном не пройдёт.',
+        example: 'a1b2c3d4-…',
+      },
     },
   },
 

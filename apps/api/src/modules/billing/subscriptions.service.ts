@@ -11,6 +11,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { randomUUID } from 'node:crypto';
 import type { Payment, PromoCode, Subscription } from '@prisma/client';
 import { Queue } from 'bullmq';
 import { ErrorCode } from '../../common/errors/error-code.enum';
@@ -76,6 +77,22 @@ import { ReferralsService } from '../referrals/referrals.service';
 /** `sessionId` of a payment made on our own card page. */
 export const OWN_PAGE_SESSION_PREFIX = 'own:';
 
+/**
+ * Audit #15 (2026-10-22): the Stripe idempotency key of one checkout
+ * attempt — the client's Idempotency-Key header when it sent one, else the
+ * attempt id `start` kept on the SetupIntent, else the SetupIntent itself
+ * (older intents). Never time-based: a retry that crosses an hour used to
+ * create a second subscription.
+ */
+export function subscriptionAttemptKey(
+  si: Pick<ProviderSetupIntent, 'id' | 'metadata'>,
+  clientKey?: string,
+): string {
+  if (clientKey) return `client:${clientKey}`;
+  if (si.metadata?.attemptId) return `attempt:${si.metadata.attemptId}`;
+  return `setup:${si.id}`;
+}
+
 @Injectable()
 export class SubscriptionsService implements OnModuleDestroy {
   private readonly logger = new Logger(SubscriptionsService.name);
@@ -127,6 +144,9 @@ export class SubscriptionsService implements OnModuleDestroy {
     const o = await this.prepareOrder(user, req, false);
     const meta: Record<string, string> = {
       userId: user.sub,
+      // Audit #15: the checkout attempt; `confirm` derives the Stripe
+      // idempotency key from it when the client sends none.
+      attemptId: randomUUID(),
       plan: o.plan,
       planId: o.planRow.id,
       planCode: o.planRow.code,
@@ -771,6 +791,7 @@ export class SubscriptionsService implements OnModuleDestroy {
     user: RequestUser,
     setupIntentId: string,
     chargeNow: boolean,
+    clientIdempotencyKey?: string,
   ): Promise<SubscriptionMeDto> {
     await this.verifiedAttorney(user);
     const priceId = await this.assertConfigured();
@@ -801,7 +822,14 @@ export class SubscriptionsService implements OnModuleDestroy {
     );
     // Owner 2026-10-11: the order kept on the SetupIntent by `start`.
     if (si.metadata?.planId && si.metadata.items) {
-      return this.confirmOrder(user, si, fingerprint, chargeNow, customerId);
+      return this.confirmOrder(
+        user,
+        si,
+        fingerprint,
+        chargeNow,
+        customerId,
+        clientIdempotencyKey,
+      );
     }
     const eligible =
       (await this.attorneyTrialEligible(user.sub)) &&
@@ -823,6 +851,7 @@ export class SubscriptionsService implements OnModuleDestroy {
       paymentMethodId: si.paymentMethodId,
       trialDays: eligible ? await this.pricing.defaultTrialDays() : null,
       metadata: { userId: user.sub },
+      idempotencyKey: subscriptionAttemptKey(si, clientIdempotencyKey),
     });
     const now = new Date();
     await withTxRetry(this.prisma, async (tx) => {
@@ -869,6 +898,7 @@ export class SubscriptionsService implements OnModuleDestroy {
     fingerprint: string | null,
     chargeNow: boolean,
     customerId: string,
+    clientIdempotencyKey?: string,
   ): Promise<SubscriptionMeDto> {
     const meta = si.metadata;
     const lineItems = meta.items
@@ -908,6 +938,7 @@ export class SubscriptionsService implements OnModuleDestroy {
       paymentMethodId: si.paymentMethodId ?? '',
       trialDays: trialDays > 0 ? trialDays : null,
       metadata: { ...meta, userId: user.sub },
+      idempotencyKey: subscriptionAttemptKey(si, clientIdempotencyKey),
     });
     await this.applyOrder(remote, { ...meta, userId: user.sub }, user.sub);
     return this.me(user);

@@ -112,6 +112,11 @@ export interface PaymentProvider {
     paymentMethodId: string;
     trialDays: number | null;
     metadata: Record<string, string>;
+    /** Audit #15: one key per client checkout attempt (the client's
+     * Idempotency-Key, else the attempt id kept on the SetupIntent). A
+     * retry of the same attempt never creates a second subscription; a
+     * new attempt (new SetupIntent) is a new request. */
+    idempotencyKey: string;
   }): Promise<ProviderSubscription>;
   retrieveSubscription(id: string): Promise<ProviderSubscription | null>;
   setCancelAtPeriodEnd(

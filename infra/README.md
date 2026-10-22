@@ -125,6 +125,35 @@ After the first apply:
   AWS APIs through VPC endpoints and the internet (Stripe, Twilio, FCM)
   through the NAT gateways.
 
+## Web app on CloudFront (modules/web)
+
+The web app (Flutter) and the public pages (SEO pages, company site)
+share one S3 bucket behind CloudFront. The viewer-request function
+`<name>-seo-index` decides what each address reads:
+
+| Address | Served from | Missing |
+| --- | --- | --- |
+| `/attorneys/*`, `/lawyers/*`, `/practice-areas/*`, the site pages (`/about`, `/pricing`, legal pages…) | `<address>/index.html` at the bucket root | **real 404** (audit #14); the body is the app's page |
+| `/` and app files (`assets/`, `canvaskit/`, `main.dart.wasm`, …) | `releases/<live sha>/…` | 404 |
+| any other address without an extension (an app screen) | `releases/<live sha>/spa.html` (a copy of `index.html`, marked `noindex`) | — |
+
+The list of public prefixes is in the function and in `app-noindex`.
+A new site section must be added to both, or it is served as an app
+screen.
+
+**Versioned releases and rollback (audit #10).** `web-deploy.yml` uploads
+each build to `releases/<sha>/` and only then switches the live release.
+The switch is one write of `web_release` to the CloudFront KeyValueStore
+`<name>-web-release`, and it reaches all edges within seconds. Visitors
+never get a mix of two builds, and old releases stay in the bucket. The
+workflow keeps the last 10. To go back: Actions → "Rollback production" →
+`web_release` = a previous sha (empty = the release before the current
+one). Until the first versioned deploy the store is empty and the old
+root layout is served, so `terraform apply` and the next web deploy can
+happen in either order. The deploy role needs the updated
+`web_deploy_policy_arn` policy (GetDistributionConfig, DescribeFunction,
+KeyValueStore Get/Put).
+
 ## State and secrets
 
 The state contains the generated Redis AUTH token (`random_password`).

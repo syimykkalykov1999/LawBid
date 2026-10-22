@@ -47,8 +47,8 @@ export class ChatActionsService {
     @Optional() private readonly notifications?: NotificationsService,
   ) {}
 
-  private seal(text: string): string {
-    return this.cipher?.seal(text) ?? text;
+  private seal(text: string, messageId: string): string {
+    return this.cipher?.seal(text, messageId) ?? text;
   }
 
   private async own(user: RequestUser, id: string, messageId: string) {
@@ -151,8 +151,8 @@ export class ChatActionsService {
       this.prisma.message.update({
         where: { id: m.id },
         data: {
-          body_original: this.seal(body),
-          body_display: this.seal(masked.text),
+          body_original: this.seal(body, m.id),
+          body_display: this.seal(masked.text, m.id),
           contact_masked: masked.masked,
           edited_at: now,
         },
@@ -227,7 +227,7 @@ export class ChatActionsService {
         // moderation / legal (§1.6).
         data: {
           revoked_at: new Date(),
-          body_display: this.seal(''),
+          body_display: this.seal('', m.id),
           contact_masked: false,
         },
       }),

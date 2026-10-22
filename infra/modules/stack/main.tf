@@ -450,6 +450,16 @@ module "ecs" {
     NODE_ENV      = "production"
     API_BASE_URL  = "https://${var.api_host}/api/v1"
     COOKIE_SECURE = "true"
+    # Audit #8: the admin CSP connect-src (apps/admin/src/lib/csp.ts) — the
+    # buckets presigned uploads POST to (both endpoint spellings the AWS SDK
+    # may produce) and the media CDN.
+    ADMIN_CONNECT_SRC = join(" ", [
+      "https://${module.s3.media_bucket}.s3.${data.aws_region.current.name}.amazonaws.com",
+      "https://${module.s3.media_bucket}.s3.amazonaws.com",
+      "https://${module.s3.documents_bucket}.s3.${data.aws_region.current.name}.amazonaws.com",
+      "https://${module.s3.documents_bucket}.s3.amazonaws.com",
+      "https://${module.s3.media_cdn_domain}",
+    ])
   }
   secret_arns                      = local.app_secret_arns
   migrator_database_url_secret_arn = module.secrets.arns["MIGRATOR_DATABASE_URL"]

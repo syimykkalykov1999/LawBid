@@ -1,6 +1,13 @@
 # Owner 2026-10-15 — the web version of the app: build (WebAssembly) →
 # S3 → CloudFront cache reset. Infra: infra/modules/web.
 #
+# Audit #10 (2026-10-22): every build goes to releases/<sha>/ in the
+# bucket and the live release is switched only after the whole upload, by
+# one write to the CloudFront KeyValueStore (scripts/deploy/web-release.sh)
+# — a visitor never mixes two builds, and the previous releases stay for
+# rollback.yml (web_release input). Until the store exists (infra not
+# applied yet) the old root upload below is used as well.
+#
 # Runs only when the repository variable WEB_DEPLOY_ENABLED is 'true', so
 # a repo without the AWS secrets stays green.
 #
@@ -24,6 +31,7 @@ on:
       - "apps/mobile/**"
       - "packages/api-client/**"
       - ".github/workflows/web-deploy.yml"
+      - "scripts/deploy/web-release.sh"
   workflow_dispatch:
 
 permissions:
@@ -105,12 +113,85 @@ jobs:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_PROD }}
           aws-region: ${{ secrets.AWS_REGION }}
 
+      - name: Find the release switch (empty = infra not applied yet)
+        id: store
+        run: echo "arn=$(scripts/deploy/web-release.sh store "${{ secrets.WEB_DISTRIBUTION_ID }}")" >> "$GITHUB_OUTPUT"
+
+      # The whole build under its own prefix. Browsers revalidate every file
+      # (the URLs they see do not change between releases); CloudFront keeps
+      # a release's files for good (its cache key is the release path).
+      - name: Upload this release to releases/<sha>/
+        working-directory: apps/mobile/build/web
+        env:
+          DEST: s3://${{ secrets.WEB_BUCKET }}/releases/${{ github.sha }}
+        run: |
+          # App screens read spa.html (marked noindex), the home page index.html.
+          cp index.html spa.html
+          CC="public,max-age=0,must-revalidate,s-maxage=31536000"
+          aws s3 sync . "$DEST" --exclude "*.wasm" --cache-control "$CC"
+          # .wasm must be served as application/wasm.
+          aws s3 sync . "$DEST" --exclude "*" --include "*.wasm" \
+            --content-type application/wasm --cache-control "$CC"
+          # index.html last: a release without it is never switched to.
+          aws s3 cp index.html "$DEST/index.html" --cache-control "$CC"
+
+      - name: Switch the live release (index.html last)
+        if: steps.store.outputs.arn != ''
+        env:
+          ARN: ${{ steps.store.outputs.arn }}
+          SHA: ${{ github.sha }}
+          B: s3://${{ secrets.WEB_BUCKET }}
+        run: |
+          R=scripts/deploy/web-release.sh
+          PREV=$($R get "$ARN" web_release)
+          PATHS=$(ls -1 apps/mobile/build/web | paste -sd, -)
+          [ ${#PATHS} -lt 1000 ] || { echo "top-level names do not fit the store (1 KB)"; exit 1; }
+          $R put "$ARN" web_app_paths "$PATHS"
+          if [ -n "$PREV" ] && [ "$PREV" != "$SHA" ]; then $R put "$ARN" web_previous "$PREV"; fi
+          $R put "$ARN" web_release "$SHA"
+          # The error page (a real 404 shows the app) is the root index.html.
+          aws s3 cp "$B/releases/$SHA/index.html" "$B/index.html" --cache-control "no-cache"
+          echo "Live web release: $SHA (previous: ${PREV:-none})"
+
+      - name: Keep the last 10 releases (and the live / previous ones)
+        if: steps.store.outputs.arn != ''
+        env:
+          ARN: ${{ steps.store.outputs.arn }}
+          BUCKET: ${{ secrets.WEB_BUCKET }}
+        run: |
+          LIVE=$(scripts/deploy/web-release.sh get "$ARN" web_release)
+          PREV=$(scripts/deploy/web-release.sh get "$ARN" web_previous)
+          for P in $(aws s3api list-objects-v2 --bucket "$BUCKET" --prefix releases/ --delimiter / \
+              --query 'CommonPrefixes[].Prefix' --output text); do
+            [ "$P" = "None" ] && continue
+            T=$(aws s3api head-object --bucket "$BUCKET" --key "${P}index.html" \
+              --query LastModified --output text 2>/dev/null || echo "1970-01-01")
+            echo "$T $P"
+          done | sort -r | tail -n +11 | while read -r _ P; do
+            R=$(basename "$P")
+            if [ "$R" = "$LIVE" ] || [ "$R" = "$PREV" ]; then continue; fi
+            echo "Removing old release $R"
+            aws s3 rm "s3://$BUCKET/$P" --recursive --quiet
+          done
+
+      - name: Reset the CDN cache for the error page
+        if: steps.store.outputs.arn != ''
+        run: >-
+          aws cloudfront create-invalidation
+          --distribution-id "${{ secrets.WEB_DISTRIBUTION_ID }}"
+          --paths "/index.html"
+
+      # ---- The old root layout: only while the release switch does not
+      # exist yet (infra/modules/web not applied). Remove after the apply.
+
       # Files that never change under the same name are cached for a year;
       # everything else (the page, the engine, the app) is asked again, so a
       # release shows up at once.
       - name: Upload long-lived files
+        if: steps.store.outputs.arn == ''
         working-directory: apps/mobile/build/web
         run: |
+          rm -f spa.html
           # Engine file names carry no version: cached a day, reset below.
           aws s3 sync canvaskit "s3://${{ secrets.WEB_BUCKET }}/canvaskit" \
             --cache-control "public,max-age=86400"
@@ -121,10 +202,12 @@ jobs:
       # in the same bucket; public-paths.txt lists their names so --delete
       # never removes them.
       - name: Upload the rest (always revalidated) and drop what is gone
+        if: steps.store.outputs.arn == ''
         working-directory: apps/mobile/build/web
         run: |
           KEEP=(--exclude "public-paths.txt" --exclude "lawyers/*" --exclude "attorneys/*" \
-            --exclude "practice-areas/*" --exclude "sitemap.xml" --exclude "robots.txt")
+            --exclude "practice-areas/*" --exclude "sitemap.xml" --exclude "robots.txt" \
+            --exclude "releases/*")
           if aws s3 cp "s3://${{ secrets.WEB_BUCKET }}/public-paths.txt" /tmp/public-paths.txt 2>/dev/null; then
             while read -r p; do
               [ -n "$p" ] && KEEP+=(--exclude "$p" --exclude "$p/*")
@@ -137,11 +220,12 @@ jobs:
             --cache-control "no-cache"
           # .wasm must be served as application/wasm.
           aws s3 cp "s3://${{ secrets.WEB_BUCKET }}/" "s3://${{ secrets.WEB_BUCKET }}/" \
-            --recursive --exclude "*" --include "*.wasm" \
+            --recursive --exclude "*" --include "*.wasm" --exclude "releases/*" \
             --content-type application/wasm --metadata-directive REPLACE \
             --cache-control "no-cache"
 
       - name: Reset the CDN cache for the page and the app
+        if: steps.store.outputs.arn == ''
         run: >-
           aws cloudfront create-invalidation
           --distribution-id "${{ secrets.WEB_DISTRIBUTION_ID }}"
