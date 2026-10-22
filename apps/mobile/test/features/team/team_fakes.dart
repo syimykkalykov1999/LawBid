@@ -138,6 +138,7 @@ class FakeTeamRepository implements TeamRepository {
       seats: teamInfo.seats,
       used: teamInfo.used + 1,
       plan: teamInfo.plan,
+      maxDuties: teamInfo.maxDuties,
     );
   }
 
@@ -151,7 +152,32 @@ class FakeTeamRepository implements TeamRepository {
     calls.add(
       'update:$id:${duties?.map((d) => d.wire).join(',')}:$acceptLiability',
     );
-    return teamInfo;
+    if (duties == null) return teamInfo;
+    // Owner 2026-10-22: the roles screen shows the new switches.
+    return teamInfo = TeamInfo(
+      members: [
+        for (final m in teamInfo.members)
+          if (m.id == id)
+            TeamMember(
+              id: m.id,
+              name: m.name,
+              phone: m.phone,
+              status: m.status,
+              approval: m.approval,
+              duties: duties,
+              createdAt: m.createdAt,
+              joinedAt: m.joinedAt,
+              joinCode: m.joinCode,
+              joinCodeExpiresAt: m.joinCodeExpiresAt,
+            )
+          else
+            m,
+      ],
+      seats: teamInfo.seats,
+      used: teamInfo.used,
+      plan: teamInfo.plan,
+      maxDuties: teamInfo.maxDuties,
+    );
   }
 
   @override

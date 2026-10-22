@@ -338,6 +338,9 @@ export const OWNER_INVITE_SETTINGS = {
 // admin (was a fixed 6). The yearly plan covers this many seats.
 export const OWNER_SEAT_SETTINGS = {
   'billing.max_assistant_seats': 10,
+  // Owner 2026-10-22: one assistant holds at most this many of the 10
+  // duties — more assistants, and nobody gets the whole account.
+  'assistants.max_duties': 3,
 } as const;
 
 // Owner 2026-10-17: percent (contingency) budgets and bids — a deal between

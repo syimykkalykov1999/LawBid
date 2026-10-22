@@ -96,6 +96,10 @@ const ASYNC_METHODS = new Set([
   'createCheckoutSession',
   'retrieveCheckoutSession',
   'setSeatQuantity',
+  // Owner 2026-10-22: seats charged now / removed at the period end.
+  'previewSeatIncrease',
+  'chargeSeatIncrease',
+  'voidInvoice',
   'switchToYearly',
   'retrieveInvoice',
   'retrieveCharge',

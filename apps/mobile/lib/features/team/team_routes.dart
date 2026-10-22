@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/navigation/app_page_transitions.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/features/team/presentation/assistant_join_screen.dart';
+import 'package:lawbid/features/team/presentation/assistant_roles_screen.dart';
 import 'package:lawbid/features/team/presentation/planner_task_sheet.dart';
 import 'package:lawbid/features/team/presentation/tasks_tab.dart';
 import 'package:lawbid/features/team/presentation/team_screen.dart';
@@ -12,6 +13,10 @@ import 'package:lawbid/features/team/presentation/team_screen.dart';
 /// OQ-048 routes: the attorney's Team, a new task, an assistant joining.
 abstract final class TeamRoutes {
   static const team = '/team';
+
+  /// Owner 2026-10-22: «Роли помощников» — the 10 duties, open to every
+  /// attorney (the Team tab's header).
+  static const roles = '/team/roles';
   static const newTask = '/tasks/new';
 
   /// Owner 2026-10-05: "+ Task" from a case or a chat — the new task is
@@ -53,6 +58,12 @@ List<RouteBase> teamRoutes(GlobalKey<NavigatorState> root) => [
         parentNavigatorKey: root,
         pageBuilder: (context, state) =>
             AppPageTransitions.push(state, const TeamScreen()),
+      ),
+      GoRoute(
+        path: TeamRoutes.roles,
+        parentNavigatorKey: root,
+        pageBuilder: (context, state) =>
+            AppPageTransitions.push(state, const AssistantRolesScreen()),
       ),
       GoRoute(
         path: TeamRoutes.newTask,

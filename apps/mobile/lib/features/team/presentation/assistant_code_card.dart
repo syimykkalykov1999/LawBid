@@ -6,7 +6,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
-import 'package:lawbid/features/subscription/subscription_routes.dart';
+import 'package:lawbid/features/subscription/presentation/seat_purchase_sheet.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/features/team/presentation/seat_limit_note.dart';
@@ -205,26 +205,10 @@ Future<void> addAssistantWithCode(
 ) async {
   final t = ref.read(translatorProvider);
   if (!team.hasFreeSeat) {
-    final go = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AppAlertDialog(
-        content: Text(t.t('team.noSeats')),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(t.t('common.cancel')),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(t.t('team.buySeats')),
-          ),
-        ],
-      ),
-    );
-    if ((go ?? false) && context.mounted) {
-      await context.push(SubscriptionRoutes.subscription);
-      ref.invalidate(teamProvider);
-    }
+    // Owner 2026-10-22: no free seat → buy one right here (charged now for
+    // the rest of the month); no paid plan → the plan picker; a trial →
+    // «after the first payment».
+    await buyAssistantSeats(context, ref);
     return;
   }
   final added = await showAppBottomSheet<TeamMember>(

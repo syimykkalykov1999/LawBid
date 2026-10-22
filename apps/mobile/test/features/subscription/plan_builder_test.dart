@@ -182,7 +182,11 @@ void main() {
       await tester.ensureVisible(save);
       await tester.pump();
       await tester.tap(save);
-      await tester.pump();
+      await tester.pumpAndSettle();
+      // Owner 2026-10-22: through the purchase sheet (charged now).
+      expect(repo.calls, contains('preview:2'));
+      await tester.tap(find.byKey(const ValueKey('seats-buy-pay')));
+      await tester.pumpAndSettle();
       expect(repo.calls, contains('seats:2'));
     });
   });

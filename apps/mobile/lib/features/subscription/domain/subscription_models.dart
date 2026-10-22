@@ -291,3 +291,79 @@ class WebCheckout {
   final int priceCents;
   final int trialDays;
 }
+
+/// Owner 2026-10-22: `POST /subscriptions/seats/preview` — what buying
+/// seats costs NOW (the prorated rest of the period) and per month after.
+@immutable
+class SeatPreview {
+  const SeatPreview({
+    required this.seats,
+    required this.currentSeats,
+    required this.amountNowCents,
+    required this.currency,
+    required this.prorationDate,
+    required this.seatCents,
+    required this.monthlyIncreaseCents,
+    required this.nextChargeCents,
+    this.periodEnd,
+  });
+
+  /// The wanted extra seats (on top of the plan's included ones).
+  final int seats;
+
+  /// Extra seats usable now.
+  final int currentSeats;
+  final int amountNowCents;
+  final String currency;
+
+  /// Sent back with the purchase so the charge equals what was shown.
+  final int prorationDate;
+
+  /// «до {date}»: the paid period ends.
+  final DateTime? periodEnd;
+  final int seatCents;
+
+  /// «затем +$Y/мес».
+  final int monthlyIncreaseCents;
+  final int nextChargeCents;
+}
+
+/// Owner 2026-10-22: what `POST /subscriptions/seats` did.
+enum SeatChangeStatus {
+  /// Paid; the seats are usable now.
+  applied,
+
+  /// The bank asks for 3-D Secure: confirm with
+  /// [SeatChangeOutcome.clientSecret].
+  requiresAction,
+
+  /// The card was declined; nothing changed.
+  failed,
+
+  /// Fewer seats from the period end (no refund).
+  scheduled;
+
+  static SeatChangeStatus parse(String? raw) => switch (raw) {
+        'applied' => applied,
+        'requires_action' => requiresAction,
+        'scheduled' => scheduled,
+        _ => failed,
+      };
+}
+
+@immutable
+class SeatChangeOutcome {
+  const SeatChangeOutcome({
+    required this.status,
+    required this.overview,
+    this.clientSecret,
+    this.amountCents = 0,
+    this.effectiveAt,
+  });
+
+  final SeatChangeStatus status;
+  final String? clientSecret;
+  final int amountCents;
+  final DateTime? effectiveAt;
+  final SubscriptionOverview overview;
+}

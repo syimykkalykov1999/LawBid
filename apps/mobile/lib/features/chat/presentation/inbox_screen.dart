@@ -369,26 +369,44 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                                         )
                                         .open,
                                   ),
-                                ] else
-                                // Owner 2026-10-01: in Team the bell gives
-                                // way to the team settings.
-                                if (tab == InboxTab.team)
-                                  SizedBox.square(
-                                    dimension: AppSizes.touchTarget,
-                                    child: AppIconButton(
-                                      key: const ValueKey('team-settings'),
-                                      icon: AppIcon(
-                                        AppIcons.manageAccountsOutlined,
-                                        size: 28,
-                                        color: colors.text,
+                                ] else ...[
+                                  // Owner 2026-10-22: «Роли помощников» — the
+                                  // 10 duties, next to the team settings.
+                                  if (tab == InboxTab.team)
+                                    SizedBox.square(
+                                      dimension: AppSizes.touchTarget,
+                                      child: AppIconButton(
+                                        key: const ValueKey('team-roles'),
+                                        icon: AppIcon(
+                                          AppIcons.badgeOutlined,
+                                          size: 26,
+                                          color: colors.text,
+                                        ),
+                                        semanticLabel: t.t('team.roles.title'),
+                                        onPressed: () =>
+                                            context.push(TeamRoutes.roles),
                                       ),
-                                      semanticLabel: t.t('team.title'),
-                                      onPressed: () =>
-                                          context.push(TeamRoutes.team),
                                     ),
-                                  )
-                                else
-                                  bell,
+                                  // Owner 2026-10-01: in Team the bell gives
+                                  // way to the team settings.
+                                  if (tab == InboxTab.team)
+                                    SizedBox.square(
+                                      dimension: AppSizes.touchTarget,
+                                      child: AppIconButton(
+                                        key: const ValueKey('team-settings'),
+                                        icon: AppIcon(
+                                          AppIcons.manageAccountsOutlined,
+                                          size: 28,
+                                          color: colors.text,
+                                        ),
+                                        semanticLabel: t.t('team.title'),
+                                        onPressed: () =>
+                                            context.push(TeamRoutes.team),
+                                      ),
+                                    )
+                                  else
+                                    bell,
+                                ],
                               ],
                             ),
                     ),
