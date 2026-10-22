@@ -194,6 +194,11 @@ export class PushDispatcher
     if (call.group_id) {
       // Owner 2026-10-21: «mute calls» of the group silences this too.
       if (await this.callsMutedFor(data.recipientId, call)) return 'no_push';
+      // Owner 2026-10-21 (inbox 30): «Calls» off — no «Join» notice (it
+      // is not a ringing call to me; the call stays in the group's list).
+      if (!(await this.pushAllowed(data.recipientId, 'calls'))) {
+        return 'disabled';
+      }
       return this.dispatchGroupCallNotice(data, call, invite, language);
     }
     // Owner 2026-10-02: calls switched off still come through — silently
@@ -452,13 +457,14 @@ export class PushDispatcher
         .join(' ');
       if (caller) shown = { title: caller, body: text.title };
     }
-    const badge = await this.badges.forIcon(n.user_id);
+    const icon = await this.badges.iconFor(n.user_id);
     await this.sender.send(
       {
         userId: n.user_id,
         ...shown,
         data: deepLink,
-        badge,
+        badge: icon.badge,
+        ...(icon.on ? {} : { iconBadge: false }),
         sound: 'notification',
         ...(n.type === 'task_reminder' ? { reminder: true } : {}),
       },
@@ -600,7 +606,7 @@ export class PushDispatcher
         return 'deferred';
       }
     }
-    const badge = await this.badges.forIcon(data.recipientId);
+    const icon = await this.badges.iconFor(data.recipientId);
     await this.sender.send(
       {
         userId: data.recipientId,
@@ -612,7 +618,8 @@ export class PushDispatcher
           conversationId: data.groupId,
           messageId: data.messageId,
         },
-        badge,
+        badge: icon.badge,
+        ...(icon.on ? {} : { iconBadge: false }),
         sound: 'message',
       },
       `m:${data.messageId}`,
@@ -760,7 +767,7 @@ export class PushDispatcher
         ? 'Помощник адвоката: '
         : "Attorney's assistant: "
       : '';
-    const badge = await this.badges.forIcon(data.recipientId);
+    const icon = await this.badges.iconFor(data.recipientId);
     let body = from + (preview || text.body);
     let collapseKey: string | undefined;
     let dedupeKey = `m:${data.messageId}`;
@@ -794,7 +801,8 @@ export class PushDispatcher
           conversationId: data.conversationId,
           messageId: data.messageId,
         },
-        badge,
+        badge: icon.badge,
+        ...(icon.on ? {} : { iconBadge: false }),
         sound: 'message',
         collapseKey,
       },

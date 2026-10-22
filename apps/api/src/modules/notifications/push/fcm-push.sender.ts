@@ -5,6 +5,7 @@ import type Redis from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
 import { REDIS_CLIENT } from '../../../redis/redis.constants';
 import {
+  NO_BADGE_CHANNEL_SUFFIX,
   PUSH_SOUNDS,
   type PushMessage,
   type PushSender,
@@ -150,7 +151,10 @@ export class FcmPushSender implements PushSender {
                                   ...(message.sound
                                     ? {
                                         channel_id:
-                                          PUSH_SOUNDS[message.sound].channelId,
+                                          PUSH_SOUNDS[message.sound].channelId +
+                                          (message.iconBadge === false
+                                            ? NO_BADGE_CHANNEL_SUFFIX
+                                            : ''),
                                         sound:
                                           PUSH_SOUNDS[message.sound].android,
                                       }

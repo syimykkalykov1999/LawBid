@@ -85,4 +85,10 @@ describe('PushDispatcher incoming call silence', () => {
     await d.dispatch(job, 'j');
     expect(sent).toHaveLength(0);
   });
+
+  it('sends no group «Join» notice while «Calls» is off (inbox 30)', async () => {
+    const { d, sent } = build({ group: true, callsOn: false });
+    expect(await d.dispatch(job, 'j')).toBe('disabled');
+    expect(sent).toHaveLength(0);
+  });
 });
