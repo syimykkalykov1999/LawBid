@@ -921,6 +921,7 @@ erDiagram
     Json payload
     DateTime read_at "nullable"
     DateTime created_at
+    DateTime updated_at
     String dedupe_key "nullable"
     Int aggregate_count
   }
