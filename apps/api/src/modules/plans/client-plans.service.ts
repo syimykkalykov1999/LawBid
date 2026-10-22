@@ -281,6 +281,9 @@ export class ClientPlansService {
         planCode: o.plan.code,
         priceCents: String(o.amount),
       },
+      // One subscription per saved card (audit #15): a retry of this
+      // confirm with the same SetupIntent reuses Stripe's answer.
+      idempotencyKey: `setup:${setupIntentId}`,
     });
     await this.prisma.clientSubscription.upsert({
       where: { user_id: user.sub },

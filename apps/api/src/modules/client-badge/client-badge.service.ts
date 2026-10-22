@@ -237,6 +237,9 @@ export class ClientBadgeService {
         userId,
         verificationId: row.id,
       },
+      // One subscription per saved card (audit #15): a retry of this
+      // confirm with the same SetupIntent reuses Stripe's answer.
+      idempotencyKey: `setup:${setupIntentId}`,
     });
     await this.prisma.clientVerification.update({
       where: { id: row.id },
