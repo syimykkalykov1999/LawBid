@@ -86,10 +86,24 @@ describe('Admin roles, presets and invite links (e2e)', () => {
       .post('/api/v1/admin/auth/login/password')
       .send({ login, password })
       .expect(200);
+    // Owner 2026-10-22: the authenticator is mandatory — the first sign-in
+    // binds it (QR secret + first code) before there is a session.
+    const step = (
+      signed.body.data as { ticket: string; totpSetupRequired: boolean }
+    ).ticket;
+    const setup = await api()
+      .post('/api/v1/admin/auth/login/totp-setup')
+      .send({ ticket: step })
+      .expect(200);
+    const secret = (setup.body.data as { secret: string }).secret;
+    const done = await api()
+      .post('/api/v1/admin/auth/login/totp-confirm')
+      .send({ ticket: step, code: totpCode(secret) })
+      .expect(200);
     const session = (
-      signed.body.data as { session: { accessToken: string } | null }
+      done.body.data as { session: { accessToken: string } | null }
     ).session;
-    if (!session) throw new Error('expected a session (no 2FA yet)');
+    if (!session) throw new Error('expected a session after the setup');
     return {
       admin,
       link,

@@ -224,7 +224,11 @@ describe('stage 6.2 — admin auth, RBAC, audit, admins, dashboard (e2e)', () =>
     await api()
       .put('/api/v1/admin/auth/me/credentials')
       .set(sup.auth)
-      .send({ newLogin: login, newPassword: 'Strong-pass-2026!' })
+      .send({
+        currentPassword: E2E_ADMIN_PASSWORD,
+        newLogin: login,
+        newPassword: 'Strong-pass-2026!',
+      })
       .expect(200);
     await api()
       .post('/api/v1/admin/auth/login/password')
