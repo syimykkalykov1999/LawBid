@@ -11,7 +11,7 @@ Owner: phone-book contacts stopped loading after #229 (100-hash parts); the book
 
 - Cause: #229 split the book into ~8 requests per pass, but `app_config` kept an admin-saved `rate_limit.contacts_sync_per_day = 10` (the new default 60 never applied), so the second pass of a day answered 429 from the 3rd part (reproduced on the local API); any other error (the WAF's 403 on bodies over 8 KB in prod) failed the whole tab.
 - Infra: the WAF rule `body-size` (modules/alb) also exempts `POST /api/v1/contacts/sync` and `/api/v1/crash-reports`; the owner applies it (`infra/README.md`, Decisions).
-- API: up to 10 000 hashes per request (1 MB body cap for that route only); the request limit is per hour (`rate_limit.contacts_sync_per_hour`, 60) instead of per day; the daily caps count distinct numbers (Redis HyperLogLog: 10 000 per account, 50 000 per address), so re-syncing the same book costs nothing. Migration 20261022090000 drops the stale per-day row. Old builds' 100-hash parts still work.
+- API: up to 10 000 hashes per request (1 MB body cap for that route only); the request limit is per hour (`rate_limit.contacts_sync_per_hour`, 60) instead of per day; the daily caps count distinct numbers (Redis HyperLogLog: 10 000 per account, 50 000 per address), so re-syncing the same book costs nothing. Migration 20261022110000 drops the stale per-day row. Old builds' 100-hash parts still work.
 - App: one request for the whole book; 100-hash parts only after a 403/413 from the firewall; the book is on screen before the answer and fills in as parts answer; a failed answer keeps «Пригласить» rows and the known matches and retries quietly (10 s, 30 s, 2 min).
 
 ## Planner reminders and alarms «like a clock» (2026-10-20)
