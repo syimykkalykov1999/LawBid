@@ -7,8 +7,13 @@ import {
   Matches,
 } from 'class-validator';
 
-/** Most hashes in one upload; the app sends bigger books in chunks. */
-export const CONTACT_HASHES_MAX = 2000;
+/**
+ * Most hashes in one upload. Owner 2026-10-22: the whole phone book goes up
+ * in one request (10 000 hashes ≈ 670 KB; this route's body limit is
+ * CONTACTS_BODY_LIMIT in app.setup.ts and the firewall exempts the path,
+ * infra/modules/alb). Old builds still send 100-hash parts, which work too.
+ */
+export const CONTACT_HASHES_MAX = 10000;
 
 export class UploadContactHashesDto {
   @ApiProperty({

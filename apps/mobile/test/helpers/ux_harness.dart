@@ -63,7 +63,10 @@ class _NoContactsSync implements ContactsSyncRepository {
       const ContactsSyncStatus(enabled: false, matches: 0);
 
   @override
-  Future<ContactsUploadResult> upload(Set<String> hashes) async =>
+  Future<ContactsUploadResult> upload(
+    Set<String> hashes, {
+    ContactsUploadProgress? onProgress,
+  }) async =>
       const ContactsUploadResult(matched: 0, people: []);
 
   @override

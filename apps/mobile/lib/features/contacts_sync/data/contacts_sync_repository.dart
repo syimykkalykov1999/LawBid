@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:dio/dio.dart';
 import 'package:lawbid/core/network/api_error.dart';
 
@@ -47,11 +49,27 @@ class ContactPerson {
 
 /// Answer of one upload: how many matched and who.
 class ContactsUploadResult {
-  const ContactsUploadResult({required this.matched, required this.people});
+  const ContactsUploadResult({
+    required this.matched,
+    required this.people,
+    this.uploaded = const {},
+    this.limited = false,
+  });
 
   final int matched;
   final List<ContactPerson> people;
+
+  /// The hashes the server has seen (all of them unless [limited]).
+  final Set<String> uploaded;
+
+  /// The server's limit (429) stopped the upload part-way: [people] is what
+  /// came back before it.
+  final bool limited;
 }
+
+/// Called with everything received so far after each part (one call when
+/// the whole book goes up in one request).
+typedef ContactsUploadProgress = void Function(ContactsUploadResult soFar);
 
 /// Owner 2026-10-13: `/contacts/sync`. Only
 /// SHA-256 hashes of phone numbers are sent (see phone_numbers.dart).
@@ -60,8 +78,13 @@ class ContactsUploadResult {
 abstract interface class ContactsSyncRepository {
   Future<ContactsSyncStatus> status();
 
-  /// Uploads [hashes] in chunks; returns who belongs to LawBid.
-  Future<ContactsUploadResult> upload(Set<String> hashes);
+  /// Uploads [hashes] (the whole book in one request, parts only when the
+  /// firewall refuses a big body); returns who belongs to LawBid. A 429 is
+  /// not thrown: the result is [ContactsUploadResult.limited].
+  Future<ContactsUploadResult> upload(
+    Set<String> hashes, {
+    ContactsUploadProgress? onProgress,
+  });
 
   /// Turns the sync off and deletes every match.
   Future<void> remove();
@@ -74,11 +97,20 @@ class ApiContactsSyncRepository implements ContactsSyncRepository {
 
   final Dio _dio;
 
-  /// The load balancer's firewall refuses bodies over 8 KB (a hash is ~68
-  /// bytes in JSON): 100 hashes stay near 7 KB. Prod 2026-10-21: 2000 per
-  /// request answered 403 before the API saw it. The server's own cap
-  /// (CONTACT_HASHES_MAX) is higher.
-  static const chunkSize = 100;
+  /// Owner 2026-10-22: the whole phone book goes up in ONE request (the
+  /// server takes up to CONTACT_HASHES_MAX = 10 000 hashes; the firewall
+  /// exempts this path, infra/modules/alb). Bigger books go in parts of
+  /// this size.
+  static const maxPerRequest = 10000;
+
+  /// Fallback only: when the load balancer's firewall refuses the big body
+  /// (403, or 413) — e.g. before the WAF exemption is applied — the book
+  /// goes in parts of 100 hashes (~7 KB, under its 8 KB rule).
+  static const fallbackChunkSize = 100;
+
+  /// Set after the firewall refused a big body once: the rest of this app
+  /// session goes straight to small parts.
+  bool _smallParts = false;
 
   @override
   Future<ContactsSyncStatus> status() async {
@@ -97,21 +129,43 @@ class ApiContactsSyncRepository implements ContactsSyncRepository {
   }
 
   @override
-  Future<ContactsUploadResult> upload(Set<String> hashes) async {
+  Future<ContactsUploadResult> upload(
+    Set<String> hashes, {
+    ContactsUploadProgress? onProgress,
+  }) async {
     final all = hashes.toList(growable: false);
     var matched = 0;
     final people = <ContactPerson>[];
-    for (var i = 0; i < all.length; i += chunkSize) {
-      final chunk = all.sublist(
-        i,
-        i + chunkSize > all.length ? all.length : i + chunkSize,
-      );
-      final res = await guardApiCall(
-        () => _dio.post<Map<String, Object?>>(
-          '/contacts/sync',
-          data: {'hashes': chunk},
-        ),
-      );
+    final uploaded = <String>{};
+    ContactsUploadResult soFar({bool limited = false}) => ContactsUploadResult(
+          matched: matched,
+          people: List.unmodifiable(people),
+          uploaded: Set.unmodifiable(uploaded),
+          limited: limited,
+        );
+    var size = _smallParts ? fallbackChunkSize : maxPerRequest;
+    var i = 0;
+    while (i < all.length) {
+      final part = all.sublist(i, math.min(i + size, all.length));
+      final Response<Map<String, Object?>> res;
+      try {
+        res = await guardApiCall(
+          () => _dio.post<Map<String, Object?>>(
+            '/contacts/sync',
+            data: {'hashes': part},
+          ),
+        );
+      } on ApiException catch (e) {
+        final firewall = e.statusCode == 403 || e.statusCode == 413;
+        if (firewall && size > fallbackChunkSize) {
+          // The same part again, smaller.
+          _smallParts = true;
+          size = fallbackChunkSize;
+          continue;
+        }
+        if (e.statusCode == 429) return soFar(limited: true);
+        rethrow;
+      }
       final data = (res.data?['data'] as Map?)?.cast<String, Object?>();
       matched += (data?['matched'] as num?)?.toInt() ?? 0;
       for (final raw in (data?['people'] as List?) ?? const []) {
@@ -130,8 +184,11 @@ class ApiContactsSyncRepository implements ContactsSyncRepository {
           ),
         );
       }
+      uploaded.addAll(part);
+      i += part.length;
+      onProgress?.call(soFar());
     }
-    return ContactsUploadResult(matched: matched, people: people);
+    return soFar();
   }
 
   @override

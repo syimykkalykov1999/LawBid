@@ -124,6 +124,23 @@ After the first apply:
 - Redis and PostgreSQL are private (no public endpoints); the tasks reach
   AWS APIs through VPC endpoints and the internet (Stripe, Twilio, FCM)
   through the NAT gateways.
+- WAF body size (`modules/alb`, rule `body-size`): the AWS common rule set's
+  `SizeRestrictions_BODY` only counts; our own rule blocks bodies over
+  8 KB everywhere except the admin panel, Stripe webhooks, the phone-book
+  upload `POST /api/v1/contacts/sync` and `/api/v1/crash-reports`
+  (owner 2026-10-22: the whole phone book goes up in one request again, and
+  a crash report with its stack trace is easily over 8 KB). For an ALB the
+  WAF can only look at the first 8 KB of a body (the bigger `request_body`
+  inspection limit exists for CloudFront / API Gateway, not for an ALB), so
+  a path exemption is the way to let these through. The API still caps them:
+  1 MB / 10 000 hashes for the contacts path, `BODY_LIMIT_KB` (256 KB) for
+  every other route.
+
+  **Owner, to apply (once):** `cd infra/envs/prod && terraform plan` — the
+  only change should be `aws_wafv2_web_acl.this` updated in place (two new
+  statements in rule `body-size`); then `terraform apply`. Same for
+  staging. No downtime. Until it is applied, the new app falls back to
+  parts of 100 numbers by itself when the firewall answers 403/413.
 
 ## State and secrets
 

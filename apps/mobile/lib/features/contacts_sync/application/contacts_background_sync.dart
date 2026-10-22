@@ -88,7 +88,9 @@ class ContactsBackgroundSync with WidgetsBindingObserver {
       if (!status.enabled) return;
       final kv = _ref.read(localKvStoreProvider);
       final data = await _ref.refresh(phoneContactsProvider.future);
-      if (data.denied) return;
+      // A pass whose match request failed is tried again at the next start
+      // (and its "known" list would be the old one).
+      if (data.denied || data.matchFailed) return;
       final known = {
         for (final id in (jsonDecode(
           kv.getString(_key(_knownKey, me)) ?? '[]',
