@@ -141,6 +141,23 @@ class FollowOverrides extends Notifier<Map<String, bool>> {
 final followOverridesProvider =
     NotifierProvider<FollowOverrides, Map<String, bool>>(FollowOverrides.new);
 
+/// Owner 2026-10-22 (package D): follower counts the server answered to a
+/// follow / unfollow in this session, by attorney id — the profile shows
+/// them without being re-read.
+class FollowerCounts extends Notifier<Map<String, int>> {
+  @override
+  Map<String, int> build() {
+    ref.watch(currentUserIdProvider);
+    return const {};
+  }
+
+  void put(String attorneyId, int count) =>
+      state = {...state, attorneyId: count};
+}
+
+final followerCountsProvider =
+    NotifierProvider<FollowerCounts, Map<String, int>>(FollowerCounts.new);
+
 // --- Feed (docs/05 §2) -----------------------------------------------------
 
 class FeedNotifier extends PagedNotifier<Post> {
@@ -894,19 +911,19 @@ class SocialActions {
         final overrides = _ref.read(followOverridesProvider.notifier);
         // ignore: cascade_invocations
         overrides.put(attorneyId, following);
+        final FollowState result;
         try {
-          await _repo.setFollowing(attorneyId, following: following);
+          result = await _repo.setFollowing(attorneyId, following: following);
         } on Object {
           overrides.put(attorneyId, !following);
           rethrow;
         }
-        // Audit 2026-10-02: follower counts and follow lists follow at once
-        // (the server includes not-yet-flushed counters).
+        // Owner 2026-10-22 (package D): the answer carries the new state
+        // and follower count — applied here, nothing is re-read.
+        overrides.put(attorneyId, result.following);
         _ref
-          ..invalidate(publicAttorneyProfileProvider)
-          ..invalidate(publicClientProfileProvider)
-          ..invalidate(followListProvider)
-          ..invalidate(suggestionsProvider);
+            .read(followerCountsProvider.notifier)
+            .put(attorneyId, result.followersCount);
       });
 
   Future<Object?> report(

@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:lawbid/core/cache/http_cache_interceptor.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/limits/text_limits.dart';
 import 'package:lawbid/core/network/api_error.dart';
@@ -258,7 +259,11 @@ abstract interface class SocialRepository {
   Future<void> deleteComment(String commentId);
   Future<void> setCommentLiked(String commentId, {required bool liked});
 
-  Future<void> setFollowing(String attorneyId, {required bool following});
+  /// Answers the new state and follower count (applied locally).
+  Future<FollowState> setFollowing(
+    String attorneyId, {
+    required bool following,
+  });
 
   /// OQ-026: attorneys and clients who follow [attorneyId].
   ///
@@ -821,12 +826,20 @@ class ApiSocialRepository implements SocialRepository {
   }
 
   @override
-  Future<void> setFollowing(String attorneyId, {required bool following}) =>
-      guardApiCall(
-        () => following
-            ? _follows.followAttorney(id: attorneyId)
-            : _follows.unfollowAttorney(id: attorneyId),
-      );
+  Future<FollowState> setFollowing(
+    String attorneyId, {
+    required bool following,
+  }) async {
+    final env = await guardApiCall(
+      () => following
+          ? _follows.followAttorney(id: attorneyId)
+          : _follows.unfollowAttorney(id: attorneyId),
+    );
+    return FollowState(
+      following: env.data.following,
+      followersCount: env.data.followersCount,
+    );
+  }
 
   Future<CursorPage<AttorneyRow>> _rows(
     Future<api.AttorneyListItemListEnvelope> Function() call,
@@ -878,8 +891,12 @@ class ApiSocialRepository implements SocialRepository {
   }
 
   @override
-  Future<CursorPage<AttorneyRow>> suggestions({String? cursor}) =>
-      _rows(() => _follows.listSuggestedAttorneys(cursor: cursor));
+  Future<CursorPage<AttorneyRow>> suggestions({String? cursor}) => _rows(
+        () => _follows.listSuggestedAttorneys(
+          cursor: cursor,
+          extras: cursor == null ? cacheFor(const Duration(minutes: 30)) : null,
+        ),
+      );
 
   @override
   Future<void> report(

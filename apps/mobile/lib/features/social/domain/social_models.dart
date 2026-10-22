@@ -652,3 +652,13 @@ class PersonRow {
   String get id => attorney?.id ?? client!.id;
   String get username => attorney?.username ?? client!.username;
 }
+
+/// Owner 2026-10-22 (client economy plan, package D): what `POST / DELETE
+/// /attorneys/{id}/follow` answers — the profile is corrected locally
+/// instead of being re-read.
+class FollowState {
+  const FollowState({required this.following, required this.followersCount});
+
+  final bool following;
+  final int followersCount;
+}

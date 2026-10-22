@@ -7,6 +7,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/time/resume_refresh_gate.dart';
 import 'package:lawbid/features/case_payments/application/case_payments_providers.dart';
 import 'package:lawbid/features/case_payments/case_payments_routes.dart';
 import 'package:lawbid/features/case_payments/domain/case_payment_models.dart';
@@ -36,7 +37,7 @@ class CasePaymentsCard extends ConsumerStatefulWidget {
 }
 
 class _CasePaymentsCardState extends ConsumerState<CasePaymentsCard>
-    with WidgetsBindingObserver {
+    with WidgetsBindingObserver, ResumeRefreshGate {
   @override
   void initState() {
     super.initState();
@@ -52,7 +53,7 @@ class _CasePaymentsCardState extends ConsumerState<CasePaymentsCard>
   // Back from Stripe's page: the state call checks the open session.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
+    if (resumeNeedsRefresh(state)) {
       ref.invalidate(casePaymentsStateProvider(widget.caseId));
     }
   }
@@ -61,6 +62,7 @@ class _CasePaymentsCardState extends ConsumerState<CasePaymentsCard>
 
   /// Two taps: «Оплатить» on the invoice, then Stripe's page.
   Future<void> _payRequest(PaymentRequest r) async {
+    expectExternalReturn();
     final t = ref.read(translatorProvider);
     try {
       final start =

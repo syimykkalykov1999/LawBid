@@ -1,7 +1,4 @@
 import 'package:drift/drift.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:lawbid/core/persistence/drift_memory_stub.dart'
-    if (dart.library.js_interop) 'package:lawbid/core/persistence/drift_memory_web.dart';
 import 'package:lawbid/core/persistence/drift_web.dart';
 
 part 'cache_database.g.dart';
@@ -127,15 +124,7 @@ class CachedTranslations extends Table {
 )
 class CacheDatabase extends _$CacheDatabase {
   CacheDatabase([QueryExecutor? executor])
-      : super(executor ?? _defaultExecutor());
-
-  static QueryExecutor _defaultExecutor() {
-    if (!kIsWeb) return appDriftDatabase('lawbid_cache');
-    return LazyDatabase(() async {
-      final memory = await openMemoryDatabase(appDriftWebOptions.sqlite3Wasm);
-      return memory ?? appDriftDatabase('lawbid_cache');
-    });
-  }
+      : super(executor ?? appDriftCacheDatabase('lawbid_cache'));
 
   @override
   int get schemaVersion => 1;

@@ -183,6 +183,7 @@ abstract interface class CasesRepository {
     List<String> states = const [],
   });
   Future<FeedCase> attorneyCase(String caseId);
+
   /// Owner 2026-10-22 (client economy plan, package A): views of several
   /// cases in one `POST /cases/views` (1–50 ids).
   Future<void> recordViews(List<String> caseIds);

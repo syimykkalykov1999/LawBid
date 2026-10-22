@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:lawbid/core/cache/http_cache_interceptor.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/partners/domain/partner_models.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
@@ -9,8 +10,14 @@ class PartnersRepository {
 
   final api.PartnersClient _api;
 
-  Future<PartnerMe> me() async =>
-      _map((await guardApiCall(_api.getMyPartnerDashboard)).data);
+  Future<PartnerMe> me() async => _map(
+        (await guardApiCall(
+          () => _api.getMyPartnerDashboard(
+            extras: cacheFor(const Duration(hours: 1)),
+          ),
+        ))
+            .data,
+      );
 
   /// Owner 2026-10-05: attorneys and clients take their link themselves.
   /// Owner 2026-10-05 (legal): only after accepting the partner rules —

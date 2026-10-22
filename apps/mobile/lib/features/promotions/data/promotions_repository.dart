@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:lawbid/core/cache/http_cache_interceptor.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/request_flags.dart';
 import 'package:lawbid/features/promotions/domain/promotion_models.dart';
@@ -106,7 +107,12 @@ class PromotionsRepository {
 
   /// "My promotions" — reach, clicks, progress.
   Future<PromotionPage> mine({String? cursor}) async {
-    final r = await guardApiCall(() => _api.listMyPromotions(cursor: cursor));
+    final r = await guardApiCall(
+      () => _api.listMyPromotions(
+        cursor: cursor,
+        extras: cursor == null ? cacheFor(const Duration(hours: 1)) : null,
+      ),
+    );
     return PromotionPage(
       items: [
         for (final d in r.data)

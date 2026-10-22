@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/core/cache/http_cache_interceptor.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/features/onboarding/domain/us_states.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
@@ -9,8 +10,8 @@ import 'package:lawbid_api/lawbid_api.dart' as api;
 /// bundled USA so sign-up never breaks offline.
 final countriesProvider = FutureProvider<List<CountryInfo>>((ref) async {
   try {
-    final res =
-        await api.CountriesClient(ref.watch(dioProvider)).listCountries();
+    final res = await api.CountriesClient(ref.watch(dioProvider))
+        .listCountries(extras: cacheFor(const Duration(hours: 24)));
     RegionCatalog.replace([
       for (final c in res.data)
         CountryInfo(

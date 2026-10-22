@@ -7,6 +7,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/time/resume_refresh_gate.dart';
 import 'package:lawbid/features/cases/tools/billing_data.dart';
 import 'package:lawbid/features/cases/tools/billing_logic.dart';
 import 'package:lawbid/features/cases/tools/billing_sheets.dart';
@@ -29,7 +30,7 @@ class BillingTab extends ConsumerStatefulWidget {
 }
 
 class _BillingTabState extends ConsumerState<BillingTab>
-    with WidgetsBindingObserver {
+    with WidgetsBindingObserver, ResumeRefreshGate {
   bool _busy = false;
 
   @override
@@ -47,7 +48,7 @@ class _BillingTabState extends ConsumerState<BillingTab>
   /// A timer may have been stopped elsewhere while the app slept.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
+    if (resumeNeedsRefresh(state)) {
       unawaited(ref.read(caseBillingActionsProvider).reload(widget.caseId));
     }
   }

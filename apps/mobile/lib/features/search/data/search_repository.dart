@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show listEquals;
+import 'package:lawbid/core/cache/http_cache_interceptor.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/cases/data/cases_mappers.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
@@ -421,8 +422,9 @@ class ApiSearchRepository implements SearchRepository {
           .toList();
 
   @override
-  Future<List<TagInfo>> trending() async =>
-      (await guardApiCall(_search.trending))
+  Future<List<TagInfo>> trending() async => (await guardApiCall(
+        () => _search.trending(extras: cacheFor(const Duration(minutes: 10))),
+      ))
           .data
           .map(
             (d) => TagInfo(

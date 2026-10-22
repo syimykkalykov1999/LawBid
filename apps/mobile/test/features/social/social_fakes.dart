@@ -102,11 +102,12 @@ class FakeSocialRepository implements SocialRepository {
   }
 
   @override
-  Future<void> setFollowing(
+  Future<FollowState> setFollowing(
     String attorneyId, {
     required bool following,
   }) async {
     followCalls.add((attorneyId, following));
+    return FollowState(following: following, followersCount: following ? 1 : 0);
   }
 
   @override

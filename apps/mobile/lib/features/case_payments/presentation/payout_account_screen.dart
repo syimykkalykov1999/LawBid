@@ -4,6 +4,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/time/resume_refresh_gate.dart';
 import 'package:lawbid/features/case_payments/application/case_payments_providers.dart';
 import 'package:lawbid/features/case_payments/domain/case_payment_models.dart';
 import 'package:lawbid/features/case_payments/presentation/case_payment_widgets.dart';
@@ -21,7 +22,7 @@ class PayoutAccountScreen extends ConsumerStatefulWidget {
 }
 
 class _PayoutAccountScreenState extends ConsumerState<PayoutAccountScreen>
-    with WidgetsBindingObserver {
+    with WidgetsBindingObserver, ResumeRefreshGate {
   bool _busy = false;
 
   @override
@@ -39,9 +40,7 @@ class _PayoutAccountScreenState extends ConsumerState<PayoutAccountScreen>
   // Back from Stripe's onboarding: re-read the account.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      ref.invalidate(payoutAccountProvider);
-    }
+    if (resumeNeedsRefresh(state)) ref.invalidate(payoutAccountProvider);
   }
 
   Future<void> _refresh() async {
@@ -63,6 +62,7 @@ class _PayoutAccountScreenState extends ConsumerState<PayoutAccountScreen>
   }
 
   Future<void> _open(Future<String> Function() link) async {
+    expectExternalReturn();
     final t = ref.read(translatorProvider);
     setState(() => _busy = true);
     try {

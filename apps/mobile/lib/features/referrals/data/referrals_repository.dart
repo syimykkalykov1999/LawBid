@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:lawbid/core/cache/http_cache_interceptor.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/referrals/domain/referral_models.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
@@ -10,7 +11,10 @@ class ReferralsRepository {
   final api.ReferralsClient _api;
 
   Future<ReferralMe> me() async {
-    final d = (await guardApiCall(_api.getMyReferrals)).data;
+    final d = (await guardApiCall(
+      () => _api.getMyReferrals(extras: cacheFor(const Duration(hours: 1))),
+    ))
+        .data;
     return ReferralMe(
       enabled: d.enabled,
       code: d.code,
