@@ -185,7 +185,8 @@ void main() {
     final never = Completer<PhoneContacts>();
     await tester.pumpWidget(
       uxApp(
-        const ContactsScreen(),
+        // The «Contacts» tab (the screen opens on «Chats» since #237).
+        const ContactsScreen(initialContacts: true),
         theme: AppTheme.light(),
         size: narrowPhone,
         disableAnimations: true,
@@ -209,7 +210,8 @@ void main() {
     useNarrowPhone(tester);
     await tester.pumpWidget(
       uxApp(
-        const ContactsScreen(),
+        // The «Contacts» tab (the screen opens on «Chats» since #237).
+        const ContactsScreen(initialContacts: true),
         theme: AppTheme.light(),
         size: narrowPhone,
         disableAnimations: true,
