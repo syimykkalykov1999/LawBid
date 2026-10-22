@@ -6,7 +6,11 @@ import { ErrorCode } from '../errors/error-code.enum';
  * shapes in OpenAPI; they are never instantiated. */
 export interface ApiSuccessBody<T> {
   data: T;
-  meta?: { nextCursor?: string | null } & Record<string, unknown>;
+  meta?: {
+    nextCursor?: string | null;
+    deletedIds?: string[];
+    syncedAt?: string;
+  } & Record<string, unknown>;
 }
 
 export interface ApiErrorBody {
@@ -28,6 +32,20 @@ export class ResponseMetaDto {
     description: 'Opaque cursor for the next page; null on the last page.',
   })
   nextCursor?: string | null;
+
+  @ApiPropertyOptional({
+    type: [String],
+    description:
+      'Owner 2026-10-22 (delta sync): with ?updatedSince — ids of rows that left the list (deleted, hidden, no longer mine).',
+  })
+  deletedIds?: string[];
+
+  @ApiPropertyOptional({
+    format: 'date-time',
+    description:
+      'Owner 2026-10-22 (delta sync): with ?updatedSince — the newest updated_at of this answer; pass it back as updatedSince next time.',
+  })
+  syncedAt?: string;
 }
 
 /** `error` of the error envelope. `code` is the one ErrorCode enum shared

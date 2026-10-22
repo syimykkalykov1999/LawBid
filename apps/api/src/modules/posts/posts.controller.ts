@@ -14,6 +14,7 @@ import {
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiExtension,
   ApiHeader,
   ApiOperation,
   ApiTags,
@@ -290,11 +291,17 @@ export class PostsController {
     return this.engagement.share(user.sub, p.id);
   }
 
+  // Owner 2026-10-22 (client economy plan, package A): kept for older
+  // apps; new apps batch views through POST /posts/events (kind 'view').
   @Post('posts/:id/view')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: 'Count a view of a video post / reel (idempotent, one per viewer)',
+    description:
+      'Deprecated (owner 2026-10-22): send kind "view" in POST /posts/events instead — one request for many posts.',
+    deprecated: true,
   })
+  @ApiExtension('x-sunset', '2027-06-30')
   @ApiErrors({ 404: [E.POST_NOT_FOUND] })
   viewPost(
     @CurrentUser() user: RequestUser,
@@ -309,7 +316,9 @@ export class PostsController {
   @Post('posts/events')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
-    summary: 'Record post impressions / profile visits from a post (batch)',
+    summary: 'Record post impressions / views / profile visits (batch)',
+    description:
+      'Owner 2026-10-22: kind "view" (a post or reel seen ≥ 50 % for ≥ 1 s) counts like POST /posts/:id/view — once per viewer per 24 h, never the author. Send up to 50 events per request.',
   })
   @ApiErrors({ 400: [E.VALIDATION_ERROR] })
   recordPostEvents(

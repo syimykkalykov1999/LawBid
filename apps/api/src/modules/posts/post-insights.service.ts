@@ -63,6 +63,22 @@ export class PostInsightsService {
       select: { id: true, author_id: true },
     });
     const authorOf = new Map(posts.map((p) => [p.id, p.author_id]));
+    // Owner 2026-10-22 (package A): a batched 'view' is the same as
+    // POST /posts/:id/view — the per-viewer row (once ever) plus the
+    // 24 h-deduplicated event that moves view_count.
+    const viewed = [...unique.values()]
+      .filter((e) => e.kind === 'view')
+      .map((e) => e.postId)
+      .filter((id) => {
+        const a = authorOf.get(id);
+        return !!a && a !== user.sub;
+      });
+    if (viewed.length > 0) {
+      await this.prisma.postView.createMany({
+        data: viewed.map((postId) => ({ post_id: postId, user_id: user.sub })),
+        skipDuplicates: true,
+      });
+    }
     for (const e of unique.values()) {
       const authorId = authorOf.get(e.postId);
       if (!authorId || authorId === user.sub) continue;

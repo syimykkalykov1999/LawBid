@@ -13,9 +13,14 @@ import {
   ValidateNested,
 } from 'class-validator';
 
-/** Owner 2026-10-18: the kinds the app reports (a reel 'view' has its own
- * POST /posts/:id/view). */
-export const CLIENT_POST_EVENT_KINDS = ['impression', 'profile_visit'] as const;
+/** Owner 2026-10-18: the kinds the app reports. Owner 2026-10-22 (client
+ * economy plan, package A): 'view' too — a post / reel seen ≥ 50 % for
+ * ≥ 1 s, batched here instead of one POST /posts/:id/view per post. */
+export const CLIENT_POST_EVENT_KINDS = [
+  'impression',
+  'profile_visit',
+  'view',
+] as const;
 export type ClientPostEventKind = (typeof CLIENT_POST_EVENT_KINDS)[number];
 
 /** At most this many events in one batch. */
@@ -32,7 +37,7 @@ export class PostEventItemDto {
 }
 
 /** POST /posts/events — impressions of cards seen in a list, profile
- * visits made from a post. */
+ * visits made from a post, views (owner 2026-10-22). */
 export class RecordPostEventsDto {
   @ApiProperty({
     type: [PostEventItemDto],

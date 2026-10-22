@@ -10,7 +10,12 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiExtension,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 import {
   ApiEnvelopeResponse,
   ApiErrors,
@@ -25,6 +30,7 @@ import {
   CaseDetailForAttorneyDto,
   CaseFeedItemDto,
   CaseIdParamDto,
+  CaseViewsDto,
   ListCasesFeedQueryDto,
   SavedItemDto,
   type CaseFeedPage,
@@ -85,18 +91,43 @@ export class CasesFeedController {
   }
 
   // Audit 2026-10-02: assistants need the "cases" duty.
+  // Owner 2026-10-22 (client economy plan, package A): kept for older
+  // apps; new apps batch views through POST /cases/views.
   @RequiresDuty('cases')
   @Post('cases/:id/view')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: 'Record a view, deduplicated per (attorney, case) (docs/04 §4.3)',
+    description:
+      'Deprecated (owner 2026-10-22): send the ids in POST /cases/views instead — one request for many cases.',
+    deprecated: true,
   })
+  @ApiExtension('x-sunset', '2027-06-30')
   @ApiErrors({ 404: [E.CASE_NOT_AVAILABLE] })
   async recordCaseView(
     @CurrentUser() user: RequestUser,
     @Param() params: CaseIdParamDto,
   ): Promise<void> {
     await this.feed.recordView(user.sub, params.id);
+  }
+
+  // Owner 2026-10-22 (client economy plan, package A): the cards an
+  // attorney opened, in one request (the app flushes every few seconds).
+  // Unknown / invisible cases are skipped silently; dedup per (attorney,
+  // case) stays on the server.
+  @RequiresDuty('cases')
+  @Post('cases/views')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary:
+      'Record views of several cases (batch; replaces POST /cases/:id/view)',
+  })
+  @ApiErrors({ 400: [E.VALIDATION_ERROR] })
+  async recordCaseViews(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: CaseViewsDto,
+  ): Promise<void> {
+    await this.feed.recordViews(user.sub, dto.caseIds);
   }
 
   @Post('saved-items')
