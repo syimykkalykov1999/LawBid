@@ -1,9 +1,10 @@
 import 'dart:typed_data';
 
-import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/request_flags.dart';
+import 'package:lawbid/core/uploads/storage_uploader.dart';
+import 'package:lawbid/core/uploads/upload_body.dart';
 import 'package:lawbid/features/support/domain/support_models.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
@@ -11,17 +12,13 @@ import 'package:lawbid_api/lawbid_api.dart' as api;
 class SupportRepository {
   SupportRepository(Dio dio, {Dio? storageDio})
       : _api = api.SupportClient(dio),
-        _files = api.FilesClient(dio),
-        _storage = storageDio ?? dio;
+        _uploader = StorageUploader.dio(dio, storageDio ?? dio);
 
   final api.SupportClient _api;
-  final api.FilesClient _files;
-  final Dio _storage;
+  final StorageUploader _uploader;
 
   /// The hard ceiling of the `support` place (the admin's MB is lower).
   static const _ceilingBytes = 100 * 1024 * 1024;
-  static const _scanPoll = Duration(milliseconds: 700);
-  static const _scanMaxPolls = 40;
 
   /// Owner 2026-10-18 (OQ-055): presign → upload → confirm → clean scan of
   /// a photo, video or document for a ticket message (purpose
@@ -39,62 +36,13 @@ class SupportRepository {
         message: 'size',
       );
     }
-    final target = (await guardApiCall(
-      () => _files.presign(
-        body: api.PresignFileDto(
-          purpose: api.FilePurpose.supportAttachment,
-          mime: mime,
-          sizeBytes: bytes.length,
-          sha256: sha256.convert(bytes).toString(),
-        ),
-        extras: const {RequestFlags.createsResource: true},
-      ),
-    ))
-        .data;
-    final parts = mime.split('/');
-    try {
-      await _storage.post<void>(
-        target.upload.url,
-        data: FormData.fromMap({
-          ...target.upload.fields,
-          // S3 POST policy: the file must be the LAST field.
-          'file': MultipartFile.fromBytes(
-            bytes,
-            filename: 'file',
-            contentType: DioMediaType(parts.first, parts.last),
-          ),
-        }),
-        onSendProgress: (sent, total) {
-          if (total > 0) onProgress?.call(sent / total);
-        },
-      );
-    } on DioException catch (e) {
-      throw ApiException(
-        code: e.response == null
-            ? ApiException.networkErrorCode
-            : ApiErrorCodes.fileNotUploaded,
-        message: 'Upload to storage failed.',
-        statusCode: e.response?.statusCode,
-      );
-    }
-    var status = (await guardApiCall(() => _files.confirm(id: target.fileId)))
-        .data
-        .scanStatus;
-    for (var i = 0;
-        status == api.ScanStatus.pending && i < _scanMaxPolls;
-        i++) {
-      await Future<void>.delayed(_scanPoll);
-      status = (await guardApiCall(() => _files.getFilesId(id: target.fileId)))
-          .data
-          .scanStatus;
-    }
-    if (status != api.ScanStatus.clean) {
-      throw const ApiException(
-        code: ApiErrorCodes.fileNotAttachable,
-        message: 'scan',
-      );
-    }
-    return target.fileId;
+    // Owner 2026-10-22 (audit #4 §3): the shared uploader.
+    return _uploader.upload(
+      purpose: api.FilePurpose.supportAttachment,
+      body: UploadBody.bytes(bytes),
+      mime: mime,
+      onProgress: onProgress,
+    );
   }
 
   Future<List<SupportTicket>> tickets() async {

@@ -9,13 +9,16 @@ import 'package:lawbid/core/limits/text_limits.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/contract_extras.dart';
 import 'package:lawbid/core/network/request_flags.dart';
+import 'package:lawbid/core/uploads/storage_uploader.dart';
+import 'package:lawbid/core/uploads/upload_body.dart';
 import 'package:lawbid/features/profile/data/avatar_upload_repository.dart'
-    show ScanOutcome, sha256Hex, sniffImageMime;
+    show sniffImageMime;
 import 'package:lawbid/features/promotions/domain/promotion_models.dart';
 import 'package:lawbid/features/social/data/social_local_database.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
+
 export 'package:lawbid/features/social/domain/post_text.dart'
     show kPostTitleMaxChars;
 
@@ -328,8 +331,12 @@ class ApiSocialRepository implements SocialRepository {
         _search = api.SearchClient(apiDio),
         _cases = api.CasesClient(apiDio),
         _reports = api.ReportsClient(apiDio),
-        _files = api.FilesClient(apiDio),
-        _storage = storageDio;
+        _uploader = StorageUploader.dio(
+          apiDio,
+          storageDio,
+          scanPoll: _scanPoll,
+          scanMaxPolls: _scanMaxPolls,
+        );
 
   final api.FeedClient _feed;
   final api.PostsClient _posts;
@@ -339,8 +346,7 @@ class ApiSocialRepository implements SocialRepository {
   final api.SearchClient _search;
   final api.CasesClient _cases;
   final api.ReportsClient _reports;
-  final api.FilesClient _files;
-  final Dio _storage;
+  final StorageUploader _uploader;
   final SocialLocalDatabase _local;
   final String? _ownerId;
 
@@ -1009,83 +1015,22 @@ class ApiSocialRepository implements SocialRepository {
     return '';
   }
 
-  /// Presign → S3 POST → confirm → wait for a clean scan.
+  /// Presign → S3 POST → confirm → wait for a clean scan (the shared
+  /// uploader, owner 2026-10-22 audit #4 §3).
   Future<String> _upload(
     Uint8List bytes,
     String mime, {
     required api.FilePurpose purpose,
     required String filename,
     void Function(double progress)? onProgress,
-  }) async {
-    final target = (await guardApiCall(
-      () => _files.presign(
-        body: api.PresignFileDto(
-          purpose: purpose,
-          mime: mime,
-          sizeBytes: bytes.length,
-          sha256: sha256Hex(bytes),
-        ),
-        extras: _createsResource,
-      ),
-    ))
-        .data;
-    final parts = mime.split('/');
-    try {
-      await _storage.post<void>(
-        target.upload.url,
-        data: FormData.fromMap({
-          ...target.upload.fields,
-          // S3 POST policy: the file must be the LAST field.
-          'file': MultipartFile.fromBytes(
-            bytes,
-            filename: filename,
-            contentType: DioMediaType(parts.first, parts.last),
-          ),
-        }),
-        onSendProgress: (sent, total) {
-          if (total > 0) onProgress?.call(sent / total);
-        },
+  }) =>
+      _uploader.upload(
+        purpose: purpose,
+        body: UploadBody.bytes(bytes),
+        mime: mime,
+        filename: filename,
+        onProgress: onProgress,
       );
-    } on DioException catch (e) {
-      throw ApiException(
-        code: e.response == null
-            ? ApiException.networkErrorCode
-            : ApiErrorCodes.fileNotUploaded,
-        message: 'Upload to storage failed.',
-        statusCode: e.response?.statusCode,
-      );
-    }
-    var outcome = _scan(
-      (await guardApiCall(
-        () => _files.confirm(id: target.fileId),
-      ))
-          .data
-          .scanStatus,
-    );
-    for (var i = 0; outcome == ScanOutcome.pending && i < _scanMaxPolls; i++) {
-      await Future<void>.delayed(_scanPoll);
-      outcome = _scan(
-        (await guardApiCall(
-          () => _files.getFilesId(id: target.fileId),
-        ))
-            .data
-            .scanStatus,
-      );
-    }
-    if (outcome != ScanOutcome.clean) {
-      throw const ApiException(
-        code: ApiErrorCodes.fileNotAttachable,
-        message: 'scan',
-      );
-    }
-    return target.fileId;
-  }
-
-  static ScanOutcome _scan(api.ScanStatus status) => switch (status) {
-        api.ScanStatus.clean => ScanOutcome.clean,
-        api.ScanStatus.pending => ScanOutcome.pending,
-        _ => ScanOutcome.rejected,
-      };
 }
 
 /// Generated DTO → app model. Kept apart so screens never see DTOs.
