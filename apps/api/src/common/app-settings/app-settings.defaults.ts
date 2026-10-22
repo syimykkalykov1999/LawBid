@@ -585,6 +585,16 @@ export const OWNER_RATE_LIMIT_SETTINGS = {
    * until an admin saves it, OTP_RATE_LIMIT_PER_IDENTIFIER_PER_DAY in the
    * env applies (default 10). */
   'security.otp_per_identifier_per_day': 10,
+  /** Security research #5 (2026-10-22), A4: Firebase App Check on the
+   * costly anonymous routes (sign-in code, password reset, social
+   * sign-in, "is this number registered"). `off` — not looked at;
+   * `monitor` (default) — the verdict of every request is logged
+   * (`metric: app_check`), nothing is blocked; `enforce` — a request
+   * without a valid token from our app gets 403
+   * DEVICE_ATTESTATION_REQUIRED, except a code by e-mail (free). Turn on
+   * enforce only after the app sends the header (B1) and a week of
+   * monitor shows almost no `missing` verdicts. docs/runbooks/APP_CHECK.md */
+  'security.app_check.mode': 'monitor',
 };
 
 /** Owner 2026-10-05: storage like Telegram (Система → Хранилище). Every
