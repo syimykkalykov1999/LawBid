@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -61,16 +62,18 @@ void main() {
     await tester.pumpAndSettle();
     expect(repo.queries, [null]);
 
-    await tester.tap(find.byKey(const ValueKey('notif-view-important')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('notif-search-open')));
+    // Owner 2026-10-22: the magnifier is in the Inbox header; it bumps this
+    // signal.
+    ProviderScope.containerOf(tester.element(find.byType(NotificationsView)))
+        .read(notificationSearchOpenProvider.notifier)
+        .open();
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), 'zzz');
     await tester.pump(const Duration(milliseconds: 400));
     await tester.pumpAndSettle();
 
     expect(repo.queries.last, 'zzz');
-    expect(repo.groups.last, NotifGroup.important);
+    expect(repo.groups.last, isNull);
     expect(find.text('Nothing found'), findsOneWidget);
     expect(
       find.text("We search the notification text and the attorney's name"),
