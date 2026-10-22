@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-232 tables.
+234 tables.
 
 ```mermaid
 erDiagram
@@ -34,6 +34,7 @@ erDiagram
     DateTime last_active_at "nullable"
     Boolean show_activity_status
     Boolean find_by_phone
+    DateTime contacts_announced_at "nullable"
     String feed_content_mode "nullable"
     DateTime deletion_requested_at "nullable"
     DateTime deleted_at "nullable"
@@ -1136,6 +1137,24 @@ erDiagram
     String entity_type
     String entity_id
     DateTime accessed_at
+  }
+  admin_approvals {
+    String id PK
+    String kind
+    Json payload
+    String payload_hash
+    Int amount_cents
+    String summary
+    String status
+    String requested_by FK
+    String approved_by FK "nullable"
+    String rejected_by FK "nullable"
+    String decision_note "nullable"
+    Json result "nullable"
+    String error "nullable"
+    DateTime created_at
+    DateTime decided_at "nullable"
+    DateTime executed_at "nullable"
   }
   admin_credentials {
     String user_id PK,FK
@@ -2351,6 +2370,15 @@ erDiagram
     String user_id PK,FK
     Boolean enabled
     DateTime synced_at "nullable"
+    String book_hash "nullable"
+    Int book_size
+    Int matches_version
+    Boolean notify_joined
+  }
+  contact_book_hashes {
+    String owner_id PK,FK
+    String phone_sha256 PK
+    DateTime created_at
   }
   attorney_profile_views {
     String attorney_id PK
@@ -2983,6 +3011,9 @@ erDiagram
   data_access_requests }o--|| users : "handled_by"
   data_access_log }o--|| data_access_requests : "request_id"
   data_access_log }o--|| users : "admin_id"
+  admin_approvals }o--|| users : "requested_by"
+  admin_approvals }o--o| users : "approved_by"
+  admin_approvals }o--o| users : "rejected_by"
   admin_credentials |o--|| users : "user_id"
   data_export_jobs }o--|| users : "user_id"
   data_export_jobs }o--o| files : "file_id"
@@ -3061,6 +3092,7 @@ erDiagram
   contact_matches }o--|| users : "owner_id"
   contact_matches }o--|| users : "matched_id"
   contact_sync_settings |o--|| users : "user_id"
+  contact_book_hashes }o--|| users : "owner_id"
   firm_members }o--|| firms : "firm_id"
   search_synonym_groups }o--o| practice_areas : "practice_area_id"
   search_synonym_terms }o--|| search_synonym_groups : "group_id"

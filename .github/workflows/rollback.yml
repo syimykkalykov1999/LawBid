@@ -7,14 +7,25 @@
 # previous release still runs against the current schema.
 # Needs the same secrets as deploy.yml and the `production` environment
 # (its required reviewers still approve the rollback).
+#
+# Audit #10 (2026-10-22): the web app too — `web_release` = a commit SHA
+# whose build is still under releases/<sha>/ in the web bucket, or
+# `previous` (the release before the current one). One write to the
+# CloudFront release switch (scripts/deploy/web-release.sh); nothing is
+# uploaded. Leave an input empty to keep that part as it is.
 name: Rollback production
 
 on:
   workflow_dispatch:
     inputs:
       image_tag:
-        description: "Image tag to go back to (commit SHA of a previous good deploy)"
-        required: true
+        description: "Image tag to go back to (commit SHA of a previous good deploy); empty = keep api / worker / admin"
+        required: false
+        default: ""
+      web_release:
+        description: "Web app release to go back to (commit SHA, or 'previous'); empty = keep the web app"
+        required: false
+        default: ""
 
 permissions:
   id-token: write
@@ -32,7 +43,7 @@ env:
 jobs:
   rollback:
     name: Roll production back to ${{ inputs.image_tag }}
-    if: ${{ vars.DEPLOY_ENABLED == 'true' }}
+    if: ${{ vars.DEPLOY_ENABLED == 'true' && inputs.image_tag != '' }}
     runs-on: ubuntu-latest
     environment:
       name: production
@@ -51,3 +62,52 @@ jobs:
         run: scripts/deploy/roll-services.sh lawbid-prod "$IMAGE_TAG"
       - name: Smoke
         run: scripts/deploy/smoke.sh "${{ secrets.PROD_API_URL }}" "${{ secrets.PROD_ADMIN_URL }}"
+
+  web:
+    name: Roll the web app back to ${{ inputs.web_release }}
+    if: ${{ vars.WEB_DEPLOY_ENABLED == 'true' && inputs.web_release != '' }}
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+    # Never at the same time as a web deploy.
+    concurrency:
+      group: web-deploy
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_PROD }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Switch the live web release
+        env:
+          WANT: ${{ inputs.web_release }}
+          BUCKET: ${{ secrets.WEB_BUCKET }}
+          DIST: ${{ secrets.WEB_DISTRIBUTION_ID }}
+        run: |
+          R=scripts/deploy/web-release.sh
+          ARN=$($R store "$DIST")
+          if [ -z "$ARN" ]; then
+            echo "No release switch: infra/modules/web is not applied yet (old root layout, no web rollback)."
+            exit 1
+          fi
+          LIVE=$($R get "$ARN" web_release)
+          if [ "$WANT" = "previous" ]; then WANT=$($R get "$ARN" web_previous); fi
+          if ! echo "$WANT" | grep -Eq '^[0-9a-f]{7,40}$'; then
+            echo "Not a release: '$WANT' (a commit SHA, or 'previous' after two versioned deploys)."
+            exit 1
+          fi
+          aws s3api head-object --bucket "$BUCKET" --key "releases/$WANT/index.html" >/dev/null || {
+            echo "releases/$WANT/ is not in the bucket (only the last 10 releases are kept)."
+            exit 1
+          }
+          # The build's top-level names, as the deploy wrote them.
+          PATHS=$(aws s3api list-objects-v2 --bucket "$BUCKET" --prefix "releases/$WANT/" --delimiter / \
+            --query '[CommonPrefixes[].Prefix, Contents[].Key][]' --output text \
+            | tr '\t' '\n' | grep -v '^None$' | sed -e "s|^releases/$WANT/||" -e 's|/$||' | grep -v '^$' | paste -sd, -)
+          $R put "$ARN" web_app_paths "$PATHS"
+          if [ -n "$LIVE" ] && [ "$LIVE" != "$WANT" ]; then $R put "$ARN" web_previous "$LIVE"; fi
+          $R put "$ARN" web_release "$WANT"
+          aws s3 cp "s3://$BUCKET/releases/$WANT/index.html" "s3://$BUCKET/index.html" --cache-control "no-cache"
+          aws cloudfront create-invalidation --distribution-id "$DIST" --paths "/index.html" >/dev/null
+          echo "Live web release: $WANT (was: ${LIVE:-none})"

@@ -2,10 +2,10 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/media/app_image_cache.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_photos.dart'
     show openCaseDocument;
 import 'package:lawbid/features/chat/domain/chat_models.dart';
@@ -152,13 +152,17 @@ class ChatPhoto extends StatelessWidget {
     if (main == null) return skeleton;
     final preview = a.previewUrl != null && a.previewUrl != main
         ? Image(
-            image: appNetworkImage(a.previewUrl!, 320),
+            image: appNetworkImage(
+              a.previewUrl!,
+              320,
+              cache: AppImageCaches.chatMedia,
+            ),
             fit: BoxFit.cover,
             errorBuilder: (_, __, ___) => skeleton,
           )
         : skeleton;
     return Image(
-      image: appNetworkImage(main, px),
+      image: appNetworkImage(main, px, cache: AppImageCaches.chatMedia),
       fit: BoxFit.cover,
       gaplessPlayback: true,
       frameBuilder: (_, child, frame, sync) =>

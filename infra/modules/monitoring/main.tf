@@ -44,6 +44,36 @@ resource "aws_sns_topic" "alerts" {
   tags              = var.tags
 }
 
+data "aws_caller_identity" "current" {}
+
+# The account keeps full control; CloudWatch alarms and EventBridge rules
+# (backup-job failures, modules/backup) of this account may publish.
+resource "aws_sns_topic_policy" "alerts" {
+  arn = aws_sns_topic.alerts.arn
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "Owner"
+        Effect    = "Allow"
+        Principal = { AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root" }
+        Action    = ["SNS:Publish", "SNS:Subscribe", "SNS:Receive", "SNS:ListSubscriptionsByTopic", "SNS:GetTopicAttributes", "SNS:SetTopicAttributes", "SNS:AddPermission", "SNS:RemovePermission", "SNS:DeleteTopic"]
+        Resource  = aws_sns_topic.alerts.arn
+      },
+      {
+        Sid       = "AlarmAndEventPublishers"
+        Effect    = "Allow"
+        Principal = { Service = ["cloudwatch.amazonaws.com", "events.amazonaws.com"] }
+        Action    = "SNS:Publish"
+        Resource  = aws_sns_topic.alerts.arn
+        Condition = {
+          StringEquals = { "aws:SourceAccount" = data.aws_caller_identity.current.account_id }
+        }
+      },
+    ]
+  })
+}
+
 resource "aws_sns_topic_subscription" "email" {
   for_each  = toset(var.alert_emails)
   topic_arn = aws_sns_topic.alerts.arn
@@ -87,6 +117,22 @@ resource "aws_cloudwatch_log_metric_filter" "queue_oldest_age" {
     value      = "$.oldestAgeSeconds"
     dimensions = { queue = "$.queue" }
     unit       = "Seconds"
+  }
+}
+
+# Owner 2026-10-22: the worker scales on queue depth (modules/ecs,
+# `worker_queue`). One line per minute carries the total of waiting jobs
+# over all consumed queues (the DLQ is left out), so the metric needs no
+# dimension and needs no math over many series.
+resource "aws_cloudwatch_log_metric_filter" "queue_waiting_total" {
+  name           = "${var.name}-queue-waiting-total"
+  log_group_name = var.worker_log_group
+  pattern        = "{ $.metric = \"queue_waiting_total\" }"
+  metric_transformation {
+    name      = "QueueWaitingTotal"
+    namespace = local.ns
+    value     = "$.waiting"
+    unit      = "Count"
   }
 }
 

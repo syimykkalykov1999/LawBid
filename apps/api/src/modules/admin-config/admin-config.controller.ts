@@ -41,6 +41,13 @@ import {
 } from './admin-config.dto';
 import { AdminBudgetsService } from './admin-budgets.service';
 import { AdminConfigService } from './admin-config.service';
+import { AdminAuthService } from '../admin-auth/admin-auth.service';
+
+/** Settings whose change weakens a money control: a fresh 2FA code first
+ * (owner 2026-10-22, system audit #2 item 11). */
+export const STEP_UP_CONFIG_KEYS: ReadonlySet<string> = new Set([
+  'billing.dual_approval_min_cents',
+]);
 
 const E = ErrorCode;
 
@@ -54,6 +61,7 @@ export class AdminConfigController {
   constructor(
     private readonly config: AdminConfigService,
     private readonly budgets: AdminBudgetsService,
+    private readonly auth: AdminAuthService,
   ) {}
 
   @Get('feature-flags')
@@ -120,12 +128,15 @@ export class AdminConfigController {
   @Put('config/:key')
   @ApiOperation({ summary: 'Set a value (validated against the key schema)' })
   @ApiEnvelopeResponse(ConfigEntryDto)
-  @ApiErrors({ 400: [E.VALIDATION_ERROR] })
-  updateAppConfig(
+  @ApiErrors({ 400: [E.VALIDATION_ERROR], 403: [E.ADMIN_STEP_UP_REQUIRED] })
+  async updateAppConfig(
     @CurrentAdmin() admin: AdminActor,
     @Param() params: ConfigKeyParamDto,
     @Body() dto: UpdateConfigDto,
   ): Promise<ConfigEntryDto> {
+    if (STEP_UP_CONFIG_KEYS.has(params.key)) {
+      await this.auth.assertStepUp(admin.sessionId);
+    }
     return this.config.updateConfig(admin, params.key, dto.value);
   }
 

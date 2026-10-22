@@ -33,6 +33,7 @@ class RealtimeClient {
   final _events = StreamController<RealtimeEvent>.broadcast();
   final Set<String> _rooms = {};
   final Set<String> _watched = {};
+  final Set<String> _channels = {};
   io.Socket? _socket;
   bool _everConnected = false;
   bool _disposed = false;
@@ -42,6 +43,8 @@ class RealtimeClient {
     // Owner 2026-10-20: edited, deleted for all, reaction, pin.
     'message:updated',
     'message:read',
+    // Owner 2026-10-22 (load audit finding 2): I read a chat (any device).
+    'conversation:read',
     // Owner 2026-10-20: the message reached the other device (grey ticks).
     'message:delivered',
     // OQ-040: the other side played a voice note.
@@ -57,6 +60,10 @@ class RealtimeClient {
     'call:removed',
     'call:vote',
     'call:invite',
+    // Owner 2026-10-22 (load audit finding 3): a group's / an open
+    // channel's call started, changed or ended (no polling).
+    'call:ongoing',
+    'call:ongoing_ended',
     'typing',
     'notification:new',
     'badge:update',
@@ -104,6 +111,9 @@ class RealtimeClient {
         }
         for (final id in _watched) {
           s0(socket, id);
+        }
+        for (final id in _channels) {
+          socket.emit('channel:watch', {'channelId': id});
         }
         if (_everConnected) {
           _events.add(const RealtimeEvent(RealtimeEvent.reconnected, null));
@@ -190,6 +200,20 @@ class RealtimeClient {
   void unwatchPresence(String userId) {
     _watched.remove(userId);
     if (connected) _socket!.emit('presence:unwatch', {'userId': userId});
+  }
+
+  /// Owner 2026-10-22 (load audit finding 3): hear this channel's call
+  /// start / change / end while it is open (re-sent after a reconnect).
+  void watchChannel(String channelId) {
+    _channels.add(channelId);
+    if (connected) _socket!.emit('channel:watch', {'channelId': channelId});
+  }
+
+  void unwatchChannel(String channelId) {
+    _channels.remove(channelId);
+    if (connected) {
+      _socket!.emit('channel:unwatch', {'channelId': channelId});
+    }
   }
 
   void leave(String conversationId) {

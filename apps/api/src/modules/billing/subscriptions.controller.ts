@@ -1,14 +1,21 @@
 import {
   Req,
+  BadRequestException,
   Body,
   Controller,
   Get,
+  Headers,
   HttpCode,
   HttpStatus,
   Post,
   Query,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiHeader,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 import {
   ApiEnvelopeResponse,
   ApiErrors,
@@ -48,6 +55,9 @@ const ATTORNEY_ERRORS = {
 };
 
 /** docs/06 §1.4 — the attorney's subscription (mobile). */
+
+/** A client Idempotency-Key (UUID or similar). */
+const IDEMPOTENCY_KEY_RE = /^[\w.:-]{8,200}$/;
 @ApiTags('subscriptions')
 @ApiBearerAuth()
 @ApiErrors(AUTHENTICATED_ERRORS)
@@ -194,6 +204,9 @@ export class SubscriptionsController {
     summary:
       'Card confirmed → create the subscription (7-day trial when eligible)',
   })
+  // Optional: older apps send no key (the server then makes its own).
+  // Lower case: the same parameter as the @Headers() below, not a second one.
+  @ApiHeader({ name: 'idempotency-key', required: false })
   @ApiEnvelopeResponse(SubscriptionMeDto)
   @ApiErrors({
     ...ATTORNEY_ERRORS,
@@ -207,11 +220,24 @@ export class SubscriptionsController {
   confirmSubscription(
     @CurrentUser() user: RequestUser,
     @Body() dto: ConfirmSubscriptionDto,
+    @Headers('idempotency-key') idempotencyKey?: string,
   ): Promise<SubscriptionMeDto> {
+    // Audit #15: the client's key for this checkout attempt (optional).
+    if (
+      idempotencyKey !== undefined &&
+      !IDEMPOTENCY_KEY_RE.test(idempotencyKey)
+    ) {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_ERROR,
+        message: 'Idempotency-Key must be 8-200 letters, digits, - _ . :',
+        details: { field: 'Idempotency-Key' },
+      });
+    }
     return this.subscriptions.confirm(
       user,
       dto.setupIntentId,
       dto.chargeNow === true,
+      idempotencyKey,
     );
   }
 

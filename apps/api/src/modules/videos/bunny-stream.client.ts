@@ -16,6 +16,9 @@ export interface BunnyKeys {
   apiKey: string;
   tokenAuthKey: string;
   webhookToken: string;
+  /** Bunny's Read-Only API key: verifies `X-BunnyStream-Signature`
+   * (audit #4). Optional — without it the URL token is the fallback. */
+  webhookSigningKey?: string;
 }
 
 /** Bunny's video object (only the fields we read). Status: 0 created,
@@ -103,6 +106,7 @@ export class BunnyStreamClient {
       apiKey: f.apiKey,
       tokenAuthKey: f.tokenAuthKey,
       webhookToken: f.webhookToken,
+      ...(f.readOnlyApiKey ? { webhookSigningKey: f.readOnlyApiKey } : {}),
     };
   }
 

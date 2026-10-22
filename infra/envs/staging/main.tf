@@ -70,6 +70,11 @@ module "stack" {
 
   monthly_budget_usd     = var.monthly_budget_usd
   create_anomaly_monitor = var.create_anomaly_monitor
+
+  database_multi_az      = var.database_multi_az
+  backup_enabled         = var.backup_enabled
+  worker_jobs_per_task   = var.worker_jobs_per_task
+  interface_endpoint_azs = var.interface_endpoint_azs
 }
 
 output "stack" { value = module.stack }

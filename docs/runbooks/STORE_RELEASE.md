@@ -74,10 +74,11 @@ keyPassword=…
 
 ```
 cd apps/mobile
-flutter build appbundle --release --flavor prod -t lib/main_prod.dart --dart-define-from-file=config/prod.json
+flutter build appbundle --release --flavor prod -t lib/main_prod.dart --obfuscate --split-debug-info=build/symbols/android --dart-define-from-file=config/prod.json
 ```
 
-Output: `build/app/outputs/bundle/prodRelease/app-prod-release.aab`.
+Output: `build/app/outputs/bundle/prodRelease/app-prod-release.aab`. Then
+upload the crash symbols (§6). `bundle exec fastlane android build` does both.
 
 ### 2.3 Play Console
 
@@ -115,9 +116,10 @@ texts of all 87 languages.
    ```
    cd apps/mobile
    # set teamID to 78T56RPM74 in ios/ExportOptions.plist locally; do not commit
-   flutter build ipa --release --flavor prod -t lib/main_prod.dart --dart-define-from-file=config/prod.json --export-options-plist=ios/ExportOptions.plist
+   flutter build ipa --release --flavor prod -t lib/main_prod.dart --obfuscate --split-debug-info=build/symbols/ios --dart-define-from-file=config/prod.json --export-options-plist=ios/ExportOptions.plist
    ```
-   Output: `build/ios/ipa/*.ipa`. (Alternative: `flutter build ipa` without
+   Output: `build/ios/ipa/*.ipa`. Then upload the crash symbols (§6);
+   `bundle exec fastlane ios build` does both. (Alternative: `flutter build ipa` without
    export options, then Xcode → Window → Organizer → Distribute App → App
    Store Connect.)
 5. Upload the `.ipa` with Transporter (App Store → Transporter) or Organizer.
@@ -153,3 +155,43 @@ texts of all 87 languages.
   --flavor prod -t lib/main_prod.dart --dart-define-from-file=config/prod.json`
   instead of `flutter build`, and ship fixes with `shorebird patch`. Only
   Dart code can be patched; native or permission changes need a store release.
+
+## 6. Crash reports (Sentry, native crashes included)
+
+Owner 2026-10-22 (audit #11). A release build of the prod flavor runs the
+Sentry SDK (`sentry_flutter`) with the DSN from Admin → Ключи и сервисы →
+Sentry (bootstrap `sentry.mobile_dsn`; the phone keeps the last one, so the
+next start watches from its first second). It reports iOS/Android native
+crashes, Android ANRs (app frozen 5 s) and the Dart errors. Our own list
+(admin → Система → Вылеты) keeps getting the Dart errors as before. dev,
+staging and debug builds send nothing. No user, IP, screenshot or message
+text is attached.
+
+Release builds are obfuscated (`--obfuscate --split-debug-info=build/symbols/<platform>`),
+so crash stacks are unreadable until the symbols of that exact build are in
+Sentry. Keep `build/symbols/` of every store build (never commit or ship it).
+
+What the owner sets once (on the release Mac and/or as CI secrets):
+
+1. Sentry → Settings → Auth Tokens → create an **organization token** (scope
+   `project:releases`/`org:ci`). Put it in `SENTRY_AUTH_TOKEN`.
+2. `SENTRY_ORG` = the organization slug (the part after `sentry.io/organizations/`).
+   The project is `lawbid-mobile` (pubspec.yaml `sentry:`).
+
+Then:
+
+- `bundle exec fastlane android build` / `fastlane ios build` (prod) build
+  obfuscated and run `sentry_symbols` at the end; it skips with a warning —
+  never failing the release — when the token or org is missing.
+- By hand, after the `flutter build …` commands of §2.2 / §3:
+  ```
+  cd apps/mobile
+  SENTRY_ORG=<org> SENTRY_AUTH_TOKEN=<token> dart run sentry_dart_plugin
+  ```
+  This uploads the Dart symbols (`build/symbols`) and the iOS dSYMs.
+- Android Java/Kotlin frames: the Sentry Gradle plugin uploads the R8
+  mapping during the prod release build itself whenever `SENTRY_AUTH_TOKEN`
+  and `SENTRY_ORG` are set in that shell.
+
+With Shorebird add the same flags after `--`:
+`shorebird release android … -- --obfuscate --split-debug-info=build/symbols/android`.

@@ -13,7 +13,7 @@ class AdminTotpDto {
   factory AdminTotpDto.fromJson(Map<String, Object?> json) =>
       _$AdminTotpDtoFromJson(json);
 
-  /// Ticket from login/verify (5 minutes).
+  /// Ticket from login/password (5 minutes).
   final String ticket;
 
   /// The 6-digit authenticator code.

@@ -12,6 +12,7 @@ ContactSyncStatusDto _$ContactSyncStatusDtoFromJson(
   enabled: json['enabled'] as bool,
   matches: (json['matches'] as num).toInt(),
   findByPhone: json['findByPhone'] as bool,
+  notifyJoined: json['notifyJoined'] as bool,
   syncedAt: json['syncedAt'] == null
       ? null
       : DateTime.parse(json['syncedAt'] as String),
@@ -26,4 +27,5 @@ Map<String, dynamic> _$ContactSyncStatusDtoToJson(
   'syncedAt': ?instance.syncedAt?.toIso8601String(),
   'findByPhone': instance.findByPhone,
   'phoneRegion': ?instance.phoneRegion,
+  'notifyJoined': instance.notifyJoined,
 };

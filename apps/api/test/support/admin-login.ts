@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import request from 'supertest';
 import type { PrismaService } from '../../src/prisma/prisma.service';
 import { defaultPermissionsForRole } from '../../src/modules/admin-auth/admin-permissions';
+import { hashSecret } from '../../src/modules/admin-auth/admin-password.util';
 import { totpCode } from '../../src/modules/admin-auth/totp.util';
 
 /** Toggles of a hands-on support / moderation admin for suites that
@@ -30,9 +31,10 @@ export interface AdminSession {
 /**
  * docs/06 §2.1 admin sign-in for e2e suites: creates an active admin with
  * [role] (or reuses [existing]; [permissions] default to the role's
- * starting toggles), signs in with the emailed code (OTP_DEV_FIXED_CODE;
- * two-factor is off by default, so that is a session), then turns
- * two-factor on so suites get a known TOTP secret and recovery codes.
+ * starting toggles), gives it a login + password, and signs in the way
+ * every admin does since owner 2026-10-22: password → the forced
+ * authenticator setup (QR secret + first code) → session, so suites get a
+ * known TOTP secret and recovery codes.
  * Returns the Bearer header the `/admin/*` routes accept (mobile tokens are
  * refused there).
  */
@@ -78,51 +80,69 @@ export async function adminSession(
       totpSecret: '',
     };
   }
+  const login = e2eLogin(email);
+  await prisma.adminCredential.upsert({
+    where: { user_id: userId },
+    create: {
+      user_id: userId,
+      totp_secret_enc: 'pending-setup',
+      login,
+      password_hash: await hashSecret(E2E_ADMIN_PASSWORD),
+    },
+    update: { login, password_hash: await hashSecret(E2E_ADMIN_PASSWORD) },
+  });
   const api = () => request(baseUrl);
-  await api()
-    .post('/api/v1/admin/auth/login/start')
-    .send({ email })
-    .expect(204);
-  const verify = await api()
-    .post('/api/v1/admin/auth/login/verify')
-    .send({ email, code: '000000' })
+  const first = await api()
+    .post('/api/v1/admin/auth/login/password')
+    .send({ login, password: E2E_ADMIN_PASSWORD })
     .expect(200);
-  const login = (
-    verify.body as {
-      data: { ticket: string | null; session: { accessToken: string } | null };
-    }
+  const step = (
+    first.body as { data: { ticket: string; totpSetupRequired: boolean } }
   ).data;
-  if (!login.session) {
+  if (!step.totpSetupRequired) {
     throw new Error(
       'adminSession(): this admin already has TOTP bound; sign in with adminSignIn()',
     );
   }
-  const accessToken = login.session.accessToken;
-  const auth = { Authorization: `Bearer ${accessToken}` };
-  const begin = await api()
-    .post('/api/v1/admin/auth/2fa/begin')
-    .set(auth)
+  const setup = await api()
+    .post('/api/v1/admin/auth/login/totp-setup')
+    .send({ ticket: step.ticket })
     .expect(200);
-  const secret = (begin.body as { data: { secret: string } }).data.secret;
-  const enabled = await api()
-    .post('/api/v1/admin/auth/2fa/enable')
-    .set(auth)
-    .send({ code: totpCode(secret) });
-  if (enabled.status !== 200) {
+  const secret = (setup.body as { data: { secret: string } }).data.secret;
+  const done = await api()
+    .post('/api/v1/admin/auth/login/totp-confirm')
+    .send({ ticket: step.ticket, code: totpCode(secret) });
+  if (done.status !== 200) {
     throw new Error(
-      `admin 2fa enable ${enabled.status}: ${JSON.stringify(enabled.body)}`,
+      `admin totp setup ${done.status}: ${JSON.stringify(done.body)}`,
     );
   }
-  const recoveryCodes = (enabled.body as { data: { recoveryCodes: string[] } })
-    .data.recoveryCodes;
+  const data = (
+    done.body as {
+      data: { recoveryCodes: string[]; session: { accessToken: string } };
+    }
+  ).data;
+  const accessToken = data.session.accessToken;
   return {
-    auth,
+    auth: { Authorization: `Bearer ${accessToken}` },
     userId,
     email,
     accessToken,
-    recoveryCodes,
+    recoveryCodes: data.recoveryCodes,
     totpSecret: secret,
   };
+}
+
+/** The password every e2e admin gets (never a real credential). */
+export const E2E_ADMIN_PASSWORD = 'E2e-admin-pass-2026';
+
+/** A valid admin login derived from the e2e email. */
+export function e2eLogin(email: string): string {
+  const local = email
+    .split('@')[0]
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]/g, '-');
+  return local.padEnd(4, '0').slice(0, 40);
 }
 
 /** A later sign-in of an already enrolled admin (known TOTP secret). */
@@ -132,16 +152,11 @@ export async function adminSignIn(
   totpSecret: string,
 ): Promise<{ auth: Record<string, string>; accessToken: string }> {
   const api = () => request(baseUrl);
-  await api()
-    .post('/api/v1/admin/auth/login/start')
-    .send({ email })
-    .expect(204);
-  const verify = await api()
-    .post('/api/v1/admin/auth/login/verify')
-    .send({ email, code: '000000' })
+  const first = await api()
+    .post('/api/v1/admin/auth/login/password')
+    .send({ login: e2eLogin(email), password: E2E_ADMIN_PASSWORD })
     .expect(200);
-  const { ticket } = (verify.body as { data: { ticket: string } }).data;
-  if (!ticket) throw new Error('adminSignIn(): this admin has no TOTP bound');
+  const { ticket } = (first.body as { data: { ticket: string } }).data;
   // The next 30-second step: a code is single-use inside its window
   // (replay guard), and this sign-in usually follows the enrollment one
   // within seconds.
@@ -152,4 +167,23 @@ export async function adminSignIn(
   const { accessToken } = (session.body as { data: { accessToken: string } })
     .data;
   return { auth: { Authorization: `Bearer ${accessToken}` }, accessToken };
+}
+
+/**
+ * Owner 2026-10-22 (system audit #2, item 2): money and identity actions
+ * need a fresh step-up (5 minutes per session). Tries the neighbouring
+ * 30-second codes too, since the code just used to sign in is single-use.
+ */
+export async function adminStepUp(
+  baseUrl: string,
+  session: Pick<AdminSession, 'auth' | 'totpSecret'>,
+): Promise<void> {
+  for (const shift of [-30_000, 0, 30_000, 60_000]) {
+    const r = await request(baseUrl)
+      .post('/api/v1/admin/auth/step-up')
+      .set(session.auth)
+      .send({ code: totpCode(session.totpSecret, Date.now() + shift) });
+    if (r.status === 200) return;
+  }
+  throw new Error('adminStepUp(): no code was accepted');
 }

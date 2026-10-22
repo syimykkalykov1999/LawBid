@@ -1633,9 +1633,13 @@ class _MessageText extends ConsumerWidget {
     final translation = ref.watch(
       chatTranslationsProvider.select((m) => m[message.id]),
     );
-    return translation == null
-        ? Text.rich(TextSpan(children: spans), style: style)
-        : Text(translation, style: style);
+    // Owner 2026-10-22 (audit #12): a message follows the phone's font size
+    // in full, past the app shell's 1.3x cap.
+    return FullTextScale(
+      child: translation == null
+          ? Text.rich(TextSpan(children: spans), style: style)
+          : Text(translation, style: style),
+    );
   }
 }
 

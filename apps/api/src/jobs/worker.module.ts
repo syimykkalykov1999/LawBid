@@ -19,6 +19,8 @@ import { BillingModule } from '../modules/billing/billing.module';
 import { PlansCoreModule } from '../modules/plans/plans.module';
 import { PrivacyModule } from '../modules/privacy/privacy.module';
 import { BroadcastFanoutModule } from '../modules/admin-content/broadcast-fanout.module';
+import { GroupFanoutModule } from '../modules/groups/group-fanout.module';
+import { ChannelFanoutModule } from '../modules/channels/channel-fanout.module';
 
 /**
  * Root module of the dedicated `worker` process (docs/06_PRODUCTION.md §6:
@@ -78,6 +80,10 @@ import { ModerationModule } from '../modules/moderation/moderation.module';
     PrivacyModule.register({ mode: 'worker' }),
     // Audit 2026-10-02: admin broadcast fan-out (`admin-broadcast` queue).
     BroadcastFanoutModule.register({ mode: 'worker' }),
+    // Owner 2026-10-22 (server load audit, finding 7): group messages
+    // (`group-fanout-<n>`) and channel posts (`channel-fanout`).
+    GroupFanoutModule.register({ mode: 'worker' }),
+    ChannelFanoutModule.register({ mode: 'worker' }),
     // docs/04 §12 (stage 4.7): case history PDF export queue.
     CaseHistoryModule.register({ mode: 'worker' }),
     // docs/04 stage 4.8: `push` queue consumer.

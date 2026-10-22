@@ -48,7 +48,7 @@ export class ChatTranslationService {
     // Owner 2026-10-22: bodies are sealed at rest (MessageBodyCipher) —
     // open it, or Google gets (and the bubble shows) `enc:v2.…`.
     const shown = m
-      ? (this.cipher?.open(m.body_display) ?? m.body_display)
+      ? (this.cipher?.open(m.body_display, messageId) ?? m.body_display)
       : '';
     const text = shown.trim();
     if (!m || text === '') {

@@ -7,7 +7,7 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/app.setup';
 import { PrismaService } from '../src/prisma/prisma.service';
-import { adminSession, OPS_RIGHTS } from './support/admin-login';
+import { adminSession, adminStepUp, OPS_RIGHTS } from './support/admin-login';
 
 jest.setTimeout(90_000);
 
@@ -369,6 +369,13 @@ describe('stage 6.3 — admin users and sanctions (e2e)', () => {
     const c = await client();
     const other = await client();
     const fresh = nextPhone();
+    // Owner 2026-10-22: a phone change needs a fresh authenticator code.
+    await api()
+      .post(`/api/v1/admin/users/${c.id}/phone`)
+      .set(boss.auth)
+      .send({ phone: fresh, reason: 'Lost phone, ID checked' })
+      .expect(403);
+    await adminStepUp(baseUrl, boss);
     // Only a super admin; the number must be free; a reason is required.
     await api()
       .post(`/api/v1/admin/users/${c.id}/phone`)

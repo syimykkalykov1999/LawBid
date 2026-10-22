@@ -13,7 +13,7 @@ class AdminRecoveryDto {
   factory AdminRecoveryDto.fromJson(Map<String, Object?> json) =>
       _$AdminRecoveryDtoFromJson(json);
 
-  /// Ticket from login/verify (5 minutes).
+  /// Ticket from login/password (5 minutes).
   final String ticket;
 
   /// One of the recovery codes (XXXXX-XXXXX).

@@ -16,7 +16,7 @@ import '../helpers/ux_harness.dart';
 
 /// Owner 2026-10-20: the post card (icons row, «N отметок», emoji posts) and
 /// the bottom nav on a 360 dp phone in de, ru, ne, mr and ar (right-to-left),
-/// at text scale 1.0 and 1.1, in the worst case of all languages too. Any
+/// at text scale 1.0, 1.1 and 1.3, in the worst case of all languages too. Any
 /// RenderFlex overflow fails the test.
 void main() {
   setUpAll(initializeDateFormatting);
@@ -35,7 +35,7 @@ void main() {
   };
 
   for (final e in locales.entries) {
-    for (final scale in [1.0, 1.1]) {
+    for (final scale in [1.0, 1.1, 1.3]) {
       testWidgets('post cards and nav: ${e.key} x$scale', (t) async {
         useNarrowPhone(t);
         final (tr, dir) = e.value;
@@ -85,7 +85,7 @@ void main() {
     }
     // The likers list: a 30-character name next to «Follow» on the longest
     // text of each language.
-    for (final scale in [1.0, 1.1]) {
+    for (final scale in [1.0, 1.1, 1.3]) {
       testWidgets('likers list: ${e.key} x$scale', (t) async {
         useNarrowPhone(t);
         final (tr, dir) = e.value;

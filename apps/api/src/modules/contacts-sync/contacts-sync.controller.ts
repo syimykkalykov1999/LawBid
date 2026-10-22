@@ -24,6 +24,7 @@ import {
   ContactSyncStatusDto,
   ContactUploadResultDto,
   SetFindByPhoneDto,
+  SetNotifyJoinedDto,
   UploadContactHashesDto,
 } from './contacts-sync.dto';
 import { ContactsSyncService } from './contacts-sync.service';
@@ -47,7 +48,7 @@ export class ContactsSyncController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary:
-      'Upload SHA-256 hashes of address-book numbers (E.164); only matches with LawBid users are kept',
+      'Contacts sync: "changed?" by book hash, then only added / removed SHA-256 hashes of E.164 numbers (old builds: {hashes})',
   })
   @ApiEnvelopeResponse(ContactUploadResultDto)
   @ApiErrors({
@@ -59,7 +60,24 @@ export class ContactsSyncController {
     @Body() dto: UploadContactHashesDto,
     @Ip() ip: string,
   ): Promise<ContactUploadResultDto> {
-    return this.sync.upload(user.sub, dto.hashes, ip);
+    // Owner 2026-10-22: old builds send {hashes}; new ones the hash-checked
+    // delta (UploadContactHashesDto).
+    return dto.hashes
+      ? this.sync.upload(user.sub, dto.hashes, ip)
+      : this.sync.sync(user.sub, dto, ip);
+  }
+
+  @Put('contacts/sync/notify-joined')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: '«Notify me when contacts join LawBid» on or off',
+  })
+  @ApiErrors({ 400: [ErrorCode.VALIDATION_ERROR] })
+  setNotifyJoined(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: SetNotifyJoinedDto,
+  ): Promise<void> {
+    return this.sync.setNotifyJoined(user.sub, dto.enabled);
   }
 
   @Put('contacts/sync/find-by-phone')

@@ -81,6 +81,21 @@ module "stack" {
 
   monthly_budget_usd     = var.monthly_budget_usd
   create_anomaly_monitor = var.create_anomaly_monitor
+
+  # Reliability (owner 2026-10-22): Multi-AZ, AWS Backup copies to the
+  # replica region (+ optional backup account), worker scaling on queue
+  # depth, cheaper endpoint placement, optional cache-only Redis.
+  database_multi_az            = var.database_multi_az
+  existing_database_identifier = var.existing_database_identifier
+  backup_enabled               = var.backup_enabled
+  backup_retention_days        = var.backup_retention_days
+  backup_copy_account_id       = var.backup_copy_account_id
+  backup_copy_vault_name       = var.backup_copy_vault_name
+  backup_copy_region           = var.backup_copy_region
+  interface_endpoint_azs       = var.interface_endpoint_azs
+  redis_cache_node             = var.redis_cache_node
+  redis_cache_node_type        = var.redis_cache_node_type
+  worker_jobs_per_task         = var.worker_jobs_per_task
 }
 
 output "stack" { value = module.stack }

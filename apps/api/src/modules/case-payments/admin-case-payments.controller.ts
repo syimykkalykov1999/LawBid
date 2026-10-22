@@ -23,6 +23,7 @@ import {
   type AdminActor,
 } from '../admin-auth/admin-auth.decorators';
 import { AdminCasePaymentsService } from './admin-case-payments.service';
+import { AdminAuthService } from '../admin-auth/admin-auth.service';
 import {
   AdminCasePaymentRowDto,
   AdminCasePaymentsQueryDto,
@@ -50,7 +51,10 @@ type Page<T> = { items: T[]; nextCursor: string | null };
 @AdminEndpoint('super_admin')
 @Controller('admin/case-payments')
 export class AdminCasePaymentsController {
-  constructor(private readonly payments: AdminCasePaymentsService) {}
+  constructor(
+    private readonly payments: AdminCasePaymentsService,
+    private readonly auth: AdminAuthService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'Client → attorney payments, newest first' })
@@ -146,15 +150,18 @@ export class AdminCasePaymentsController {
   @ApiEnvelopeResponse(AdminCasePaymentRowDto)
   @ApiErrors({
     400: [E.VALIDATION_ERROR, E.PAYMENT_AMOUNT_INVALID],
+    403: [E.ADMIN_STEP_UP_REQUIRED],
     404: [E.NOT_FOUND],
     409: [E.PAYMENT_INVALID_STATE],
     503: [E.PAYMENTS_NOT_CONFIGURED],
   })
-  refundAdminCasePayment(
+  async refundAdminCasePayment(
     @CurrentAdmin() admin: AdminActor,
     @Param() p: CasePaymentIdParamDto,
     @Body() dto: AdminRefundCasePaymentDto,
   ): Promise<AdminCasePaymentRowDto> {
+    // Owner 2026-10-22: money back to the client's card — fresh 2FA code.
+    await this.auth.assertStepUp(admin.sessionId);
     return this.payments.refund(admin, p.id, dto);
   }
 }

@@ -64,7 +64,6 @@ function build(
     prisma as never,
     redis as never,
     {} as never,
-    {} as never,
     sessions as never,
     rateLimit as never,
     audit as never,

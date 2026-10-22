@@ -71,6 +71,7 @@ abstract class SubscriptionsClient {
   @POST('/subscriptions/confirm')
   Future<SubscriptionMeEnvelope> confirmSubscription({
     @Body() required ConfirmSubscriptionDto body,
+    @Header('idempotency-key') String? idempotencyKey,
     @Extras() Map<String, dynamic>? extras,
   });
 

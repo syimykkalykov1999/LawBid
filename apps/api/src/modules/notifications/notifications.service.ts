@@ -63,6 +63,8 @@ export const NOTIFICATION_CATEGORY: Record<
   channel_post: 'channels',
   // Owner 2026-10-21: an invitation to a group.
   group_invite: 'groups',
+  // Owner 2026-10-22: someone from my phone book joined LawBid.
+  contact_joined: 'social',
   // OQ-048: the attorney's team.
   assistant_request: 'messages',
   assistant_task: 'cases',
@@ -158,6 +160,7 @@ export const NOTIFICATION_IMPORTANT: Record<NotificationType, boolean> = {
   followed_post: false,
   channel_post: false,
   group_invite: true,
+  contact_joined: false,
   assistant_request: true,
   assistant_task: true,
   assistant_bid_draft: true,
@@ -264,6 +267,52 @@ export class NotificationsService {
     } catch {
       return true;
     }
+  }
+
+  /**
+   * Owner 2026-10-22 (server load audit, finding 7): the same notification
+   * for many people (a channel post's subscribers) — one INSERT, the badge
+   * caches dropped in one round trip, the deliveries queued in one. Every
+   * row carries [dedupeKey]: (user_id, dedupe_key) is unique, so a retried
+   * batch inserts — and pushes — nothing twice. Not for blocked-actor or
+   * aggregated types (use [emit]). Returns the rows written.
+   */
+  async emitMany(input: {
+    type: NotificationType;
+    recipientIds: string[];
+    payload: Prisma.InputJsonObject;
+    dedupeKey: string;
+  }): Promise<number> {
+    if (input.recipientIds.length === 0) return 0;
+    const category = NOTIFICATION_CATEGORY[input.type];
+    const rows = await this.prisma.notification.createManyAndReturn({
+      data: input.recipientIds.map((user_id) => ({
+        user_id,
+        type: input.type,
+        category,
+        payload: input.payload,
+        dedupe_key: input.dedupeKey,
+      })),
+      skipDuplicates: true,
+      select: { id: true, user_id: true },
+    });
+    await this.badges?.invalidateNotificationsMany(rows.map((r) => r.user_id));
+    await this.push?.enqueueMany(
+      rows.map((r) => r.id),
+      input.type,
+    );
+    return rows.length;
+  }
+
+  /** Owner 2026-10-22 (finding 7): a group message's pushes for many
+   * members at once (`new_message` is never stored, like [emit]). */
+  async queueGroupMessagePushes(data: {
+    groupId: string;
+    messageId: string;
+    recipientIds: string[];
+  }): Promise<void> {
+    if (data.recipientIds.length === 0) return;
+    await this.push?.enqueueGroupMessages(data);
   }
 
   /** Returns the stored row id, or null for `new_message`. */

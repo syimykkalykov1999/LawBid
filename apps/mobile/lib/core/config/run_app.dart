@@ -11,6 +11,7 @@ import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/core/deeplinks/deep_link_controller.dart';
 import 'package:lawbid/core/diagnostics/app_events.dart';
 import 'package:lawbid/core/diagnostics/crash_reporter.dart';
+import 'package:lawbid/core/diagnostics/sentry_native.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/network/device_key.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
@@ -20,6 +21,7 @@ import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/callkit_bridge.dart';
 import 'package:lawbid/features/calls/data/calls_repository.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
+import 'package:lawbid/features/cases/workspace/file_actions.dart';
 import 'package:lawbid/features/channels/application/channel_forward_port.dart';
 import 'package:lawbid/features/chat/domain/forward.dart';
 import 'package:lawbid/features/chat/presentation/forward_sheet.dart';
@@ -60,6 +62,9 @@ Future<void> runLawBid(AppFlavor flavor) async {
 
   // Owner 2026-10-15: the app's own crash reports (admin → Вылеты).
   CrashReporter.install(prefs, AppEnvironment.current);
+  // Owner 2026-10-22: Sentry's native SDK (native crashes, ANRs) with the
+  // DSN the last bootstrap saved — prod release only, never delays paint.
+  unawaited(SentryNative.start(prefs, flavor));
   // Owner 2026-10-15: the app's own usage events (admin → Аналитика).
   AppEvents.install(prefs, AppEnvironment.current);
   applyWebNoticeChoice(prefs);
@@ -151,6 +156,17 @@ Future<void> runLawBid(AppFlavor flavor) async {
   // docs/ops/demo-world.md: Android Play install referrer → pending referral
   // code (first launch only). Fire-and-forget, never delays first paint.
   unawaited(captureInstallReferrer(container));
+
+  // Owner 2026-10-22 (load audit finding 8): case files not opened for a
+  // week leave the phone — in the background, after the first screens.
+  if (!kIsWeb) {
+    unawaited(
+      Future<void>.delayed(
+        const Duration(seconds: 20),
+        CaseFileCache.cleanUp,
+      ),
+    );
+  }
 
   // Everything network-bound — session check (refresh token → access
   // token), `/config/bootstrap` flags + legal docs + min version, the

@@ -168,3 +168,61 @@ terraform plan -out=plan.bin
 ../../../scripts/deploy/plan-guard.sh plan.bin   # падает, если удаляются база, секреты, KMS, Redis, S3
 terraform apply plan.bin
 ```
+
+## Надёжность (2026-10-22): Multi-AZ, копии базы в другом регионе, очередь, endpoints
+
+Что меняется и сколько стоит — [infra/README.md](../../infra/README.md)
+«Надёжность, 2026-10-22» (итого ≈ +$45–50 в месяц на стартовом размере:
+Multi-AZ ≈ ×2 цены базы, копии ≈ $3–6, VPC endpoints ≈ $29). Terraform
+прод-базу **не меняет**: она вне Terraform, её настройки включаются в
+консоли, Terraform только делает копии и проверяет.
+
+**Порядок (строго по шагам):**
+
+1. **Консоль RDS** (5 минут, без остановки сайта): Multi-AZ, хранение 14
+   дней, окно бэкапа 03:10 UTC, защита от удаления —
+   [backups.md](backups.md) «Консоль RDS». Проверка:
+   ```sh
+   aws rds describe-db-instances --db-instance-identifier lawbid-prod-postgres \
+     --query 'DBInstances[0].[MultiAZ,BackupRetentionPeriod,DeletionProtection,LatestRestorableTime]' --output text
+   ```
+   ждём `True  14  True  <время не старше 5 минут>`.
+2. **terraform.tfvars** (`infra/envs/prod`): добавить
+   ```hcl
+   interface_endpoints          = ["ecr.api", "ecr.dkr", "logs", "secretsmanager"]
+   interface_endpoint_azs       = 1
+   existing_database_identifier = "lawbid-prod-postgres"
+   backup_enabled               = true
+   backup_retention_days        = 35
+   worker_jobs_per_task         = 50
+   ```
+   (`backup_copy_account_id` — только когда создан резервный аккаунт, см.
+   backups.md.)
+3. **План** (ничего не меняет):
+   ```sh
+   cd infra/envs/prod
+   ../../../scripts/deploy/current-tag.sh        # подставить текущие теги образов
+   terraform init -backend-config=backend.hcl
+   terraform plan -out=plan.bin
+   ../../../scripts/deploy/plan-guard.sh plan.bin
+   ```
+   Ожидаемо в плане: **создать** `module.stack.module.backup[0]` (2 хранилища
+   копий, план, выбор, роль, правило EventBridge, тревога),
+   `aws_sns_topic_policy.alerts`, метрика `queue-waiting-total`, правило
+   `worker-queue`, 4 VPC endpoint; **изменить на месте** политику ключа KMS.
+   Ни одного `destroy` / `replace`. Если есть
+   `Warning: Check block assertion failed` — шаг 1 не доделан (план всё
+   равно можно применять). Иначе — стоп и написать Claude.
+4. **Применить:** `terraform apply plan.bin`.
+5. **Выложить код API** (Actions → Deploy): обработчик начинает писать
+   длину очереди; правило масштабирования начинает работать после этого.
+6. **Наутро** (после 06:00 UTC): AWS Console → AWS Backup → Jobs — задача
+   `Completed`, копия в us-west-2 (Copy jobs) — `Completed`. Тревога
+   `lawbid-prod-db-backup-age` в первую ночь может прийти — это нормально.
+7. **Учебное восстановление:** `scripts/ops/restore-drill.sh`, строку —
+   в [restore-drill.md](restore-drill.md).
+
+Откат: в `terraform.tfvars` `backup_enabled = false`,
+`worker_jobs_per_task = 0`, `interface_endpoints = []` → `plan` / `apply`.
+Хранилища с копиями Terraform удалить не сможет (защита AWS и plan-guard) —
+так и задумано. Multi-AZ выключается в консоли RDS → Modify.

@@ -13,6 +13,7 @@ AdminLoginVerifyResultDto _$AdminLoginVerifyResultDtoFromJson(
   session: json['session'] == null
       ? null
       : AdminSessionDto.fromJson(json['session'] as Map<String, dynamic>),
+  totpSetupRequired: json['totpSetupRequired'] as bool,
 );
 
 Map<String, dynamic> _$AdminLoginVerifyResultDtoToJson(
@@ -20,4 +21,5 @@ Map<String, dynamic> _$AdminLoginVerifyResultDtoToJson(
 ) => <String, dynamic>{
   'ticket': ?instance.ticket,
   'session': ?instance.session?.toJson(),
+  'totpSetupRequired': instance.totpSetupRequired,
 };

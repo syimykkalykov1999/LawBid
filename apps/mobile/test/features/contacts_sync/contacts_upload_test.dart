@@ -11,7 +11,10 @@ import 'package:lawbid/features/contacts_sync/application/contacts_sync_provider
 import 'package:lawbid/features/contacts_sync/application/phone_contacts.dart';
 import 'package:lawbid/features/contacts_sync/data/contacts_sync_repository.dart';
 import 'package:lawbid/features/contacts_sync/data/phone_numbers.dart';
+import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import 'fake_contacts_server.dart';
 
 /// Owner 2026-10-22: the whole phone book goes up in ONE request again;
 /// small parts only when the firewall refuses the big body; the Contacts
@@ -75,41 +78,6 @@ ApiContactsSyncRepository _repo(_Adapter a) => ApiContactsSyncRepository(
     );
 
 final _book = {for (var i = 0; i < 700; i++) _h(i)};
-
-/// Status, upload and the phone book replaced for the provider tests.
-class _FakeRepo implements ContactsSyncRepository {
-  _FakeRepo(this.answers);
-
-  /// One per upload call: people, or an error to throw.
-  final List<Object> answers;
-  final calls = <Set<String>>[];
-
-  @override
-  Future<ContactsSyncStatus> status() async =>
-      const ContactsSyncStatus(enabled: true, matches: 0, phoneRegion: 'US');
-
-  @override
-  Future<ContactsUploadResult> upload(
-    Set<String> hashes, {
-    ContactsUploadProgress? onProgress,
-  }) async {
-    final answer = answers[calls.length];
-    calls.add(hashes);
-    if (answer is Exception) throw answer;
-    final people = answer as List<ContactPerson>;
-    return ContactsUploadResult(
-      matched: people.length,
-      people: people,
-      uploaded: hashes,
-    );
-  }
-
-  @override
-  Future<void> remove() async {}
-
-  @override
-  Future<void> setFindByPhone({required bool enabled}) async {}
-}
 
 void main() {
   group('ApiContactsSyncRepository.upload', () {
@@ -187,7 +155,7 @@ void main() {
     );
 
     Future<ProviderContainer> make(
-      _FakeRepo repo, {
+      FakeContactsServer server, {
       List<Duration> retry = const [],
     }) async {
       SharedPreferences.setMockInitialValues({});
@@ -195,7 +163,8 @@ void main() {
       final c = ProviderContainer(
         overrides: [
           sharedPreferencesProvider.overrideWithValue(sp),
-          contactsSyncRepositoryProvider.overrideWithValue(repo),
+          currentUserIdProvider.overrideWithValue('u1'),
+          contactsSyncRepositoryProvider.overrideWithValue(server),
           phoneBookEntriesReaderProvider.overrideWithValue(() async => entries),
           contactsRetryDelaysProvider.overrideWithValue(retry),
         ],
@@ -205,25 +174,36 @@ void main() {
       return c;
     }
 
-    test('one upload with the whole book; matches join the names', () async {
-      final repo = _FakeRepo([
-        [ann],
-      ]);
-      final c = await make(repo);
+    test('first time: the whole book in one request; matches join the names',
+        () async {
+      final server = FakeContactsServer(users: {ann.hash: ann});
+      final c = await make(server);
       final data = await c.read(phoneContactsProvider.future);
-      expect(repo.calls, hasLength(1));
-      expect(repo.calls.single, hasLength(5));
+      expect(server.calls, hasLength(1));
+      expect(server.calls.single['full'], isTrue);
+      expect(server.uploadedHashes, hasLength(5));
       expect(data.onLawBid.single.title, 'Person 1');
       expect(data.invite, hasLength(4));
       expect(data.matchFailed, isFalse);
     });
 
+    test('opened again: the same book is not sent again', () async {
+      final server = FakeContactsServer(users: {ann.hash: ann});
+      final c = await make(server);
+      await c.read(phoneContactsProvider.future);
+      c.invalidate(phoneContactsProvider);
+      final data = await c.read(phoneContactsProvider.future);
+      expect(server.calls, hasLength(1));
+      expect(data.onLawBid.single.userId, 'ann');
+    });
+
     test('the match request fails: the tab still lists the phone book',
         () async {
-      final repo = _FakeRepo([
-        const ApiException(code: 'NETWORK_ERROR', message: 'offline'),
-      ]);
-      final c = await make(repo);
+      final server = FakeContactsServer()
+        ..errors.add(
+          const ApiException(code: 'NETWORK_ERROR', message: 'offline'),
+        );
+      final c = await make(server);
       final data = await c.read(phoneContactsProvider.future);
       expect(data.matchFailed, isTrue);
       expect(data.invite, hasLength(5));
@@ -231,16 +211,16 @@ void main() {
     });
 
     test('a failed match request is retried quietly', () async {
-      final repo = _FakeRepo([
-        const ApiException(code: 'NETWORK_ERROR', message: 'offline'),
-        [ann],
-      ]);
-      final c = await make(repo, retry: const [Duration.zero]);
+      final server = FakeContactsServer(users: {ann.hash: ann})
+        ..errors.add(
+          const ApiException(code: 'NETWORK_ERROR', message: 'offline'),
+        );
+      final c = await make(server, retry: const [Duration.zero]);
       expect((await c.read(phoneContactsProvider.future)).matchFailed, isTrue);
       // The timer fires and the provider runs again by itself.
       await Future<void>.delayed(const Duration(milliseconds: 50));
       final data = await c.read(phoneContactsProvider.future);
-      expect(repo.calls, hasLength(2));
+      expect(server.calls, hasLength(2));
       expect(data.matchFailed, isFalse);
       expect(data.onLawBid.single.userId, 'ann');
       expect(data.invite, hasLength(4));

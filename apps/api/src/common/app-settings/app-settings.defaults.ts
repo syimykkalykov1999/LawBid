@@ -471,6 +471,13 @@ export const OWNER_REASON_SETTINGS = {
   ],
 } as const;
 
+// Owner 2026-10-22 (system audit #2, item 11): a bulk payout or a refund
+// of this many cents or more needs a SECOND admin's approval (maker-checker)
+// before it runs. Default $500. 0 = every one needs it.
+export const OWNER_DUAL_APPROVAL_SETTINGS = {
+  'billing.dual_approval_min_cents': 50_000,
+} as const;
+
 /** Every typed app_config tunable with its spec default. */
 /** Owner 2026-10-05: where the paid translator works (Ключи и сервисы →
  * Google Translate): 'all' zones, or only the switched-on 'zones'. */
@@ -743,6 +750,7 @@ export const APP_SETTINGS = {
   ...OWNER_TRUST_SETTINGS,
   ...OWNER_TRIAL_SETTINGS,
   ...OWNER_REASON_SETTINGS,
+  ...OWNER_DUAL_APPROVAL_SETTINGS,
   ...OWNER_TRANSLATE_SETTINGS,
   ...OWNER_SUPPORT_DESK_SETTINGS,
   ...OWNER_REWARDS_SETTINGS,

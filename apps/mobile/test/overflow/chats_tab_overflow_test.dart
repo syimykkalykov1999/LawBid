@@ -46,31 +46,35 @@ void main() {
   };
   for (final MapEntry(key: name, value: (t, dir)) in locales.entries) {
     for (final id in AppThemeId.values) {
-      testWidgets('chats tab at 360 dp ($name, ${id.name})', (tester) async {
-        useNarrowPhone(tester);
-        await tester.pumpWidget(
-          uxApp(
-            Directionality(textDirection: dir, child: const ContactsScreen()),
-            theme: AppTheme.of(id),
-            size: narrowPhone,
-            textScale: 1.1,
-            disableAnimations: true,
-            overrides: uxOverrides(
-              translator: t,
-              extra: [
-                sharedPreferencesProvider.overrideWithValue(prefs),
-                phoneContactsProvider
-                    .overrideWith((_) async => const PhoneContacts()),
-                myChatPeopleProvider.overrideWith((_) async => _people),
-              ],
+      // Owner 2026-10-22 (audit #12): the app allows text up to x1.3.
+      for (final scale in [1.1, 1.3]) {
+        testWidgets('chats tab at 360 dp ($name, ${id.name}, x$scale)',
+            (tester) async {
+          useNarrowPhone(tester);
+          await tester.pumpWidget(
+            uxApp(
+              Directionality(textDirection: dir, child: const ContactsScreen()),
+              theme: AppTheme.of(id),
+              size: narrowPhone,
+              textScale: scale,
+              disableAnimations: true,
+              overrides: uxOverrides(
+                translator: t,
+                extra: [
+                  sharedPreferencesProvider.overrideWithValue(prefs),
+                  phoneContactsProvider
+                      .overrideWith((_) async => const PhoneContacts()),
+                  myChatPeopleProvider.overrideWith((_) async => _people),
+                ],
+              ),
             ),
-          ),
-        );
-        await tester.pump();
-        await tester.pump();
-        expect(tester.takeException(), isNull);
-        expect(find.text('Bob'), findsOneWidget);
-      });
+          );
+          await tester.pump();
+          await tester.pump();
+          expect(tester.takeException(), isNull);
+          expect(find.text('Bob'), findsOneWidget);
+        });
+      }
     }
   }
 }

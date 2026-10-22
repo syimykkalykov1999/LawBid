@@ -3,8 +3,10 @@
 # instead be any managed PostgreSQL (infra/README.md). What this adds over a
 # bare instance: daily automated backups kept `backup_retention_days`,
 # point-in-time recovery, encryption with our KMS key, TLS only, slow-query
-# logging, deletion protection and a final snapshot. The restore drill that
-# proves the backups work is scripts/ops/restore-drill.sh.
+# logging, deletion protection and a final snapshot; Multi-AZ when
+# `multi_az` (prod). Isolated copies in a second region / account come
+# from modules/backup. The restore drill that proves the backups work is
+# scripts/ops/restore-drill.sh.
 terraform {
   required_providers {
     aws    = { source = "hashicorp/aws", version = "~> 5.60" }
@@ -31,12 +33,17 @@ variable "max_allocated_storage_gb" {
   description = "Storage grows by itself up to this size (a ceiling for the bill)."
 }
 variable "multi_az" {
-  type    = bool
-  default = false
+  type        = bool
+  default     = false
+  description = "A standby copy in the second AZ with automatic failover (≈ 1–2 min); doubles the instance price. Prod: true (owner 2026-10-22)."
 }
 variable "backup_retention_days" {
   type    = number
   default = 14
+  validation {
+    condition     = var.backup_retention_days >= 7 && var.backup_retention_days <= 35
+    error_message = "backup_retention_days: 7–35 (RDS limit 35; prod keeps at least 14)."
+  }
 }
 variable "backup_window" {
   type        = string
@@ -162,6 +169,7 @@ resource "aws_db_instance" "this" {
 
 output "endpoint" { value = aws_db_instance.this.address }
 output "instance_id" { value = aws_db_instance.this.identifier }
+output "arn" { value = aws_db_instance.this.arn }
 output "master_secret_arn" { value = aws_secretsmanager_secret.master.arn }
 output "security_group_id" { value = aws_security_group.db.id }
 output "backup_retention_days" { value = var.backup_retention_days }

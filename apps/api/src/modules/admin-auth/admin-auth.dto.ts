@@ -1,6 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
-  IsEmail,
   IsOptional,
   IsString,
   Length,
@@ -9,17 +8,10 @@ import {
   MinLength,
 } from 'class-validator';
 
-/** docs/06 §2.1 admin sign-in: login + password (or an emailed code); the
- * authenticator only when the admin turned it on. */
+/** docs/06 §2.1 admin sign-in (owner 2026-10-22): login + password, then
+ * the authenticator code — mandatory for every admin. */
 
-export class AdminLoginStartDto {
-  @ApiProperty({ format: 'email' })
-  @IsEmail()
-  @MaxLength(254)
-  email!: string;
-}
-
-/** Login + password: the first factor next to the emailed code. */
+/** Login + password: the first factor (always followed by the code). */
 export class AdminPasswordLoginDto {
   @ApiProperty({ example: 'your.login', maxLength: 40 })
   @IsString()
@@ -106,19 +98,8 @@ export class AdminOkDto {
   @ApiProperty() ok!: boolean;
 }
 
-export class AdminLoginVerifyDto {
-  @ApiProperty({ format: 'email' })
-  @IsEmail()
-  @MaxLength(254)
-  email!: string;
-
-  @ApiProperty({ description: 'The 6-digit code from the email.' })
-  @Matches(/^\d{6}$/)
-  code!: string;
-}
-
 export class AdminTotpDto {
-  @ApiProperty({ description: 'Ticket from login/verify (5 minutes).' })
+  @ApiProperty({ description: 'Ticket from login/password (5 minutes).' })
   @IsString()
   @Length(20, 2000)
   ticket!: string;
@@ -129,7 +110,7 @@ export class AdminTotpDto {
 }
 
 export class AdminRecoveryDto {
-  @ApiProperty({ description: 'Ticket from login/verify (5 minutes).' })
+  @ApiProperty({ description: 'Ticket from login/password (5 minutes).' })
   @IsString()
   @Length(20, 2000)
   ticket!: string;
@@ -153,7 +134,7 @@ export class AdminLoginVerifyResultDto {
     type: String,
     nullable: true,
     description:
-      'Only when this admin turned on two-factor: exchange it with the authenticator code (or a recovery code) at /totp.',
+      'The ticket for step 2: the authenticator code (or a recovery code) at /totp — or, when totpSetupRequired, the forced setup at /login/totp-setup.',
   })
   ticket!: string | null;
 
@@ -161,9 +142,35 @@ export class AdminLoginVerifyResultDto {
     type: () => AdminSessionDto,
     nullable: true,
     description:
-      'The signed-in session when no second step is needed (two-factor off, the default).',
+      'Always null since owner 2026-10-22: the password alone never signs in.',
   })
   session!: AdminSessionDto | null;
+
+  @ApiProperty({
+    description:
+      'This admin has no authenticator yet: set it up now (QR + recovery codes) before anything else.',
+  })
+  totpSetupRequired!: boolean;
+}
+
+/** Forced first setup of the authenticator, step A. */
+export class AdminTotpSetupBeginDto {
+  @ApiProperty({ description: 'Ticket from login/password (15 minutes).' })
+  @IsString()
+  @Length(20, 2000)
+  ticket!: string;
+}
+
+/** Forced first setup, step B: the first code from the app. */
+export class AdminTotpSetupFinishDto {
+  @ApiProperty({ description: 'Ticket from login/password (15 minutes).' })
+  @IsString()
+  @Length(20, 2000)
+  ticket!: string;
+
+  @ApiProperty({ description: 'The 6-digit code the app shows now.' })
+  @Matches(/^\d{6}$/)
+  code!: string;
 }
 
 /** Owner 2026-10-05: one country tab of the admin panel. */
@@ -279,36 +286,24 @@ export class AdminLogoutResultDto {
   ok!: true;
 }
 
-/** Owner 2026-10-01: a fresh confirmation before key changes: the
- * authenticator code when two-factor is on, otherwise the own password. */
+/** Owner 2026-10-01 / 2026-10-22: a fresh authenticator code before a
+ * sensitive action (the authenticator is mandatory, no password fallback). */
 export class AdminStepUpDto {
-  @ApiPropertyOptional({ description: 'The 6-digit authenticator code.' })
-  @IsOptional()
+  @ApiProperty({ description: 'The 6-digit authenticator code.' })
   @Matches(/^\d{6}$/)
-  code?: string;
-
-  @ApiPropertyOptional({
-    maxLength: 128,
-    description: 'The admin’s own password (when two-factor is off).',
-  })
-  @IsOptional()
-  @IsString()
-  @MaxLength(128)
-  password?: string;
-}
-
-export class AdminTwoFactorCodeDto {
-  @ApiProperty({ description: 'The 6-digit code from the authenticator app.' })
-  @Matches(/^\d{6}$|^[A-Za-z2-7]{5}-?[A-Za-z2-7]{5}$/)
   code!: string;
 }
 
-export class AdminTwoFactorEnabledDto {
+/** The forced setup is done: recovery codes (shown once) and the session. */
+export class AdminTotpSetupResultDto {
   @ApiProperty({
     type: [String],
     description: 'Ten one-time recovery codes, shown once.',
   })
   recoveryCodes!: string[];
+
+  @ApiProperty({ type: () => AdminSessionDto })
+  session!: AdminSessionDto;
 }
 
 export class AdminStepUpResultDto {

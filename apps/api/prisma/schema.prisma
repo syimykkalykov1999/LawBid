@@ -457,6 +457,9 @@ enum MessageType {
 }
 
 enum NotificationType {
+  // Owner 2026-10-22: «X from your contacts joined LawBid» (server-side,
+  // contacts.joined job; the «Уведомлять, когда контакты появятся» switch).
+  contact_joined
   // Owner 2026-10-21: «X invites you to a group» (Requests).
   group_invite
   // Owner 2026-10-20: a new post in a channel I subscribed to.
@@ -809,6 +812,10 @@ model User {
   /// Owner 2026-10-20: clients can be found by people who have their number
   /// in the address book (contacts sync); attorneys' profiles are public.
   find_by_phone            Boolean                 @default(true)
+  /// Owner 2026-10-22: when the people who have this number in their phone
+  /// book were told "X joined LawBid" (the contacts.joined job). Null: not
+  /// yet (a new account or a new number).
+  contacts_announced_at    DateTime?               @db.Timestamptz
   /// Owner 2026-10-05: feed content — 'all' or 'legal_only' (general
   /// posts hidden from feed, search and recommendations); null = the admin
   /// default `feed.default_content_mode`.
@@ -892,6 +899,9 @@ model User {
   admin_credential            AdminCredential?
   data_export_jobs            DataExportJob[]
   audit_entries               AuditLog[]                     @relation("AuditAdmin")
+  admin_approvals_requested   AdminApproval[]                @relation("AdminApprovalRequester")
+  admin_approvals_approved    AdminApproval[]                @relation("AdminApprovalApprover")
+  admin_approvals_rejected    AdminApproval[]                @relation("AdminApprovalRejecter")
   data_requests_handled       DataAccessRequest[]            @relation("DataRequestHandler")
   data_access_entries         DataAccessLog[]                @relation("DataAccessAdmin")
   case_comments               CaseComment[]                  @relation("CaseCommentAuthor")
@@ -943,6 +953,8 @@ model User {
   contact_matches             ContactMatch[]                 @relation("ContactOwner")
   contact_matched_by          ContactMatch[]                 @relation("ContactMatched")
   contact_sync                ContactSyncSetting?
+  // Owner 2026-10-22: the stored phone book (hashes only).
+  contact_book_hashes         ContactBookHash[]
 
   // Trigram GIN on full_name_lower is a *partial* index (raw SQL): Prisma
   // can't declare gin_trgm_ops, and ignores partial indexes in its diff.
@@ -3371,6 +3383,44 @@ model DataAccessLog {
 // docs/06 §2.1, §10 (stage 6.1): admin 2FA. The TOTP secret is stored
 // encrypted (AES-256-GCM with ADMIN_TOTP_ENC_KEY; KMS envelope when the AWS
 // stack exists — OQ-016), recovery codes only as hashes.
+/// Owner 2026-10-22 (system audit #2, item 11 — maker-checker): a bulk
+/// payout or a refund at or above `billing.dual_approval_min_cents` is not
+/// run by the admin who asks for it. It waits here until ANOTHER admin
+/// approves it (with a fresh 2FA step-up); only then it runs, exactly once
+/// (the pending → approved switch is atomic). Banks call it dual control /
+/// four-eyes; Stripe lets teams require a second person for payouts.
+model AdminApproval {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// 'payroll_bulk_payout' | 'billing_refund'
+  kind          String    @db.VarChar(40)
+  /// The request body the action runs with once approved.
+  payload       Json
+  /// SHA-256 of kind + payload: the same ask twice is one request.
+  payload_hash  String    @db.VarChar(64)
+  /// What the limit was compared with (cents, all currencies summed).
+  amount_cents  Int
+  summary       String    @db.VarChar(300)
+  /// pending | approved | rejected | failed | expired (CHECK in SQL)
+  status        String    @default("pending") @db.VarChar(16)
+  requested_by  String    @db.Uuid
+  requester     User      @relation("AdminApprovalRequester", fields: [requested_by], references: [id], onDelete: Restrict)
+  approved_by   String?   @db.Uuid
+  approver      User?     @relation("AdminApprovalApprover", fields: [approved_by], references: [id], onDelete: Restrict)
+  rejected_by   String?   @db.Uuid
+  rejecter      User?     @relation("AdminApprovalRejecter", fields: [rejected_by], references: [id], onDelete: Restrict)
+  decision_note String?   @db.VarChar(500)
+  /// The action's answer (or its error) after it ran.
+  result        Json?
+  error         String?   @db.VarChar(500)
+  created_at    DateTime  @default(now()) @db.Timestamptz
+  decided_at    DateTime? @db.Timestamptz
+  executed_at   DateTime? @db.Timestamptz
+
+  @@index([status, created_at(sort: Desc)])
+  @@index([requested_by, created_at(sort: Desc)])
+  @@map("admin_approvals")
+}
+
 model AdminCredential {
   user_id              String    @id @db.Uuid
   user                 User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
@@ -5772,12 +5822,42 @@ model ContactMatch {
 
 /// Owner 2026-10-13: whether a user syncs contacts, and when last.
 model ContactSyncSetting {
-  user_id   String    @id @db.Uuid
-  user      User      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "contact_sync_settings_user_fkey")
-  enabled   Boolean   @default(true)
-  synced_at DateTime? @db.Timestamptz
+  user_id         String    @id @db.Uuid
+  user            User      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "contact_sync_settings_user_fkey")
+  enabled         Boolean   @default(true)
+  synced_at       DateTime? @db.Timestamptz
+  /// Owner 2026-10-22 (like Telegram's contacts hash): XOR of the stored
+  /// phone-book hashes (contact_book_hashes), 64 hex. The app sends its
+  /// own; equal → "not modified", no work. Null: unknown → the app uploads
+  /// the whole book once.
+  book_hash       String?   @db.Char(64)
+  /// How many numbers are stored (cap CONTACT_BOOK_MAX).
+  book_size       Int       @default(0)
+  /// Bumped when the people list changes without an upload (someone from
+  /// the book joined, a person hid their number): the app's daily check
+  /// then gets the new list.
+  matches_version Int       @default(0)
+  /// «Уведомлять, когда контакты появятся в LawBid»: the server sends the
+  /// "X joined LawBid" notice only while this is on.
+  notify_joined   Boolean   @default(true)
 
   @@map("contact_sync_settings")
+}
+
+/// Owner 2026-10-22 (contacts sync like Telegram/WhatsApp): the user's
+/// uploaded phone book as SHA-256 hashes of E.164 numbers, never numbers.
+/// Kept so the app sends only what was added / removed, deleted contacts
+/// drop their match, and a person who registers later is announced by the
+/// server ("X joined LawBid"). DELETE /contacts/sync removes all of it.
+model ContactBookHash {
+  owner_id     String   @db.Uuid
+  owner        User     @relation(fields: [owner_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "contact_book_hashes_owner_fkey")
+  phone_sha256 String   @db.Char(64)
+  created_at   DateTime @default(now()) @db.Timestamptz
+
+  @@id([owner_id, phone_sha256])
+  @@index([phone_sha256])
+  @@map("contact_book_hashes")
 }
 
 /// Owner 2026-10-14: how often an attorney's profile was opened, per day

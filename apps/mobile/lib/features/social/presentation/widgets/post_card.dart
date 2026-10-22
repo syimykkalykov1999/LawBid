@@ -13,6 +13,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/media/app_image_cache.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/navigation/shell/shell_layout.dart';
 import 'package:lawbid/core/navigation/shell/web_media_width.dart';
@@ -2125,6 +2126,7 @@ class GoldRingAvatar extends StatelessWidget {
               url!,
               // Signed URLs change per request: cache by the stable path.
               cacheKey: Uri.parse(url!).path,
+              cacheManager: AppImageCaches.feed,
             ),
       initials: initials,
       size: ring ? size - 4 : size,
@@ -2306,8 +2308,14 @@ class _PostBodyTextState extends ConsumerState<PostBodyText> {
     return spans;
   }
 
+  // Owner 2026-10-22 (audit #12): a post's text follows the phone's font
+  // size in full, past the app shell's 1.3x cap (the «more» cut is measured
+  // with the same scale).
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      FullTextScale(child: Builder(builder: _build));
+
+  Widget _build(BuildContext context) {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
@@ -2515,6 +2523,7 @@ class _PostMediaCarouselState extends State<PostMediaCarousel>
                   CachedNetworkImage(
                     imageUrl: url,
                     cacheKey: key,
+                    cacheManager: AppImageCaches.feed,
                     // Screen width is enough; never decode the original.
                     memCacheWidth: decodeWidth,
                     fit: fit,

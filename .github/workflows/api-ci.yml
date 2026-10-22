@@ -30,6 +30,8 @@ on:
       - "package-lock.json"
       - "docker-compose.yml"
       - ".github/workflows/api-ci.yml"
+      - ".github/npm-audit-allowlist.json"
+      - "scripts/ci/npm-audit-gate.mjs"
   push:
     branches: [main, master]
     paths:
@@ -39,6 +41,8 @@ on:
       - "package-lock.json"
       - "docker-compose.yml"
       - ".github/workflows/api-ci.yml"
+      - ".github/npm-audit-allowlist.json"
+      - "scripts/ci/npm-audit-gate.mjs"
 
 concurrency:
   group: api-ci-${{ github.ref }}
@@ -280,12 +284,9 @@ jobs:
           fi
           cd packages/api-contract/dart && dart analyze --fatal-warnings
 
-      - name: Dependency audit (critical blocks; high is advisory)
-        # docs/06 §4.4 (stage 6.1): a critical vulnerability blocks the
-        # merge. High findings stay advisory in the next step until the
-        # pre-existing transitive ones (multer, uuid) are upgraded.
-        run: npm audit --audit-level=critical --workspace apps/api
-
-      - name: Dependency audit (high, advisory)
-        continue-on-error: true
-        run: npm audit --audit-level=high --workspace apps/api
+      - name: Dependency audit (high and critical block)
+        # docs/06 §4.4; audit #15 (2026-10-22): a high or critical advisory
+        # blocks the merge unless it is in .github/npm-audit-allowlist.json
+        # with a reason and an expiry date (how to add one: the header of
+        # scripts/ci/npm-audit-gate.mjs).
+        run: node scripts/ci/npm-audit-gate.mjs --workspace apps/api

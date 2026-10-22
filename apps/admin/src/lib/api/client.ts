@@ -54,20 +54,70 @@ async function reroute(
   const country = countryTab();
   if (country) headers.set('x-admin-country', country);
   const hasBody = request.method !== 'GET' && request.method !== 'HEAD';
-  return new Request(url, {
+  const body = hasBody ? await request.text() : undefined;
+  const out = new Request(url, {
     method: request.method,
     headers,
-    body: hasBody ? await request.text() : undefined,
+    body,
     credentials: 'same-origin',
   });
+  sentBodies.set(out, body);
+  return out;
+}
+
+/** The materialized body of each proxied request, for a step-up retry. */
+const sentBodies = new WeakMap<Request, string | undefined>();
+
+/**
+ * Owner 2026-10-22 (system audit #2, item 2): money and identity actions
+ * answer 403 ADMIN_STEP_UP_REQUIRED until the admin types a fresh code.
+ * The app shell registers a prompt (StepUpHost); the client asks once,
+ * then repeats the same request — no page needs its own dialog. A
+ * cancelled prompt ends as ADMIN_STEP_UP_CANCELLED.
+ */
+type StepUpPrompt = () => Promise<boolean>;
+let stepUpPrompt: StepUpPrompt | null = null;
+let stepUpInFlight: Promise<boolean> | null = null;
+export function registerStepUpPrompt(prompt: StepUpPrompt | null): void {
+  stepUpPrompt = prompt;
+}
+
+async function stepUpAndRetry(request: Request, response: Response): Promise<Response | null> {
+  if (response.status !== 403 || !stepUpPrompt) return null;
+  if (new URL(request.url).pathname.endsWith('/auth/step-up')) return null;
+  const body = (await response
+    .clone()
+    .json()
+    .catch(() => null)) as { error?: { code?: string } } | null;
+  if (body?.error?.code !== 'ADMIN_STEP_UP_REQUIRED') return null;
+  stepUpInFlight ??= stepUpPrompt().finally(() => {
+    stepUpInFlight = null;
+  });
+  if (!(await stepUpInFlight)) {
+    throw new ApiError(403, 'ADMIN_STEP_UP_CANCELLED', 'Step-up cancelled.');
+  }
+  return fetch(
+    new Request(request.url, {
+      method: request.method,
+      headers: request.headers,
+      body: sentBodies.get(request),
+      credentials: 'same-origin',
+    }),
+  );
 }
 
 const toProxy: Middleware = {
   // `/admin/x` → `/api/proxy/x`
   onRequest: ({ request }) =>
     reroute(request, (p) => p.replace(/^\/admin\//, '/api/proxy/')),
-  async onResponse({ response }) {
+  async onResponse({ request, response: first }) {
+    let response = first;
     if (response.ok) return response;
+    const retried = await stepUpAndRetry(request, response);
+    if (retried) {
+      if (retried.ok) return retried;
+      response = retried;
+    }
     if (response.status === 401 && typeof window !== 'undefined') {
       const next = encodeURIComponent(window.location.pathname);
       window.location.assign(`/login?next=${next}`);
@@ -104,6 +154,12 @@ const ERROR_TEXT: Record<string, string> = {
   ADMIN_LOGIN_TAKEN: 'Этот логин уже занят другим админом.',
   ADMIN_RECOVERY_FAILED: 'Ответ неверный.',
   ADMIN_STEP_UP_REQUIRED: 'Подтвердите действие кодом из аутентификатора.',
+  ADMIN_STEP_UP_CANCELLED: 'Действие отменено: код подтверждения не введён.',
+  ADMIN_APPROVAL_PENDING:
+    'Сумма от лимита двойного подтверждения: запрос отправлен второму админу. Деньги уйдут, когда он подтвердит («Деньги → Требуют подтверждения»).',
+  ADMIN_APPROVAL_SELF: 'Свой запрос подтвердить нельзя — это делает другой админ.',
+  ADMIN_APPROVAL_NOT_PENDING: 'Этот запрос уже решён или истёк (72 часа).',
+  ADMIN_TOTP_SETUP_REQUIRED: 'Подключите приложение-аутентификатор: войдите заново.',
   FORBIDDEN: 'Недостаточно прав.',
   VERIFICATION_DECISION_INCOMPLETE: 'Сначала решите по каждой лицензии (кнопка «Подтвердить» или «Отклонить» в строке лицензии) — хотя бы одна должна быть подтверждена.',
   PAYMENTS_NOT_CONFIGURED: 'Stripe не отвечает или ключ не подходит: проверьте ключ Stripe в Система → Ключи и сервисы. Остальное сохранено.',

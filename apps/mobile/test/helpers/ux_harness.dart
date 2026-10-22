@@ -74,6 +74,23 @@ class _NoContactsSync implements ContactsSyncRepository {
 
   @override
   Future<void> setFindByPhone({required bool enabled}) async {}
+
+  @override
+  Future<ContactsSyncAnswer> sync({
+    bool full = false,
+    String? baseHash,
+    List<String> added = const [],
+    List<String> removed = const [],
+    String? bookHash,
+    int? matchesVersion,
+  }) async =>
+      const ContactsSyncAnswer(
+        status: ContactsSyncStatusCode.ok,
+        bookHash: null,
+      );
+
+  @override
+  Future<void> setNotifyJoined({required bool enabled}) async {}
 }
 
 /// "Asked already": the soft row shows, no system dialog in tests.
@@ -107,9 +124,10 @@ List<Override> uxOverrides({
       ...legalOverrides(),
       contactsSyncRepositoryProvider.overrideWithValue(_NoContactsSync()),
       contactsSyncActionsProvider.overrideWith(_AskedActions.new),
-      // Owner 2026-10-21: the «+» of the chats asks for running group calls
-      // every half minute; a test has no network and no pending timers.
-      ongoingGroupCallsProvider.overrideWith((ref) async => ongoingCalls),
+      // Owner 2026-10-21: the «+» of the chats asks for running group calls;
+      // a test has no network and no pending timers.
+      ongoingGroupCallsProvider
+          .overrideWith(() => _FixedOngoingCalls(ongoingCalls)),
       ...extra,
     ];
 
@@ -141,4 +159,14 @@ Widget uxApp(
       ),
     ),
   );
+}
+
+/// Owner 2026-10-22: the running group calls, fixed (no network, no timer).
+class _FixedOngoingCalls extends OngoingGroupCallsNotifier {
+  _FixedOngoingCalls(this.calls);
+
+  final List<OngoingGroupCall> calls;
+
+  @override
+  Future<List<OngoingGroupCall>> build() async => calls;
 }
