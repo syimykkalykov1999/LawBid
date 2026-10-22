@@ -3,6 +3,7 @@ import 'package:lawbid/core/l10n/app_language.dart';
 import 'package:lawbid/core/l10n/plural_rules.dart';
 import 'package:lawbid/core/l10n/strings/assistant_code_strings.dart';
 import 'package:lawbid/core/l10n/strings/attorney_setup_strings.dart';
+import 'package:lawbid/core/l10n/strings/audit4_strings.dart';
 import 'package:lawbid/core/l10n/strings/audit_cases_strings.dart';
 import 'package:lawbid/core/l10n/strings/audit_chat_strings.dart';
 import 'package:lawbid/core/l10n/strings/audit_social_strings.dart';
@@ -531,6 +532,8 @@ class StaticTranslatorRu extends _MapTranslator {
             'Этот способ входа временно недоступен.',
         'error.api.DEVICE_ATTESTATION_REQUIRED':
             'Не удалось проверить устройство. Обновите приложение из App Store или Google Play и попробуйте снова.',
+        'error.api.SYNC_TOO_OLD':
+            'Данные устарели, список обновлён заново.',
         'error.api.AUTH_REFRESH_REUSE_DETECTED':
             'В целях безопасности выполнен выход на всех устройствах. Войдите снова.',
         'error.api.AUTH_SESSION_REVOKED': 'Сеанс завершён. Войдите снова.',
@@ -1216,6 +1219,7 @@ class StaticTranslatorRu extends _MapTranslator {
         ...starsRu,
         ...feedContentRu,
         ...newsOffRu,
+        ...audit4Ru,
         ...seatRolesRu,
         ...webCheckoutRu,
         ...feedFreshRu,
@@ -1983,6 +1987,8 @@ class StaticTranslatorEn extends _MapTranslator {
             'This sign-in method is temporarily unavailable.',
         'error.api.DEVICE_ATTESTATION_REQUIRED':
             "We couldn't verify this device. Update the app from the App Store or Google Play and try again.",
+        'error.api.SYNC_TOO_OLD':
+            'This data was out of date, so the list was refreshed.',
         'error.api.AUTH_REFRESH_REUSE_DETECTED':
             "For your security, you've been signed out on all devices. Please sign in again.",
         'error.api.AUTH_SESSION_REVOKED':
@@ -2661,6 +2667,7 @@ class StaticTranslatorEn extends _MapTranslator {
         ...starsEn,
         ...feedContentEn,
         ...newsOffEn,
+        ...audit4En,
         ...seatRolesEn,
         ...webCheckoutEn,
         ...feedFreshEn,

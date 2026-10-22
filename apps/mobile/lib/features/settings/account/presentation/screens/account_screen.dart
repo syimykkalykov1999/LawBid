@@ -318,7 +318,7 @@ class _AccountLoading extends ConsumerWidget {
         ),
         children: const [
           FractionallySizedBox(
-            alignment: Alignment.centerLeft,
+            alignment: AlignmentDirectional.centerStart,
             widthFactor: 0.7,
             child: AppSkeleton(),
           ),

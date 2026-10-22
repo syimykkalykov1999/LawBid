@@ -13,6 +13,8 @@ import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/data/social_local_database.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 
+import '../../helpers/upload_queue_overrides.dart';
+
 /// Owner 2026-10-20 (speed, Telegram): the inbox opens on the saved list and
 /// the live one replaces it; folders other than "All" and searches never use
 /// the saved list.
@@ -72,6 +74,7 @@ void main() {
     final c = ProviderContainer(
       overrides: [
         socialLocalDatabaseProvider.overrideWithValue(db),
+        ...uploadQueueOverrides(),
         currentUserIdProvider.overrideWithValue('me'),
         realtimeClientProvider.overrideWithValue(null),
         chatRepositoryProvider.overrideWithValue(_Chats(live)),

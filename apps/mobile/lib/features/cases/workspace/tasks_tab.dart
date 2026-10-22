@@ -107,8 +107,8 @@ class _TasksTabState extends ConsumerState<TasksTab> {
                 ),
                 if (canEdit)
                   Padding(
-                    padding: const EdgeInsets.only(
-                      right: AppSpacing.lg,
+                    padding: const EdgeInsetsDirectional.only(
+                      end: AppSpacing.lg,
                       top: AppSpacing.sm,
                     ),
                     child: GestureDetector(

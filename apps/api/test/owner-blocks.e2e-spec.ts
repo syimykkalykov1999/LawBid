@@ -154,7 +154,7 @@ describe('User blocks (e2e, OQ-028)', () => {
     expect(
       (await api().post(`/api/v1/attorneys/${att.id}/follow`).set(cli.auth))
         .status,
-    ).toBe(204);
+    ).toBe(200);
 
     // Block (client blocks attorney), idempotent.
     expect(
@@ -241,7 +241,7 @@ describe('User blocks (e2e, OQ-028)', () => {
     expect(
       (await api().post(`/api/v1/attorneys/${att.id}/follow`).set(cli.auth))
         .status,
-    ).toBe(204);
+    ).toBe(200);
     const msg = await api()
       .post(`/api/v1/conversations/${conv.id}/messages`)
       .set(cli.auth)
@@ -263,7 +263,7 @@ describe('User blocks (e2e, OQ-028)', () => {
     expect(
       (await api().post(`/api/v1/attorneys/${att.id}/follow`).set(cli.auth))
         .status,
-    ).toBe(204);
+    ).toBe(200);
     await counters.flush();
     expect(await followers()).toBe(1);
     const post = await prisma.post.create({

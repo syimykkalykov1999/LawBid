@@ -322,7 +322,7 @@ class _GroupComposerState extends ConsumerState<GroupComposer> {
                   onClose: widget.onCancelReply,
                 ),
               Padding(
-                padding: EdgeInsets.fromLTRB(
+                padding: EdgeInsetsDirectional.fromSTEB(
                   editing == null ? AppSpacing.xs : AppSpacing.sm,
                   AppSpacing.sm,
                   AppSpacing.sm,

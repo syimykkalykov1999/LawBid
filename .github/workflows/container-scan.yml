@@ -24,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Build image
         run: docker build -f apps/api/Dockerfile -t lawbid-api:ci .
       # npm itself (the node image's own CLI, only used by the migrate task)
@@ -65,7 +65,7 @@ jobs:
             --skip-dirs /usr/local/lib/node_modules/npm \
             --ignorefile /out/.trivyignore \
             --format sarif --output /out/trivy.sarif lawbid-api:ci
-      - uses: github/codeql-action/upload-sarif@v3
+      - uses: github/codeql-action/upload-sarif@4bfa242aa49c5f7c6770b98670d354a7dfac05f8 # v3.39.1
         if: ${{ always() && vars.CODE_SCANNING_ENABLED == 'true' && hashFiles('trivy.sarif') != '' }}
         # Needs GitHub code scanning; a private repo without it must not
         # turn the scan itself red.

@@ -1,4 +1,5 @@
 import { Controller, Get, Query, Res } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import { ApiTags } from '@nestjs/swagger';
 import {
@@ -23,6 +24,9 @@ export class PublicDirectoryController {
   constructor(private readonly directory: PublicDirectoryService) {}
 
   @Public()
+  // Security research #5 (2026-10-22), A5: a scraper walking the catalog
+  // page by page (the CDN caches an hour, so a browser rarely gets here).
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @Get('attorneys')
   @ApiEnvelopeResponse(PublicAttorneyDto, {
     isArray: true,

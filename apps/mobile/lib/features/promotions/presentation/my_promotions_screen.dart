@@ -9,7 +9,6 @@ import 'package:lawbid/features/promotions/application/promotions_providers.dart
 import 'package:lawbid/features/promotions/domain/promotion_models.dart';
 import 'package:lawbid/features/promotions/presentation/boost_colors.dart';
 import 'package:lawbid/features/promotions/presentation/promote_case_card.dart';
-import 'package:lawbid/features/subscription/subscription_routes.dart';
 
 /// Owner 2026-10-05 — "My promotions": every promoted post / case with
 /// its status, budget, progress, impressions, reach and clicks.
@@ -31,7 +30,7 @@ class MyPromotionsScreen extends ConsumerWidget {
           IconButton(
             tooltip: t.t('payments.title'),
             icon: const AppIcon(AppIcons.receiptLongOutlined),
-            onPressed: () => context.push(SubscriptionRoutes.payments),
+            onPressed: () => context.push(AppRoutes.paymentsTab('receipts')),
           ),
         ],
       ),

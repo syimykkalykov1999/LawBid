@@ -21,6 +21,29 @@ variable "admin_allowed_cidrs" {
   type    = list(string)
   default = []
 }
+# Security research #5 (2026-10-22), A3.
+variable "waf_otp_rate_limit_per_5m" {
+  type    = number
+  default = 20
+}
+variable "waf_bot_control_enabled" {
+  type    = bool
+  default = false
+}
+variable "waf_bot_control_block" {
+  type    = bool
+  default = false
+}
+# The paths that send an SMS / e-mail or answer "is this number registered":
+# the costly anonymous ones (docs/COST_PROTECTION.md §1).
+locals {
+  otp_paths = [
+    "/api/v1/auth/otp/request",
+    "/api/v1/auth/password/reset/request",
+    "/api/v1/auth/phone/status",
+    "/api/v1/auth/identifiers",
+  ]
+}
 variable "access_logs_bucket" {
   type    = string
   default = null
@@ -254,6 +277,86 @@ resource "aws_wafv2_web_acl" "this" {
       cloudwatch_metrics_enabled = true
       metric_name                = "${var.name}-rate-per-ip"
       sampled_requests_enabled   = true
+    }
+  }
+
+  # Security research #5 (2026-10-22), A3: SMS pumping / code flooding is
+  # stopped at the edge — one address may call the code-sending paths at
+  # most `waf_otp_rate_limit_per_5m` times in 5 minutes (a person needs a
+  # handful). The API keeps its own per-number / per-device limits.
+  rule {
+    name     = "otp-rate-per-ip"
+    priority = 2
+    action {
+      block {}
+    }
+    statement {
+      rate_based_statement {
+        limit              = var.waf_otp_rate_limit_per_5m
+        aggregate_key_type = "IP"
+        scope_down_statement {
+          or_statement {
+            dynamic "statement" {
+              for_each = local.otp_paths
+              content {
+                byte_match_statement {
+                  search_string         = statement.value
+                  positional_constraint = "EXACTLY"
+                  field_to_match {
+                    uri_path {}
+                  }
+                  text_transformation {
+                    priority = 0
+                    type     = "NONE"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                = "${var.name}-otp-rate-per-ip"
+      sampled_requests_enabled   = true
+    }
+  }
+
+  # AWS Bot Control (common level), paid — off unless the owner turns it
+  # on; then COUNT only until `waf_bot_control_block` (the labels show up in
+  # the WAF metrics first, so a legitimate client is never cut off blind).
+  dynamic "rule" {
+    for_each = var.waf_bot_control_enabled ? [1] : []
+    content {
+      name     = "bot-control"
+      priority = 3
+      override_action {
+        dynamic "none" {
+          for_each = var.waf_bot_control_block ? [1] : []
+          content {}
+        }
+        dynamic "count" {
+          for_each = var.waf_bot_control_block ? [] : [1]
+          content {}
+        }
+      }
+      statement {
+        managed_rule_group_statement {
+          name        = "AWSManagedRulesBotControlRuleSet"
+          vendor_name = "AWS"
+          managed_rule_group_configs {
+            aws_managed_rules_bot_control_rule_set {
+              inspection_level = "COMMON"
+            }
+          }
+        }
+      }
+      visibility_config {
+        cloudwatch_metrics_enabled = true
+        metric_name                = "${var.name}-bot-control"
+        sampled_requests_enabled   = true
+      }
     }
   }
 

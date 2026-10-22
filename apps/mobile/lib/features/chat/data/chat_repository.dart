@@ -3,13 +3,12 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:lawbid/core/network/api_error.dart';
-import 'package:lawbid/core/network/request_flags.dart';
+import 'package:lawbid/core/uploads/storage_uploader.dart';
+import 'package:lawbid/core/uploads/upload_body.dart';
 import 'package:lawbid/features/chat/data/chat_list_cache.dart';
 import 'package:lawbid/features/chat/data/message_store.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/domain/forward.dart';
-import 'package:lawbid/features/profile/data/avatar_upload_repository.dart'
-    show sha256Hex;
 import 'package:lawbid/features/stars/domain/stars_mappers.dart';
 import 'package:lawbid/features/stickers/data/stickers_repository.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
@@ -192,8 +191,7 @@ class ApiChatRepository implements ChatRepository {
     this.listCache,
     this.messageStore,
   })  : _chat = api.ChatClient(dio),
-        _files = api.FilesClient(dio),
-        _storage = storageDio ?? dio;
+        _uploader = StorageUploader.dio(dio, storageDio ?? dio);
 
   /// Owner 2026-10-20: keeps the first page of the plain chat list.
   final ChatListCache? listCache;
@@ -208,10 +206,8 @@ class ApiChatRepository implements ChatRepository {
   }
 
   final api.ChatClient _chat;
-  final api.FilesClient _files;
-  final Dio _storage;
+  final StorageUploader _uploader;
 
-  static const _scanPoll = Duration(milliseconds: 700);
   static const _scanMaxPolls = 40;
 
   @override
@@ -223,58 +219,14 @@ class ApiChatRepository implements ChatRepository {
       );
     }
     final webm = isWebmVoice(bytes);
-    final target = (await guardApiCall(
-      () => _files.presign(
-        body: api.PresignFileDto(
-          purpose: api.FilePurpose.chatVoice,
-          mime: webm ? 'audio/webm' : 'audio/mp4',
-          sizeBytes: bytes.length,
-          sha256: sha256Hex(bytes),
-        ),
-        extras: const {RequestFlags.createsResource: true},
-      ),
-    ))
-        .data;
-    try {
-      await _storage.post<void>(
-        target.upload.url,
-        data: FormData.fromMap({
-          ...target.upload.fields,
-          // S3 POST policy: the file must be the LAST field.
-          'file': MultipartFile.fromBytes(
-            bytes,
-            filename: webm ? 'voice.webm' : 'voice.m4a',
-            contentType: DioMediaType('audio', webm ? 'webm' : 'mp4'),
-          ),
-        }),
-      );
-    } on DioException catch (e) {
-      throw ApiException(
-        code: e.response == null
-            ? ApiException.networkErrorCode
-            : ApiErrorCodes.fileNotUploaded,
-        message: 'Upload to storage failed.',
-        statusCode: e.response?.statusCode,
-      );
-    }
-    var status = (await guardApiCall(() => _files.confirm(id: target.fileId)))
-        .data
-        .scanStatus;
-    for (var i = 0;
-        status == api.ScanStatus.pending && i < _scanMaxPolls;
-        i++) {
-      await Future<void>.delayed(_scanPoll);
-      status = (await guardApiCall(() => _files.getFilesId(id: target.fileId)))
-          .data
-          .scanStatus;
-    }
-    if (status != api.ScanStatus.clean) {
-      throw const ApiException(
-        code: ApiErrorCodes.fileNotAttachable,
-        message: 'scan',
-      );
-    }
-    return target.fileId;
+    // Owner 2026-10-22 (audit #4 §3): the shared uploader.
+    return _uploader.upload(
+      purpose: api.FilePurpose.chatVoice,
+      body: UploadBody.bytes(bytes),
+      mime: webm ? 'audio/webm' : 'audio/mp4',
+      filename: webm ? 'voice.webm' : 'voice.m4a',
+      scanMaxPolls: _scanMaxPolls,
+    );
   }
 
   @override
@@ -315,62 +267,13 @@ class ApiChatRepository implements ChatRepository {
         message: 'size',
       );
     }
-    final target = (await guardApiCall(
-      () => _files.presign(
-        body: api.PresignFileDto(
-          purpose: api.FilePurpose.chatAttachment,
-          mime: mime,
-          sizeBytes: bytes.length,
-          sha256: sha256Hex(bytes),
-        ),
-        extras: const {RequestFlags.createsResource: true},
-      ),
-    ))
-        .data;
-    final parts = mime.split('/');
-    try {
-      await _storage.post<void>(
-        target.upload.url,
-        data: FormData.fromMap({
-          ...target.upload.fields,
-          // S3 POST policy: the file must be the LAST field.
-          'file': MultipartFile.fromBytes(
-            bytes,
-            filename: 'file',
-            contentType: DioMediaType(parts.first, parts.last),
-          ),
-        }),
-        onSendProgress: (sent, total) {
-          if (total > 0) onProgress?.call(sent / total);
-        },
-      );
-    } on DioException catch (e) {
-      throw ApiException(
-        code: e.response == null
-            ? ApiException.networkErrorCode
-            : ApiErrorCodes.fileNotUploaded,
-        message: 'Upload to storage failed.',
-        statusCode: e.response?.statusCode,
-      );
-    }
-    var status = (await guardApiCall(() => _files.confirm(id: target.fileId)))
-        .data
-        .scanStatus;
-    for (var i = 0;
-        status == api.ScanStatus.pending && i < _scanMaxPolls;
-        i++) {
-      await Future<void>.delayed(_scanPoll);
-      status = (await guardApiCall(() => _files.getFilesId(id: target.fileId)))
-          .data
-          .scanStatus;
-    }
-    if (status != api.ScanStatus.clean) {
-      throw const ApiException(
-        code: ApiErrorCodes.fileNotAttachable,
-        message: 'scan',
-      );
-    }
-    return target.fileId;
+    return _uploader.upload(
+      purpose: api.FilePurpose.chatAttachment,
+      body: UploadBody.bytes(bytes),
+      mime: mime,
+      onProgress: onProgress,
+      scanMaxPolls: _scanMaxPolls,
+    );
   }
 
   @override

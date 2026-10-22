@@ -11,6 +11,7 @@ import {
   ContactsSyncService,
   HASHES_PER_ACCOUNT_PER_DAY,
 } from './contacts-sync.service';
+import { ContactsPepper } from './contacts-pepper';
 import { APP_SETTINGS } from '../../common/app-settings/app-settings.defaults';
 import { USAGE_LIMITS } from '../../common/usage-limits/usage-limits.service';
 
@@ -65,12 +66,15 @@ function make(
       ),
     },
     contactBookHash: {
-      findMany: jest.fn((a: { where: { phone_sha256: { in: string[] } } }) =>
-        Promise.resolve(
-          (over.book ?? [])
-            .filter((h) => a.where.phone_sha256.in.includes(h))
-            .map((h) => ({ phone_sha256: h })),
-        ),
+      findMany: jest.fn(
+        (a: { where: { OR: { phone_hash: { in: string[] } }[] } }) =>
+          Promise.resolve(
+            (over.book ?? [])
+              .filter((h) =>
+                a.where.OR.some((o) => o.phone_hash.in.includes(h)),
+              )
+              .map((h) => ({ phone_hash: h })),
+          ),
       ),
       createMany: jest.fn((a: { data: unknown[] }) =>
         Object.assign(Promise.resolve({ count: a.data.length }), {
@@ -105,11 +109,15 @@ function make(
     ),
   };
   const files = { avatarUrlsMany: jest.fn().mockResolvedValue(new Map()) };
+  // No CONTACTS_PEPPER here: the stored form is the client hash itself
+  // (the pepper's own behaviour is in contacts-pepper.spec.ts).
+  const pepper = new ContactsPepper({ get: () => undefined } as never);
   const svc = new ContactsSyncService(
     prisma as never,
     limits as never,
     files as never,
     redis as never,
+    pepper,
   );
   return { svc, prisma, limits, redis, tx, files };
 }
@@ -220,8 +228,8 @@ describe('ContactsSyncService.upload (old builds)', () => {
     // book whole once (book_hash unknown).
     expect(prisma.contactBookHash.createMany).toHaveBeenCalledWith({
       data: [
-        { owner_id: 'me', phone_sha256: sha('+1') },
-        { owner_id: 'me', phone_sha256: sha('+2') },
+        { owner_id: 'me', phone_hash: sha('+1'), peppered: false },
+        { owner_id: 'me', phone_hash: sha('+2'), peppered: false },
       ],
       skipDuplicates: true,
     });
@@ -413,7 +421,11 @@ describe('ContactsSyncService.sync (hash-checked delta)', () => {
       where: { owner_id: 'me' },
     });
     expect(prisma.contactBookHash.createMany).toHaveBeenCalledWith({
-      data: [a, b, c].map((h) => ({ owner_id: 'me', phone_sha256: h })),
+      data: [a, b, c].map((h) => ({
+        owner_id: 'me',
+        phone_hash: h,
+        peppered: false,
+      })),
       skipDuplicates: true,
     });
     // Numbers no longer in the book lose their match.
@@ -506,7 +518,7 @@ describe('ContactsSyncService.sync (hash-checked delta)', () => {
     );
     expect(new Set(counted)).toEqual(new Set([c]));
     expect(prisma.contactBookHash.deleteMany).toHaveBeenCalledWith({
-      where: { owner_id: 'me', phone_sha256: { in: [a] } },
+      where: { owner_id: 'me', phone_hash: { in: [a] } },
     });
     expect(prisma.contactMatch.deleteMany).toHaveBeenCalledWith({
       where: { owner_id: 'me', matched_id: { in: ['u-a'] } },

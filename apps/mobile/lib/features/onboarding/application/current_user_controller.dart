@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:lawbid/core/diagnostics/app_events.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/core/startup/app_session.dart';
@@ -100,6 +101,9 @@ class CurrentUserController extends Notifier<CurrentUserState> {
       final user = await ref.read(onboardingRepositoryProvider).fetchMe();
       if (ref.read(sessionControllerProvider) == null) return null;
       state = CurrentUserState.ready(user);
+      // Owner 2026-10-22 (audit #4 §5): the account's analytics answer
+      // rules this device's usage events.
+      AppEvents.applyServerConsent(granted: user.analyticsConsent);
       return user;
     } catch (e) {
       if (state.user == null) state = CurrentUserState.failed(e);
@@ -112,7 +116,10 @@ class CurrentUserController extends Notifier<CurrentUserState> {
   Future<CurrentUser?> ensureLoaded() async => state.user ?? await load();
 
   /// Replaces the user with a fresh MeView returned by a mutation.
-  void apply(CurrentUser user) => state = CurrentUserState.ready(user);
+  void apply(CurrentUser user) {
+    state = CurrentUserState.ready(user);
+    AppEvents.applyServerConsent(granted: user.analyticsConsent);
+  }
 
   /// Owner 2026-10-05, demo mode: the session was swapped for another
   /// account in place (`SessionController.switchSession`). Drop the

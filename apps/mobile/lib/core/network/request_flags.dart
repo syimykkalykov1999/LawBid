@@ -12,6 +12,11 @@ abstract final class RequestFlags {
   /// may then safely retry it.
   static const createsResource = 'createsResource';
 
+  /// Owner 2026-10-22: a caller-chosen `Idempotency-Key` (a String) for a
+  /// [createsResource] POST that may be repeated after the app restarts —
+  /// e.g. publishing a queued reel: the same key, the same post.
+  static const idempotencyKey = 'idempotencyKey';
+
   /// Opt a request out of RetryInterceptor entirely (e.g. a call whose
   /// retry would re-send a paid SMS even with a key).
   static const noRetry = 'noRetry';

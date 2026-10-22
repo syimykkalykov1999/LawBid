@@ -87,7 +87,11 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
       body: SafeArea(
         child: Stack(
           children: [
-            const Positioned(right: -40, bottom: 70, child: WatermarkScales()),
+            const PositionedDirectional(
+              end: -40,
+              bottom: 70,
+              child: WatermarkScales(),
+            ),
             LayoutBuilder(
               builder: (context, constraints) {
                 return SingleChildScrollView(

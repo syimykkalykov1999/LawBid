@@ -52,6 +52,7 @@ import 'package:lawbid/features/profile/presentation/screens/client_profile_edit
 import 'package:lawbid/features/profile/presentation/screens/delete_account_screen.dart';
 import 'package:lawbid/features/profile/presentation/screens/firm_screen.dart';
 import 'package:lawbid/features/profile/presentation/screens/my_contacts_screen.dart';
+import 'package:lawbid/features/profile/presentation/screens/payments_hub_screen.dart';
 import 'package:lawbid/features/profile/presentation/screens/practices_screen.dart';
 import 'package:lawbid/features/profile/presentation/screens/profile_screen.dart';
 import 'package:lawbid/features/profile/presentation/screens/review_form_screen.dart';
@@ -458,6 +459,16 @@ GoRouter appRouter(Ref ref) {
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) =>
             AppPageTransitions.push(state, const SavedScreen()),
+      ),
+      GoRoute(
+        path: AppRoutes.payments,
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) => AppPageTransitions.push(
+          state,
+          PaymentsHubScreen(
+            initial: PaymentsTab.parse(state.uri.queryParameters['tab']),
+          ),
+        ),
       ),
       GoRoute(
         path: AppRoutes.postArchive,

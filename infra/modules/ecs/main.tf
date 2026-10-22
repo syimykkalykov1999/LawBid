@@ -148,6 +148,17 @@ variable "log_retention_days" {
   type    = number
   default = 30
 }
+# Security research #5 (2026-10-22), A8: `readonlyRootFilesystem` on the
+# api / worker / admin / migrate containers (not the ClamAV sidecar, which
+# updates its signature database on disk). Each writable path is an
+# ephemeral task volume (Fargate has no tmpfs): /tmp for the API and the
+# worker (heartbeat file, sharp / pdf temp files), the Next.js cache for
+# the admin, /tmp and the npm cache for the migrate task. Off = the old
+# behaviour, if a release ever needs to write somewhere new.
+variable "readonly_root_filesystem" {
+  type    = bool
+  default = true
+}
 variable "tags" {
   type    = map(string)
   default = {}
@@ -262,6 +273,7 @@ resource "aws_ecs_task_definition" "api" {
   memory                   = var.api_memory
   execution_role_arn       = aws_iam_role.execution.arn
   task_role_arn            = aws_iam_role.task.arn
+  volume { name = "tmp" }
   container_definitions = jsonencode([{
     name         = "api"
     image        = var.api_image
@@ -270,6 +282,12 @@ resource "aws_ecs_task_definition" "api" {
     portMappings = [{ containerPort = 3000, protocol = "tcp" }]
     environment  = concat(local.api_environment, [{ name = "PORT", value = "3000" }, { name = "JOBS_ENABLED", value = "false" }])
     secrets      = local.api_secrets
+    # Security research #5 (2026-10-22), A8: the container's file system is
+    # read-only; only the volumes below are writable. `init` reaps zombies
+    # and forwards signals.
+    readonlyRootFilesystem = var.readonly_root_filesystem
+    linuxParameters        = { initProcessEnabled = true }
+    mountPoints            = [{ sourceVolume = "tmp", containerPath = "/tmp", readOnly = false }]
     healthCheck = {
       command     = ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/health/live || exit 1"]
       interval    = 15
@@ -295,6 +313,7 @@ resource "aws_ecs_task_definition" "worker" {
   memory                   = var.worker_memory
   execution_role_arn       = aws_iam_role.execution.arn
   task_role_arn            = aws_iam_role.task.arn
+  volume { name = "tmp" }
   container_definitions = jsonencode([{
     name      = "worker"
     image     = var.api_image
@@ -304,8 +323,14 @@ resource "aws_ecs_task_definition" "worker" {
     # without a scanner every photo/document stays scan_status=pending.
     environment = concat(local.api_environment, [{ name = "CLAMAV_HOST", value = "127.0.0.1" }])
     secrets     = local.api_secrets
-    dependsOn   = [{ containerName = "clamav", condition = "HEALTHY" }]
-    stopTimeout = 120
+    # Security research #5 (2026-10-22), A8: the container's file system is
+    # read-only; only the volumes below are writable. `init` reaps zombies
+    # and forwards signals.
+    readonlyRootFilesystem = var.readonly_root_filesystem
+    linuxParameters        = { initProcessEnabled = true }
+    mountPoints            = [{ sourceVolume = "tmp", containerPath = "/tmp", readOnly = false }]
+    dependsOn              = [{ containerName = "clamav", condition = "HEALTHY" }]
+    stopTimeout            = 120
     # Zero maintenance (owner 2026-10-05): the worker touches this file every
     # 30 s while its job loop runs (src/jobs/jobs.runner.ts); a hung or
     # stopped worker is replaced by ECS without anybody noticing.
@@ -349,12 +374,25 @@ resource "aws_ecs_task_definition" "admin" {
   memory                   = var.admin_memory
   execution_role_arn       = aws_iam_role.execution.arn
   task_role_arn            = aws_iam_role.task_minimal.arn
+  volume { name = "tmp" }
+  volume { name = "next-cache" }
   container_definitions = jsonencode([{
     name         = "admin"
     image        = var.admin_image
     essential    = true
     portMappings = [{ containerPort = 3001, protocol = "tcp" }]
     environment  = [for k, v in var.admin_env : { name = k, value = v }]
+    # Security research #5 (2026-10-22), A8: the container's file system is
+    # read-only; only the volumes below are writable. `init` reaps zombies
+    # and forwards signals.
+    readonlyRootFilesystem = var.readonly_root_filesystem
+    linuxParameters        = { initProcessEnabled = true }
+    mountPoints = [
+      { sourceVolume = "tmp", containerPath = "/tmp", readOnly = false },
+      # apps/admin/Dockerfile: WORKDIR /app, the standalone server at
+      # apps/admin/server.js; Next writes its fetch / image cache here.
+      { sourceVolume = "next-cache", containerPath = "/app/apps/admin/.next/cache", readOnly = false },
+    ]
     healthCheck = {
       command     = ["CMD-SHELL", "wget -qO- http://127.0.0.1:3001/login >/dev/null || exit 1"]
       interval    = 30
@@ -378,14 +416,27 @@ resource "aws_ecs_task_definition" "migrate" {
   memory                   = 1024
   execution_role_arn       = aws_iam_role.execution.arn
   task_role_arn            = aws_iam_role.task_minimal.arn
+  volume { name = "tmp" }
   container_definitions = jsonencode([{
-    name             = "migrate"
-    image            = var.api_image
-    essential        = true
-    command          = ["npx", "prisma", "migrate", "deploy"]
-    environment      = local.api_environment
-    secrets          = [{ name = "DATABASE_URL", valueFrom = var.migrator_database_url_secret_arn }]
-    logConfiguration = local.log_config["migrate"]
+    name      = "migrate"
+    image     = var.api_image
+    essential = true
+    command   = ["npx", "prisma", "migrate", "deploy"]
+    # npx / Prisma want a writable cache and home: both under /tmp.
+    environment = concat(local.api_environment, [
+      { name = "HOME", value = "/tmp" },
+      { name = "npm_config_cache", value = "/tmp/npm-cache" },
+      { name = "npm_config_update_notifier", value = "false" },
+      { name = "CHECKPOINT_DISABLE", value = "1" },
+    ])
+    secrets = [{ name = "DATABASE_URL", valueFrom = var.migrator_database_url_secret_arn }]
+    # Security research #5 (2026-10-22), A8: the container's file system is
+    # read-only; only the volumes below are writable. `init` reaps zombies
+    # and forwards signals.
+    readonlyRootFilesystem = var.readonly_root_filesystem
+    linuxParameters        = { initProcessEnabled = true }
+    mountPoints            = [{ sourceVolume = "tmp", containerPath = "/tmp", readOnly = false }]
+    logConfiguration       = local.log_config["migrate"]
   }])
   tags = var.tags
 }

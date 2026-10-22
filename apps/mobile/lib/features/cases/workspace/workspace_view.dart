@@ -818,7 +818,7 @@ class ActivityTab extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
-                    margin: const EdgeInsets.only(top: 7, right: 12),
+                    margin: const EdgeInsetsDirectional.only(top: 7, end: 12),
                     width: 8,
                     height: 8,
                     decoration: BoxDecoration(

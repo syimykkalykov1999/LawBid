@@ -142,7 +142,19 @@ class PublicAttorneyProfile {
     this.consultationEnabled = false,
     this.qaAnswers = 0,
     this.qaBest = 0,
+    this.advertisingLabel = false,
+    this.publicUrl,
   });
+
+  /// Owner 2026-10-22 (audit #4 §5, NY Rule 7.1(f)): the attorney is
+  /// licensed in a state that requires the «Attorney Advertising» label on
+  /// the profile and posts; the server decides.
+  final bool advertisingLabel;
+
+  /// Owner 2026-10-22 (audit #4 §9): the canonical public page
+  /// (`https://…/attorneys/<username>/`, the SEO page) — the link «Share»
+  /// sends. Null on an older server: the app link `/lawyer/<username>`.
+  final String? publicUrl;
 
   /// Owner 2026-10-20: the attorney takes consultation bookings.
   final bool consultationEnabled;

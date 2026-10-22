@@ -365,7 +365,7 @@ class TaskRingCard extends StatelessWidget {
                 context.reduceMotion ? Duration.zero : AppMotion.stateChange,
             opacity: muted ? 0.72 : 1,
             child: Container(
-              padding: const EdgeInsets.fromLTRB(10, 8, 2, 8),
+              padding: const EdgeInsetsDirectional.fromSTEB(10, 8, 2, 8),
               decoration: BoxDecoration(
                 color: picked ? colors.goldTint : colors.surface,
                 borderRadius: BorderRadius.circular(AppRadii.card),

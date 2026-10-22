@@ -175,7 +175,13 @@ abstract final class AppRoutes {
   // Owner 2026-10-02: About LawBid + the website link.
   static const about = '/profile/settings/about';
   // Owner 2026-10-15: the client's saved posts, moved here from «Mine».
+  // Owner 2026-10-22 (audit #4 §1): one «Сохранённое» for both roles.
   static const saved = '/profile/settings/saved';
+
+  /// Owner 2026-10-22 (audit #4 §1, Stripe / Slack «Billing»): one
+  /// «Платежи» page for both roles — `?tab=receipts|cases|purchases`.
+  static const payments = '/profile/settings/payments';
+  static String paymentsTab(String tab) => '$payments?tab=$tab';
   // Owner 2026-10-18 (Instagram): my archived posts.
   static const postArchive = '/profile/settings/archive';
   // Owner 2026-10-18: «Справочник» — the «i» in the case lists.

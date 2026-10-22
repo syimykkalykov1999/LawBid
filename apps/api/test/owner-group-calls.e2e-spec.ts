@@ -292,7 +292,8 @@ describe('Group calls (e2e)', () => {
       .set(a1Auth)
       .send({ muted: true })
       .expect(200);
-    expect(await muted).toEqual({
+    // call events carry a per-call `seq` (client economy H)
+    expect(await muted).toMatchObject({
       callId,
       muted: true,
       byUserId: a1.id,
@@ -316,7 +317,7 @@ describe('Group calls (e2e)', () => {
       .delete(`/api/v1/calls/${callId}/participants/${a2.id}`)
       .set(a1Auth)
       .expect(200);
-    expect(await removed).toEqual({ callId });
+    expect(await removed).toMatchObject({ callId });
     expect(rm.body.data.status).toBe('active');
     expect(parts(rm).find((p) => p.userId === a2.id)?.status).toBe('removed');
     // a2 is free for another call now.

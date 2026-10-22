@@ -475,18 +475,58 @@ void main() {
         '/onboarding/consents',
       ),
     ],
-    'Owner 2026-10-13: no password yet → /auth/set-password first': [
+    // Owner 2026-10-22 (audit #4 §2, WhatsApp / Telegram): the password
+    // after the code is optional — nothing is held back.
+    'Owner 2026-10-13 / 2026-10-22: no password yet → optional': [
       _Case(
-        'feed is held back',
+        'onboarding goes on without a password',
         '/feed',
         _signedIn(meFixture(passwordRequired: true)),
-        '/auth/set-password',
+        '/onboarding/consents',
       ),
       _Case(
-        'onboarding is held back',
+        'the onboarding step itself stays',
         '/onboarding/consents',
         _signedIn(meFixture(passwordRequired: true)),
+        null,
+      ),
+      _Case(
+        'a fully onboarded user without a password uses the app',
+        '/feed',
+        _signedIn(
+          meFixture(
+            role: UserRole.client,
+            consents: true,
+            phone: '+15551234567',
+            phoneVerified: true,
+            email: 'a@b.co',
+            emailVerified: true,
+            firstName: 'Ann',
+            lastName: 'Lee',
+            completed: true,
+            passwordRequired: true,
+          ),
+        ),
+        null,
+      ),
+      _Case(
+        'Settings → «Задать пароль» opens the screen',
         '/auth/set-password',
+        _signedIn(
+          meFixture(
+            role: UserRole.client,
+            consents: true,
+            phone: '+15551234567',
+            phoneVerified: true,
+            email: 'a@b.co',
+            emailVerified: true,
+            firstName: 'Ann',
+            lastName: 'Lee',
+            completed: true,
+            passwordRequired: true,
+          ),
+        ),
+        null,
       ),
       _Case(
         'the screen itself stays',

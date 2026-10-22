@@ -8,7 +8,6 @@
   "features/cases/presentation/widgets/client_review_sheet.dart -> profile/data/client_reviews_repository.dart",
   "features/chat/application/chat_providers.dart -> notifications/data/notifications_repository.dart",
   "features/chat/application/chat_providers.dart -> social/data/social_local_database.dart",
-  "features/chat/data/chat_repository.dart -> profile/data/avatar_upload_repository.dart",
   "features/chat/data/chat_repository.dart -> stickers/data/stickers_repository.dart",
   "features/client_badge/data/client_badge_repository.dart -> plans/data/plan_mappers.dart",
   "features/client_plan/data/client_plan_repository.dart -> plans/data/plan_mappers.dart",
@@ -35,10 +34,8 @@
   "features/social/presentation/widgets/comment_widgets.dart -> translation/data/content_translation_repository.dart",
   "features/social/presentation/widgets/mention_suggestions.dart -> search/data/search_repository.dart",
   "features/social/presentation/widgets/post_card.dart -> translation/data/content_translation_repository.dart",
-  "features/stickers/data/stickers_repository.dart -> profile/data/avatar_upload_repository.dart",
   "features/stickers/presentation/sticker_widgets.dart -> profile/data/avatar_upload_repository.dart",
-  "features/subscription/data/subscription_repository_impl.dart -> plans/data/plan_mappers.dart",
-  "features/team/data/team_repository.dart -> profile/data/avatar_upload_repository.dart"
+  "features/subscription/data/subscription_repository_impl.dart -> plans/data/plan_mappers.dart"
  ],
  "fanOut": {
   "auth": 5,

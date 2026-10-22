@@ -198,9 +198,9 @@ class CasePhotosPicker extends ConsumerWidget {
                               onPressed: () => c.retryPhoto(p.key),
                             ),
                           ),
-                        Positioned(
+                        PositionedDirectional(
                           top: 2,
-                          right: 2,
+                          end: 2,
                           child: GestureDetector(
                             onTap: () => c.removePhoto(p.key),
                             child: Semantics(

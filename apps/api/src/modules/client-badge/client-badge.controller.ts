@@ -11,6 +11,7 @@ import {
   UseInterceptors,
   Req,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import {
   ApiBearerAuth,
   ApiHeader,
@@ -89,6 +90,9 @@ export class ClientBadgeController {
     return this.badge.submit(user.sub, dto);
   }
 
+  // Security research #5 (2026-10-22), A11: card testing — a stolen-card
+  // script creating checkouts in a loop (each attempt costs a Stripe fee).
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('checkout')
   @UseGuards(RequireIdempotencyKeyGuard)
   @UseInterceptors(IdempotencyInterceptor)

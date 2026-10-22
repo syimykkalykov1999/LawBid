@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:socket_io_client/socket_io_client.dart' as io;
 
@@ -38,6 +39,9 @@ class RealtimeClient {
   io.Socket? _socket;
   bool _everConnected = false;
   bool _disposed = false;
+  int _rateLimitStrikes = 0;
+  Timer? _rateLimitTimer;
+  final Random _random = Random();
 
   static const _serverEvents = [
     'message:new',
@@ -131,9 +135,16 @@ class RealtimeClient {
           _events.add(const RealtimeEvent(RealtimeEvent.reconnected, null));
         }
         _everConnected = true;
+        _rateLimitStrikes = 0;
       })
       ..on('auth:expired', (_) => _reauth())
-      ..on('auth:error', (_) => _reauth());
+      ..on('auth:error', (data) {
+        if (isRateLimited(data)) {
+          _reconnectAfterRateLimit();
+        } else {
+          _reauth();
+        }
+      });
     for (final name in _serverEvents) {
       socket.on(name, (data) => _events.add(RealtimeEvent(name, data)));
     }
@@ -150,6 +161,37 @@ class RealtimeClient {
     } else if (!s.active) {
       s.connect();
     }
+  }
+
+  /// Security research #5 (2026-10-22), A5: the server disconnects a socket
+  /// that sends more than its share of packets (`auth:error
+  /// { code: 'RATE_LIMITED' }`). The token is fine — do not refresh it —
+  /// and never reconnect in a tight loop: wait longer each time.
+  static bool isRateLimited(Object? data) =>
+      data is Map && data['code'] == 'RATE_LIMITED';
+
+  /// The wait before the [strike]-th reconnect after a `RATE_LIMITED`:
+  /// 5 s, 10 s, 20 s, 40 s, then a minute, ±25 % so many phones do not
+  /// come back at the same second.
+  static Duration rateLimitDelay(int strike, {double jitter = 0}) {
+    final base = min(5000 * pow(2, strike).toInt(), 60000);
+    final j = (base * 0.25 * jitter.clamp(-1.0, 1.0)).round();
+    return Duration(milliseconds: base + j);
+  }
+
+  void _reconnectAfterRateLimit() {
+    final s = _socket;
+    if (s == null || _disposed) return;
+    final delay = rateLimitDelay(
+      _rateLimitStrikes,
+      jitter: _random.nextDouble() * 2 - 1,
+    );
+    _rateLimitStrikes++;
+    _rateLimitTimer?.cancel();
+    _rateLimitTimer = Timer(delay, () {
+      if (_disposed || s != _socket || s.connected) return;
+      s.connect();
+    });
   }
 
   Future<void> _reauth() async {
@@ -285,6 +327,7 @@ class RealtimeClient {
 
   void dispose() {
     _disposed = true;
+    _rateLimitTimer?.cancel();
     _socket
       ?..clearListeners()
       ..dispose();

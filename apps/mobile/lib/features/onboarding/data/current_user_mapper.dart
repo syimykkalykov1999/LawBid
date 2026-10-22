@@ -1,3 +1,4 @@
+import 'package:lawbid/core/network/contract_extras.dart';
 import 'package:lawbid/features/legal/domain/legal_documents.dart';
 import 'package:lawbid/features/onboarding/domain/current_user.dart';
 import 'package:lawbid/features/onboarding/domain/onboarding_step_id.dart';
@@ -35,6 +36,8 @@ abstract final class CurrentUserMapper {
       avatarUrl: dto.avatarUrl,
       requiredConsentsGranted: dto.requiredConsentsGranted,
       passwordRequired: dto.passwordRequired,
+      analyticsConsent:
+          contractField<bool>(dto, ContractExtra.analyticsConsent),
       pendingLegalDocuments: dto.pendingLegalDocuments
           .map(
             (d) => PendingLegalDocument(

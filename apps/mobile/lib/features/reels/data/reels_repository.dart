@@ -81,11 +81,16 @@ class ReelsRepository {
   /// Uploads [file] to Bunny (TUS 1.0.0). Resumes from the server's offset
   /// after a dropped connection; [onProgress] gets 0..1. An [XFile] so the
   /// browser build reads its picked blob the same way (no dart:io there).
+  /// Owner 2026-10-22 (audit #4 §3): [resumeLocation] continues an upload
+  /// started before the app was closed (the queue saved it from
+  /// [onLocation]); a location Bunny no longer knows starts a new one.
   Future<void> upload(
     XFile file,
     ReelUpload u, {
     void Function(double)? onProgress,
     CancelToken? cancel,
+    String? resumeLocation,
+    void Function(String location)? onLocation,
   }) async {
     final size = await file.length();
     final auth = {
@@ -96,27 +101,50 @@ class ReelsRepository {
       'Tus-Resumable': '1.0.0',
     };
     String b64(String v) => base64.encode(utf8.encode(v));
-    final created = await _tus.post<void>(
-      u.tusEndpoint,
-      cancelToken: cancel,
-      options: Options(
-        headers: {
-          ...auth,
-          'Upload-Length': '$size',
-          'Upload-Metadata':
-              'filetype ${b64('video/mp4')},title ${b64(u.videoId)}',
-        },
-      ),
-    );
-    var location = created.headers.value('location');
-    if (location == null) {
-      throw const ApiException(code: 'VIDEO_UPLOAD_FAILED', message: 'tus');
+    var offset = 0;
+    String? location;
+    if (resumeLocation != null) {
+      try {
+        final head = await _tus.head<void>(
+          resumeLocation,
+          cancelToken: cancel,
+          options: Options(headers: auth),
+        );
+        offset = int.tryParse(head.headers.value('upload-offset') ?? '') ?? 0;
+        location = resumeLocation;
+        onProgress?.call(size == 0 ? 1 : offset / size);
+      } on DioException catch (e) {
+        if (CancelToken.isCancel(e)) rethrow;
+        final c = e.response?.statusCode;
+        // Gone (404 / 410): start again; anything else: try later.
+        if (c != 404 && c != 410) rethrow;
+      }
     }
-    if (!location.startsWith('http')) {
-      location = Uri.parse(u.tusEndpoint).resolve(location).toString();
+    if (location == null) {
+      final created = await _tus.post<void>(
+        u.tusEndpoint,
+        cancelToken: cancel,
+        options: Options(
+          headers: {
+            ...auth,
+            'Upload-Length': '$size',
+            'Upload-Metadata':
+                'filetype ${b64('video/mp4')},title ${b64(u.videoId)}',
+          },
+        ),
+      );
+      var fresh = created.headers.value('location');
+      if (fresh == null) {
+        throw const ApiException(code: 'VIDEO_UPLOAD_FAILED', message: 'tus');
+      }
+      if (!fresh.startsWith('http')) {
+        fresh = Uri.parse(u.tusEndpoint).resolve(fresh).toString();
+      }
+      location = fresh;
+      offset = 0;
+      onLocation?.call(location);
     }
 
-    var offset = 0;
     var failures = 0;
     while (offset < size) {
       final len = math.min(_chunk, size - offset);

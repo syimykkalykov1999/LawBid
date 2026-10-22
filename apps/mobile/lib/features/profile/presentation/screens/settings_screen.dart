@@ -82,7 +82,8 @@ class SettingsScreen extends ConsumerWidget {
           if (ref.watch(currentUserRoleProvider) == UserRole.client)
             AppListRow(
               key: const ValueKey('settings-contact-prefs'),
-              icon: AppIcons.contactPhoneOutlined,
+              // Owner 2026-10-22 (audit #4 §1): the phone card is Contacts'.
+              icon: AppIcons.forumOutlined,
               label: t.t('settings.contactPreferences'),
               onTap: () => context.push(AppRoutes.myContacts),
             ),
@@ -91,13 +92,27 @@ class SettingsScreen extends ConsumerWidget {
             label: t.t('settings.security'),
             onTap: () => context.push(AppRoutes.activeDevices),
           ),
-          // Owner 2026-10-13: change the sign-in password.
-          AppListRow(
-            key: const ValueKey('settings-change-password'),
-            icon: AppIcons.lockOutlineRounded,
-            label: t.t('auth.change.title'),
-            onTap: () => context.push(AuthRoutes.changePassword),
-          ),
+          // Owner 2026-10-13: change the sign-in password. Owner
+          // 2026-10-22 (audit #4 §2): the password is optional after the
+          // code — without one the row sets it («Задать пароль»).
+          if (ref.watch(
+            currentUserControllerProvider
+                .select((s) => s.user?.passwordRequired ?? false),
+          ))
+            AppListRow(
+              key: const ValueKey('settings-set-password'),
+              icon: AppIcons.lockOutlineRounded,
+              label: t.t('settings.setPassword'),
+              subtitle: t.t('settings.setPassword.hint'),
+              onTap: () => context.push(AuthRoutes.setPassword),
+            )
+          else
+            AppListRow(
+              key: const ValueKey('settings-change-password'),
+              icon: AppIcons.lockOutlineRounded,
+              label: t.t('auth.change.title'),
+              onTap: () => context.push(AuthRoutes.changePassword),
+            ),
           // docs/01 §3.6 "Подписка (адвокат)" → docs/06 §1.7 screens.
           if (ref.watch(currentUserRoleProvider) == UserRole.attorney)
             AppListRow(
@@ -105,14 +120,15 @@ class SettingsScreen extends ConsumerWidget {
               label: t.t('settings.subscription'),
               onTap: () => context.push(SubscriptionRoutes.subscription),
             ),
-          // Owner 2026-10-15: a client reaches their payments from here too.
-          if (ref.watch(currentUserRoleProvider) == UserRole.client)
-            AppListRow(
-              key: const ValueKey('settings-payments'),
-              icon: AppIcons.receiptLongOutlined,
-              label: t.t('payments.title'),
-              onTap: () => context.push(SubscriptionRoutes.payments),
-            ),
+          // Owner 2026-10-22 (audit #4 §1, Stripe / Slack «Billing»): one
+          // «Платежи» for both roles — receipts, case payments, purchases.
+          AppListRow(
+            key: const ValueKey('settings-payments'),
+            icon: AppIcons.receiptLongOutlined,
+            label: t.t('payments.hub.title'),
+            subtitle: t.t('payments.hint'),
+            onTap: () => context.push(AppRoutes.payments),
+          ),
           // Owner 2026-10-05: attorney trust levels — what LawBid checked,
           // what raises the level, holds (docs/ATTORNEY_TRUST.md).
           if (ref.watch(currentUserRoleProvider) == UserRole.attorney &&
@@ -162,23 +178,13 @@ class SettingsScreen extends ConsumerWidget {
               ),
               onTap: () => context.push(ConsultationsRoutes.list),
             ),
-          if (ref.watch(casePaymentsFlagProvider))
-            AppListRow(
-              key: const ValueKey('settings-case-payments'),
-              icon: AppIcons.paymentsOutlined,
-              label: t.t('cpay.history.title'),
-              subtitle: t.t(
-                ref.watch(currentUserRoleProvider) == UserRole.attorney
-                    ? 'cpay.history.hintAttorney'
-                    : 'cpay.history.hint',
-              ),
-              onTap: () => context.push(CasePaymentsRoutes.history),
-            ),
           // Owner 2026-10-02: clients can earn the gold badge (paid).
           if (ref.watch(currentUserRoleProvider) == UserRole.client)
             AppListRow(
               key: const ValueKey('settings-client-badge'),
-              icon: AppIcons.verifiedUserOutlined,
+              // Owner 2026-10-22 (audit #4 §1): its own icon — the shield
+              // is the attorney's Trust row.
+              icon: AppIcons.militaryTechRounded,
               label: t.t('cbadge.title'),
               onTap: () => context.push(AppRoutes.clientBadge),
             ),
@@ -188,7 +194,8 @@ class SettingsScreen extends ConsumerWidget {
               ref.watch(featureFlagsControllerProvider).isEnabled('bid_packs'))
             AppListRow(
               key: const ValueKey('settings-bid-packs'),
-              icon: AppIcons.giftOutlined,
+              // Owner 2026-10-22 (audit #4 §1): the gift is Referrals'.
+              icon: AppIcons.localOfferOutlined,
               label: t.t('packs.title'),
               subtitle: t.t('packs.hint'),
               onTap: () => context.push(AppRoutes.bidPacks),
@@ -260,13 +267,15 @@ class SettingsScreen extends ConsumerWidget {
               onTap: () => context.push(AppRoutes.partner),
             ),
           // Owner 2026-10-15: the client's Saved moved here from «Mine».
-          if (ref.watch(currentUserRoleProvider) == UserRole.client)
-            AppListRow(
-              key: const ValueKey('settings-saved'),
-              icon: AppIcons.bookmarkBorderRounded,
-              label: t.t('mine.tab.saved'),
-              onTap: () => context.push(AppRoutes.saved),
-            ),
+          // Owner 2026-10-22 (audit #4 §1, Instagram): «Сохранённое» in the
+          // same place for both roles (the attorney's bookmark in «Мои»
+          // stays as a shortcut while working).
+          AppListRow(
+            key: const ValueKey('settings-saved'),
+            icon: AppIcons.bookmarkBorderRounded,
+            label: t.t('mine.tab.saved'),
+            onTap: () => context.push(AppRoutes.saved),
+          ),
           // Owner 2026-10-18 (Instagram): every author's archived posts (an
           // assistant with "publish" sees the attorney's).
           if (ref.watch(canDoProvider(AssistantDuty.publish)))
@@ -308,7 +317,8 @@ class SettingsScreen extends ConsumerWidget {
           // users, my reports and moderation decisions in one place.
           AppListRow(
             key: const ValueKey('settings-privacy'),
-            icon: AppIcons.lockOutlineRounded,
+            // Owner 2026-10-22 (audit #4 §1): the lock is the password's.
+            icon: AppIcons.privacyTipOutlined,
             label: t.t('settings.privacy'),
             onTap: () => context.push(PrivacyRoutes.privacy),
           ),
@@ -328,8 +338,8 @@ class SettingsScreen extends ConsumerWidget {
                 onTap: () => context.push(AppRoutes.support),
               ),
               if (ref.watch(supportUnreadProvider))
-                Positioned(
-                  right: AppSpacing.md + AppSizes.iconSm + AppSpacing.sm,
+                PositionedDirectional(
+                  end: AppSpacing.md + AppSizes.iconSm + AppSpacing.sm,
                   top: 0,
                   bottom: 0,
                   child: Center(

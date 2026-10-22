@@ -45,7 +45,10 @@ class ProfileHandleBar extends StatelessWidget implements PreferredSizeWidget {
         children: [
           SizedBox(
             width: side,
-            child: Align(alignment: Alignment.centerLeft, child: leading),
+            child: Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: leading,
+            ),
           ),
           Expanded(
             child: Semantics(

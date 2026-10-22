@@ -464,7 +464,7 @@ void main() {
 
   group('PaymentsScreen', () {
     testWidgets('empty state', (tester) async {
-      await pump(tester, const PaymentsScreen());
+      await pump(tester, const Scaffold(body: SubscriptionPaymentsList()));
       expect(find.text('No payments yet'), findsOneWidget);
     });
 
@@ -481,7 +481,7 @@ void main() {
           ],
         ),
       );
-      await pump(tester, const PaymentsScreen());
+      await pump(tester, const Scaffold(body: SubscriptionPaymentsList()));
       expect(find.byType(PaymentCard), findsNWidgets(2));
       expect(find.text(r'$399.00'), findsNWidgets(2));
       expect(find.text('Paid'), findsOneWidget);

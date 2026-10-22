@@ -15,6 +15,7 @@ import 'package:lawbid/features/social/data/social_local_database.dart';
 import 'package:lawbid/features/team/team_routes.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 
+import '../../helpers/upload_queue_overrides.dart';
 import '../../helpers/ux_harness.dart';
 
 const _offline =
@@ -76,6 +77,7 @@ ProviderContainer _container(_FakeChat chat) {
     overrides: [
       chatRepositoryProvider.overrideWithValue(chat),
       socialLocalDatabaseProvider.overrideWithValue(db),
+      ...uploadQueueOverrides(),
       currentUserIdProvider.overrideWithValue('me'),
       realtimeClientProvider.overrideWithValue(null),
       networkInterfaceMonitorProvider.overrideWithValue(FakeNetworkMonitor()),

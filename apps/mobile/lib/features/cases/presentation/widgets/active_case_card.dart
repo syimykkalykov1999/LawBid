@@ -95,7 +95,7 @@ class ActiveCaseCard extends StatelessWidget {
       return Container(
         height: 28,
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm + 2),
-        alignment: Alignment.centerLeft,
+        alignment: AlignmentDirectional.centerStart,
         decoration: BoxDecoration(
           color: accent.withValues(alpha: 0.22),
           border: Border(
@@ -151,8 +151,8 @@ class ActiveCaseCard extends StatelessWidget {
           child: Stack(
             children: [
               // The glow in the bottom right corner.
-              Positioned(
-                right: -64,
+              PositionedDirectional(
+                end: -64,
                 bottom: -64,
                 width: 190,
                 height: 190,
@@ -282,7 +282,7 @@ class ActiveCaseCard extends StatelessWidget {
                             horizontal: AppSpacing.md,
                             vertical: 6,
                           ),
-                          alignment: Alignment.centerLeft,
+                          alignment: AlignmentDirectional.centerStart,
                           decoration: BoxDecoration(
                             color: nextYours ? colors.goldTint : colors.chip,
                             borderRadius: BorderRadius.circular(AppRadii.card),

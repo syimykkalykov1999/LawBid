@@ -8,6 +8,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   ApiEnvelopeResponse,
@@ -58,6 +59,10 @@ export class SearchController {
     private readonly searchLog: SearchLogService,
   ) {}
 
+  // Security research #5 (2026-10-22), A5: a full-text / ranked query over
+  // the whole table; 30 a minute per person is a human searching, not a
+  // script pulling the catalog.
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @Get('search/attorneys')
   @ApiOperation({ summary: 'Attorneys / people (docs/05 §7.3)' })
   @ApiEnvelopeResponse(AttorneyListItemDto, { isArray: true })
@@ -96,6 +101,10 @@ export class SearchController {
     return this.search.practices(user, q.q);
   }
 
+  // Security research #5 (2026-10-22), A5: a full-text / ranked query over
+  // the whole table; 30 a minute per person is a human searching, not a
+  // script pulling the catalog.
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @Get('search/people')
   @ApiOperation({
     summary: 'People: attorneys and clients by @username / name (OQ-026)',
@@ -112,6 +121,10 @@ export class SearchController {
     return this.search.people(user, q);
   }
 
+  // Security research #5 (2026-10-22), A5: a full-text / ranked query over
+  // the whole table; 30 a minute per person is a human searching, not a
+  // script pulling the catalog.
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @Get('search/cases')
   @ApiOperation({ summary: 'Cases visible to the attorney (docs/05 §7.4)' })
   @ApiEnvelopeResponse(CaseFeedItemDto, { isArray: true })
@@ -127,6 +140,10 @@ export class SearchController {
     return this.search.cases(user, q);
   }
 
+  // Security research #5 (2026-10-22), A5: a full-text / ranked query over
+  // the whole table; 30 a minute per person is a human searching, not a
+  // script pulling the catalog.
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @Get('search/posts')
   @ApiOperation({ summary: 'Posts, full text (docs/05 §7.5)' })
   @ApiEnvelopeResponse(PostDto, { isArray: true })
@@ -141,6 +158,10 @@ export class SearchController {
     return this.search.postsByText(user, q.q, q.cursor, q);
   }
 
+  // Security research #5 (2026-10-22), A5: a full-text / ranked query over
+  // the whole table; 30 a minute per person is a human searching, not a
+  // script pulling the catalog.
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @Get('search/tags')
   @ApiOperation({ summary: 'Hashtags by prefix (docs/05 §7.5)' })
   @ApiEnvelopeResponse(TagDto, { isArray: true })
@@ -162,6 +183,10 @@ export class SearchController {
     return this.search.trending();
   }
 
+  // Security research #5 (2026-10-22), A5: a full-text / ranked query over
+  // the whole table; 30 a minute per person is a human searching, not a
+  // script pulling the catalog.
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @Get('tags/:tag/posts')
   @ApiOperation({ summary: 'Posts of a hashtag, top or new (docs/05 §7.5)' })
   @ApiEnvelopeResponse(PostDto, { isArray: true })
@@ -200,6 +225,10 @@ export class SearchController {
     );
   }
 
+  // Security research #5 (2026-10-22), A5: a full-text / ranked query over
+  // the whole table; 30 a minute per person is a human searching, not a
+  // script pulling the catalog.
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @Get('search/latest-posts')
   @ApiOperation({
     summary:
