@@ -531,7 +531,7 @@ class _AttorneySavedState extends ConsumerState<_AttorneySaved> {
             values: _SavedKind.values,
             onChanged: widget.onKind,
             pageBuilder: (_, kind) => switch (kind) {
-              _SavedKind.cases => _SavedGrid(search: widget.search),
+              _SavedKind.cases => SavedCasesGrid(search: widget.search),
               _SavedKind.posts => const SavedPostsList(),
               _SavedKind.chats => SavedChatsView(query: widget.search.q),
             },
@@ -542,8 +542,10 @@ class _AttorneySavedState extends ConsumerState<_AttorneySaved> {
   }
 }
 
-class _SavedGrid extends ConsumerWidget {
-  const _SavedGrid({required this.search});
+/// The attorney's saved cases (a grid). Owner 2026-10-22: also the «Дела»
+/// tab of Settings → «Сохранённое».
+class SavedCasesGrid extends ConsumerWidget {
+  const SavedCasesGrid({this.search = const MineSearch(), super.key});
 
   final MineSearch search;
 

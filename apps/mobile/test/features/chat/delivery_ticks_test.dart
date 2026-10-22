@@ -11,6 +11,8 @@ import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/data/social_local_database.dart';
 
+import '../../helpers/upload_queue_overrides.dart';
+
 class _Chat implements ChatRepository {
   final acks = <(String, String)>[];
 
@@ -53,6 +55,7 @@ void main() {
       overrides: [
         chatRepositoryProvider.overrideWithValue(chat),
         socialLocalDatabaseProvider.overrideWithValue(db),
+        ...uploadQueueOverrides(),
         currentUserIdProvider.overrideWithValue('me'),
         realtimeEventsProvider.overrideWithValue(events.stream),
       ],

@@ -1191,8 +1191,8 @@ class _PhotoTile extends StatelessWidget {
                     ),
                   ),
                 ),
-              Positioned(
-                left: 6,
+              PositionedDirectional(
+                start: 6,
                 top: 6,
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6),
@@ -1206,8 +1206,8 @@ class _PhotoTile extends StatelessWidget {
                   ),
                 ),
               ),
-              Positioned(
-                right: 0,
+              PositionedDirectional(
+                end: 0,
                 top: 0,
                 child: AppIconButton(
                   icon: const AppIcon(

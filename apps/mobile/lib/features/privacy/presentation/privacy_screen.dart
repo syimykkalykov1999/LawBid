@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/diagnostics/analytics_consent.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
@@ -123,7 +124,94 @@ class PrivacyScreen extends ConsumerWidget {
                 ),
               ],
             ),
+            const SizedBox(height: AppSpacing.lg),
+            // Owner 2026-10-22 (audit #4 §5): the optional «analytics»
+            // consent — off until the person turns it on (opt-in).
+            AppListSection(
+              title: t.t('privacy.section.data'),
+              children: const [_AnalyticsRow()],
+            ),
+            _Hint(text: t.t('privacy.analytics.hint')),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AnalyticsRow extends ConsumerStatefulWidget {
+  const _AnalyticsRow();
+
+  @override
+  ConsumerState<_AnalyticsRow> createState() => _AnalyticsRowState();
+}
+
+class _AnalyticsRowState extends ConsumerState<_AnalyticsRow> {
+  bool _busy = false;
+
+  Future<void> _toggle(bool on) async {
+    final t = ref.read(translatorProvider);
+    setState(() => _busy = true);
+    try {
+      await ref.read(analyticsConsentProvider.notifier).set(granted: on);
+    } on Object catch (e) {
+      if (mounted) showAppSnackBar(context, errorText(t, e));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ref.watch(translatorProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    final on = ref.watch(analyticsConsentProvider);
+    final label = t.t('privacy.analytics');
+    return Semantics(
+      toggled: on,
+      enabled: !_busy,
+      label: label,
+      excludeSemantics: true,
+      onTap: _busy ? null : () => _toggle(!on),
+      child: GestureDetector(
+        key: const ValueKey('privacy-analytics'),
+        behavior: HitTestBehavior.opaque,
+        onTap: _busy ? null : () => _toggle(!on),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(
+            minHeight: AppSizes.touchTarget + AppSpacing.sm,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.md,
+              vertical: AppSpacing.sm,
+            ),
+            child: Row(
+              children: [
+                const AppIconMedallion(icon: AppIcons.insightsOutlined),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Text(
+                    label,
+                    style: type.body.copyWith(
+                      color: colors.text,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                ExcludeSemantics(
+                  child: Switch(
+                    value: on,
+                    onChanged: _busy ? null : _toggle,
+                    activeTrackColor: colors.accent,
+                    activeThumbColor: colors.onAccent,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

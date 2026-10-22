@@ -59,9 +59,9 @@ class ChatsIconButton extends ConsumerWidget {
                   size: AppSizes.iconMd,
                 ),
                 if (total > 0)
-                  Positioned(
+                  PositionedDirectional(
                     top: 4,
-                    right: 0,
+                    end: 0,
                     child: CountPill(count: total),
                   ),
               ],

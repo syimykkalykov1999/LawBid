@@ -601,7 +601,10 @@ class _ComposeSheetState extends ConsumerState<_ComposeSheet> {
                       children: [
                         if (l.check)
                           Padding(
-                            padding: const EdgeInsets.only(top: 12, right: 10),
+                            padding: const EdgeInsetsDirectional.only(
+                              top: 12,
+                              end: 10,
+                            ),
                             child: Container(
                               width: 20,
                               height: 20,

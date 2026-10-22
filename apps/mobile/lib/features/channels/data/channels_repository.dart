@@ -2,11 +2,12 @@ import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
-import 'package:crypto/crypto.dart' show sha256;
 import 'package:dio/dio.dart';
 import 'package:image_picker/image_picker.dart' show XFile;
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/request_flags.dart';
+import 'package:lawbid/core/uploads/storage_uploader.dart';
+import 'package:lawbid/core/uploads/upload_body.dart';
 import 'package:lawbid/features/channels/domain/channel_models.dart';
 import 'package:lawbid/features/groups/domain/ongoing_call.dart';
 import 'package:lawbid/features/social/domain/social_models.dart'
@@ -41,13 +42,13 @@ class ChannelVideoUpload {
 class ChannelsRepository {
   ChannelsRepository({required Dio apiDio, required Dio storageDio})
       : _channels = api.ChannelsClient(apiDio),
-        _files = api.FilesClient(apiDio),
+        _uploader = StorageUploader.dio(apiDio, storageDio),
         _videos = api.VideosClient(apiDio),
         _reports = api.ReportsClient(apiDio),
         _storage = storageDio;
 
   final api.ChannelsClient _channels;
-  final api.FilesClient _files;
+  final StorageUploader _uploader;
   final api.VideosClient _videos;
   final api.ReportsClient _reports;
   final Dio _storage;
@@ -375,58 +376,15 @@ class ChannelsRepository {
 
   /// Uploads [bytes] as the channel's picture (purpose `avatar`: presign →
   /// storage → confirm → wait for the scan) and returns the file id.
-  Future<String> uploadAvatar(Uint8List bytes, String mime) async {
-    final target = (await guardApiCall(
-      () => _files.presign(
-        body: api.PresignFileDto(
-          purpose: api.FilePurpose.avatar,
-          mime: mime,
-          sizeBytes: bytes.length,
-          sha256: sha256.convert(bytes).toString(),
-        ),
-        extras: _create,
-      ),
-    ))
-        .data;
-    final parts = mime.split('/');
-    try {
-      await _storage.post<void>(
-        target.upload.url,
-        data: FormData.fromMap({
-          ...target.upload.fields,
-          'file': MultipartFile.fromBytes(
-            bytes,
-            filename: 'file',
-            contentType: DioMediaType(parts.first, parts.last),
-          ),
-        }),
+  Future<String> uploadAvatar(Uint8List bytes, String mime) =>
+      // Owner 2026-10-22 (audit #4 §3): the shared uploader.
+      _uploader.upload(
+        purpose: api.FilePurpose.avatar,
+        body: UploadBody.bytes(bytes),
+        mime: mime,
+        filename: 'avatar.${mime.split('/').last}',
+        scanMaxPolls: 20,
       );
-    } on DioException catch (e) {
-      throw ApiException(
-        code: e.response == null
-            ? ApiException.networkErrorCode
-            : ApiErrorCodes.fileNotUploaded,
-        message: 'Upload to storage failed.',
-        statusCode: e.response?.statusCode,
-      );
-    }
-    var status = (await guardApiCall(() => _files.confirm(id: target.fileId)))
-        .data
-        .scanStatus;
-    for (var i = 0; status == api.ScanStatus.pending && i < 20; i++) {
-      await Future<void>.delayed(const Duration(milliseconds: 700));
-      status = (await guardApiCall(() => _files.getFilesId(id: target.fileId)))
-          .data
-          .scanStatus;
-    }
-    if (status != api.ScanStatus.clean) {
-      throw const ApiException(
-        code: ApiErrorCodes.fileNotAttachable,
-        message: 'scan',
-      );
-    }
-    return target.fileId;
-  }
 
   Future<ChannelVideoUpload> createVideoUpload({
     required int sizeBytes,

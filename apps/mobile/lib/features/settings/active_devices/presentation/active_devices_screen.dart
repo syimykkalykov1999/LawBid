@@ -309,7 +309,7 @@ class _DevicesLoading extends StatelessWidget {
       ),
       children: const [
         FractionallySizedBox(
-          alignment: Alignment.centerLeft,
+          alignment: AlignmentDirectional.centerStart,
           widthFactor: 0.6,
           child: AppSkeleton(),
         ),

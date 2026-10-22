@@ -96,9 +96,9 @@ class LegalMarkdown extends StatelessWidget {
                 ),
               ),
             'li' => Padding(
-                padding: EdgeInsets.only(
+                padding: EdgeInsetsDirectional.only(
                   bottom: AppSpacing.sm,
-                  left: b.level * AppSpacing.lg,
+                  start: b.level * AppSpacing.lg,
                 ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,

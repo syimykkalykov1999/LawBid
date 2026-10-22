@@ -1,18 +1,24 @@
+import 'dart:convert';
+
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/diagnostics/app_events.dart';
 import 'package:lawbid/core/l10n/app_language.dart';
 import 'package:lawbid/core/l10n/l10n_translator.dart';
 import 'package:lawbid/core/l10n/static_translator.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/features/privacy/application/privacy_providers.dart';
 import 'package:lawbid/features/privacy/data/privacy_repository.dart';
 import 'package:lawbid/features/privacy/presentation/moderation_notices_screen.dart';
 import 'package:lawbid/features/privacy/presentation/my_reports_screen.dart';
 import 'package:lawbid/features/privacy/presentation/privacy_screen.dart';
 
+import '../../helpers/fake_http_adapter.dart';
 import '../../helpers/long_locale.dart';
 import '../../helpers/ux_harness.dart';
 
@@ -100,11 +106,15 @@ void main() {
     Translator? t,
     TextDirection dir = TextDirection.ltr,
     double scale = 1,
+    Dio? dio,
   }) async {
     useNarrowPhone(tester);
     final overrides = uxOverrides(
       translator: t ?? const StaticTranslatorEn(),
-      extra: [privacyRepositoryProvider.overrideWithValue(repo)],
+      extra: [
+        privacyRepositoryProvider.overrideWithValue(repo),
+        if (dio != null) dioProvider.overrideWithValue(dio),
+      ],
     );
     await tester.pumpWidget(
       ProviderScope(
@@ -139,6 +149,39 @@ void main() {
     await tester.pumpAndSettle();
     expect(repo.changes, [(PrivacyField.lastSeen, Audience.nobody)]);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+      'usage statistics: off until turned on; the answer goes to the server',
+      (tester) async {
+    AppEvents.setConsent(granted: null);
+    final adapter = FakeHttpAdapter(
+      (_) async => jsonBody(
+        {
+          'data': {'saved': true},
+        },
+        201,
+      ),
+    );
+    final dio = Dio(BaseOptions(baseUrl: 'https://api.test/api/v1'))
+      ..httpClientAdapter = adapter;
+    await pump(tester, const PrivacyScreen(), _FakePrivacy(), dio: dio);
+    await tester.pumpAndSettle();
+    final row = find.byKey(const ValueKey('privacy-analytics'));
+    await tester.scrollUntilVisible(row, 200);
+    final toggle = find.descendant(of: row, matching: find.byType(Switch));
+    expect(tester.widget<Switch>(toggle).value, isFalse);
+    await tester.tap(row);
+    await tester.pumpAndSettle();
+    expect(adapter.requests.single.path, endsWith('/users/me/consents'));
+    final body = jsonDecode(jsonEncode(adapter.requests.single.data))
+        as Map<String, Object?>;
+    expect(body['consents'], [
+      {'type': 'analytics', 'granted': true},
+    ]);
+    expect(AppEvents.consent, isTrue);
+    expect(tester.widget<Switch>(toggle).value, isTrue);
+    AppEvents.setConsent(granted: null);
   });
 
   testWidgets('an appeal is sent with the written message', (tester) async {

@@ -1,10 +1,9 @@
 import 'dart:typed_data';
 
-import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
-
 import 'package:lawbid/core/network/api_error.dart';
-import 'package:lawbid/core/network/request_flags.dart';
+import 'package:lawbid/core/uploads/storage_uploader.dart';
+import 'package:lawbid/core/uploads/upload_body.dart';
 import 'package:lawbid/features/onboarding/data/current_user_mapper.dart';
 import 'package:lawbid/features/onboarding/data/users_api_client.dart';
 import 'package:lawbid/features/onboarding/domain/current_user.dart';
@@ -13,7 +12,6 @@ import 'package:lawbid/features/verification/domain/verification_repository.dart
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
 export 'package:lawbid/core/files/file_types.dart' show sniffImageMime;
-
 export 'package:lawbid/features/verification/domain/verification_repository.dart'
     show UploadCancellation, UploadCancelledException;
 
@@ -65,11 +63,11 @@ class ApiAvatarUploadRepository implements AvatarUploadRepository {
     required Dio storageDio,
     required UsersApiClient users,
   })  : _files = api.FilesClient(apiDio),
-        _storage = storageDio,
+        _uploader = StorageUploader.dio(apiDio, storageDio),
         _users = users;
 
   final api.FilesClient _files;
-  final Dio _storage;
+  final StorageUploader _uploader;
   final UsersApiClient _users;
 
   @override
@@ -78,24 +76,14 @@ class ApiAvatarUploadRepository implements AvatarUploadRepository {
     required int sizeBytes,
     required String sha256,
   }) async {
-    final dto = (await guardApiCall(
-      () => _files.presign(
-        body: api.PresignFileDto(
-          purpose: api.FilePurpose.avatar,
-          mime: mime,
-          sizeBytes: sizeBytes,
-          sha256: sha256,
-        ),
-        // Idempotent server-side: a retried presign returns the same link.
-        extras: const {RequestFlags.createsResource: true},
-      ),
-    ))
-        .data;
-    return PresignedUpload(
-      fileId: dto.fileId,
-      url: dto.upload.url,
-      fields: dto.upload.fields,
+    // Owner 2026-10-22 (audit #4 §3): the shared uploader's steps.
+    final t = await _uploader.presign(
+      purpose: api.FilePurpose.avatar,
+      mime: mime,
+      sizeBytes: sizeBytes,
+      sha256: sha256,
     );
+    return PresignedUpload(fileId: t.fileId, url: t.url, fields: t.fields);
   }
 
   @override
@@ -111,35 +99,22 @@ class ApiAvatarUploadRepository implements AvatarUploadRepository {
     }
     final token = CancelToken();
     cancellation?.onCancel(token.cancel);
-    final parts = mime.split('/');
-    final form = FormData.fromMap({
-      ...target.fields,
-      // S3 POST policy: the file must be the LAST field.
-      'file': MultipartFile.fromBytes(
-        bytes,
-        filename: 'avatar.${parts.last}',
-        contentType: DioMediaType(parts.first, parts.last),
-      ),
-    });
     try {
-      await _storage.post<void>(
-        target.url,
-        data: form,
-        cancelToken: token,
-        onSendProgress: (sent, total) {
-          if (total > 0) onProgress?.call(sent / total);
-        },
+      await _uploader.put(
+        StorageTarget(
+          fileId: target.fileId,
+          url: target.url,
+          fields: target.fields,
+        ),
+        UploadBody.bytes(bytes),
+        mime: mime,
+        filename: 'avatar.${mime.split('/').last}',
+        cancel: token,
+        onProgress: onProgress,
       );
     } on DioException catch (e) {
       if (CancelToken.isCancel(e)) throw const UploadCancelledException();
-      // Storage answers in XML, never our error envelope.
-      throw ApiException(
-        code: e.response == null
-            ? ApiException.networkErrorCode
-            : ApiErrorCodes.fileNotUploaded,
-        message: 'Upload to storage failed.',
-        statusCode: e.response?.statusCode,
-      );
+      rethrow;
     }
   }
 
@@ -166,6 +141,3 @@ class ApiAvatarUploadRepository implements AvatarUploadRepository {
         _ => ScanOutcome.rejected,
       };
 }
-
-/// Lowercase hex SHA-256 the presign requires.
-String sha256Hex(Uint8List bytes) => sha256.convert(bytes).toString();

@@ -302,10 +302,10 @@ class _MicAvatar extends StatelessWidget {
                   cacheKey: Uri.parse(url!).path,
                 ),
         ),
-        Positioned(
+        PositionedDirectional(
           bottom: -2,
-          left: badgeOnLeft ? -2 : null,
-          right: badgeOnLeft ? null : -2,
+          start: badgeOnLeft ? -2 : null,
+          end: badgeOnLeft ? null : -2,
           child: Container(
             width: dot,
             height: dot,

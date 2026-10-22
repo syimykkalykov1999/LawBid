@@ -160,6 +160,7 @@ class CurrentUser {
     this.avatarUrl,
     this.pendingLegalDocuments = const [],
     this.passwordRequired = false,
+    this.analyticsConsent,
   });
 
   factory CurrentUser.fromJson(Map<String, dynamic> json) {
@@ -197,6 +198,7 @@ class CurrentUser {
               .toList(growable: false)
           : const [],
       passwordRequired: json['passwordRequired'] as bool? ?? false,
+      analyticsConsent: json['analyticsConsent'] as bool?,
       requiredConsentsGranted:
           json['requiredConsentsGranted'] as bool? ?? false,
       onboarding: OnboardingProgress.fromJson(
@@ -252,6 +254,11 @@ class CurrentUser {
   /// screen before anything else (the code is used once; from then on the
   /// person signs in with the password).
   final bool passwordRequired;
+
+  /// Owner 2026-10-22 (audit #4 §5): my latest answer to the optional
+  /// «analytics» consent; null = never asked (or an older server). Usage
+  /// events are sent only after a yes (core/diagnostics/app_events.dart).
+  final bool? analyticsConsent;
 
   bool get isClient => role == UserRole.client;
   bool get isAttorney => role == UserRole.attorney;

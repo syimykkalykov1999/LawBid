@@ -11,11 +11,12 @@ import 'package:lawbid/features/auth/presentation/widgets/password_form_widgets.
 import 'package:lawbid/features/auth/presentation/widgets/us_phone_input.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 
-/// `/auth/set-password` (owner 2026-10-13): right after the one SMS code
-/// the person sets a password; from then on they sign in with it, no SMS.
-/// The router guard shows this screen while `GET /users/me` says
-/// `passwordRequired`, so it cannot be skipped; once the password is saved
-/// the user is reloaded and the guard moves on.
+/// `/auth/set-password` (owner 2026-10-13): the person sets a password;
+/// from then on they may sign in with it instead of a code. Owner
+/// 2026-10-22 (audit #4 §2): optional, like WhatsApp / Telegram — opened
+/// from Settings → «Задать пароль» while `GET /users/me` says
+/// `passwordRequired` (no password yet); back closes it. Once saved the
+/// screen closes and the user is reloaded.
 class SetPasswordScreen extends ConsumerStatefulWidget {
   const SetPasswordScreen({super.key});
 
@@ -60,8 +61,15 @@ class _SetPasswordScreenState extends ConsumerState<SetPasswordScreen> {
       return;
     }
     if (result.isSuccess) {
-      // The reloaded user no longer needs a password: the guard moves on.
-      await ref.read(currentUserControllerProvider.notifier).load();
+      // Back to Settings first, then the reloaded user (no password
+      // needed any more); opened from a link, the guard moves on.
+      final users = ref.read(currentUserControllerProvider.notifier);
+      final navigator = Navigator.of(context);
+      if (navigator.canPop()) {
+        showAppSnackBar(context, t.t('auth.setPassword.saved'));
+        navigator.pop();
+      }
+      await users.load();
       if (!mounted) return;
     }
     setState(() {
@@ -125,8 +133,11 @@ class _SetPasswordScreenState extends ConsumerState<SetPasswordScreen> {
     final t = ref.watch(translatorProvider);
     final target = _reauthTarget;
     return PopScope(
-      canPop: false,
+      canPop: !_busy,
       child: PasswordFormScaffold(
+        onBack: Navigator.of(context).canPop()
+            ? () => Navigator.of(context).maybePop()
+            : null,
         title: t.t('auth.setPassword.title'),
         subtitle: t.t('auth.setPassword.body'),
         fields: [

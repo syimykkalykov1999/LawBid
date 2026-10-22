@@ -16,6 +16,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// background. Nothing identifies a person; the server only adds up counts
 /// per day. Off with the flag `app_events` ([enabled] is switched from the
 /// feature flags): nothing is queued or sent.
+///
+/// Owner 2026-10-22 (audit #4 §5, EDPB 05/2020): opt-in on every platform —
+/// nothing is queued or sent until the person said yes to the optional
+/// «analytics» consent ([consent] true): the web notice, the Settings →
+/// Privacy switch, or their answer kept by the server (`GET /users/me`).
 class AppEvents {
   AppEvents._(this._prefs, this._dio);
 
@@ -30,8 +35,48 @@ class AppEvents {
   /// Switched by the feature flag `app_events` (default on).
   static bool enabled = true;
 
-  /// The person turned usage statistics off (web cookie notice).
-  static bool optedOut = false;
+  static const _consentKey = 'events.consent.v1';
+
+  /// The person's answer to the «analytics» consent on this device; null =
+  /// not answered yet (then nothing is collected).
+  static bool? get consent => _consent;
+  static bool? _consent;
+
+  static bool get _allowed => enabled && (_consent ?? false);
+
+  /// Records the answer (kept for the next start). A "no" also drops what
+  /// was waiting in the queue; a "yes" starts counting from now on.
+  static void setConsent({
+    required bool? granted,
+    SharedPreferences? prefs,
+  }) {
+    _consent = granted;
+    final store = prefs ?? instance?._prefs;
+    if (store != null) {
+      if (granted == null) {
+        unawaited(store.remove(_consentKey));
+      } else {
+        unawaited(store.setBool(_consentKey, granted));
+      }
+    }
+    if (granted != true) instance?._write([]);
+  }
+
+  /// The saved answer of this device (null = never answered).
+  static bool? savedConsent(SharedPreferences prefs) {
+    try {
+      return prefs.getBool(_consentKey);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// The signed-in person's answer from the server; null (never asked, or
+  /// an older server) keeps this device's answer.
+  static void applyServerConsent({required bool? granted}) {
+    if (granted == null || granted == _consent) return;
+    setConsent(granted: granted);
+  }
 
   final SharedPreferences _prefs;
   final Dio _dio;
@@ -55,6 +100,9 @@ class AppEvents {
           ),
     );
     instance = events;
+    _consent = savedConsent(prefs);
+    // Nothing was allowed to wait in the queue without a yes.
+    if (_consent != true) events._write([]);
     events._observer = _Lifecycle(events);
     WidgetsBinding.instance.addObserver(events._observer!);
     track('app_open');
@@ -96,7 +144,7 @@ class AppEvents {
 
   void _add(String name, String? screen) {
     try {
-      if (!enabled || optedOut) return;
+      if (!_allowed) return;
       final queue = _read()
         ..add({'name': name, if (screen != null) 'screen': screen});
       while (queue.length > _maxQueue) {
@@ -147,7 +195,7 @@ class AppEvents {
     _timer?.cancel();
     final queue = _read();
     if (queue.isEmpty) return;
-    if (!enabled || optedOut) {
+    if (!_allowed) {
       _write([]);
       return;
     }

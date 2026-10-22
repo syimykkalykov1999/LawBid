@@ -249,7 +249,8 @@ class _SheetState extends ConsumerState<_Sheet> {
                 children: [
                   if (_photos.length + _uploading < _maxPhotos)
                     Padding(
-                      padding: const EdgeInsets.only(right: AppSpacing.sm),
+                      padding:
+                          const EdgeInsetsDirectional.only(end: AppSpacing.sm),
                       child: InkWell(
                         key: const ValueKey('review-add-photos'),
                         borderRadius: BorderRadius.circular(AppRadii.field),
@@ -334,7 +335,8 @@ class _SheetState extends ConsumerState<_Sheet> {
                     ),
                   for (final (i, p) in _photos.indexed)
                     Padding(
-                      padding: const EdgeInsets.only(right: AppSpacing.sm),
+                      padding:
+                          const EdgeInsetsDirectional.only(end: AppSpacing.sm),
                       child: Stack(
                         children: [
                           ClipRRect(
@@ -354,9 +356,9 @@ class _SheetState extends ConsumerState<_Sheet> {
                                       : ColoredBox(color: colors.goldTint),
                             ),
                           ),
-                          Positioned(
+                          PositionedDirectional(
                             top: 2,
-                            right: 2,
+                            end: 2,
                             child: GestureDetector(
                               onTap: () => setState(() {
                                 _photos.removeAt(i);
@@ -378,7 +380,7 @@ class _SheetState extends ConsumerState<_Sheet> {
                     ),
                   for (var i = 0; i < _uploading; i++)
                     const Padding(
-                      padding: EdgeInsets.only(right: AppSpacing.sm),
+                      padding: EdgeInsetsDirectional.only(end: AppSpacing.sm),
                       child: SizedBox.square(
                         dimension: 76,
                         child: Center(

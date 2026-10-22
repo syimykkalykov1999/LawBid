@@ -374,7 +374,7 @@ class _NameWithCheckFitted extends StatelessWidget {
           WidgetSpan(
             alignment: PlaceholderAlignment.middle,
             child: Padding(
-              padding: const EdgeInsets.only(left: _gap),
+              padding: const EdgeInsetsDirectional.only(start: _gap),
               child: real
                   ? VerifiedCheck(
                       label: checkLabel,

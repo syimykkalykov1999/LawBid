@@ -39,7 +39,7 @@ class _ReelPublishCardState extends ConsumerState<ReelPublishCard> {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final job = ref.read(reelPublishJobProvider.notifier);
-    final cover = job.request?.cover;
+    final cover = job.cover;
     // Owner 2026-10-22 (Instagram): one line for the whole publish — it
     // never runs to the end and starts again at «0%» between the phases.
     final overall = s.overall;

@@ -928,8 +928,11 @@ describe('Case tools (e2e, 2026-10-20)', () => {
         caseTitle: 'Wage claim',
       },
     ]);
-    // the answer never carries the client's identity
-    expect(JSON.stringify(two.body.data)).not.toMatch(/Klein|212|0188/);
+    // the answer never carries the client's identity (the whole phone, not
+    // a 3-digit piece of it: a random case id once contained "212")
+    expect(JSON.stringify(two.body.data)).not.toMatch(
+      /Klein|Robert|12125550188|5550188/,
+    );
 
     // 3) an unrelated case is clean
     const clean = await makeCase(

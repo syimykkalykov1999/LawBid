@@ -66,8 +66,10 @@ Future<void> runLawBid(AppFlavor flavor) async {
   // DSN the last bootstrap saved — prod release only, never delays paint.
   unawaited(SentryNative.start(prefs, flavor));
   // Owner 2026-10-15: the app's own usage events (admin → Аналитика).
-  AppEvents.install(prefs, AppEnvironment.current);
+  // Owner 2026-10-22 (audit #4 §5): the web notice's answer first — the
+  // events start only after a yes.
   applyWebNoticeChoice(prefs);
+  AppEvents.install(prefs, AppEnvironment.current);
 
   final container = ProviderContainer(
     overrides: [

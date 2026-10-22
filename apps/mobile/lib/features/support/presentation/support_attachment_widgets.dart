@@ -131,8 +131,8 @@ class _DraftTile extends ConsumerWidget {
       height: _thumb + AppSpacing.sm,
       child: Stack(
         children: [
-          Positioned(
-            left: 0,
+          PositionedDirectional(
+            start: 0,
             bottom: 0,
             child: Semantics(
               label: file.name,
@@ -186,8 +186,8 @@ class _DraftTile extends ConsumerWidget {
               ),
             ),
           ),
-          Positioned(
-            right: 0,
+          PositionedDirectional(
+            end: 0,
             top: 0,
             child: AppPressable(
               onTap: onRemove,

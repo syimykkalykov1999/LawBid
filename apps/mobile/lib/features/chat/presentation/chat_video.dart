@@ -201,8 +201,8 @@ class _ChatVideoTileState extends State<ChatVideoTile> {
                             ),
                     ),
                     if (_ready)
-                      Positioned(
-                        left: widget.fill ? 4 : 8,
+                      PositionedDirectional(
+                        start: widget.fill ? 4 : 8,
                         bottom: widget.fill ? 4 : 8,
                         child: Container(
                           padding: const EdgeInsets.symmetric(
@@ -589,7 +589,7 @@ class _ChatVideoScreenState extends State<ChatVideoScreen>
                       child: SafeArea(
                         bottom: false,
                         child: Align(
-                          alignment: Alignment.centerLeft,
+                          alignment: AlignmentDirectional.centerStart,
                           child: IconButton(
                             onPressed: () => Navigator.of(context).maybePop(),
                             icon: const AppIcon(
@@ -624,7 +624,12 @@ class _ChatVideoScreenState extends State<ChatVideoScreen>
                         child: SafeArea(
                           top: false,
                           child: Padding(
-                            padding: const EdgeInsets.fromLTRB(8, 16, 16, 8),
+                            padding: const EdgeInsetsDirectional.fromSTEB(
+                              8,
+                              16,
+                              16,
+                              8,
+                            ),
                             child: Row(
                               children: [
                                 IconButton(

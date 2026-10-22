@@ -86,11 +86,11 @@ class CallLogEntry extends ConsumerWidget {
       ),
       decoration: BoxDecoration(
         color: mine ? chat.mine : chat.theirs,
-        borderRadius: BorderRadius.only(
-          topLeft: const Radius.circular(18),
-          topRight: const Radius.circular(18),
-          bottomLeft: Radius.circular(mine ? 18 : 4),
-          bottomRight: Radius.circular(mine ? 4 : 18),
+        borderRadius: BorderRadiusDirectional.only(
+          topStart: const Radius.circular(18),
+          topEnd: const Radius.circular(18),
+          bottomStart: Radius.circular(mine ? 18 : 4),
+          bottomEnd: Radius.circular(mine ? 4 : 18),
         ),
         border: mine ? null : Border.all(color: chat.theirsBorder),
       ),
@@ -155,7 +155,9 @@ class CallLogEntry extends ConsumerWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: Align(
-        alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
+        alignment: mine
+            ? AlignmentDirectional.centerEnd
+            : AlignmentDirectional.centerStart,
         child: Semantics(
           button: canCall,
           label: [

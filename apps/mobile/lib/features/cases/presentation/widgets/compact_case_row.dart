@@ -148,9 +148,9 @@ class CompactCaseRow extends StatelessWidget {
                       ),
                     ),
                     if (newBids > 0)
-                      Positioned(
+                      PositionedDirectional(
                         top: -4,
-                        right: -4,
+                        end: -4,
                         child: CountPill(count: newBids),
                       ),
                   ],
@@ -324,7 +324,7 @@ class _SwipeActionsState extends State<SwipeActions>
             children: [
               Positioned.fill(
                 child: Align(
-                  alignment: Alignment.centerRight,
+                  alignment: AlignmentDirectional.centerEnd,
                   child: AnimatedBuilder(
                     animation: _c,
                     builder: (context, _) => SizedBox(

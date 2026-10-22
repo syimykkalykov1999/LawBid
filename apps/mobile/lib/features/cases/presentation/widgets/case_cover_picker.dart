@@ -198,7 +198,7 @@ class _AutoPreview extends StatelessWidget {
           ],
         ),
         Align(
-          alignment: Alignment.bottomLeft,
+          alignment: AlignmentDirectional.bottomStart,
           child: Container(
             margin: const EdgeInsets.all(AppSpacing.sm),
             padding: const EdgeInsets.symmetric(
