@@ -75,7 +75,10 @@ function make(
       ),
     },
     user: {
-      findUnique: jest.fn(() => Promise.resolve({ email: 'a@b.test' })),
+      // Security audit #3 (finding 8): only an attorney buys offer packs.
+      findUnique: jest.fn(() =>
+        Promise.resolve({ email: 'a@b.test', role: 'attorney' }),
+      ),
     },
     bidPackPurchase: {
       ...tx.bidPackPurchase,
