@@ -28,11 +28,16 @@ import {
   UploadContactHashesDto,
 } from './contacts-sync.dto';
 import { ContactsSyncService } from './contacts-sync.service';
+import { AssistantSelf } from '../auth/assistant/assistant-context';
 
 /** Owner 2026-10-13: "Find people from your contacts". */
 @ApiTags('contacts-sync')
 @ApiBearerAuth()
 @ApiErrors(AUTHENTICATED_ERRORS)
+// Owner 2026-10-22 (security audit #3): the address book on an assistant's
+// phone is the assistant's own — it must not be stored under (or matched
+// for) the attorney's account. The assistant syncs as themself.
+@AssistantSelf()
 @Controller()
 export class ContactsSyncController {
   constructor(private readonly sync: ContactsSyncService) {}

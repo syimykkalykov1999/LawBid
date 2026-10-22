@@ -58,6 +58,7 @@ import { ContinueLoginDto } from './dto/continue-login.dto';
 import { AssistantCodeLoginDto } from './dto/assistant-code-login.dto';
 import { TokenService } from './services/token.service';
 import { QrLoginService } from './services/qr-login.service';
+import { AssistantSelf } from './assistant/assistant-context';
 import {
   QrLoginAnsweredDto,
   QrLoginCreateDto,
@@ -98,6 +99,13 @@ const IdempotencyKeyHeader = ApiHeader({
  */
 @ApiTags('auth')
 @ApiErrors(COMMON_ERRORS)
+// Owner 2026-10-22 (security audit #3, finding 1): every route here is
+// about the caller's OWN sign-in — sessions, identifiers, password, reauth,
+// the QR approval. An assistant's token must never be swapped for the
+// attorney here, or the assistant could link their own e-mail / Google to
+// the attorney's account, set the attorney's password or sign the
+// attorney's devices out (OWASP ASVS V4.1.3 least privilege).
+@AssistantSelf()
 @Controller('auth')
 export class AuthController {
   constructor(

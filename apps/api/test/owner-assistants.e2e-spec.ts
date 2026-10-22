@@ -967,4 +967,63 @@ describe('Assistants (e2e, OQ-048)', () => {
       .send({ title: 'x', body: 'y', practiceCode: 'family_law' })
       .expect(403);
   });
+  it('security audit #3: an assistant acts on their own sign-in, never the attorney’s', async () => {
+    const att = await attorney(1);
+    const asst = await assistantUser();
+    await api()
+      .post('/api/v1/team')
+      .set(att.auth)
+      .send({ phone: asst.phone })
+      .expect(201);
+    await api()
+      .post('/api/v1/assistants/join/accept')
+      .set(asst.auth)
+      .expect(201);
+    const chain = randomUUID();
+    await prisma.session.create({
+      data: {
+        user_id: att.id,
+        session_chain_id: chain,
+        refresh_hash: `audit3-${randomUUID()}`,
+        expires_at: new Date(Date.now() + 86_400_000),
+      },
+    });
+
+    // Owner 2026-10-22: the attorney's devices are not the assistant's.
+    const list = await api()
+      .get('/api/v1/auth/sessions')
+      .set(asst.auth)
+      .expect(200);
+    expect(
+      (list.body.data as { sessionId: string }[]).map((s) => s.sessionId),
+    ).not.toContain(chain);
+    await api()
+      .delete(`/api/v1/auth/sessions/${chain}`)
+      .set(asst.auth)
+      .expect(404);
+    const row = await prisma.session.findFirstOrThrow({
+      where: { session_chain_id: chain },
+    });
+    expect(row.revoked_at).toBeNull();
+
+    // No duty: the attorney's groups and channels stay closed, and the
+    // attorney-only referral / partner routes refuse the assistant.
+    for (const path of ['/api/v1/groups', '/api/v1/channels']) {
+      const r = await api().get(path).set(asst.auth).expect(403);
+      expect(r.body.error.code).toBe('ASSISTANT_NOT_ALLOWED');
+    }
+    const ref = await api()
+      .post('/api/v1/referrals/apply')
+      .set(asst.auth)
+      .set('Idempotency-Key', randomUUID())
+      .send({ code: 'ABCDEF' })
+      .expect(403);
+    expect(ref.body.error.code).toBe('ASSISTANT_NOT_ALLOWED');
+    const partner = await api()
+      .post('/api/v1/partners/me/join')
+      .set(asst.auth)
+      .send({})
+      .expect(403);
+    expect(partner.body.error.code).toBe('ASSISTANT_NOT_ALLOWED');
+  });
 });

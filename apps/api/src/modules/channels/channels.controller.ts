@@ -56,6 +56,10 @@ import {
   UpdateChannelSubscriptionDto,
 } from './channels.dto';
 import { ChannelsService, type ChannelPage } from './channels.service';
+import {
+  AttorneyOnly,
+  RequiresDuty,
+} from '../auth/assistant/assistant-context';
 
 const E = ErrorCode;
 
@@ -63,6 +67,12 @@ const E = ErrorCode;
 @ApiTags('channels')
 @ApiBearerAuth()
 @ApiErrors(AUTHENTICATED_ERRORS)
+// Owner 2026-10-22 (security audit #3): channels live in the Chats tab — an
+// assistant reaches them in the attorney's name only with the "chats"
+// duty. Broadcasting (a channel, its posts, admins, comments) speaks
+// publicly for the attorney, so it also needs the "publish" duty, the same
+// as posts and comments (OQ-049).
+@RequiresDuty('chats')
 @Controller('channels')
 export class ChannelsController {
   constructor(private readonly channels: ChannelsService) {}
@@ -80,6 +90,7 @@ export class ChannelsController {
     return this.channels.list(user, q.scope, q.q, q.cursor, q.archived);
   }
 
+  @AttorneyOnly('publish')
   @Post()
   @ApiOperation({
     summary: 'Create a channel (verified attorneys and clients)',
@@ -97,6 +108,7 @@ export class ChannelsController {
     return this.channels.create(user, dto);
   }
 
+  @AttorneyOnly('publish')
   @Post('video-uploads')
   @ApiOperation({ summary: 'Start a direct upload of a channel post video' })
   @ApiEnvelopeResponse(VideoUploadDto, { status: 201 })
@@ -125,6 +137,7 @@ export class ChannelsController {
     return this.channels.get(user, p.ref);
   }
 
+  @AttorneyOnly('publish')
   @Patch(':id')
   @ApiOperation({ summary: 'Edit a channel (admins; @username: owner)' })
   @ApiEnvelopeResponse(ChannelDto)
@@ -141,6 +154,7 @@ export class ChannelsController {
     return this.channels.update(user, p.id, dto);
   }
 
+  @AttorneyOnly('publish')
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete a channel (owner)' })
@@ -199,6 +213,7 @@ export class ChannelsController {
     return this.channels.admins(user, p.id);
   }
 
+  @AttorneyOnly('publish')
   @Post(':id/admins')
   @ApiOperation({ summary: 'Add an admin by @username (owner)' })
   @ApiEnvelopeResponse(ChannelAdminDto, { isArray: true, status: 201 })
@@ -215,6 +230,7 @@ export class ChannelsController {
     return this.channels.addAdmin(user, p.id, dto);
   }
 
+  @AttorneyOnly('publish')
   @Delete(':id/admins/:userId')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Remove an admin (owner), or leave (yourself)' })
@@ -238,6 +254,7 @@ export class ChannelsController {
     return this.channels.posts(user, p.id, q.cursor, q.limit);
   }
 
+  @AttorneyOnly('publish')
   @Post(':id/posts')
   @UseGuards(RequireIdempotencyKeyGuard)
   @UseInterceptors(IdempotencyInterceptor)
@@ -293,6 +310,7 @@ export class ChannelsController {
     return this.channels.post(user, p.id, p.postId);
   }
 
+  @AttorneyOnly('publish')
   @Patch(':id/posts/:postId')
   @ApiOperation({ summary: 'Edit a post (admins)' })
   @ApiEnvelopeResponse(ChannelPostDto)
@@ -305,6 +323,7 @@ export class ChannelsController {
     return this.channels.editPost(user, p.id, p.postId, dto.body);
   }
 
+  @AttorneyOnly('publish')
   @Delete(':id/posts/:postId')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete a post (admins)' })
@@ -351,6 +370,7 @@ export class ChannelsController {
     return this.channels.comments(user, p.id, p.postId, q.cursor, q.limit);
   }
 
+  @AttorneyOnly('publish')
   @Post(':id/posts/:postId/comments')
   @ApiOperation({ summary: 'Comment on a post' })
   @ApiEnvelopeResponse(ChannelCommentDto, { status: 201 })
@@ -367,6 +387,7 @@ export class ChannelsController {
     return this.channels.addComment(user, p.id, p.postId, dto.body);
   }
 
+  @AttorneyOnly('publish')
   @Delete(':id/posts/:postId/comments/:commentId')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete a comment (author or a channel admin)' })
