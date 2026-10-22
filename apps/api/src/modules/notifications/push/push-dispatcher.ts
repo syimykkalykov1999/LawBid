@@ -758,7 +758,8 @@ export class PushDispatcher
     // OQ-040: a voice note has no text — say what it is.
     const ru = user.ui_language === 'ru';
     const caption = [
-      ...(this.cipher?.open(message.body_display) ?? message.body_display),
+      ...(this.cipher?.open(message.body_display, data.messageId) ??
+        message.body_display),
     ]
       .slice(0, MESSAGE_PREVIEW_CHARS)
       .join('');

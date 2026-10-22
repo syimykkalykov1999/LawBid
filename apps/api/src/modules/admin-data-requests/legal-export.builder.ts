@@ -209,8 +209,8 @@ export class LegalExportBuilder {
     return due.length;
   }
 
-  private open(v: string): string {
-    return this.cipher?.open(v) ?? v;
+  private open(v: string, messageId: string): string {
+    return this.cipher?.open(v, messageId) ?? v;
   }
 
   private async gather(userId: string, sel: LegalSelection, cap: number) {
@@ -417,8 +417,8 @@ export class LegalExportBuilder {
         conversationId: m.conversation_id,
         senderId: m.sender_id,
         type: m.type,
-        text: this.open(m.body_original),
-        shownText: this.open(m.body_display),
+        text: this.open(m.body_original, m.id),
+        shownText: this.open(m.body_display, m.id),
         fileId: m.file_id,
         fileName: m.file_name,
         replyToId: m.reply_to_id,
@@ -428,7 +428,7 @@ export class LegalExportBuilder {
         deletedAt: m.deleted_at,
         revokedAt: m.revoked_at,
         edits: m.edits.map((e) => ({
-          text: this.open(e.body_original),
+          text: this.open(e.body_original, m.id),
           editedAt: e.edited_at,
         })),
       }));
@@ -437,7 +437,7 @@ export class LegalExportBuilder {
         title: 'Direct chats',
         lines: msgs.map(
           (m) =>
-            `[${m.conversation_id.slice(0, 8)}] ${stamp(m.created_at)} ${label(m.sender_id)}${m.deleted_at || m.revoked_at ? ' [DELETED]' : ''}: ${this.open(m.body_original)}`,
+            `[${m.conversation_id.slice(0, 8)}] ${stamp(m.created_at)} ${label(m.sender_id)}${m.deleted_at || m.revoked_at ? ' [DELETED]' : ''}: ${this.open(m.body_original, m.id)}`,
         ),
       });
     }

@@ -160,7 +160,7 @@ export class ModerationService {
           },
         });
         if (!m) return null;
-        const body = this.cipher?.open(m.body_display) ?? m.body_display;
+        const body = this.cipher?.open(m.body_display, id) ?? m.body_display;
         // OQ-040: a reported voice note — the moderator gets a short
         // signed link to listen (outside transactions only).
         const voiceUrl =
