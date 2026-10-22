@@ -435,6 +435,7 @@ export class PromotionsService {
             data: { status: 'canceled', cancel_reason: 'superseded' },
           });
           await this.referrals.restorePromotionCredits(tx, userId, s.id);
+          await this.releasePromo(tx, s.promo_code_id, userId);
         }
         const available = useCredits
           ? await this.referrals.promotionCreditDays(userId, tx)
@@ -522,13 +523,18 @@ export class PromotionsService {
                 q.creditDaysUsed,
               )
             : 0;
-        if (free && promo) {
+        // Owner 2026-10-22 (security audit #3, finding 4): the code is
+        // redeemed HERE, in the transaction that books the discount — for
+        // a checkout too (released if it is never paid). Two parallel
+        // requests cannot both use it, nor push it past its limit.
+        if (promo) {
           await this.redeemPromo(
             tx,
             promo.id,
             userId,
             null,
             q.promoDiscountCents,
+            'strict',
           );
         }
         return { row: created, creditDaysUsed: used, starsCharged };
@@ -820,6 +826,7 @@ export class PromotionsService {
             p.user_id,
             payment.id,
             Math.max(0, p.days * p.price_cents_per_day - p.total_cents),
+            'paid',
           );
         }
         return { row, live: false };
@@ -842,6 +849,7 @@ export class PromotionsService {
           p.user_id,
           payment.id,
           Math.max(0, p.days * p.price_cents_per_day - p.total_cents),
+          'paid',
         );
       }
       return { row, live: true };
@@ -957,6 +965,12 @@ export class PromotionsService {
       });
       if (res.count === 0) return false;
       await this.referrals.restorePromotionCredits(tx, userId, id);
+      // An unpaid checkout gives its promo code back (audit #3).
+      const row = await tx.casePromotion.findUnique({
+        where: { id },
+        select: { promo_code_id: true },
+      });
+      await this.releasePromo(tx, row?.promo_code_id ?? null, userId);
       return true;
     });
   }
@@ -1090,12 +1104,19 @@ export class PromotionsService {
     });
     const code = raw.trim().toUpperCase();
     const p = await this.prisma.promoCode.findUnique({ where: { code } });
+    // Owner 2026-10-22 (security audit #3, finding 4): the audience is the
+    // buyer's role, as for subscriptions (admin-billing/promo-rules.ts).
+    const buyer = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
     const now = Date.now();
     if (
       !p ||
       !p.active ||
       !['any', 'promotion'].includes(p.applies_to) ||
       !['all', 'client', 'attorney'].includes(p.audience) ||
+      (p.audience !== 'all' && p.audience !== buyer?.role) ||
       (p.starts_at && p.starts_at.getTime() > now) ||
       (p.expires_at && p.expires_at.getTime() <= now) ||
       (p.max_redemptions !== null && p.redeemed_count >= p.max_redemptions) ||
@@ -1117,29 +1138,90 @@ export class PromotionsService {
     };
   }
 
+  /**
+   * Owner 2026-10-22 (security audit #3, finding 4; ASVS V11.1.6 — no
+   * check-then-act on a limited resource). The redemption row goes in
+   * FIRST (`ON CONFLICT DO NOTHING` on (promo, user)), then the counter
+   * moves only while `redeemed_count < max_redemptions` — both inside the
+   * caller's transaction, like Stripe's atomic `max_redemptions`.
+   *
+   * - `strict` (booking the promotion): an already used or exhausted code
+   *   throws, which rolls the whole booking back.
+   * - `paid` (the payment came through): the code was reserved at booking,
+   *   so the row only gets the payment; a revived checkout whose reservation
+   *   was released re-redeems, and never refuses money already taken.
+   */
   private async redeemPromo(
     tx: Prisma.TransactionClient,
     promoId: string,
     userId: string,
     paymentId: string | null,
     amountOffCents: number,
+    mode: 'strict' | 'paid',
   ): Promise<void> {
-    const existing = await tx.promoRedemption.findUnique({
-      where: { promo_id_user_id: { promo_id: promoId, user_id: userId } },
-      select: { id: true },
+    if (mode === 'paid') {
+      const attached = await tx.promoRedemption.updateMany({
+        where: { promo_id: promoId, user_id: userId, payment_id: null },
+        data: { payment_id: paymentId, amount_off_cents: amountOffCents },
+      });
+      if (attached.count > 0) return;
+    }
+    const inserted = await tx.promoRedemption.createMany({
+      data: [
+        {
+          promo_id: promoId,
+          user_id: userId,
+          payment_id: paymentId,
+          amount_off_cents: amountOffCents,
+        },
+      ],
+      skipDuplicates: true,
     });
-    if (existing) return;
-    await tx.promoRedemption.create({
-      data: {
-        promo_id: promoId,
-        user_id: userId,
-        payment_id: paymentId,
-        amount_off_cents: amountOffCents,
-      },
+    const counted =
+      inserted.count === 1
+        ? await tx.promoCode.updateMany({
+            where: {
+              id: promoId,
+              OR: [
+                { max_redemptions: null },
+                {
+                  redeemed_count: {
+                    lt: tx.promoCode.fields.max_redemptions,
+                  },
+                },
+              ],
+            },
+            data: { redeemed_count: { increment: 1 } },
+          })
+        : { count: 0 };
+    if (counted.count === 1) return;
+    if (mode === 'strict') {
+      throw new BadRequestException({
+        code: ErrorCode.PROMO_CODE_INVALID,
+        message: 'This promo code is not valid for promotion.',
+        details: { field: 'promoCode' },
+      });
+    }
+    this.logger.warn(
+      { promoId, userId, paymentId },
+      'paid promotion kept a promo code that was used up meanwhile',
+    );
+  }
+
+  /** An unpaid checkout's reserved code goes back (audit #3, finding 4). */
+  private async releasePromo(
+    tx: Prisma.TransactionClient,
+    promoId: string | null,
+    userId: string,
+  ): Promise<void> {
+    if (!promoId) return;
+    const freed = await tx.promoRedemption.deleteMany({
+      where: { promo_id: promoId, user_id: userId, payment_id: null },
     });
-    await tx.promoCode.update({
-      where: { id: promoId },
-      data: { redeemed_count: { increment: 1 } },
+    if (freed.count === 0) return;
+    await tx.promoCode.updateMany({
+      where: { id: promoId, redeemed_count: { gt: 0 } },
+      data: { redeemed_count: { decrement: 1 } },
     });
   }
 }
