@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -734,20 +735,60 @@ class SocialActions {
 
   Post _latest(Post p) => _ref.read(postOverridesProvider)[p.id] ?? p;
 
-  Future<Object?> toggleLike(Post post) => _guard('like:${post.id}', () async {
-        final before = _latest(post);
-        final liked = !before.likedByMe;
-        _ref.read(postOverridesProvider.notifier).put(
-              before.copyWith(
-                likedByMe: liked,
-                likeCount:
-                    (before.likeCount + (liked ? 1 : -1)).clamp(0, 1 << 31),
-              ),
-            );
+  /// How long a like waits before it is sent — a «like → unlike» inside
+  /// this window is no request at all (client economy plan, package K).
+  static const likeSettle = Duration(milliseconds: 700);
+
+  final _likeTimers = <String, Timer>{};
+
+  /// Taps waiting for the one request of their window.
+  final _likeWaiters = <String, List<Completer<Object?>>>{};
+
+  /// What the server knows per post (the state the last request sent, or
+  /// the state the post came with).
+  final _likeKnown = <String, bool>{};
+
+  /// Flips at once; the request goes after [likeSettle] and only when the
+  /// final state differs from what the server knows.
+  Future<Object?> toggleLike(Post post) async {
+    final before = _latest(post);
+    final liked = !before.likedByMe;
+    _likeKnown.putIfAbsent(post.id, () => before.likedByMe);
+    _ref.read(postOverridesProvider.notifier).put(
+          before.copyWith(
+            likedByMe: liked,
+            likeCount: (before.likeCount + (liked ? 1 : -1)).clamp(0, 1 << 31),
+          ),
+        );
+    _likeTimers[post.id]?.cancel();
+    final done = Completer<Object?>();
+    (_likeWaiters[post.id] ??= []).add(done);
+    _likeTimers[post.id] = Timer(likeSettle, () async {
+      _likeTimers.remove(post.id);
+      final waiters = _likeWaiters.remove(post.id) ?? const [];
+      final result = await _flushLike(post);
+      for (final w in waiters) {
+        w.complete(result);
+      }
+    });
+    return done.future;
+  }
+
+  Future<Object?> _flushLike(Post post) => _guard('like:${post.id}', () async {
+        final now = _latest(post);
+        final liked = now.likedByMe;
+        if (_likeKnown[post.id] == liked) return; // back where it was
         try {
           await _repo.setLiked(post.id, liked: liked);
+          _likeKnown[post.id] = liked;
         } on Object {
-          _ref.read(postOverridesProvider.notifier).put(before);
+          _ref.read(postOverridesProvider.notifier).put(
+                now.copyWith(
+                  likedByMe: !liked,
+                  likeCount:
+                      (now.likeCount + (liked ? -1 : 1)).clamp(0, 1 << 31),
+                ),
+              );
           rethrow;
         }
       });

@@ -845,7 +845,10 @@ void main() {
         expect(h.s.phase, CallPhase.active, reason: 'minute $minute');
       }
       // The heartbeat kept running the whole hour.
-      expect(h.repo.gets, greaterThan(300));
+      // Owner 2026-10-22 (package H): one resync per 30 s (plus the
+      // reconnects), not every 8 s — 120 an hour instead of 450.
+      expect(h.repo.gets, greaterThan(100));
+      expect(h.repo.gets, lessThan(200));
       h
         ..sub.close()
         ..container.dispose();

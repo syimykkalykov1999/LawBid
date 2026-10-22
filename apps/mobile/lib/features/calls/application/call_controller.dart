@@ -295,7 +295,10 @@ const kCallConnectTimeout = Duration(seconds: 45);
 
 /// While a call lives, its state is re-read from the server this often (a
 /// missed `call:ended` must not leave the other phone ringing or talking).
-const kCallSyncInterval = Duration(seconds: 8);
+/// Owner 2026-10-22 (client economy plan, package H): every `call:*` event
+/// carries `seq`; `GET /calls/{id}` is asked only when a number was missed
+/// (or every 30 s as a safety net, instead of every 8).
+const kCallSyncInterval = Duration(seconds: 30);
 
 /// An incoming ring stops by itself this long after the caller's timeout.
 const kCallRingGrace = Duration(seconds: 10);
@@ -1754,7 +1757,28 @@ class CallController extends Notifier<CallSession> {
     }
   }
 
+  /// The last `seq` seen per call (package H).
+  final _seq = <String, int>{};
+
+  /// False when [e] is out of order for its call (an older event that
+  /// arrived late — dropped); a gap in the numbers asks the server once.
+  bool _inOrder(RealtimeEvent e) {
+    final data = e.data;
+    if (data is! Map || !e.name.startsWith('call:')) return true;
+    final seq = data['seq'];
+    if (seq is! int || seq <= 0) return true; // a server without Redis
+    final call = data['call'];
+    final id = data['callId'] ?? (call is Map ? call['id'] : null);
+    if (id is! String) return true;
+    final last = _seq[id];
+    if (last != null && seq <= last) return false;
+    if (last != null && seq > last + 1) unawaited(_resync(id));
+    _seq[id] = seq;
+    return true;
+  }
+
   void _onEvent(RealtimeEvent e) {
+    if (!_inOrder(e)) return;
     final data = e.data;
     switch (e.name) {
       case 'call:incoming':

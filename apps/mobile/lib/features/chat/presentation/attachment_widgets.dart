@@ -12,6 +12,7 @@ import 'package:lawbid/core/files/file_types.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/media/photo_limits.dart';
 import 'package:lawbid/features/chat/data/chat_repository.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/presentation/chat_album.dart';
@@ -128,16 +129,19 @@ Future<List<PickedChatFile>> pickChatFiles(
       // Owner 2026-10-01: no count limit in chats and tasks (only
       // publications keep 9 photos). Owner 2026-10-17: videos picked in
       // the same gallery are compressed and sent too.
+      // Owner 2026-10-22 (client economy plan, package I): chat photos go
+      // at 1600 px / q82 — a third of the bytes, no visible difference on
+      // a phone; the original stays on the device.
       final picked = videoOn
           ? await ImagePicker().pickMultipleMedia(
-              maxWidth: 2560,
-              maxHeight: 2560,
-              imageQuality: 90,
+              maxWidth: kChatPhotoMaxPx,
+              maxHeight: kChatPhotoMaxPx,
+              imageQuality: kChatPhotoQuality,
             )
           : await ImagePicker().pickMultiImage(
-              maxWidth: 2560,
-              maxHeight: 2560,
-              imageQuality: 90,
+              maxWidth: kChatPhotoMaxPx,
+              maxHeight: kChatPhotoMaxPx,
+              imageQuality: kChatPhotoQuality,
             );
       for (final f in picked) {
         // Too big: said at once, never read whole into the page's memory

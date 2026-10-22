@@ -28,3 +28,8 @@ PhotoLimits avatarLimitsOf(FeatureFlagsState flags) => (
           )
           .clamp(50, 100),
     );
+
+/// Owner 2026-10-22 (client economy plan, package I): the longest side and
+/// the JPEG quality of a photo sent in a chat (HD stays a choice for later).
+const kChatPhotoMaxPx = 1600.0;
+const kChatPhotoQuality = 82;

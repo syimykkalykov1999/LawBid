@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart' show CancelToken;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:lawbid/core/network/dio_client.dart';
@@ -202,5 +203,9 @@ final recentSearchesProvider =
 final searchSuggestionsProvider = FutureProvider.autoDispose
     .family<List<SearchSuggestion>, String>((ref, q) async {
   if (q.isEmpty) return const [];
-  return ref.watch(searchRepositoryProvider).suggest(q);
+  // Package K: the typing moved on before the answer — the request is
+  // cancelled instead of reaching the server for nothing.
+  final cancel = CancelToken();
+  ref.onDispose(() => cancel.cancel('typing moved on'));
+  return ref.watch(searchRepositoryProvider).suggest(q, cancel: cancel);
 });

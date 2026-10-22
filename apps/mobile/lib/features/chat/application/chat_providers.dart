@@ -604,8 +604,9 @@ class DeliveryAcker {
     if (m.kind == MessageKind.call) return;
     _newest[m.conversationId] = m.id;
     _timers[m.conversationId]?.cancel();
+    // Owner 2026-10-22 (package K): a burst of messages is one `delivered`.
     _timers[m.conversationId] = Timer(
-      const Duration(milliseconds: 300),
+      const Duration(seconds: 1),
       () => unawaited(_send(m.conversationId)),
     );
   }

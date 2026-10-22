@@ -220,7 +220,8 @@ abstract interface class SearchRepository {
 
   /// Owner 2026-10-15: type-ahead — topics, attorney handles and practice
   /// names starting with [q].
-  Future<List<SearchSuggestion>> suggest(String q);
+  /// [cancel]: the typing moved on — the request is dropped (package K).
+  Future<List<SearchSuggestion>> suggest(String q, {CancelToken? cancel});
 
   /// Owner 2026-10-15: the person opened a result of [q] — the search
   /// learns "query → topic" from it. Never throws and never waits.
@@ -239,11 +240,27 @@ class SearchSuggestion {
 }
 
 class ApiSearchRepository implements SearchRepository {
-  ApiSearchRepository(Dio dio) : _search = api.SearchClient(dio);
+  ApiSearchRepository(Dio dio)
+      : _dio = dio,
+        _search = api.SearchClient(dio);
+
+  final Dio _dio;
 
   @override
-  Future<List<SearchSuggestion>> suggest(String q) async {
-    final env = await guardApiCall(() => _search.suggest(q: q));
+  Future<List<SearchSuggestion>> suggest(
+    String q, {
+    CancelToken? cancel,
+  }) async {
+    final env = await guardApiCall(
+      () async => api.SuggestionListEnvelope.fromJson(
+        (await _dio.get<Map<String, dynamic>>(
+          '/search/suggest',
+          queryParameters: {'q': q},
+          cancelToken: cancel,
+        ))
+            .data!,
+      ),
+    );
     return [
       for (final s in env.data)
         SearchSuggestion(
