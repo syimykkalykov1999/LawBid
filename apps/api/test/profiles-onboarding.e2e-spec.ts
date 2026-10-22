@@ -484,6 +484,12 @@ describe('Profiles onboarding (e2e) — client_profiles / attorney_profiles', ()
       }),
     ]);
 
+    // Owner 2026-10-22 (audit #3): the sign-in was an hour ago — a fresh
+    // sign-in would itself count as the reauth.
+    await prisma.session.updateMany({
+      where: { user_id: userId },
+      data: { created_at: new Date(Date.now() - 3_600_000) },
+    });
     const newPhone = nextPhone();
     const noReauth = await api()
       .post('/api/v1/users/me/contacts/request')
@@ -535,9 +541,31 @@ describe('Profiles onboarding (e2e) — client_profiles / attorney_profiles', ()
       .post('/api/v1/auth/otp/request')
       .send({ channel: 'phone', identifier: extra })
       .expect(200);
+    // Owner 2026-10-22 (audit #3): a new sign-in method always needs a
+    // reauth token, however fresh the session.
+    const refused = await api()
+      .post('/api/v1/auth/identifiers')
+      .set(auth)
+      .send({ provider: 'phone', identifier: extra, code: '000000' })
+      .expect(403);
+    expect(refused.body.error.code).toBe('REAUTH_REQUIRED');
+    await api()
+      .post('/api/v1/auth/otp/request')
+      .send({ channel: 'phone', identifier: newPhone })
+      .expect(200);
+    const again = await api()
+      .post('/api/v1/auth/reauth')
+      .set(auth)
+      .send({ method: 'otp', identifier: newPhone, code: '000000' })
+      .expect(201);
+    await api()
+      .post('/api/v1/auth/otp/request')
+      .send({ channel: 'phone', identifier: extra })
+      .expect(200);
     await api()
       .post('/api/v1/auth/identifiers')
       .set(auth)
+      .set('X-Reauth-Token', again.body.data.reauthToken as string)
       .send({ provider: 'phone', identifier: extra, code: '000000' })
       .expect(201);
     const withExtra = await api()

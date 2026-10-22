@@ -283,29 +283,81 @@ describe('Onboarding (e2e) — stage 1.7 server side', () => {
     expect(res.body.error.code).toBe('FORBIDDEN');
   });
 
-  it('first contact of a type needs no reauth; changing a verified one does', async () => {
+  it('owner 2026-10-22 (audit #3): a fresh sign-in is the reauth; later every contact needs one', async () => {
     const token = await login('+12025557004');
     const auth = { Authorization: `Bearer ${token}` };
     const me = await api().get('/api/v1/users/me').set(auth).expect(200);
+    const userId = me.body.data.id as string;
 
-    // Phone is verified by the phone login -> changing it needs reauth.
-    const change = await api()
-      .post('/api/v1/users/me/contacts/request')
-      .set(auth)
-      .send({ type: 'phone', value: '+12025557005' })
-      .expect(403);
-    expect(change.body.error.code).toBe('REAUTH_REQUIRED');
-
-    // No verified phone yet -> adding one is allowed without reauth.
-    await prisma.user.update({
-      where: { id: me.body.data.id as string },
-      data: { phone_verified_at: null },
-    });
+    // Onboarding stays one code long: the sign-in minutes ago counts.
     await api()
       .post('/api/v1/users/me/contacts/request')
       .set(auth)
-      .send({ type: 'phone', value: '+12025557006' })
+      .send({ type: 'phone', value: '+12025557005' })
       .expect(201);
+
+    // An older session (or a stolen token of one): reauth for any contact,
+    // even adding the first one of a type.
+    await prisma.session.updateMany({
+      where: { user_id: userId },
+      data: { created_at: new Date(Date.now() - 3_600_000) },
+    });
+    await prisma.user.update({
+      where: { id: userId },
+      data: { phone_verified_at: null },
+    });
+    const add = await api()
+      .post('/api/v1/users/me/contacts/request')
+      .set(auth)
+      .send({ type: 'phone', value: '+12025557006' })
+      .expect(403);
+    expect(add.body.error.code).toBe('REAUTH_REQUIRED');
+  });
+
+  it('owner 2026-10-22 (audit #3): a password is set only by the account holder', async () => {
+    const token = await login('+12025557014');
+    const auth = { Authorization: `Bearer ${token}` };
+    const me = await api().get('/api/v1/users/me').set(auth).expect(200);
+    const userId = me.body.data.id as string;
+    const age = () =>
+      prisma.session.updateMany({
+        where: { user_id: userId },
+        data: { created_at: new Date(Date.now() - 3_600_000) },
+      });
+
+    // An hour-old session of an SMS-only account: no bare access token
+    // (an assistant's, a thief's) may give it a password any more.
+    await age();
+    const bare = await api()
+      .post('/api/v1/auth/password')
+      .set(auth)
+      .send({ password: 'Strong-pass-1' })
+      .expect(403);
+    expect(bare.body.error.code).toBe('REAUTH_REQUIRED');
+
+    // Right after the sign-up code it works with no second code.
+    await prisma.session.updateMany({
+      where: { user_id: userId },
+      data: { created_at: new Date() },
+    });
+    await api()
+      .post('/api/v1/auth/password')
+      .set(auth)
+      .send({ password: 'Strong-pass-1' })
+      .expect(200);
+
+    // Changing it later: the current password, or a reauth token.
+    await age();
+    await api()
+      .post('/api/v1/auth/password')
+      .set(auth)
+      .send({ password: 'Strong-pass-2', currentPassword: 'wrong-pass-0' })
+      .expect(401);
+    await api()
+      .post('/api/v1/auth/password')
+      .set(auth)
+      .send({ password: 'Strong-pass-2', currentPassword: 'Strong-pass-1' })
+      .expect(200);
   });
 
   it('bootstrap legal documents carry an id for consents.documentId', async () => {

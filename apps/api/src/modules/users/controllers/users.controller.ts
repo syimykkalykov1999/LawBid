@@ -178,9 +178,11 @@ export class UsersController {
   }
 
   /** docs/01 §11 step 3A: "Изменить телефон/email можно только с повторной
-   * проверкой (reauth + код на новый контакт)". Adding the FIRST contact of
-   * a type during onboarding needs no reauth (it would cost an extra paid
-   * code per contact); replacing an already-verified one does. */
+   * проверкой (reauth + код на новый контакт)". Owner 2026-10-22 (security
+   * audit #3, finding 2): adding a contact needs reauth too — an e-mail
+   * added to an account without one receives the password-reset codes.
+   * Onboarding stays one code long: a sign-in made minutes ago on this
+   * session counts as the reauth (ReauthVerifier.assertRecentAuthentication). */
   @Post('contacts/request')
   @UseInterceptors(IdempotencyInterceptor)
   @ApiEnvelopeResponse(ContactCodeSentDto, { status: HttpStatus.CREATED })
@@ -201,7 +203,7 @@ export class UsersController {
     name: REAUTH_HEADER_NAME,
     required: false,
     description:
-      'Single-use token from POST /auth/reauth; required only when replacing an already verified contact of this type.',
+      'Single-use token from POST /auth/reauth; required unless this session signed in within the last 10 minutes.',
   })
   @IdempotencyKeyHeader
   async requestContact(
@@ -209,9 +211,7 @@ export class UsersController {
     @Body() dto: ContactRequestDto,
     @Req() req: Request & { user?: RequestUser },
   ): Promise<ContactCodeSentDto> {
-    if (await this.contacts.hasVerified(user.sub, dto.type)) {
-      await this.reauth.assertAndConsume(req);
-    }
+    await this.reauth.assertRecentAuthentication(req);
     await this.contacts.requestVerification(user.sub, dto.type, dto.value);
     return { sent: true };
   }
