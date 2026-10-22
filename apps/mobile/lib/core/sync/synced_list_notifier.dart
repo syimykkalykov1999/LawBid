@@ -59,6 +59,18 @@ abstract class SyncedListNotifier<T> extends PagedNotifier<T> {
   /// rows stay where they were, new rows go on top).
   int Function(T a, T b)? get order => null;
 
+  /// False for a list the server cannot send deltas for (a text search):
+  /// a catch-up is then the first page again.
+  bool get catchesUp => true;
+
+  /// A first page carries no server time: it counts as caught up to «now»
+  /// less this margin (the phone's clock may run ahead of the server's).
+  static const firstPageSkew = Duration(minutes: 2);
+
+  /// The clock (tests replace it).
+  @protected
+  DateTime now() => DateTime.now();
+
   @override
   Duration? get keepAliveFor => const Duration(minutes: 5);
 
@@ -86,7 +98,8 @@ abstract class SyncedListNotifier<T> extends PagedNotifier<T> {
   /// of reading the first page again.
   @override
   Future<void> revalidateSaved(CursorPage<T> saved) async {
-    final since = await _storedSince() ?? _sinceOf(saved.items);
+    final since =
+        catchesUp ? (await _storedSince() ?? _sinceOf(saved.items)) : null;
     if (since == null) {
       await super.revalidateSaved(saved);
       return;
@@ -98,10 +111,9 @@ abstract class SyncedListNotifier<T> extends PagedNotifier<T> {
   @override
   Future<CursorPage<T>> fetch(String? cursor) async {
     final page = await fetchPage(cursor);
-    if (cursor == null) {
-      // A fresh first page: caught up to its newest row.
-      final at = _sinceOf(page.items);
-      if (at != null) _remember(at);
+    if (cursor == null && catchesUp) {
+      // A fresh first page: caught up to its newest row (or to now).
+      _remember(_sinceOf(page.items) ?? now().subtract(firstPageSkew));
     }
     return page;
   }
@@ -151,7 +163,9 @@ abstract class SyncedListNotifier<T> extends PagedNotifier<T> {
   /// One `updatedSince` request for everything since [since] (or since the
   /// last catch-up), debounced: a burst of events is one request.
   void catchUp([DateTime? since]) {
-    final from = since ?? _syncedAt ?? _sinceOf(state.value?.items ?? const []);
+    final from = catchesUp
+        ? since ?? _syncedAt ?? _sinceOf(state.value?.items ?? const [])
+        : null;
     if (from == null) {
       // Nothing to catch up from: the first page again.
       unawaited(refresh().catchError((Object _) {}));

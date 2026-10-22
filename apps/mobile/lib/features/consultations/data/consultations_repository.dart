@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/request_flags.dart';
+import 'package:lawbid/core/sync/synced_list_notifier.dart' show SyncedPage;
 import 'package:lawbid/features/consultations/domain/consultation_models.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
@@ -106,6 +107,28 @@ class ConsultationsRepository {
     return CursorPage(
       items: r.data.map(_consultation).toList(),
       nextCursor: r.meta?.nextCursor,
+    );
+  }
+
+  /// Package E: only my consultations changed since [since] in [view].
+  Future<SyncedPage<Consultation>> listChangedSince(
+    ConsultationView view,
+    DateTime since,
+  ) async {
+    final r = await guardApiCall(
+      () => _api.listConsultations(
+        updatedSince: since.toUtc(),
+        view: switch (view) {
+          ConsultationView.upcoming => api.View.upcoming,
+          ConsultationView.pending => api.View.pending,
+          ConsultationView.past => api.View.past,
+        },
+      ),
+    );
+    return SyncedPage(
+      items: r.data.map(_consultation).toList(),
+      deletedIds: r.meta?.deletedIds ?? const [],
+      syncedAt: r.meta?.syncedAt,
     );
   }
 

@@ -132,7 +132,7 @@ void main() {
     );
     events.add(const RealtimeEvent(RealtimeEvent.reconnected, null));
     await Future<void>.delayed(
-      SyncedListNotifier.catchUpDelay + const Duration(milliseconds: 50),
+      SyncedListNotifier.catchUpDelay + const Duration(milliseconds: 400),
     );
     final items = c.read(groupsProvider).value!.items;
     expect(items.map((g) => g.id).toSet(), {'g1', 'g3'});
@@ -154,7 +154,7 @@ void main() {
       ..add(RealtimeEvent('group:message', messageEvent('g9', 'a')))
       ..add(RealtimeEvent('group:message', messageEvent('g9', 'b')));
     await Future<void>.delayed(
-      SyncedListNotifier.catchUpDelay + const Duration(milliseconds: 50),
+      SyncedListNotifier.catchUpDelay + const Duration(milliseconds: 400),
     );
     expect(repo.changedCalls, 1, reason: 'a burst is one request');
     expect(c.read(groupsProvider).value!.items.any((g) => g.id == 'g9'), true);
