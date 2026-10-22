@@ -15,6 +15,7 @@ import { GroupSharedController } from './group-shared.controller';
 import { GroupSharedService } from './group-shared.service';
 import { GroupsController } from './groups.controller';
 import { GroupsService } from './groups.service';
+import { GroupFanoutQueue } from './group-fanout.queue';
 
 /** Owner 2026-10-20: group chats and polls; realtime in RealtimeModule. */
 @Module({
@@ -35,6 +36,8 @@ import { GroupsService } from './groups.service';
     GroupPresenter,
     GroupSharedService,
     AdminGroupsService,
+    // Owner 2026-10-22: the ordered fan-out queue (producer side).
+    GroupFanoutQueue,
   ],
   exports: [GroupsService],
 })

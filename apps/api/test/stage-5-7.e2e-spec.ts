@@ -7,6 +7,7 @@ import { io, type Socket } from 'socket.io-client';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
+import { SessionRevocationService } from '../src/modules/auth/services/session-revocation.service';
 
 /**
  * docs/05 §16 stage 5.7 acceptance: a repeated clientMessageId makes no
@@ -287,5 +288,47 @@ describe('Chats and realtime (e2e, docs/05 §8, stage 5.7)', () => {
       conversationId: c.id,
     })) as { ok: boolean };
     expect(ack.ok).toBe(false);
+  });
+
+  it('a revoked session is dropped on every instance at once (finding 5)', async () => {
+    // Owner 2026-10-22 (server load audit): no 45 s blacklist poll — the
+    // revoke on instance A publishes `session:revoked`, and instance B
+    // closes the socket of that session right away; another session stays.
+    const user = await prisma.user.create({ data: { role: 'client' } });
+    const sid = randomUUID();
+    const t = tokens.signAccessToken({
+      sub: user.id,
+      role: 'client',
+      sid,
+      verified: false,
+      subscriptionStatus: 'none',
+    });
+    const other = token(user.id, 'client');
+    const sock = await connect(urlB, t);
+    const keep = await connect(urlB, other);
+    const dropped = new Promise<{ code: string }>((resolve) =>
+      sock.once('auth:error', resolve),
+    );
+    const closed = new Promise<void>((resolve) =>
+      sock.once('disconnect', () => resolve()),
+    );
+    const started = Date.now();
+    await a.get(SessionRevocationService).revokeChain(sid, 'logout');
+    expect(await dropped).toEqual({ code: 'AUTH_SESSION_REVOKED' });
+    await closed;
+    expect(Date.now() - started).toBeLessThan(5_000);
+    expect(keep.connected).toBe(true);
+    // A reconnect with the revoked token is refused at the handshake.
+    const again = io(`${urlB}/realtime`, {
+      auth: { token: t },
+      transports: ['websocket'],
+      reconnection: false,
+    });
+    sockets.push(again);
+    expect(
+      await new Promise<{ code: string }>((resolve) =>
+        again.once('auth:error', resolve),
+      ),
+    ).toEqual({ code: 'UNAUTHORIZED' });
   });
 });

@@ -31,12 +31,15 @@ import { topicOf } from '../notification-topics';
 import { NotificationTemplateService } from './notification-template.service';
 import { fillTemplate } from './notification-templates';
 import { PushQueueService } from './push-queue.service';
+import { inChunks } from './fcm-push.sender';
 import {
   NOTIFICATION_EMAIL,
   PUSH_MODULE_OPTIONS,
   PUSH_QUEUE,
   PUSH_SENDER,
+  type GroupMessagesJobData,
   type MessageJobData,
+  type PushMessage,
   type CallJobData,
   type NotificationJobData,
   type PushJobData,
@@ -68,6 +71,16 @@ export type DispatchResult =
   | 'viewing'
   | 'deferred'
   | 'no_user';
+
+/** Members of a `group_messages` job checked at the same time. */
+const GROUP_PREPARE_CONCURRENCY = 25;
+
+/** A group message, its group and sender — read once per batch. */
+interface GroupShared {
+  message: Awaited<ReturnType<PushDispatcher['groupMessageRow']>>;
+  group: Awaited<ReturnType<PushDispatcher['groupRow']>>;
+  sender: Awaited<ReturnType<PushDispatcher['chatSender']>>;
+}
 
 /** Push body of a chat message: body_display, shortened (§9.5 "тексты
  * сообщений маскированы как body_display"). */
@@ -155,6 +168,7 @@ export class PushDispatcher
       );
       return 'sent';
     }
+    if (data.kind === 'group_messages') return this.dispatchGroupMessages(data);
     return data.kind === 'message'
       ? this.dispatchMessage(data, jobId)
       : this.dispatchNotification(data, jobId);
@@ -510,6 +524,103 @@ export class PushDispatcher
     data: MessageJobData & { groupId: string },
     jobId: string,
   ): Promise<DispatchResult> {
+    const r = await this.prepareGroupMessage(data, jobId);
+    if (r.push) await this.sender.send(r.push, `m:${data.messageId}`);
+    return r.result;
+  }
+
+  /**
+   * Owner 2026-10-22 (server load audit, finding 7): one group message for
+   * up to 500 members. The message, the group and the sender are read once;
+   * each member goes through the same gates as [dispatchGroupMessage]
+   * (GROUP_PREPARE_CONCURRENCY at a time); the pushes then go out together
+   * (PushSender.sendMany: devices in parallel, FCM multicast-sized chunks).
+   * It used to be one queued job per member, one device at a time — and
+   * those jobs shared the id `m-<message>`, so BullMQ kept only the first.
+   */
+  private async dispatchGroupMessages(
+    data: GroupMessagesJobData,
+  ): Promise<DispatchResult> {
+    const [message, group] = await Promise.all([
+      this.groupMessageRow(data.messageId),
+      this.groupRow(data.groupId),
+    ]);
+    if (!message || !group || group.deleted_at) return 'no_user';
+    if (message.deleted_at) return 'no_push';
+    const sender =
+      message.type !== 'system' && message.sender_id
+        ? await this.chatSender(message.sender_id)
+        : null;
+    const shared: GroupShared = { message, group, sender };
+    const pushes: PushMessage[] = [];
+    await inChunks(
+      data.recipientIds,
+      GROUP_PREPARE_CONCURRENCY,
+      async (recipientId) => {
+        const r = await this.prepareGroupMessage(
+          {
+            kind: 'message',
+            recipientId,
+            conversationId: data.groupId,
+            messageId: data.messageId,
+            groupId: data.groupId,
+          },
+          // A member held by quiet hours gets their own deferred job.
+          `gm-${data.messageId}-${recipientId}`,
+          shared,
+        );
+        if (r.push) pushes.push(r.push);
+      },
+    );
+    if (pushes.length === 0) return 'no_push';
+    const dedupeKey = `m:${data.messageId}`;
+    if (this.sender.sendMany) {
+      await this.sender.sendMany(pushes, dedupeKey);
+    } else {
+      for (const push of pushes) await this.sender.send(push, dedupeKey);
+    }
+    return 'sent';
+  }
+
+  groupMessageRow(messageId: string) {
+    return this.prisma.chatGroupMessage.findUnique({
+      where: { id: messageId, deleted_at: {} },
+      select: {
+        body: true,
+        type: true,
+        sender_id: true,
+        deleted_at: true,
+        system_kind: true,
+        system_payload: true,
+        mention_ids: true,
+        created_at: true,
+        file: { select: { mime: true } },
+        poll: { select: { question: true } },
+      },
+    });
+  }
+
+  groupRow(groupId: string) {
+    return this.prisma.chatGroup.findUnique({
+      where: { id: groupId },
+      select: { title: true, deleted_at: true, avatar_file_id: true },
+    });
+  }
+
+  chatSender(userId: string) {
+    return this.prisma.user.findUnique({
+      where: { id: userId },
+      select: CHAT_SENDER_SELECT,
+    });
+  }
+
+  /** The gates of one member and their push ([shared]: read once per
+   * batch). */
+  private async prepareGroupMessage(
+    data: MessageJobData & { groupId: string },
+    jobId: string,
+    shared?: GroupShared,
+  ): Promise<{ result: DispatchResult; push?: PushMessage }> {
     const [user, member, message, group] = await Promise.all([
       this.prisma.user.findUnique({
         where: { id: data.recipientId },
@@ -524,25 +635,8 @@ export class PushDispatcher
         },
         select: { muted_until: true, left_at: true },
       }),
-      this.prisma.chatGroupMessage.findUnique({
-        where: { id: data.messageId, deleted_at: {} },
-        select: {
-          body: true,
-          type: true,
-          sender_id: true,
-          deleted_at: true,
-          system_kind: true,
-          system_payload: true,
-          mention_ids: true,
-          created_at: true,
-          file: { select: { mime: true } },
-          poll: { select: { question: true } },
-        },
-      }),
-      this.prisma.chatGroup.findUnique({
-        where: { id: data.groupId },
-        select: { title: true, deleted_at: true, avatar_file_id: true },
-      }),
+      shared ? shared.message : this.groupMessageRow(data.messageId),
+      shared ? shared.group : this.groupRow(data.groupId),
     ]);
     if (
       !user ||
@@ -553,9 +647,9 @@ export class PushDispatcher
       !group ||
       group.deleted_at
     ) {
-      return 'no_user';
+      return { result: 'no_user' };
     }
-    if (message.deleted_at) return 'no_push';
+    if (message.deleted_at) return { result: 'no_push' };
     const ru = user.ui_language === 'ru';
     const mentioned = message.mention_ids.includes(data.recipientId);
     let body: string;
@@ -570,16 +664,15 @@ export class PushDispatcher
         message.system_kind !== 'added' ||
         !payload.targetIds?.includes(data.recipientId)
       ) {
-        return 'no_push';
+        return { result: 'no_push' };
       }
       body = ru ? 'Вас добавили в группу' : 'You were added to the group';
     } else {
-      const sender = message.sender_id
-        ? await this.prisma.user.findUnique({
-            where: { id: message.sender_id },
-            select: CHAT_SENDER_SELECT,
-          })
-        : null;
+      const sender = shared
+        ? shared.sender
+        : message.sender_id
+          ? await this.chatSender(message.sender_id)
+          : null;
       // Owner 2026-10-22: the display name, else the @username.
       const who = chatSenderName(sender);
       const caption = [
@@ -616,9 +709,9 @@ export class PushDispatcher
       });
     }
     const muted = !!member.muted_until && member.muted_until > new Date();
-    if (muted && !mentioned) return 'muted';
+    if (muted && !mentioned) return { result: 'muted' };
     if (await this.realtime.isViewing(data.recipientId, data.groupId)) {
-      return 'viewing';
+      return { result: 'viewing' };
     }
     // Owner 2026-10-21: groups have their own switch (Telegram); an
     // @mention follows «Mentions» (inbox 30).
@@ -627,18 +720,19 @@ export class PushDispatcher
       !(mentioned && sw.on('chatMentions')) &&
       !(sw.on('groups') && !(mentioned && muted))
     ) {
-      return 'disabled';
+      return { result: 'disabled' };
     }
     if (!data.deferred) {
       const until = await this.quietUntil(data.recipientId);
       if (until) {
         await this.queue.defer(data, until, jobId || data.messageId);
-        return 'deferred';
+        return { result: 'deferred' };
       }
     }
     const icon = await this.badges.iconFor(data.recipientId);
-    await this.sender.send(
-      {
+    return {
+      result: 'sent',
+      push: {
         userId: data.recipientId,
         title: group.title,
         body,
@@ -656,9 +750,7 @@ export class PushDispatcher
         threadId: data.groupId,
         ...(chat ? { chat: true } : {}),
       },
-      `m:${data.messageId}`,
-    );
-    return 'sent';
+    };
   }
 
   private async dispatchMessage(

@@ -80,8 +80,28 @@ export interface CallEndJobData {
   deferred?: boolean;
 }
 
+/** Owner 2026-10-22 (server load audit, finding 7): one group message for
+ * up to [GROUP_PUSH_BATCH] members — the same gates as [MessageJobData]
+ * per member, then one parallel send (PushSender.sendMany). */
+export interface GroupMessagesJobData {
+  kind: 'group_messages';
+  groupId: string;
+  messageId: string;
+  recipientIds: string[];
+  /** Unused: a member held by quiet hours is deferred as a
+   * [MessageJobData] of their own. */
+  deferred?: boolean;
+}
+
+/** Members per `group_messages` job (FCM's multicast size). */
+export const GROUP_PUSH_BATCH = 500;
+
 export type PushJobData =
-  NotificationJobData | MessageJobData | CallJobData | CallEndJobData;
+  | NotificationJobData
+  | MessageJobData
+  | CallJobData
+  | CallEndJobData
+  | GroupMessagesJobData;
 
 export interface PushMessage {
   userId: string;
@@ -164,4 +184,9 @@ export const PUSH_SOUNDS: Record<
  * that already got it. */
 export interface PushSender {
   send(message: PushMessage, dedupeKey: string): Promise<void>;
+  /** Owner 2026-10-22 (server load audit, finding 7): the same logical push
+   * to many people at once (a group message), devices in parallel in
+   * chunks of FCM's multicast size. Optional: callers fall back to
+   * [send] per message. */
+  sendMany?(messages: PushMessage[], dedupeKey: string): Promise<void>;
 }

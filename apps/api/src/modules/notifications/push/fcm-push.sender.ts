@@ -32,6 +32,24 @@ function reminderKey(data: Record<string, string> | undefined): string | null {
  * exponential backoff). */
 export class FcmTemporaryError extends Error {}
 
+/** Owner 2026-10-22: FCM's multicast size (sendEachForMulticast takes at
+ * most 500 tokens) — the most device requests in flight at once. */
+export const FCM_MULTICAST_MAX = 500;
+/** Recipients sent together by [FcmPushSender.sendMany]: each has at most
+ * 10 devices (push-tokens MAX_DEVICES), so ≤ FCM_MULTICAST_MAX requests. */
+export const FCM_USERS_PER_BATCH = 50;
+
+/** Runs [fn] over [items], [size] at a time (each chunk in parallel). */
+export async function inChunks<T>(
+  items: T[],
+  size: number,
+  fn: (item: T) => Promise<void>,
+): Promise<void> {
+  for (let i = 0; i < items.length; i += size) {
+    await Promise.all(items.slice(i, i + size).map(fn));
+  }
+}
+
 /**
  * docs/05 §9.5 push over FCM HTTP v1 (service account from FCM_* env,
  * OAuth token via google-auth-library, cached by it until expiry). Every
@@ -92,9 +110,13 @@ export class FcmPushSender implements PushSender {
     const chatStyle = new Set(
       message.chat ? await this.tokens.chatStyleTokens(message.userId) : [],
     );
-    for (const device of devices) {
-      if (skip.has(device)) continue;
-      if (key && armed.get(device)?.has(key)) continue;
+    // Owner 2026-10-22 (server load audit, finding 7): the devices go out
+    // in parallel, at most FCM_MULTICAST_MAX at a time — what the Admin
+    // SDK's sendEachForMulticast does (one HTTP v1 call per token; FCM
+    // retired the batch endpoint). It used to be one device after another.
+    const one = async (device: string): Promise<void> => {
+      if (skip.has(device)) return;
+      if (key && armed.get(device)?.has(key)) return;
       const ownChat = chatStyle.has(device);
       const dataOnly = message.call || localReminder.has(device) || ownChat;
       // Claim the device before the call: a crash between FCM's 200 and
@@ -106,7 +128,7 @@ export class FcmPushSender implements PushSender {
         SENT_TTL_SEC,
         'NX',
       );
-      if (claimed === null) continue;
+      if (claimed === null) return;
       let res: Response;
       try {
         res = await fetch(this.url, {
@@ -274,9 +296,9 @@ export class FcmPushSender implements PushSender {
           },
           'fcm send failed',
         );
-        continue;
+        return;
       }
-      if (res.ok) continue;
+      if (res.ok) return;
       const body = (await res.json().catch(() => ({}))) as {
         error?: { status?: string; details?: { errorCode?: string }[] };
       };
@@ -288,7 +310,7 @@ export class FcmPushSender implements PushSender {
       // every user's tokens (security review).
       if (code === 'UNREGISTERED') {
         await this.tokens.remove(device);
-        continue;
+        return;
       }
       await this.redis.del(`${sentKey}:${device}`);
       temporary++;
@@ -296,9 +318,35 @@ export class FcmPushSender implements PushSender {
         { userId: message.userId, status: res.status, code },
         'fcm send failed',
       );
-    }
+    };
+    await inChunks(devices, FCM_MULTICAST_MAX, one);
     if (temporary > 0) {
       throw new FcmTemporaryError(`${temporary} device(s) failed`);
+    }
+  }
+
+  /**
+   * Owner 2026-10-22 (server load audit, finding 7): one logical push to
+   * many people (a group message) — FCM_USERS_PER_BATCH recipients at a
+   * time, their devices in parallel. A temporary failure of some is
+   * reported once at the end (the retry skips everyone already served).
+   */
+  async sendMany(messages: PushMessage[], dedupeKey: string): Promise<void> {
+    let temporary = 0;
+    for (let i = 0; i < messages.length; i += FCM_USERS_PER_BATCH) {
+      const results = await Promise.allSettled(
+        messages
+          .slice(i, i + FCM_USERS_PER_BATCH)
+          .map((m) => this.send(m, dedupeKey)),
+      );
+      for (const r of results) {
+        if (r.status === 'fulfilled') continue;
+        if (r.reason instanceof FcmTemporaryError) temporary++;
+        else throw r.reason;
+      }
+    }
+    if (temporary > 0) {
+      throw new FcmTemporaryError(`${temporary} recipient(s) failed`);
     }
   }
 }
@@ -320,11 +368,22 @@ export class DynamicPushSender implements PushSender {
   ) {}
 
   async send(message: PushMessage, dedupeKey: string): Promise<void> {
+    const sender = await this.current();
+    if (!sender) return this.fallback.send(message, dedupeKey);
+    // Owner 2026-10-15: while FCM keeps failing the sender pauses a minute
+    // (the push queue retries later) instead of piling up slow calls.
+    return fcmBreaker.run(
+      () => sender.send(message, dedupeKey),
+      (e) => e instanceof FcmTemporaryError,
+    );
+  }
+
+  /** The FCM sender for the current keys (rebuilt only when they
+   * changed), or null without keys. */
+  private async current(): Promise<FcmPushSender | null> {
     const c = await this.secrets.get('fcm');
     const f = c?.fields ?? {};
-    if (!c || !f.projectId || !f.clientEmail || !f.privateKey) {
-      return this.fallback.send(message, dedupeKey);
-    }
+    if (!c || !f.projectId || !f.clientEmail || !f.privateKey) return null;
     if (this.cached?.fingerprint !== c.fingerprint) {
       this.cached = {
         fingerprint: c.fingerprint,
@@ -340,11 +399,19 @@ export class DynamicPushSender implements PushSender {
         ),
       };
     }
-    // Owner 2026-10-15: while FCM keeps failing the sender pauses a minute
-    // (the push queue retries later) instead of piling up slow calls.
-    const sender = this.cached.sender;
+    return this.cached.sender;
+  }
+
+  /** Owner 2026-10-22: many recipients of one logical push (FcmPushSender
+   * .sendMany); without FCM keys each goes to the fallback. */
+  async sendMany(messages: PushMessage[], dedupeKey: string): Promise<void> {
+    const sender = await this.current();
+    if (!sender) {
+      for (const m of messages) await this.fallback.send(m, dedupeKey);
+      return;
+    }
     return fcmBreaker.run(
-      () => sender.send(message, dedupeKey),
+      () => sender.sendMany(messages, dedupeKey),
       (e) => e instanceof FcmTemporaryError,
     );
   }
