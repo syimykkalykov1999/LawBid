@@ -122,27 +122,36 @@ class _ChipsSearchRowState extends ConsumerState<ChipsSearchRow> {
           child: SizedBox(height: ChipsSearchRow.height, child: child),
         );
     if (_open) {
-      return bar(
-        Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.screenSide,
-            vertical: AppSpacing.xs,
-          ),
-          child: FlipSearchBar(
-            key: widget.fieldKey,
-            controller: _text,
-            focusNode: _focus,
-            semanticLabel: t.t(widget.hintKey),
-            cancelLabel: t.t('common.cancel'),
-            clearLabel: t.t('search.clear'),
-            showCancel: false,
-            hints: [t.t(widget.hintKey)],
-            onSubmitted: widget.onQuery,
-            trailing: AppIconButton(
-              key: widget.closeKey,
-              icon: AppIcon(AppIcons.closeRounded, color: colors.textSecondary),
-              semanticLabel: t.t('common.close'),
-              onPressed: _close,
+      // Owner 2026-10-22 (WhatsApp / Telegram): a tap on empty space outside
+      // the field always closes the search itself (text cleared, field
+      // hidden), not only the keyboard — even with text typed.
+      return TapRegion(
+        onTapOutside: (_) => _close(),
+        child: bar(
+          Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.screenSide,
+              vertical: AppSpacing.xs,
+            ),
+            child: FlipSearchBar(
+              key: widget.fieldKey,
+              controller: _text,
+              focusNode: _focus,
+              semanticLabel: t.t(widget.hintKey),
+              cancelLabel: t.t('common.cancel'),
+              clearLabel: t.t('search.clear'),
+              showCancel: false,
+              hints: [t.t(widget.hintKey)],
+              onSubmitted: widget.onQuery,
+              trailing: AppIconButton(
+                key: widget.closeKey,
+                icon: AppIcon(
+                  AppIcons.closeRounded,
+                  color: colors.textSecondary,
+                ),
+                semanticLabel: t.t('common.close'),
+                onPressed: _close,
+              ),
             ),
           ),
         ),

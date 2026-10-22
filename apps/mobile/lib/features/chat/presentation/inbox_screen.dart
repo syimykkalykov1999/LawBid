@@ -1757,6 +1757,11 @@ class _Bell extends StatelessWidget {
 /// Owner 2026-10-21: while a group call runs that this person can join or
 /// return to, the «+» glows green and opens the «Calls» section, where the
 /// running calls are listed on top.
+///
+/// Owner 2026-10-22 (WhatsApp's FAB): a filled round button, not a bare
+/// glyph that vanished into the bar. The fill is the theme's text colour
+/// (dark ink on light, cream on the dark themes) with the page colour for
+/// the «+», so it contrasts in all four themes without a gold fill.
 class _NewChatButton extends ConsumerWidget {
   const _NewChatButton({required this.label});
 
@@ -1782,7 +1787,24 @@ class _NewChatButton extends ConsumerWidget {
                 child: AppIcon(AppIcons.addRounded, color: Colors.white),
               ),
             )
-          : AppIcon(AppIcons.addRounded, color: colors.iconTint),
+          : DecoratedBox(
+              key: const ValueKey('chats-new-chat-fab'),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: colors.text,
+              ),
+              child: SizedBox(
+                width: 30,
+                height: 30,
+                child: Center(
+                  child: AppIcon(
+                    AppIcons.addRounded,
+                    size: 22,
+                    color: colors.inverseText,
+                  ),
+                ),
+              ),
+            ),
       semanticLabel: label,
       onPressed: () => context.push(
         live ? '${AppRoutes.contacts}?tab=calls' : AppRoutes.contacts,
