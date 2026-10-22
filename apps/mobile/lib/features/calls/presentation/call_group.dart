@@ -7,15 +7,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
-import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/call_media.dart';
 import 'package:lawbid/features/calls/application/call_video_layout.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
+import 'package:lawbid/features/calls/presentation/call_add_panel.dart';
 import 'package:lawbid/features/calls/presentation/call_widgets.dart';
-import 'package:lawbid/shared/people/people_suggest_list.dart';
 
 /// Owner 2026-10-20 (WhatsApp + Telegram): a call with three or more people
 /// shows everyone as a tile — photo or camera, name, a mic-off mark, a gold
@@ -604,7 +603,7 @@ class _MembersSheet extends ConsumerWidget {
               AppButton(
                 label: t.t('call.addParticipant'),
                 icon: AppIcons.personAddAlt1Rounded,
-                onPressed: () => unawaited(showAddToCallSheet(context)),
+                onPressed: () => unawaited(showAddToCallPanel(context)),
               ),
           ],
         ),
@@ -823,248 +822,6 @@ class _RowButton extends StatelessWidget {
           width: 44,
           height: 44,
           child: Center(child: AppIcon(icon, size: 22, color: colors.text)),
-        ),
-      ),
-    );
-  }
-}
-
-/// Adds a person to the running call: by name or @username with live
-/// suggestions of everyone in the app (owner 2026-10-21, inbox 25,
-/// Instagram), by the exact @username typed, or from the phone contacts.
-Future<void> showAddToCallSheet(BuildContext context) =>
-    showAppBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => const _AddSheet(),
-    );
-
-class _AddSheet extends ConsumerStatefulWidget {
-  const _AddSheet();
-
-  @override
-  ConsumerState<_AddSheet> createState() => _AddSheetState();
-}
-
-class _AddSheetState extends ConsumerState<_AddSheet> {
-  final _field = TextEditingController();
-  String? _error;
-  bool _busy = false;
-
-  /// The suggested person being added (their row spins).
-  String? _adding;
-
-  @override
-  void dispose() {
-    _field.dispose();
-    super.dispose();
-  }
-
-  /// Me and everyone already in the call or ringing.
-  Set<String> _skip() {
-    final session = ref.read(callControllerProvider);
-    final me = ref.read(callMyIdProvider);
-    return {
-      if (me != null) me,
-      for (final m in session.call?.participants ?? const <CallMember>[])
-        if (m.status != CallMemberStatus.left &&
-            m.status != CallMemberStatus.declined)
-          m.userId,
-    };
-  }
-
-  String _reason(String code) {
-    final t = ref.read(translatorProvider);
-    final call = ref.read(callControllerProvider).call;
-    // Adding a person: the only conflict left is the size of the call.
-    if (code == 'CALL_STATE_CONFLICT' && call != null) {
-      return t.t('call.fullMax', {'count': context.digits(call.capacity)});
-    }
-    return callActionError(t, code);
-  }
-
-  Future<void> _add() async {
-    // A typed or pasted "@" is fine.
-    final name = peopleSuggestQuery(_field.text);
-    if (name.isEmpty || _busy) return;
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    final code =
-        await ref.read(callControllerProvider.notifier).invite(username: name);
-    if (!mounted) return;
-    if (code == null) {
-      Navigator.of(context).pop();
-      return;
-    }
-    setState(() {
-      _busy = false;
-      _error = _reason(code);
-    });
-  }
-
-  /// A tap on a suggested person.
-  Future<void> _addPerson(SuggestedPerson p) async {
-    if (_busy) return;
-    setState(() {
-      _busy = true;
-      _adding = p.id;
-      _error = null;
-    });
-    final code =
-        await ref.read(callControllerProvider.notifier).invite(userId: p.id);
-    if (!mounted) return;
-    if (code == null) {
-      Navigator.of(context).pop();
-      return;
-    }
-    setState(() {
-      _busy = false;
-      _adding = null;
-      _error = _reason(code);
-    });
-  }
-
-  /// People of the phone book who are on LawBid (several can be ticked).
-  Future<void> _fromContacts() async {
-    if (_busy) return;
-    final pick = ref.read(callContactPickerProvider);
-    if (pick == null) return;
-    final picked = await pick(context, _skip());
-    if (!mounted || picked == null || picked.isEmpty) return;
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    String? failure;
-    for (final c in picked) {
-      final code =
-          await ref.read(callControllerProvider.notifier).invite(userId: c);
-      if (code != null) failure ??= code;
-      if (!mounted) return;
-    }
-    if (failure == null) {
-      Navigator.of(context).pop();
-      return;
-    }
-    setState(() {
-      _busy = false;
-      _error = _reason(failure!);
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final t = ref.watch(translatorProvider);
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    final call = ref.watch(callControllerProvider).call;
-    final full = call?.full ?? false;
-    final contacts = ref.watch(callContactPickerProvider) != null;
-    return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(
-            0,
-            AppSpacing.md,
-            0,
-            AppSpacing.lg,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const AppSheetHandle(),
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.screenSide,
-                ),
-                child: Text(
-                  t.t('call.addParticipant'),
-                  style: type.titleLarge.copyWith(color: colors.text),
-                ),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              if (full && call != null)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.screenSide,
-                    0,
-                    AppSpacing.screenSide,
-                    AppSpacing.md,
-                  ),
-                  child: Text(
-                    t.t('call.fullMax', {
-                      'count': context.digits(call.capacity),
-                    }),
-                    key: const ValueKey('call-add-full'),
-                    style: type.body.copyWith(color: colors.textSecondary),
-                  ),
-                )
-              else ...[
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.screenSide,
-                  ),
-                  child: AppTextField(
-                    key: const ValueKey('call-add-field'),
-                    controller: _field,
-                    autofocus: true,
-                    leading: AppIcon(
-                      AppIcons.searchRounded,
-                      size: AppSizes.iconSm,
-                      color: colors.textSecondary,
-                    ),
-                    hintText: t.t('follow.search.hint'),
-                    semanticLabel: t.t('follow.search.hint'),
-                    errorText: _error,
-                    textInputAction: TextInputAction.done,
-                    onChanged: (_) => setState(() => _error = null),
-                    onSubmitted: (_) => unawaited(_add()),
-                  ),
-                ),
-                Flexible(
-                  child: PeopleSuggestList(
-                    query: _field.text,
-                    excludeIds: _skip(),
-                    busyId: _adding,
-                    enabled: !_busy,
-                    onPick: (p) => unawaited(_addPerson(p)),
-                  ),
-                ),
-              ],
-              const SizedBox(height: AppSpacing.sm),
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.screenSide,
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (!full)
-                      AppButton(
-                        label: t.t('call.add'),
-                        icon: AppIcons.personAddAlt1Rounded,
-                        isLoading: _busy && _adding == null,
-                        onPressed: () => unawaited(_add()),
-                      ),
-                    if (!full && contacts)
-                      const SizedBox(height: AppSpacing.sm),
-                    if (!full && contacts)
-                      AppButton(
-                        label: t.t('phoneContacts.title'),
-                        icon: AppIcons.contactPhoneOutlined,
-                        variant: AppButtonVariant.secondary,
-                        onPressed:
-                            _busy ? null : () => unawaited(_fromContacts()),
-                      ),
-                  ],
-                ),
-              ),
-            ],
-          ),
         ),
       ),
     );

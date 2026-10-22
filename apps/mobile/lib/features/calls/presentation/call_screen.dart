@@ -16,6 +16,7 @@ import 'package:lawbid/features/calls/application/call_foreground.dart';
 import 'package:lawbid/features/calls/application/call_media.dart';
 import 'package:lawbid/features/calls/application/call_video_layout.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
+import 'package:lawbid/features/calls/presentation/call_add_panel.dart';
 import 'package:lawbid/features/calls/presentation/call_controls.dart';
 import 'package:lawbid/features/calls/presentation/call_group.dart';
 import 'package:lawbid/features/calls/presentation/call_pip_window.dart';
@@ -450,7 +451,7 @@ class _CallScreenState extends ConsumerState<CallScreen>
                                       icon: AppIcons.personAddAlt1Rounded,
                                       label: t.t('call.addParticipant'),
                                       onTap: () => unawaited(
-                                        showAddToCallSheet(context),
+                                        showAddToCallPanel(context),
                                       ),
                                     ),
                                     if (group)

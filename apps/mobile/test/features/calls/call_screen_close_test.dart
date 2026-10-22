@@ -6,7 +6,6 @@ import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/call_video_layout.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:lawbid/features/calls/presentation/call_screen.dart';
-import 'package:lawbid/features/calls/presentation/call_widgets.dart';
 
 import '../../helpers/ux_harness.dart';
 
@@ -114,7 +113,6 @@ void main() {
       overrides: [
         ...uxOverrides(),
         callMyIdProvider.overrideWithValue('u0'),
-        callContactPickerProvider.overrideWithValue((_, __) async => null),
         callControllerProvider.overrideWith(_Group.new),
         callVideoLayoutProvider.overrideWith(_Focus.new),
       ],
