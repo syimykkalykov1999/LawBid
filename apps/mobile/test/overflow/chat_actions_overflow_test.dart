@@ -25,7 +25,7 @@ import '../helpers/ux_harness.dart';
 /// Owner 2026-10-20: the long-press menu, the reply bar, the pin banner,
 /// «Прочитано · HH:MM», «Переслано» and the reaction chips must fit a
 /// 360 dp phone in the longest texts, right-to-left, Nepali, Arabic and
-/// Russian (x1.0 and x1.1), and every menu row must stay reachable.
+/// Russian (x1.0, x1.1 and x1.3), and every menu row must stay reachable.
 class _Chat extends FakeContactChat {
   _Chat(super.conv);
 
@@ -87,7 +87,7 @@ void main() {
     ],
   );
 
-  for (final scale in [1.0, 1.1]) {
+  for (final scale in [1.0, 1.1, 1.3]) {
     for (final e in locales.entries) {
       testWidgets('chat menu, reply bar, banner: ${e.key} x$scale',
           (tester) async {

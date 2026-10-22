@@ -2306,8 +2306,14 @@ class _PostBodyTextState extends ConsumerState<PostBodyText> {
     return spans;
   }
 
+  // Owner 2026-10-22 (audit #12): a post's text follows the phone's font
+  // size in full, past the app shell's 1.3x cap (the «more» cut is measured
+  // with the same scale).
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      FullTextScale(child: Builder(builder: _build));
+
+  Widget _build(BuildContext context) {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;

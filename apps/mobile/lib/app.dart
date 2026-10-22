@@ -68,14 +68,11 @@ class LawBidApp extends ConsumerWidget {
       // Owner 2026-09-30: a tap on empty space anywhere hides the keyboard
       // (Instagram/YouTube behaviour). Translucent: buttons and fields
       // still get their own taps first.
-      builder: (context, child) => MediaQuery(
-        // Owner 2026-10-14: nothing is bigger than in Instagram. The phone's
-        // font-size setting still counts, but only up to 1.1x (Instagram
-        // caps it the same way) so cards, sheets and warnings stay compact.
-        data: MediaQuery.of(context).copyWith(
-          textScaler: MediaQuery.textScalerOf(context)
-              .clamp(minScaleFactor: 0.9, maxScaleFactor: 1.1),
-        ),
+      // Owner 2026-10-22 (audit #12, WCAG 1.4.4): the phone's font size counts
+      // up to 1.3x in the app shell (was 1.1x); chat messages and post texts
+      // follow it in full (FullTextScale, design_system/widgets/text).
+      builder: (context, child) => DeviceTextScale.shell(
+        context,
         // Owner 2026-10-18: the iPhone's notch and home indicator in the
         // browser too (core/platform/web_safe_area.dart).
         child: WebSafeArea(

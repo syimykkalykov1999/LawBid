@@ -19,7 +19,7 @@ import '../helpers/ux_harness.dart';
 /// Owner 2026-10-20 (Samsung, build 78a4e1cd): the multi-select panel clipped
 /// «Закрепить» and «Переме…» at ru ×1.1 on 360 dp. Telegram: icon + short
 /// caption, and when the captions do not fit — icons only, caption in the
-/// tooltip. Nothing is cut, in ru / ne / de / ar / mr, ×1.0 and ×1.1.
+/// tooltip. Nothing is cut, in ru / ne / de / ar / mr, ×1.0, ×1.1 and ×1.3.
 Conversation _conv() => Conversation(
       id: 'c1',
       caseId: null,
@@ -154,7 +154,7 @@ void main() {
     'select-delete',
   ];
 
-  for (final scale in [1.0, 1.1]) {
+  for (final scale in [1.0, 1.1, 1.3]) {
     for (final e in locales.entries) {
       testWidgets('selection bar fits 360 dp: ${e.key} x$scale',
           (tester) async {
