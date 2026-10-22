@@ -6,6 +6,7 @@ import { ErrorNote } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Input, Label } from '@/components/ui/input';
 import { ApiError, errorText, publicApi } from '@/lib/api/client';
+import { safeNextPath } from '@/lib/safe-next';
 
 type Step =
   | { kind: 'password' }
@@ -39,9 +40,9 @@ export function LoginForm() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Only same-site paths: `//evil.com` would be an open redirect.
+  // Only same-site paths: `//evil.com` or `/\evil.com` would be an open redirect.
   const next = params.get('next');
-  const go = () => router.replace(next && next.startsWith('/') && !next.startsWith('//') ? next : '/');
+  const go = () => router.replace(safeNextPath(next));
 
   const run = async (fn: () => Promise<void>) => {
     setBusy(true);
