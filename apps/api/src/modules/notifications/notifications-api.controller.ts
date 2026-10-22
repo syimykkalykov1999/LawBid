@@ -176,6 +176,7 @@ export class NotificationsApiController {
       dto.token,
       dto.platform,
       dto.localReminders === true && dto.platform === 'android',
+      dto.chatStyle === true && dto.platform === 'android',
     );
   }
 

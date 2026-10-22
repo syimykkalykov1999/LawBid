@@ -118,6 +118,16 @@ export interface PushMessage {
   /** Owner 2026-10-21: the alert is worth nothing after this many seconds
    * (a call from a group chat: about a minute) — the push service drops it. */
   ttlSec?: number;
+  /** Owner 2026-10-22 (WhatsApp): a chat message whose `data` carries the
+   * sender, their photo and the text (chat-push.ts). An Android app that
+   * draws chat notifications itself (`push_tokens.chat_style`) gets it
+   * data-only and shows a MessagingStyle notification per chat; every
+   * other device gets the normal alert. */
+  chat?: boolean;
+  /** Owner 2026-10-22: the iPhone's notification stack (`thread-id`) — one
+   * per chat, so a chat's messages are grouped like WhatsApp. Defaults to
+   * [collapseKey]. */
+  threadId?: string;
 }
 
 export type PushSoundKind = 'message' | 'notification';

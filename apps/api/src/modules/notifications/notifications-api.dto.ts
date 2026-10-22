@@ -238,6 +238,14 @@ export class PushTokenDto {
   @IsOptional()
   @IsBoolean()
   localReminders?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      "Owner 2026-10-22: this app draws chat notifications itself (sender's photo, one per chat) from a data-only push (Android).",
+  })
+  @IsOptional()
+  @IsBoolean()
+  chatStyle?: boolean;
 }
 
 /** Owner 2026-10-20: the planner reminders an iPhone has armed locally. */
