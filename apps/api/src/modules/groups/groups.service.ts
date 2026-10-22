@@ -1,3 +1,5 @@
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
 import { UsernamePolicyService } from '../usernames/username-policy.service';
 import { GroupAddPolicy } from './group-add-policy';
 import {
@@ -5,6 +7,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Optional,
   NotFoundException,
 } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
@@ -44,6 +47,7 @@ import {
   rightsOf,
 } from './group-presenter.service';
 import {
+  GROUP_HARD_MAX_MEMBERS,
   GROUP_MAX_MEMBERS,
   type AddGroupMembersDto,
   type CreateGroupDto,
@@ -150,7 +154,17 @@ export class GroupsService {
     // Owner 2026-10-22 (server load audit, finding 7): realtime, badges
     // and pushes of a message go out from the ordered fan-out queue.
     private readonly fanoutQueue: GroupFanoutQueue,
+    // Owner 2026-10-22 (audit #4 §6): groups per day and members per group
+    // are admin settings again.
+    @Optional() private readonly settings?: AppSettingsService,
+    @Optional() private readonly limits?: UsageLimitsService,
   ) {}
+
+  /** `groups.max_members` (admin), never above the hard ceiling. */
+  private async maxMembers(): Promise<number> {
+    const n = (await this.settings?.number('groups.max_members')) ?? 0;
+    return n > 0 ? Math.min(n, GROUP_HARD_MAX_MEMBERS) : GROUP_MAX_MEMBERS;
+  }
 
   // ------------------------------------------------------------ membership
 
@@ -359,7 +373,8 @@ export class GroupsService {
     user: RequestUser,
     dto: CreateGroupDto,
   ): Promise<GroupDetailDto> {
-    // Owner 2026-10-21 (inbox 21): no cap on groups per person.
+    // Owner 2026-10-22 (audit #4 §6): `rate_limit.group_create_per_day`.
+    await this.limits?.consume('group_create', user.sub);
     if (dto.avatarFileId) {
       await this.files.assertAttachable(user.sub, dto.avatarFileId, ['avatar']);
     }
@@ -1318,11 +1333,12 @@ export class GroupsService {
       const count = await tx.chatGroupMember.count({
         where: { group_id: groupId, left_at: null },
       });
-      if (count >= GROUP_MAX_MEMBERS) {
+      const max = await this.maxMembers();
+      if (count >= max) {
         throw new ConflictException({
           code: ErrorCode.GROUP_FULL,
           message: 'The group is full.',
-          details: { max: GROUP_MAX_MEMBERS },
+          details: { max },
         });
       }
       const existing = await tx.chatGroupMember.findUnique({

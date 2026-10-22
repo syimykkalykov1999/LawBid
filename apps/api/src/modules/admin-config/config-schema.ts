@@ -123,6 +123,19 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     // admin config stays free of feature modules).
     max: 10,
   };
+  // Owner 2026-10-22 (audit #4 §6): group / channel / post caps.
+  out['groups.max_members'] = {
+    ...out['groups.max_members'],
+    description: 'Most members in one group (2–5000).',
+    min: 2,
+    max: 5000,
+  };
+  out['channels.max_owned'] = {
+    ...out['channels.max_owned'],
+    description: 'Most channels one person may own (0 = no cap).',
+    min: 0,
+    max: 10_000,
+  };
   // Owner 2026-10-05: case urgency thresholds (days left) and reminders.
   for (const level of ['very_urgent', 'urgent', 'soon', 'within_month']) {
     out[`cases.urgency_days_${level}`] = {

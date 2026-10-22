@@ -6,6 +6,9 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
+import type Redis from 'ioredis';
+import { REDIS_CLIENT } from '../src/redis/redis.constants';
+import { dropAppConfigCache } from '../src/modules/feature-flags/services/app-config.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
 import { GroupsService } from '../src/modules/groups/groups.service';
 
@@ -106,6 +109,66 @@ describe('Group chats and polls (e2e)', () => {
       .set(bearer(userId))
       .expect(200);
   }
+
+  // Owner 2026-10-22 (audit #4 §6): generous caps, set in the admin.
+  it('caps groups per day and members per group (admin settings)', async () => {
+    const redis = app.get<Redis>(REDIS_CLIENT);
+    const set = async (key: string, value: number) => {
+      await prisma.appConfig.upsert({
+        where: { key },
+        create: { key, value },
+        update: { value },
+      });
+      await dropAppConfigCache(redis);
+    };
+    const [owner, ann, bob] = await Promise.all([
+      person('Capo'),
+      person('Ann'),
+      person('Bob'),
+    ]);
+    try {
+      await set('groups.max_members', 2);
+      await set('rate_limit.group_create_per_day', 1);
+      const made = await api()
+        .post('/api/v1/groups')
+        .set(bearer(owner.id))
+        .send({ title: 'Capped', type: 'closed', memberIds: [ann.id, bob.id] })
+        .expect(201);
+      const id = made.body.data.id as string;
+      await acceptInviteTo(ann.id, id);
+      // The third person no longer fits.
+      const list = await api()
+        .get('/api/v1/groups/invites')
+        .set(bearer(bob.id))
+        .expect(200);
+      const invite = (list.body.data as { id: string; groupId: string }[]).find(
+        (i) => i.groupId === id,
+      );
+      const full = await api()
+        .post(`/api/v1/groups/invites/${invite!.id}/accept`)
+        .set(bearer(bob.id));
+      expect(full.status).toBe(409);
+      expect(full.body.error).toMatchObject({
+        code: 'GROUP_FULL',
+        details: { max: 2 },
+      });
+      // A second group the same day is refused.
+      const again = await api()
+        .post('/api/v1/groups')
+        .set(bearer(owner.id))
+        .send({ title: 'Again', type: 'closed', memberIds: [ann.id] });
+      expect(again.status).toBe(429);
+    } finally {
+      await prisma.appConfig.deleteMany({
+        where: {
+          key: {
+            in: ['groups.max_members', 'rate_limit.group_create_per_day'],
+          },
+        },
+      });
+      await dropAppConfigCache(redis);
+    }
+  });
 
   it('creates a group: owner + members, system lines, list and detail', async () => {
     const { owner, ann, id, res } = await makeGroup();

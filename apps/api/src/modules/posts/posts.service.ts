@@ -188,6 +188,8 @@ export class PostsService {
       ? await this.attachableVideo(user.sub, dto.videoAssetId)
       : null;
     await this.limits.consume('post_create', user.sub);
+    // Owner 2026-10-22 (audit #4 §6): and a burst cap per hour.
+    await this.limits.consume('post_create_hourly', user.sub);
     const verdict = await this.moderate(
       `${dto.title}\n${dto.body}`,
       user.sub,
