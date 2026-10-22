@@ -3243,9 +3243,9 @@ class _FeedCarouselState extends State<_FeedCarousel> {
                   ),
                 ),
               ),
-              Positioned(
+              PositionedDirectional(
                 top: 10,
-                right: 10,
+                end: 10,
                 child: IgnorePointer(
                   child: ExcludeSemantics(
                     child: Container(

@@ -452,7 +452,7 @@ class _CaseCardRow extends StatelessWidget {
       ),
     );
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
+      padding: const EdgeInsetsDirectional.fromSTEB(
         AppSpacing.lg,
         AppSpacing.sm,
         AppSpacing.xs,

@@ -99,7 +99,11 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
       body: SafeArea(
         child: Stack(
           children: [
-            const Positioned(right: -40, bottom: 70, child: WatermarkScales()),
+            const PositionedDirectional(
+              end: -40,
+              bottom: 70,
+              child: WatermarkScales(),
+            ),
             // `ConstrainedBox(minHeight: viewport)` + `IntrinsicHeight` +
             // `Spacer` inside a `SingleChildScrollView`: at normal text
             // scale the Spacer pushes the button to the bottom with its

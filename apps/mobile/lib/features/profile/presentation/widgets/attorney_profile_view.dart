@@ -1556,7 +1556,7 @@ class AttorneyProfileSkeleton extends StatelessWidget {
         SizedBox(height: AppSpacing.lg),
         FractionallySizedBox(
           widthFactor: 0.3,
-          alignment: Alignment.centerLeft,
+          alignment: AlignmentDirectional.centerStart,
           child: AppSkeleton(
             height: AppSpacing.xl,
             borderRadius: AppRadii.pill,
@@ -1567,7 +1567,7 @@ class AttorneyProfileSkeleton extends StatelessWidget {
         SizedBox(height: AppSpacing.sm),
         FractionallySizedBox(
           widthFactor: 0.8,
-          alignment: Alignment.centerLeft,
+          alignment: AlignmentDirectional.centerStart,
           child: AppSkeleton(height: AppSpacing.md),
         ),
         SizedBox(height: AppSpacing.lg),

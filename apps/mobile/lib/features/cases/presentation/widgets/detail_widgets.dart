@@ -41,7 +41,7 @@ class DetailSection extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.xs),
           Align(
-            alignment: Alignment.centerLeft,
+            alignment: AlignmentDirectional.centerStart,
             child: Container(
               width: AppSpacing.xl,
               height: 2,

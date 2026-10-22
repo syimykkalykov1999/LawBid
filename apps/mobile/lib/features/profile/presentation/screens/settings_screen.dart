@@ -328,8 +328,8 @@ class SettingsScreen extends ConsumerWidget {
                 onTap: () => context.push(AppRoutes.support),
               ),
               if (ref.watch(supportUnreadProvider))
-                Positioned(
-                  right: AppSpacing.md + AppSizes.iconSm + AppSpacing.sm,
+                PositionedDirectional(
+                  end: AppSpacing.md + AppSizes.iconSm + AppSpacing.sm,
                   top: 0,
                   bottom: 0,
                   child: Center(

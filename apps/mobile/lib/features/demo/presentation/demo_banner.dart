@@ -33,7 +33,8 @@ class DemoBannerHost extends ConsumerWidget {
           child: SafeArea(
             bottom: false,
             child: Align(
-              alignment: hidden ? Alignment.topRight : Alignment.topCenter,
+              alignment:
+                  hidden ? AlignmentDirectional.topEnd : Alignment.topCenter,
               child: hidden ? const _Handle() : const _Banner(),
             ),
           ),
@@ -66,7 +67,7 @@ class _Banner extends ConsumerWidget {
         shadowColor: colors.shadow,
         borderRadius: BorderRadius.circular(AppRadii.pill),
         child: Padding(
-          padding: const EdgeInsets.only(left: AppSpacing.md),
+          padding: const EdgeInsetsDirectional.only(start: AppSpacing.md),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -136,7 +137,7 @@ class _Handle extends ConsumerWidget {
         child: Container(
           width: 24,
           height: 24,
-          margin: const EdgeInsets.only(right: AppSpacing.xs),
+          margin: const EdgeInsetsDirectional.only(end: AppSpacing.xs),
           decoration: BoxDecoration(
             color: colors.gold.withValues(alpha: 0.35),
             borderRadius: const BorderRadius.vertical(

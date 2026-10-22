@@ -132,7 +132,7 @@ class _ChannelCommentsScreenState extends ConsumerState<ChannelCommentsScreen> {
             SafeArea(
               top: false,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(
+                padding: const EdgeInsetsDirectional.fromSTEB(
                   AppSpacing.screenSide,
                   AppSpacing.sm,
                   AppSpacing.xs,

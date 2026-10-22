@@ -435,9 +435,9 @@ class _DayChart extends ConsumerWidget {
                   ),
                 ),
                 if (peak > 0)
-                  Positioned(
+                  PositionedDirectional(
                     top: 0,
-                    right: 0,
+                    end: 0,
                     child: Text(f.number(peak), style: caption),
                   ),
               ],

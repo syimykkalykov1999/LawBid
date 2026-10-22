@@ -505,7 +505,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                               key: ValueKey(
                                 s.typingVoice ? 'typing-voice' : 'typing',
                               ),
-                              alignment: Alignment.centerLeft,
+                              alignment: AlignmentDirectional.centerStart,
                               child: _TypingDots(voice: s.typingVoice),
                             )
                           : const SizedBox.shrink(),
@@ -1203,11 +1203,11 @@ class _Bubble extends ConsumerWidget {
                       ),
             decoration: BoxDecoration(
               color: mine ? chat.mine : chat.theirs,
-              borderRadius: BorderRadius.only(
-                topLeft: const Radius.circular(18),
-                topRight: const Radius.circular(18),
-                bottomLeft: Radius.circular(mine ? 18 : 4),
-                bottomRight: Radius.circular(mine ? 4 : 18),
+              borderRadius: BorderRadiusDirectional.only(
+                topStart: const Radius.circular(18),
+                topEnd: const Radius.circular(18),
+                bottomStart: Radius.circular(mine ? 18 : 4),
+                bottomEnd: Radius.circular(mine ? 4 : 18),
               ),
               border: mine ? null : Border.all(color: chat.theirsBorder),
             ),
@@ -1271,10 +1271,10 @@ class _Bubble extends ConsumerWidget {
                     children: [
                       if (m.forwarded && !m.revoked)
                         Padding(
-                          padding: EdgeInsets.only(
+                          padding: EdgeInsetsDirectional.only(
                             bottom: 3,
-                            left: framed ? inset.left : 0,
-                            right: framed ? inset.right : 0,
+                            start: framed ? inset.left : 0,
+                            end: framed ? inset.right : 0,
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
@@ -1306,10 +1306,10 @@ class _Bubble extends ConsumerWidget {
                         ),
                       if (m.replyTo != null && !m.revoked)
                         Padding(
-                          padding: EdgeInsets.only(
+                          padding: EdgeInsetsDirectional.only(
                             bottom: 4,
-                            left: framed ? inset.left : 0,
-                            right: framed ? inset.right : 0,
+                            start: framed ? inset.left : 0,
+                            end: framed ? inset.right : 0,
                           ),
                           child: ConstrainedBox(
                             constraints: BoxConstraints(
@@ -1676,8 +1676,8 @@ class _TypingDotsState extends State<_TypingDots>
           liveRegion: true,
           label: t.t(widget.voice ? 'chat.recordingVoice' : 'chat.typing'),
           child: Container(
-            margin: const EdgeInsets.only(
-              left: AppSpacing.screenSide,
+            margin: const EdgeInsetsDirectional.only(
+              start: AppSpacing.screenSide,
               bottom: AppSpacing.xs,
             ),
             padding: const EdgeInsets.symmetric(
@@ -1800,7 +1800,7 @@ class _MaskingHintState extends ConsumerState<_MaskingHint> {
         AppSpacing.screenSide,
         AppSpacing.xs,
       ),
-      padding: const EdgeInsets.only(left: AppSpacing.md),
+      padding: const EdgeInsetsDirectional.only(start: AppSpacing.md),
       decoration: BoxDecoration(
         color: colors.infoTint,
         borderRadius: BorderRadius.circular(AppRadii.card),
@@ -2435,7 +2435,7 @@ class _ComposerState extends ConsumerState<_Composer> {
           child: Padding(
             // Owner 2026-09-30: the paperclip and the field sit close to the
             // left edge.
-            padding: EdgeInsets.fromLTRB(
+            padding: EdgeInsetsDirectional.fromSTEB(
               widget.onAttach != null ? AppSpacing.xs : AppSpacing.sm,
               AppSpacing.sm,
               AppSpacing.sm,

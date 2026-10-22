@@ -201,7 +201,7 @@ class PostTextCover extends ConsumerWidget {
           : math.min(3, (h - quote - usedByTitle - 6) ~/ excerptLine);
       return ClipRect(
         child: OverflowBox(
-          alignment: Alignment.bottomLeft,
+          alignment: AlignmentDirectional.bottomStart,
           minHeight: 0,
           maxHeight: double.infinity,
           child: Column(

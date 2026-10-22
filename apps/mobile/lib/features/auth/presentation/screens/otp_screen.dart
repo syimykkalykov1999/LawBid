@@ -115,7 +115,11 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
       body: SafeArea(
         child: Stack(
           children: [
-            const Positioned(right: -40, bottom: 70, child: WatermarkScales()),
+            const PositionedDirectional(
+              end: -40,
+              bottom: 70,
+              child: WatermarkScales(),
+            ),
             // See PhoneScreen's doc comment on this same pattern (file 07
             // §9: scrollable so the button stays reachable up to 200% text
             // scale, but visually pinned to the bottom at normal scale).

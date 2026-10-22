@@ -36,7 +36,11 @@ class PasswordFormScaffold extends ConsumerWidget {
       body: SafeArea(
         child: Stack(
           children: [
-            const Positioned(right: -40, bottom: 70, child: WatermarkScales()),
+            const PositionedDirectional(
+              end: -40,
+              bottom: 70,
+              child: WatermarkScales(),
+            ),
             LayoutBuilder(
               builder: (context, constraints) => SingleChildScrollView(
                 keyboardDismissBehavior:

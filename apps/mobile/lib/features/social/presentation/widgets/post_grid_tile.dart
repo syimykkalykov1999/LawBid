@@ -54,9 +54,9 @@ class PostGridTile extends StatelessWidget {
               _AutoplayVideo(post: p),
             // Owner 2026-10-12: a pinned post wears a pin (Instagram).
             if (showPin && p.pinSlot != null)
-              const Positioned(
+              const PositionedDirectional(
                 top: 6,
-                right: 6,
+                end: 6,
                 child: AppIcon(
                   AppIcons.pushPin,
                   size: 16,
@@ -94,9 +94,9 @@ class PostGridTile extends StatelessWidget {
                   errorWidget: (_, __, ___) => cover(),
                 ),
                 if (p.media.length > 1 || p.video != null)
-                  Positioned(
+                  PositionedDirectional(
                     top: 6,
-                    right: showPin && p.pinSlot != null ? 28 : 6,
+                    end: showPin && p.pinSlot != null ? 28 : 6,
                     child: AppIcon(
                       p.video != null
                           ? AppIcons.playArrowRounded
@@ -176,8 +176,8 @@ class _AutoplayVideoState extends ConsumerState<_AutoplayVideo> {
           // until the video's first frame is drawn over it.
           if (_on) ReelVideo(video: v, active: _on, backdrop: false),
           if (widget.post.viewCount > 0)
-            Positioned(
-              left: 6,
+            PositionedDirectional(
+              start: 6,
               bottom: 5,
               child: Row(
                 mainAxisSize: MainAxisSize.min,
