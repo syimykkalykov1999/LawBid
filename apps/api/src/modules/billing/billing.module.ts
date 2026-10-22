@@ -31,6 +31,7 @@ import { SubscriptionsController } from './subscriptions.controller';
 import { PayPageController } from './pay-page.controller';
 import { PayPageService } from './pay-page.service';
 import { SubscriptionsService } from './subscriptions.service';
+import { SeatsService } from './seats.service';
 import { PricingService } from './pricing.service';
 import { PricingController } from './pricing.controller';
 import { ClientPlansController } from '../plans/client-plans.controller';
@@ -111,6 +112,8 @@ export class BillingModule {
         SubscriptionSyncService,
         PricingService,
         SubscriptionsService,
+        // Owner 2026-10-22: seats charged now / removed at the period end.
+        SeatsService,
         PayPageService,
         ClientPlansService,
         StripeWebhookIntakeService,

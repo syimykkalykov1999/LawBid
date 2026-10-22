@@ -735,15 +735,14 @@ describe('stage 6.7 — Stripe subscriptions (e2e, fake provider)', () => {
       .set(m.auth)
       .send({ sessionId: sm.sessionId })
       .expect(200);
+    // Owner 2026-10-22: seats are bought only after the first paid period
+    // — not during the trial this checkout started.
     const up = await api()
       .post('/api/v1/subscriptions/seats')
       .set(m.auth)
       .send({ seats: 3 })
-      .expect(200);
-    expect(
-      ((up.body as Body).data as { subscription: { assistantSeats: number } })
-        .subscription.assistantSeats,
-    ).toBe(3);
+      .expect(409);
+    expect((up.body as Body).error?.code).toBe('SEATS_TRIAL_NOT_ALLOWED');
   });
 
   // Owner 2026-10-01: an active monthly subscription moves to yearly Prime.

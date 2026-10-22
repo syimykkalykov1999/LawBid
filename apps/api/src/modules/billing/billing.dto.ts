@@ -137,6 +137,32 @@ export class SetSeatsDto {
   @Min(0)
   @Max(SEATS_HARD_CAP)
   seats!: number;
+
+  @ApiPropertyOptional({
+    type: 'integer',
+    description:
+      'Owner 2026-10-22: `prorationDate` from POST /subscriptions/seats/preview, so the charge equals the amount shown (unix seconds; now when absent).',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  prorationDate?: number;
+}
+
+/** Owner 2026-10-22: «К оплате сейчас» before buying seats. */
+export class SeatPreviewRequestDto {
+  @ApiProperty({
+    type: 'integer',
+    minimum: 0,
+    maximum: SEATS_HARD_CAP,
+    description: "The wanted EXTRA seats (on top of the plan's included).",
+  })
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(SEATS_HARD_CAP)
+  seats!: number;
 }
 
 export class CompleteCheckoutDto {
@@ -362,4 +388,77 @@ export class AdminSubscriptionDto {
   @ApiProperty({ type: [PaymentDto], description: 'Last 50.' })
   payments!: PaymentDto[];
   @ApiProperty({ type: 'integer' }) trialsUsedWithCard!: number;
+}
+
+/** Owner 2026-10-22: the price of buying seats now (Stripe's preview). */
+export class SeatPreviewDto {
+  @ApiProperty({ type: 'integer', description: 'The wanted extra seats.' })
+  seats!: number;
+  @ApiProperty({
+    type: 'integer',
+    description: 'Extra seats usable now (paid through the period end).',
+  })
+  currentSeats!: number;
+  @ApiProperty({
+    type: 'integer',
+    description: 'Charged now: the prorated rest of the current period.',
+  })
+  amountNowCents!: number;
+  @ApiProperty() currency!: string;
+  @ApiProperty({
+    type: 'integer',
+    description: 'Send back with POST /subscriptions/seats (unix seconds).',
+  })
+  prorationDate!: number;
+  @ApiProperty({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    description: 'The paid period ends (the «до {date}» of the sheet).',
+  })
+  periodEnd!: string | null;
+  @ApiProperty({ type: 'integer', description: 'One seat per month.' })
+  seatCents!: number;
+  @ApiProperty({
+    type: 'integer',
+    description: 'How much the monthly invoice grows («затем +$Y/мес»).',
+  })
+  monthlyIncreaseCents!: number;
+  @ApiProperty({
+    type: 'integer',
+    description: 'The next monthly invoice with the new seats.',
+  })
+  nextChargeCents!: number;
+}
+
+export const SEAT_CHANGE_RESULTS = [
+  'applied',
+  'requires_action',
+  'failed',
+  'scheduled',
+] as const;
+
+/** Owner 2026-10-22: the outcome of POST /subscriptions/seats. */
+export class SeatChangeResultDto {
+  @ApiProperty({
+    enum: SEAT_CHANGE_RESULTS,
+    enumName: 'SeatChangeResult',
+    description:
+      'applied = paid and usable now; requires_action = confirm the payment (3-D Secure) with clientSecret, then GET /subscriptions/me; failed = the card was declined, nothing changed; scheduled = fewer seats from effectiveAt (the period end), no refund.',
+  })
+  status!: (typeof SEAT_CHANGE_RESULTS)[number];
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: "The PaymentIntent's client secret (requires_action only).",
+  })
+  clientSecret!: string | null;
+  @ApiProperty({ type: 'integer' }) amountCents!: number;
+  @ApiProperty() currency!: string;
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  effectiveAt!: string | null;
+  @ApiProperty({ type: String, format: 'uuid', nullable: true })
+  changeId!: string | null;
+  @ApiProperty({ type: () => SubscriptionMeDto })
+  overview!: SubscriptionMeDto;
 }
