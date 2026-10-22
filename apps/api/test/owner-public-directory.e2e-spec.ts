@@ -90,7 +90,11 @@ describe('Public directory (e2e)', () => {
       .get('/api/v1/public/directory/attorneys?state=ca&limit=100')
       .expect(200);
     const body = res.body as {
-      data: { username: string; licensedStates: string[] }[];
+      data: {
+        username: string;
+        licensedStates: string[];
+        photoUrl: string | null;
+      }[];
     };
     const names = body.data.map((a) => a.username);
     expect(names).toContain(shown);
