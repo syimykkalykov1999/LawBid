@@ -5,6 +5,7 @@ import type Redis from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
 import { REDIS_CLIENT } from '../../../redis/redis.constants';
 import {
+  NO_BADGE_CHANNEL_SUFFIX,
   PUSH_SOUNDS,
   type PushMessage,
   type PushSender,
@@ -136,6 +137,12 @@ export class FcmPushSender implements PushSender {
                         ...message.data,
                         title: message.title,
                         body: message.body,
+                        // Owner 2026-10-22 (inbox 29): the app draws this
+                        // chat alert itself — «Счётчик на иконке» off makes
+                        // it use the channel without a launcher badge.
+                        ...(ownChat && message.iconBadge === false
+                          ? { iconBadge: '0' }
+                          : {}),
                       }
                     : message.data,
                   android: message.call
@@ -159,7 +166,10 @@ export class FcmPushSender implements PushSender {
                                       ? {
                                           channel_id:
                                             PUSH_SOUNDS[message.sound]
-                                              .channelId,
+                                              .channelId +
+                                            (message.iconBadge === false
+                                              ? NO_BADGE_CHANNEL_SUFFIX
+                                              : ''),
                                           sound:
                                             PUSH_SOUNDS[message.sound].android,
                                         }

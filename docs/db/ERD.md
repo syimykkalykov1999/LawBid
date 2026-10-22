@@ -26,6 +26,8 @@ erDiagram
     DateTime password_set_at "nullable"
     String ui_language
     String timezone "nullable"
+    Boolean notif_icon_badge
+    Json notif_topics
     Boolean hide_like_counts
     enum_ThemePref theme
     String suspended_reason "nullable"

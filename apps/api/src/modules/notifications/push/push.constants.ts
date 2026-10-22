@@ -91,6 +91,10 @@ export interface PushMessage {
   data: Record<string, string>;
   /** iOS app icon number = badge total (docs/05 §10). */
   badge?: number;
+  /** Owner 2026-10-21 (inbox 29): false = «Счётчик на иконке в меню» is
+   * off — Android shows the alert through the twin channel that puts no
+   * badge / dot on the launcher icon ([NO_BADGE_CHANNEL_SUFFIX]). */
+  iconBadge?: boolean;
   /** OQ-041: an incoming call — Android gets a data-only high-priority
    * message (the app shows the full-screen ringing UI itself); iOS a
    * time-sensitive alert. */
@@ -131,6 +135,11 @@ export interface PushMessage {
 }
 
 export type PushSoundKind = 'message' | 'notification';
+
+/** Owner 2026-10-21 (inbox 29): the twin of each Android channel created
+ * with setShowBadge(false) in MainActivity.kt ("chats_nobadge",
+ * "general_nobadge"); a channel's badge can't be changed once made. */
+export const NO_BADGE_CHANNEL_SUFFIX = '_nobadge';
 
 /** Android channel ids (created in MainActivity.kt) and the sound per kind:
  * the phone's default notification sound on both platforms. */

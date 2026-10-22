@@ -56,7 +56,13 @@ function setup(opts: { lastReadAt?: Date } = {}) {
     },
     {} as never,
     {} as never,
-    { get: () => Promise.resolve({ total: 3 }) } as never,
+    {
+      get: () => Promise.resolve({ total: 3 }),
+      forIcon: () => Promise.resolve(3),
+      iconFor: () => Promise.resolve({ badge: 3, on: true }),
+      topicSwitches: () =>
+        Promise.resolve({ on: () => true, own: () => true, raw: {} }),
+    } as never,
     { isViewing: () => Promise.resolve(false) } as never,
     { setContext: () => undefined } as never,
   );

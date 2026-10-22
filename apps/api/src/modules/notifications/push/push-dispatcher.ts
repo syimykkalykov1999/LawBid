@@ -27,6 +27,7 @@ import {
   QUIET_EXEMPT,
   quietHoursEnd,
 } from '../notification-rules';
+import { topicOf } from '../notification-topics';
 import { NotificationTemplateService } from './notification-template.service';
 import { fillTemplate } from './notification-templates';
 import { PushQueueService } from './push-queue.service';
@@ -204,6 +205,11 @@ export class PushDispatcher
     if (call.group_id) {
       // Owner 2026-10-21: «mute calls» of the group silences this too.
       if (await this.callsMutedFor(data.recipientId, call)) return 'no_push';
+      // Owner 2026-10-21 (inbox 30): «Calls» off — no «Join» notice (it
+      // is not a ringing call to me; the call stays in the group's list).
+      if (!(await this.pushAllowed(data.recipientId, 'calls'))) {
+        return 'disabled';
+      }
       return this.dispatchGroupCallNotice(data, call, invite, language);
     }
     // Owner 2026-10-02: calls switched off still come through — silently
@@ -391,9 +397,12 @@ export class PushDispatcher
     if (data.push === false) return 'no_push';
     // Audit 2026-10-02: read in the app while quiet hours held it → no push.
     if (data.deferred && n.read_at) return 'no_push';
+    // Owner 2026-10-21 (inbox 30): the switch of this very kind.
     if (
       !ALWAYS_PUSH.has(n.type) &&
-      !(await this.pushAllowed(n.user_id, n.category))
+      !(await this.badges.topicSwitches(n.user_id)).on(
+        topicOf(n.type, n.payload as Record<string, unknown> | null),
+      )
     ) {
       return 'disabled';
     }
@@ -459,13 +468,14 @@ export class PushDispatcher
         .join(' ');
       if (caller) shown = { title: caller, body: text.title };
     }
-    const badge = (await this.badges.get(n.user_id)).total;
+    const icon = await this.badges.iconFor(n.user_id);
     await this.sender.send(
       {
         userId: n.user_id,
         ...shown,
         data: deepLink,
-        badge,
+        badge: icon.badge,
+        ...(icon.on ? {} : { iconBadge: false }),
         sound: 'notification',
         ...(n.type === 'task_reminder' ? { reminder: true } : {}),
       },
@@ -610,8 +620,13 @@ export class PushDispatcher
     if (await this.realtime.isViewing(data.recipientId, data.groupId)) {
       return 'viewing';
     }
-    // Owner 2026-10-21: groups have their own switch (Telegram).
-    if (!(await this.pushAllowed(data.recipientId, 'groups'))) {
+    // Owner 2026-10-21: groups have their own switch (Telegram); an
+    // @mention follows «Mentions» (inbox 30).
+    const sw = await this.badges.topicSwitches(data.recipientId);
+    if (
+      !(mentioned && sw.on('chatMentions')) &&
+      !(sw.on('groups') && !(mentioned && muted))
+    ) {
       return 'disabled';
     }
     if (!data.deferred) {
@@ -621,7 +636,7 @@ export class PushDispatcher
         return 'deferred';
       }
     }
-    const badge = (await this.badges.get(data.recipientId)).total;
+    const icon = await this.badges.iconFor(data.recipientId);
     await this.sender.send(
       {
         userId: data.recipientId,
@@ -634,7 +649,8 @@ export class PushDispatcher
           messageId: data.messageId,
           ...chat,
         },
-        badge,
+        badge: icon.badge,
+        ...(icon.on ? {} : { iconBadge: false }),
         sound: 'message',
         // One stack per chat in the shade (WhatsApp).
         threadId: data.groupId,
@@ -722,6 +738,15 @@ export class PushDispatcher
     if (!(await this.pushAllowed(data.recipientId, 'messages'))) {
       return 'disabled';
     }
+    // Owner 2026-10-21 (inbox 30): «Reactions» off silences reactions to
+    // my messages too (not set yet = as before).
+    if (
+      data.event === 'reaction' &&
+      (await this.badges.topicSwitches(data.recipientId)).raw.reactions ===
+        false
+    ) {
+      return 'disabled';
+    }
     if (!data.deferred) {
       const until = await this.quietUntil(data.recipientId);
       if (until) {
@@ -746,7 +771,7 @@ export class PushDispatcher
         ? 'Помощник адвоката: '
         : "Attorney's assistant: "
       : '';
-    const badge = (await this.badges.get(data.recipientId)).total;
+    const icon = await this.badges.iconFor(data.recipientId);
     let body = from + (preview || text.body);
     let collapseKey: string | undefined;
     let dedupeKey = `m:${data.messageId}`;
@@ -804,7 +829,8 @@ export class PushDispatcher
           ...(data.event ? { event: data.event } : {}),
           ...chat,
         },
-        badge,
+        badge: icon.badge,
+        ...(icon.on ? {} : { iconBadge: false }),
         sound: 'message',
         collapseKey,
         // One stack per chat in the shade (WhatsApp).

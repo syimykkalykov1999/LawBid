@@ -36,6 +36,17 @@ class BadgesNotifier extends Notifier<Badges> {
     // Audit 2026-10-02: the "category off" switches are loaded with the
     // badges (so the first chime/ring after a cold start honours them).
     ref.listen(mutedCategoriesProvider, (_, __) {});
+    // Owner 2026-10-21 (inbox 29/29b): Settings → Notifications changed
+    // (here or re-read): the icon follows «Счётчик на иконке» at once and
+    // the counters are re-read (a kind switched off leaves them).
+    ref.listen(notificationSettingsProvider, (prev, next) {
+      final s = next.value;
+      if (s == null || prev?.value == null || identical(prev!.value, s)) {
+        return;
+      }
+      _set(state);
+      unawaited(refresh());
+    });
     final sub = ref.watch(realtimeEventsProvider).listen((e) {
       if (e.name == 'badge:update') {
         // An assistant's socket also sits in the attorney's room: its
@@ -50,7 +61,7 @@ class BadgesNotifier extends Notifier<Badges> {
         // The open bell list shows the new row live.
         ref.invalidate(notificationsProvider);
       } else if (e.name == RealtimeEvent.reconnected) {
-        ref.invalidate(mutedCategoriesProvider);
+        unawaited(ref.read(notificationSettingsProvider.notifier).reload());
         unawaited(refresh());
       }
     });
@@ -69,8 +80,17 @@ class BadgesNotifier extends Notifier<Badges> {
 
   void _set(Badges b) {
     if (!ref.mounted) return;
-    state = b;
-    unawaited(_appIcon(b.total));
+    // Owner 2026-10-21 (inbox 29): «Счётчик на иконке в меню» — the
+    // settings state (changed here at once) wins over a count that was
+    // already on its way.
+    final on =
+        ref.read(notificationSettingsProvider).value?.iconBadge ?? b.iconBadge;
+    state = Badges(
+      chats: b.chats,
+      notifications: b.notifications,
+      iconBadge: on,
+    );
+    unawaited(_appIcon(state.iconCount));
   }
 
   static Future<void> _appIcon(int n) async {
@@ -83,15 +103,17 @@ class BadgesNotifier extends Notifier<Badges> {
   }
 }
 
-final badgesProvider =
-    NotifierProvider<BadgesNotifier, Badges>(BadgesNotifier.new);
+final badgesProvider = NotifierProvider<BadgesNotifier, Badges>(
+  BadgesNotifier.new,
+);
 
 /// Owner 2026-10-02: the categories switched off in Settings → Notifications
 /// (the same screen opens from the bell and from Profile → Settings). Off =
 /// still delivered, but no badge, no chime, calls ring silently.
 final mutedCategoriesProvider = FutureProvider<Set<NotifCategory>>((ref) async {
   if (ref.watch(currentUserIdProvider) == null) return const {};
-  final s = await ref.watch(notificationsRepositoryProvider).settings();
+  // Owner 2026-10-21 (29b): the same state the settings screen shows.
+  final s = await ref.watch(notificationSettingsProvider.future);
   return {
     for (final c in s.categories)
       if (!c.locked && !c.push) c.category,
@@ -180,10 +202,8 @@ class NotificationsNotifier extends PagedNotifier<AppNotification> {
 }
 
 final notificationsProvider = AsyncNotifierProvider.autoDispose<
-    NotificationsNotifier, PaginatedList<AppNotification>>(
-  NotificationsNotifier.new,
-  retry: _noRetry,
-);
+    NotificationsNotifier,
+    PaginatedList<AppNotification>>(NotificationsNotifier.new, retry: _noRetry);
 
 /// Owner 2026-10-01: qualifications for "new case" alerts (attorneys).
 final newCaseAlertsProvider = FutureProvider.autoDispose<NewCaseAlerts>(
@@ -191,8 +211,77 @@ final newCaseAlertsProvider = FutureProvider.autoDispose<NewCaseAlerts>(
   retry: _noRetry,
 );
 
+/// Owner 2026-10-21 (inbox 29b): Settings → Notifications — one state for
+/// the screen (opened from the bell and from Profile → Settings), the
+/// chimes / ringing ([mutedCategoriesProvider]) and the app icon. Every
+/// change is shown at once and rolled back if the server says no.
+class NotificationSettingsNotifier extends AsyncNotifier<NotificationSettings> {
+  @override
+  Future<NotificationSettings> build() async {
+    if (ref.watch(currentUserIdProvider) == null) {
+      return const NotificationSettings(categories: []);
+    }
+    return ref.watch(notificationsRepositoryProvider).settings();
+  }
+
+  NotificationsRepository get _repo =>
+      ref.read(notificationsRepositoryProvider);
+
+  /// Re-reads quietly (the screen opens, the socket reconnects): the old
+  /// state stays on screen meanwhile.
+  Future<void> reload() async {
+    try {
+      final s = await _repo.settings();
+      if (ref.mounted) state = AsyncData(s);
+    } on Object {
+      // Offline: keep what is shown.
+    }
+  }
+
+  Future<void> _apply(
+    NotificationSettings optimistic,
+    Future<NotificationSettings> Function() call,
+  ) async {
+    final before = state.value;
+    state = AsyncData(optimistic);
+    try {
+      final saved = await call();
+      if (ref.mounted) state = AsyncData(saved);
+    } on Object {
+      if (ref.mounted && before != null) state = AsyncData(before);
+      rethrow;
+    }
+  }
+
+  Future<void> setTopic(TopicSetting t, {required bool push}) {
+    final s = state.requireValue;
+    final next = t.copyWith(push: push);
+    return _apply(
+      s.copyWith(
+        topics: [
+          // ignore: prefer_if_elements_to_conditional_expressions
+          for (final x in s.topics) x.key == t.key ? next : x,
+        ],
+      ),
+      () => _repo.updateTopics([next]),
+    );
+  }
+
+  Future<void> setQuietHours(QuietHours? q) => _apply(
+        state.requireValue.copyWith(quietHours: () => q),
+        () => _repo.setQuietHours(q),
+      );
+
+  /// Owner 2026-10-21 (inbox 29): off clears the app icon at once.
+  /// [BadgesNotifier] follows this state, so the icon changes at once.
+  Future<void> setIconBadge({required bool enabled}) => _apply(
+        state.requireValue.copyWith(iconBadge: enabled),
+        () => _repo.setIconBadge(enabled: enabled),
+      );
+}
+
 final notificationSettingsProvider =
-    FutureProvider.autoDispose<NotificationSettings>(
-  (ref) => ref.watch(notificationsRepositoryProvider).settings(),
+    AsyncNotifierProvider<NotificationSettingsNotifier, NotificationSettings>(
+  NotificationSettingsNotifier.new,
   retry: _noRetry,
 );

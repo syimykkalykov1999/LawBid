@@ -12,6 +12,10 @@ NotificationSettingsDto _$NotificationSettingsDtoFromJson(
   categories: (json['categories'] as List<dynamic>)
       .map((e) => CategorySettingViewDto.fromJson(e as Map<String, dynamic>))
       .toList(),
+  iconBadge: json['iconBadge'] as bool,
+  topics: (json['topics'] as List<dynamic>)
+      .map((e) => TopicSettingViewDto.fromJson(e as Map<String, dynamic>))
+      .toList(),
   quietHours: json['quietHours'] == null
       ? null
       : QuietHoursDto.fromJson(json['quietHours'] as Map<String, dynamic>),
@@ -22,4 +26,6 @@ Map<String, dynamic> _$NotificationSettingsDtoToJson(
 ) => <String, dynamic>{
   'categories': instance.categories.map((e) => e.toJson()).toList(),
   'quietHours': ?instance.quietHours?.toJson(),
+  'iconBadge': instance.iconBadge,
+  'topics': instance.topics.map((e) => e.toJson()).toList(),
 };
