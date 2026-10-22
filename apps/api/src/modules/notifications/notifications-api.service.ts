@@ -16,6 +16,11 @@ import {
 } from '../../common/pagination/cursor.util';
 import { isValidTimeZone } from '../../common/utils/zoned-time';
 import { PrismaService } from '../../prisma/prisma.service';
+import {
+  parseUpdatedSince,
+  syncedAt,
+  type SyncPage,
+} from '../../common/sync/sync.util';
 import { clientDisplayName } from '../comments/comments.service';
 import { FilesService } from '../files/files.service';
 import { BadgesService } from './badges.service';
@@ -67,7 +72,38 @@ export class NotificationsApiService {
     cursor?: string,
     group?: NotificationGroup,
     q?: string,
-  ): Promise<{ items: NotificationDto[]; nextCursor: string | null }> {
+    updatedSince?: string,
+  ): Promise<SyncPage<NotificationDto>> {
+    // Owner 2026-10-22 (client economy plan, package F): the delta — rows
+    // created or read since (an unread pill flipped on another device
+    // comes back too); nothing is paged, the cap keeps it bounded.
+    const since = parseUpdatedSince(updatedSince);
+    if (since) {
+      const rows = await this.prisma.notification.findMany({
+        where: {
+          user_id: userId,
+          updated_at: { gte: since },
+          type: group
+            ? {
+                in: notificationTypesOf(group === 'important').filter(
+                  (t) => t !== 'new_message',
+                ),
+              }
+            : { not: 'new_message' },
+        },
+        orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+        take: 500,
+      });
+      return {
+        items: await this.present(rows),
+        nextCursor: null,
+        deletedIds: [],
+        syncedAt: syncedAt(
+          rows.map((r) => r.updated_at),
+          since,
+        ),
+      };
+    }
     const c = cursor ? decodeCursor(cursor) : undefined;
     const matching = q ? await this.matchingIds(userId, q) : undefined;
     const rows = await this.prisma.notification.findMany({
@@ -137,20 +173,29 @@ export class NotificationsApiService {
   async read(
     userId: string,
     input: { ids?: string[]; all?: boolean },
-  ): Promise<{ updated: number }> {
+  ): Promise<{ updated: number; readIds: string[] }> {
     if (!input.all && (!input.ids || input.ids.length === 0)) {
       throw invalid('ids', 'Pass ids or all: true.');
     }
-    const { count } = await this.prisma.notification.updateMany({
+    // Owner 2026-10-22 (package F): the answer names the rows that flipped,
+    // so the app edits exactly those instead of reloading the list.
+    const unread = await this.prisma.notification.findMany({
       where: {
         user_id: userId,
         read_at: null,
         ...(input.all ? {} : { id: { in: input.ids } }),
       },
+      select: { id: true },
+      take: 1000,
+    });
+    const readIds = unread.map((r) => r.id);
+    if (readIds.length === 0) return { updated: 0, readIds };
+    const { count } = await this.prisma.notification.updateMany({
+      where: { user_id: userId, read_at: null, id: { in: readIds } },
       data: { read_at: new Date() },
     });
     if (count > 0) await this.badges.notificationsChanged(userId);
-    return { updated: count };
+    return { updated: count, readIds };
   }
 
   async settings(userId: string): Promise<NotificationSettingsDto> {

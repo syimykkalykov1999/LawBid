@@ -14,6 +14,7 @@ import {
   Min,
 } from 'class-validator';
 import { MaxTextChars } from '../../common/app-settings/max-text-chars.decorator';
+import { UpdatedSinceQuery } from '../../common/sync/sync.util';
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
@@ -109,6 +110,11 @@ export class QuestionsQueryDto {
   @IsOptional()
   @IsString()
   cursor?: string;
+
+  @UpdatedSinceQuery(
+    'Owner 2026-10-22 (client economy plan, package F): with filter=mine only — my questions (a client) changed since (ISO), removed ones as meta.deletedIds; meta.syncedAt = pass it back next time. Ignored for the other tabs (pull). Older than 7 days → 409 SYNC_TOO_OLD.',
+  )
+  updatedSince?: string;
 
   @ApiPropertyOptional({
     type: 'integer',
@@ -225,6 +231,9 @@ export class QuestionDetailDto extends QuestionDto {
 export interface QuestionPage {
   items: QuestionDto[];
   nextCursor: string | null;
+  /** Owner 2026-10-22 (package F): with ?updatedSince (filter=mine). */
+  deletedIds?: string[];
+  syncedAt?: string;
 }
 
 /** Owner 2026-10-20: no pushes to attorneys; a quiet count instead. */

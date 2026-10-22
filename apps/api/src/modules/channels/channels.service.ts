@@ -5,6 +5,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { Prisma, type Channel, type ChannelPost } from '@prisma/client';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
@@ -15,6 +16,11 @@ import {
 } from '../../common/pagination/cursor.util';
 import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { parseUpdatedSince, syncedAt } from '../../common/sync/sync.util';
+import {
+  RealtimePublisher,
+  channelRoom,
+} from '../realtime/realtime-publisher.service';
 import { ongoingCalls } from '../../common/calls/ongoing-call';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { BlocksService } from '../blocks/blocks.service';
@@ -58,6 +64,9 @@ const LIST_MAX = 100;
 export interface ChannelPage<T> {
   items: T[];
   nextCursor: string | null;
+  /** Owner 2026-10-22 (package F): with ?updatedSince. */
+  deletedIds?: string[];
+  syncedAt?: string;
 }
 
 const notFound = (what = 'Channel') =>
@@ -106,6 +115,9 @@ export class ChannelsService {
     private readonly usernames: UsernamePolicyService,
     private readonly reco: RecommendationsService,
     private readonly config: ConfigService,
+    // Owner 2026-10-22 (client economy plan, package F): `channel:post` to
+    // the sockets that have the channel open.
+    @Optional() private readonly realtime?: RealtimePublisher,
   ) {}
 
   async assertEnabled(): Promise<void> {
@@ -126,9 +138,46 @@ export class ChannelsService {
     q?: string,
     cursor?: string,
     archived = false,
+    updatedSince?: string,
   ): Promise<ChannelPage<ChannelDto>> {
     await this.assertEnabled();
     const me = user.sub;
+    // Owner 2026-10-22 (client economy plan, package F): the delta of the
+    // subscribed / managed list — channels whose row moved since (a post
+    // bumps updated_at); a banned / deleted one comes back as an id.
+    const since = parseUpdatedSince(updatedSince);
+    if (since && scope !== 'discover') {
+      const links =
+        scope === 'subscribed'
+          ? await this.prisma.channelSubscription.findMany({
+              where: { user_id: me, channel: { updated_at: { gte: since } } },
+              select: { channel: true },
+              take: LIST_MAX,
+            })
+          : await this.prisma.channelAdmin.findMany({
+              where: { user_id: me, channel: { updated_at: { gte: since } } },
+              select: { channel: true },
+              take: LIST_MAX,
+            });
+      const changed = links.map((l) => l.channel);
+      const alive = changed.filter(
+        (c) => c.status !== 'banned' && c.deleted_at === null,
+      );
+      const items = (await this.presentChannels(alive, me)).filter(
+        (c) => c.isArchived === archived,
+      );
+      return {
+        items,
+        nextCursor: null,
+        deletedIds: changed
+          .filter((c) => c.status === 'banned' || c.deleted_at !== null)
+          .map((c) => c.id),
+        syncedAt: syncedAt(
+          changed.map((c) => c.updated_at),
+          since,
+        ),
+      };
+    }
     let rows: Channel[];
     if (scope === 'subscribed') {
       const subs = await this.prisma.channelSubscription.findMany({
@@ -664,6 +713,13 @@ export class ChannelsService {
         );
     }
     const [out] = await this.presentPosts([row], me);
+    // Owner 2026-10-22 (package F): the open channel sees the post at once
+    // (room channel:{id}, joined by `channel:watch`); the subscribers'
+    // rows move through `channel:update` from the fan-out queue.
+    this.realtime?.toRoom(channelRoom(channel.id), 'channel:post', {
+      channelId: channel.id,
+      post: out,
+    });
     return out;
   }
 

@@ -526,6 +526,118 @@ describe('Client economy (e2e, owner 2026-10-22)', () => {
       .expect(409);
   });
 
+  // ------------------------------------------------------------ package F
+
+  it('F: GET /notifications?updatedSince and POST /notifications/read → readIds', async () => {
+    const att = await attorney();
+    const since = new Date(Date.now() - 60_000).toISOString();
+    const n1 = await prisma.notification.create({
+      data: {
+        user_id: att.id,
+        type: 'new_follower',
+        category: 'social',
+        payload: { actorKind: 'client' },
+      },
+    });
+    const delta = await api()
+      .get('/api/v1/notifications')
+      .set(att.auth)
+      .query({ updatedSince: since })
+      .expect(200);
+    expect(ids(delta.body.data)).toEqual([n1.id]);
+    expect(delta.body.meta.deletedIds).toEqual([]);
+    const syncedAt = delta.body.meta.syncedAt as string;
+    expect(new Date(syncedAt).getTime()).toBeGreaterThanOrEqual(
+      new Date(since).getTime(),
+    );
+    const read = await api()
+      .post('/api/v1/notifications/read')
+      .set(att.auth)
+      .send({ ids: [n1.id, randomUUID()] })
+      .expect(200);
+    expect(read.body.data).toEqual({ updated: 1, readIds: [n1.id] });
+    // Reading moved updated_at: the row comes back in the next delta.
+    const again = await api()
+      .get('/api/v1/notifications')
+      .set(att.auth)
+      .query({ updatedSince: syncedAt })
+      .expect(200);
+    expect(ids(again.body.data)).toEqual([n1.id]);
+    expect(again.body.data[0].readAt).toBeTruthy();
+    await api()
+      .get('/api/v1/notifications')
+      .set(att.auth)
+      .query({ updatedSince: '2020-01-01T00:00:00Z' })
+      .expect(409);
+  });
+
+  it('F: a channel post reaches the open channel room; the subscribed list answers deltas', async () => {
+    const owner = await attorney();
+    const reader = await client();
+    const made = await api()
+      .post('/api/v1/channels')
+      .set(owner.auth)
+      .send({
+        title: 'Eco news',
+        username: `n${randomUUID().replace(/-/g, '').slice(0, 12)}`,
+        description: 'Daily',
+      })
+      .expect(201);
+    const chId = made.body.data.id as string;
+    await api()
+      .put(`/api/v1/channels/${chId}/subscription`)
+      .set(reader.auth)
+      .expect(200);
+    const since = new Date(Date.now() - 60_000).toISOString();
+    const publisher = app.get(RealtimePublisher);
+    const spy = jest.spyOn(publisher, 'toRoom');
+    await api()
+      .post(`/api/v1/channels/${chId}/posts`)
+      .set(owner.auth)
+      .set('Idempotency-Key', randomUUID())
+      .send({ body: 'Hello' })
+      .expect(201);
+    const roomCall = spy.mock.calls.find(
+      ([room, event]) => room === `channel:${chId}` && event === 'channel:post',
+    );
+    expect(roomCall).toBeDefined();
+    expect((roomCall![2] as { post: { body: string } }).post.body).toBe(
+      'Hello',
+    );
+    spy.mockRestore();
+    const delta = await api()
+      .get('/api/v1/channels')
+      .set(reader.auth)
+      .query({ scope: 'subscribed', updatedSince: since })
+      .expect(200);
+    expect(ids(delta.body.data)).toContain(chId);
+    expect(delta.body.meta.deletedIds).toEqual([]);
+    expect(typeof delta.body.meta.syncedAt).toBe('string');
+  });
+
+  it('F: a new comment is published to the post room with the comment body', async () => {
+    const author = await attorney();
+    const reader = await client();
+    const post = await prisma.post.create({
+      data: { author_id: author.id, body: 'Commented' },
+    });
+    const publisher = app.get(RealtimePublisher);
+    const spy = jest.spyOn(publisher, 'toRoom');
+    const made = await api()
+      .post(`/api/v1/posts/${post.id}/comments`)
+      .set(reader.auth)
+      .send({ body: 'Nice' })
+      .expect(201);
+    const call = spy.mock.calls.find(
+      ([room, event]) => room === `post:${post.id}` && event === 'comment:new',
+    );
+    expect(call).toBeDefined();
+    expect((call![2] as { comment: { id: string } }).comment.id).toBe(
+      made.body.data.id,
+    );
+    spy.mockRestore();
+  });
+
   it('D: reference lists carry a private / public Cache-Control with stale-while-revalidate', async () => {
     const cl = await client();
     const stickers = await api().get('/api/v1/stickers').set(cl.auth);

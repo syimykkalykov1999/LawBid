@@ -2984,12 +2984,16 @@ model Notification {
   payload         Json
   read_at         DateTime?            @db.Timestamptz
   created_at      DateTime             @default(now()) @db.Timestamptz
+  /// Owner 2026-10-22 (client economy plan, package F): moves when the row
+  /// is read / re-aggregated — GET /notifications?updatedSince.
+  updated_at      DateTime             @default(now()) @updatedAt @db.Timestamptz
   // docs/05 §9.4, §14 (stage 5.1): aggregation window key; partial UQ
   // (user_id, dedupe_key) WHERE dedupe_key IS NOT NULL is raw SQL.
   dedupe_key      String?
   aggregate_count Int                  @default(1)
 
   @@index([user_id, created_at(sort: Desc)])
+  @@index([user_id, updated_at(sort: Desc)])
   // Kept (migration 20260928140000): the retention job scans by age.
   @@index([created_at], map: "notifications_created_at_idx")
   @@map("notifications")
@@ -6626,6 +6630,8 @@ model LegalQuestion {
   @@index([practice_area_id, created_at(sort: Desc)])
   @@index([state_code, created_at(sort: Desc)])
   @@index([author_id, created_at(sort: Desc)])
+  // Owner 2026-10-22 (client economy plan, package F): GET /questions?filter=mine&updatedSince.
+  @@index([author_id, updated_at])
   @@index([closed_at, deleted_at])
   @@map("legal_questions")
 }

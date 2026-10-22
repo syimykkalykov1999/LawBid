@@ -401,7 +401,8 @@ export class NotificationsService {
         DO UPDATE SET aggregate_count = notifications.aggregate_count + 1,
                       payload = excluded.payload,
                       read_at = NULL,
-                      created_at = now()
+                      created_at = now(),
+                      updated_at = now()
         RETURNING id::TEXT AS id, aggregate_count::INT8 AS n`;
       await this.badges?.invalidateNotifications(input.recipientId);
       await this.push?.enqueue(row.id, input.type, Number(row.n));

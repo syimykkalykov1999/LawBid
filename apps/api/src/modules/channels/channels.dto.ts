@@ -18,6 +18,7 @@ import {
   MinLength,
 } from 'class-validator';
 import { UserBriefDto } from '../user-brief/user-brief.dto';
+import { UpdatedSinceQuery } from '../../common/sync/sync.util';
 import { PostVideoDto } from '../videos/videos.dto';
 
 export const CHANNEL_STATUSES = ['active', 'hidden', 'banned'] as const;
@@ -156,6 +157,11 @@ export class ChannelListQueryDto {
   @IsString()
   @MaxLength(32)
   cursor?: string;
+
+  @UpdatedSinceQuery(
+    'Owner 2026-10-22 (client economy plan, package F): subscribed / managed only — the channels whose row changed since (a post, settings); meta.deletedIds = channels that left the list (banned, deleted); meta.syncedAt = pass it back next time. My own unsubscribe / pin / archive is applied locally. Older than 7 days → 409 SYNC_TOO_OLD.',
+  )
+  updatedSince?: string;
 }
 
 export class CreateChannelDto {

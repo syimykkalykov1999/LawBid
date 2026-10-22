@@ -15,6 +15,7 @@ import {
 } from '../../common/pagination/cursor.util';
 import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { parseUpdatedSince, syncedAt } from '../../common/sync/sync.util';
 import { withDeleted } from '../../prisma/soft-delete.extension';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
@@ -118,6 +119,31 @@ export class LegalQaService {
     await this.assertEnabled();
     const limit = q.limit ?? PAGE;
     const filter = q.filter ?? 'all';
+    // Owner 2026-10-22 (client economy plan, package F): «Мои» as a delta
+    // for a client — own questions changed since, removed ones as ids.
+    const since = parseUpdatedSince(q.updatedSince);
+    if (since && filter === 'mine' && user.role !== 'attorney') {
+      const rows = await withDeleted(this.prisma).legalQuestion.findMany({
+        where: { author_id: user.sub, updated_at: { gte: since } },
+        include: QUESTION_INCLUDE,
+        orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+        take: 500,
+      });
+      const kept = rows.filter(
+        (r) =>
+          r.deleted_at === null &&
+          (r.status === 'published' || r.status === 'hidden'),
+      );
+      return {
+        items: await this.presentQuestions(kept, user),
+        nextCursor: null,
+        deletedIds: rows.filter((r) => !kept.includes(r)).map((r) => r.id),
+        syncedAt: syncedAt(
+          rows.map((r) => r.updated_at),
+          since,
+        ),
+      };
+    }
     const hidden = [...(await this.blocks.hiddenIds(user.sub))];
     const where: Prisma.LegalQuestionWhereInput[] = [];
     if (filter === 'mine') {

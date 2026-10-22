@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
   UnprocessableEntityException,
+  Optional,
 } from '@nestjs/common';
 import type { Comment } from '@prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
@@ -22,6 +23,10 @@ import {
   type ContentModerationHook,
 } from '../moderation/content-moderation.hook';
 import { NotificationsService } from '../notifications/notifications.service';
+import {
+  RealtimePublisher,
+  postRoom,
+} from '../realtime/realtime-publisher.service';
 import { VISIBLE_POST_WHERE } from '../posts/post-presenter.service';
 import { postNotFound } from '../posts/posts.service';
 import {
@@ -66,6 +71,9 @@ export class CommentsService {
     @Inject(CONTENT_MODERATION_HOOK)
     private readonly moderation: ContentModerationHook,
     private readonly mentions: MentionsService,
+    // Owner 2026-10-22 (client economy plan, package F): a new comment
+    // reaches the sockets that have the post open (`post:watch`).
+    @Optional() private readonly realtime?: RealtimePublisher,
   ) {}
 
   async create(
@@ -159,7 +167,15 @@ export class CommentsService {
         });
       }
     }
-    return (await this.present([created], userId, post.author_id))[0];
+    const [dto] = await this.present([created], userId, post.author_id);
+    if (created.status === 'published') {
+      this.realtime?.toRoom(postRoom(postId), 'comment:new', {
+        postId,
+        comment: { ...dto, liked: false },
+        parentCommentId: parent?.id ?? null,
+      });
+    }
+    return dto;
   }
 
   /** GET /posts/:id/comments — top level, newest first. */

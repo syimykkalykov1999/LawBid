@@ -87,7 +87,14 @@ export class ChannelsController {
     @CurrentUser() user: RequestUser,
     @Query() q: ChannelListQueryDto,
   ): Promise<ChannelPage<ChannelDto>> {
-    return this.channels.list(user, q.scope, q.q, q.cursor, q.archived);
+    return this.channels.list(
+      user,
+      q.scope,
+      q.q,
+      q.cursor,
+      q.archived,
+      q.updatedSince,
+    );
   }
 
   @AttorneyOnly('publish')

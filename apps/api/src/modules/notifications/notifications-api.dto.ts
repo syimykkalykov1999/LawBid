@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { UpdatedSinceQuery } from '../../common/sync/sync.util';
 import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
@@ -46,6 +47,11 @@ export class NotificationsQueryDto {
   @IsString()
   @MaxLength(300)
   cursor?: string;
+
+  @UpdatedSinceQuery(
+    'Owner 2026-10-22 (client economy plan, package F): only the notifications created or read since (ISO), newest first — the catch-up after a reconnect (`group` applies, `q` and `cursor` are ignored). meta.syncedAt = pass it back next time; meta.deletedIds stays empty (old rows expire by age). Older than 7 days → 409 SYNC_TOO_OLD.',
+  )
+  updatedSince?: string;
 
   /** Owner 2026-10-06: the bell's "Важные" / "Остальные" tabs. */
   @ApiPropertyOptional({
@@ -140,6 +146,13 @@ export class ReadNotificationsDto {
 export class ReadNotificationsResultDto {
   @ApiProperty()
   updated!: number;
+
+  @ApiPropertyOptional({
+    type: [String],
+    description:
+      'Owner 2026-10-22 (package F): the ids that were unread and are read now — the app flips exactly those rows.',
+  })
+  readIds?: string[];
 }
 
 export class BadgesDto {
