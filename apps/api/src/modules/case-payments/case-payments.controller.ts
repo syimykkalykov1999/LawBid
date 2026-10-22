@@ -12,6 +12,7 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import {
   ApiBearerAuth,
   ApiHeader,
@@ -167,6 +168,9 @@ export class CasePaymentsController {
     return this.payments.caseState(user, p.id);
   }
 
+  // Security research #5 (2026-10-22), A11: card testing — a stolen-card
+  // script creating checkouts in a loop (each attempt costs a Stripe fee).
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('cases/:id/payments')
   @UseGuards(RequireIdempotencyKeyGuard)
   @UseInterceptors(IdempotencyInterceptor)
