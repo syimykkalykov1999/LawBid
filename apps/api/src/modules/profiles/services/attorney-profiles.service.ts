@@ -1,3 +1,6 @@
+import { ConfigService } from '@nestjs/config';
+import { attorneyPublicUrl } from '../../../common/utils/public-urls';
+import { AttorneyAdvertisingService } from '../../countries/attorney-advertising.service';
 import { UsernamePolicyService } from '../../usernames/username-policy.service';
 import { AttorneyStatsDto } from '../dto/attorney-stats.dto';
 import {
@@ -92,7 +95,23 @@ export class AttorneyProfilesService {
     @Optional() private readonly privacy?: PrivacySettingsService,
     @Optional() private readonly consultations?: ConsultationsService,
     private readonly policy: UsernamePolicyService = undefined as never,
+    // Owner 2026-10-22 (audit #4 §5, §9): the advertising label and the
+    // canonical public link.
+    @Optional() private readonly advertising?: AttorneyAdvertisingService,
+    @Optional() private readonly config?: ConfigService,
   ) {}
+
+  /** «Attorney Advertising» for an attorney licensed in [stateCodes]. */
+  private async labelFor(stateCodes: Iterable<string>): Promise<boolean> {
+    return (await this.advertising?.requiresLabel(stateCodes)) ?? false;
+  }
+
+  private publicUrl(username: string): string {
+    return attorneyPublicUrl(
+      username,
+      this.config?.get<string>('APP_LINK_BASE_URL'),
+    );
+  }
 
   async getOwn(
     userId: string,
@@ -134,6 +153,12 @@ export class AttorneyProfilesService {
       // Owner 2026-10-05: the blue check follows the trust level
       // (AttorneyTrustService keeps attorney_profiles.trust_badge).
       verifiedBadge: row.trust_badge,
+      advertisingLabel: await this.labelFor(
+        row.licenses
+          .filter((l) => l.license_status === 'verified')
+          .map((l) => l.state_code),
+      ),
+      publicUrl: this.publicUrl(row.username),
       trustLevel: row.trust_level,
       nameMismatch: row.name_mismatch,
       usernameChangedAt: row.username_changed_at?.toISOString() ?? null,
@@ -423,6 +448,8 @@ export class AttorneyProfilesService {
       avatarUrl256: photoOk.has(row.user_id) ? avatar.url256 : null,
       languages: row.languages,
       verifiedBadge: row.trust_badge,
+      advertisingLabel: await this.labelFor(states.keys()),
+      publicUrl: this.publicUrl(row.username),
       trustLevel: row.trust_level,
       licensedStates: [...states].map(([code, name]) => ({ code, name })),
       practiceAreas,

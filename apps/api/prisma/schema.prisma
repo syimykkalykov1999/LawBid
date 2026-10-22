@@ -1339,15 +1339,19 @@ model CountryWaitlist {
 // docs/02_DATABASE.md §3.1: states(code PK char(2), name, is_active
 // default true). 50 states + DC; UI names come from i18n `state.<code>`.
 model State {
-  code         String  @id @db.Char(2)
-  name         String
-  is_active    Boolean @default(true)
+  code                       String  @id @db.Char(2)
+  name                       String
+  is_active                  Boolean @default(true)
   /// Owner 2026-10-05: states, provinces and other first-level regions of
   /// every country live here; a region is usable only while its country
   /// is switched on. iso_code is the ISO 3166-2 code (US-NY, CA-ON, MX-JAL).
-  country_code String  @default("US") @db.Char(2)
-  country      Country @relation(fields: [country_code], references: [code], onDelete: Restrict)
-  iso_code     String?
+  country_code               String  @default("US") @db.Char(2)
+  country                    Country @relation(fields: [country_code], references: [code], onDelete: Restrict)
+  iso_code                   String?
+  /// Owner 2026-10-22 (audit #4 §5, NY Rule 7.1(f)): attorneys licensed
+  /// here get the «Attorney Advertising» label on their profile and posts
+  /// (admin: Страны → регионы).
+  attorney_advertising_label Boolean @default(false)
 
   // Reference/seed table — no timestamps, per §3.1's column list.
   client_profiles        ClientProfile[]

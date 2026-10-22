@@ -10,6 +10,7 @@ import { REDIS_CLIENT } from '../src/redis/redis.constants';
 import { TokenService } from '../src/modules/auth/services/token.service';
 import { AttorneyTrustService } from '../src/modules/attorney-trust/attorney-trust.service';
 import { adminSession } from './support/admin-login';
+import { AttorneyAdvertisingService } from '../src/modules/countries/attorney-advertising.service';
 
 /**
  * Owner 2026-10-05: attorney trust levels. Registration stays one step
@@ -194,6 +195,54 @@ describe('Attorney trust levels (e2e, owner 2026-10-05)', () => {
         startAvailability: 'immediately',
       });
   }
+
+  // Owner 2026-10-22 (audit #4 §5, §9): «Attorney Advertising» per state
+  // (admin toggle) and the canonical public link on the profile.
+  it('an attorney licensed in a labelled state carries «Attorney Advertising»', async () => {
+    const admin = await adminSession(base, prisma, 'super_admin');
+    await prisma.state.upsert({
+      where: { code: 'NY' },
+      create: { code: 'NY', name: 'New York' },
+      update: {},
+    });
+    await api()
+      .patch('/api/v1/admin/countries/US/regions/NY')
+      .set(admin.auth)
+      .send({ attorneyAdvertisingLabel: true })
+      .expect(200)
+      .expect((r) =>
+        expect(r.body.data).toMatchObject({
+          code: 'NY',
+          attorneyAdvertisingLabel: true,
+        }),
+      );
+    app.get(AttorneyAdvertisingService).invalidate();
+    const ny = await attorney({ state: 'NY' });
+    const nj = await attorney();
+    const own = await api()
+      .get('/api/v1/attorneys/me/profile')
+      .set(ny.auth)
+      .expect(200);
+    expect(own.body.data.advertisingLabel).toBe(true);
+    expect(own.body.data.publicUrl).toMatch(
+      /^https:\/\/[^/]+\/attorneys\/tr_[0-9a-f]{8}\/$/,
+    );
+    const viewer = await client();
+    const nyUser = own.body.data.username as string;
+    const pub = await api()
+      .get(`/api/v1/attorneys/${nyUser}`)
+      .set(viewer.auth)
+      .expect(200);
+    expect(pub.body.data).toMatchObject({
+      advertisingLabel: true,
+      publicUrl: own.body.data.publicUrl,
+    });
+    const other = await api()
+      .get('/api/v1/attorneys/me/profile')
+      .set(nj.auth)
+      .expect(200);
+    expect(other.body.data.advertisingLabel).toBe(false);
+  });
 
   it('a self-attested attorney is level 0: no badge, bids allowed, payments not', async () => {
     const a = await attorney();

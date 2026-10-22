@@ -216,6 +216,7 @@ erDiagram
     Boolean is_active
     String country_code FK
     String iso_code "nullable"
+    Boolean attorney_advertising_label
   }
   case_extra_practices {
     String case_id PK,FK

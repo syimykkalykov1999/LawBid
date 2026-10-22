@@ -385,6 +385,15 @@ export class PostAuthorDto {
   /** Owner 2026-10-13: attorney: licensed states ("NY, CA"); client: state. */
   @ApiPropertyOptional({ type: String, nullable: true })
   location!: string | null;
+
+  /** Owner 2026-10-22 (audit #4 §5, NY Rule 7.1(f)): the attorney is
+   * licensed in a state that requires the «Attorney Advertising» label —
+   * the app shows it on the post. Always false for clients. */
+  @ApiProperty({
+    description:
+      'Show the «Attorney Advertising» label on this post (the author is licensed in a state that requires it).',
+  })
+  advertisingLabel!: boolean;
 }
 
 /** Owner 2026-10-12 (Threads): who put this post into the list. */

@@ -52,7 +52,8 @@ async function seedStates(): Promise<void> {
   for (const state of US_STATES) {
     await prisma.state.upsert({
       where: { code: state.code },
-      create: state,
+      // Owner 2026-10-22: New York requires «Attorney Advertising».
+      create: { ...state, attorney_advertising_label: state.code === 'NY' },
       update: { name: state.name },
     });
   }
