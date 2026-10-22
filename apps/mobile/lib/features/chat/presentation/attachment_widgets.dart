@@ -13,6 +13,7 @@ import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/media/photo_limits.dart';
+import 'package:lawbid/core/text/byte_size.dart';
 import 'package:lawbid/features/chat/data/chat_repository.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/presentation/chat_album.dart';
@@ -210,14 +211,8 @@ bool _isVideo(XFile f) {
       n.endsWith('.webm');
 }
 
-/// "12.4 MB", "830 KB".
-String fileSizeLabel(int? bytes) {
-  if (bytes == null) return '';
-  if (bytes >= 1024 * 1024) {
-    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
-  }
-  return '${(bytes / 1024).ceil()} KB';
-}
+/// "12.4 MB", "830 KB" (core/text/byte_size.dart).
+String fileSizeLabel(int? bytes) => byteSizeLabel(bytes);
 
 /// A document's colour and icon by its type.
 ({IconData icon, Color color}) docLook(String ext) => switch (ext) {

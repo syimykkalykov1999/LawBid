@@ -55,6 +55,7 @@ import 'package:lawbid/core/l10n/strings/seat_roles_strings.dart';
 import 'package:lawbid/core/l10n/strings/share_to_strings.dart';
 import 'package:lawbid/core/l10n/strings/stale_case_strings.dart';
 import 'package:lawbid/core/l10n/strings/stars_strings.dart';
+import 'package:lawbid/core/l10n/strings/storage_screen_strings.dart';
 import 'package:lawbid/core/l10n/strings/storage_strings.dart';
 import 'package:lawbid/core/l10n/strings/stories_strings.dart';
 import 'package:lawbid/core/l10n/strings/support_strings.dart';
@@ -1193,6 +1194,7 @@ class StaticTranslatorRu extends _MapTranslator {
         ...legalQaRu,
         ...deadlineRu,
         ...storageRu,
+        ...storageScreenRu,
         ...supportRu,
         ...caseCoverRu,
         ...caseUrgencyRu,
@@ -2637,6 +2639,7 @@ class StaticTranslatorEn extends _MapTranslator {
         ...legalQaEn,
         ...deadlineEn,
         ...storageEn,
+        ...storageScreenEn,
         ...supportEn,
         ...caseCoverEn,
         ...caseUrgencyEn,

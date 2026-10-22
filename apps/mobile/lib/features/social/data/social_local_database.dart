@@ -95,6 +95,16 @@ class SocialLocalDatabase extends _$SocialLocalDatabase
         ),
       );
 
+  @override
+  Future<int> pagesBytes() async {
+    final sum = cachedPages.json.length.sum();
+    final row = await (selectOnly(cachedPages)..addColumns([sum])).getSingle();
+    return row.read(sum) ?? 0;
+  }
+
+  @override
+  Future<void> clearPages() => delete(cachedPages).go();
+
   // --- chat outbox ----------------------------------------------------
 
   Future<void> enqueue({

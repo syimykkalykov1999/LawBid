@@ -169,6 +169,9 @@ abstract final class AppRoutes {
   static const contacts = '/profile/settings/phone-contacts';
 
   static const dataExport = '/profile/settings/data-export';
+
+  /// Owner 2026-10-22 (client economy plan §5.2): «Данные и память».
+  static const storage = '/profile/settings/storage';
   // Owner 2026-10-02: About LawBid + the website link.
   static const about = '/profile/settings/about';
   // Owner 2026-10-15: the client's saved posts, moved here from «Mine».
