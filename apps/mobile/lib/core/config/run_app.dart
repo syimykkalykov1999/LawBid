@@ -20,6 +20,7 @@ import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/callkit_bridge.dart';
 import 'package:lawbid/features/calls/data/calls_repository.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
+import 'package:lawbid/features/cases/workspace/file_actions.dart';
 import 'package:lawbid/features/channels/application/channel_forward_port.dart';
 import 'package:lawbid/features/chat/domain/forward.dart';
 import 'package:lawbid/features/chat/presentation/forward_sheet.dart';
@@ -151,6 +152,17 @@ Future<void> runLawBid(AppFlavor flavor) async {
   // docs/ops/demo-world.md: Android Play install referrer → pending referral
   // code (first launch only). Fire-and-forget, never delays first paint.
   unawaited(captureInstallReferrer(container));
+
+  // Owner 2026-10-22 (load audit finding 8): case files not opened for a
+  // week leave the phone — in the background, after the first screens.
+  if (!kIsWeb) {
+    unawaited(
+      Future<void>.delayed(
+        const Duration(seconds: 20),
+        CaseFileCache.cleanUp,
+      ),
+    );
+  }
 
   // Everything network-bound — session check (refresh token → access
   // token), `/config/bootstrap` flags + legal docs + min version, the

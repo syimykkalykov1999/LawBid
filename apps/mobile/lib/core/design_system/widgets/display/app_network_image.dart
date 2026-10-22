@@ -1,5 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/widgets.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
+import 'package:lawbid/core/media/app_image_cache.dart';
 
 /// A network picture for avatars and list thumbnails (owner 2026-10-15,
 /// "the app flies, costs less"): kept on the phone's disk after the first
@@ -10,11 +12,23 @@ import 'package:flutter/widgets.dart';
 ///
 /// Owner 2026-10-18 (speed): cached under [stableImageCacheKey] — a signed
 /// link changes with every response, its path (the file) does not.
-ImageProvider appNetworkImage(String url, int decodeWidth) =>
+///
+/// Owner 2026-10-22 (load audit finding 8): kept in [AppImageCaches.feed]
+/// (2 000 pictures / 7 days instead of the package's 200); chat photos pass
+/// `cache: AppImageCaches.chatMedia`.
+ImageProvider appNetworkImage(
+  String url,
+  int decodeWidth, {
+  BaseCacheManager? cache,
+}) =>
     ResizeImage.resizeIfNeeded(
       decodeWidth,
       null,
-      CachedNetworkImageProvider(url, cacheKey: stableImageCacheKey(url)),
+      CachedNetworkImageProvider(
+        url,
+        cacheKey: stableImageCacheKey(url),
+        cacheManager: cache ?? AppImageCaches.feed,
+      ),
     );
 
 /// Decode width for a square avatar/thumbnail of [logicalSize] points.

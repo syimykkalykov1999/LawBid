@@ -4,6 +4,7 @@ import 'package:lawbid/core/design_system/icons/app_icon.dart';
 import 'package:lawbid/core/design_system/icons/app_icons.dart';
 import 'package:lawbid/core/design_system/widgets/bars/system_nav_band.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
+import 'package:lawbid/core/media/app_image_cache.dart';
 import 'package:lawbid/core/text/bidi.dart';
 
 /// Tests draw the photos without the network cache.
@@ -215,6 +216,7 @@ class _ZoomablePhotoState extends State<_ZoomablePhoto> {
                   // Owner 2026-10-18 (speed): a signed link changes per
                   // response — cached by the file's path.
                   cacheKey: stableImageCacheKey(widget.url),
+                  cacheManager: AppImageCaches.feed,
                   fit: BoxFit.contain,
                   errorWidget: (_, __, ___) => const Center(
                     child: AppIcon(

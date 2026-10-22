@@ -8,6 +8,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/buttons/player_round_button.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/design_system/widgets/display/pinch_to_zoom.dart';
+import 'package:lawbid/core/media/app_image_cache.dart';
 import 'package:lawbid/core/media/audio_takeover.dart';
 import 'package:lawbid/core/media/playback_visibility.dart';
 import 'package:lawbid/features/reels/application/played_view_gate.dart';
@@ -60,7 +61,11 @@ const int kReelPosterDecodeWidth = 720;
 ImageProvider reelPosterProvider(String url) => ResizeImage.resizeIfNeeded(
       kReelPosterDecodeWidth,
       null,
-      CachedNetworkImageProvider(url, cacheKey: stableImageCacheKey(url)),
+      CachedNetworkImageProvider(
+        url,
+        cacheKey: stableImageCacheKey(url),
+        cacheManager: AppImageCaches.feed,
+      ),
     );
 
 /// Tests: makes the player instead of the network one.
@@ -461,6 +466,7 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
             CachedNetworkImage(
               imageUrl: thumb,
               cacheKey: stableImageCacheKey(thumb),
+              cacheManager: AppImageCaches.feed,
               memCacheWidth: kReelPosterDecodeWidth,
               fit: BoxFit.cover,
               fadeInDuration: Duration.zero,
