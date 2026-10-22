@@ -8,8 +8,16 @@ part of 'read_notifications_result_dto.dart';
 
 ReadNotificationsResultDto _$ReadNotificationsResultDtoFromJson(
   Map<String, dynamic> json,
-) => ReadNotificationsResultDto(updated: json['updated'] as num);
+) => ReadNotificationsResultDto(
+  updated: json['updated'] as num,
+  readIds: (json['readIds'] as List<dynamic>?)
+      ?.map((e) => e as String)
+      .toList(),
+);
 
 Map<String, dynamic> _$ReadNotificationsResultDtoToJson(
   ReadNotificationsResultDto instance,
-) => <String, dynamic>{'updated': instance.updated};
+) => <String, dynamic>{
+  'updated': instance.updated,
+  'readIds': ?instance.readIds,
+};

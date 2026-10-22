@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   HttpCode,
   HttpStatus,
   Param,
@@ -40,7 +41,10 @@ type Page<T> = { items: T[]; nextCursor: string | null };
 export class DocumentTemplatesController {
   constructor(private readonly templates: DocumentTemplatesService) {}
 
+  // Owner 2026-10-22 (client economy plan, package D): reference data —
+  // cacheable in the browser, revalidated in the background.
   @Get()
+  @Header('Cache-Control', 'private, max-age=600, stale-while-revalidate=86400')
   @ApiOperation({
     summary:
       'Published templates: search, practice area, state (every-state ones included), language',
@@ -55,6 +59,7 @@ export class DocumentTemplatesController {
   }
 
   @Get(':id')
+  @Header('Cache-Control', 'private, max-age=600, stale-while-revalidate=86400')
   @ApiOperation({ summary: 'One published template' })
   @ApiEnvelopeResponse(DocumentTemplateDto)
   @ApiErrors({

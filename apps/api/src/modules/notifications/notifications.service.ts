@@ -3,6 +3,8 @@ import type Redis from 'ioredis';
 import { NotificationCategory, NotificationType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
+import { RealtimePublisher } from '../realtime/realtime-publisher.service';
+import { publishCaseEvent } from './case-events';
 import { BadgesService } from './badges.service';
 import { dedupeKeyFor } from './notification-rules';
 import { PushQueueService } from './push/push-queue.service';
@@ -243,6 +245,9 @@ export class NotificationsService {
     @Optional() private readonly push?: PushQueueService,
     @Optional() private readonly badges?: BadgesService,
     @Optional() @Inject(REDIS_CLIENT) private readonly redis?: Redis,
+    // Owner 2026-10-22 (client economy plan, package E): case /
+    // consultation events ride on the notification seam.
+    @Optional() private readonly realtime?: RealtimePublisher,
   ) {}
 
   /** Audit 2026-10-01: like → unlike → like (or follow → unfollow →
@@ -346,6 +351,17 @@ export class NotificationsService {
       return null;
     }
     const db = tx ?? this.prisma;
+    // Owner 2026-10-22 (package E): the realtime `case:update` /
+    // `consultation:update` — before the block / dedupe rules, which are
+    // about the stored notification, not about the row the app shows.
+    // Inside a transaction the event waits a moment for the commit.
+    publishCaseEvent(
+      this.realtime,
+      input.recipientId,
+      input.type,
+      input.payload,
+      tx ? 300 : 0,
+    );
     // Audit 2026-10-01: nothing reaches a person from someone they
     // blocked (or who blocked them).
     const actorId = (input.payload as Record<string, unknown> | null)?.actorId;
@@ -385,7 +401,8 @@ export class NotificationsService {
         DO UPDATE SET aggregate_count = notifications.aggregate_count + 1,
                       payload = excluded.payload,
                       read_at = NULL,
-                      created_at = now()
+                      created_at = now(),
+                      updated_at = now()
         RETURNING id::TEXT AS id, aggregate_count::INT8 AS n`;
       await this.badges?.invalidateNotifications(input.recipientId);
       await this.push?.enqueue(row.id, input.type, Number(row.n));

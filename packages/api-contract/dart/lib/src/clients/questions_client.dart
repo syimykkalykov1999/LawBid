@@ -25,6 +25,8 @@ abstract class QuestionsClient {
   /// Public questions to lawyers (search, filters).
   ///
   /// [scope] - Attorneys only: «mine» keeps questions of my practice areas (with parent/child areas) and of states where I hold a verified licence; a question without an area or state stays. No areas set — same as «all».
+  ///
+  /// [updatedSince] - Owner 2026-10-22 (client economy plan, package F): with filter=mine only — my questions (a client) changed since (ISO), removed ones as meta.deletedIds; meta.syncedAt = pass it back next time. Ignored for the other tabs (pull). Older than 7 days → 409 SYNC_TOO_OLD.
   @GET('/questions')
   Future<QuestionListEnvelope> listQuestions({
     @Query('limit') int? limit = 20,
@@ -34,6 +36,7 @@ abstract class QuestionsClient {
     @Query('filter') QuestionFilter? filter,
     @Query('scope') QuestionScope? scope,
     @Query('cursor') String? cursor,
+    @Query('updatedSince') DateTime? updatedSince,
     @Extras() Map<String, dynamic>? extras,
   });
 

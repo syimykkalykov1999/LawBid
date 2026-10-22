@@ -20,28 +20,51 @@ function isRateLimited(e: unknown): boolean {
   return e instanceof ApiError && e.status === 429;
 }
 
-/** A refetchInterval that slows down after a 429. */
+/** Owner 2026-10-22 (client economy plan, package J): a visible tab whose
+ * window is not focused (the admin is in another app) polls half as often. */
+export const UNFOCUSED_MS = 120_000;
+
+/** A refetchInterval that slows down after a 429 and when the window has
+ * no focus. */
 export function livePoll(ms: number = LIVE_MS) {
-  return <Q extends { state: { error: unknown } }>(query: Q): number =>
-    isRateLimited(query.state.error) ? Math.max(ms, RATE_LIMITED_BACKOFF_MS) : ms;
+  return <Q extends { state: { error: unknown } }>(query: Q): number => {
+    if (isRateLimited(query.state.error)) return Math.max(ms, RATE_LIMITED_BACKOFF_MS);
+    if (typeof document !== 'undefined' && !document.hasFocus()) return Math.max(ms, UNFOCUSED_MS);
+    return ms;
+  };
 }
 
-/** Shared by the dashboard and the sidebar badges; polled by the shell. */
+/**
+ * Owner 2026-10-22 (client economy plan, package J): the sidebar badges in
+ * one light request (five indexed counts, ETag → 304) — polled by the
+ * shell only. The heavy dashboard / support / trust aggregates are no
+ * longer polled by the shell: each page polls its own while it is open.
+ */
+export const countsQuery = queryOptions({
+  queryKey: ['admin-counts'],
+  queryFn: async () => (await api.GET('/admin/counts')).data!.data,
+});
+
+/** The dashboard aggregate; polled by the dashboard page while it is open
+ * (owner 2026-10-22: the shell reads countsQuery instead). */
 export const dashboardQuery = queryOptions({
   queryKey: ['dashboard'],
   queryFn: async () => (await api.GET('/admin/dashboard')).data!.data,
+  refetchInterval: livePoll(),
 });
 
-/** Shared by the dashboard, Поддержка and the sidebar badge; polled by the shell. */
+/** Shared by the dashboard and Поддержка; polled while one of them is open. */
 export const supportStatsQuery = queryOptions({
   queryKey: ['support-stats'],
   queryFn: async () => (await api.GET('/admin/support/stats')).data!.data,
+  refetchInterval: livePoll(),
 });
 
-/** «Борьба с мошенниками» queue size; polled by the shell. */
+/** «Борьба с мошенниками» stats; polled while the page is open. */
 export const trustStatsQuery = queryOptions({
   queryKey: ['trust-stats'],
   queryFn: async () => (await api.GET('/admin/trust/stats')).data!.data,
+  refetchInterval: livePoll(),
 });
 
 /**

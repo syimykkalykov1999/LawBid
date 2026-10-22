@@ -29,6 +29,7 @@ import {
   REALTIME_NAMESPACE,
   channelRoom,
   conversationRoom,
+  postRoom,
   socketAdapterMode,
   userRoom,
   viewingKey,
@@ -496,6 +497,37 @@ export class RealtimeGateway
       }));
     if (!reader) return { ok: false };
     await socket.join(channelRoom(id));
+    return { ok: true };
+  }
+
+  /** Owner 2026-10-22 (client economy plan, package F): an open post hears
+   * its new comments (`comment:new`) instead of reloading the list. Any
+   * signed-in person who can see the post (published, not deleted). */
+  @SubscribeMessage('post:watch')
+  async watchPost(
+    @ConnectedSocket() socket: Socket,
+    @MessageBody() body: { postId?: unknown },
+  ): Promise<{ ok: boolean }> {
+    const id = typeof body?.postId === 'string' ? body.postId : '';
+    const uid = state(socket)?.user?.sub;
+    if (!uid || !UUID_RE.test(id)) return { ok: false };
+    const post = await this.prisma.post.findFirst({
+      where: { id, deleted_at: null, status: 'published' },
+      select: { id: true },
+    });
+    if (!post) return { ok: false };
+    await socket.join(postRoom(id));
+    return { ok: true };
+  }
+
+  @SubscribeMessage('post:unwatch')
+  async unwatchPost(
+    @ConnectedSocket() socket: Socket,
+    @MessageBody() body: { postId?: unknown },
+  ): Promise<{ ok: boolean }> {
+    const id = typeof body?.postId === 'string' ? body.postId : '';
+    if (!UUID_RE.test(id)) return { ok: false };
+    await socket.leave(postRoom(id));
     return { ok: true };
   }
 

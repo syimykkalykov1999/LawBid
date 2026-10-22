@@ -26,6 +26,12 @@ import {
   encodeCursor,
 } from '../../common/pagination/cursor.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import {
+  parseUpdatedSince,
+  syncedAt,
+  SYNC_TOO_OLD_ERROR,
+  type SyncPage,
+} from '../../common/sync/sync.util';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { BlocksService } from '../blocks/blocks.service';
@@ -57,6 +63,7 @@ import {
   type GroupTopicDto,
   type UpdateTopicDto,
   type GroupDetailDto,
+  type GroupCardDto,
   type GroupDto,
   type GroupDiscoverPageDto,
   type GroupInviteDto,
@@ -91,6 +98,10 @@ import {
 
 const GROUPS_PAGE = 30;
 const MESSAGES_PAGE = 30;
+/** `afterId` catch-up: more than this many missed → reload the page. */
+export const CATCH_UP_MAX = 200;
+/** `group:update` kinds whose event carries the shared card. */
+const CARD_KINDS = new Set(['info', 'members', 'topics', 'pinned', 'deleted']);
 const INVITE_RETRY_MS = 24 * 3600 * 1000;
 const TOPICS_MAX = 100;
 const TOPIC_COLORS = 7;
@@ -228,7 +239,10 @@ export class GroupsService {
     user: RequestUser,
     cursor?: string,
     archived = false,
+    updatedSinceRaw?: string,
   ): Promise<GroupPage> {
+    const since = parseUpdatedSince(updatedSinceRaw);
+    if (since) return this.listChanged(user, archived, since);
     const c = cursor ? decodeCursor(cursor) : undefined;
     const base: Prisma.ChatGroupMemberWhereInput = {
       user_id: user.sub,
@@ -279,6 +293,56 @@ export class GroupsService {
         rows.length > GROUPS_PAGE && last?.last_message_at
           ? encodeCursor({ createdAt: last.last_message_at, id: last.id })
           : null,
+    };
+  }
+
+  /**
+   * Owner 2026-10-22 (client economy plan, package B, Telegram
+   * getDifference): GET /groups?updatedSince — the groups whose row
+   * (a message, settings, members) or my membership row (read, pin,
+   * archive, hide) changed since; the ones that left this list come back
+   * as ids. syncedAt = the newest stamp of the answer.
+   */
+  private async listChanged(
+    user: RequestUser,
+    archived: boolean,
+    since: Date,
+  ): Promise<GroupPage> {
+    const rows = await this.prisma.chatGroupMember.findMany({
+      where: {
+        user_id: user.sub,
+        OR: [
+          { updated_at: { gte: since } },
+          { group: { updated_at: { gte: since } } },
+        ],
+      },
+      include: { group: true },
+      orderBy: [
+        { group: { last_message_at: 'desc' } },
+        { group: { id: 'desc' } },
+      ],
+      take: 500,
+    });
+    const inList = (m: (typeof rows)[number]) =>
+      m.left_at === null &&
+      m.hidden_at === null &&
+      (archived ? m.archived_at !== null : m.archived_at === null) &&
+      m.group.deleted_at === null &&
+      m.group.last_message_at !== null;
+    const kept = rows.filter(inList);
+    const deletedIds = rows.filter((m) => !inList(m)).map((m) => m.group_id);
+    const items = await this.presenter.groups(
+      kept.map(({ group, ...me }) => ({ group, me })),
+      user.sub,
+    );
+    return {
+      items,
+      nextCursor: null,
+      deletedIds,
+      syncedAt: syncedAt(
+        rows.flatMap((m) => [m.updated_at, m.group.updated_at]),
+        since,
+      ),
     };
   }
 
@@ -364,6 +428,63 @@ export class GroupsService {
         rows.length > limit && last
           ? encodeCursor({ createdAt: last.created_at, id: last.id })
           : null,
+    };
+  }
+
+  /**
+   * Owner 2026-10-22 (package B): GET /groups/:id/messages?afterId — the
+   * messages after one (oldest first), the catch-up after a reconnect.
+   * More than [CATCH_UP_MAX] missed → 409 SYNC_TOO_OLD: the app reloads
+   * the page instead.
+   */
+  async messagesAfter(
+    user: RequestUser,
+    id: string,
+    afterId: string,
+    topicId?: string,
+  ): Promise<GroupMessagePage> {
+    const m = await this.requireMember(user.sub, id);
+    const topic = topicId ? await this.topicOf(id, topicId) : null;
+    const anchor = await this.prisma.chatGroupMessage.findFirst({
+      where: { id: afterId, group_id: id },
+      select: { id: true, created_at: true },
+    });
+    if (!anchor) throw notFound();
+    const rows = await this.prisma.chatGroupMessage.findMany({
+      where: {
+        group_id: id,
+        deleted_at: {},
+        ...(m.group.show_service_messages
+          ? {}
+          : { type: { not: 'system' as const } }),
+        ...(topic
+          ? topic.is_general
+            ? { OR: [{ topic_id: topic.id }, { topic_id: null }] }
+            : { topic_id: topic.id }
+          : {}),
+        AND: [
+          notExpired(),
+          {
+            OR: [
+              { created_at: { gt: anchor.created_at } },
+              { created_at: anchor.created_at, id: { gt: anchor.id } },
+            ],
+          },
+        ],
+      },
+      orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+      take: CATCH_UP_MAX + 1,
+    });
+    if (rows.length > CATCH_UP_MAX) {
+      throw new ConflictException({
+        ...SYNC_TOO_OLD_ERROR,
+        message: 'Too many messages since afterId — reload the page.',
+        details: { field: 'afterId', max: CATCH_UP_MAX },
+      });
+    }
+    return {
+      items: await this.presenter.messages(rows, user.sub),
+      nextCursor: null,
     };
   }
 
@@ -1920,13 +2041,39 @@ export class GroupsService {
 
   // ----------------------------------------------------------------- topics
 
-  async topics(user: RequestUser, id: string): Promise<GroupTopicDto[]> {
+  /** Owner 2026-10-22 (package B): with `updatedSince` only the topics
+   * changed since, as a delta answer (meta.syncedAt). */
+  async topics(
+    user: RequestUser,
+    id: string,
+    updatedSinceRaw?: string,
+  ): Promise<GroupTopicDto[] | SyncPage<GroupTopicDto>> {
+    const since = parseUpdatedSince(updatedSinceRaw);
     const m = await this.requireMember(user.sub, id);
-    if (!m.group.topics_enabled) return [];
+    if (!m.group.topics_enabled) {
+      return since
+        ? {
+            items: [],
+            nextCursor: null,
+            deletedIds: [],
+            syncedAt: since.toISOString(),
+          }
+        : [];
+    }
     const rows = await this.prisma.chatGroupTopic.findMany({
-      where: { group_id: id },
+      where: { group_id: id, ...(since ? { updated_at: { gte: since } } : {}) },
     });
-    return this.presenter.topics(rows, user.sub);
+    const items = await this.presenter.topics(rows, user.sub);
+    if (!since) return items;
+    return {
+      items,
+      nextCursor: null,
+      deletedIds: [],
+      syncedAt: syncedAt(
+        rows.map((t) => t.updated_at),
+        since,
+      ),
+    };
   }
 
   async createTopic(
@@ -2006,7 +2153,7 @@ export class GroupsService {
     }
     await this.prisma.chatGroupTopic.update({ where: { id: topicId }, data });
     await this.groupChanged(id, 'topics');
-    return this.topics(user, id);
+    return (await this.topics(user, id)) as GroupTopicDto[];
   }
 
   private requireTopicsOn(group: ChatGroup): void {
@@ -2295,7 +2442,12 @@ export class GroupsService {
       row.mention_ids,
       !!dto.deleted,
     )) {
+      // Owner 2026-10-22 (package B): groupId / lastMessageAt beside the
+      // message, so the list row (last message, order, +1 unread when not
+      // mine) is fixed without a GET.
       this.realtime.toUsers(a.userIds, 'group:message', {
+        groupId,
+        lastMessageAt: row.created_at,
         message: { ...dto, mine: a.mine, mentionsMe: a.mentionsMe },
       });
     }
@@ -2349,12 +2501,54 @@ export class GroupsService {
     );
   }
 
-  /** `group:update` to the live members: refetch the group. */
+  /** `group:update` to the live members. Owner 2026-10-22 (package B):
+   * for a change of the card itself (info, members, topics, pinned) the
+   * event carries the shared card, so the app edits the row without a
+   * GET; the personal fields keep their local values. */
   async groupChanged(groupId: string, kind: string): Promise<void> {
+    const card = CARD_KINDS.has(kind) ? await this.card(groupId) : null;
     this.realtime.toUsers(await this.activeMemberIds(groupId), 'group:update', {
       groupId,
       kind,
+      ...(card ? { card } : {}),
     });
+  }
+
+  /** The shared part of a group card (GroupCardDto), one read. */
+  async card(groupId: string): Promise<GroupCardDto | null> {
+    const g = await this.prisma.chatGroup.findFirst({
+      where: { id: groupId, deleted_at: null },
+    });
+    if (!g) return null;
+    const avatars = await this.files.avatarUrlsMany(
+      g.avatar_file_id ? [g.avatar_file_id] : [],
+    );
+    const a = g.avatar_file_id ? avatars.get(g.avatar_file_id) : undefined;
+    return {
+      id: g.id,
+      title: g.title,
+      description: g.description,
+      avatarUrl: a?.url256 ?? null,
+      avatarFullUrl: a?.url ?? null,
+      memberCount: g.member_count,
+      type: g.group_type,
+      username: g.username,
+      joinApproval: g.join_approval,
+      topicsEnabled: g.topics_enabled,
+      generalTopicId: g.general_topic_id,
+      whoCanPost: g.who_can_post,
+      whoCanAdd: g.who_can_add,
+      whoCanEditInfo: g.who_can_edit_info,
+      whoCanCall: g.who_can_call,
+      whoCanMedia: g.who_can_media,
+      whoCanPoll: g.who_can_poll,
+      whoCanPin: g.who_can_pin,
+      showServiceMessages: g.show_service_messages,
+      disappearAfterS: g.disappear_after_s,
+      protectContent: g.protect_content,
+      lastMessageAt: g.last_message_at,
+      updatedAt: g.updated_at,
+    };
   }
 }
 

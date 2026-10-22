@@ -44,7 +44,7 @@ export class PlansController {
   @Public()
   @SkipVersionCheck()
   @Get('plans')
-  @Header('Cache-Control', 'public, max-age=60')
+  @Header('Cache-Control', 'public, max-age=300, stale-while-revalidate=3600')
   @ApiOperation({ summary: 'Purchasable plans of an audience, with prices' })
   @ApiEnvelopeResponse(PlansListDto)
   @ApiErrors({ 400: [ErrorCode.VALIDATION_ERROR] })

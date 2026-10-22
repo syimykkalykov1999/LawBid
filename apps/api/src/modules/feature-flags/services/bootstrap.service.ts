@@ -2,8 +2,11 @@ import { Inject, Injectable, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { I18nLanguage, LegalDocument } from '@prisma/client';
 import type Redis from 'ioredis';
+import { weakEtag } from '../../../common/sync/cheap-etag';
+import { OWNER_CACHE_SETTINGS } from '../../../common/app-settings/app-settings.defaults';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../../redis/redis.constants';
+import { bumpConfigVersion, readConfigVersion } from './config-version';
 import { FeatureFlagsService } from './feature-flags.service';
 import { AppConfigService } from './app-config.service';
 import {
@@ -83,6 +86,8 @@ const BOOTSTRAP_TEXT_TYPES: ReadonlySet<string> = new Set([
  * visible in bootstrap immediately — the "invalidate on import" hook —
  * without the i18n module having to know bootstrap exists. */
 const I18N_BUNDLE_VERSION_KEY_PREFIX = 'i18n:bundle:version:';
+/** The bootstrap ETag rotates at least this often (see [etag]). */
+export const BOOTSTRAP_ETAG_BUCKET_MS = 300_000;
 
 /**
  * Aggregates the five pieces `GET /config/bootstrap` returns. Flags and
@@ -111,6 +116,10 @@ export const PUBLIC_CONFIG_PREFIXES = [
   'translate.',
   // Owner 2026-10-17: the percent cap and where the percent is hidden.
   'fees.contingency_',
+  // Owner 2026-10-22 (client economy plan §5): the on-device cache limits
+  // (`cache.limit_mb.*`, `cache.keep_media_days.default`) — the app may
+  // lower them, never raise above these.
+  'cache.',
 ] as const;
 
 @Injectable()
@@ -212,6 +221,9 @@ export class BootstrapService {
       // Audit 2026-10-02: only what the app needs — never the moderation
       // term lists, budgets or reserved names (this endpoint is public).
       app_config: {
+        // Owner 2026-10-22 (client economy plan §5): the cache ceilings are
+        // always present — the defaults until the admin stores a value.
+        ...OWNER_CACHE_SETTINGS,
         ...Object.fromEntries(
           Object.entries(appConfig).filter(([k]) =>
             PUBLIC_CONFIG_PREFIXES.some((p) => k.startsWith(p)),
@@ -236,6 +248,23 @@ export class BootstrapService {
    * documents — admin panel, file 6). */
   async invalidate(): Promise<void> {
     await this.redis.del(BOOTSTRAP_CACHE_KEY);
+    await bumpConfigVersion(this.redis);
+  }
+
+  /**
+   * Owner 2026-10-22 (client economy plan, package D): the cheap ETag of
+   * the bootstrap — the config version (bumped on every flag / config /
+   * legal change) plus a 5-minute bucket as a safety net for inputs that
+   * bypass the version (a saved integration key gating a flag). Costs one
+   * Redis GET; a 304 skips the whole build.
+   */
+  async etag(now: number = Date.now()): Promise<string> {
+    const version = await readConfigVersion(this.redis);
+    return weakEtag(
+      'boot',
+      version,
+      Math.floor(now / BOOTSTRAP_ETAG_BUCKET_MS),
+    );
   }
 
   private async getContent(): Promise<CachedBootstrapContent> {

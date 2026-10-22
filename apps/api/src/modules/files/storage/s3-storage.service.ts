@@ -21,6 +21,15 @@ import { PinoLogger } from 'nestjs-pino';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import type { BucketKind } from '../files.policy';
 
+/**
+ * Owner 2026-10-22 (client economy plan, package I): every object key is
+ * unique (a file id / content hash — a changed file is a new key), so the
+ * bytes behind a key never change. Browsers, the Flutter web build and
+ * CloudFront may therefore keep them for a year; the header is written on
+ * the object (uploads) and asked for on signed reads.
+ */
+export const IMMUTABLE_CACHE_CONTROL = 'public, max-age=31536000, immutable';
+
 export interface PresignedPost {
   url: string;
   fields: Record<string, string>;
@@ -136,7 +145,12 @@ export class S3StorageService implements OnModuleDestroy {
         ['content-length-range', input.size, input.size],
         ['eq', '$Content-Type', input.contentType],
       ],
-      Fields: { 'Content-Type': input.contentType },
+      // The app forwards every field as-is, so the object is stored with
+      // the immutable Cache-Control (package I).
+      Fields: {
+        'Content-Type': input.contentType,
+        'Cache-Control': IMMUTABLE_CACHE_CONTROL,
+      },
       Expires: input.expiresSec,
     });
     return { url, fields };
@@ -183,6 +197,7 @@ export class S3StorageService implements OnModuleDestroy {
         Key: key,
         Body: body,
         ContentType: contentType,
+        CacheControl: IMMUTABLE_CACHE_CONTROL,
       }),
     );
   }
@@ -215,6 +230,9 @@ export class S3StorageService implements OnModuleDestroy {
       new GetObjectCommand({
         Bucket: bucket,
         Key: key,
+        // Package I: the signed link may expire, the bytes never change —
+        // the client keeps them by the unsigned URL.
+        ResponseCacheControl: IMMUTABLE_CACHE_CONTROL,
         ...(downloadName
           ? { ResponseContentDisposition: contentDisposition(downloadName) }
           : {}),

@@ -65,6 +65,7 @@ import { TranslationModule } from './modules/translation/translation.module';
 import { CallsModule } from './modules/calls/calls.module';
 import { MentionsModule } from './modules/mentions/mentions.module';
 import { NotificationsApiModule } from './modules/notifications/notifications-api.module';
+import { SessionModule } from './modules/session/session.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
 import { RealtimeGatewayModule } from './modules/realtime/realtime-gateway.module';
 import { BidsModule } from './modules/bids/bids.module';
@@ -339,6 +340,8 @@ const isDev =
     MentionsModule,
     // docs/05 §9-§10 notifications REST, badges, push tokens.
     NotificationsApiModule,
+    // Owner 2026-10-22 (client economy plan, package G): GET /me/session.
+    SessionModule,
     BidsModule,
     NegotiationsModule,
     JournalModule,

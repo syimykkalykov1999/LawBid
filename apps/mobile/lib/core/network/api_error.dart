@@ -54,6 +54,8 @@ abstract final class ApiErrorCodes {
   static const reauthRequired = 'REAUTH_REQUIRED';
   static const reauthInvalid = 'REAUTH_INVALID';
   static const deviceAttestationRequired = 'DEVICE_ATTESTATION_REQUIRED';
+  // Client economy (2026-10-22): a delta sync older than the server keeps.
+  static const syncTooOld = 'SYNC_TOO_OLD';
   static const accountSuspended = 'ACCOUNT_SUSPENDED';
   // Owner 2026-10-05 (client fraud): limited while staff check the account.
   static const accountRestricted = 'ACCOUNT_RESTRICTED';
@@ -341,6 +343,7 @@ abstract final class ApiErrorCodes {
     reauthRequired,
     reauthInvalid,
     deviceAttestationRequired,
+    syncTooOld,
     accountSuspended,
     accountRestricted,
     accountDeleted,

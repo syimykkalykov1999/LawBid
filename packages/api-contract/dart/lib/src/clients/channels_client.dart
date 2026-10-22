@@ -39,11 +39,14 @@ abstract class ChannelsClient {
   /// [q] - Title or @username.
   ///
   /// [cursor] - Discover without q: opaque cursor of the ranked list.
+  ///
+  /// [updatedSince] - Owner 2026-10-22 (client economy plan, package F): subscribed / managed only — the channels whose row changed since (a post, settings); meta.deletedIds = channels that left the list (banned, deleted); meta.syncedAt = pass it back next time. My own unsubscribe / pin / archive is applied locally. Older than 7 days → 409 SYNC_TOO_OLD.
   @GET('/channels')
   Future<ChannelListEnvelope> channelList({
     @Query('archived') bool? archived,
     @Query('q') String? q,
     @Query('cursor') String? cursor,
+    @Query('updatedSince') DateTime? updatedSince,
     @Query('scope') Scope2? scope = Scope2.discover,
     @Extras() Map<String, dynamic>? extras,
   });

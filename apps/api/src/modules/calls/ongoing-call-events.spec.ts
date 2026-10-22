@@ -55,6 +55,8 @@ describe('running call events', () => {
         video: false,
         joined: 1,
         joinedIds: ['u1'],
+        // Owner 2026-10-22 (package H): no Redis in this spec → 0.
+        seq: 0,
       },
     );
     // Older app builds still refresh on this one.
@@ -75,7 +77,7 @@ describe('running call events', () => {
     expect(realtime.toUsers).toHaveBeenCalledWith(
       ['u1', 'u2'],
       'call:ongoing_ended',
-      { callId: 'c1', groupId: 'g1', channelId: null },
+      { callId: 'c1', groupId: 'g1', channelId: null, seq: 0 },
     );
   });
 
@@ -91,6 +93,7 @@ describe('running call events', () => {
         channelId: 'ch1',
         video: false,
         joined: 1,
+        seq: 0,
       },
     );
     expect(realtime.toUsers).not.toHaveBeenCalled();

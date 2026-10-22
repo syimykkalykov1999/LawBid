@@ -690,6 +690,9 @@ class ApiSocialRepository implements SocialRepository {
 
   @override
   Future<void> recordPostView(String postId) =>
+      // Client economy package A (mobile) replaces this with the batched
+      // /posts/events | /cases/views call; the single-id route stays until then.
+      // ignore: deprecated_member_use
       guardApiCall(() => _posts.viewPost(id: postId));
 
   @override

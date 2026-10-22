@@ -5,6 +5,7 @@
 import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
+import '../models/app_session_envelope.dart';
 import '../models/consents_saved_envelope.dart';
 import '../models/contact_code_sent_envelope.dart';
 import '../models/contact_request_dto.dart';
@@ -106,6 +107,12 @@ abstract class UsersClient {
   @GET('/users/me/data-export/{exportId}')
   Future<DataExportJobEnvelope> getDataExport({
     @Path('exportId') required String exportId,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// App start in one answer: me + badges + flags + config version + support unread + ongoing calls (cheap ETag → 304)
+  @GET('/me/session')
+  Future<AppSessionEnvelope> getSession({
     @Extras() Map<String, dynamic>? extras,
   });
 }

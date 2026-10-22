@@ -288,7 +288,10 @@ describe('Post insights (e2e)', () => {
     const v = await client();
     const id = randomUUID();
     expect((await events(v, [])).status).toBe(400);
-    expect((await events(v, [{ postId: id, kind: 'view' }])).status).toBe(400);
+    // Owner 2026-10-22 (client economy plan, package A): 'view' is a batch
+    // kind now; an unknown kind is still refused.
+    expect((await events(v, [{ postId: id, kind: 'view' }])).status).toBe(204);
+    expect((await events(v, [{ postId: id, kind: 'nope' }])).status).toBe(400);
     expect(
       (await events(v, [{ postId: 'x', kind: 'impression' }])).status,
     ).toBe(400);

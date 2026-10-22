@@ -1,4 +1,5 @@
 import { MineFilterFields } from '../mine/mine-filters';
+import { UpdatedSinceQuery } from '../../../common/sync/sync.util';
 import { CASE_COVER_RE } from '../domain/case-cover';
 import {
   CASE_DEADLINE_KINDS,
@@ -425,6 +426,11 @@ export class ListMyCasesQueryDto extends MineFilterFields {
   @IsOptional()
   @IsIn(MY_CASES_FILTERS)
   filter?: MyCasesFilter;
+
+  @UpdatedSinceQuery(
+    'Owner 2026-10-22 (client economy plan, package E): only my cases changed since (ISO); meta.deletedIds = cases that left this tab (status moved, deleted); meta.syncedAt = pass it back next time. Older than 7 days → 409 SYNC_TOO_OLD.',
+  )
+  updatedSince?: string;
 
   @ApiPropertyOptional({ description: 'meta.nextCursor of the previous page.' })
   @IsOptional()

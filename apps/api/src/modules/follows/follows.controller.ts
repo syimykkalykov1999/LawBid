@@ -22,6 +22,7 @@ import {
 import {
   AttorneyIdParamDto,
   AttorneyListItemDto,
+  FollowStateDto,
   PeopleListQueryDto,
   SuggestionsQueryDto,
   type AttorneyListPage,
@@ -40,9 +41,13 @@ const E = ErrorCode;
 export class FollowsController {
   constructor(private readonly follows: FollowsService) {}
 
+  // Owner 2026-10-22 (client economy plan, package D): both answers carry
+  // {following, followersCount} (200) so the app edits the profile row
+  // locally; older apps ignore the body.
   @Post('attorneys/:id/follow')
-  @HttpCode(HttpStatus.NO_CONTENT)
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Follow an attorney (idempotent, docs/05 §6.1)' })
+  @ApiEnvelopeResponse(FollowStateDto)
   @ApiErrors({
     404: [E.NOT_FOUND],
     422: [E.FOLLOW_NOT_ALLOWED],
@@ -51,17 +56,18 @@ export class FollowsController {
   followAttorney(
     @CurrentUser() user: RequestUser,
     @Param() p: AttorneyIdParamDto,
-  ): Promise<void> {
+  ): Promise<FollowStateDto> {
     return this.follows.follow(user, p.id);
   }
 
   @Delete('attorneys/:id/follow')
-  @HttpCode(HttpStatus.NO_CONTENT)
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Unfollow (idempotent)' })
+  @ApiEnvelopeResponse(FollowStateDto)
   unfollowAttorney(
     @CurrentUser() user: RequestUser,
     @Param() p: AttorneyIdParamDto,
-  ): Promise<void> {
+  ): Promise<FollowStateDto> {
     return this.follows.unfollow(user, p.id);
   }
 

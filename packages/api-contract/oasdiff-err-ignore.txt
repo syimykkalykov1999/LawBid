@@ -315,3 +315,6 @@ POST /users/me/role added the new `uk` enum value to the `data/pendingLegalDocum
 GET /admin/email-templates added the new `sign_in_changed` enum value to the `data/items/key` response property for the response status `200`
 GET /admin/email-templates/{key}/{locale} added the new `sign_in_changed` enum value to the `data/key` response property for the response status `200`
 PUT /admin/email-templates/{key}/{locale} added the new `sign_in_changed` enum value to the `data/key` response property for the response status `200`
+# Client economy plan 2026-10-22 (package D): follow / unfollow answer {following, followersCount} with 200 instead of an empty 204. Older apps call them as void and ignore the body — a 200 is still a success for them.
+POST /attorneys/{id}/follow removed the success response with the status `204`
+DELETE /attorneys/{id}/follow removed the success response with the status `204`

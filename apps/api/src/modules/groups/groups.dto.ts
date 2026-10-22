@@ -21,6 +21,7 @@ import {
   ValidateIf,
 } from 'class-validator';
 import { ChatAttachmentDto } from '../chat/chat.dto';
+import { UpdatedSinceQuery, type SyncPage } from '../../common/sync/sync.util';
 
 /** Owner 2026-10-20: group chats (Telegram + WhatsApp) — limits. */
 export const GROUP_TITLE_MAX = 80;
@@ -339,6 +340,15 @@ export class GroupMessagesQueryDto {
   @IsUUID('all')
   topicId?: string;
 
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description:
+      'Owner 2026-10-22 (client economy plan, package B): everything after this message (oldest first, up to 200; more than that → 409 SYNC_TOO_OLD, reload the page). Catch-up after a reconnect instead of reloading. `cursor` and `limit` are ignored with it.',
+  })
+  @IsOptional()
+  @IsUUID('all')
+  afterId?: string;
+
   @ApiPropertyOptional({ description: 'meta.nextCursor of the previous page.' })
   @IsOptional()
   @IsString()
@@ -358,6 +368,11 @@ export class GroupsQueryDto {
   @IsOptional()
   @IsString()
   cursor?: string;
+
+  @UpdatedSinceQuery(
+    'Owner 2026-10-22 (client economy plan, package B): only the groups whose row or my membership changed since (ISO) — the catch-up after a reconnect. meta.deletedIds = groups that left this list (I left / was removed / hid / archived or unarchived it, or it was deleted); meta.syncedAt = pass it back next time. Older than 7 days → 409 SYNC_TOO_OLD. Pinned groups are not repeated with it.',
+  )
+  updatedSince?: string;
 
   @ApiPropertyOptional({
     description:
@@ -1158,9 +1173,94 @@ export class GroupReadResultDto {
   lastReadMessageId!: string | null;
 }
 
-export interface GroupPage {
+export interface GroupPage extends SyncPage<GroupDto> {
   items: GroupDto[];
   nextCursor: string | null;
+}
+
+/** GET /groups/:id/topics?updatedSince (package B). */
+export class GroupTopicsQueryDto {
+  @UpdatedSinceQuery(
+    'Owner 2026-10-22 (package B): only the topics changed since (ISO); meta.syncedAt = pass it back next time. Topics are never deleted (deletedIds stays empty). Older than 7 days → 409 SYNC_TOO_OLD.',
+  )
+  updatedSince?: string;
+}
+
+/**
+ * Owner 2026-10-22 (package B): the shared part of a group card, carried
+ * by `group:update` (`card`) so the app fixes the row without a GET. The
+ * personal fields of GroupDto (myRole, unread, rights, can*) are not here
+ * — they change through other events or stay as the app has them.
+ */
+export class GroupCardDto {
+  @ApiProperty({ format: 'uuid' })
+  id!: string;
+
+  @ApiProperty()
+  title!: string;
+
+  @ApiProperty({ type: String, nullable: true })
+  description!: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  avatarUrl!: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  avatarFullUrl!: string | null;
+
+  @ApiProperty({ type: 'integer' })
+  memberCount!: number;
+
+  @ApiProperty({ enum: GROUP_TYPES, enumName: 'GroupType' })
+  type!: GroupTypeName;
+
+  @ApiProperty({ type: String, nullable: true })
+  username!: string | null;
+
+  @ApiProperty()
+  joinApproval!: boolean;
+
+  @ApiProperty()
+  topicsEnabled!: boolean;
+
+  @ApiProperty({ type: String, nullable: true, format: 'uuid' })
+  generalTopicId!: string | null;
+
+  @ApiProperty({ enum: GROUP_WHO, enumName: 'GroupWho' })
+  whoCanPost!: GroupWhoName;
+
+  @ApiProperty({ enum: GROUP_WHO, enumName: 'GroupWho' })
+  whoCanAdd!: GroupWhoName;
+
+  @ApiProperty({ enum: GROUP_WHO, enumName: 'GroupWho' })
+  whoCanEditInfo!: GroupWhoName;
+
+  @ApiProperty({ enum: GROUP_WHO, enumName: 'GroupWho' })
+  whoCanCall!: GroupWhoName;
+
+  @ApiProperty({ enum: GROUP_WHO, enumName: 'GroupWho' })
+  whoCanMedia!: GroupWhoName;
+
+  @ApiProperty({ enum: GROUP_WHO, enumName: 'GroupWho' })
+  whoCanPoll!: GroupWhoName;
+
+  @ApiProperty({ enum: GROUP_WHO, enumName: 'GroupWho' })
+  whoCanPin!: GroupWhoName;
+
+  @ApiProperty()
+  showServiceMessages!: boolean;
+
+  @ApiProperty({ type: 'integer', nullable: true })
+  disappearAfterS!: number | null;
+
+  @ApiProperty()
+  protectContent!: boolean;
+
+  @ApiProperty({ type: String, nullable: true, format: 'date-time' })
+  lastMessageAt!: Date | null;
+
+  @ApiProperty({ format: 'date-time' })
+  updatedAt!: Date;
 }
 export interface GroupMessagePage {
   items: GroupMessageDto[];

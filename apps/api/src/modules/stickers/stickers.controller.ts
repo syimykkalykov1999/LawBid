@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Header,
   HttpCode,
   HttpStatus,
   Param,
@@ -44,7 +45,11 @@ const E = ErrorCode;
 export class StickersController {
   constructor(private readonly stickers: StickersService) {}
 
+  // Owner 2026-10-22 (client economy plan, package D): reference data —
+  // the browser (web build, admin) may keep it and revalidate in the
+  // background; `private` because the answer is per person.
   @Get()
+  @Header('Cache-Control', 'private, max-age=60, stale-while-revalidate=3600')
   @ApiOperation({
     summary: 'My sticker picker: recently used + installed packs',
   })
@@ -56,6 +61,7 @@ export class StickersController {
   }
 
   @Get('featured')
+  @Header('Cache-Control', 'private, max-age=600, stale-while-revalidate=86400')
   @ApiOperation({ summary: 'Official packs, most installed first' })
   @ApiEnvelopeResponse(StickerPackDto, { isArray: true })
   listFeaturedStickerPacks(
@@ -86,6 +92,7 @@ export class StickersController {
   }
 
   @Get('packs/:ref')
+  @Header('Cache-Control', 'private, max-age=600, stale-while-revalidate=86400')
   @ApiOperation({ summary: 'A pack by id or short name' })
   @ApiEnvelopeResponse(StickerPackDto)
   @ApiErrors({ 404: [E.NOT_FOUND] })

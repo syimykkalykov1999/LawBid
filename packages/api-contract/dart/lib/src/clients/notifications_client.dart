@@ -34,12 +34,15 @@ abstract class NotificationsClient {
   ///
   /// [cursor] - meta.nextCursor of the previous page.
   ///
+  /// [updatedSince] - Owner 2026-10-22 (client economy plan, package F): only the notifications created or read since (ISO), newest first — the catch-up after a reconnect (`group` applies, `q` and `cursor` are ignored). meta.syncedAt = pass it back next time; meta.deletedIds stays empty (old rows expire by age). Older than 7 days → 409 SYNC_TOO_OLD.
+  ///
   /// [group] - important: bids, cases, payments, account; other: likes, follows, comments, logins. Omit for all.
   ///
   /// [q] - Words from the stored text (a broadcast's title/body, a moderator's reason) or the name of the attorney in the notification, in any alphabet. Combines with `group`.
   @GET('/notifications')
   Future<NotificationListEnvelope> listNotifications({
     @Query('cursor') String? cursor,
+    @Query('updatedSince') DateTime? updatedSince,
     @Query('group') NotificationGroup? group,
     @Query('q') String? q,
     @Extras() Map<String, dynamic>? extras,

@@ -29,6 +29,7 @@ class _QuestionsClient implements QuestionsClient {
     QuestionFilter? filter,
     QuestionScope? scope,
     String? cursor,
+    DateTime? updatedSince,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
@@ -41,6 +42,7 @@ class _QuestionsClient implements QuestionsClient {
       r'filter': filter?.toJson(),
       r'scope': scope?.toJson(),
       r'cursor': cursor,
+      r'updatedSince': updatedSince?.toIso8601String(),
     };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};

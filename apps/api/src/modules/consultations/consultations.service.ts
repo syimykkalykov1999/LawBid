@@ -22,6 +22,7 @@ import {
   zonedParts,
 } from '../../common/utils/zoned-wall';
 import { PrismaService } from '../../prisma/prisma.service';
+import { parseUpdatedSince, syncedAt } from '../../common/sync/sync.util';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { BlocksService } from '../blocks/blocks.service';
@@ -570,6 +571,35 @@ export class ConsultationsService {
     };
     const where: Prisma.ConsultationWhereInput[] = [mine];
     const asc = view !== 'past';
+    const inView = (c: Consultation): boolean =>
+      view === 'upcoming'
+        ? (ACTIVE as readonly string[]).includes(c.status) && c.ends_at > now
+        : view === 'pending'
+          ? c.status === 'pending' && c.ends_at > now
+          : c.status === 'declined' ||
+            c.status === 'cancelled' ||
+            c.ends_at <= now;
+    // Owner 2026-10-22 (client economy plan, package E): the delta — my
+    // consultations changed since; the ones outside this view now come
+    // back as deletedIds.
+    const since = parseUpdatedSince(q.updatedSince);
+    if (since) {
+      const rows = await this.prisma.consultation.findMany({
+        where: { AND: [mine, { updated_at: { gte: since } }] },
+        orderBy: [{ starts_at: 'asc' }, { id: 'asc' }],
+        take: 500,
+      });
+      const kept = rows.filter(inView);
+      return {
+        items: await this.present(kept, user.sub),
+        nextCursor: null,
+        deletedIds: rows.filter((c) => !inView(c)).map((c) => c.id),
+        syncedAt: syncedAt(
+          rows.map((c) => c.updated_at),
+          since,
+        ),
+      };
+    }
     if (view === 'upcoming') {
       where.push({ status: { in: [...ACTIVE] }, ends_at: { gt: now } });
     } else if (view === 'pending') {

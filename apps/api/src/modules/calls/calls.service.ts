@@ -9,6 +9,9 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Inject } from '@nestjs/common';
+import type Redis from 'ioredis';
+import { REDIS_CLIENT } from '../../redis/redis.constants';
 import type {
   Call,
   CallParticipant,
@@ -142,6 +145,9 @@ export class CallsService {
     @Optional() private readonly privacy?: PrivacySettingsService,
     // Owner 2026-10-20: calls from a group chat.
     @Optional() private readonly groups?: GroupsService,
+    // Owner 2026-10-22 (client economy plan, package H): per-call event
+    // sequence numbers (`seq`), so the app resyncs only on a gap.
+    @Optional() @Inject(REDIS_CLIENT) private readonly redis?: Redis,
     // Owner 2026-10-22 (audit #4 §7): call connect SLO.
     @Optional() private readonly slo?: SloMetricsService,
   ) {
@@ -150,6 +156,30 @@ export class CallsService {
     this.groups?.membershipEnded$.subscribe((e) => {
       void this.dropFromGroupCall(e).catch(() => undefined);
     });
+  }
+
+  /**
+   * Owner 2026-10-22 (client economy plan, package H): every `call:*`
+   * event of a call carries a growing `seq` (Redis INCR per call, kept a
+   * day). The app resyncs GET /calls/:id only when a number is skipped —
+   * or every 30 s instead of every 8. Without Redis the field is 0 (the
+   * app then keeps its timer).
+   */
+  private async withSeq<T extends object>(
+    callId: string,
+    payload: T,
+  ): Promise<T & { seq: number }> {
+    let seq = 0;
+    if (this.redis && this.redis.status === 'ready') {
+      try {
+        const key = `call:seq:${callId}`;
+        seq = await this.redis.incr(key);
+        if (seq === 1) await this.redis.expire(key, 86_400);
+      } catch {
+        seq = 0;
+      }
+    }
+    return { ...payload, seq };
   }
 
   private readonly videoProvider: VideoCallProvider;
@@ -294,7 +324,9 @@ export class CallsService {
           )
         ).filter((h): h is string => h !== null);
     const ringing = [callee, ...reachable];
-    const incoming = { call: await this.toDto(call, callee) };
+    const incoming = await this.withSeq(call.id, {
+      call: await this.toDto(call, callee),
+    });
     this.realtime.toUsers(ringing, 'call:incoming', incoming);
     for (const recipientId of ringing) {
       await this.push.enqueueCall({ recipientId, callId: call.id });
@@ -339,9 +371,11 @@ export class CallsService {
     // Both sides: the caller starts WebRTC, the callee's other devices
     // stop ringing.
     for (const uid of [call.caller_id, call.callee_id]) {
-      this.realtime.toUsers([uid], 'call:accepted', {
-        call: await this.toDto(fresh, uid),
-      });
+      this.realtime.toUsers(
+        [uid],
+        'call:accepted',
+        await this.withSeq(call.id, { call: await this.toDto(fresh, uid) }),
+      );
     }
     await this.stopRingingPush(call);
     return this.toDto(fresh, user.sub);
@@ -597,9 +631,11 @@ export class CallsService {
         ]),
       ];
       for (const uid of audience) {
-        this.realtime.toUsers([uid], 'call:ended', {
-          call: await this.toDto(fresh, uid),
-        });
+        this.realtime.toUsers(
+          [uid],
+          'call:ended',
+          await this.withSeq(call.id, { call: await this.toDto(fresh, uid) }),
+        );
       }
       if (call.is_group) {
         await this.prisma.callParticipant.updateMany({
@@ -739,9 +775,11 @@ export class CallsService {
     });
     for (const id of invitees) {
       // A call from a group chat is a light invitation, not a ring.
-      this.realtime.toUsers([id], 'call:invite', {
-        call: await this.toDto(call, id),
-      });
+      this.realtime.toUsers(
+        [id],
+        'call:invite',
+        await this.withSeq(call.id, { call: await this.toDto(call, id) }),
+      );
       await this.push.enqueueCall({ recipientId: id, callId: call.id });
     }
     await this.broadcastParticipants(call.id);
@@ -938,7 +976,7 @@ export class CallsService {
     const over = ended || !LIVE.includes(call.status);
     const joined = rows.filter((r) => r.status === 'joined');
     const event = over ? 'call:ongoing_ended' : 'call:ongoing';
-    const payload = {
+    const payload = await this.withSeq(call.id, {
       callId: call.id,
       groupId: call.group_id,
       channelId: call.channel_id,
@@ -953,7 +991,7 @@ export class CallsService {
               ? { joinedIds: joined.map((r) => r.user_id) }
               : {}),
           }),
-    };
+    });
     if (call.channel_id) {
       this.realtime.toRoom(channelRoom(call.channel_id), event, payload);
     }
@@ -1082,7 +1120,11 @@ export class CallsService {
       where: { id: row.id },
       data: { status: 'removed', left_at: new Date() },
     });
-    this.realtime.toUsers([e.userId], 'call:removed', { callId: call.id });
+    this.realtime.toUsers(
+      [e.userId],
+      'call:removed',
+      await this.withSeq(call.id, { callId: call.id }),
+    );
     await this.push.enqueueCallEnded({
       recipientId: e.userId,
       callId: call.id,
@@ -1145,11 +1187,15 @@ export class CallsService {
     if (!call?.is_group) return;
     const rows = await this.rowsOf(callId);
     const ids = [...new Set([...this.audience(call, rows), ...extra])];
-    this.realtime.toUsers(ids, 'call:participants', {
-      callId,
-      hostId: await this.hostFor(call, rows),
-      participants: await this.participantDtos(rows),
-    });
+    this.realtime.toUsers(
+      ids,
+      'call:participants',
+      await this.withSeq(callId, {
+        callId,
+        hostId: await this.hostFor(call, rows),
+        participants: await this.participantDtos(rows),
+      }),
+    );
     await this.announceGroupCall(call, rows);
   }
 
@@ -1273,7 +1319,7 @@ export class CallsService {
     this.realtime.toUsers(
       [targetId],
       call.group_id || call.channel_id ? 'call:invite' : 'call:incoming',
-      { call: await this.toDto(call, targetId) },
+      await this.withSeq(call.id, { call: await this.toDto(call, targetId) }),
     );
     await this.push.enqueueCall({ recipientId: targetId, callId: call.id });
     await this.broadcastParticipants(call.id);
@@ -1332,9 +1378,11 @@ export class CallsService {
       data: { status: 'joined', joined_at: new Date() },
     });
     if (count === 0) throw conflict();
-    this.realtime.toUsers([user.sub], 'call:accepted', {
-      call: await this.toDto(call, user.sub),
-    });
+    this.realtime.toUsers(
+      [user.sub],
+      'call:accepted',
+      await this.withSeq(call.id, { call: await this.toDto(call, user.sub) }),
+    );
     // Their other devices stop ringing.
     await this.push.enqueueCallEnded({
       recipientId: user.sub,
@@ -1425,11 +1473,15 @@ export class CallsService {
         ? { muted: true, muted_by_host: true }
         : { muted_by_host: false },
     });
-    this.realtime.toUsers([targetId], 'call:muted', {
-      callId: call.id,
-      muted,
-      byUserId: user.sub,
-    });
+    this.realtime.toUsers(
+      [targetId],
+      'call:muted',
+      await this.withSeq(call.id, {
+        callId: call.id,
+        muted,
+        byUserId: user.sub,
+      }),
+    );
     await this.broadcastParticipants(call.id);
     return this.toDto(call, user.sub);
   }
@@ -1464,7 +1516,11 @@ export class CallsService {
       where: { id: row.id },
       data: { status: 'removed', left_at: new Date() },
     });
-    this.realtime.toUsers([row.user_id], 'call:removed', { callId: call.id });
+    this.realtime.toUsers(
+      [row.user_id],
+      'call:removed',
+      await this.withSeq(call.id, { callId: call.id }),
+    );
     await this.push.enqueueCallEnded({
       recipientId: row.user_id,
       callId: call.id,
@@ -1586,12 +1642,16 @@ export class CallsService {
       ]),
     ];
     for (const uid of ids) {
-      this.realtime.toUsers([uid], 'call:vote', {
-        callId: call.id,
-        result,
-        targetId: vote.target_id,
-        vote: result === 'open' ? this.voteDto(vote, rows, uid) : null,
-      });
+      this.realtime.toUsers(
+        [uid],
+        'call:vote',
+        await this.withSeq(call.id, {
+          callId: call.id,
+          result,
+          targetId: vote.target_id,
+          vote: result === 'open' ? this.voteDto(vote, rows, uid) : null,
+        }),
+      );
     }
   }
 
@@ -1754,9 +1814,13 @@ export class CallsService {
         recipientId: row.user_id,
         callId: row.call_id,
       });
-      this.realtime.toUsers([row.user_id], 'call:ended', {
-        call: await this.toDtoById(row.call_id, row.user_id),
-      });
+      this.realtime.toUsers(
+        [row.user_id],
+        'call:ended',
+        await this.withSeq(row.call_id, {
+          call: await this.toDtoById(row.call_id, row.user_id),
+        }),
+      );
       await this.broadcastParticipants(row.call_id);
       await this.endIfAlone(row.call_id);
     }

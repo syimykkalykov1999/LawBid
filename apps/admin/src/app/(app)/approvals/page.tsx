@@ -59,6 +59,7 @@ export default function ApprovalsPage() {
   const refresh = () => {
     void qc.invalidateQueries({ queryKey: ['approvals'] });
     void qc.invalidateQueries({ queryKey: ['approvals-count'] });
+    void qc.invalidateQueries({ queryKey: ['admin-counts'] });
   };
 
   // The API client asks for the authenticator code itself (StepUpHost).

@@ -3,6 +3,7 @@ import {
   Injectable,
   type OnApplicationBootstrap,
   type OnApplicationShutdown,
+  Optional,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Queue, Worker, type Job } from 'bullmq';
@@ -11,6 +12,7 @@ import { demoContext } from '../../common/demo/demo-context';
 import { PrismaService } from '../../prisma/prisma.service';
 import { BlocksService } from '../blocks/blocks.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { RealtimePublisher } from '../realtime/realtime-publisher.service';
 
 export const CHANNEL_FANOUT_QUEUE = 'channel-fanout';
 export const CHANNEL_FANOUT_OPTIONS = Symbol('CHANNEL_FANOUT_OPTIONS');
@@ -65,6 +67,10 @@ export class ChannelFanoutRunner
     private readonly blocks: BlocksService,
     private readonly notifications: NotificationsService,
     private readonly logger: PinoLogger,
+    // Owner 2026-10-22 (client economy plan, package F): one light
+    // `channel:update` per batch of subscribers (no body) — their list row
+    // moves without a GET.
+    @Optional() private readonly realtime?: RealtimePublisher,
   ) {
     this.logger.setContext(ChannelFanoutRunner.name);
   }
@@ -162,6 +168,15 @@ export class ChannelFanoutRunner
       select: { user_id: true },
     });
     if (subs.length === 0) return null;
+    this.realtime?.toUsers(
+      subs.map((s) => s.user_id),
+      'channel:update',
+      {
+        channelId: data.channelId,
+        postId: data.postId,
+        lastPostAt: new Date().toISOString(),
+      },
+    );
     await this.notifications.emitMany({
       type: 'channel_post',
       recipientIds: subs.map((s) => s.user_id),

@@ -323,6 +323,9 @@ export class CaseSummaryDto {
 export interface CasePage {
   items: CaseSummaryDto[];
   nextCursor: string | null;
+  /** Owner 2026-10-22 (package E): with ?updatedSince. */
+  deletedIds?: string[];
+  syncedAt?: string;
 }
 
 export class CaseDeletedDto {

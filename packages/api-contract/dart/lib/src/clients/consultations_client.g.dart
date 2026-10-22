@@ -125,6 +125,7 @@ class _ConsultationsClient implements ConsultationsClient {
   @override
   Future<ConsultationListEnvelope> listConsultations({
     String? cursor,
+    DateTime? updatedSince,
     View? view = View.upcoming,
     Map<String, dynamic>? extras,
   }) async {
@@ -132,6 +133,7 @@ class _ConsultationsClient implements ConsultationsClient {
     _extra.addAll(extras ?? <String, dynamic>{});
     final queryParameters = <String, dynamic>{
       r'cursor': cursor,
+      r'updatedSince': updatedSince?.toIso8601String(),
       r'view': view?.toJson(),
     };
     queryParameters.removeWhere((k, v) => v == null);

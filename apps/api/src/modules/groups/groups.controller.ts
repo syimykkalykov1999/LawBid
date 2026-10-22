@@ -53,6 +53,7 @@ import {
   GroupPollParamDto,
   GroupReadResultDto,
   GroupsQueryDto,
+  GroupTopicsQueryDto,
   PinGroupMessageDto,
   PollDto,
   PollVoterOptionDto,
@@ -67,6 +68,7 @@ import {
   type GroupPage,
 } from './groups.dto';
 import { GroupsService } from './groups.service';
+import type { SyncPage } from '../../common/sync/sync.util';
 
 const GROUP_ERRORS = {
   403: [ErrorCode.GROUP_FORBIDDEN],
@@ -95,7 +97,12 @@ export class GroupsController {
     @CurrentUser() user: RequestUser,
     @Query() q: GroupsQueryDto,
   ): Promise<GroupPage> {
-    return this.groups.list(user, q.cursor, q.archived === true);
+    return this.groups.list(
+      user,
+      q.cursor,
+      q.archived === true,
+      q.updatedSince,
+    );
   }
 
   @Post()
@@ -332,6 +339,9 @@ export class GroupsController {
     @Param() p: GroupIdParamDto,
     @Query() q: GroupMessagesQueryDto,
   ): Promise<GroupMessagePage> {
+    if (q.afterId) {
+      return this.groups.messagesAfter(user, p.id, q.afterId, q.topicId);
+    }
     return this.groups.messages(user, p.id, q.cursor, q.limit, q.topicId);
   }
 
@@ -455,8 +465,9 @@ export class GroupsController {
   listGroupTopics(
     @CurrentUser() user: RequestUser,
     @Param() p: GroupIdParamDto,
-  ): Promise<GroupTopicDto[]> {
-    return this.groups.topics(user, p.id);
+    @Query() q: GroupTopicsQueryDto,
+  ): Promise<GroupTopicDto[] | SyncPage<GroupTopicDto>> {
+    return this.groups.topics(user, p.id, q.updatedSince);
   }
 
   @Post(':id/topics')

@@ -264,6 +264,36 @@ export class DashboardSubscriptionsDto {
   revenueEstimateUsd!: number | null;
 }
 
+/** GET /admin/counts (owner 2026-10-22, client economy plan package J). */
+export class AdminCountsDto {
+  @ApiProperty({
+    type: 'integer',
+    description: 'Verification requests waiting.',
+  })
+  verificationQueue!: number;
+
+  @ApiProperty({ type: 'integer', description: 'Open reports.' })
+  openReports!: number;
+
+  @ApiProperty({
+    type: 'integer',
+    description: 'Support tickets unread by the team.',
+  })
+  supportUnread!: number;
+
+  @ApiProperty({
+    type: 'integer',
+    description: 'Attorneys in the trust queue.',
+  })
+  trustQueue!: number;
+
+  @ApiProperty({
+    type: 'integer',
+    description: 'Approvals this admin could decide.',
+  })
+  approvalsPending!: number;
+}
+
 export class DashboardDto {
   @ApiProperty({ type: DashboardNewUsersDto })
   newUsers!: DashboardNewUsersDto;

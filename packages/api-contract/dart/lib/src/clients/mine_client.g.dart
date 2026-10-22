@@ -104,6 +104,7 @@ class _MineClient implements MineClient {
     String? practice,
     String? state,
     String? cursor,
+    DateTime? updatedSince,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
@@ -115,6 +116,7 @@ class _MineClient implements MineClient {
       r'practice': practice,
       r'state': state,
       r'cursor': cursor,
+      r'updatedSince': updatedSince?.toIso8601String(),
     };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};
@@ -148,6 +150,7 @@ class _MineClient implements MineClient {
     String? practice,
     String? state,
     String? cursor,
+    DateTime? updatedSince,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
@@ -159,6 +162,7 @@ class _MineClient implements MineClient {
       r'practice': practice,
       r'state': state,
       r'cursor': cursor,
+      r'updatedSince': updatedSince?.toIso8601String(),
     };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};

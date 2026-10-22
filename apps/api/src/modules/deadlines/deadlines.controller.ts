@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Header,
   HttpCode,
   HttpStatus,
   Param,
@@ -47,7 +48,10 @@ const E = ErrorCode;
 export class DeadlinesController {
   constructor(private readonly deadlines: DeadlinesService) {}
 
+  // Owner 2026-10-22 (client economy plan, package D): reference data —
+  // cacheable in the browser, revalidated in the background.
   @Get('rules')
+  @Header('Cache-Control', 'private, max-age=600, stale-while-revalidate=86400')
   @ApiOperation({ summary: 'Deadline rules: federal plus a state’s' })
   @ApiEnvelopeResponse(DeadlineRuleDto, { isArray: true })
   @ApiErrors({ 400: [E.VALIDATION_ERROR], 403: [E.FEATURE_DISABLED] })
@@ -56,6 +60,7 @@ export class DeadlinesController {
   }
 
   @Get('holidays')
+  @Header('Cache-Control', 'private, max-age=600, stale-while-revalidate=86400')
   @ApiOperation({ summary: 'Court holidays of a year' })
   @ApiEnvelopeResponse(DeadlineHolidayDto, { isArray: true })
   @ApiErrors({ 400: [E.VALIDATION_ERROR], 403: [E.FEATURE_DISABLED] })

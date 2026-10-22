@@ -46,7 +46,7 @@ export class LegalDocumentsController {
 
   @Public()
   @Get('documents')
-  @Header('Cache-Control', 'public, max-age=60')
+  @Header('Cache-Control', 'public, max-age=300, stale-while-revalidate=3600')
   @ApiOperation({
     summary:
       'Every current legal document (type, language, version, date; public, for the website and the app)',
@@ -58,7 +58,7 @@ export class LegalDocumentsController {
 
   @Public()
   @Get('documents/:type')
-  @Header('Cache-Control', 'public, max-age=60')
+  @Header('Cache-Control', 'public, max-age=300, stale-while-revalidate=3600')
   @ApiOperation({
     summary:
       'The current text of one legal document in Markdown (public); English when there is no text in the language',

@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client';
+import { Prisma, type UserRole } from '@prisma/client';
 import { escapeLike, nameMatchSql } from '../../common/search/name-match.sql';
 import {
   Inject,
@@ -30,6 +30,7 @@ import { RecommendationsService } from '../recommendations/recommendations.servi
 import type {
   AttorneyListItemDto,
   AttorneyListPage,
+  FollowStateDto,
   PeoplePage,
   PersonItemDto,
 } from './follows.dto';
@@ -71,7 +72,7 @@ export class FollowsService {
     @Optional() private readonly recommendations?: RecommendationsService,
   ) {}
 
-  async follow(user: RequestUser, attorneyId: string): Promise<void> {
+  async follow(user: RequestUser, attorneyId: string): Promise<FollowStateDto> {
     if (attorneyId === user.sub) throw notAllowed();
     const target = await this.prisma.user.findFirst({
       where: { id: attorneyId, deleted_at: null },
@@ -102,7 +103,7 @@ export class FollowsService {
       data: [{ follower_id: user.sub, followee_id: attorneyId }],
       skipDuplicates: true,
     });
-    if (count === 0) return;
+    if (count === 0) return this.state(attorneyId, target.role, true);
     await this.counters.bump(
       profileEntity(target.role),
       attorneyId,
@@ -125,17 +126,21 @@ export class FollowsService {
           ? { actorId: user.sub }
           : { actorKind: 'client' },
     });
+    return this.state(attorneyId, target.role, true);
   }
 
-  async unfollow(user: RequestUser, attorneyId: string): Promise<void> {
-    const { count } = await this.prisma.follow.deleteMany({
-      where: { follower_id: user.sub, followee_id: attorneyId },
-    });
-    if (count === 0) return;
+  async unfollow(
+    user: RequestUser,
+    attorneyId: string,
+  ): Promise<FollowStateDto> {
     const target = await this.prisma.user.findUnique({
       where: { id: attorneyId },
       select: { role: true },
     });
+    const { count } = await this.prisma.follow.deleteMany({
+      where: { follower_id: user.sub, followee_id: attorneyId },
+    });
+    if (count === 0) return this.state(attorneyId, target?.role, false);
     await this.counters.bump(
       profileEntity(target?.role),
       attorneyId,
@@ -148,6 +153,37 @@ export class FollowsService {
       'following_count',
       -1,
     );
+    return this.state(attorneyId, target?.role, false);
+  }
+
+  /** The follow state the app shows after the action (package D):
+   * followers = stored counter + pending deltas. */
+  private async state(
+    id: string,
+    role: UserRole | null | undefined,
+    following: boolean,
+  ): Promise<FollowStateDto> {
+    const entity = profileEntity(role);
+    const row =
+      entity === 'attorney'
+        ? await this.prisma.attorneyProfile.findUnique({
+            where: { user_id: id },
+            select: { followers_count: true },
+          })
+        : await this.prisma.clientProfile.findUnique({
+            where: { user_id: id },
+            select: { followers_count: true },
+          });
+    const pending = await this.counters.pending(entity, 'followers_count', [
+      id,
+    ]);
+    return {
+      following,
+      followersCount: Math.max(
+        0,
+        (row?.followers_count ?? 0) + (pending.get(id) ?? 0),
+      ),
+    };
   }
 
   /** GET /attorneys/:id/followers — attorney followers only (§6.2). */

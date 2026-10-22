@@ -1749,6 +1749,8 @@ model Case {
   @@index([status, closed_at])
   // Owner 2026-10-05: the daily deadline-reminder job.
   @@index([deadline_at])
+  // Owner 2026-10-22 (client economy plan, package E): GET /users/me/cases?updatedSince.
+  @@index([client_id, updated_at(sort: Desc)])
   @@map("cases")
 }
 
@@ -2769,6 +2771,8 @@ model ChatGroup {
 
   @@index([created_by])
   @@index([avatar_file_id])
+  // Owner 2026-10-22 (client economy plan, package B): GET /groups?updatedSince.
+  @@index([updated_at])
   @@map("chat_groups")
 }
 
@@ -2800,6 +2804,8 @@ model ChatGroupMember {
 
   @@id([group_id, user_id])
   @@index([user_id, left_at])
+  // Owner 2026-10-22 (client economy plan, package B): my memberships changed since.
+  @@index([user_id, updated_at])
   @@map("chat_group_members")
 }
 
@@ -2978,12 +2984,16 @@ model Notification {
   payload         Json
   read_at         DateTime?            @db.Timestamptz
   created_at      DateTime             @default(now()) @db.Timestamptz
+  /// Owner 2026-10-22 (client economy plan, package F): moves when the row
+  /// is read / re-aggregated — GET /notifications?updatedSince.
+  updated_at      DateTime             @default(now()) @updatedAt @db.Timestamptz
   // docs/05 §9.4, §14 (stage 5.1): aggregation window key; partial UQ
   // (user_id, dedupe_key) WHERE dedupe_key IS NOT NULL is raw SQL.
   dedupe_key      String?
   aggregate_count Int                  @default(1)
 
   @@index([user_id, created_at(sort: Desc)])
+  @@index([user_id, updated_at(sort: Desc)])
   // Kept (migration 20260928140000): the retention job scans by age.
   @@index([created_at], map: "notifications_created_at_idx")
   @@map("notifications")
@@ -4008,6 +4018,8 @@ model CaseInvite {
 
   @@unique([case_id, attorney_id], map: "case_invites_case_attorney_key")
   @@index([attorney_id, status], map: "case_invites_attorney_status_idx")
+  // Owner 2026-10-22 (client economy plan, package E): GET /invites?updatedSince.
+  @@index([attorney_id, updated_at], map: "case_invites_attorney_updated_idx")
   @@index([client_id, created_at], map: "case_invites_client_created_idx")
   @@map("case_invites")
 }
@@ -6587,6 +6599,9 @@ model Consultation {
   @@index([attorney_id, starts_at])
   @@index([client_id, starts_at])
   @@index([status, starts_at])
+  // Owner 2026-10-22 (client economy plan, package E): GET /consultations?updatedSince.
+  @@index([attorney_id, updated_at])
+  @@index([client_id, updated_at])
   @@map("consultations")
 }
 
@@ -6621,6 +6636,8 @@ model LegalQuestion {
   @@index([practice_area_id, created_at(sort: Desc)])
   @@index([state_code, created_at(sort: Desc)])
   @@index([author_id, created_at(sort: Desc)])
+  // Owner 2026-10-22 (client economy plan, package F): GET /questions?filter=mine&updatedSince.
+  @@index([author_id, updated_at])
   @@index([closed_at, deleted_at])
   @@map("legal_questions")
 }

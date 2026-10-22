@@ -13,6 +13,9 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { BudgetMode, CaseStatus, SavedItemType } from '@prisma/client';
 import { Type, Transform } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  IsArray,
   IsBoolean,
   IsEnum,
   IsIn,
@@ -228,6 +231,17 @@ export class ListCasesFeedQueryDto {
   )
   @IsBoolean()
   hasDeadline?: boolean;
+}
+
+/** POST /cases/views (owner 2026-10-22, client economy plan package A):
+ * up to 50 case ids seen since the last flush. */
+export class CaseViewsDto {
+  @ApiProperty({ type: [String], format: 'uuid', minItems: 1, maxItems: 50 })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(50)
+  @IsUUID('all', { each: true })
+  caseIds!: string[];
 }
 
 /** POST/DELETE /saved-items (docs/04 §4.3, §11.2, §15). Only itemType

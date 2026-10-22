@@ -11,6 +11,7 @@ import type { Prisma } from '@prisma/client';
 import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { parseUpdatedSince, syncedAt } from '../../../common/sync/sync.util';
 import type { RequestUser } from '../../auth/decorators/current-user.decorator';
 import { FilesService } from '../../files/files.service';
 import { NotificationsService } from '../../notifications/notifications.service';
@@ -320,12 +321,18 @@ export class CaseInvitesService {
     assertAttorney(user);
     const now = new Date();
     const pendingOnly = (query.status ?? 'pending') === 'pending';
-    const cursor = query.cursor ? decodeCursor(query.cursor) : null;
+    // Owner 2026-10-22 (client economy plan, package E): the delta — my
+    // invites changed since; with status=pending the ones no longer
+    // pending come back as deletedIds.
+    const since = parseUpdatedSince(query.updatedSince);
+    const cursor = query.cursor && !since ? decodeCursor(query.cursor) : null;
     const rows = await this.prisma.caseInvite.findMany({
       where: {
         attorney_id: user.sub,
-        case: { deleted_at: null },
-        ...(pendingOnly
+        ...(since
+          ? { updated_at: { gte: since } }
+          : { case: { deleted_at: null } }),
+        ...(pendingOnly && !since
           ? {
               status: 'pending',
               expires_at: { gt: now },
@@ -342,17 +349,32 @@ export class CaseInvitesService {
           : {}),
       },
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
-      take: INVITES_PAGE_SIZE + 1,
+      take: since ? 500 : INVITES_PAGE_SIZE + 1,
       include: INVITE_INCLUDE,
     });
-    const page = rows.slice(0, INVITES_PAGE_SIZE);
+    const inList = (r: (typeof rows)[number]) =>
+      r.case.deleted_at === null &&
+      (!pendingOnly ||
+        (r.status === 'pending' &&
+          r.expires_at > now &&
+          r.case.status === 'open'));
+    const page = since ? rows.filter(inList) : rows.slice(0, INVITES_PAGE_SIZE);
     const last = page[page.length - 1];
     return {
       items: await Promise.all(page.map((r) => this.toDto(r, now, false))),
       nextCursor:
-        rows.length > INVITES_PAGE_SIZE && last
+        !since && rows.length > INVITES_PAGE_SIZE && last
           ? encodeCursor(last.created_at, last.id)
           : null,
+      ...(since
+        ? {
+            deletedIds: rows.filter((r) => !inList(r)).map((r) => r.id),
+            syncedAt: syncedAt(
+              rows.map((r) => r.updated_at),
+              since,
+            ),
+          }
+        : {}),
     };
   }
 

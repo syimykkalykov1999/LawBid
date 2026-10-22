@@ -71,6 +71,7 @@ export class MineController {
       query.cursor,
       query.limit,
       query,
+      query.updatedSince,
     );
   }
 
@@ -88,6 +89,7 @@ export class MineController {
       query.cursor,
       query.limit,
       query,
+      query.updatedSince,
     );
   }
 

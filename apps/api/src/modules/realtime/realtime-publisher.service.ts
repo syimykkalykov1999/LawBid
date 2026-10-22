@@ -11,6 +11,9 @@ export const conversationRoom = (id: string) => `conversation:${id}`;
  * channel open (`channel:watch`) — its call changes reach only them, never
  * every subscriber. */
 export const channelRoom = (id: string) => `channel:${id}`;
+/** Owner 2026-10-22 (client economy plan, package F): the sockets that
+ * have a post open (`post:watch`) — new comments reach only them. */
+export const postRoom = (id: string) => `post:${id}`;
 /** Sockets of a user that have a conversation open (push suppression,
  * §8.4 "push получателю, если он не в этой беседе"). */
 export const viewingKey = (userId: string, conversationId: string) =>
@@ -103,6 +106,18 @@ export type RealtimeEvent =
   // the chat lists drop its unread pill locally.
   | 'conversation:read'
   | 'notification:new'
+  // Owner 2026-10-22 (client economy plan, package E): a case of mine
+  // changed (a bid came / was accepted / declined / countered / withdrawn,
+  // the case was edited / closed, a task or payment) and a consultation
+  // of mine changed — the lists fix the row instead of reloading.
+  | 'case:update'
+  | 'consultation:update'
+  // Owner 2026-10-22 (package F): a channel I read posted (to the open
+  // channel's room) and a subscribed channel's counters moved (to me);
+  // a comment under a post I have open (room post:{id}).
+  | 'channel:post'
+  | 'channel:update'
+  | 'comment:new'
   | 'badge:update';
 
 /**

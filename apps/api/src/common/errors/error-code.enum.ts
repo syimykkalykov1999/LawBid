@@ -526,4 +526,7 @@ export enum ErrorCode {
   // 400: the target cannot hold this kind of message (a voice note into a
   // group, a document into a channel…).
   UNSUPPORTED_IN_TARGET = 'UNSUPPORTED_IN_TARGET',
+  // Owner 2026-10-22 (client economy plan §4). 409: `updatedSince` is
+  // older than 7 days — the app reloads the list from page 1.
+  SYNC_TOO_OLD = 'SYNC_TOO_OLD',
 }

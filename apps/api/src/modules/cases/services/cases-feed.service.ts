@@ -366,6 +366,19 @@ export class CasesFeedService {
     await this.viewTracking.recordView(attorneyId, caseId);
   }
 
+  /** POST /cases/views (owner 2026-10-22, package A): the same, for many
+   * cases in one request; a case the attorney may not see is skipped. */
+  async recordViews(attorneyId: string, caseIds: string[]): Promise<void> {
+    for (const caseId of [...new Set(caseIds)]) {
+      try {
+        await this.access.assertVisibleToAttorney(attorneyId, caseId);
+      } catch {
+        continue;
+      }
+      await this.viewTracking.recordView(attorneyId, caseId);
+    }
+  }
+
   /** POST /saved-items (docs/04 §4.3 "Сохранить", §11.2, §15). Only
    * attorney with current visibility on the case can save it (§4.3 button
    * only appears there); posts (docs/05 §4) go to PostEngagementService. */

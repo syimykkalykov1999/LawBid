@@ -1,5 +1,9 @@
 import { Module } from '@nestjs/common';
 import { AdminAccessModule } from '../admin-access/admin-access.module';
+import { AdminAuthModule } from '../admin-auth/admin-auth.module';
+import { AttorneyTrustCoreModule } from '../attorney-trust/attorney-trust.module';
+import { AdminCountsController } from './admin-counts.controller';
+import { AdminCountsService } from './admin-counts.service';
 import { AdminRoleTemplatesController } from './admin-role-templates.controller';
 import { AdminRoleTemplatesService } from './admin-role-templates.service';
 import { AdminsController } from './admins.controller';
@@ -14,9 +18,10 @@ import { DashboardService } from './dashboard.service';
 /** docs/06 §2.3 items 1, 12, 13 (stage 6.2): dashboard, audit log,
  * administrators. The other sections live with their domain modules. */
 @Module({
-  imports: [AdminAccessModule],
+  imports: [AdminAccessModule, AdminAuthModule, AttorneyTrustCoreModule],
   controllers: [
     DashboardController,
+    AdminCountsController,
     AuditLogController,
     AdminRoleTemplatesController,
     AdminsController,
@@ -24,6 +29,7 @@ import { DashboardService } from './dashboard.service';
   ],
   providers: [
     DashboardService,
+    AdminCountsService,
     AuditLogQueryService,
     AdminsService,
     AdminRoleTemplatesService,

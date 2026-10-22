@@ -313,6 +313,21 @@ export const OWNER_SMS_SETTINGS = {
   'sms.reset_per_number_per_day': 5,
 } as const;
 
+// Owner 2026-10-22 (client economy plan §5, Telegram «Данные и память»):
+// the ceilings of the on-device caches, sent in GET /config/bootstrap
+// (`app_config.cache.*`). A person may lower a limit on the phone, never
+// raise it above these. keep_media_days: 3 / 7 / 30 / 0 (= always).
+export const OWNER_CACHE_SETTINGS = {
+  'cache.limit_mb.http': 32,
+  'cache.limit_mb.messages': 50,
+  'cache.limit_mb.feed': 8,
+  'cache.limit_mb.images': 500,
+  'cache.limit_mb.chat_media': 300,
+  'cache.limit_mb.files': 200,
+  'cache.limit_mb.video': 300,
+  'cache.keep_media_days.default': 30,
+} as const;
+
 export const OWNER_WEB_SETTINGS = {
   'web.allowed_origins': [
     'https://lawbid.dev',
@@ -790,6 +805,7 @@ export const APP_SETTINGS = {
   ...OWNER_POST_ATTACHMENT_SETTINGS,
   ...OWNER_BOOKING_QA_SETTINGS,
   ...OWNER_TEXT_LIMIT_SETTINGS,
+  ...OWNER_CACHE_SETTINGS,
 };
 
 export type AppSettingKey = keyof typeof APP_SETTINGS;

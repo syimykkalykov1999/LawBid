@@ -23,6 +23,7 @@ class _GroupsClient implements GroupsClient {
   @override
   Future<GroupListEnvelope> listGroups({
     String? cursor,
+    DateTime? updatedSince,
     bool? archived,
     Map<String, dynamic>? extras,
   }) async {
@@ -30,6 +31,7 @@ class _GroupsClient implements GroupsClient {
     _extra.addAll(extras ?? <String, dynamic>{});
     final queryParameters = <String, dynamic>{
       r'cursor': cursor,
+      r'updatedSince': updatedSince?.toIso8601String(),
       r'archived': archived,
     };
     queryParameters.removeWhere((k, v) => v == null);
@@ -627,6 +629,7 @@ class _GroupsClient implements GroupsClient {
     required String id,
     num? limit = 30,
     String? topicId,
+    String? afterId,
     String? cursor,
     Map<String, dynamic>? extras,
   }) async {
@@ -635,6 +638,7 @@ class _GroupsClient implements GroupsClient {
     final queryParameters = <String, dynamic>{
       r'limit': limit,
       r'topicId': topicId,
+      r'afterId': afterId,
       r'cursor': cursor,
     };
     queryParameters.removeWhere((k, v) => v == null);
@@ -958,11 +962,14 @@ class _GroupsClient implements GroupsClient {
   @override
   Future<GroupTopicListEnvelope> listGroupTopics({
     required String id,
+    DateTime? updatedSince,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
     _extra.addAll(extras ?? <String, dynamic>{});
-    final queryParameters = <String, dynamic>{};
+    final queryParameters = <String, dynamic>{
+      r'updatedSince': updatedSince?.toIso8601String(),
+    };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};
     const Map<String, dynamic>? _data = null;

@@ -456,6 +456,7 @@ class _CasesClient implements CasesClient {
     String? q,
     String? practice,
     String? state,
+    DateTime? updatedSince,
     String? cursor,
     Map<String, dynamic>? extras,
   }) async {
@@ -467,6 +468,7 @@ class _CasesClient implements CasesClient {
       r'q': q,
       r'practice': practice,
       r'state': state,
+      r'updatedSince': updatedSince?.toIso8601String(),
       r'cursor': cursor,
     };
     queryParameters.removeWhere((k, v) => v == null);
@@ -509,6 +511,31 @@ class _CasesClient implements CasesClient {
           .compose(
             _dio.options,
             '/cases/${id}/view',
+            queryParameters: queryParameters,
+            data: _data,
+          )
+          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
+    );
+    await _dio.fetch<void>(_options);
+  }
+
+  @override
+  Future<void> recordCaseViews({
+    required CaseViewsDto body,
+    Map<String, dynamic>? extras,
+  }) async {
+    final _extra = <String, dynamic>{};
+    _extra.addAll(extras ?? <String, dynamic>{});
+    final queryParameters = <String, dynamic>{};
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{};
+    final _data = <String, dynamic>{};
+    _data.addAll(body.toJson());
+    final _options = _setStreamType<void>(
+      Options(method: 'POST', headers: _headers, extra: _extra)
+          .compose(
+            _dio.options,
+            '/cases/views',
             queryParameters: queryParameters,
             data: _data,
           )

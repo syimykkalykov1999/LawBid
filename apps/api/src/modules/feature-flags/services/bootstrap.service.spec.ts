@@ -6,6 +6,7 @@ import {
 import type { FeatureFlagsService } from './feature-flags.service';
 import type { AppConfigService } from './app-config.service';
 import { sanitizeUploadLimits } from '../../files/upload-limits';
+import { OWNER_CACHE_SETTINGS } from '../../../common/app-settings/app-settings.defaults';
 
 class MemoryRedis {
   readonly store = new Map<string, string>();
@@ -98,6 +99,9 @@ describe('BootstrapService.build', () => {
       min_app_version_ios: '0.1.0',
       // Owner 2026-10-07 (bug 17): always sent, defaults when unset.
       'uploads.limits': sanitizeUploadLimits(undefined),
+      // Owner 2026-10-22 (client economy plan §5): the on-device cache
+      // ceilings, always sent (the defaults until the admin stores a value).
+      ...OWNER_CACHE_SETTINGS,
     });
     expect(result.languages).toEqual([EN]);
     expect(result.translations_version).toEqual({ en: 3, ru: 1 });

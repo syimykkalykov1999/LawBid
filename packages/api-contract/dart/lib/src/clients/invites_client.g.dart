@@ -90,6 +90,7 @@ class _InvitesClient implements InvitesClient {
   Future<CaseInviteListEnvelope> listMyInvites({
     InviteListStatus? status,
     String? cursor,
+    DateTime? updatedSince,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
@@ -97,6 +98,7 @@ class _InvitesClient implements InvitesClient {
     final queryParameters = <String, dynamic>{
       r'status': status?.toJson(),
       r'cursor': cursor,
+      r'updatedSince': updatedSince?.toIso8601String(),
     };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};
