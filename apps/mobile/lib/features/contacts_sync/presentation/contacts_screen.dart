@@ -157,7 +157,7 @@ class _BodyState extends ConsumerState<_Body> {
   @override
   Widget build(BuildContext context) {
     final t = widget.t;
-    final contacts = ref.watch(phoneContactsProvider);
+    final contacts = watchPhoneContacts(ref);
     return contacts.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (_, __) => AppEmptyState(

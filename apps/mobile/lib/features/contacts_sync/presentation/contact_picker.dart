@@ -51,7 +51,7 @@ class _ContactPickerSheetState extends ConsumerState<ContactPickerSheet> {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    final contacts = ref.watch(phoneContactsProvider);
+    final contacts = watchPhoneContacts(ref);
     final height = MediaQuery.sizeOf(context).height * 0.8;
     return SafeArea(
       child: Padding(

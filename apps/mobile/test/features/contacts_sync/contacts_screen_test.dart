@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -40,6 +42,12 @@ PhoneContacts _data() => const PhoneContacts(
       ],
       invite: [InvitableContact(name: _long, number: '+14155550000')],
     );
+
+/// The phone book already read, the server's answer not here yet.
+class _LiveBook extends PhoneContactsLive {
+  @override
+  PhoneContacts? build() => _data();
+}
 
 void main() {
   late SharedPreferences prefs;
@@ -168,5 +176,61 @@ void main() {
     await tester.pump();
     await tester.pump();
     expect(find.text('Find people from your contacts?'), findsOneWidget);
+  });
+
+  testWidgets(
+      'owner 2026-10-22: the phone book shows while the server is asked, '
+      'not a spinner', (tester) async {
+    useNarrowPhone(tester);
+    final never = Completer<PhoneContacts>();
+    await tester.pumpWidget(
+      uxApp(
+        const ContactsScreen(),
+        theme: AppTheme.light(),
+        size: narrowPhone,
+        disableAnimations: true,
+        overrides: uxOverrides(
+          extra: [
+            sharedPreferencesProvider.overrideWithValue(prefs),
+            phoneContactsProvider.overrideWith((_) => never.future),
+            phoneContactsLiveProvider.overrideWith(_LiveBook.new),
+          ],
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('Bob'), findsWidgets);
+    expect(find.text(_long), findsWidgets);
+  });
+
+  testWidgets('a failed match request still lists the phone book',
+      (tester) async {
+    useNarrowPhone(tester);
+    await tester.pumpWidget(
+      uxApp(
+        const ContactsScreen(),
+        theme: AppTheme.light(),
+        size: narrowPhone,
+        disableAnimations: true,
+        overrides: uxOverrides(
+          extra: [
+            sharedPreferencesProvider.overrideWithValue(prefs),
+            phoneContactsProvider.overrideWith(
+              (_) async => const PhoneContacts(
+                invite: [
+                  InvitableContact(name: 'Carol', number: '+14155550001'),
+                ],
+                matchFailed: true,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('Carol'), findsOneWidget);
+    expect(find.text('Something went wrong'), findsNothing);
   });
 }

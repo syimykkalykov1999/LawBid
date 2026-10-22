@@ -49,8 +49,8 @@ export const USAGE_LIMITS: Record<
   message: { setting: 'rate_limit.message_per_minute', windowSec: 60 },
   search: { setting: 'rate_limit.search_per_minute', windowSec: 60 },
   contacts_sync: {
-    setting: 'rate_limit.contacts_sync_per_day',
-    windowSec: DAY,
+    setting: 'rate_limit.contacts_sync_per_hour',
+    windowSec: HOUR,
   },
   report: { setting: 'rate_limit.report_per_day', windowSec: DAY },
   // Owner 2026-10-01: reels and stickers.

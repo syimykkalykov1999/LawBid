@@ -93,9 +93,12 @@ export const FILE_05_SETTINGS = {
   'rate_limit.follow_per_day': 200,
   'rate_limit.message_per_minute': 60,
   'rate_limit.search_per_minute': 30,
-  // Owner 2026-10-13: address-book uploads. The phone sends 100 hashes per
-  // request (the firewall's 8 KB body limit): 60 cover the 5000 hashes a day.
-  'rate_limit.contacts_sync_per_day': 60,
+  // Owner 2026-10-22: address-book uploads per hour. The app sends the whole
+  // book in one request (old builds: 100-hash parts, ~8 per pass), so this
+  // only stops a runaway loop; the real cap is distinct hashes per day
+  // (contacts-sync.service.ts). It replaces the old per-day key, whose
+  // saved value (10) let one chunked pass use up the whole day.
+  'rate_limit.contacts_sync_per_hour': 60,
   'rate_limit.report_per_day': 20,
   'notifications.retention_days': 180,
 } as const;

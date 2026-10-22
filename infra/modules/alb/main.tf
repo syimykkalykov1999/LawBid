@@ -297,7 +297,12 @@ resource "aws_wafv2_web_acl" "this" {
   # Bodies over 8 KB stay blocked except where they are expected (owner
   # 2026-10-07): the admin panel (xlsx/csv imports, long legal texts; its
   # server calls the API under /api/v1/admin/) and Stripe webhooks, whose
-  # events often exceed 8 KB. Those paths are authenticated or signed.
+  # events often exceed 8 KB. Owner 2026-10-22: also the phone book upload
+  # (POST /api/v1/contacts/sync, the whole book in one request: ~67 bytes a
+  # number, the API caps it at 1 MB / 10 000 hashes) and crash reports
+  # (/api/v1/crash-reports, a stack trace is easily over 8 KB). Those paths
+  # are authenticated, signed or capped by the API itself; the API's own body
+  # limit (BODY_LIMIT_KB, 256 KB) still guards every other route.
   rule {
     name     = "body-size"
     priority = 13
@@ -345,6 +350,32 @@ resource "aws_wafv2_web_acl" "this" {
                 statement {
                   byte_match_statement {
                     search_string         = "/api/v1/webhooks/stripe"
+                    positional_constraint = "STARTS_WITH"
+                    field_to_match {
+                      uri_path {}
+                    }
+                    text_transformation {
+                      priority = 0
+                      type     = "NONE"
+                    }
+                  }
+                }
+                statement {
+                  byte_match_statement {
+                    search_string         = "/api/v1/contacts/sync"
+                    positional_constraint = "EXACTLY"
+                    field_to_match {
+                      uri_path {}
+                    }
+                    text_transformation {
+                      priority = 0
+                      type     = "NONE"
+                    }
+                  }
+                }
+                statement {
+                  byte_match_statement {
+                    search_string         = "/api/v1/crash-reports"
                     positional_constraint = "STARTS_WITH"
                     field_to_match {
                       uri_path {}
