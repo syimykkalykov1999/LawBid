@@ -67,7 +67,7 @@ class ContactsBookSync {
   /// Forgets the device's copy (the sync was turned off).
   Future<void> forget() => _ref.read(localKvStoreProvider).remove(_key);
 
-  /// Syncs [book] (SHA-256 hashes of E.164 numbers hashed with [region]).
+  /// Syncs [phoneBook] (SHA-256 hashes of E.164 numbers hashed with [region]).
   /// Throws ApiException except 429, which is [ContactsBookSyncResult.limited].
   Future<ContactsBookSyncResult> sync(
     Set<String> phoneBook, {

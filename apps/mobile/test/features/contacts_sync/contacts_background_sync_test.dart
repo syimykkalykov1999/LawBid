@@ -77,7 +77,7 @@ void main() {
   });
 
   test('the server refuses the switch → the device copy goes back', () async {
-    final (c, _, __) = await make({}, repo: _Refusing());
+    final (c, _, _) = await make({}, repo: _Refusing());
     final sync = c.read(contactsBackgroundSyncProvider);
     await expectLater(
       sync.setNotifyNew(on: false),
@@ -87,7 +87,7 @@ void main() {
   });
 
   test('a failed pass does not start the 24 h wait', () async {
-    final (c, _, __) = await make({'contacts_sync_asked_v1': '1'}, fail: true);
+    final (c, _, _) = await make({'contacts_sync_asked_v1': '1'}, fail: true);
     await c.read(contactsBackgroundSyncProvider).run();
     expect(
       c.read(localKvStoreProvider).getString('contacts_auto_sync_at_v1.u1'),
