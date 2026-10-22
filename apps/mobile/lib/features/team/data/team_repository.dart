@@ -3,8 +3,8 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/request_flags.dart';
-import 'package:lawbid/features/profile/data/avatar_upload_repository.dart'
-    show sha256Hex;
+import 'package:lawbid/core/uploads/storage_uploader.dart';
+import 'package:lawbid/core/uploads/upload_body.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
@@ -122,13 +122,11 @@ class ApiTeamRepository implements TeamRepository {
   ApiTeamRepository(Dio dio, {Dio? storageDio})
       : _api = api.AssistantsClient(dio),
         _bids = api.BidsClient(dio),
-        _files = api.FilesClient(dio),
-        _storage = storageDio ?? dio;
+        _uploader = StorageUploader.dio(dio, storageDio ?? dio);
 
   final api.AssistantsClient _api;
   final api.BidsClient _bids;
-  final api.FilesClient _files;
-  final Dio _storage;
+  final StorageUploader _uploader;
 
   static DateTime? _date(String? raw) =>
       raw == null ? null : DateTime.tryParse(raw)?.toLocal();
@@ -724,57 +722,12 @@ class ApiTeamRepository implements TeamRepository {
 
   @override
   Future<String> uploadTaskFile(Uint8List bytes, String mime) async {
-    final target = (await guardApiCall(
-      () => _files.presign(
-        body: api.PresignFileDto(
-          purpose: api.FilePurpose.taskAttachment,
-          mime: mime,
-          sizeBytes: bytes.length,
-          sha256: sha256Hex(bytes),
-        ),
-        extras: const {RequestFlags.createsResource: true},
-      ),
-    ))
-        .data;
-    final parts = mime.split('/');
-    try {
-      await _storage.post<void>(
-        target.upload.url,
-        data: FormData.fromMap({
-          ...target.upload.fields,
-          // S3 POST policy: the file must be the LAST field.
-          'file': MultipartFile.fromBytes(
-            bytes,
-            filename: 'file',
-            contentType: DioMediaType(parts.first, parts.last),
-          ),
-        }),
-      );
-    } on DioException catch (e) {
-      throw ApiException(
-        code: e.response == null
-            ? ApiException.networkErrorCode
-            : ApiErrorCodes.fileNotUploaded,
-        message: 'Upload to storage failed.',
-        statusCode: e.response?.statusCode,
-      );
-    }
-    var status = (await guardApiCall(() => _files.confirm(id: target.fileId)))
-        .data
-        .scanStatus;
-    for (var i = 0; status == api.ScanStatus.pending && i < 40; i++) {
-      await Future<void>.delayed(const Duration(milliseconds: 700));
-      status = (await guardApiCall(() => _files.getFilesId(id: target.fileId)))
-          .data
-          .scanStatus;
-    }
-    if (status != api.ScanStatus.clean) {
-      throw const ApiException(
-        code: ApiErrorCodes.fileNotAttachable,
-        message: 'scan',
-      );
-    }
-    return target.fileId;
+    // Owner 2026-10-22 (audit #4 §3): the shared uploader.
+    return _uploader.upload(
+      purpose: api.FilePurpose.taskAttachment,
+      body: UploadBody.bytes(bytes),
+      mime: mime,
+    );
   }
 
   @override

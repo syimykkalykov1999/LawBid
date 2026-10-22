@@ -9,7 +9,8 @@ const base: Record<string, string> = {
   TRUST_PROXY_HOPS: '1',
   NODE_ENV: 'development',
   DATABASE_URL: 'postgresql://root@localhost:5432/lawbid?sslmode=require',
-  REDIS_URL: 'redis://localhost:6379',
+  // Security research #5 (A12): TLS, as a deployed environment requires.
+  REDIS_URL: 'rediss://localhost:6379',
   JWT_KEYS: `k1:${strong('jwt')}`,
   JWT_ACTIVE_KID: 'k1',
   OTP_CODE_SECRET: strong('otp'),
@@ -113,6 +114,20 @@ describe('envSchema — credentials', () => {
         }),
       ).toContain('DATABASE_URL');
     }
+  });
+
+  it('security research #5 A12: staging/production refuse a plain redis:// link', () => {
+    for (const NODE_ENV of ['staging', 'production']) {
+      expect(
+        issuePaths({ NODE_ENV, REDIS_URL: 'redis://:pw@cache:6379' }),
+      ).toContain('REDIS_URL');
+      expect(
+        issuePaths({ NODE_ENV, REDIS_URL: 'rediss://:pw@cache:6379' }),
+      ).not.toContain('REDIS_URL');
+    }
+    expect(
+      issuePaths({ NODE_ENV: 'development', REDIS_URL: 'redis://localhost' }),
+    ).not.toContain('REDIS_URL');
   });
 
   it('staging/production refuse TRUST_PROXY_HOPS=0 (one shared per-IP bucket)', () => {

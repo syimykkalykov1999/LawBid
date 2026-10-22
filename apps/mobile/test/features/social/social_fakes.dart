@@ -12,6 +12,8 @@ import 'package:lawbid/features/social/data/social_repository.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 
+import '../../helpers/upload_queue_overrides.dart';
+
 Post fakePost(
   String id, {
   bool liked = false,
@@ -293,12 +295,14 @@ class FakeSearchRepository implements SearchRepository {
 List<Override> socialOverrides([
   FakeSocialRepository? repo,
   FakeSearchRepository? search,
+  List<Override>? uploadQueue,
 ]) =>
     [
       socialRepositoryProvider
           .overrideWithValue(repo ?? FakeSocialRepository()),
       searchRepositoryProvider
           .overrideWithValue(search ?? FakeSearchRepository()),
+      ...uploadQueue ?? uploadQueueOverrides(),
       socialLocalDatabaseProvider.overrideWith((ref) {
         final db = SocialLocalDatabase(NativeDatabase.memory());
         ref.onDispose(db.close);

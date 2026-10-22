@@ -12,13 +12,15 @@ import 'package:lawbid/core/media/video_size.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/core/platform/chat_notifications_channel.dart';
+import 'package:lawbid/core/uploads/upload_queue.dart';
+import 'package:lawbid/core/uploads/upload_queue_database.dart';
 import 'package:lawbid/features/cases/application/paged_notifier.dart';
 import 'package:lawbid/features/chat/application/chat_list_delta.dart';
+import 'package:lawbid/features/chat/application/chat_media_outbox.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/chat/data/chat_extras_repository.dart';
 import 'package:lawbid/features/chat/data/chat_list_cache.dart';
 import 'package:lawbid/features/chat/data/chat_repository.dart';
-import 'package:lawbid/features/chat/data/voice_files.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/notifications/application/call_mute.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
@@ -27,7 +29,6 @@ import 'package:lawbid/features/notifications/data/notifications_repository.dart
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/data/social_local_database.dart';
 import 'package:lawbid/features/stars/application/stars_providers.dart';
-import 'package:lawbid/features/stickers/application/stickers_providers.dart';
 import 'package:lawbid/features/stickers/domain/sticker_models.dart';
 import 'package:lawbid/features/templates/application/templates_providers.dart';
 import 'package:lawbid/features/templates/domain/doc_template.dart';
@@ -464,6 +465,11 @@ class OutboxSender with WidgetsBindingObserver {
   /// Messages the server accepted (for threads whose socket is down).
   Stream<ChatMessage> get sent => _sent.stream;
 
+  /// Owner 2026-10-22: the media queue's sends join the same stream.
+  void announceSent(ChatMessage m) {
+    if (!_sent.isClosed) _sent.add(m);
+  }
+
   /// Set when the server said "renew your subscription" (§8.4).
   final subscriptionRequired = ValueNotifier<bool>(false);
 
@@ -739,6 +745,7 @@ class ChatThread extends Notifier<ChatThreadState> {
     // Owner 2026-10-22: the chat is open — its notification goes.
     unawaited(chatNotificationsChannel.clearChat(id));
 
+    final media = ref.read(chatMediaOutboxProvider);
     final subs = <StreamSubscription<Object?>>[
       ref.watch(realtimeEventsProvider).listen(_onEvent),
       ref.read(outboxSenderProvider).sent.listen((m) {
@@ -749,6 +756,12 @@ class ChatThread extends Notifier<ChatThreadState> {
             .read(socialLocalDatabaseProvider)
             .watchPending(owner, id)
             .listen(_onOutbox),
+      // Owner 2026-10-22 (audit #4 §3): this chat's queued media.
+      if (media.ownerId != null)
+        media.db
+            .watchTarget(media.ownerId!, id, kindPrefix: ChatMediaKind.prefix)
+            .listen((rows) => unawaited(_onMediaJobs(rows))),
+      media.progress.listen(_onUploadProgress),
     ];
     ref.onDispose(() {
       for (final s in subs) {
@@ -895,65 +908,30 @@ class ChatThread extends Notifier<ChatThreadState> {
   }
 
   /// OQ-040: a recorded note → a local "sending" bubble → upload → send.
-  /// A failure keeps the bubble with Retry (the file stays on the device).
+  /// Owner 2026-10-22 (audit #4 §3): the note is a job of the persistent
+  /// upload queue (core/uploads) — moved into the queue's folder, it
+  /// survives the app being closed and goes out when the network is back.
+  /// A refusal keeps the bubble with Retry / Delete.
   Future<void> sendVoice({
     required String path,
     required int durationMs,
     required List<int> waveform,
   }) async {
-    final owner = ref.read(currentUserIdProvider);
-    if (owner == null) return;
+    final queue = ref.read(chatMediaOutboxProvider);
+    if (queue.ownerId == null) return;
     final cmid = newClientMessageId();
-    final local = ChatMessage(
-      id: 'local:$cmid',
-      conversationId: id,
-      senderId: owner,
-      kind: MessageKind.voice,
-      body: '',
-      clientMessageId: cmid,
-      createdAt: DateTime.now(),
-      delivery: DeliveryState.sending,
-      voice: VoiceNote(
-        localPath: path,
-        durationMs: durationMs,
-        waveform: waveform,
-        listened: false,
-      ),
-    );
-    state = state.copyWith(voiceOutbox: [...state.voiceOutbox, local]);
+    final ext = path.toLowerCase().endsWith('.webm') || kIsWeb ? 'webm' : 'm4a';
+    final name = await ref
+        .read(uploadFilesProvider)
+        .keep('$cmid.$ext', fromPath: path, move: true);
     unawaited(ref.read(appSoundsProvider).messageOut());
-    await _uploadVoice(local);
-  }
-
-  Future<void> _uploadVoice(ChatMessage local) async {
-    final v = local.voice!;
-    try {
-      final bytes = await readVoiceFile(v.localPath!);
-      final fileId = await _repo.uploadVoice(bytes);
-      final sent = await _repo.sendVoice(
-        id,
-        local.clientMessageId!,
-        fileId: fileId,
-        durationMs: v.durationMs,
-        waveform: v.waveform,
-      );
-      // Your own note plays from the recording, not from a download.
-      await adoptVoiceFileAsCache(v.localPath, sent.id);
-      if (!ref.mounted) return;
-      state = state.copyWith(
-        voiceOutbox: state.voiceOutbox
-            .where((m) => m.clientMessageId != local.clientMessageId)
-            .toList(),
-      );
-      _merge([sent]);
-    } on ApiException catch (e) {
-      if (e.code == ApiErrorCodes.subscriptionRequired) {
-        ref.read(outboxSenderProvider).subscriptionRequired.value = true;
-      }
-      _markVoice(local, DeliveryState.failed, e.code);
-    } on Object {
-      _markVoice(local, DeliveryState.failed, null);
-    }
+    await queue.enqueue(
+      id: cmid,
+      kind: ChatMediaKind.voice,
+      target: id,
+      payload: {'durationMs': durationMs, 'waveform': waveform},
+      fileName: name,
+    );
   }
 
   void _markVoice(ChatMessage local, DeliveryState d, String? code) {
@@ -970,48 +948,115 @@ class ChatThread extends Notifier<ChatThreadState> {
   }
 
   /// OQ-047: a picked photo or document → a local bubble with progress →
-  /// upload → send. A failure keeps the bubble with Retry.
+  /// upload → send. Owner 2026-10-22 (audit #4 §3): a persistent queue
+  /// job (see [sendVoice]).
   Future<void> sendAttachment({
     required Uint8List bytes,
     required String name,
     required String mime,
     String? caption,
 
-    /// Owner 2026-10-19 (albums): files picked together upload at once but
-    /// are sent in the picked order — this one waits for `after` (the
-    /// previous file's send) so the album keeps its order and the caption
-    /// stays on the last.
+    /// Owner 2026-10-19 (albums): files picked together keep the picked
+    /// order — this one is queued after `after` (the previous file's
+    /// call); the queue uploads them at once and sends them in order.
     Future<void>? after,
   }) async {
-    final owner = ref.read(currentUserIdProvider);
-    if (owner == null) return;
+    final queue = ref.read(chatMediaOutboxProvider);
+    if (queue.ownerId == null) return;
     final cmid = newClientMessageId();
     final isImage = mime.startsWith('image/');
     final px = isImage
         ? await imageSizeOf(bytes)
         : (mime.startsWith('video/') ? videoSizeOf(bytes) : null);
-    final local = ChatMessage(
-      id: 'local:$cmid',
-      conversationId: id,
-      senderId: owner,
-      kind: MessageKind.attachment,
-      body: caption?.trim() ?? '',
-      clientMessageId: cmid,
-      createdAt: DateTime.now(),
-      delivery: DeliveryState.sending,
-      attachment: ChatAttachment(
-        fileId: '',
-        name: name,
-        isImage: isImage,
-        mime: mime,
-        sizeBytes: bytes.length,
-        localBytes: bytes,
-        width: px?.width.round(),
-        height: px?.height.round(),
-      ),
+    _previewBytes[cmid] = bytes;
+    final file = await ref.read(uploadFilesProvider).keep(
+          '$cmid.bin',
+          bytes: bytes,
+        );
+    if (after != null) {
+      try {
+        await after;
+      } on Object {
+        // The previous file's own failure is shown on its bubble.
+      }
+    }
+    await queue.enqueue(
+      id: cmid,
+      kind: ChatMediaKind.attachment,
+      target: id,
+      payload: {
+        'name': name,
+        'caption': caption?.trim() ?? '',
+        'size': bytes.length,
+        if (px != null) 'width': px.width.round(),
+        if (px != null) 'height': px.height.round(),
+      },
+      fileName: file,
+      mime: mime,
     );
-    state = state.copyWith(voiceOutbox: [...state.voiceOutbox, local]);
-    await _uploadAttachment(local, after: after);
+  }
+
+  /// Local previews of queued photos (the bytes the picker gave), by
+  /// clientMessageId; after a restart the queued file is read once.
+  final _previewBytes = <String, Uint8List>{};
+  final _localPaths = <String, String?>{};
+  final _progress = <String, double>{};
+  List<UploadJob> _mediaJobs = const [];
+
+  /// The queue's chat jobs of this conversation → local bubbles.
+  Future<void> _onMediaJobs(List<UploadJobRow> rows) async {
+    final files = ref.read(uploadFilesProvider);
+    final jobs = [for (final r in rows) UploadJob.fromRow(r)];
+    for (final j in jobs) {
+      final n = j.fileName;
+      if (n == null) continue;
+      if (j.kind == ChatMediaKind.voice && !_localPaths.containsKey(j.id)) {
+        _localPaths[j.id] = await files.pathOf(n);
+      }
+      if (j.kind == ChatMediaKind.attachment &&
+          (j.mime ?? '').startsWith('image/') &&
+          !_previewBytes.containsKey(j.id)) {
+        final b = await files.read(n);
+        if (b != null) _previewBytes[j.id] = b;
+      }
+    }
+    final live = {for (final j in jobs) j.id};
+    _previewBytes.removeWhere((k, _) => !live.contains(k));
+    _localPaths.removeWhere((k, _) => !live.contains(k));
+    _progress.removeWhere((k, _) => !live.contains(k));
+    _mediaJobs = jobs;
+    _showMedia();
+  }
+
+  void _showMedia() {
+    if (!ref.mounted) return;
+    final me = ref.read(currentUserIdProvider);
+    final sentIds = {
+      for (final m in state.messages)
+        if (m.clientMessageId != null) m.clientMessageId,
+    };
+    state = state.copyWith(
+      voiceOutbox: [
+        // Template copies are not queue jobs (nothing to upload).
+        for (final m in state.voiceOutbox)
+          if (_templateOf.containsKey(m.clientMessageId)) m,
+        for (final j in _mediaJobs)
+          if (!sentIds.contains(j.id))
+            chatMessageOfJob(
+              j,
+              senderId: me,
+              localPath: _localPaths[j.id],
+              previewBytes: _previewBytes[j.id],
+              progress: _progress[j.id] ?? 0,
+            ),
+      ],
+    );
+  }
+
+  void _onUploadProgress(UploadProgress p) {
+    if (!_mediaJobs.any((j) => j.id == p.id)) return;
+    _progress[p.id] = p.value;
+    _showMedia();
   }
 
   /// Owner 2026-10-05: a document template — a local bubble, then the
@@ -1101,26 +1146,24 @@ class ChatThread extends Notifier<ChatThreadState> {
   }
 
   /// Owner 2026-10-01: a sticker — shown at once, sent in the background,
-  /// Retry on failure like a voice note.
+  /// Retry on failure like a voice note. Owner 2026-10-22: a persistent
+  /// queue job too (nothing to upload, the send waits for the network).
   Future<void> sendSticker(ChatSticker sticker) async {
-    final owner = ref.read(currentUserIdProvider);
-    if (owner == null) return;
-    final cmid = newClientMessageId();
-    final local = ChatMessage(
-      id: 'local:$cmid',
-      conversationId: id,
-      senderId: owner,
-      kind: MessageKind.sticker,
-      body: '',
-      clientMessageId: cmid,
-      createdAt: DateTime.now(),
-      delivery: DeliveryState.sending,
-      sticker: sticker,
-    );
-    state = state.copyWith(voiceOutbox: [...state.voiceOutbox, local]);
+    final queue = ref.read(chatMediaOutboxProvider);
+    if (queue.ownerId == null) return;
     // ignore: unawaited_futures
     HapticFeedback.selectionClick();
-    await _sendSticker(local);
+    await queue.enqueue(
+      id: newClientMessageId(),
+      kind: ChatMediaKind.sticker,
+      target: id,
+      payload: {
+        'stickerId': sticker.id,
+        'packId': sticker.packId,
+        'emoji': sticker.emoji,
+        if (sticker.url != null) 'url': sticker.url,
+      },
+    );
   }
 
   /// Owner 2026-10-20: a gift paid in stars. Not shown before the server
@@ -1139,83 +1182,6 @@ class ChatThread extends Notifier<ChatThreadState> {
     if (!ref.mounted) return;
     unawaited(ref.read(appSoundsProvider).messageOut());
     _merge([sent]);
-  }
-
-  Future<void> _sendSticker(ChatMessage local) async {
-    try {
-      final sent = await _repo.sendSticker(
-        id,
-        local.clientMessageId!,
-        stickerId: local.sticker!.id,
-      );
-      if (!ref.mounted) return;
-      state = state.copyWith(
-        voiceOutbox: state.voiceOutbox
-            .where((m) => m.clientMessageId != local.clientMessageId)
-            .toList(),
-      );
-      unawaited(ref.read(appSoundsProvider).messageOut());
-      _merge([sent]);
-      ref.invalidate(stickerLibraryProvider);
-    } on ApiException catch (e) {
-      if (e.code == ApiErrorCodes.subscriptionRequired) {
-        ref.read(outboxSenderProvider).subscriptionRequired.value = true;
-      }
-      _markVoice(local, DeliveryState.failed, e.code);
-    } on Object {
-      _markVoice(local, DeliveryState.failed, null);
-    }
-  }
-
-  Future<void> _uploadAttachment(
-    ChatMessage local, {
-    Future<void>? after,
-  }) async {
-    final a = local.attachment!;
-    try {
-      final fileId = await _repo.uploadAttachment(
-        a.localBytes!,
-        a.mime!,
-        onProgress: (p) => _setProgress(local, p),
-      );
-      if (after != null) await after;
-      final sent = await _repo.sendAttachment(
-        id,
-        local.clientMessageId!,
-        fileId: fileId,
-        fileName: a.name,
-        caption: local.body.isEmpty ? null : local.body,
-      );
-      if (!ref.mounted) return;
-      state = state.copyWith(
-        voiceOutbox: state.voiceOutbox
-            .where((m) => m.clientMessageId != local.clientMessageId)
-            .toList(),
-      );
-      unawaited(ref.read(appSoundsProvider).messageOut());
-      _merge([sent]);
-    } on ApiException catch (e) {
-      if (e.code == ApiErrorCodes.subscriptionRequired) {
-        ref.read(outboxSenderProvider).subscriptionRequired.value = true;
-      }
-      _markVoice(local, DeliveryState.failed, e.code);
-    } on Object {
-      _markVoice(local, DeliveryState.failed, null);
-    }
-  }
-
-  void _setProgress(ChatMessage local, double p) {
-    if (!ref.mounted) return;
-    state = state.copyWith(
-      voiceOutbox: [
-        for (final m in state.voiceOutbox)
-          if (m.clientMessageId == local.clientMessageId &&
-              m.attachment != null)
-            m.copyWith(attachment: m.attachment!.copyWith(progress: p))
-          else
-            m,
-      ],
-    );
   }
 
   /// OQ-040: the recipient played a note — tell the server once.
@@ -1245,25 +1211,17 @@ class ChatThread extends Notifier<ChatThreadState> {
   }
 
   Future<void> retry(ChatMessage local) async {
-    if (local.kind == MessageKind.sticker) {
-      _markVoice(local, DeliveryState.sending, null);
-      await _sendSticker(local.copyWith(delivery: DeliveryState.sending));
-      return;
-    }
     if (local.kind == MessageKind.attachment &&
         _templateOf.containsKey(local.clientMessageId)) {
       _markVoice(local, DeliveryState.sending, null);
       await _sendTemplateCopy(local.copyWith(delivery: DeliveryState.sending));
       return;
     }
-    if (local.kind == MessageKind.attachment) {
-      _markVoice(local, DeliveryState.sending, null);
-      await _uploadAttachment(local.copyWith(delivery: DeliveryState.sending));
-      return;
-    }
-    if (local.kind == MessageKind.voice) {
-      _markVoice(local, DeliveryState.sending, null);
-      await _uploadVoice(local.copyWith(delivery: DeliveryState.sending));
+    if (local.kind == MessageKind.attachment ||
+        local.kind == MessageKind.voice ||
+        local.kind == MessageKind.sticker) {
+      final cmid = local.clientMessageId;
+      if (cmid != null) await ref.read(chatMediaOutboxProvider).retry(cmid);
       return;
     }
     final owner = ref.read(currentUserIdProvider);
@@ -1359,25 +1317,22 @@ class ChatThread extends Notifier<ChatThreadState> {
   }
 
   Future<void> discard(ChatMessage local) async {
-    if (local.kind == MessageKind.attachment ||
-        local.kind == MessageKind.sticker) {
-      state = state.copyWith(
-        voiceOutbox: state.voiceOutbox
-            .where((m) => m.clientMessageId != local.clientMessageId)
-            .toList(),
-      );
-      return;
-    }
-    if (local.kind == MessageKind.voice) {
-      state = state.copyWith(
-        voiceOutbox: state.voiceOutbox
-            .where((m) => m.clientMessageId != local.clientMessageId)
-            .toList(),
-      );
-      await deleteVoiceFile(local.voice?.localPath);
-      return;
-    }
     final cmid = local.clientMessageId;
+    if (_templateOf.containsKey(cmid)) {
+      _templateOf.remove(cmid);
+      state = state.copyWith(
+        voiceOutbox:
+            state.voiceOutbox.where((m) => m.clientMessageId != cmid).toList(),
+      );
+      return;
+    }
+    if (local.kind == MessageKind.attachment ||
+        local.kind == MessageKind.voice ||
+        local.kind == MessageKind.sticker) {
+      // The queue removes the job and its file.
+      if (cmid != null) await ref.read(chatMediaOutboxProvider).discard(cmid);
+      return;
+    }
     if (cmid != null) await ref.read(socialLocalDatabaseProvider).sent(cmid);
   }
 

@@ -111,6 +111,7 @@ List<Override> uxOverrides({
   List<Override> extra = const [],
   bool storiesTray = true,
   List<OngoingGroupCall> ongoingCalls = const [],
+  List<Override>? uploadQueue,
 }) =>
     [
       translatorProvider.overrideWithValue(translator),
@@ -120,7 +121,7 @@ List<Override> uxOverrides({
       ...casesOverrides(repo: cases),
       // The feed's stories tray: no network in tests.
       if (storiesTray) storyTrayProvider.overrideWith((ref) async => const []),
-      ...socialOverrides(social, search),
+      ...socialOverrides(social, search, uploadQueue),
       ...legalOverrides(),
       contactsSyncRepositoryProvider.overrideWithValue(_NoContactsSync()),
       contactsSyncActionsProvider.overrideWith(_AskedActions.new),

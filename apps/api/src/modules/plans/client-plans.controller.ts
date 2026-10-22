@@ -7,6 +7,7 @@ import {
   Post,
   Req,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   ApiEnvelopeResponse,
@@ -49,6 +50,9 @@ export class ClientPlansController {
     return this.plans.me(user);
   }
 
+  // Security research #5 (2026-10-22), A11: card testing — a stolen-card
+  // script creating checkouts in a loop (each attempt costs a Stripe fee).
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('checkout')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: "Stripe's hosted page for a client plan" })

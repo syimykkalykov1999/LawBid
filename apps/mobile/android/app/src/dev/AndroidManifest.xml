@@ -5,6 +5,8 @@
          cleartext policy, so a release or profile dev build loaded the
          feed and covers but the video player (ExoPlayer, native) refused
          http://…:4010/…/playlist.m3u8 and a reel never played on Android.
-         staging/prod stay https-only (no cleartext there). -->
-    <application android:usesCleartextTraffic="true" />
+         staging/prod stay https-only (no cleartext there). Security
+         research #5 (2026-10-22), B2: the allowance now lives in this
+         flavor's res/xml/network_security_config.xml (the manifest flag is
+         ignored once a network security config is set). -->
 </manifest>

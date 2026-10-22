@@ -98,7 +98,7 @@ class OnboardingScaffold extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(
+                padding: const EdgeInsetsDirectional.fromSTEB(
                   AppSpacing.screenSide - AppSpacing.sm,
                   AppSpacing.sm,
                   AppSpacing.screenSide,

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The dev flavor (every build type) talks to the Mac on the LAN over plain
+     http: API, MinIO, tools/fake-bunny.mjs on :4010 — the video player
+     (ExoPlayer, native) refuses cleartext unless allowed here. The addresses
+     differ per Mac, so cleartext is allowed to any host; system CAs only.
+     staging / prod use src/main (https only). -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

@@ -14,6 +14,8 @@ import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/data/social_local_database.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 
+import '../../helpers/upload_queue_overrides.dart';
+
 /// Owner 2026-10-22 (load audit finding 2, Telegram updates): the chats
 /// list applies socket events to its rows; the server is asked only after a
 /// reconnect (`updatedSince`) or for a chat the list does not hold.
@@ -176,6 +178,7 @@ void main() {
       c = ProviderContainer(
         overrides: [
           socialLocalDatabaseProvider.overrideWithValue(db),
+          ...uploadQueueOverrides(),
           currentUserIdProvider.overrideWithValue('me'),
           realtimeClientProvider.overrideWithValue(null),
           realtimeEventsProvider.overrideWithValue(events.stream),

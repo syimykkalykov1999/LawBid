@@ -22,6 +22,9 @@
 #   FIREBASE_WEB_*         (optional) API_KEY, APP_ID, SENDER_ID, PROJECT_ID,
 #                          AUTH_DOMAIN, VAPID_KEY of the Firebase web app: push
 #                          in the browser; without them the web has no push
+#   FIREBASE_WEB_RECAPTCHA_KEY (optional) reCAPTCHA Enterprise site key of the
+#                          web app (Firebase → App Check); without it the web
+#                          sends no App Check token (docs/runbooks/APP_CHECK.md)
 name: Web deploy
 
 on:
@@ -49,9 +52,9 @@ jobs:
     timeout-minutes: 30
     if: ${{ vars.WEB_DEPLOY_ENABLED == 'true' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           channel: "stable"
 
@@ -77,6 +80,7 @@ jobs:
           --dart-define=FIREBASE_WEB_PROJECT_ID=${{ secrets.FIREBASE_WEB_PROJECT_ID }}
           --dart-define=FIREBASE_WEB_AUTH_DOMAIN=${{ secrets.FIREBASE_WEB_AUTH_DOMAIN }}
           --dart-define=FIREBASE_WEB_VAPID_KEY=${{ secrets.FIREBASE_WEB_VAPID_KEY }}
+          --dart-define=FIREBASE_WEB_RECAPTCHA_KEY=${{ secrets.FIREBASE_WEB_RECAPTCHA_KEY }}
 
       # The push worker needs the same keys (it cannot read the build's).
       - name: Fill the push worker's keys
@@ -112,7 +116,7 @@ jobs:
           test -s build/web/sqlite3.wasm
           test -s build/web/drift_worker.js
 
-      - uses: aws-actions/configure-aws-credentials@v4
+      - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
         with:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_PROD }}
           aws-region: ${{ secrets.AWS_REGION }}

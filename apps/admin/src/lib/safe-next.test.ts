@@ -13,6 +13,14 @@ describe('safeNextPath (audit #15)', () => {
     }
   });
 
+  // Security research #5 (2026-10-22), B6: a scheme is never a path.
+  it('rejects javascript:, data: and other schemes', () => {
+    for (const bad of ['javascript:alert(1)', 'data:text/html,x', 'JAVASCRIPT:alert(1)', '/javascript:alert(1)x']) {
+      // `/javascript:…` is a same-site path and stays; the others go.
+      expect(safeNextPath(bad)).toBe(bad.startsWith('/') ? bad : '/');
+    }
+  });
+
   it('rejects backslashes and control characters', () => {
     for (const bad of ['/\\evil.com', '/\\/evil.com', '/users\\..', '/\tevil', '/\n/evil.com', '/\u0000x']) {
       expect(safeNextPath(bad)).toBe('/');

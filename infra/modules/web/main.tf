@@ -12,6 +12,11 @@ terraform {
 
 variable "name" { type = string }
 variable "tags" { type = map(string) }
+variable "web_acl_arn" {
+  type        = string
+  default     = ""
+  description = "CloudFront-scope WAF web ACL for the distribution (modules/cdn-waf); empty = none."
+}
 
 variable "web_host" {
   type        = string
@@ -398,6 +403,8 @@ resource "aws_cloudfront_distribution" "web" {
   is_ipv6_enabled     = true
   http_version        = "http2and3"
   aliases             = local.has_host ? concat([var.web_host], var.extra_hosts) : []
+  # Security research #5 (2026-10-22), A3: rate limit + IP reputation.
+  web_acl_id = var.web_acl_arn == "" ? null : var.web_acl_arn
 
   origin {
     domain_name              = aws_s3_bucket.web.bucket_regional_domain_name

@@ -9,6 +9,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/platform/secure_screen.dart';
 import 'package:lawbid/features/verification/application/verification_overview_controller.dart';
 import 'package:lawbid/features/verification/application/verification_wizard_controller.dart';
 import 'package:lawbid/features/verification/domain/verification_models.dart';
@@ -276,61 +277,65 @@ class _VerificationWizardScreenState
     }
     final atFirst = data == null || data.stepIndex <= 0;
 
-    return PopScope(
-      canPop: atFirst,
-      onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) _back();
-      },
-      child: Scaffold(
-        backgroundColor: colors.bg,
-        appBar: AppTopBar(
-          title: Text(t.t('verification.title')),
-          leading: AppBackButton(
-            semanticLabel: t.t('common.back'),
-            onPressed: _back,
+    // Security research #5 (2026-10-22), B5: licence / ID photos — no
+    // screenshots or recordings of this screen (core/platform/secure_screen).
+    return SecureScreenScope(
+      child: PopScope(
+        canPop: atFirst,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop) _back();
+        },
+        child: Scaffold(
+          backgroundColor: colors.bg,
+          appBar: AppTopBar(
+            title: Text(t.t('verification.title')),
+            leading: AppBackButton(
+              semanticLabel: t.t('common.back'),
+              onPressed: _back,
+            ),
+            actions: [
+              if (!atFirst)
+                AppIconButton(
+                  semanticLabel: t.t('verification.wizard.close'),
+                  onPressed: () => Navigator.of(context).maybePop(),
+                  icon: AppIcon(AppIcons.closeRounded, color: colors.text),
+                ),
+            ],
           ),
-          actions: [
-            if (!atFirst)
-              AppIconButton(
-                semanticLabel: t.t('verification.wizard.close'),
-                onPressed: () => Navigator.of(context).maybePop(),
-                icon: AppIcon(AppIcons.closeRounded, color: colors.text),
-              ),
-          ],
-        ),
-        body: AnimatedSwitcher(
-          duration:
-              context.reduceMotion ? Duration.zero : AppMotion.stateChange,
-          child: switch (async) {
-            AsyncData(:final value) => KeyedSubtree(
-                key: const ValueKey('wizard-data'),
-                child: _wizard(t, value),
-              ),
-            AsyncError(:final error) => KeyedSubtree(
-                key: const ValueKey('wizard-error'),
-                child: isOfflineError(error)
-                    ? AppOfflineState(
-                        title: t.t('offline.title'),
-                        message: t.t('offline.message'),
-                        action: AppButton(
-                          label: t.t('error.retry'),
-                          icon: AppIcons.refreshRounded,
-                          variant: AppButtonVariant.secondary,
-                          height: AppSizes.touchTarget,
-                          onPressed: () =>
+          body: AnimatedSwitcher(
+            duration:
+                context.reduceMotion ? Duration.zero : AppMotion.stateChange,
+            child: switch (async) {
+              AsyncData(:final value) => KeyedSubtree(
+                  key: const ValueKey('wizard-data'),
+                  child: _wizard(t, value),
+                ),
+              AsyncError(:final error) => KeyedSubtree(
+                  key: const ValueKey('wizard-error'),
+                  child: isOfflineError(error)
+                      ? AppOfflineState(
+                          title: t.t('offline.title'),
+                          message: t.t('offline.message'),
+                          action: AppButton(
+                            label: t.t('error.retry'),
+                            icon: AppIcons.refreshRounded,
+                            variant: AppButtonVariant.secondary,
+                            height: AppSizes.touchTarget,
+                            onPressed: () =>
+                                ref.invalidate(verificationWizardProvider),
+                          ),
+                        )
+                      : AppErrorState(
+                          title: t.t('verification.wizard.error'),
+                          message: errorText(t, error),
+                          retryLabel: t.t('error.retry'),
+                          onRetry: () =>
                               ref.invalidate(verificationWizardProvider),
                         ),
-                      )
-                    : AppErrorState(
-                        title: t.t('verification.wizard.error'),
-                        message: errorText(t, error),
-                        retryLabel: t.t('error.retry'),
-                        onRetry: () =>
-                            ref.invalidate(verificationWizardProvider),
-                      ),
-              ),
-            _ => const _WizardSkeleton(key: ValueKey('wizard-loading')),
-          },
+                ),
+              _ => const _WizardSkeleton(key: ValueKey('wizard-loading')),
+            },
+          ),
         ),
       ),
     );

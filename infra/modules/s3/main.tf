@@ -13,6 +13,11 @@ terraform {
 
 variable "name" { type = string }
 variable "kms_key_arn" { type = string }
+variable "media_web_acl_arn" {
+  type        = string
+  default     = ""
+  description = "CloudFront-scope WAF web ACL for the media CDN (modules/cdn-waf); empty = none."
+}
 variable "replica_kms_key_arn" {
   type        = string
   description = "KMS key in the replica region for the documents copy."
@@ -332,6 +337,9 @@ resource "aws_cloudfront_distribution" "media" {
   comment         = "${var.name} media"
   price_class     = "PriceClass_100"
   is_ipv6_enabled = true
+  # Security research #5 (2026-10-22), A3: a per-IP rate limit on the media
+  # CDN (hotlinking / download loops cost egress).
+  web_acl_id = var.media_web_acl_arn == "" ? null : var.media_web_acl_arn
 
   origin {
     domain_name              = aws_s3_bucket.media.bucket_regional_domain_name

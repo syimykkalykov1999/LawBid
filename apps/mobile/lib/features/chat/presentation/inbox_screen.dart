@@ -1154,7 +1154,8 @@ class ConversationRow extends ConsumerWidget {
             : const {},
         child: Container(
           color: picked ? colors.chip : null,
-          padding: const EdgeInsets.only(left: AppSpacing.screenSide),
+          padding:
+              const EdgeInsetsDirectional.only(start: AppSpacing.screenSide),
           child: Row(
             children: [
               if (picking != null) ...[
@@ -1204,10 +1205,10 @@ class ConversationRow extends ConsumerWidget {
                     border: Border(bottom: BorderSide(color: colors.border)),
                   ),
                   child: Padding(
-                    padding: const EdgeInsets.only(
+                    padding: const EdgeInsetsDirectional.only(
                       top: AppSpacing.sm + 2,
                       bottom: AppSpacing.sm + 2,
-                      right: AppSpacing.screenSide,
+                      end: AppSpacing.screenSide,
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1577,8 +1578,8 @@ class CounterpartAvatar extends StatelessWidget {
       clipBehavior: Clip.none,
       children: [
         avatar,
-        Positioned(
-          right: 0,
+        PositionedDirectional(
+          end: 0,
           bottom: 0,
           child: Container(
             key: const ValueKey('presence-dot'),
@@ -1636,7 +1637,11 @@ class _Bell extends StatelessWidget {
                 size: 28,
               ),
               if (count > 0)
-                Positioned(top: 4, right: 2, child: _Dot(count: count)),
+                PositionedDirectional(
+                  top: 4,
+                  end: 2,
+                  child: _Dot(count: count),
+                ),
             ],
           ),
         ),

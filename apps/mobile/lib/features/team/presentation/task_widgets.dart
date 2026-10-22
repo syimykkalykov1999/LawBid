@@ -351,7 +351,7 @@ class TaskRow extends StatelessWidget {
                     const SizedBox(height: AppSpacing.sm),
                     Container(
                       width: double.infinity,
-                      padding: const EdgeInsets.fromLTRB(
+                      padding: const EdgeInsetsDirectional.fromSTEB(
                         AppSpacing.md,
                         AppSpacing.sm,
                         AppSpacing.sm,
@@ -748,11 +748,11 @@ class TaskStepCheck extends StatelessWidget {
               },
         child: Padding(
           // The visual box is small; the tap area stays generous.
-          padding: const EdgeInsets.fromLTRB(0, 0, 4, 0),
+          padding: const EdgeInsetsDirectional.fromSTEB(0, 0, 4, 0),
           child: SizedBox(
             width: 26,
             height: 26,
-            child: Align(alignment: Alignment.topLeft, child: box),
+            child: Align(alignment: AlignmentDirectional.topStart, child: box),
           ),
         ),
       ),

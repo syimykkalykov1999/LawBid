@@ -16,6 +16,7 @@ import { FilesService } from '../files/files.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { bookHashOf, xorBookHash } from './contacts-book-hash';
+import { ContactsPepper } from './contacts-pepper';
 import {
   CONTACT_BOOK_MAX,
   type ContactSyncStatusDto,
@@ -73,8 +74,9 @@ type PersonRow = Prisma.UserGetPayload<{ select: typeof PERSON_SELECT }>;
  *   assistants never; daily caps of distinct numbers per account and per
  *   address plus an hourly request limit (owner 2026-10-22); a high match
  *   share goes to Sentry. The hashes are plain SHA-256 of E.164 (the same
- *   as users.phone_sha256): TODO stage 2 — HMAC with a server pepper so the
- *   hash can't be precomputed.
+ *   as users.phone_sha256) on the wire; the stored book is peppered on the
+ *   server (ContactsPepper, security research #5 A7) so a copy of the
+ *   table can't be matched against precomputed numbers.
  * - DELETE removes every match and the stored book, and turns the sync off.
  *
  * Owner 2026-10-22 («нельзя ни в коем случае нагружать сервер», like
@@ -92,6 +94,7 @@ export class ContactsSyncService {
     private readonly limits: UsageLimitsService,
     private readonly files: FilesService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    private readonly pepper: ContactsPepper,
   ) {}
 
   async status(userId: string): Promise<ContactSyncStatusDto> {
@@ -309,7 +312,7 @@ export class ContactsSyncService {
     });
     if ((setting?.book_size ?? 0) + unique.length > CONTACT_BOOK_MAX) return;
     const added = await this.prisma.contactBookHash.createMany({
-      data: unique.map((h) => ({ owner_id: userId, phone_sha256: h })),
+      data: unique.map((h) => ({ owner_id: userId, ...this.pepper.row(h) })),
       skipDuplicates: true,
     });
     await this.prisma.contactSyncSetting.update({
@@ -387,14 +390,21 @@ export class ContactsSyncService {
       hash = bookHashOf(added);
       size = added.length;
     } else {
+      // Both stored forms while the pepper backfill runs (ContactsPepper).
       const present = await this.prisma.contactBookHash.findMany({
         where: {
           owner_id: userId,
-          phone_sha256: { in: [...added, ...removed] },
+          ...this.pepper.where([...added, ...removed]),
         },
-        select: { phone_sha256: true },
+        select: { phone_hash: true },
       });
-      const have = new Set(present.map((p) => p.phone_sha256));
+      const back = this.pepper.unsealMap([...added, ...removed]);
+      const have = new Set(
+        present.flatMap((p) => {
+          const h = back.get(p.phone_hash);
+          return h ? [h] : [];
+        }),
+      );
       newAdded = added.filter((h) => !have.has(h));
       gone = removed.filter((h) => have.has(h));
       hash = xorBookHash(stored!, [...newAdded, ...gone]);
@@ -435,7 +445,10 @@ export class ContactsSyncService {
     if (gone.length > 0) {
       ops.push(
         this.prisma.contactBookHash.deleteMany({
-          where: { owner_id: userId, phone_sha256: { in: gone } },
+          where: {
+            owner_id: userId,
+            phone_hash: { in: gone.flatMap((h) => this.pepper.forms(h)) },
+          },
         }),
       );
     }
@@ -449,7 +462,10 @@ export class ContactsSyncService {
     if (newAdded.length > 0) {
       ops.push(
         this.prisma.contactBookHash.createMany({
-          data: newAdded.map((h) => ({ owner_id: userId, phone_sha256: h })),
+          data: newAdded.map((h) => ({
+            owner_id: userId,
+            ...this.pepper.row(h),
+          })),
           skipDuplicates: true,
         }),
       );

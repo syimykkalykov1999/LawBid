@@ -123,11 +123,12 @@ abstract final class AppRouterGuard {
 
     if (isLegal) return null;
 
-    // Owner 2026-10-13: the account signed in with an SMS code and has no
-    // password yet — set it first; from then on the person signs in with
-    // the password, no SMS (like Instagram).
-    if (user.passwordRequired) {
-      return location == AuthRoutes.setPassword ? null : AuthRoutes.setPassword;
+    // Owner 2026-10-13: an account that signed in with a code may set a
+    // password. Owner 2026-10-22 (audit #4 §2, WhatsApp / Telegram): it is
+    // optional — no forced step after the code; «Задать пароль» lives in
+    // Settings and the screen stays open while there is no password yet.
+    if (user.passwordRequired && location == AuthRoutes.setPassword) {
+      return null;
     }
 
     final required = requiredStep(user);

@@ -314,7 +314,10 @@ DeepLink? parseDeepLink(
       ),
     'g' when _groupCodePattern.hasMatch(id) =>
       ContentDeepLink(ContentKind.group, id),
-    'lawyer'
+    // Owner 2026-10-22 (audit #4 §9): the shared SEO page
+    // `/attorneys/<username>/` opens the same profile in the app.
+    'lawyer' ||
+    'attorneys'
         when _usernamePattern
             .hasMatch(id.startsWith('@') ? id.substring(1) : id) =>
       ContentDeepLink(

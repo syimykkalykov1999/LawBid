@@ -10,9 +10,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 const _kKey = 'web.notice.v1';
 
-/// Applies the saved choice at start (web only).
+/// Applies the saved choice at start (web only), before [AppEvents.install]
+/// reads it: an answer given before 2026-10-22 lived only in this notice's
+/// key. Owner 2026-10-22 (audit #4 §5): no tracking before the answer.
 void applyWebNoticeChoice(SharedPreferences prefs) {
-  if (kIsWeb && prefs.getString(_kKey) == 'declined') AppEvents.optedOut = true;
+  if (!kIsWeb || AppEvents.savedConsent(prefs) != null) return;
+  final answer = prefs.getString(_kKey);
+  if (answer == null) return;
+  AppEvents.setConsent(granted: answer == 'accepted', prefs: prefs);
 }
 
 /// Owner 2026-10-15 (web): the small notice every site shows on the first
@@ -52,7 +57,8 @@ class _WebConsentNoticeState extends ConsumerState<WebConsentNotice> {
   }
 
   void _answer(SharedPreferences prefs, {required bool accepted}) {
-    if (!accepted) AppEvents.optedOut = true;
+    AppEvents.setConsent(granted: accepted, prefs: prefs);
+    if (accepted) AppEvents.track('app_open');
     prefs.setString(_kKey, accepted ? 'accepted' : 'declined');
     setState(() => _answered = true);
   }

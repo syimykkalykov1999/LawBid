@@ -52,6 +52,77 @@ import flutter_callkit_incoming
     if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "LawbidChatNotifications") {
       registerChatNotifications(registrar.messenger())
     }
+    if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "LawbidSecureScreen") {
+      registerSecureScreen(registrar.messenger())
+    }
+  }
+
+  // MARK: - Secure screen
+
+  /// Security research #5 (2026-10-22), B5: while a screen with an ID
+  /// document / licence is open (lib/core/platform/secure_screen.dart) a
+  /// screen recording or mirroring shows a blank window instead of the
+  /// document. iOS cannot stop a screenshot; a recording it can hide.
+  private var secureScreen = false
+  private var captureCover: UIView?
+  private var captureObserver: NSObjectProtocol?
+
+  private func registerSecureScreen(_ messenger: FlutterBinaryMessenger) {
+    let channel = FlutterMethodChannel(name: "lawbid/secure_screen", binaryMessenger: messenger)
+    channel.setMethodCallHandler { [weak self] call, result in
+      guard let self = self else {
+        result(nil)
+        return
+      }
+      switch call.method {
+      case "setSecure":
+        let args = call.arguments as? [String: Any]
+        self.setSecureScreen(args?["secure"] as? Bool ?? false)
+        result(nil)
+      default:
+        result(FlutterMethodNotImplemented)
+      }
+    }
+  }
+
+  private func setSecureScreen(_ on: Bool) {
+    secureScreen = on
+    if on, captureObserver == nil {
+      captureObserver = NotificationCenter.default.addObserver(
+        forName: UIScreen.capturedDidChangeNotification,
+        object: nil,
+        queue: .main
+      ) { [weak self] _ in
+        self?.updateCaptureCover()
+      }
+    }
+    updateCaptureCover()
+  }
+
+  /// The key window — of the scene (SceneDelegate) or, failing that, the
+  /// app delegate's own.
+  private func activeWindow() -> UIWindow? {
+    let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+    for scene in scenes {
+      if let key = scene.windows.first(where: { $0.isKeyWindow }) { return key }
+    }
+    return scenes.first?.windows.first ?? window
+  }
+
+  private func updateCaptureCover() {
+    let shouldCover = secureScreen && UIScreen.main.isCaptured
+    if shouldCover {
+      guard captureCover == nil, let w = activeWindow() else { return }
+      let cover = UIView(frame: w.bounds)
+      cover.backgroundColor = UIColor.systemBackground
+      cover.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+      cover.isUserInteractionEnabled = false
+      w.addSubview(cover)
+      captureCover = cover
+    } else {
+      captureCover?.removeFromSuperview()
+      captureCover = nil
+    }
   }
 
   // MARK: - Chat notifications

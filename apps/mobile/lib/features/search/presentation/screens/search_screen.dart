@@ -625,7 +625,7 @@ class _BeforeTyping extends ConsumerWidget {
 
     Widget title(String text, {Widget? trailing, bool small = false}) =>
         Padding(
-          padding: EdgeInsets.fromLTRB(
+          padding: EdgeInsetsDirectional.fromSTEB(
             AppSpacing.screenSide,
             small ? AppSpacing.md : AppSpacing.lg,
             AppSpacing.sm,
@@ -1055,7 +1055,7 @@ class _RecentHistory extends ConsumerWidget {
       padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(
+          padding: const EdgeInsetsDirectional.fromSTEB(
             AppSpacing.screenSide,
             AppSpacing.md,
             AppSpacing.sm,
@@ -1098,9 +1098,9 @@ class _RecentHistory extends ConsumerWidget {
           InkWell(
             onTap: () => onPick(q),
             child: Padding(
-              padding: const EdgeInsets.only(
-                left: AppSpacing.screenSide,
-                right: AppSpacing.xs,
+              padding: const EdgeInsetsDirectional.only(
+                start: AppSpacing.screenSide,
+                end: AppSpacing.xs,
               ),
               child: Row(
                 children: [

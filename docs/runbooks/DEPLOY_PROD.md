@@ -226,3 +226,36 @@ Multi-AZ ≈ ×2 цены базы, копии ≈ $3–6, VPC endpoints ≈ $29
 `worker_jobs_per_task = 0`, `interface_endpoints = []` → `plan` / `apply`.
 Хранилища с копиями Terraform удалить не сможет (защита AWS и plan-guard) —
 так и задумано. Multi-AZ выключается в консоли RDS → Modify.
+
+## Безопасность (security research #5, 2026-10-22): WAF, журнал облака, контейнер
+
+Код в `infra/` уже содержит всё ниже; применяется обычным `terraform apply`
+(раздел «Повторные `terraform apply`»). `plan-guard.sh` ничего не удаляет —
+только добавляет ресурсы. Что появится:
+
+| Что | Где | Переменная (terraform.tfvars) | По умолчанию |
+|---|---|---|---|
+| Лимит на выдачу кодов на ALB WAF: `/auth/otp/request`, `/auth/password/reset/request`, `/auth/phone/status`, `/auth/identifiers` — не больше N запросов с одного IP за 5 минут | `modules/alb` | `waf_otp_rate_limit_per_5m` | 20 |
+| AWS Bot Control (платно, ~$10/мес + $1 за млн запросов): сначала только считает, потом блокирует | `modules/alb` | `waf_bot_control_enabled`, `waf_bot_control_block` | выкл / выкл |
+| WAF на CloudFront (веб-версия и медиа): лимит с IP, список плохих адресов, известные атаки | `modules/cdn-waf` | `cdn_waf_rate_limit_per_5m` | 2000 |
+| CloudTrail (журнал всех вызовов AWS, 365 дней, свой KMS-ключ), GuardDuty (детектор, S3 + RDS-логины; сканирование дисков выкл), IAM Access Analyzer, парольная политика IAM; находки severity ≥ 7 и всё от Access Analyzer — на почту алармов | `modules/security-baseline` | `guardduty_alert_severity`, `security_hub_enabled` | 7 / выкл |
+| Контейнеры api / worker / admin / migrate с файловой системой только для чтения (`/tmp` и кэш Next — отдельные тома) | `modules/ecs` | `ecs_readonly_root_filesystem` | вкл |
+| DMARC `p=reject` вместо `quarantine` — через 4 недели чистых отчётов на `dmarc_rua` | `modules/ses` | `dmarc_policy` | `quarantine` |
+
+Если после apply задача `api`/`worker`/`admin` не поднимается с ошибкой
+вида `EROFS: read-only file system` в логах — поставить
+`ecs_readonly_root_filesystem = false`, применить, и сообщить разработчику
+путь из ошибки (его надо добавить в тома).
+
+**Перец для хэшей телефонной книги (A7).** API хранит хэши контактов с
+серверным секретом `CONTACTS_PEPPER` (≥ 32 символов). Пока его нет, API
+пишет в журнал предупреждение и работает как раньше. Включить:
+
+1. `aws secretsmanager create-secret --name lawbid-prod/CONTACTS_PEPPER --secret-string "$(openssl rand -hex 32)"` (secret должен существовать со значением ДО того, как попадёт в tfvars — иначе ECS не запустит задачи).
+2. В `terraform.tfvars` добавить `"CONTACTS_PEPPER"` в `extra_secrets`, `terraform apply`.
+3. После выкладки старые строки перехэшируются сами (задача `contacts.pepper-backfill`, по 2000 строк каждые 5 минут); менять секрет потом нельзя — старые строки станут бесполезны.
+
+**Вручную в консоли AWS (не Terraform):** на root-аккаунте — MFA
+(passkey или аппаратный ключ) и ни одного access key; для людей — IAM
+Identity Center (SSO) вместо IAM-пользователей; подтвердить подписку на
+e-mail алармов (письмо от SNS после apply).

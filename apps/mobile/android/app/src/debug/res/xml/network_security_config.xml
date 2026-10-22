@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Debug builds of any flavor talk to the local API / MinIO on
+     http://10.0.2.2 (the emulator's alias of the Mac); release builds use
+     src/main (https only). System CAs only. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

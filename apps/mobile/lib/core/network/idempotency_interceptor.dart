@@ -28,7 +28,9 @@ class IdempotencyInterceptor extends Interceptor {
     final hasKey =
         options.headers.keys.any((k) => k.toLowerCase() == 'idempotency-key');
     if (opted && isPost && !hasKey) {
-      options.headers[headerName] = _keyFactory();
+      final given = options.extra[RequestFlags.idempotencyKey];
+      options.headers[headerName] =
+          given is String && given.isNotEmpty ? given : _keyFactory();
     }
     handler.next(options);
   }

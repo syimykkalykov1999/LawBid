@@ -11,6 +11,8 @@ import { LegalExportsCoreModule } from '../modules/admin-data-requests/legal-exp
 import { StorageCoreModule } from '../modules/storage/storage.module';
 import { LegalQaSweepJob } from '../modules/legal-qa/legal-qa-sweep.job';
 import { ContactsJoinedJob } from './handlers/contacts-joined.job';
+import { ContactsPepperBackfillJob } from './handlers/contacts-pepper-backfill.job';
+import { ContactsSyncModule } from '../modules/contacts-sync/contacts-sync.module';
 import { ConsultationsCoreModule } from '../modules/consultations/consultations-core.module';
 import { TreasuryCoreModule } from '../modules/treasury/treasury.module';
 import { FileReleaseService } from '../modules/files/storage/file-release.service';
@@ -76,6 +78,8 @@ export class JobsModule {
       module: JobsModule,
       imports: [
         NotificationsModule,
+        // Security research #5 (A7): ContactsPepper for the contacts jobs.
+        ContactsSyncModule,
         CallsModule,
         ClientReviewsCoreModule,
         SubscriptionsModule,
@@ -120,6 +124,7 @@ export class JobsModule {
         LegalQaSweepJob,
         // Owner 2026-10-22: `contacts.joined`.
         ContactsJoinedJob,
+        ContactsPepperBackfillJob,
         OtpCleanupJob,
         DisposableDomainsRefreshJob,
         ReviewReminderJob,

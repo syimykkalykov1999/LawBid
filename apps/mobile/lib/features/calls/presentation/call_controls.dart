@@ -177,7 +177,7 @@ class CallVideoPrompt extends ConsumerWidget {
           borderRadius: BorderRadius.circular(AppRadii.card),
         ),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(
+          padding: const EdgeInsetsDirectional.fromSTEB(
             AppSpacing.md,
             AppSpacing.sm,
             AppSpacing.sm,
