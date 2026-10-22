@@ -156672,6 +156672,10 @@
           "localReminders": {
             "type": "boolean",
             "description": "Owner 2026-10-20: this app keeps planner reminders locally and shows the reminder push itself (Android)."
+          },
+          "chatStyle": {
+            "type": "boolean",
+            "description": "Owner 2026-10-22: this app draws chat notifications itself (sender's photo, one per chat) from a data-only push (Android)."
           }
         },
         "required": [

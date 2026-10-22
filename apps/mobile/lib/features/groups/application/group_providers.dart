@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/dio_client.dart';
+import 'package:lawbid/core/platform/chat_notifications_channel.dart';
 import 'package:lawbid/features/cases/application/paged_notifier.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/chat/data/realtime_client.dart';
@@ -275,6 +276,8 @@ class GroupThread extends Notifier<GroupThreadState> {
     // not push what I am looking at.
     final realtime = ref.watch(realtimeClientProvider);
     realtime?.join(key.groupId);
+    // Owner 2026-10-22: the group is open — its notification goes.
+    unawaited(chatNotificationsChannel.clearChat(key.groupId));
     final sub = ref.watch(realtimeEventsProvider).listen(_onEvent);
     ref.onDispose(() {
       sub.cancel();

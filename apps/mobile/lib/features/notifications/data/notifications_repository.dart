@@ -203,6 +203,10 @@ abstract interface class NotificationsRepository {
     /// Owner 2026-10-20: this app keeps planner reminders as local alarms
     /// and shows the reminder push itself (Android).
     bool localReminders = false,
+
+    /// Owner 2026-10-22: this app draws chat notifications itself
+    /// (WhatsApp-style, Android) from a data-only push.
+    bool chatStyle = false,
   });
   Future<void> deletePushToken(String token);
 
@@ -400,6 +404,7 @@ class ApiNotificationsRepository implements NotificationsRepository {
     required bool ios,
     bool web = false,
     bool localReminders = false,
+    bool chatStyle = false,
   }) =>
       guardApiCall(
         () => _api.registerPushToken(
@@ -411,6 +416,7 @@ class ApiNotificationsRepository implements NotificationsRepository {
                     ? api.PushTokenDtoPlatform.ios
                     : api.PushTokenDtoPlatform.android,
             localReminders: localReminders,
+            chatStyle: chatStyle,
           ),
         ),
       );

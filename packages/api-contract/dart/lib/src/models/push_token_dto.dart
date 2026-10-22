@@ -14,6 +14,7 @@ class PushTokenDto {
     required this.token,
     required this.platform,
     this.localReminders,
+    this.chatStyle,
   });
 
   factory PushTokenDto.fromJson(Map<String, Object?> json) =>
@@ -25,6 +26,9 @@ class PushTokenDto {
 
   /// Owner 2026-10-20: this app keeps planner reminders locally and shows the reminder push itself (Android).
   final bool? localReminders;
+
+  /// Owner 2026-10-22: this app draws chat notifications itself (sender's photo, one per chat) from a data-only push (Android).
+  final bool? chatStyle;
 
   Map<String, Object?> toJson() => _$PushTokenDtoToJson(this);
 }

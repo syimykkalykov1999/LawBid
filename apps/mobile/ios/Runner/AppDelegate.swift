@@ -49,6 +49,59 @@ import flutter_callkit_incoming
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+    if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "LawbidChatNotifications") {
+      registerChatNotifications(registrar.messenger())
+    }
+  }
+
+  // MARK: - Chat notifications
+
+  /// Owner 2026-10-22 (message pushes like WhatsApp): the names saved in the
+  /// phone book for LawBid contacts go to the App Group the chat push
+  /// extension reads (NotificationService/NotificationService.swift); an
+  /// opened chat takes its notifications (one thread per chat) off the
+  /// lock screen; a sign-out clears them all. Taps are FCM's own
+  /// (onMessageOpenedApp), so `pendingOpen` has nothing to say here.
+  private func registerChatNotifications(_ messenger: FlutterBinaryMessenger) {
+    let channel = FlutterMethodChannel(
+      name: "lawbid/chat_notifications", binaryMessenger: messenger)
+    channel.setMethodCallHandler { call, result in
+      let args = call.arguments as? [String: Any]
+      let center = UNUserNotificationCenter.current()
+      switch call.method {
+      case "setContactNames":
+        let names = args?["names"] as? [String: String] ?? [:]
+        let app = Bundle.main.bundleIdentifier ?? "com.lawbid.lawbid"
+        UserDefaults(suiteName: "group.\(app)")?.set(names, forKey: "chatContactNames")
+        result(nil)
+      case "clear":
+        guard let id = args?["conversationId"] as? String, !id.isEmpty else {
+          result(nil)
+          return
+        }
+        center.getDeliveredNotifications { delivered in
+          let ids = delivered
+            .filter { $0.request.content.threadIdentifier == id }
+            .map { $0.request.identifier }
+          if !ids.isEmpty { center.removeDeliveredNotifications(withIdentifiers: ids) }
+        }
+        result(nil)
+      case "clearAll":
+        center.getDeliveredNotifications { delivered in
+          let ids = delivered
+            .filter { $0.request.content.userInfo["type"] as? String == "new_message" }
+            .map { $0.request.identifier }
+          if !ids.isEmpty { center.removeDeliveredNotifications(withIdentifiers: ids) }
+        }
+        let app = Bundle.main.bundleIdentifier ?? "com.lawbid.lawbid"
+        UserDefaults(suiteName: "group.\(app)")?.removeObject(forKey: "chatContactNames")
+        result(nil)
+      case "pendingOpen":
+        result(nil)
+      default:
+        result(FlutterMethodNotImplemented)
+      }
+    }
   }
 
   // MARK: - PushKit

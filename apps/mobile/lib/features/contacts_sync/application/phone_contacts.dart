@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 
@@ -6,6 +7,7 @@ import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
+import 'package:lawbid/core/platform/chat_notifications_channel.dart';
 import 'package:lawbid/features/contacts_sync/application/contacts_sync_providers.dart';
 import 'package:lawbid/features/contacts_sync/data/contacts_sync_repository.dart';
 import 'package:lawbid/features/contacts_sync/data/phone_numbers.dart';
@@ -243,6 +245,16 @@ final phoneContactsProvider = FutureProvider<PhoneContacts>((ref) async {
   }
   onLawBid.sort(
     (a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()),
+  );
+  // Owner 2026-10-22 (WhatsApp): a message push from a contact shows the
+  // name saved in the phone book. Kept on the phone only (the system's
+  // notification code reads it); never uploaded.
+  unawaited(
+    chatNotificationsChannel.setContactNames(
+      contactNamesForPush([
+        for (final c in onLawBid) (userId: c.userId, phoneName: c.phoneName),
+      ]),
+    ),
   );
   final invite = <InvitableContact>[
     for (var i = 0; i < entries.length; i++)

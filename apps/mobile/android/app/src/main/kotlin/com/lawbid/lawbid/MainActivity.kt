@@ -43,6 +43,8 @@ class MainActivity : FlutterFragmentActivity() {
     private var callChannel: MethodChannel? = null
     private var pendingCallAction: String? = null
     private var pipActive = false
+    private var chatChannel: MethodChannel? = null
+    private var pendingChatOpen: Map<String, String>? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -240,6 +242,41 @@ class MainActivity : FlutterFragmentActivity() {
                 }
             }
         }
+        // Owner 2026-10-22 (WhatsApp): chat notifications drawn natively
+        // (ChatNotifications) — the phone-book names of LawBid contacts, an
+        // opened chat clears its notification, a sign-out clears them all;
+        // a tapped one opens its chat (`open`, or `pendingOpen` on a cold
+        // start).
+        chatChannel = MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "lawbid/chat_notifications",
+        ).also { ch ->
+            ch.setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "setContactNames" -> {
+                        val raw = call.argument<Map<String, String>>("names") ?: emptyMap()
+                        ChatNotifications.setContactNames(applicationContext, raw)
+                        result.success(null)
+                    }
+                    "clear" -> {
+                        call.argument<String>("conversationId")?.let {
+                            ChatNotifications.clear(applicationContext, it)
+                        }
+                        result.success(null)
+                    }
+                    "clearAll" -> {
+                        ChatNotifications.clearAll(applicationContext)
+                        result.success(null)
+                    }
+                    "pendingOpen" -> {
+                        result.success(pendingChatOpen)
+                        pendingChatOpen = null
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+        }
+        ChatNotifications.openTarget(intent)?.let { pendingChatOpen = it }
         // A cold start from the notification: Dart asks for it (pendingAction).
         callActionOf(intent)?.let { pendingCallAction = it }
         // Owner 2026-10-05 (docs/CLIENT_FRAUD.md): ANDROID_ID for the
@@ -319,6 +356,7 @@ class MainActivity : FlutterFragmentActivity() {
 
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
         CallBridge.channel = null
+        chatChannel = null
         super.cleanUpFlutterEngine(flutterEngine)
     }
 
@@ -341,6 +379,11 @@ class MainActivity : FlutterFragmentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         handleCallIntent(intent)
+        ChatNotifications.openTarget(intent)?.let { target ->
+            intent.action = null
+            val ch = chatChannel
+            if (ch != null) ch.invokeMethod("open", target) else pendingChatOpen = target
+        }
     }
 
     private fun callActionOf(intent: Intent?): String? = when (intent?.action) {
