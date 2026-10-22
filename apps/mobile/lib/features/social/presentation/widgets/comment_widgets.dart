@@ -700,8 +700,10 @@ class _CommentComposerState extends ConsumerState<CommentComposer> {
       if (reply == null) {
         ref.read(commentsProvider(widget.postId).notifier).add(c);
       } else {
-        ref.invalidate(repliesProvider(reply.parentId));
-        // ignore: cascade_invocations
+        // Package F: the answer is the reply — under its parent at once.
+        ref.read(repliesProvider(reply.parentId).notifier).add(c);
+        // The parent's reply count lives in the comments page (no event
+        // for it yet): that list is read again.
         ref.invalidate(commentsProvider(widget.postId));
       }
       // Case threads (OQ-034) have no post to bump. Audit 2026-10-02: the

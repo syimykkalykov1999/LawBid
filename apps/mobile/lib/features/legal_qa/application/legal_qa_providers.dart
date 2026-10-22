@@ -1,8 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/core/cache/cache_providers.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
-import 'package:lawbid/features/cases/application/paged_notifier.dart';
+import 'package:lawbid/core/session/session_providers.dart';
+import 'package:lawbid/core/sync/synced_list_notifier.dart';
+import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/legal_qa/data/legal_qa_repository.dart';
 import 'package:lawbid/features/legal_qa/domain/qa_models.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
@@ -19,14 +22,63 @@ final legalQaRepositoryProvider = Provider<LegalQaRepository>(
   (ref) => LegalQaRepository(ref.watch(dioProvider)),
 );
 
-class QuestionsNotifier extends PagedNotifier<Question> {
+/// Bumped after my own question / answer action: every list on screen
+/// catches up («Mine» by one `?updatedSince`, the other tabs by a page).
+class QuestionsTouched extends Notifier<int> {
+  @override
+  int build() => 0;
+
+  void bump() => state++;
+}
+
+final questionsTouchedProvider =
+    NotifierProvider<QuestionsTouched, int>(QuestionsTouched.new);
+
+/// Owner 2026-10-22 (client economy plan, package F): «Mine» catches up
+/// with `?updatedSince` (deleted ones leave); the other tabs are pull.
+class QuestionsNotifier extends SyncedListNotifier<Question> {
   QuestionsNotifier(this.query);
 
   final QuestionsQuery query;
 
   @override
-  Future<CursorPage<Question>> fetch(String? cursor) =>
+  String get listKey =>
+      'questions:mine:${query.practiceAreaId ?? ''}:${query.stateCode ?? ''}';
+
+  @override
+  String? get syncOwner =>
+      ref.read(sessionControllerProvider.select((s) => s?.sub));
+
+  @override
+  SyncStateStore? get syncStore => ref.read(cacheDatabaseProvider);
+
+  @override
+  bool get catchesUp => query.filter == QaFilter.mine && query.q.trim().isEmpty;
+
+  @override
+  Future<PaginatedList<Question>> build() {
+    final sub = ref.watch(realtimeEventsProvider).listen((e) {
+      if (e.name == RealtimeEvent.reconnected) catchUp();
+    });
+    ref
+      ..onDispose(sub.cancel)
+      ..listen(questionsTouchedProvider, (_, __) => catchUp());
+    return super.build();
+  }
+
+  @override
+  Future<CursorPage<Question>> fetchPage(String? cursor) =>
       ref.read(legalQaRepositoryProvider).list(query, cursor: cursor);
+
+  @override
+  Future<SyncedPage<Question>> fetchChanged(DateTime since) =>
+      ref.read(legalQaRepositoryProvider).listChangedSince(query, since);
+
+  @override
+  String keyOf(Question item) => item.id;
+
+  @override
+  DateTime? updatedAtOf(Question item) => null;
 
   @override
   Object idOf(Question item) => item.id;

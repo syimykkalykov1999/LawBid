@@ -96,7 +96,7 @@ class _AskQuestionScreenState extends ConsumerState<AskQuestionScreen> {
             stateCode: _state,
             anonymous: _anonymous,
           );
-      ref.invalidate(questionsProvider);
+      ref.read(questionsTouchedProvider.notifier).bump();
       if (!mounted) return;
       showAppSnackBar(context, t.t('qa.sent'));
       context.pop();

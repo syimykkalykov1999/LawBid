@@ -8,6 +8,7 @@ import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/core/persistence/saved_json.dart';
 import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/features/cases/application/paged_notifier.dart';
+import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/feed/application/feed_topics.dart'
     show topicTagFor;
 import 'package:lawbid/features/profile/application/profile_providers.dart';
@@ -17,6 +18,7 @@ import 'package:lawbid/features/social/data/social_repository.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
+import 'package:lawbid_api/lawbid_api.dart' as api;
 
 // No silent automatic retries: a failed load shows its error/offline
 // state with Retry at once (docs/01 §8.3).
@@ -556,15 +558,49 @@ class CommentsNotifier extends PagedNotifier<Comment> {
   final String postId;
 
   @override
+  Future<PaginatedList<Comment>> build() {
+    // Owner 2026-10-22 (client economy plan, package F): while the
+    // comments are open the post's room sends new ones (`comment:new`);
+    // a reply lands under its parent (RepliesNotifier).
+    final realtime = ref.watch(realtimeClientProvider);
+    realtime?.watchPost(postId);
+    final sub = ref.watch(realtimeEventsProvider).listen((e) {
+      if (e.name != 'comment:new') return;
+      final data = e.data;
+      if (data is! Map || data['postId'] != postId) return;
+      if (data['parentCommentId'] != null) return;
+      final raw = data['comment'];
+      if (raw is! Map) return;
+      try {
+        add(
+          SocialMappers.comment(
+            api.CommentDto.fromJson(Map<String, dynamic>.from(raw)),
+          ),
+        );
+      } on Object {
+        // An unknown shape: the next open shows it.
+      }
+    });
+    ref.onDispose(() {
+      sub.cancel();
+      realtime?.unwatchPost(postId);
+    });
+    return super.build();
+  }
+
+  @override
   Future<CursorPage<Comment>> fetch(String? cursor) =>
       ref.read(socialRepositoryProvider).comments(postId, cursor: cursor);
 
   @override
   Object idOf(Comment item) => item.id;
 
+  /// A new comment (mine from the answer, or someone's from the room);
+  /// the same one twice changes nothing.
   void add(Comment c) {
     final current = state.value;
     if (current == null) return;
+    if (current.items.any((x) => x.id == c.id)) return;
     state = AsyncData(
       PaginatedList(
         items: [c, ...current.items],
@@ -604,9 +640,11 @@ class RepliesNotifier extends PagedNotifier<Comment> {
   @override
   Object idOf(Comment item) => item.id;
 
+  /// My reply from the answer (package F: no reload of the thread); the
+  /// same one twice changes nothing.
   void add(Comment c) {
     final current = state.value;
-    if (current == null) return;
+    if (current == null || current.items.any((x) => x.id == c.id)) return;
     state = AsyncData(
       PaginatedList(
         items: [...current.items, c],

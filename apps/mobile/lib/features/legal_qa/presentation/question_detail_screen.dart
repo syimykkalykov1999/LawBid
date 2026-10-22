@@ -47,9 +47,9 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen> {
   }
 
   void _refresh() {
-    ref
-      ..invalidate(questionDetailProvider(widget.id))
-      ..invalidate(questionsProvider);
+    ref.invalidate(questionDetailProvider(widget.id));
+    // Package F: the lists catch up (Mine by a delta), no reload.
+    ref.read(questionsTouchedProvider.notifier).bump();
   }
 
   /// Runs [call]; shows the error as a snack bar, refreshes on success.
@@ -117,7 +117,7 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen> {
     if (!yes || !mounted) return;
     try {
       await ref.read(legalQaRepositoryProvider).delete(widget.id);
-      ref.invalidate(questionsProvider);
+      ref.read(questionsTouchedProvider.notifier).bump();
       if (mounted) unawaited(Navigator.of(context).maybePop());
     } on Object catch (e) {
       if (mounted) showAppSnackBar(context, errorText(t, e));

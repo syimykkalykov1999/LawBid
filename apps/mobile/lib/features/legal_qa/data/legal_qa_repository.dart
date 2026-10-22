@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/request_flags.dart';
+import 'package:lawbid/core/sync/synced_list_notifier.dart' show SyncedPage;
 import 'package:lawbid/features/legal_qa/domain/qa_models.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
@@ -10,6 +11,27 @@ class LegalQaRepository {
   LegalQaRepository(Dio dio) : _api = api.QuestionsClient(dio);
 
   final api.QuestionsClient _api;
+
+  /// Package F: `filter=mine` only — my questions changed since [since],
+  /// removed ones as `deletedIds`.
+  Future<SyncedPage<Question>> listChangedSince(
+    QuestionsQuery query,
+    DateTime since,
+  ) async {
+    final env = await guardApiCall(
+      () => _api.listQuestions(
+        filter: api.QuestionFilter.mine,
+        practiceAreaId: query.practiceAreaId,
+        stateCode: query.stateCode,
+        updatedSince: since.toUtc(),
+      ),
+    );
+    return SyncedPage(
+      items: env.data.map(_question).toList(),
+      deletedIds: env.meta?.deletedIds ?? const [],
+      syncedAt: env.meta?.syncedAt,
+    );
+  }
 
   Future<CursorPage<Question>> list(
     QuestionsQuery query, {

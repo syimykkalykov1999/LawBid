@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/core/sync/synced_list_notifier.dart' show SyncedPage;
 import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
@@ -244,6 +245,16 @@ class NewCaseAlerts {
 /// The server decides which type is which.
 enum NotifGroup { important, other }
 
+/// Package F: the `?updatedSince` side of the bell list, apart from
+/// [NotificationsRepository] so the test fakes need not know it.
+// ignore: one_member_abstracts
+abstract interface class NotificationsSyncRepository {
+  Future<SyncedPage<AppNotification>> listChangedSince(
+    DateTime since, {
+    NotifGroup? group,
+  });
+}
+
 abstract interface class NotificationsRepository {
   /// [group] null = every notification; [query] null/empty = no search
   /// (Owner 2026-10-18: matches the text and the attorney's name).
@@ -304,7 +315,8 @@ abstract interface class NotificationsRepository {
   Future<void> deleteVoipToken(String token);
 }
 
-class ApiNotificationsRepository implements NotificationsRepository {
+class ApiNotificationsRepository
+    implements NotificationsRepository, NotificationsSyncRepository {
   ApiNotificationsRepository(Dio dio) : _api = api.NotificationsClient(dio);
 
   final api.NotificationsClient _api;
@@ -393,39 +405,60 @@ class ApiNotificationsRepository implements NotificationsRepository {
       () => _api.listNotifications(
         cursor: cursor,
         q: (query == null || query.trim().isEmpty) ? null : query.trim(),
-        group: switch (group) {
-          NotifGroup.important => api.NotificationGroup.important,
-          NotifGroup.other => api.NotificationGroup.other,
-          null => null,
-        },
+        group: _group(group),
       ),
     );
     return CursorPage(
-      items: [
-        for (final n in env.data)
-          AppNotification(
-            id: n.id,
-            type: n.type,
-            category: _cat(n.category.json ?? 'system'),
-            payload: n.payload is Map
-                ? Map<String, Object?>.from(n.payload as Map)
-                : const {},
-            actor: n.actor == null
-                ? null
-                : NotifActor(
-                    id: n.actor!.id,
-                    displayName: n.actor!.displayName,
-                    username: n.actor!.username,
-                    avatarUrl: n.actor!.avatarUrl,
-                  ),
-            aggregateCount: n.aggregateCount.toInt(),
-            readAt: n.readAt,
-            createdAt: n.createdAt,
-          ),
-      ],
+      items: env.data.map(fromDto).toList(),
       nextCursor: env.meta?.nextCursor,
     );
   }
+
+  /// Owner 2026-10-22 (client economy plan, package F): only the rows
+  /// created or read since [since] (newest first); `group` applies.
+  @override
+  Future<SyncedPage<AppNotification>> listChangedSince(
+    DateTime since, {
+    NotifGroup? group,
+  }) async {
+    final env = await guardApiCall(
+      () => _api.listNotifications(
+        updatedSince: since.toUtc(),
+        group: _group(group),
+      ),
+    );
+    return SyncedPage(
+      items: env.data.map(fromDto).toList(),
+      deletedIds: env.meta?.deletedIds ?? const [],
+      syncedAt: env.meta?.syncedAt,
+    );
+  }
+
+  static api.NotificationGroup? _group(NotifGroup? group) => switch (group) {
+        NotifGroup.important => api.NotificationGroup.important,
+        NotifGroup.other => api.NotificationGroup.other,
+        null => null,
+      };
+
+  static AppNotification fromDto(api.NotificationDto n) => AppNotification(
+        id: n.id,
+        type: n.type,
+        category: _cat(n.category.json ?? 'system'),
+        payload: n.payload is Map
+            ? Map<String, Object?>.from(n.payload as Map)
+            : const {},
+        actor: n.actor == null
+            ? null
+            : NotifActor(
+                id: n.actor!.id,
+                displayName: n.actor!.displayName,
+                username: n.actor!.username,
+                avatarUrl: n.actor!.avatarUrl,
+              ),
+        aggregateCount: n.aggregateCount.toInt(),
+        readAt: n.readAt,
+        createdAt: n.createdAt,
+      );
 
   @override
   Future<void> markRead({List<String>? ids, bool all = false}) => guardApiCall(
