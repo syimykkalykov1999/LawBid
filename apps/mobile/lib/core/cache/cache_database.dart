@@ -83,8 +83,11 @@ class CachedMessages extends Table {
 class ConversationSync extends Table {
   TextColumn get owner => text()();
   TextColumn get conversationId => text()();
-  TextColumn get oldestId => text().nullable()();
   TextColumn get newestId => text().nullable()();
+
+  /// The server's cursor for the page after the oldest one on the phone
+  /// (null = none asked yet, or [complete]).
+  TextColumn get nextCursor => text().nullable()();
   BoolColumn get complete => boolean().withDefault(const Constant(false))();
   DateTimeColumn get openedAt => dateTime()();
   IntColumn get bytes => integer().withDefault(const Constant(0))();
@@ -276,6 +279,21 @@ class CacheDatabase extends _$CacheDatabase implements SyncStateStore {
 
   // --- messages (package C) ---------------------------------------------
 
+  /// The newest row of a chat (the `afterId` of the next catch-up).
+  Future<CachedMessageRow?> newestMessage(
+    String owner,
+    String conversationId,
+  ) =>
+      (select(cachedMessages)
+            ..where(
+              (r) =>
+                  r.owner.equals(owner) &
+                  r.conversationId.equals(conversationId),
+            )
+            ..orderBy([(r) => OrderingTerm.desc(r.createdAt)])
+            ..limit(1))
+          .getSingleOrNull();
+
   Future<List<CachedMessageRow>> messagesOf(
     String owner,
     String conversationId, {
@@ -364,11 +382,14 @@ class CacheDatabase extends _$CacheDatabase implements SyncStateStore {
             ))
           .getSingleOrNull();
 
+  /// «Leave this field as it is» for [setConversationSync].
+  static const Object keep = _keep;
+
   Future<void> setConversationSync({
     required String owner,
     required String conversationId,
     required DateTime now,
-    Object? oldestId = _keep,
+    Object? nextCursor = _keep,
     Object? newestId = _keep,
     bool? complete,
   }) async {
@@ -386,8 +407,10 @@ class CacheDatabase extends _$CacheDatabase implements SyncStateStore {
       ConversationSyncCompanion.insert(
         owner: owner,
         conversationId: conversationId,
-        oldestId: Value(
-          identical(oldestId, _keep) ? current?.oldestId : oldestId as String?,
+        nextCursor: Value(
+          identical(nextCursor, _keep)
+              ? current?.nextCursor
+              : nextCursor as String?,
         ),
         newestId: Value(
           identical(newestId, _keep) ? current?.newestId : newestId as String?,

@@ -6,6 +6,8 @@ import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/audio/app_sounds.dart';
+import 'package:lawbid/core/cache/cache_limits.dart';
+import 'package:lawbid/core/cache/cache_providers.dart';
 import 'package:lawbid/core/connectivity/connectivity_providers.dart';
 import 'package:lawbid/core/media/image_size.dart';
 import 'package:lawbid/core/media/video_size.dart';
@@ -18,6 +20,7 @@ import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/chat/data/chat_extras_repository.dart';
 import 'package:lawbid/features/chat/data/chat_list_cache.dart';
 import 'package:lawbid/features/chat/data/chat_repository.dart';
+import 'package:lawbid/features/chat/data/message_store.dart';
 import 'package:lawbid/features/chat/data/voice_files.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/notifications/application/call_mute.dart';
@@ -32,6 +35,7 @@ import 'package:lawbid/features/stickers/domain/sticker_models.dart';
 import 'package:lawbid/features/templates/application/templates_providers.dart';
 import 'package:lawbid/features/templates/domain/doc_template.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
+import 'package:lawbid_api/lawbid_api.dart' as api;
 
 Duration? _noRetry(int retryCount, Object error) => null;
 
@@ -40,11 +44,25 @@ final chatListCacheProvider = Provider<ChatListCache>(
   (ref) => ChatListCache(ref.watch(savedJsonProvider)),
 );
 
+/// Owner 2026-10-22 (package C): this account's chat history on the phone
+/// (null signed out). The web keeps it in the tab's memory (plan §5).
+final messageStoreProvider = Provider<MessageStore?>((ref) {
+  final owner = ref.watch(currentUserIdProvider);
+  if (owner == null) return null;
+  return MessageStore(
+    ref.watch(cacheDatabaseProvider),
+    owner,
+    limitBytes: () =>
+        ref.read(cacheLimitsProvider).limitBytes(CacheStore.messages),
+  );
+});
+
 final chatRepositoryProvider = Provider<ChatRepository>(
   (ref) => ApiChatRepository(
     ref.watch(dioProvider),
     storageDio: ref.watch(storageDioProvider),
     listCache: ref.watch(chatListCacheProvider),
+    messageStore: ref.watch(messageStoreProvider),
   ),
 );
 
@@ -804,7 +822,38 @@ class ChatThread extends Notifier<ChatThreadState> {
       ..invalidate(folderConversationsProvider);
   }
 
+  MessageStore? get _store => ref.read(messageStoreProvider);
+
+  /// The marker cursor while older pages still come from the phone.
+  static const localCursor = 'local';
+
+  /// Owner 2026-10-22 (package C, WhatsApp): the chat opens on the phone's
+  /// copy at once, the server is asked only for what came after the newest
+  /// message on the phone; a chat without a copy reads its first page.
   Future<void> load() async {
+    final store = _store;
+    if (store != null) {
+      final local = await store.page(id);
+      if (!ref.mounted) return;
+      if (local.isNotEmpty) {
+        unawaited(store.touch(id));
+        state = state.copyWith(
+          messages: local.map(ChatMappers.message).toList(),
+          nextCursor: localCursor,
+          loading: false,
+          clearError: true,
+        );
+        unawaited(_refreshConversation());
+        unawaited(_catchUp());
+        unawaited(ref.read(outboxSenderProvider).drain());
+        unawaited(loadPins());
+        return;
+      }
+    }
+    await _loadPage();
+  }
+
+  Future<void> _loadPage() async {
     state = state.copyWith(loading: true, clearError: true);
     try {
       final results = await Future.wait([
@@ -861,11 +910,53 @@ class ChatThread extends Notifier<ChatThreadState> {
     final cursor = state.nextCursor;
     if (cursor == null || state.loadingMore) return;
     state = state.copyWith(loadingMore: true, loadMoreFailed: false);
+    if (cursor == localCursor) {
+      await _loadMoreLocal();
+      return;
+    }
     try {
       final page = await _repo.messages(id, cursor: cursor);
       if (!ref.mounted) return;
       state = state.copyWith(
         messages: [...state.messages, ...page.items],
+        nextCursor: page.nextCursor,
+        clearCursor: page.nextCursor == null,
+        loadingMore: false,
+      );
+    } on Object {
+      if (ref.mounted) {
+        state = state.copyWith(loadingMore: false, loadMoreFailed: true);
+      }
+    }
+  }
+
+  /// Older messages from the phone; when it has no more, the server's page
+  /// after the oldest one on the phone (its cursor was saved with it).
+  Future<void> _loadMoreLocal() async {
+    final store = _store;
+    final oldest = state.messages.where((m) => !m.isLocal).lastOrNull;
+    final older = store == null || oldest == null
+        ? const <api.MessageDto>[]
+        : await store.page(id, before: oldest.createdAt);
+    if (!ref.mounted) return;
+    if (older.isNotEmpty) {
+      _merge(older.map(ChatMappers.message).toList());
+      state = state.copyWith(loadingMore: false);
+      return;
+    }
+    final history = await store?.history(id);
+    if (!ref.mounted) return;
+    if (history != null && history.complete) {
+      state = state.copyWith(loadingMore: false, clearCursor: true);
+      return;
+    }
+    try {
+      // No saved cursor (the copy grew from events only): the first page
+      // again — it merges by id and brings the cursor for the rest.
+      final page = await _repo.messages(id, cursor: history?.nextCursor);
+      if (!ref.mounted) return;
+      _merge(page.items);
+      state = state.copyWith(
         nextCursor: page.nextCursor,
         clearCursor: page.nextCursor == null,
         loadingMore: false,
@@ -1527,6 +1618,9 @@ class ChatThread extends Notifier<ChatThreadState> {
       case 'message:new':
         final m = ChatMappers.fromEvent(data);
         if (m != null && m.conversationId == id) {
+          unawaited(
+            _store?.putRaw(id, (data! as Map)['message']) ?? Future.value(),
+          );
           // OQ-044: a soft chime for the other side's message in an open,
           // unmuted chat (not for our own echo or call entries).
           final mine = m.senderId == ref.read(currentUserIdProvider);
@@ -1545,10 +1639,18 @@ class ChatThread extends Notifier<ChatThreadState> {
       case 'message:updated':
         if (data is Map && data['conversationId'] == id) {
           final gone = data['messageId'];
-          if (data['hiddenForMe'] == true && gone is String) _drop(gone);
+          if (data['hiddenForMe'] == true && gone is String) {
+            unawaited(_store?.remove(id, gone) ?? Future.value());
+            _drop(gone);
+          }
         } else {
           final m = ChatMappers.fromEvent(data);
-          if (m != null && m.conversationId == id) _apply(m);
+          if (m != null && m.conversationId == id) {
+            unawaited(
+              _store?.putRaw(id, (data! as Map)['message']) ?? Future.value(),
+            );
+            _apply(m);
+          }
         }
       case 'message:read':
         if (data is Map && data['conversationId'] == id) {
@@ -1616,12 +1718,19 @@ class ChatThread extends Notifier<ChatThreadState> {
     }
   }
 
-  /// §8.5: after a drop, fetch everything after the newest known message.
+  /// §8.5: after a drop (or an open from the phone's copy), fetch
+  /// everything after the newest known message. Too much missed
+  /// (`409 SYNC_TOO_OLD`): the copy is dropped and the first page read.
   Future<void> _catchUp() async {
     final newest = state.messages.where((m) => !m.isLocal).firstOrNull;
-    if (newest == null) return load();
+    if (newest == null) return _loadPage();
     try {
       _merge(await _repo.messagesAfter(id, newest.id));
+    } on ApiException catch (e) {
+      if (e.code == ApiErrorCodes.syncTooOld) {
+        await _store?.forget(id);
+        if (ref.mounted) await _loadPage();
+      }
     } on Object {
       // Next reconnect or open retries.
     }
