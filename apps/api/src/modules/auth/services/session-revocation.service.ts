@@ -4,6 +4,7 @@ import type { Prisma, PrismaClient } from '@prisma/client';
 import { REDIS_CLIENT } from '../../../redis/redis.constants';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { TokenService } from './token.service';
+import { publishSessionRevoked } from '../../../redis/session-revoked';
 
 export type RevokeReason =
   | 'logout'
@@ -81,7 +82,7 @@ export class SessionRevocationService {
       where: { user_id: userId, revoked_at: null },
       data: { revoked_at: new Date(), revoked_reason: reason },
     });
-    await Promise.all(chainIds.map((id) => this.blacklist(id, reason)));
+    await Promise.all(chainIds.map((id) => this.blacklist(id, reason, userId)));
     return chainIds;
   }
 
@@ -112,7 +113,7 @@ export class SessionRevocationService {
       where: { session_chain_id: { in: chainIds }, revoked_at: null },
       data: { revoked_at: new Date(), revoked_reason: reason },
     });
-    await Promise.all(chainIds.map((id) => this.blacklist(id, reason)));
+    await Promise.all(chainIds.map((id) => this.blacklist(id, reason, userId)));
     return chainIds;
   }
 
@@ -129,6 +130,7 @@ export class SessionRevocationService {
   private async blacklist(
     sessionChainId: string,
     reason: string = '1',
+    userId?: string,
   ): Promise<void> {
     await this.redis.set(
       this.blacklistKey(sessionChainId),
@@ -136,6 +138,13 @@ export class SessionRevocationService {
       'EX',
       this.blacklistTtlSeconds,
     );
+    // Owner 2026-10-22 (server load audit, finding 5): live sockets of the
+    // session are dropped by this message on every API instance, instead
+    // of each socket polling the blacklist every 45 s.
+    await publishSessionRevoked(this.redis, {
+      sessionId: sessionChainId,
+      ...(userId ? { userId } : {}),
+    });
   }
 
   private blacklistKey(sessionChainId: string): string {

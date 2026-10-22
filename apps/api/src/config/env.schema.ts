@@ -98,6 +98,11 @@ export const envSchema = z
     // raises it: a busy CI runner stalls the event loop past 2 s while an
     // app boots, and the timer then fires before the reply is read.
     REDIS_COMMAND_TIMEOUT_MS: z.coerce.number().int().positive().default(2000),
+    // Owner 2026-10-22 (server load audit, finding 5): the Socket.IO Redis
+    // adapter. `sharded` (Redis 7 sharded pub/sub: an event reaches only the
+    // instances holding its room); `classic` = the old pub/sub, a rollback
+    // switch. Set the same value on the API and the worker.
+    SOCKET_IO_ADAPTER: z.enum(['sharded', 'classic']).default('sharded'),
     SUBSCRIPTION_PAST_DUE_GRACE_DAYS: z.coerce
       .number()
       .int()

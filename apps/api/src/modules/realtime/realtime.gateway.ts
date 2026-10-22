@@ -8,13 +8,17 @@ import {
   SubscribeMessage,
   WebSocketGateway,
 } from '@nestjs/websockets';
-import { createAdapter } from '@socket.io/redis-adapter';
+import { createAdapter, createShardedAdapter } from '@socket.io/redis-adapter';
 import type Redis from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
 import type { Namespace, Socket } from 'socket.io';
 import { AssistantContextService } from '../auth/assistant/assistant-context';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
+import {
+  SESSION_REVOKED_CHANNEL,
+  parseSessionRevoked,
+} from '../../redis/session-revoked';
 import { PresenceService } from '../presence/presence.service';
 import { SessionRevocationService } from '../auth/services/session-revocation.service';
 import {
@@ -24,6 +28,7 @@ import {
 import {
   REALTIME_NAMESPACE,
   conversationRoom,
+  socketAdapterMode,
   userRoom,
   viewingKey,
 } from './realtime-publisher.service';
@@ -37,17 +42,19 @@ const VIEW_TTL_SEC = 3600;
 const TYPING_MIN_GAP_MS = 1000;
 /** OQ-041: one signaling payload (SDP / ICE candidate) at most. */
 const SIGNAL_MAX_BYTES = 64 * 1024;
-/** How often a live socket re-checks the session blacklist. */
-const REVOCATION_CHECK_MS = 45_000;
+/** How often a live socket refreshes its presence (and an assistant's
+ * socket re-checks its duties). Owner 2026-10-22 (server load audit,
+ * finding 5): no longer the session blacklist — a revoked session's
+ * sockets are dropped by the `session:revoked` message instead. */
+const HEARTBEAT_MS = 45_000;
 
 interface SocketState {
   user: AccessTokenClaims;
   /** OQ-048: an assistant's own id while `user.sub` is the attorney. */
   selfId?: string;
   expiryTimer?: NodeJS.Timeout;
-  /** Security review: a revoked session (logout, "log out all") must
-   * stop receiving events before the access token expires. */
-  revocationTimer?: NodeJS.Timeout;
+  /** Presence heartbeat and the assistant's duty re-check. */
+  heartbeatTimer?: NodeJS.Timeout;
   lastTypingAt?: number;
   viewing: Set<string>;
   /** Owner 2026-10-01: the other members of each open chat — "typing…"
@@ -102,7 +109,15 @@ export class RealtimeGateway
 {
   private pub?: Redis;
   private sub?: Redis;
+  /** Owner 2026-10-22: the `session:revoked` listener (a subscriber
+   * connection can run nothing else). */
+  private revocations?: Redis;
   private nsp?: Namespace;
+  /** Security review: a revoked session (logout, "log out all", a block)
+   * must stop receiving events before the access token expires — this
+   * instance's sockets by session chain id (`sid`), for the
+   * `session:revoked` message. */
+  private readonly bySession = new Map<string, Set<Socket>>();
 
   constructor(
     private readonly tokens: TokenService,
@@ -131,14 +146,67 @@ export class RealtimeGateway
     if (typeof this.redis.duplicate !== 'function') return;
     this.pub = this.redis.duplicate();
     this.sub = this.redis.duplicate();
-    nsp.server.adapter(createAdapter(this.pub, this.sub));
+    // Owner 2026-10-22 (server load audit, finding 5): Redis 7 sharded
+    // pub/sub (infra/modules/redis: engine 7.1). An event for `user:X`
+    // reaches only the instances that hold that room, instead of every
+    // instance reading every event (the classic adapter).
+    // SOCKET_IO_ADAPTER=classic switches back; RealtimePublisher follows
+    // the same setting.
+    nsp.server.adapter(
+      socketAdapterMode() === 'sharded'
+        ? createShardedAdapter(this.pub, this.sub, {
+            subscriptionMode: 'dynamic',
+          })
+        : createAdapter(this.pub, this.sub),
+    );
+    this.revocations = this.redis.duplicate();
+    this.revocations.on('message', (channel: string, raw: string) => {
+      if (channel === SESSION_REVOKED_CHANNEL) this.onSessionRevoked(raw);
+    });
+    void this.revocations
+      .subscribe(SESSION_REVOKED_CHANNEL)
+      .catch((error: unknown) =>
+        this.logger.warn(
+          { err: error instanceof Error ? error.message : error },
+          'session:revoked subscribe failed',
+        ),
+      );
+  }
+
+  /** Owner 2026-10-22: drops this instance's sockets of a revoked session
+   * (every instance gets the message and checks its own sockets). */
+  onSessionRevoked(raw: string): void {
+    const msg = parseSessionRevoked(raw);
+    if (!msg) return;
+    const sockets = this.bySession.get(msg.sessionId);
+    if (!sockets) return;
+    this.bySession.delete(msg.sessionId);
+    for (const socket of sockets) {
+      socket.emit('auth:error', { code: 'AUTH_SESSION_REVOKED' });
+      socket.disconnect(true);
+    }
+  }
+
+  private index(socket: Socket, sid: string | undefined): void {
+    if (!sid) return;
+    let set = this.bySession.get(sid);
+    if (!set) this.bySession.set(sid, (set = new Set()));
+    set.add(socket);
+  }
+
+  private unindex(socket: Socket, sid: string | undefined): void {
+    if (!sid) return;
+    const set = this.bySession.get(sid);
+    if (!set) return;
+    set.delete(socket);
+    if (set.size === 0) this.bySession.delete(sid);
   }
 
   /** After Nest has closed the socket server (app.close() disposes it
    * before the shutdown hooks), so the adapter sends nothing more. */
   async onApplicationShutdown(): Promise<void> {
     await Promise.all(
-      [this.pub, this.sub].map(async (c) => {
+      [this.pub, this.sub, this.revocations].map(async (c) => {
         try {
           await c?.quit();
         } catch {
@@ -179,14 +247,11 @@ export class RealtimeGateway
     token: string,
   ): Promise<void> {
     socket.data = { user: claims, viewing: new Set<string>() } as SocketState;
+    // The session was checked at the handshake (verify); from now on a
+    // revocation reaches this socket as a `session:revoked` message.
+    this.index(socket, claims.sid);
     this.armExpiry(socket, token);
-    state(socket).revocationTimer = setInterval(() => {
-      void this.revocation.isBlacklisted(state(socket).user.sid).then((r) => {
-        if (r) {
-          socket.emit('auth:error', { code: 'AUTH_SESSION_REVOKED' });
-          socket.disconnect(true);
-        }
-      });
+    state(socket).heartbeatTimer = setInterval(() => {
       // Audit 2026-10-02: an assistant removed, stripped of "chats"/"calls"
       // or whose attorney's subscription lapsed stops hearing the
       // attorney's chats — the socket reconnects as the assistant alone.
@@ -209,8 +274,8 @@ export class RealtimeGateway
           .touch(state(socket).user.sub, socket.id)
           .catch(() => undefined);
       }
-    }, REVOCATION_CHECK_MS);
-    state(socket).revocationTimer?.unref?.();
+    }, HEARTBEAT_MS);
+    state(socket).heartbeatTimer?.unref?.();
     await socket.join(userRoom(claims.sub));
     // OQ-048: an assistant with the "chats" (or "calls") duty hears the
     // attorney's chats and calls live, acting as the attorney like REST.
@@ -282,7 +347,8 @@ export class RealtimeGateway
     const s = state(socket);
     if (!s?.user) return;
     clearTimeout(s.expiryTimer);
-    clearInterval(s.revocationTimer);
+    clearInterval(s.heartbeatTimer);
+    this.unindex(socket, s.user.sid);
     if (!s.selfId && s.user.role !== 'assistant') {
       try {
         if (await this.presence.leave(s.user.sub, socket.id)) {
@@ -314,6 +380,10 @@ export class RealtimeGateway
       socket.emit('auth:error', { code: 'UNAUTHORIZED' });
       socket.disconnect(true);
       return { ok: false };
+    }
+    if (claims.sid !== s.user.sid) {
+      this.unindex(socket, s.user.sid);
+      this.index(socket, claims.sid);
     }
     s.user = s.selfId ? { ...claims, sub: s.user.sub } : claims;
     this.armExpiry(socket, token);
