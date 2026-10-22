@@ -266,6 +266,7 @@ const _keys = <String, String>{
   ApiErrorCodes.authInvalidCredentials: 'error.api.AUTH_INVALID_CREDENTIALS',
   ApiErrorCodes.deviceAttestationRequired:
       'error.api.DEVICE_ATTESTATION_REQUIRED',
+  ApiErrorCodes.syncTooOld: 'error.api.SYNC_TOO_OLD',
   // Refresh-token theft signal (docs/01 §10.4): every session was revoked.
   ApiErrorCodes.authRefreshReuseDetected:
       'error.api.AUTH_REFRESH_REUSE_DETECTED',
