@@ -305,6 +305,8 @@ export class AttorneyTrustService {
     attorneyId: string,
     actor: TrustActor = SYSTEM,
     tx?: Prisma.TransactionClient,
+    /** Filled with the level / badge this run found (and replaced). */
+    seen?: { level?: number; badge?: boolean },
   ): Promise<TrustSnapshot | null> {
     const run = async (db: Prisma.TransactionClient) => {
       const row = await db.attorneyProfile.findUnique({
@@ -312,6 +314,10 @@ export class AttorneyTrustService {
         select: PROFILE_SELECT,
       });
       if (!row) return null;
+      if (seen) {
+        seen.level = row.trust_level;
+        seen.badge = row.trust_badge;
+      }
       const trust = row.trust ?? (await this.ensureRow(db, attorneyId));
       const signals = this.signalsOf({ ...row, trust });
       const level = computeLevel(signals);
@@ -429,7 +435,7 @@ export class AttorneyTrustService {
     let changed = 0;
     for (;;) {
       const rows = await this.prisma.attorneyProfile.findMany({
-        select: { user_id: true, trust_level: true, trust_badge: true },
+        select: { user_id: true },
         orderBy: { user_id: 'asc' },
         take: batch,
         ...(cursor ? { cursor: { user_id: cursor }, skip: 1 } : {}),
@@ -437,17 +443,20 @@ export class AttorneyTrustService {
       if (rows.length === 0) break;
       for (const r of rows) {
         attorneys += 1;
-        const snap = await this.recompute(r.user_id);
-        if (
-          snap &&
-          (snap.level !== r.trust_level || snap.badge !== r.trust_badge)
-        ) {
+        // Compare with what the recompute itself found, not with this
+        // batch's read: a long run (or a second one racing it) may reach
+        // the attorney after another recompute already changed the row,
+        // and a stale "before" would hide (or invent) the change — the
+        // attorney who lost the badge was then never told.
+        const seen: { level?: number; badge?: boolean } = {};
+        const snap = await this.recompute(r.user_id, SYSTEM, undefined, seen);
+        if (snap && (snap.level !== seen.level || snap.badge !== seen.badge)) {
           changed += 1;
           // Owner 2026-10-05 06:07: the rules got stricter and this attorney
           // lost the badge — tell them what is required now.
           if (
             opts.notifyNewlyRequired &&
-            r.trust_badge &&
+            seen.badge === true &&
             !snap.badge &&
             snap.missing.length > 0
           ) {
