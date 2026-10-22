@@ -277,7 +277,6 @@ export const GROUPS: readonly SectionGroup[] = [
       { href: '/practice-areas', label: 'Квалификации', icon: 'books', area: 'content' },
       { href: '/i18n', label: 'Локализация', icon: 'translate', area: 'localization' },
       // Owner 2026-10-18: the app's «Справочник» texts, every language.
-      { href: '/guide', label: 'Справочник', icon: 'books', area: 'localization', hint: 'тексты кнопки «i» в списке дел' },
       { href: '/countries', label: 'Страны', icon: 'globe', area: 'localization', hint: 'где работает приложение' },
       { href: '/legal-documents', label: 'Юридические документы', icon: 'file-text', area: 'legal', hint: 'все документы: черновики, публикация, история' },
       // Owner 2026-10-05 (legal): DMCA notices, disclaimers, incident contact.

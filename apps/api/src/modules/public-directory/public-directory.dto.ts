@@ -81,6 +81,12 @@ export class PublicAttorneyDto {
   })
   trustBadge!: boolean;
 
+  /** Owner 2026-10-22 (audit #4 §9): the attorney's photo on the media CDN
+   * (og:image of the SEO page); null without a CDN, a photo, or when the
+   * photo is not shown to everyone. */
+  @ApiProperty({ type: String, nullable: true })
+  photoUrl!: string | null;
+
   @ApiProperty({ type: [PublicPracticeDto] })
   practiceAreas!: PublicPracticeDto[];
 

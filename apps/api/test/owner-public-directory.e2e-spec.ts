@@ -99,6 +99,8 @@ describe('Public directory (e2e)', () => {
     expect(res.headers['cache-control']).toContain('public');
     const one = body.data.find((a) => a.username === shown)!;
     expect(one.licensedStates).toEqual(['CA']);
+    // No media CDN in e2e: a signed link would expire inside a static page.
+    expect(one.photoUrl).toBeNull();
     // Nothing that identifies a client or lets someone reach the attorney.
     expect(Object.keys(one).sort()).toEqual(
       [
@@ -107,6 +109,8 @@ describe('Public directory (e2e)', () => {
         'firmNames',
         'languages',
         'licensedStates',
+        // Owner 2026-10-22: the public photo (CDN) for og:image.
+        'photoUrl',
         'practiceAreas',
         'ratingAvg',
         'ratingCount',

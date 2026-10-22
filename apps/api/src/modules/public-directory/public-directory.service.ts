@@ -1,3 +1,6 @@
+import { Optional } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { SecretsService } from '../../common/secrets/secrets.service';
 import { Injectable } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -16,7 +19,20 @@ export interface PublicAttorneysPage {
  */
 @Injectable()
 export class PublicDirectoryService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    // Owner 2026-10-22 (audit #4 §9): the photo of the SEO page (og:image)
+    // needs the media CDN — a signed link would expire inside a static page.
+    @Optional() private readonly config?: ConfigService,
+    @Optional() private readonly secrets?: SecretsService,
+  ) {}
+
+  private async cdnBase(): Promise<string | null> {
+    const cdn =
+      (await this.secrets?.field('storage', 'cdnBaseUrl')) ??
+      this.config?.get<string>('MEDIA_CDN_BASE_URL');
+    return cdn ? cdn.replace(/\/+$/, '') : null;
+  }
 
   async attorneys(q: {
     state?: string;
@@ -74,7 +90,14 @@ export class PublicDirectoryService {
         rating_avg: true,
         rating_count: true,
         trust_badge: true,
-        user: { select: { first_name: true, last_name: true } },
+        user: {
+          select: {
+            first_name: true,
+            last_name: true,
+            avatar_file_id: true,
+            privacy_settings: { select: { photo_from: true } },
+          },
+        },
         practice_areas: {
           where: { practice_area: { is_active: true } },
           select: { practice_area: { select: { code: true, name_en: true } } },
@@ -87,6 +110,34 @@ export class PublicDirectoryService {
     });
     const page = rows.slice(0, limit);
     const next = rows.length > limit ? rows[limit].username_lower : null;
+    // Owner 2026-10-22 (audit #4 §9): a stable public photo for og:image —
+    // a clean avatar of someone who shows it to everyone, on the CDN.
+    const cdn = await this.cdnBase();
+    const avatarIds = cdn
+      ? page
+          .filter(
+            (r) =>
+              (r.user.privacy_settings?.photo_from ?? 'everyone') ===
+              'everyone',
+          )
+          .map((r) => r.user.avatar_file_id)
+          .filter((x): x is string => !!x)
+      : [];
+    const photos = new Map(
+      avatarIds.length
+        ? (
+            await this.prisma.file.findMany({
+              where: {
+                id: { in: avatarIds },
+                purpose: 'avatar',
+                scan_status: 'clean',
+                deleted_at: null,
+              },
+              select: { id: true, s3_key: true },
+            })
+          ).map((f) => [f.id, `${cdn}/${f.s3_key}`])
+        : [],
+    );
     return {
       items: page.map((r) => ({
         username: r.username,
@@ -99,6 +150,9 @@ export class PublicDirectoryService {
         ratingAvg: Number(r.rating_avg),
         ratingCount: r.rating_count,
         trustBadge: r.trust_badge,
+        photoUrl: r.user.avatar_file_id
+          ? (photos.get(r.user.avatar_file_id) ?? null)
+          : null,
         practiceAreas: r.practice_areas.map((p) => ({
           code: p.practice_area.code,
           name: p.practice_area.name_en,

@@ -259,7 +259,8 @@ async function seedBlockedEmailDomains(): Promise<void> {
 // GET /config/bootstrap) is the stage-1.8 work added alongside this
 // function's app_config sibling below.
 async function seedFeatureFlags(): Promise<void> {
-  const flags = FLAG_CATALOG;
+  // Owner 2026-10-22: retired flags are never seeded.
+  const flags = FLAG_CATALOG.filter((f) => !f.retired);
   for (const flag of flags) {
     await prisma.featureFlag.upsert({
       where: { key: flag.key },
