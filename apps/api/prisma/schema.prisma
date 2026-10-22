@@ -884,6 +884,7 @@ model User {
   stripe_customer             StripeCustomer?
   subscription                Subscription?
   payments                    Payment[]
+  assistant_seat_changes      AssistantSeatChange[]
   reports_filed               Report[]                       @relation("Reporter")
   reports_handled             Report[]                       @relation("ReportHandler")
   moderation_actions          ModerationAction[]             @relation("ModerationAdmin")
@@ -3988,6 +3989,48 @@ model AssistantLiabilityAcceptance {
 
   @@index([attorney_id, created_at(sort: Desc)], map: "assistant_liability_by_attorney")
   @@map("assistant_liability_acceptances")
+}
+
+/// Owner 2026-10-22: what happened to one change of an attorney's
+/// assistant seats. An increase is charged at once (the prorated rest of
+/// the period): pending → paid, or failed / expired when the card does not
+/// pay. A decrease is free and takes effect at the period end: scheduled →
+/// applied (or canceled when the attorney buys the seat back first).
+enum AssistantSeatChangeStatus {
+  pending
+  paid
+  failed
+  expired
+  scheduled
+  applied
+  canceled
+
+  @@map("assistant_seat_change_status")
+}
+
+/// Owner 2026-10-22: every change of an attorney's extra assistant seats —
+/// the history the admin sees on Подписки («Покупки мест») and the record
+/// of a decrease waiting for the period end. `from_seats` / `to_seats` are
+/// the EXTRA seats bought on top of the plan's included ones.
+model AssistantSeatChange {
+  id                String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id           String                    @db.Uuid
+  user              User                      @relation(fields: [user_id], references: [id], onDelete: Restrict)
+  from_seats        Int                       @db.SmallInt
+  to_seats          Int                       @db.SmallInt
+  stripe_invoice_id String?
+  amount_cents      Int                       @default(0)
+  currency          String                    @default("usd") @db.VarChar(3)
+  status            AssistantSeatChangeStatus
+  // A decrease: when the seat goes (the end of the paid period).
+  effective_at      DateTime?                 @db.Timestamptz
+  created_at        DateTime                  @default(now()) @db.Timestamptz
+  updated_at        DateTime                  @updatedAt @db.Timestamptz
+
+  @@index([user_id, created_at(sort: Desc)], map: "assistant_seat_changes_by_user")
+  @@index([stripe_invoice_id], map: "assistant_seat_changes_by_invoice")
+  @@index([created_at(sort: Desc)], map: "assistant_seat_changes_recent")
+  @@map("assistant_seat_changes")
 }
 
 /// Owner 2026-10-01: third-party API keys managed in the admin

@@ -112,10 +112,18 @@ enum ErrorCode {
   chatAttachmentsLocked('CHAT_ATTACHMENTS_LOCKED'),
   @JsonValue('SUBSCRIPTION_PLAN_INCLUDES_SEATS')
   subscriptionPlanIncludesSeats('SUBSCRIPTION_PLAN_INCLUDES_SEATS'),
+  @JsonValue('SEATS_TRIAL_NOT_ALLOWED')
+  seatsTrialNotAllowed('SEATS_TRIAL_NOT_ALLOWED'),
+  @JsonValue('SEATS_NOT_PAID_YET')
+  seatsNotPaidYet('SEATS_NOT_PAID_YET'),
+  @JsonValue('SEATS_PREVIEW_STALE')
+  seatsPreviewStale('SEATS_PREVIEW_STALE'),
   @JsonValue('ASSISTANT_SEATS_IN_USE')
   assistantSeatsInUse('ASSISTANT_SEATS_IN_USE'),
   @JsonValue('ASSISTANT_NO_FREE_SEAT')
   assistantNoFreeSeat('ASSISTANT_NO_FREE_SEAT'),
+  @JsonValue('ASSISTANT_TOO_MANY_DUTIES')
+  assistantTooManyDuties('ASSISTANT_TOO_MANY_DUTIES'),
   @JsonValue('ASSISTANT_NOT_ALLOWED')
   assistantNotAllowed('ASSISTANT_NOT_ALLOWED'),
   @JsonValue('ASSISTANT_PHONE_TAKEN')

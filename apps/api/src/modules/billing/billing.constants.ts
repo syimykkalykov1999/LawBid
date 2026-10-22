@@ -47,6 +47,11 @@ export const HANDLED_STRIPE_EVENTS = new Set([
   'customer.subscription.created',
   'customer.subscription.updated',
   'customer.subscription.deleted',
+  // Owner 2026-10-22: a seat purchase (pending_if_incomplete) applied
+  // after 3-D Secure, or dropped. The Stripe webhook endpoint must have
+  // these two events switched on (Dashboard → Webhooks).
+  'customer.subscription.pending_update_applied',
+  'customer.subscription.pending_update_expired',
   'invoice.paid',
   'invoice.payment_failed',
   'invoice.payment_action_required',

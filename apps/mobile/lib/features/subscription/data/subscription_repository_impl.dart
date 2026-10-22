@@ -151,12 +151,40 @@ class ApiSubscriptionRepository implements SubscriptionRepository {
       );
 
   @override
-  Future<SubscriptionOverview> setSeats(int seats) async => _overview(
-        (await guardApiCall(
-          () => _api.setSeats(body: api.SetSeatsDto(seats: seats)),
-        ))
-            .data,
-      );
+  Future<SeatPreview> previewSeats(int seats) async {
+    final d = (await guardApiCall(
+      () => _api.previewSeats(body: api.SeatPreviewRequestDto(seats: seats)),
+    ))
+        .data;
+    return SeatPreview(
+      seats: d.seats,
+      currentSeats: d.currentSeats,
+      amountNowCents: d.amountNowCents,
+      currency: d.currency,
+      prorationDate: d.prorationDate,
+      periodEnd: d.periodEnd,
+      seatCents: d.seatCents,
+      monthlyIncreaseCents: d.monthlyIncreaseCents,
+      nextChargeCents: d.nextChargeCents,
+    );
+  }
+
+  @override
+  Future<SeatChangeOutcome> setSeats(int seats, {int? prorationDate}) async {
+    final d = (await guardApiCall(
+      () => _api.setSeats(
+        body: api.SetSeatsDto(seats: seats, prorationDate: prorationDate),
+      ),
+    ))
+        .data;
+    return SeatChangeOutcome(
+      status: SeatChangeStatus.parse(d.status.json),
+      clientSecret: d.clientSecret,
+      amountCents: d.amountCents,
+      effectiveAt: d.effectiveAt,
+      overview: _overview(d.overview),
+    );
+  }
 
   @override
   Future<SubscriptionOverview> switchToYearly() async =>
