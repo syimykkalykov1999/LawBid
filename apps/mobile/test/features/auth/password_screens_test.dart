@@ -1,6 +1,7 @@
 // ignore_for_file: lines_longer_than_80_chars
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -15,14 +16,20 @@ import 'package:lawbid/features/auth/presentation/screens/forgot_password_screen
 import 'package:lawbid/features/auth/presentation/screens/login_screen.dart';
 import 'package:lawbid/features/auth/presentation/screens/set_password_screen.dart';
 
+import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
+import 'package:lawbid/shared/domain/user_role.dart';
+
+import '../../helpers/fixtures.dart';
+import '../../helpers/onboarding_harness.dart';
 import 'auth_test_harness.dart';
 
 /// Records the password calls; the answers are set per test.
 class PasswordRepo extends RecordingAuthRepository {
   PasswordAuthResult loginResult = const PasswordAuthResult.success();
   PasswordAuthResult setResult = const PasswordAuthResult.success();
-  PasswordAuthResult requestResult =
-      const PasswordAuthResult.success(channel: 'phone');
+  PasswordAuthResult requestResult = const PasswordAuthResult.success(
+    channel: 'phone',
+  );
   PasswordAuthResult resetResult = const PasswordAuthResult.success();
   final List<({String identifier, String password})> logins = [];
   final List<String> passwordsSet = [];
@@ -43,11 +50,20 @@ class PasswordRepo extends RecordingAuthRepository {
   Future<PasswordAuthResult> setPassword(
     String password, {
     String? currentPassword,
+    String? reauthToken,
   }) async {
     passwordsSet.add(password);
     currentPasswords.add(currentPassword);
+    reauthTokens.add(reauthToken);
+    // Owner 2026-10-22 (audit #3): the server's answer without a token.
+    if (reauthToken == null && needsReauth) {
+      return const PasswordAuthResult(PasswordAuthStatus.reauthRequired);
+    }
     return setResult;
   }
+
+  bool needsReauth = false;
+  final List<String?> reauthTokens = [];
 
   @override
   Future<PasswordAuthResult> requestPasswordReset(String identifier) async {
@@ -86,8 +102,7 @@ class _SampleTranslator implements Translator {
 
 const _ne = _SampleTranslator({
   'auth.login.title': 'लग इन गर्नुहोस्',
-  'auth.login.subtitle':
-      'आफ्नो फोन नम्बर वा इमेल र पासवर्ड प्रविष्ट गर्नुहोस् ताकि तपाईं खातामा प्रवेश गर्न सक्नुहुन्छ।',
+  'auth.login.subtitle': 'आफ्नो फोन नम्बर वा इमेल र पासवर्ड प्रविष्ट गर्नुहोस् ताकि तपाईं खातामा प्रवेश गर्न सक्नुहुन्छ।',
   'auth.login.identifier.hint': 'फोन नम्बर वा इमेल ठेगाना',
   'auth.login.password.hint': 'पासवर्ड',
   'auth.login.submit': 'लग इन गर्नुहोस्',
@@ -110,8 +125,7 @@ const _de = _SampleTranslator({
   'auth.login.forgot': 'Passwort vergessen?',
   'auth.login.create': 'Konto erstellen',
   'auth.setPassword.title': 'Passwort festlegen',
-  'auth.setPassword.body':
-      'Damit meldest du dich künftig ohne SMS-Code an – Zugangsdaten-Verwaltung inklusive.',
+  'auth.setPassword.body': 'Damit meldest du dich künftig ohne SMS-Code an – Zugangsdaten-Verwaltung inklusive.',
   'auth.setPassword.rule': 'Mindestens 8 Zeichen',
   'auth.setPassword.submit': 'Weiter',
 });
@@ -170,6 +184,7 @@ void main() {
       double textScale = 1,
       TextDirection direction = TextDirection.ltr,
       Object? extra,
+      List<Override> overrides = const [],
     }) async {
       tester.view
         ..physicalSize = size * tester.view.devicePixelRatio
@@ -177,9 +192,13 @@ void main() {
       addTearDown(tester.view.reset);
       final c = ProviderContainer(
         overrides: [
-          ...await authOverrides(repo: repo),
+          ...await authOverrides(
+            repo: repo,
+            fixedSignedOutUser: overrides.isEmpty,
+          ),
           if (translator != null)
             translatorProvider.overrideWithValue(translator),
+          ...overrides,
         ],
       );
       addTearDown(c.dispose);
@@ -196,9 +215,8 @@ void main() {
             theme: AppTheme.light(),
             routerConfig: router,
             builder: (context, child) => MediaQuery(
-              data: MediaQuery.of(context).copyWith(
-                textScaler: TextScaler.linear(textScale),
-              ),
+              data: MediaQuery.of(context)
+                  .copyWith(textScaler: TextScaler.linear(textScale)),
               child: Directionality(textDirection: direction, child: child!),
             ),
           ),
@@ -212,8 +230,7 @@ void main() {
 
     Finder button(String label) => find.widgetWithText(AppButton, label);
 
-    testWidgets(
-        'log in stays off until both fields are filled, then signs in '
+    testWidgets('log in stays off until both fields are filled, then signs in '
         'with the normalized number', (tester) async {
       await open(tester, AuthRoutes.login);
       expect(find.byType(LoginScreen), findsOneWidget);
@@ -221,24 +238,21 @@ void main() {
       await tester.pump();
       expect(repo.logins, isEmpty);
 
-      await tester.enterText(
-        find.byType(TextField).first,
-        '(415) 555-2680',
-      );
+      await tester.enterText(find.byType(TextField).first, '(415) 555-2680');
       await tester.enterText(find.byType(TextField).last, 'Demo1234!');
       await tester.pump();
       await tester.tap(button('Log in'));
       await tester.pump();
-      expect(
-        repo.logins,
-        [(identifier: '+14155552680', password: 'Demo1234!')],
-      );
+      expect(repo.logins, [
+        (identifier: '+14155552680', password: 'Demo1234!'),
+      ]);
       expect(repo.requested, isEmpty, reason: 'no SMS on a password sign-in');
     });
 
     testWidgets('a wrong password shows one generic error', (tester) async {
-      repo.loginResult =
-          const PasswordAuthResult(PasswordAuthStatus.invalidCredentials);
+      repo.loginResult = const PasswordAuthResult(
+        PasswordAuthStatus.invalidCredentials,
+      );
       await open(tester, AuthRoutes.login);
       await tester.enterText(find.byType(TextField).first, 'sofia@example.com');
       await tester.enterText(find.byType(TextField).last, 'wrong-pass');
@@ -251,12 +265,12 @@ void main() {
       );
     });
 
-    testWidgets('the password is hidden until the eye is tapped',
-        (tester) async {
+    testWidgets('the password is hidden until the eye is tapped', (
+      tester,
+    ) async {
       await open(tester, AuthRoutes.login);
-      TextField password() => tester.widget<TextField>(
-            find.byType(TextField).last,
-          );
+      TextField password() =>
+          tester.widget<TextField>(find.byType(TextField).last);
       expect(password().obscureText, isTrue);
       await tester.tap(find.byTooltip('Show password'));
       await tester.pump();
@@ -280,59 +294,100 @@ void main() {
     });
 
     testWidgets(
-        'set password from Settings is optional: back closes it, saving '
-        'returns to Settings', (tester) async {
-      final c = ProviderContainer(
-        overrides: [...await authOverrides(repo: repo)],
-      );
-      addTearDown(c.dispose);
-      final router = GoRouter(
-        initialLocation: '/settings',
-        routes: [
-          GoRoute(
-            path: '/settings',
-            builder: (context, _) => Scaffold(
-              body: TextButton(
-                onPressed: () => context.push(AuthRoutes.setPassword),
-                child: const Text('open'),
+      'set password from Settings is optional: back closes it, saving '
+      'returns to Settings',
+      (tester) async {
+        final c = ProviderContainer(
+          overrides: [...await authOverrides(repo: repo)],
+        );
+        addTearDown(c.dispose);
+        final router = GoRouter(
+          initialLocation: '/settings',
+          routes: [
+            GoRoute(
+              path: '/settings',
+              builder: (context, _) => Scaffold(
+                body: TextButton(
+                  onPressed: () => context.push(AuthRoutes.setPassword),
+                  child: const Text('open'),
+                ),
               ),
             ),
+            ...authRoutes(),
+          ],
+        );
+        addTearDown(router.dispose);
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: c,
+            child: MaterialApp.router(
+              theme: AppTheme.light(),
+              routerConfig: router,
+            ),
           ),
-          ...authRoutes(),
-        ],
-      );
-      addTearDown(router.dispose);
-      await tester.pumpWidget(
-        UncontrolledProviderScope(
-          container: c,
-          child: MaterialApp.router(
-            theme: AppTheme.light(),
-            routerConfig: router,
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('open'));
-      await tester.pumpAndSettle();
-      expect(find.byType(SetPasswordScreen), findsOneWidget);
-      await tester.tap(find.bySemanticsLabel('Back'));
-      await tester.pumpAndSettle();
-      expect(find.byType(SetPasswordScreen), findsNothing);
-      expect(repo.passwordsSet, isEmpty);
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('open'));
+        await tester.pumpAndSettle();
+        expect(find.byType(SetPasswordScreen), findsOneWidget);
+        await tester.tap(find.bySemanticsLabel('Back'));
+        await tester.pumpAndSettle();
+        expect(find.byType(SetPasswordScreen), findsNothing);
+        expect(repo.passwordsSet, isEmpty);
 
-      await tester.tap(find.text('open'));
-      await tester.pumpAndSettle();
-      await tester.enterText(find.byType(TextField), '12345678');
-      await tester.pump();
-      await tester.tap(button('Continue'));
-      await tester.pumpAndSettle();
-      expect(repo.passwordsSet, ['12345678']);
-      expect(find.byType(SetPasswordScreen), findsNothing);
-      expect(find.text('open'), findsOneWidget);
-    });
+        await tester.tap(find.text('open'));
+        await tester.pumpAndSettle();
+        await tester.enterText(find.byType(TextField), '12345678');
+        await tester.pump();
+        await tester.tap(button('Continue'));
+        await tester.pumpAndSettle();
+        expect(repo.passwordsSet, ['12345678']);
+        expect(find.byType(SetPasswordScreen), findsNothing);
+        expect(find.text('open'), findsOneWidget);
+      },
+    );
 
-    testWidgets('change password sends the current and the new one',
-        (tester) async {
+    testWidgets(
+      'owner 2026-10-22 (audit #3): an older session confirms "it’s me" before the first password',
+      (tester) async {
+        repo.needsReauth = true;
+        final me = meFixture(
+          role: UserRole.client,
+          consents: true,
+          phone: '+15551234567',
+          phoneVerified: true,
+        );
+        await open(
+          tester,
+          AuthRoutes.setPassword,
+          overrides: [
+            currentUserControllerProvider.overrideWith(
+              () => FixedUserController(CurrentUserState.ready(me)),
+            ),
+          ],
+        );
+        await tester.enterText(find.byType(TextField), '12345678');
+        await tester.pump();
+        await tester.tap(button('Continue'));
+        await tester.pumpAndSettle();
+        // Refused without a token: the code goes to the verified phone.
+        expect(repo.reauthTokens, [null]);
+        expect(find.textContaining('(555) 123-4567'), findsOneWidget);
+
+        final code = find.descendant(
+          of: find.byType(AppOtpField),
+          matching: find.byType(EditableText),
+        );
+        await tester.enterText(code.first, '111111');
+        await tester.pumpAndSettle();
+        expect(repo.passwordsSet, ['12345678', '12345678']);
+        expect(repo.reauthTokens.last, isNotNull);
+      },
+    );
+
+    testWidgets('change password sends the current and the new one', (
+      tester,
+    ) async {
       await open(tester, AuthRoutes.changePassword);
       expect(find.byType(ChangePasswordScreen), findsOneWidget);
       await tester.enterText(find.byType(TextField).first, 'Old-pass-1');
@@ -350,14 +405,9 @@ void main() {
       expect(repo.currentPasswords, ['Old-pass-1']);
     });
 
-    testWidgets(
-        'forgot password: code to the phone, then code + new '
+    testWidgets('forgot password: code to the phone, then code + new '
         'password', (tester) async {
-      await open(
-        tester,
-        AuthRoutes.forgotPassword,
-        extra: '(415) 555-2680',
-      );
+      await open(tester, AuthRoutes.forgotPassword, extra: '(415) 555-2680');
       expect(find.byType(ForgotPasswordScreen), findsOneWidget);
       await tester.tap(button('Send code'));
       await tester.pumpAndSettle();
@@ -374,8 +424,9 @@ void main() {
       ]);
     });
 
-    testWidgets('forgot password: an e-mail is refused, nothing is sent',
-        (tester) async {
+    testWidgets('forgot password: an e-mail is refused, nothing is sent', (
+      tester,
+    ) async {
       await open(tester, AuthRoutes.forgotPassword, extra: 'a@b.co');
       await tester.tap(button('Send code'));
       await tester.pumpAndSettle();
@@ -394,8 +445,9 @@ void main() {
         AuthRoutes.changePassword,
         AuthRoutes.forgotPassword,
       ]) {
-        testWidgets('$location fits 360 dp without overflow ($name, x1.3)',
-            (tester) async {
+        testWidgets('$location fits 360 dp without overflow ($name, x1.3)', (
+          tester,
+        ) async {
           await open(
             tester,
             location,

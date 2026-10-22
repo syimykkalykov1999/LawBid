@@ -56,6 +56,7 @@ import {
 } from './stars.dto';
 import { StarsService, type Page } from './stars.service';
 import { AdminAuthService } from '../admin-auth/admin-auth.service';
+import { AttorneyOnly } from '../auth/assistant/assistant-context';
 
 const E = ErrorCode;
 
@@ -101,6 +102,10 @@ export class StarsController {
     return this.stars.history(user.sub, q.cursor);
   }
 
+  // Owner 2026-10-22 (security audit #3, finding 3): stars are the
+  // attorney's money — an assistant must not buy them, send gifts bought
+  // with them to their own profile, or convert received gifts into stars.
+  @AttorneyOnly()
   @Post('packs/:packId/buy')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Start the payment (web page) for a stars pack' })
@@ -135,6 +140,7 @@ export class StarsController {
     return this.stars.catalog();
   }
 
+  @AttorneyOnly()
   @Post('gifts/:giftId/send')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Give a gift to a profile (paid in stars)' })
@@ -167,6 +173,7 @@ export class StarsController {
     return this.stars.showcase(user.sub, p.id, q.cursor);
   }
 
+  @AttorneyOnly()
   @Patch('received-gifts/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Show a received gift on my profile, or hide it' })
@@ -179,6 +186,7 @@ export class StarsController {
     await this.stars.setShown(user.sub, p.id, dto.shown);
   }
 
+  @AttorneyOnly()
   @Post('received-gifts/:id/convert')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Turn a received gift into stars' })

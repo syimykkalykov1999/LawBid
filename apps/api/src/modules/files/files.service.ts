@@ -764,6 +764,65 @@ export class FilesService {
    * limit (only when the bytes are really copied) and storage budget
    * still apply.
    */
+  /**
+   * Owner 2026-10-22 (security audit #3, finding 8; defence in depth): may
+   * [userId] read [file]? Every caller of copyForUser checks its source
+   * first; this keeps a future caller from copying any file id it is
+   * handed. Readable = the user's own file, or one shown where the user
+   * may look: a message of a chat they take part in, a message of a group
+   * they are still in, a live channel post (channels are public), or a
+   * published document template. Anything else is a 404 (deny by default,
+   * never a hint the file exists).
+   */
+  async assertReadable(
+    userId: string,
+    file: Pick<File, 'id' | 'owner_user_id'>,
+  ): Promise<void> {
+    if (file.owner_user_id === userId) return;
+    const id = file.id;
+    const [chat, group, channel, template] = await Promise.all([
+      this.prisma.message.findFirst({
+        where: {
+          file_id: id,
+          deleted_at: null,
+          conversation: {
+            OR: [{ client_id: userId }, { attorney_id: userId }],
+          },
+        },
+        select: { id: true },
+      }),
+      this.prisma.chatGroupMessage.findFirst({
+        where: {
+          file_id: id,
+          deleted_at: null,
+          group: {
+            deleted_at: null,
+            members: { some: { user_id: userId, left_at: null } },
+          },
+        },
+        select: { id: true },
+      }),
+      this.prisma.channelPost.findFirst({
+        where: {
+          media_file_ids: { has: id },
+          status: 'active',
+          deleted_at: null,
+          channel: { deleted_at: null, status: { not: 'banned' } },
+        },
+        select: { id: true },
+      }),
+      this.prisma.documentTemplate.findFirst({
+        where: { file_id: id, is_published: true, deleted_at: null },
+        select: { id: true },
+      }),
+    ]);
+    if (chat || group || channel || template) return;
+    throw new NotFoundException({
+      code: ErrorCode.NOT_FOUND,
+      message: 'File not found.',
+    });
+  }
+
   async copyForUser(
     sourceFileId: string,
     userId: string,
@@ -778,6 +837,7 @@ export class FilesService {
         message: 'File not found.',
       });
     }
+    await this.assertReadable(userId, src);
     const rule = PURPOSE_RULES[purpose];
     const allowed = await this.allowedMimes(purpose);
     if (!allowed.includes(src.mime as FileMime)) {

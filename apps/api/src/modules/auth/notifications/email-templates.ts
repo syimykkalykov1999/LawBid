@@ -246,6 +246,59 @@ export function buildNewDeviceEmail(input: {
   };
 }
 
+/** Owner 2026-10-22 (security audit #3, finding 2): goes to the e-mail the
+ * account had BEFORE the change, so an intruder who adds or swaps a contact
+ * cannot hide it. `what` is a fixed word from the server, never user text. */
+export function buildSignInChangedEmail(input: {
+  email: string;
+  what: 'phone' | 'email' | 'google' | 'apple' | 'password';
+  at: Date;
+  appLinkBaseUrl?: string;
+  locale?: string;
+}): EmailMessage {
+  const links = buildAppLinks(
+    ACTIVE_DEVICES_LINK_PATH,
+    undefined,
+    input.appLinkBaseUrl,
+  );
+  const what = {
+    phone: 'The phone number',
+    email: 'The e-mail address',
+    google: 'A Google sign-in',
+    apple: 'An Apple sign-in',
+    password: 'The password',
+  }[input.what];
+  const when = `${input.at.toISOString().replace('T', ' ').slice(0, 16)} UTC`;
+  const subject = 'Your LawBid sign-in settings changed';
+  const text = [
+    subject,
+    '',
+    `${what} of your account was added or changed.`,
+    `Time: ${when}`,
+    '',
+    "If this was you, there's nothing to do.",
+    "If it wasn't, open Active devices, sign out everywhere and contact support:",
+    textLinks(links),
+  ].join('\n');
+  const html = [
+    `<p><strong>${escapeHtml(subject)}</strong></p>`,
+    `<p>${escapeHtml(what)} of your account was added or changed.<br>Time: ${escapeHtml(when)}</p>`,
+    `<p>If this was you, there's nothing to do. If it wasn't, sign out everywhere and contact support:</p>`,
+    htmlLinks(links, 'Review active devices'),
+  ].join('');
+  return {
+    to: input.email,
+    subject,
+    text,
+    html,
+    template: tpl(
+      'sign_in_changed',
+      { what, time: when, link: links.universalLink ?? links.deepLink },
+      input.locale,
+    ),
+  };
+}
+
 /** docs/06 §5.2: the user data export is ready; the link lives 24 hours. */
 export function buildDataExportEmail(input: {
   email: string;

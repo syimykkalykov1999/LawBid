@@ -30,6 +30,7 @@ import {
   ReferralMeDto,
 } from './referrals.dto';
 import { ReferralsService } from './referrals.service';
+import { AttorneyOnly } from '../auth/assistant/assistant-context';
 
 const E = ErrorCode;
 
@@ -50,6 +51,9 @@ export class ReferralsController {
     return this.referrals.me(user.sub);
   }
 
+  // Owner 2026-10-22 (security audit #3): entering a referral code binds
+  // the attorney's own account to someone's reward — the attorney's call.
+  @AttorneyOnly()
   @Post('apply')
   @HttpCode(HttpStatus.OK)
   @UseInterceptors(IdempotencyInterceptor)

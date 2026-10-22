@@ -11,6 +11,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { RequiresDuty } from '../auth/assistant/assistant-context';
 import {
   ApiEnvelopeResponse,
   ApiErrors,
@@ -76,6 +77,10 @@ const GROUP_ERRORS = {
 @ApiTags('groups')
 @ApiBearerAuth()
 @ApiErrors(AUTHENTICATED_ERRORS)
+// Owner 2026-10-22 (security audit #3): group chats are chats — an
+// assistant reaches them in the attorney's name only with the "chats"
+// duty, the same as direct chats (the app already hides them without it).
+@RequiresDuty('chats')
 @Controller('groups')
 export class GroupsController {
   constructor(

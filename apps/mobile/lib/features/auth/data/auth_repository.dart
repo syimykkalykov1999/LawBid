@@ -117,6 +117,7 @@ abstract interface class AuthRepository {
   Future<PasswordAuthResult> setPassword(
     String password, {
     String? currentPassword,
+    String? reauthToken,
   });
 
   /// Forgot password: sends a code to the account's verified e-mail, else

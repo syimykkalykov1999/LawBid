@@ -102,6 +102,11 @@ class ContactVerificationController extends Notifier<ContactVerificationState> {
 
   /// Step 1: sends the code to [value] directly for a first contact, or
   /// starts identity confirmation when replacing a verified one.
+  ///
+  /// Owner 2026-10-22 (security audit #3): the server now wants the
+  /// identity confirmed for a first contact too, unless this session signed
+  /// in minutes ago (onboarding stays one code long). Its
+  /// `REAUTH_REQUIRED` answer moves on to the identity step here.
   Future<void> sendCode(String value) => _guard(() async {
         final me = ref.read(currentUserControllerProvider).user;
         final alreadyVerified = type == ContactType.phone
@@ -112,19 +117,21 @@ class ContactVerificationController extends Notifier<ContactVerificationState> {
             await ref
                 .read(onboardingRepositoryProvider)
                 .requestContactCode(type: type, value: value);
-          } on ApiException {
             state = state.copyWith(
-              stage: ContactVerificationStage.editing,
+              stage: ContactVerificationStage.codeSent,
               value: value,
+              attempt: state.attempt + 1,
             );
-            rethrow;
+            return;
+          } on ApiException catch (e) {
+            if (e.code != ApiErrorCodes.reauthRequired) {
+              state = state.copyWith(
+                stage: ContactVerificationStage.editing,
+                value: value,
+              );
+              rethrow;
+            }
           }
-          state = state.copyWith(
-            stage: ContactVerificationStage.codeSent,
-            value: value,
-            attempt: state.attempt + 1,
-          );
-          return;
         }
         final target = me?.reauthIdentifier;
         if (target == null) {

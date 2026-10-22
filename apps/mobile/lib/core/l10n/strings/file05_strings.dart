@@ -263,6 +263,7 @@ const file05Ru = <String, String>{
   'notif.list.security_new_device': 'Вход в аккаунт с нового устройства',
   'notif.list.security_phone_changed':
       'Поддержка сменила номер телефона по вашему запросу',
+  'notif.list.security_sign_in_changed': 'Изменены данные для входа',
   // --- profile header (owner redesign) ---
   'profile.rating.newShort': 'Новый',
   'profile.action.message': 'Сообщение',
@@ -526,6 +527,7 @@ const file05En = <String, String>{
   'notif.list.security_new_device': 'New sign-in from another device',
   'notif.list.security_phone_changed':
       'Support changed your phone number at your request',
+  'notif.list.security_sign_in_changed': 'Your sign-in details changed',
   // --- profile header (owner redesign) ---
   'profile.rating.newShort': 'New',
   'profile.action.message': 'Message',

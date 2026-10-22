@@ -10,6 +10,7 @@ import {
   buildLoginOtpEmail,
   buildNewDeviceEmail,
   buildNotificationEmail,
+  buildSignInChangedEmail,
 } from '../auth/notifications/email-templates';
 
 export interface CatalogVariable {
@@ -130,6 +131,37 @@ export const EMAIL_TEMPLATE_CATALOG: readonly CatalogEntry[] = [
         email: SAMPLE_EMAIL,
         deviceName: 'iPhone 15',
         platform: 'ios',
+        at: SAMPLE_AT,
+        appLinkBaseUrl: SAMPLE_LINK_BASE,
+      }),
+  },
+  {
+    key: 'sign_in_changed',
+    title: 'Изменены данные для входа',
+    description:
+      'Предупреждение на прежнюю почту: в аккаунте добавили или сменили телефон, почту, вход через Google / Apple или пароль.',
+    variables: [
+      {
+        name: 'what',
+        description: 'Что изменилось (по-английски)',
+        sample: 'The e-mail address',
+      },
+      {
+        name: 'time',
+        description: 'Время изменения (UTC)',
+        sample: '2026-10-02 14:30 UTC',
+      },
+      {
+        name: 'link',
+        description: 'Ссылка на «Активные устройства»',
+        sample: `${SAMPLE_LINK_BASE}/profile/settings/devices`,
+      },
+    ],
+    required: REQUIRED_TEMPLATE_VARS.sign_in_changed,
+    sample: () =>
+      buildSignInChangedEmail({
+        email: SAMPLE_EMAIL,
+        what: 'email',
         at: SAMPLE_AT,
         appLinkBaseUrl: SAMPLE_LINK_BASE,
       }),

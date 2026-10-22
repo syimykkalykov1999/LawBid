@@ -28,13 +28,22 @@ class AccountApiClient {
   }
 
   /// `POST /auth/identifiers` — creates a user_identifiers row, so it is a
-  /// resource-creating POST (Idempotency-Key, safe retry).
-  Future<void> linkIdentifier(Map<String, dynamic> body) async {
+  /// resource-creating POST (Idempotency-Key, safe retry). Owner 2026-10-22
+  /// (security audit #3): a new sign-in method needs the single-use
+  /// [reauthToken] from `POST /auth/reauth`.
+  Future<void> linkIdentifier(
+    Map<String, dynamic> body, {
+    String? reauthToken,
+  }) async {
     try {
       await _dio.post<Map<String, dynamic>>(
         '/auth/identifiers',
         data: body,
-        options: RequestFlags.createOptions(),
+        options: RequestFlags.createOptions(
+          headers: reauthToken == null
+              ? null
+              : <String, dynamic>{'X-Reauth-Token': reauthToken},
+        ),
       );
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
@@ -53,7 +62,12 @@ abstract interface class AccountRepository {
   /// verifies it with the login OTP purpose in `POST /auth/identifiers`.
   Future<void> requestLinkCode(ContactType type, String value);
 
-  Future<void> linkContact(ContactType type, String value, String code);
+  Future<void> linkContact(
+    ContactType type,
+    String value,
+    String code, {
+    String? reauthToken,
+  });
 }
 
 class ApiAccountRepository implements AccountRepository {
@@ -74,8 +88,13 @@ class ApiAccountRepository implements AccountRepository {
       _auth.requestOtp(channel: type.wireName, identifier: value);
 
   @override
-  Future<void> linkContact(ContactType type, String value, String code) =>
-      _client.linkIdentifier({
+  Future<void> linkContact(
+    ContactType type,
+    String value,
+    String code, {
+    String? reauthToken,
+  }) =>
+      _client.linkIdentifier(reauthToken: reauthToken, {
         'provider': type.wireName,
         'identifier': value,
         'code': code,

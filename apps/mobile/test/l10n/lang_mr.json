@@ -2833,6 +2833,7 @@
 "notif.list.review_requested":"आपल्या वकिलाला रेटिंग द्या",
 "notif.list.security_new_device":"दुसऱ्या डिव्हाइसवरून नवीन साइन-इन",
 "notif.list.security_phone_changed":"आपल्या विनंतीवरून सपोर्टने आपला फोन नंबर बदलला",
+"notif.list.security_sign_in_changed":"तुमची साइन-इन माहिती बदलली",
 "notif.list.subscription_payment_failed":"आम्ही आपल्या सबस्क्रिप्शनचे शुल्क आकारू शकलो नाही",
 "notif.list.subscription_status":"आपल्या सबस्क्रिप्शनची स्थिती बदलली",
 "notif.list.subscription_status.contract":"LawBid ने आपल्यासाठी करार सबस्क्रिप्शन सेट केले",

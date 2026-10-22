@@ -11,6 +11,7 @@ export const EMAIL_TEMPLATE_KEYS = [
   'admin_login_code',
   'contact_otp',
   'new_device',
+  'sign_in_changed',
   'data_export',
   'notification',
 ] as const;
@@ -33,6 +34,7 @@ export const REQUIRED_TEMPLATE_VARS: Readonly<
   admin_login_code: ['code'],
   contact_otp: ['code'],
   new_device: [],
+  sign_in_changed: [],
   data_export: ['url'],
   notification: [],
 };

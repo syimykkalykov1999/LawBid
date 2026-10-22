@@ -134,13 +134,26 @@ class FakeOnboardingRepository implements OnboardingRepository {
     return 'rt';
   }
 
+  /// Owner 2026-10-22 (security audit #3): thrown by [requestContactCode]
+  /// when no reauth token comes with it (the server's REAUTH_REQUIRED for
+  /// a session that did not sign in minutes ago).
+  Object? contactErrorWithoutReauth;
+
   @override
   Future<void> requestContactCode({
     required ContactType type,
     required String value,
     String? reauthToken,
   }) async {
-    calls.add('requestContactCode:$value');
+    calls.add(
+      reauthToken == null
+          ? 'requestContactCode:$value'
+          : 'requestContactCode:$value:$reauthToken',
+    );
+    if (reauthToken == null && contactErrorWithoutReauth != null) {
+      // ignore: only_throw_errors
+      throw contactErrorWithoutReauth!;
+    }
   }
 
   @override

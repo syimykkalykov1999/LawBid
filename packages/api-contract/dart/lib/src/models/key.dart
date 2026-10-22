@@ -14,6 +14,8 @@ enum Key {
   contactOtp('contact_otp'),
   @JsonValue('new_device')
   newDevice('new_device'),
+  @JsonValue('sign_in_changed')
+  signInChanged('sign_in_changed'),
   @JsonValue('data_export')
   dataExport('data_export'),
   @JsonValue('notification')

@@ -15,7 +15,13 @@ export type RevokeReason =
   | 'account_deletion'
   // Owner 2026-10-01: one account, one device — a sign-in elsewhere ends
   // every other session (no sharing an attorney or assistant account).
-  | 'signed_in_elsewhere';
+  | 'signed_in_elsewhere'
+  // Owner 2026-10-22 (security audit #3, finding 5): the phone, e-mail or
+  // password changed — every other session ends, this one stays.
+  | 'credentials_changed'
+  // Owner 2026-10-22 (security audit #3, finding 6): the attorney (or the
+  // admin) removed the assistant — their own sign-ins end too.
+  | 'assistant_removed';
 
 /**
  * Single choke point for every way a session can end (logout, logout-all,
@@ -80,6 +86,38 @@ export class SessionRevocationService {
 
     await client.session.updateMany({
       where: { user_id: userId, revoked_at: null },
+      data: { revoked_at: new Date(), revoked_reason: reason },
+    });
+    await Promise.all(chainIds.map((id) => this.blacklist(id, reason, userId)));
+    return chainIds;
+  }
+
+  /**
+   * Owner 2026-10-22 (security audit #3, finding 5; OWASP ASVS V3.3.3): after
+   * the phone, e-mail or password changes, a thief's session must not
+   * survive the owner's "I changed my number and password". Ends every
+   * session of the account except [keepChainId] (the one making the
+   * change); blacklisting publishes `session:revoked`, so their sockets
+   * drop at once.
+   */
+  async revokeOtherChainsForUser(
+    userId: string,
+    keepChainId: string | undefined,
+    reason: RevokeReason,
+  ): Promise<string[]> {
+    const active = await this.prisma.session.findMany({
+      where: {
+        user_id: userId,
+        revoked_at: null,
+        ...(keepChainId ? { session_chain_id: { not: keepChainId } } : {}),
+      },
+      select: { session_chain_id: true },
+      distinct: ['session_chain_id'],
+    });
+    const chainIds = active.map((s) => s.session_chain_id);
+    if (chainIds.length === 0) return chainIds;
+    await this.prisma.session.updateMany({
+      where: { session_chain_id: { in: chainIds }, revoked_at: null },
       data: { revoked_at: new Date(), revoked_reason: reason },
     });
     await Promise.all(chainIds.map((id) => this.blacklist(id, reason, userId)));

@@ -176,6 +176,7 @@ export const TYPE_TOPIC: Record<NotificationType, string> = {
   // System.
   security_new_device: 'security',
   security_phone_changed: 'security',
+  security_sign_in_changed: 'security',
   moderation_notice: 'security',
   subscription_trial_ending: 'security',
   subscription_payment_failed: 'security',

@@ -1,9 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/features/auth/application/auth_providers.dart';
 import 'package:lawbid/features/onboarding/application/contact_verification_controller.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
+import 'package:lawbid/features/onboarding/application/onboarding_providers.dart';
 import 'package:lawbid/features/onboarding/domain/contact_type.dart';
 import 'package:lawbid/features/settings/account/data/account_repository.dart';
 import 'package:lawbid/features/settings/account/domain/account_identifier.dart';
@@ -55,12 +57,20 @@ final accountIdentifiersProvider = AsyncNotifierProvider.autoDispose<
 /// Links an ADDITIONAL phone/email sign-in method (docs/01 §10.3 "Один
 /// пользователь может иметь несколько"): code via `POST /auth/otp/request`
 /// → `POST /auth/identifiers`. Same state shape and stages as the
-/// onboarding [ContactVerificationController] (minus `confirmIdentity`),
-/// so one flow screen renders both.
+/// onboarding [ContactVerificationController], so one flow screen renders
+/// both.
+///
+/// Owner 2026-10-22 (security audit #3): a new sign-in method is a
+/// permanent way into the account, so the person first confirms it is
+/// them with a code to a contact the account already has
+/// (`confirmIdentity` → single-use reauth token), then the new contact.
 class IdentifierLinkController extends Notifier<ContactVerificationState> {
   IdentifierLinkController(this.type);
 
   final ContactType type;
+
+  /// From [confirmIdentity]; spent by [verify] (single use, 5 minutes).
+  String? _reauthToken;
 
   @override
   ContactVerificationState build() => const ContactVerificationState();
@@ -76,28 +86,73 @@ class IdentifierLinkController extends Notifier<ContactVerificationState> {
     }
   }
 
+  /// Step 1: a code to a contact the account already has.
   Future<void> sendCode(String value) => _guard(() async {
         state = state.copyWith(value: value);
-        await ref.read(accountRepositoryProvider).requestLinkCode(type, value);
+        _reauthToken = null;
+        final target =
+            ref.read(currentUserControllerProvider).user?.reauthIdentifier;
+        if (target == null) {
+          throw const ApiException(
+            code: kNoReauthContactCode,
+            message: 'No verified contact',
+          );
+        }
+        await ref.read(onboardingRepositoryProvider).requestReauthCode(
+              channel: target.channel,
+              identifier: target.identifier,
+            );
         state = state.copyWith(
-          stage: ContactVerificationStage.codeSent,
+          stage: ContactVerificationStage.confirmIdentity,
+          reauthTarget: target.identifier,
           attempt: state.attempt + 1,
         );
       });
 
+  /// Step 2: that code → a reauth token, then the code to the new contact.
+  Future<void> confirmIdentity(String code) => _guard(() async {
+        final value = state.value;
+        final target = state.reauthTarget;
+        if (value == null || target == null) return;
+        _reauthToken = await ref
+            .read(onboardingRepositoryProvider)
+            .reauth(identifier: target, code: code);
+        await _sendLinkCode(value);
+      });
+
+  Future<void> _sendLinkCode(String value) async {
+    await ref.read(accountRepositoryProvider).requestLinkCode(type, value);
+    state = state.copyWith(
+      stage: ContactVerificationStage.codeSent,
+      attempt: state.attempt + 1,
+    );
+  }
+
+  /// Step 3: the new contact's code links it.
   Future<void> verify(String code) => _guard(() async {
         final value = state.value;
         if (value == null) return;
-        await ref
-            .read(accountRepositoryProvider)
-            .linkContact(type, value, code);
+        await ref.read(accountRepositoryProvider).linkContact(
+              type,
+              value,
+              code,
+              reauthToken: _reauthToken,
+            );
+        _reauthToken = null;
         state = state.copyWith(stage: ContactVerificationStage.verified);
         await ref.read(currentUserControllerProvider.notifier).load();
       });
 
+  /// A new code to the contact the current step is waiting on.
   Future<void> resend() async {
     final value = state.value;
-    if (value != null) await sendCode(value);
+    if (value == null) return;
+    if (state.stage == ContactVerificationStage.codeSent &&
+        _reauthToken != null) {
+      await _guard(() => _sendLinkCode(value));
+    } else {
+      await sendCode(value);
+    }
   }
 
   void edit() {
