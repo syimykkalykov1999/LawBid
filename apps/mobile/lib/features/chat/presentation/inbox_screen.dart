@@ -785,7 +785,8 @@ class ConversationsView extends ConsumerWidget {
             trailing: _NewChatButton(label: t.t('phoneContacts.title')),
             openSignal: ref.watch(chatSearchOpenProvider),
             // Owner 2026-10-20: the channels' door at the start of the row.
-            leading: ref.watch(channelsEnabledProvider)
+            leading: ref.watch(channelsComingSoonProvider) ||
+                    ref.watch(channelsEnabledProvider)
                 ? _ChannelsDoor(
                     unread: ref.watch(unreadGroupsProvider),
                     child: AppIconButton(
@@ -797,7 +798,12 @@ class ConversationsView extends ConsumerWidget {
                         color: colors.text,
                       ),
                       semanticLabel: t.t('channel.title'),
-                      onPressed: () => context.push(ChannelsRoutes.list),
+                      onPressed: () => ref.read(channelsComingSoonProvider)
+                          ? showAppSnackBar(
+                              context,
+                              t.t('channel.comingSoon'),
+                            )
+                          : context.push(ChannelsRoutes.list),
                     ),
                   )
                 : null,

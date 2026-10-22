@@ -408,6 +408,8 @@ List<Override> channelsOverrides(
 }) =>
     [
       translatorProvider.overrideWithValue(translator),
+      // The screens under test: channels are on, not «next update».
+      channelsComingSoonProvider.overrideWithValue(false),
       channelsRepositoryProvider.overrideWithValue(repo),
       currentUserIdProvider.overrideWithValue(me),
       if (uploader != null)

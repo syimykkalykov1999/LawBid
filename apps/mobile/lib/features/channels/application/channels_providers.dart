@@ -16,9 +16,15 @@ final channelsRepositoryProvider = Provider<ChannelsRepository>(
   ),
 );
 
+/// Owner 2026-10-21: channels wait for the next update. The inbox door stays
+/// and a tap says so; every other way in is off, as with the flag off.
+final channelsComingSoonProvider = Provider<bool>((ref) => true);
+
 /// Feature flag `channels`: off = no entry points, the routes show nothing.
 final channelsEnabledProvider = Provider<bool>(
-  (ref) => ref.watch(featureFlagsControllerProvider).isEnabled('channels'),
+  (ref) =>
+      !ref.watch(channelsComingSoonProvider) &&
+      ref.watch(featureFlagsControllerProvider).isEnabled('channels'),
 );
 
 /// One list of the channels screen: my channels, the ones I follow, or the
