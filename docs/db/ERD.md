@@ -941,6 +941,7 @@ erDiagram
     String fcm_token UK
     String platform
     Boolean local_reminders
+    Boolean chat_style
     DateTime last_seen_at
     DateTime created_at
   }
