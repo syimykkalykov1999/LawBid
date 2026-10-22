@@ -77,7 +77,6 @@ async function build(
   const svc = new AdminAuthService(
     prisma as never,
     redis as never,
-    {} as never,
     tokens as never,
     sessions as never,
     rateLimit as never,
@@ -88,20 +87,32 @@ async function build(
 }
 
 describe('AdminAuthService password sign-in', () => {
-  it('right login + password signs in at once when two-factor is off (default)', async () => {
+  // Owner 2026-10-22 (system audit #2, item 1): the password is never
+  // enough on its own — no session without the authenticator.
+  it('without an authenticator: no session, a ticket for the forced setup', async () => {
     const { svc, sessions } = await build({ totp: false });
     const res = await svc.loginPassword(' Boss ', 'Right-pass-2026', '1.1.1.1');
-    expect(res.ticket).toBeNull();
-    expect(res.session?.accessToken).toBe('admin-jwt');
-    expect(sessions.create).toHaveBeenCalled();
+    expect(res.ticket).toBe('ticket-jwt');
+    expect(res.session).toBeNull();
+    expect(res.totpSetupRequired).toBe(true);
+    expect(sessions.create).not.toHaveBeenCalled();
   });
 
-  it('asks for the authenticator code only when the admin turned it on', async () => {
+  it('with an authenticator: no session, a ticket for the code', async () => {
     const { svc, sessions } = await build();
     const res = await svc.loginPassword('boss', 'Right-pass-2026', '1.1.1.1');
     expect(res.ticket).toBe('ticket-jwt');
     expect(res.session).toBeNull();
+    expect(res.totpSetupRequired).toBe(false);
     expect(sessions.create).not.toHaveBeenCalled();
+  });
+
+  it('the emailed-code sign-in is gone', async () => {
+    const { svc } = await build();
+    const any = svc as unknown as Record<string, unknown>;
+    expect(any.loginStart).toBeUndefined();
+    expect(any.loginVerify).toBeUndefined();
+    expect(any.twoFactorDisable).toBeUndefined();
   });
 
   it('wrong password and unknown login fail the same way', async () => {
@@ -165,10 +176,11 @@ describe('AdminAuthService recovery by security question', () => {
     expect(prisma.adminCredential.update).not.toHaveBeenCalled();
   });
 
-  it('works without an authenticator (it is optional now)', async () => {
-    const { svc, prisma } = await build({ totp: false });
+  it('sets the password but never signs in (the authenticator is still asked next)', async () => {
+    const { svc, prisma, sessions } = await build({ totp: false });
     await svc.recoverPassword('boss', 'мой ответ', 'New-pass-2026-x', null);
     expect(prisma.adminCredential.update).toHaveBeenCalled();
+    expect(sessions.create).not.toHaveBeenCalled();
   });
 
   it('refuses a weak new password after a right answer', async () => {

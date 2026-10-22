@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { ErrorNote } from '@/components/page-header';
+import { RecoveryCodes, TotpQr } from '@/components/totp-qr';
 import { Button } from '@/components/ui/button';
 import { Input, Label } from '@/components/ui/input';
 import { ApiError, errorText, publicApi } from '@/lib/api/client';
@@ -11,19 +12,20 @@ type Step =
   | { kind: 'password' }
   | { kind: 'forgot-login' }
   | { kind: 'forgot-answer'; login: string; question: string }
-  | { kind: 'email' }
-  | { kind: 'code'; email: string }
-  | { kind: 'totp'; ticket: string; useRecovery: boolean };
+  | { kind: 'totp'; ticket: string; useRecovery: boolean }
+  | { kind: 'setup'; ticket: string; secret: string | null; uri: string | null }
+  | { kind: 'codes'; codes: string[] };
 
 /**
- * Sign-in: login + password (or, as an alternative first step, an emailed
- * code) signs in on its own. An admin who turned two-factor on in the
- * profile is then asked for the authenticator code. The super admin can
- * reset a forgotten password by answering the security question.
+ * Sign-in (owner 2026-10-22): login + password, THEN the code from the
+ * authenticator app — for every admin. An admin without an authenticator
+ * yet sets it up right here (QR + ten recovery codes) before the panel
+ * opens. The old "code from the email" sign-in is gone. The super admin
+ * can reset a forgotten password by answering the security question (the
+ * authenticator is still asked afterwards).
  *
- * A finished sign-in puts the admin JWT in an httpOnly cookie — set by the
- * /api/public/auth proxy (no second step) or by app/api/auth/session
- * (authenticator step), never by JS.
+ * A finished sign-in puts the admin JWT in an httpOnly cookie — set by
+ * app/api/auth/session, never by JS.
  */
 export function LoginForm() {
   const router = useRouter();
@@ -34,14 +36,15 @@ export function LoginForm() {
   const [answer, setAnswer] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [notice, setNotice] = useState<string | null>(null);
-  const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Only same-site paths: `//evil.com` would be an open redirect.
+  // Only same-site paths: `//evil.com` and `/\evil.com` would be open
+  // redirects (system audit #2, item 15).
   const next = params.get('next');
-  const go = () => router.replace(next && next.startsWith('/') && !next.startsWith('//') ? next : '/');
+  const go = () =>
+    router.replace(next && next.startsWith('/') && !next.startsWith('//') && !next.includes('\\') ? next : '/');
 
   const run = async (fn: () => Promise<void>) => {
     setBusy(true);
@@ -67,8 +70,17 @@ export function LoginForm() {
       setPassword('');
       setCode('');
       setNotice(null);
-      if (d.ticket) setStep({ kind: 'totp', ticket: d.ticket, useRecovery: false });
-      else go();
+      if (!d.ticket) throw new ApiError(401, 'ADMIN_TICKET_INVALID', '');
+      if (!d.totpSetupRequired) {
+        setStep({ kind: 'totp', ticket: d.ticket, useRecovery: false });
+        return;
+      }
+      // First sign-in without an authenticator: set it up now.
+      const ticket = d.ticket;
+      setStep({ kind: 'setup', ticket, secret: null, uri: null });
+      const setup = await publicApi.POST('/admin/auth/login/totp-setup', { body: { ticket } });
+      const s = setup.data!.data;
+      setStep({ kind: 'setup', ticket, secret: s.secret, uri: s.otpauthUri });
     });
 
   const askQuestion = () =>
@@ -91,34 +103,21 @@ export function LoginForm() {
       setStep({ kind: 'password' });
     });
 
-  const start = () =>
-    run(async () => {
-      await publicApi.POST('/admin/auth/login/start', { body: { email } });
-      setCode('');
-      setStep({ kind: 'code', email });
-    });
-
-  const verify = () =>
-    run(async () => {
-      const { data } = await publicApi.POST('/admin/auth/login/verify', {
-        body: { email, code },
-      });
-      const d = data!.data;
-      setCode('');
-      if (d.ticket) setStep({ kind: 'totp', ticket: d.ticket, useRecovery: false });
-      else go();
-    });
-
-  const finish = (ticket: string, useRecovery: boolean) =>
+  const finish = (ticket: string, mode: 'totp' | 'recovery' | 'setup') =>
     run(async () => {
       const res = await fetch('/api/auth/session', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(
-          useRecovery ? { ticket, recoveryCode: code } : { ticket, code },
+          mode === 'recovery'
+            ? { ticket, recoveryCode: code }
+            : mode === 'setup'
+              ? { ticket, setupCode: code }
+              : { ticket, code },
         ),
       });
       const body = (await res.json()) as {
+        data?: { recoveryCodes?: string[] };
         error?: {
           code: string;
           message: string;
@@ -133,8 +132,54 @@ export function LoginForm() {
           body.error?.details,
         );
       }
-      go();
+      setCode('');
+      const codes = body.data?.recoveryCodes;
+      if (mode === 'setup' && codes?.length) setStep({ kind: 'codes', codes });
+      else go();
     });
+
+  if (step.kind === 'setup') {
+    return (
+      <form
+        className="space-y-4"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void finish(step.ticket, 'setup');
+        }}
+      >
+        <p className="text-sm text-muted">
+          Вход в админку теперь всегда с кодом из приложения-аутентификатора. Привяжите его один раз — это займёт
+          минуту.
+        </p>
+        {step.secret && step.uri ? (
+          <TotpQr secret={step.secret} uri={step.uri} />
+        ) : (
+          <p className="text-sm text-muted">Готовим QR-код…</p>
+        )}
+        <div className="space-y-1.5">
+          <Label htmlFor="setup-code">Код из приложения</Label>
+          <Input
+            id="setup-code"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            maxLength={6}
+            required
+            autoFocus
+            value={code}
+            onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+          />
+        </div>
+        <ErrorNote text={error} />
+        <Button type="submit" className="w-full" disabled={busy || code.length !== 6 || !step.secret}>
+          Подключить и войти
+        </Button>
+      </form>
+    );
+  }
+
+  if (step.kind === 'codes') {
+    return <RecoveryCodes codes={step.codes} onDone={go} />;
+  }
 
   if (step.kind === 'password') {
     return (
@@ -187,17 +232,6 @@ export function LoginForm() {
             }}
           >
             Забыли пароль?
-          </button>
-          <button
-            type="button"
-            className="underline-offset-2 hover:underline"
-            onClick={() => {
-              setError(null);
-              setNotice(null);
-              setStep({ kind: 'email' });
-            }}
-          >
-            Войти по коду из почты
           </button>
         </div>
       </form>
@@ -304,97 +338,13 @@ export function LoginForm() {
     );
   }
 
-  if (step.kind === 'email') {
-    return (
-      <form
-        className="space-y-4"
-        onSubmit={(e) => {
-          e.preventDefault();
-          void start();
-        }}
-      >
-        <div className="space-y-1.5">
-          <Label htmlFor="email">Email</Label>
-          <Input
-            id="email"
-            type="email"
-            autoComplete="username"
-            required
-            autoFocus
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-        </div>
-        <ErrorNote text={error} />
-        <Button type="submit" className="w-full" disabled={busy}>
-          Получить код
-        </Button>
-        <button
-          type="button"
-          className="w-full text-sm text-muted underline-offset-2 hover:underline"
-          onClick={() => {
-            setError(null);
-            setStep({ kind: 'password' });
-          }}
-        >
-          Войти по логину и паролю
-        </button>
-      </form>
-    );
-  }
-
-  if (step.kind === 'code') {
-    return (
-      <form
-        className="space-y-4"
-        onSubmit={(e) => {
-          e.preventDefault();
-          void verify();
-        }}
-      >
-        <p className="text-sm text-muted">
-          Код отправлен на <b className="text-ink">{step.email}</b>.
-        </p>
-        <div className="space-y-1.5">
-          <Label htmlFor="code">Код из письма</Label>
-          <Input
-            id="code"
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            pattern="\d{6}"
-            maxLength={6}
-            required
-            autoFocus
-            value={code}
-            onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
-          />
-        </div>
-        <ErrorNote text={error} />
-        <Button
-          type="submit"
-          className="w-full"
-          disabled={busy || code.length !== 6}
-        >
-          Продолжить
-        </Button>
-        <button
-          type="button"
-          className="w-full text-sm text-muted underline-offset-2 hover:underline"
-          onClick={() => setStep({ kind: 'email' })}
-        >
-          Другой email
-        </button>
-      </form>
-    );
-  }
-
   if (step.kind === 'totp') {
     return (
       <form
         className="space-y-4"
         onSubmit={(e) => {
           e.preventDefault();
-          void finish(step.ticket, step.useRecovery);
+          void finish(step.ticket, step.useRecovery ? 'recovery' : 'totp');
         }}
       >
         <div className="space-y-1.5">

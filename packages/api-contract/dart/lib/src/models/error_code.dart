@@ -200,6 +200,8 @@ enum ErrorCode {
   adminLoginTaken('ADMIN_LOGIN_TAKEN'),
   @JsonValue('ADMIN_RECOVERY_FAILED')
   adminRecoveryFailed('ADMIN_RECOVERY_FAILED'),
+  @JsonValue('ADMIN_TOTP_SETUP_REQUIRED')
+  adminTotpSetupRequired('ADMIN_TOTP_SETUP_REQUIRED'),
   @JsonValue('CONTENT_BLOCKED')
   contentBlocked('CONTENT_BLOCKED'),
   @JsonValue('MODERATION_ACTION_NOT_APPLICABLE')

@@ -511,14 +511,17 @@ export default function AdminsPage() {
                           <LinkSimple size={14} /> Ссылка
                         </Button>
                       ) : null}
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={action.isPending || !a.totpEnabled}
-                        onClick={() => action.mutate({ id: a.id, email: a.email, what: 'reset-2fa' })}
-                      >
-                        Сбросить 2FA
-                      </Button>
+                      {/* Owner 2026-10-22: only the super admin resets another admin's authenticator. */}
+                      {isSuper && !self ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={action.isPending || !a.totpEnabled}
+                          onClick={() => action.mutate({ id: a.id, email: a.email, what: 'reset-2fa' })}
+                        >
+                          Сбросить 2FA
+                        </Button>
+                      ) : null}
                       {a.status === 'active' ? (
                         <Button
                           size="sm"

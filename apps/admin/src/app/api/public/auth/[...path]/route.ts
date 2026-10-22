@@ -1,13 +1,15 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { SESSION_COOKIE, SESSION_MAX_AGE_SECONDS, apiBaseUrl, cookieOptions } from '@/lib/api/server';
+import { apiBaseUrl } from '@/lib/api/server';
 
-/** The unauthenticated sign-in steps (emailed code, login + password,
- * forgotten-password recovery) — forwarded so the browser only ever talks
- * to this origin. A finished sign-in sets the session cookie here. */
+/** The unauthenticated sign-in steps (login + password, the forced
+ * authenticator setup's QR step, forgotten-password recovery) — forwarded
+ * so the browser only ever talks to this origin. None of them returns a
+ * session: the steps that do (authenticator code, recovery code, the end
+ * of the setup) run through app/api/auth/session, which sets the cookie. */
 const ALLOWED = new Set([
-  'login/start',
-  'login/verify',
   'login/password',
+  // Owner 2026-10-22: the forced first setup of the authenticator.
+  'login/totp-setup',
   'recover/question',
   'recover/password',
   // Owner 2026-10-16: the invited admin picks a login and password.
@@ -64,23 +66,6 @@ export async function POST(
     body: await req.text(),
     cache: 'no-store',
   });
-  // Sign-in without a second step answers with a session: its JWT goes
-  // into the httpOnly cookie here and never reaches the browser's JS.
-  if (
-    upstream.ok &&
-    (path === 'login/password' || path === 'login/verify') &&
-    (upstream.headers.get('content-type') ?? '').includes('json')
-  ) {
-    const payload = (await upstream.json()) as {
-      data?: { ticket: string | null; session: { accessToken: string; [k: string]: unknown } | null };
-    };
-    const session = payload.data?.session;
-    if (!session) return NextResponse.json(payload, { status: upstream.status });
-    const { accessToken, ...rest } = session;
-    const res = NextResponse.json({ data: { ticket: null, session: rest } });
-    res.cookies.set(SESSION_COOKIE, accessToken, cookieOptions(SESSION_MAX_AGE_SECONDS));
-    return res;
-  }
   return new NextResponse(upstream.status === 204 ? null : upstream.body, {
     status: upstream.status,
     headers: {

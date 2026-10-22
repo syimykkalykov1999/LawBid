@@ -139,7 +139,7 @@ abstract class AdminAdminsClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Reset 2FA: the next sign-in binds a new authenticator
+  /// Super admin: reset another admin’s authenticator (needs a fresh step-up); the next sign-in sets up a new one
   @POST('/admin/admins/{id}/reset-2fa')
   Future<AdminAccountEnvelope> resetAdminTotp({
     @Path('id') required String id,

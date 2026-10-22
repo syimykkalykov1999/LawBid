@@ -70,8 +70,9 @@ export const JUSTIFICATION_MAX = 500;
 
 /**
  * docs/06 §2.1–2.2: the admin JWT (`aud = lawbid-admin`, issued only
- * after login + password, plus the authenticator when that admin turned it on) plus its Redis session (8 h absolute, 30 min
- * idle), then the RBAC matrix — deny by default:
+ * after login + password AND the authenticator code — owner 2026-10-22)
+ * plus its Redis session (8 h absolute, 30 min idle), then the RBAC
+ * matrix — deny by default:
  *  - a route without @Roles(...) is refused;
  *  - the account must still be an active, non-deleted `users.role =
  *    'admin'` with an `admin_profiles` row whose role is allowed — read
@@ -138,6 +139,7 @@ export class AdminAuthGuard implements CanActivate {
         status: true,
         deleted_at: true,
         admin_profile: { select: { admin_role: true, permissions: true } },
+        admin_credential: { select: { totp_enabled_at: true } },
       },
     });
     if (
@@ -148,6 +150,16 @@ export class AdminAuthGuard implements CanActivate {
       !user.admin_profile
     ) {
       throw forbidden();
+    }
+    // Owner 2026-10-22: no admin works without an authenticator. Sign-in
+    // only issues a session after the code, so this catches sessions from
+    // before the rule and a 2FA reset by the super admin: 401 sends the
+    // panel to sign-in, which walks through the forced setup.
+    if (!user.admin_credential?.totp_enabled_at) {
+      throw new UnauthorizedException({
+        code: ErrorCode.ADMIN_TOTP_SETUP_REQUIRED,
+        message: 'Set up the authenticator: sign in again.',
+      });
     }
     const adminRole = user.admin_profile.admin_role;
     const permissions = parsePermissions(user.admin_profile.permissions);

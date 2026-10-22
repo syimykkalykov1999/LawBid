@@ -104,6 +104,7 @@ const ERROR_TEXT: Record<string, string> = {
   ADMIN_LOGIN_TAKEN: 'Этот логин уже занят другим админом.',
   ADMIN_RECOVERY_FAILED: 'Ответ неверный.',
   ADMIN_STEP_UP_REQUIRED: 'Подтвердите действие кодом из аутентификатора.',
+  ADMIN_TOTP_SETUP_REQUIRED: 'Подключите приложение-аутентификатор: войдите заново.',
   FORBIDDEN: 'Недостаточно прав.',
   VERIFICATION_DECISION_INCOMPLETE: 'Сначала решите по каждой лицензии (кнопка «Подтвердить» или «Отклонить» в строке лицензии) — хотя бы одна должна быть подтверждена.',
   PAYMENTS_NOT_CONFIGURED: 'Stripe не отвечает или ключ не подходит: проверьте ключ Stripe в Система → Ключи и сервисы. Остальное сохранено.',

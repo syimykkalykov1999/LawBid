@@ -2526,91 +2526,16 @@
         ]
       }
     },
-    "/admin/auth/login/start": {
+    "/admin/auth/login/totp-setup": {
       "post": {
-        "operationId": "adminLoginStart",
+        "operationId": "adminTotpSetupBegin",
         "parameters": [],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/AdminLoginStartDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "204": {
-            "description": ""
-          },
-          "400": {
-            "description": "Bad request: VALIDATION_ERROR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "426": {
-            "description": "Upgrade required: APP_UPDATE_REQUIRED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests: RATE_LIMITED, AUTH_OTP_REQUEST_LIMIT",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal error: INTERNAL_ERROR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Service unavailable: ADMIN_AUTH_NOT_CONFIGURED, PROVIDER_BUDGET_EXCEEDED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "summary": "Send the sign-in code to an admin email",
-        "tags": [
-          "admin-auth"
-        ]
-      }
-    },
-    "/admin/auth/login/verify": {
-      "post": {
-        "operationId": "adminLoginVerify",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AdminLoginVerifyDto"
+                "$ref": "#/components/schemas/AdminTotpSetupBeginDto"
               }
             }
           }
@@ -2621,7 +2546,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AdminLoginVerifyResultEnvelope"
+                  "$ref": "#/components/schemas/TotpEnrollmentEnvelope"
                 }
               }
             }
@@ -2637,7 +2562,7 @@
             }
           },
           "401": {
-            "description": "Unauthorized: AUTH_OTP_INVALID, AUTH_OTP_EXPIRED, AUTH_OTP_LOCKED",
+            "description": "Unauthorized: ADMIN_TICKET_INVALID, ADMIN_TOTP_INVALID, ADMIN_RECOVERY_CODE_INVALID",
             "content": {
               "application/json": {
                 "schema": {
@@ -2657,7 +2582,7 @@
             }
           },
           "429": {
-            "description": "Too many requests: RATE_LIMITED, AUTH_OTP_REQUEST_LIMIT",
+            "description": "Too many requests: RATE_LIMITED",
             "content": {
               "application/json": {
                 "schema": {
@@ -2677,7 +2602,7 @@
             }
           },
           "503": {
-            "description": "Service unavailable: ADMIN_AUTH_NOT_CONFIGURED, PROVIDER_BUDGET_EXCEEDED",
+            "description": "Service unavailable: ADMIN_AUTH_NOT_CONFIGURED",
             "content": {
               "application/json": {
                 "schema": {
@@ -2687,7 +2612,99 @@
             }
           }
         },
-        "summary": "Check the email code; signs in (or returns the 2FA ticket when the admin turned two-factor on)",
+        "summary": "Forced first setup, step A: a secret / QR for the authenticator app (password ticket)",
+        "tags": [
+          "admin-auth"
+        ]
+      }
+    },
+    "/admin/auth/login/totp-confirm": {
+      "post": {
+        "operationId": "adminTotpSetupFinish",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminTotpSetupFinishDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminTotpSetupResultEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: ADMIN_TICKET_INVALID, ADMIN_TOTP_INVALID, ADMIN_RECOVERY_CODE_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable: ADMIN_AUTH_NOT_CONFIGURED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Forced first setup, step B: the first code switches the authenticator on → recovery codes (once) + session",
         "tags": [
           "admin-auth"
         ]
@@ -2990,7 +3007,7 @@
             }
           },
           "403": {
-            "description": "Forbidden: FORBIDDEN",
+            "description": "Forbidden: ADMIN_TOTP_INVALID, ADMIN_TOTP_SETUP_REQUIRED\n\nForbidden: FORBIDDEN",
             "content": {
               "application/json": {
                 "schema": {
@@ -3035,7 +3052,7 @@
             "admin": []
           }
         ],
-        "summary": "Confirm with the 2FA code (or the own password when two-factor is off) for 5 minutes before a sensitive change",
+        "summary": "Confirm with a fresh authenticator code for 5 minutes before a sensitive change (every try is audited)",
         "tags": [
           "admin-auth"
         ]
@@ -3305,7 +3322,7 @@
             }
           }
         },
-        "summary": "The invited admin chooses a login and password; the link is spent. Sign in next, then turn two-factor on in the profile.",
+        "summary": "The invited admin chooses a login and password; the link is spent. The first sign-in then sets up the authenticator (mandatory).",
         "tags": [
           "admin-auth"
         ]
@@ -3397,7 +3414,7 @@
             }
           }
         },
-        "summary": "Login + password: signs in (or returns the 2FA ticket when the admin turned two-factor on)",
+        "summary": "Login + password → a ticket for step 2: the authenticator code, or (totpSetupRequired) its forced first setup. Never a session on its own.",
         "tags": [
           "admin-auth"
         ]
@@ -3776,297 +3793,6 @@
           }
         ],
         "summary": "Super admin: set the recovery question and answer",
-        "tags": [
-          "admin-auth"
-        ]
-      }
-    },
-    "/admin/auth/2fa/begin": {
-      "post": {
-        "operationId": "twoFactorBegin",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "Success envelope (docs/01 §7).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TotpEnrollmentEnvelope"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden: FORBIDDEN",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "426": {
-            "description": "Upgrade required: APP_UPDATE_REQUIRED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests: RATE_LIMITED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal error: INTERNAL_ERROR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "admin": []
-          }
-        ],
-        "summary": "Optional two-factor, step 1: a secret for the authenticator app",
-        "tags": [
-          "admin-auth"
-        ]
-      }
-    },
-    "/admin/auth/2fa/enable": {
-      "post": {
-        "operationId": "twoFactorEnable",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AdminTwoFactorCodeDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Success envelope (docs/01 §7).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AdminTwoFactorEnabledEnvelope"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request: VALIDATION_ERROR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden: ADMIN_TOTP_INVALID\n\nForbidden: FORBIDDEN",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "426": {
-            "description": "Upgrade required: APP_UPDATE_REQUIRED\n\nUpgrade required: APP_UPDATE_REQUIRED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests: RATE_LIMITED, AUTH_OTP_REQUEST_LIMIT\n\nToo many requests: RATE_LIMITED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal error: INTERNAL_ERROR\n\nInternal error: INTERNAL_ERROR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Service unavailable: ADMIN_AUTH_NOT_CONFIGURED, PROVIDER_BUDGET_EXCEEDED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "admin": []
-          }
-        ],
-        "summary": "Optional two-factor, step 2: confirm with a code; returns recovery codes once",
-        "tags": [
-          "admin-auth"
-        ]
-      }
-    },
-    "/admin/auth/2fa/disable": {
-      "post": {
-        "operationId": "twoFactorDisable",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AdminTwoFactorCodeDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Success envelope (docs/01 §7).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AdminOkEnvelope"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request: VALIDATION_ERROR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden: ADMIN_TOTP_INVALID\n\nForbidden: FORBIDDEN",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "426": {
-            "description": "Upgrade required: APP_UPDATE_REQUIRED\n\nUpgrade required: APP_UPDATE_REQUIRED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests: RATE_LIMITED, AUTH_OTP_REQUEST_LIMIT\n\nToo many requests: RATE_LIMITED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal error: INTERNAL_ERROR\n\nInternal error: INTERNAL_ERROR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Service unavailable: ADMIN_AUTH_NOT_CONFIGURED, PROVIDER_BUDGET_EXCEEDED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "admin": []
-          }
-        ],
-        "summary": "Turn two-factor off (needs a current code)",
         "tags": [
           "admin-auth"
         ]
@@ -5993,7 +5719,7 @@
             }
           },
           "403": {
-            "description": "Forbidden: FORBIDDEN",
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
             "content": {
               "application/json": {
                 "schema": {
@@ -6048,7 +5774,7 @@
             "admin": []
           }
         ],
-        "summary": "Reset 2FA: the next sign-in binds a new authenticator",
+        "summary": "Super admin: reset another admin’s authenticator (needs a fresh step-up); the next sign-in sets up a new one",
         "tags": [
           "admin-admins"
         ]
@@ -107765,6 +107491,7 @@
           "ADMIN_CREDENTIALS_INVALID",
           "ADMIN_LOGIN_TAKEN",
           "ADMIN_RECOVERY_FAILED",
+          "ADMIN_TOTP_SETUP_REQUIRED",
           "CONTENT_BLOCKED",
           "MODERATION_ACTION_NOT_APPLICABLE",
           "FLAG_PROVIDER_KEYS_MISSING",
@@ -108942,17 +108669,49 @@
           "data"
         ]
       },
-      "AdminLoginStartDto": {
+      "TotpEnrollmentDto": {
         "type": "object",
         "properties": {
-          "email": {
+          "secret": {
             "type": "string",
-            "maxLength": 254,
-            "format": "email"
+            "description": "Base32 secret (manual entry)."
+          },
+          "otpauthUri": {
+            "type": "string",
+            "description": "otpauth:// URI for the QR code."
           }
         },
         "required": [
-          "email"
+          "secret",
+          "otpauthUri"
+        ]
+      },
+      "AdminTotpSetupBeginDto": {
+        "type": "object",
+        "properties": {
+          "ticket": {
+            "type": "string",
+            "minLength": 20,
+            "maxLength": 2000,
+            "description": "Ticket from login/password (15 minutes)."
+          }
+        },
+        "required": [
+          "ticket"
+        ]
+      },
+      "TotpEnrollmentEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TotpEnrollmentDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
         ]
       },
       "AdminCountryTabDto": {
@@ -109111,54 +108870,50 @@
           "admin"
         ]
       },
-      "AdminLoginVerifyResultDto": {
+      "AdminTotpSetupResultDto": {
+        "type": "object",
+        "properties": {
+          "recoveryCodes": {
+            "description": "Ten one-time recovery codes, shown once.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "session": {
+            "$ref": "#/components/schemas/AdminSessionDto"
+          }
+        },
+        "required": [
+          "recoveryCodes",
+          "session"
+        ]
+      },
+      "AdminTotpSetupFinishDto": {
         "type": "object",
         "properties": {
           "ticket": {
             "type": "string",
-            "nullable": true,
-            "description": "Only when this admin turned on two-factor: exchange it with the authenticator code (or a recovery code) at /totp."
-          },
-          "session": {
-            "nullable": true,
-            "description": "The signed-in session when no second step is needed (two-factor off, the default).",
-            "type": "object",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/AdminSessionDto"
-              }
-            ]
-          }
-        },
-        "required": [
-          "ticket",
-          "session"
-        ]
-      },
-      "AdminLoginVerifyDto": {
-        "type": "object",
-        "properties": {
-          "email": {
-            "type": "string",
-            "maxLength": 254,
-            "format": "email"
+            "minLength": 20,
+            "maxLength": 2000,
+            "description": "Ticket from login/password (15 minutes)."
           },
           "code": {
             "type": "string",
             "pattern": "^\\d{6}$",
-            "description": "The 6-digit code from the email."
+            "description": "The 6-digit code the app shows now."
           }
         },
         "required": [
-          "email",
+          "ticket",
           "code"
         ]
       },
-      "AdminLoginVerifyResultEnvelope": {
+      "AdminTotpSetupResultEnvelope": {
         "type": "object",
         "properties": {
           "data": {
-            "$ref": "#/components/schemas/AdminLoginVerifyResultDto"
+            "$ref": "#/components/schemas/AdminTotpSetupResultDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"
@@ -109175,7 +108930,7 @@
             "type": "string",
             "minLength": 20,
             "maxLength": 2000,
-            "description": "Ticket from login/verify (5 minutes)."
+            "description": "Ticket from login/password (5 minutes)."
           },
           "code": {
             "type": "string",
@@ -109209,7 +108964,7 @@
             "type": "string",
             "minLength": 20,
             "maxLength": 2000,
-            "description": "Ticket from login/verify (5 minutes)."
+            "description": "Ticket from login/password (5 minutes)."
           },
           "recoveryCode": {
             "type": "string",
@@ -109266,13 +109021,11 @@
             "type": "string",
             "pattern": "^\\d{6}$",
             "description": "The 6-digit authenticator code."
-          },
-          "password": {
-            "type": "string",
-            "maxLength": 128,
-            "description": "The admin’s own password (when two-factor is off)."
           }
-        }
+        },
+        "required": [
+          "code"
+        ]
       },
       "AdminStepUpResultEnvelope": {
         "type": "object",
@@ -109380,6 +109133,35 @@
           "data"
         ]
       },
+      "AdminLoginVerifyResultDto": {
+        "type": "object",
+        "properties": {
+          "ticket": {
+            "type": "string",
+            "nullable": true,
+            "description": "The ticket for step 2: the authenticator code (or a recovery code) at /totp — or, when totpSetupRequired, the forced setup at /login/totp-setup."
+          },
+          "session": {
+            "nullable": true,
+            "description": "Always null since owner 2026-10-22: the password alone never signs in.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AdminSessionDto"
+              }
+            ]
+          },
+          "totpSetupRequired": {
+            "type": "boolean",
+            "description": "This admin has no authenticator yet: set it up now (QR + recovery codes) before anything else."
+          }
+        },
+        "required": [
+          "ticket",
+          "session",
+          "totpSetupRequired"
+        ]
+      },
       "AdminPasswordLoginDto": {
         "type": "object",
         "properties": {
@@ -109396,6 +109178,20 @@
         "required": [
           "login",
           "password"
+        ]
+      },
+      "AdminLoginVerifyResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminLoginVerifyResultDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
         ]
       },
       "AdminRecoverQuestionResultDto": {
@@ -109521,79 +109317,6 @@
         "required": [
           "question",
           "answer"
-        ]
-      },
-      "TotpEnrollmentDto": {
-        "type": "object",
-        "properties": {
-          "secret": {
-            "type": "string",
-            "description": "Base32 secret (manual entry)."
-          },
-          "otpauthUri": {
-            "type": "string",
-            "description": "otpauth:// URI for the QR code."
-          }
-        },
-        "required": [
-          "secret",
-          "otpauthUri"
-        ]
-      },
-      "TotpEnrollmentEnvelope": {
-        "type": "object",
-        "properties": {
-          "data": {
-            "$ref": "#/components/schemas/TotpEnrollmentDto"
-          },
-          "meta": {
-            "$ref": "#/components/schemas/ResponseMetaDto"
-          }
-        },
-        "required": [
-          "data"
-        ]
-      },
-      "AdminTwoFactorEnabledDto": {
-        "type": "object",
-        "properties": {
-          "recoveryCodes": {
-            "description": "Ten one-time recovery codes, shown once.",
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          }
-        },
-        "required": [
-          "recoveryCodes"
-        ]
-      },
-      "AdminTwoFactorCodeDto": {
-        "type": "object",
-        "properties": {
-          "code": {
-            "type": "string",
-            "pattern": "^\\d{6}$|^[A-Za-z2-7]{5}-?[A-Za-z2-7]{5}$",
-            "description": "The 6-digit code from the authenticator app."
-          }
-        },
-        "required": [
-          "code"
-        ]
-      },
-      "AdminTwoFactorEnabledEnvelope": {
-        "type": "object",
-        "properties": {
-          "data": {
-            "$ref": "#/components/schemas/AdminTwoFactorEnabledDto"
-          },
-          "meta": {
-            "$ref": "#/components/schemas/ResponseMetaDto"
-          }
-        },
-        "required": [
-          "data"
         ]
       },
       "DashboardNewUsersDto": {
