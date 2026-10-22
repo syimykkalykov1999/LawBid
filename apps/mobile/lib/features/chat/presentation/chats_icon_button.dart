@@ -12,10 +12,14 @@ import 'package:lawbid/features/team/domain/team_models.dart';
 /// The Feed header's Chats icon (docs/05 §2.1) with the §10 badge: unread
 /// messages + unread notifications. The count pops when it changes.
 class ChatsIconButton extends ConsumerWidget {
-  const ChatsIconButton({this.onDark = false, super.key});
+  const ChatsIconButton({this.onDark = false, this.onOpen, super.key});
 
   /// White icon over the Reels video.
   final bool onDark;
+
+  /// Owner 2026-10-22: the feed slides its own pages into Chats instead of
+  /// pushing the Chats screen (null = push it).
+  final VoidCallback? onOpen;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -35,11 +39,12 @@ class ChatsIconButton extends ConsumerWidget {
       excludeSemantics: true,
       child: AppTapTarget(
         child: AppPressable(
-          onTap: () => context.push(
-            chats
-                ? ChatRoutes.inbox
-                : ChatRoutes.inboxTab(InboxTab.notifications),
-          ),
+          onTap: onOpen ??
+              () => context.push(
+                    chats
+                        ? ChatRoutes.inbox
+                        : ChatRoutes.inboxTab(InboxTab.notifications),
+                  ),
           child: SizedBox.square(
             dimension: AppSizes.touchTarget,
             child: Stack(
