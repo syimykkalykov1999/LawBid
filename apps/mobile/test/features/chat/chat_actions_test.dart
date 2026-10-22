@@ -27,6 +27,7 @@ import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
 import '../../helpers/translate_flag_overrides.dart';
+import '../../helpers/upload_queue_overrides.dart';
 import '../../helpers/ux_harness.dart';
 
 /// Owner 2026-10-20: edit / delete / react / pin / reply / unread divider.
@@ -153,6 +154,7 @@ ChatMessage _msg(
     overrides: [
       chatRepositoryProvider.overrideWithValue(chat),
       socialLocalDatabaseProvider.overrideWithValue(db),
+      ...uploadQueueOverrides(),
       currentUserIdProvider.overrideWithValue('me'),
       realtimeClientProvider.overrideWithValue(null),
       realtimeEventsProvider.overrideWithValue(events.stream),

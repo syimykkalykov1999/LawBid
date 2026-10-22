@@ -79,7 +79,12 @@ class PostDraft {
     this.commentsEnabled = true,
     this.attachments = const [],
     this.markedLegal = false,
+    this.idempotencyKey,
   });
+
+  /// Owner 2026-10-22 (audit #4 §3): a queued reel publishes with its job
+  /// id as the key, so a repeat after a restart returns the same post.
+  final String? idempotencyKey;
 
   /// Owner 2026-10-05: without a topic a post is general (personal); the
   /// author marks it legal here. A topic or News is always legal.
@@ -570,7 +575,11 @@ class ApiSocialRepository implements SocialRepository {
                         ),
                     ],
             ),
-            extras: _createsResource,
+            extras: {
+              ..._createsResource,
+              if (draft.idempotencyKey != null)
+                RequestFlags.idempotencyKey: draft.idempotencyKey,
+            },
           ),
         ))
             .data,

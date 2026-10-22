@@ -56,6 +56,22 @@ void main() {
       expect(adapter.requests.single.headers['idempotency-key'], 'mine');
       expect(keySeq, 0);
     });
+
+    // Owner 2026-10-22 (audit #4 §3): a queued reel publishes with its job
+    // id as the key, so a repeat after a restart is the same post.
+    test('uses the key given in extras', () async {
+      await dio.post<dynamic>(
+        '/a',
+        options: Options(
+          extra: const {
+            RequestFlags.createsResource: true,
+            RequestFlags.idempotencyKey: 'job-1',
+          },
+        ),
+      );
+      expect(adapter.requests.single.headers['Idempotency-Key'], 'job-1');
+      expect(keySeq, 0);
+    });
   });
 
   group('RetryInterceptor', () {

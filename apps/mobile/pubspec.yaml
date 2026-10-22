@@ -150,6 +150,11 @@ dependencies:
   # Android + iOS only (iOS 15.5+); the web says «in the app».
   google_mlkit_translation: ^0.15.1
   google_mlkit_language_id: ^0.15.1
+  # Owner 2026-10-22 (audit #4 §3): the persistent media queue hands each
+  # S3 POST to the OS (Android WorkManager, iOS background URLSession), so
+  # an upload continues while the app is closed (core/uploads/
+  # background_transport_io.dart). bbflight, BSD-3, actively maintained.
+  background_downloader: ^9.6.4
 dev_dependencies:
   flutter_test:
     sdk: flutter
