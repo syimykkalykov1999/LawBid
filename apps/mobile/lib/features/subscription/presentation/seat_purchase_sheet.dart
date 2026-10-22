@@ -142,9 +142,37 @@ class _SeatPurchaseSheetState extends ConsumerState<SeatPurchaseSheet> {
     unawaited(_load());
   }
 
+  /// Owner 2026-10-22 (audit #3, App Store 3.1.1): the iPhone buys on our
+  /// card page in the browser (one-time link); the seats arrive when the
+  /// attorney is back (the subscription screen re-reads on return).
+  Future<void> _payInBrowser() async {
+    final t = ref.read(translatorProvider);
+    setState(() {
+      _paying = true;
+      _error = null;
+    });
+    try {
+      final url = withAppPayPageLook(
+        ref.read,
+        await ref.read(subscriptionRepositoryProvider).seatsCheckoutUrl(_seats),
+      );
+      if (!await ref.read(checkoutLauncherProvider)(url)) {
+        if (mounted) setState(() => _error = t.t('payments.openFailed'));
+        return;
+      }
+      _refreshOnReturn();
+      if (mounted) _finish(t.t('payments.inBrowser'));
+    } on Object catch (e) {
+      if (mounted) setState(() => _error = errorText(t, e));
+    } finally {
+      if (mounted) setState(() => _paying = false);
+    }
+  }
+
   Future<void> _pay() async {
     final p = _preview;
     if (p == null || _paying) return;
+    if (ref.read(paymentsInBrowserProvider)) return _payInBrowser();
     final t = ref.read(translatorProvider);
     setState(() {
       _paying = true;
@@ -204,6 +232,27 @@ class _SeatPurchaseSheetState extends ConsumerState<SeatPurchaseSheet> {
     ref.invalidate(teamProvider);
     showAppSnackBar(context, message);
     Navigator.of(context).pop(true);
+  }
+
+  /// Back from the browser (the card page's «Return to LawBid» or the app
+  /// switcher): the subscription and the team are read again once.
+  void _refreshOnReturn() {
+    final overview = ref.read(subscriptionOverviewProvider.notifier);
+    final team = ref.read(teamProvider.notifier);
+    late final AppLifecycleListener listener;
+    listener = AppLifecycleListener(
+      onResume: () {
+        listener.dispose();
+        unawaited(() async {
+          try {
+            await overview.refresh();
+            await team.refresh();
+          } on Object {
+            // The screen is gone or offline: it re-reads on its own later.
+          }
+        }());
+      },
+    );
   }
 
   /// After 3-D Secure the seats arrive by webhook — re-read twice.
@@ -347,6 +396,17 @@ class _SeatPurchaseSheetState extends ConsumerState<SeatPurchaseSheet> {
               isEnabled: p != null && !_paying,
               onPressed: _pay,
             ),
+            // Owner 2026-10-22: the iPhone pays on the website (App Store).
+            if (ref.watch(paymentsInBrowserProvider)) ...[
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                t.t('payments.opensInBrowser'),
+                key: const ValueKey('seats-buy-web-hint'),
+                textAlign: TextAlign.center,
+                style:
+                    typography.bodySmall.copyWith(color: colors.textSecondary),
+              ),
+            ],
           ],
         ),
       ),

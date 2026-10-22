@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show ProviderListenable;
 
 import 'package:lawbid/core/config/app_config.dart';
 import 'package:lawbid/core/design_system/theme/app_theme_providers.dart';
@@ -25,6 +26,52 @@ final subscriptionRepositoryProvider = Provider<SubscriptionRepository>(
 final cardCollectorProvider = Provider<CardCollector>(
   (ref) => StripeCardCollector(publishableKey: AppConfig.stripePublishableKey),
 );
+
+/// Owner 2026-10-22 (audit #3; App Review 3.1.1 / 3.1.1(a), US link-out):
+/// the iPhone app shows no payment screen at all — every purchase (the
+/// subscription, assistant seats, Boost) opens our card page in the browser
+/// with a one-time link, and the app re-reads the purchase when it is back.
+/// Android keeps the in-app card sheet for the subscription and seats
+/// (Google Play allows it in the US; fewer steps, no browser hop); the web
+/// build pays on the same card page in its own tab.
+final paymentsInBrowserProvider = Provider<bool>(
+  (ref) => !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS,
+);
+
+/// Our card page (`/pay.html`) takes the app's theme and language, and from
+/// the phone app its «Back to the app» opens `lawbid://` — all in the
+/// fragment, so none of it reaches a server log (owner 2026-10-16).
+Uri withPayPageLook(Uri url, {String? theme, String? lang}) {
+  if (!url.path.endsWith('/pay.html')) return url;
+  final extra = [
+    if (theme != null) 'theme=$theme',
+    if (lang != null) 'lang=$lang',
+    if (!kIsWeb) 'native=1',
+  ].join('&');
+  if (extra.isEmpty) return url;
+  return url.replace(fragment: '${url.fragment}&$extra');
+}
+
+/// `ref.read` of a widget or a provider.
+typedef ProviderReader = T Function<T>(ProviderListenable<T> provider);
+
+/// [withPayPageLook] with the app's current theme and language; the page
+/// opens with its own defaults when either can not be read.
+Uri withAppPayPageLook(ProviderReader read, Uri url) {
+  String? theme;
+  String? lang;
+  try {
+    theme = read(appThemeControllerProvider)?.name;
+  } on Object {
+    theme = null;
+  }
+  try {
+    lang = read(languageControllerProvider).value?.code;
+  } on Object {
+    lang = null;
+  }
+  return withPayPageLook(url, theme: theme, lang: lang);
+}
 
 /// Owner 2026-10-22: 3-D Secure for a seat purchase charged at once.
 final paymentConfirmerProvider = Provider<PaymentConfirmer>(
@@ -287,19 +334,7 @@ class SubscribeController extends Notifier<SubscribeState> {
   /// browser — plan, seats and assistant phones are fixed in the session.
   /// Owner 2026-10-16: our own card page takes the app's theme and language
   /// (in the fragment, so they never reach a server log).
-  Uri _withPayPageLook(Uri url) {
-    if (!url.path.endsWith('/pay.html')) return url;
-    final theme = ref.read(appThemeControllerProvider)?.name;
-    final lang = ref.read(languageControllerProvider).value?.code;
-    final extra = [
-      if (theme != null) 'theme=$theme',
-      if (lang != null) 'lang=$lang',
-      // The phone app: «Back to the app» opens lawbid://, not the web copy.
-      if (!kIsWeb) 'native=1',
-    ].join('&');
-    if (extra.isEmpty) return url;
-    return url.replace(fragment: '${url.fragment}&$extra');
-  }
+  Uri _withPayPageLook(Uri url) => withAppPayPageLook(ref.read, url);
 
   /// Waits (polling the session, 15 min max) until it is paid; the
   /// attorney may stop waiting and come back later — `checkNow` on resume.

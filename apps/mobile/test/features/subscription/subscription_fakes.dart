@@ -229,6 +229,12 @@ class FakeSubscriptionRepository implements SubscriptionRepository {
   }
 
   @override
+  Future<Uri> seatsCheckoutUrl(int seats) async {
+    calls.add('seatsCheckout:$seats');
+    return Uri.parse('https://lawbid.dev/pay.html#t=seats$seats');
+  }
+
+  @override
   Future<SeatChangeOutcome> setSeats(int seats, {int? prorationDate}) async {
     calls.add('seats:$seats');
     final s = current.subscription!;

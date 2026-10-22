@@ -41,6 +41,16 @@ class _FakeRepo extends PromotionsRepository {
   _FakeRepo() : super(Dio());
 
   final bought = <(int, String?, String?)>[];
+  final stopped = <String>[];
+
+  /// What `POST /promotions/:id/stop` answers (null = cancelled).
+  CasePromotion? afterStop;
+
+  @override
+  Future<CasePromotion?> stop(String id) async {
+    stopped.add(id);
+    return afterStop;
+  }
 
   @override
   Future<PromotionPurchase> buy(
@@ -199,32 +209,80 @@ Future<void> main() async {
     expect(find.text('stats-screen-pr1'), findsOneWidget);
   });
 
+  const unpaid = CasePromotion(
+    id: 'pr1',
+    target: PromotionTarget.post,
+    postId: 'p1',
+    status: PromotionStatus.pendingPayment,
+    days: 7,
+    totalCents: 3500,
+    impressions: 0,
+    goal: 'clicks',
+    ctaType: 'message',
+  );
+
   // Owner 2026-10-19: «Завершить оплату» keeps the promotion's settings and
   // goes straight to the payment (not step 1); a failure is said on top.
+  // Owner 2026-10-22: it first asks — pay, start over or cancel.
   testWidgets('unpaid: «Complete payment» pays at once with its settings',
       (t) async {
-    await open(
-      t,
-      isMine: true,
-      promotion: const CasePromotion(
-        id: 'pr1',
-        target: PromotionTarget.post,
-        postId: 'p1',
-        status: PromotionStatus.pendingPayment,
-        days: 7,
-        totalCents: 3500,
-        impressions: 0,
-        goal: 'clicks',
-        ctaType: 'message',
-      ),
-      canPromote: false,
-    );
+    await open(t, isMine: true, promotion: unpaid, canPromote: false);
     await t.tap(find.text('Complete payment'));
+    await t.pumpAndSettle();
+    expect(find.text('Boost not paid'), findsOneWidget);
+    await t.tap(find.byKey(const ValueKey('pending-pay')));
     await t.pump();
     await t.pump(const Duration(seconds: 1));
     expect(find.byType(PromoteSheet), findsOneWidget);
     expect(repo.bought, [(7, 'clicks', 'message')]);
+    expect(repo.stopped, isEmpty);
     expect(find.byKey(const ValueKey('app-overlay-message')), findsOneWidget);
+    await t.pump(const Duration(seconds: 5));
+  });
+
+  testWidgets('unpaid: «Cancel» voids the payment after a confirmation',
+      (t) async {
+    await open(t, isMine: true, promotion: unpaid, canPromote: false);
+    await t.tap(find.text('Complete payment'));
+    await t.pumpAndSettle();
+    await t.tap(find.byKey(const ValueKey('pending-cancel')));
+    await t.pumpAndSettle();
+    expect(find.text('Cancel this Boost?'), findsOneWidget);
+    await t.tap(find.text('Yes, cancel'));
+    await t.pumpAndSettle();
+    expect(repo.stopped, ['pr1']);
+    expect(repo.bought, isEmpty);
+    expect(find.byType(PromoteSheet), findsNothing);
+    expect(find.text('Boost cancelled'), findsOneWidget);
+    await t.pump(const Duration(seconds: 5));
+  });
+
+  testWidgets('unpaid: «Start over» cancels it and opens the wizard fresh',
+      (t) async {
+    await open(t, isMine: true, promotion: unpaid, canPromote: false);
+    await t.tap(find.text('Complete payment'));
+    await t.pumpAndSettle();
+    await t.tap(find.byKey(const ValueKey('pending-restart')));
+    await t.pumpAndSettle();
+    expect(repo.stopped, ['pr1']);
+    // Step 1, nothing bought yet.
+    expect(find.byType(PromoteSheet), findsOneWidget);
+    expect(repo.bought, isEmpty);
+  });
+
+  testWidgets('unpaid but paid meanwhile: said so, nothing reopened',
+      (t) async {
+    await open(t, isMine: true, promotion: unpaid, canPromote: false);
+    repo.afterStop = _promo(PromotionStatus.active);
+    await t.tap(find.text('Complete payment'));
+    await t.pumpAndSettle();
+    await t.tap(find.byKey(const ValueKey('pending-restart')));
+    await t.pumpAndSettle();
+    expect(find.byType(PromoteSheet), findsNothing);
+    expect(
+      find.text('It was already paid — your Boost is running'),
+      findsOneWidget,
+    );
     await t.pump(const Duration(seconds: 5));
   });
 }
