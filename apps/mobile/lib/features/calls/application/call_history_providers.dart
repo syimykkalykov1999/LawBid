@@ -130,26 +130,91 @@ class CallLogSelection extends Notifier<Set<String>?> {
   void stop() => state = null;
 }
 
+/// Owner 2026-10-22 (load audit finding 3): with no event for this long
+/// while a call is known to run, the list is read again (a lost event).
+const kOngoingCallsSafetyRefresh = Duration(minutes: 5);
+
 /// Group calls running now in my groups. Owner 2026-10-21: the «+» of the
-/// chats glows green while one runs, so it is read while something watches
-/// it: when a call event comes over the socket and every half minute (the
-/// server tells only the people it rings, a group member learns of a running
-/// call by asking), and the tab asks again on pull-to-refresh.
-final ongoingGroupCallsProvider =
-    FutureProvider.autoDispose<List<OngoingGroupCall>>((ref) {
-  final events = ref.watch(realtimeEventsProvider).listen((e) {
-    if (e.name.startsWith('call:')) ref.invalidateSelf();
-  });
-  final poll = Timer.periodic(
-    const Duration(seconds: 30),
-    (_) => ref.invalidateSelf(),
-  );
-  ref.onDispose(() {
-    unawaited(events.cancel());
-    poll.cancel();
-  });
-  return ref.watch(callHistoryRepositoryProvider).ongoing();
-});
+/// chats glows green while one runs. Owner 2026-10-22 (load audit finding
+/// 3): read once when watched and after a reconnect; the server then pushes
+/// `call:ongoing` (started / people changed) and `call:ongoing_ended` to the
+/// group's members, applied here without asking again (it used to ask every
+/// 30 s). A slow safety re-read runs only while a call is known to run.
+final ongoingGroupCallsProvider = AsyncNotifierProvider.autoDispose<
+    OngoingGroupCallsNotifier, List<OngoingGroupCall>>(
+  OngoingGroupCallsNotifier.new,
+);
+
+class OngoingGroupCallsNotifier extends AsyncNotifier<List<OngoingGroupCall>> {
+  Timer? _safety;
+
+  @override
+  Future<List<OngoingGroupCall>> build() async {
+    final events = ref.watch(realtimeEventsProvider).listen(_onEvent);
+    ref.onDispose(() {
+      unawaited(events.cancel());
+      _safety?.cancel();
+    });
+    final list = await ref.watch(callHistoryRepositoryProvider).ongoing();
+    _armSafety(list);
+    return list;
+  }
+
+  void _onEvent(RealtimeEvent e) {
+    final data = e.data;
+    if (e.name == RealtimeEvent.reconnected) {
+      ref.invalidateSelf();
+      return;
+    }
+    if (data is! Map) return;
+    final callId = data['callId'];
+    final groupId = data['groupId'];
+    // Channels' calls are not in this list (only an open channel hears
+    // them).
+    if (callId is! String || groupId is! String) return;
+    final current = state.value;
+    if (current == null) return;
+    switch (e.name) {
+      case 'call:ongoing':
+        final i = current.indexWhere((c) => c.id == callId);
+        if (i < 0) {
+          // A call that just started: its title / photo come from the
+          // server (one read per call, not per minute).
+          ref.invalidateSelf();
+          return;
+        }
+        final ids = data['joinedIds'];
+        final me = ref.read(callMyIdProvider);
+        final joined = data['joined'];
+        _set([
+          for (final c in current)
+            if (c.id == callId)
+              c.withPeople(
+                joined: joined is int ? joined : c.joined,
+                mine: ids is List ? ids.contains(me) : c.mine,
+              )
+            else
+              c,
+        ]);
+      case 'call:ongoing_ended':
+        _set([
+          for (final c in current)
+            if (c.id != callId && c.groupId != groupId) c,
+        ]);
+    }
+  }
+
+  void _set(List<OngoingGroupCall> list) {
+    state = AsyncData(list);
+    _armSafety(list);
+  }
+
+  void _armSafety(List<OngoingGroupCall> list) {
+    _safety?.cancel();
+    if (list.isEmpty) return;
+    _safety = Timer(kOngoingCallsSafetyRefresh, ref.invalidateSelf);
+  }
+}
 
 /// «Join» / «Return» on a running group call. Returns the API error code
 /// (or [kMicDenied]), null when it worked or the call had just ended.

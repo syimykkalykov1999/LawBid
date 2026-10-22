@@ -7,7 +7,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/chat/data/chat_repository.dart';
-import 'package:lawbid/features/chat/data/realtime_client.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/data/social_local_database.dart';

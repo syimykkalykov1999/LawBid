@@ -59,4 +59,5 @@ export 'widgets/motion/app_tap_target.dart';
 export 'widgets/performance/defer_first_frame.dart';
 export 'widgets/performance/text_warm_up.dart';
 export 'widgets/text/fit_text.dart';
+export 'widgets/text/full_text_scale.dart';
 export 'widgets/text/legal_text.dart';

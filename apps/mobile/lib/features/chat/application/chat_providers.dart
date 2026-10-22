@@ -13,11 +13,11 @@ import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/core/platform/chat_notifications_channel.dart';
 import 'package:lawbid/features/cases/application/paged_notifier.dart';
+import 'package:lawbid/features/chat/application/chat_list_delta.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/chat/data/chat_extras_repository.dart';
 import 'package:lawbid/features/chat/data/chat_list_cache.dart';
 import 'package:lawbid/features/chat/data/chat_repository.dart';
-import 'package:lawbid/features/chat/data/realtime_client.dart';
 import 'package:lawbid/features/chat/data/voice_files.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/notifications/application/call_mute.dart';
@@ -50,16 +50,50 @@ final chatRepositoryProvider = Provider<ChatRepository>(
 
 // --- Conversations list (docs/05 §8.1) ---------------------------------------
 
+/// Owner 2026-10-22 (load audit finding 2): chat-list events made on this
+/// phone (I read a chat) — the lists apply them at once, before the server's
+/// `conversation:read` echo arrives (or when the socket is down).
+final localChatEventsProvider = Provider<StreamController<RealtimeEvent>>(
+  (ref) {
+    final c = StreamController<RealtimeEvent>.broadcast();
+    ref.onDispose(c.close);
+    return c;
+  },
+);
+
 class ConversationsNotifier extends PagedNotifier<Conversation> {
   Timer? _debounce;
+  Timer? _pullTimer;
+
+  /// The earliest change a pending catch-up must cover.
+  DateTime? _pullSince;
+
+  /// Chats a message arrived in that this list does not hold: the next
+  /// catch-up looks for them.
+  final Set<String> _asked = {};
+
+  /// Chats asked for that are not in this list (archived, another folder):
+  /// their next messages do not ask again until a reconnect / refresh.
+  final Set<String> _outside = {};
 
   // Owner 2026-10-18 (speed): kept for 5 minutes after the screen leaves
   // (see PagedNotifier.keepAliveFor).
   @override
   Duration? get keepAliveFor => const Duration(minutes: 5);
 
+  /// Owner 2026-10-22: whether this list catches up with `updatedSince`
+  /// (a search does not: it re-reads after a reconnect, as before).
+  bool get catchesUp => true;
+
+  /// The rows of this list changed since [since] (server time).
+  Future<CursorPage<Conversation>> fetchChangedSince(DateTime since) =>
+      ref.read(chatRepositoryProvider).conversations(updatedSince: since);
+
   @override
   Future<PaginatedList<Conversation>> build() {
+    _outside.clear();
+    _asked.clear();
+    _pullSince = null;
     // Owner 2026-10-21: remember which chats have their calls muted.
     listenSelf((_, AsyncValue<PaginatedList<Conversation>> next) {
       for (final c in next.value?.items ?? const <Conversation>[]) {
@@ -68,30 +102,140 @@ class ConversationsNotifier extends PagedNotifier<Conversation> {
             .mark(c.id, muted: c.callsMuted);
       }
     });
-    // New messages, closed chats, a reconnect: re-read the first page
-    // (debounced, so a burst of events is one request).
-    final sub = ref.watch(realtimeEventsProvider).listen((e) {
-      if (e.name == 'message:new' ||
-          e.name == 'conversation:update' ||
-          e.name == 'message:read' ||
-          e.name == 'message:updated' ||
-          // Audit 2026-10-02: reading a chat on this or another device
-          // only sends the reader a badge update — refresh the unread pills.
-          e.name == 'badge:update' ||
-          e.name == RealtimeEvent.reconnected) {
-        _debounce?.cancel();
-        _debounce = Timer(const Duration(milliseconds: 600), () {
-          if (!ref.mounted) return;
-          // Offline / 5xx while events arrive: keep what is shown.
-          unawaited(refresh().catchError((Object _) {}));
-        });
-      }
-    });
+    // Owner 2026-10-22 (load audit finding 2, Telegram): every event is
+    // applied to the rows held here; the server is asked only after a
+    // socket gap (`updatedSince`) or for a chat this list does not hold.
+    final sub = ref.watch(realtimeEventsProvider).listen(_onEvent);
+    final local = ref.watch(localChatEventsProvider).stream.listen(_onEvent);
     ref.onDispose(() {
       sub.cancel();
+      local.cancel();
       _debounce?.cancel();
+      _pullTimer?.cancel();
     });
     return super.build();
+  }
+
+  void _onEvent(RealtimeEvent e) {
+    final data = e.data;
+    switch (e.name) {
+      case 'message:new':
+        final m = ChatMappers.fromEvent(data);
+        if (m == null) return;
+        final me = ref.read(currentUserIdProvider);
+        if (_edit((items) => applyNewMessage(items, m, me: me))) return;
+        // Not held here: a new chat, one further down, or one outside.
+        if (!catchesUp || _outside.contains(m.conversationId)) return;
+        _asked.add(m.conversationId);
+        _catchUp(m.createdAt.subtract(const Duration(seconds: 2)));
+      case 'message:updated':
+        if (data is Map && data['hiddenForMe'] == true) {
+          final cid = data['conversationId'];
+          final mid = data['messageId'];
+          final shown = state.value?.items.where((c) => c.id == cid);
+          // The preview I hid: the chat's row comes again from the server.
+          if (cid is String && shown?.firstOrNull?.lastMessage?.id == mid) {
+            unawaited(_reloadRow(cid));
+          }
+          return;
+        }
+        final m = ChatMappers.fromEvent(data);
+        if (m != null) _edit((items) => applyUpdatedMessage(items, m));
+      case 'message:read':
+        if (data is! Map) return;
+        final cid = data['conversationId'];
+        final last = data['lastReadMessageId'];
+        if (cid is! String || last is! String) return;
+        final at = DateTime.tryParse('${data['readAt']}') ?? DateTime.now();
+        _edit(
+          (items) => applyReceipts(items, cid, readId: last, readAt: at),
+        );
+      case 'conversation:read':
+        final cid = data is Map ? data['conversationId'] : null;
+        if (cid is String) _edit((items) => applyReadByMe(items, cid));
+      case 'conversation:update':
+        // Closed, unlocked, a request answered (it may change folders):
+        // rare — the first page is read again, debounced.
+        _refreshSoon();
+      case RealtimeEvent.reconnected:
+        _outside.clear();
+        final since = catchUpSince(state.value?.items ?? const []);
+        if (!catchesUp || since == null) {
+          _refreshSoon();
+        } else {
+          _catchUp(since);
+        }
+    }
+  }
+
+  /// Applies [change] to the rows held; false when it did not find the
+  /// chat. Nothing loaded yet: the first page in flight will have it.
+  bool _edit(List<Conversation>? Function(List<Conversation>) change) {
+    final current = state.value;
+    if (current == null) return true;
+    final next = change(current.items);
+    if (next == null) return false;
+    if (!identical(next, current.items)) setItems(next);
+    return true;
+  }
+
+  void _refreshSoon() {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 600), () {
+      if (!ref.mounted) return;
+      // Offline / 5xx while events arrive: keep what is shown.
+      unawaited(refresh().catchError((Object _) {}));
+    });
+  }
+
+  /// One `updatedSince` request for everything since [since] (debounced:
+  /// a burst of events is one request).
+  void _catchUp(DateTime since) {
+    final pending = _pullSince;
+    _pullSince = pending == null || since.isBefore(pending) ? since : pending;
+    _pullTimer?.cancel();
+    _pullTimer = Timer(
+      const Duration(milliseconds: 600),
+      () => unawaited(_pull()),
+    );
+  }
+
+  Future<void> _pull() async {
+    final since = _pullSince;
+    final asked = {..._asked};
+    _pullSince = null;
+    _asked.clear();
+    if (since == null || !ref.mounted) return;
+    try {
+      final page = await fetchChangedSince(since);
+      if (!ref.mounted) return;
+      // More changed than one page: one plain reload is cheaper.
+      if (page.nextCursor != null) {
+        await refresh();
+        return;
+      }
+      final current = state.value;
+      if (current == null) return;
+      setItems(mergeChanged(current.items, page.items));
+      final found = {for (final c in page.items) c.id};
+      _outside.addAll(asked.difference(found));
+    } on Object {
+      // Offline / 5xx: the next reconnect catches up again.
+    }
+  }
+
+  Future<void> _reloadRow(String id) async {
+    try {
+      final fresh = await ref.read(chatRepositoryProvider).conversation(id);
+      final current = state.value;
+      if (!ref.mounted || current == null) return;
+      setItems([
+        for (final c in current.items)
+          if (c.id == id) fresh else c,
+      ]);
+    } on Object {
+      // Keep what is shown.
+    }
   }
 
   // Owner 2026-10-20 (speed, Telegram): the inbox opens on the list saved by
@@ -126,6 +270,11 @@ class MessageRequestsNotifier extends ConversationsNotifier {
   Future<CursorPage<Conversation>> fetch(String? cursor) => ref
       .read(chatRepositoryProvider)
       .conversations(cursor: cursor, requests: true);
+
+  @override
+  Future<CursorPage<Conversation>> fetchChangedSince(DateTime since) => ref
+      .read(chatRepositoryProvider)
+      .conversations(updatedSince: since, requests: true);
 }
 
 final messageRequestsProvider = AsyncNotifierProvider.autoDispose<
@@ -149,6 +298,11 @@ class FolderConversationsNotifier extends ConversationsNotifier {
   Future<CursorPage<Conversation>> fetch(String? cursor) => ref
       .read(chatRepositoryProvider)
       .conversations(cursor: cursor, folder: folder);
+
+  @override
+  Future<CursorPage<Conversation>> fetchChangedSince(DateTime since) => ref
+      .read(chatRepositoryProvider)
+      .conversations(updatedSince: since, folder: folder);
 }
 
 final folderConversationsProvider = AsyncNotifierProvider.autoDispose.family<
@@ -165,6 +319,9 @@ class SearchConversationsNotifier extends ConversationsNotifier {
   SearchConversationsNotifier(this.key);
 
   final ChatSearchKey key;
+
+  @override
+  bool get catchesUp => false;
 
   @override
   Future<CursorPage<Conversation>?> cachedFirstPage() async => null;
@@ -1234,9 +1391,14 @@ class ChatThread extends Notifier<ChatThreadState> {
     try {
       await _repo.read(id, newest.id);
       // Audit 2026-10-02: the chat list and its folders drop this pill now.
-      ref
-        ..invalidate(conversationsProvider)
-        ..invalidate(folderConversationsProvider);
+      // Owner 2026-10-22 (load audit finding 2): on the rows they hold,
+      // without reloading them.
+      ref.read(localChatEventsProvider).add(
+            RealtimeEvent('conversation:read', {
+              'conversationId': id,
+              'lastReadMessageId': newest.id,
+            }),
+          );
     } on Object {
       _lastReadSent = null;
     }

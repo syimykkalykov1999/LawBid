@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import { BottomNav } from './bottom-nav';
 import { CommandPalette } from './command-palette';
 import { SectionTabs } from './section-tabs';
+import { StepUpHost } from './step-up-host';
 import { Sidebar } from './sidebar';
 import { Topbar } from './topbar';
 
@@ -46,6 +47,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="relative min-h-screen">
+      <StepUpHost />
       {/* Ambient brand glow, like the site's hero. */}
       <div aria-hidden className="pointer-events-none fixed inset-0 overflow-hidden">
         <div className="absolute -top-40 left-1/3 h-[420px] w-[720px] rounded-full bg-gold/[0.07] blur-[120px] dark:bg-gold/[0.06]" />

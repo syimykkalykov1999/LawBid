@@ -1,8 +1,9 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
+import { api } from '@/lib/api/client';
 import { dashboardQuery, livePoll, supportStatsQuery, trustStatsQuery } from '@/lib/live';
-import { can, type CountKey } from '@/lib/rbac';
+import { can, canOpen, type CountKey } from '@/lib/rbac';
 import type { Me } from '@/lib/hooks';
 
 /**
@@ -26,7 +27,15 @@ export function useNavCounts(me: Me | undefined): Partial<Record<CountKey, numbe
     refetchInterval: livePoll(),
     enabled: can(me, 'verification'),
   }).data;
+  // Owner 2026-10-22 (maker-checker): requests this admin could approve.
+  const approvals = useQuery({
+    queryKey: ['approvals-count'],
+    queryFn: async () => (await api.GET('/admin/approvals/count')).data!.data,
+    refetchInterval: livePoll(),
+    enabled: !!me && canOpen(me, '/approvals'),
+  }).data;
   return {
+    approvals: approvals?.pending,
     verification: dash?.verification.queueSize,
     trust: trust?.inQueue,
     reports: dash?.openReports,

@@ -5,9 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/calls/application/call_history_providers.dart';
 import 'package:lawbid/features/chat/presentation/open_direct_chat.dart';
 import 'package:lawbid/features/contacts_sync/application/contacts_background_sync.dart';
@@ -406,7 +408,12 @@ class _NotifyNewSwitchState extends ConsumerState<_NotifyNewSwitch> {
         value: sync.notifyNew,
         activeTrackColor: colors.gold,
         onChanged: (v) async {
-          await sync.setNotifyNew(on: v);
+          // Owner 2026-10-22: stored on the server (it sends the notice).
+          try {
+            await sync.setNotifyNew(on: v);
+          } on ApiException catch (e) {
+            if (context.mounted) showAppSnackBar(context, apiErrorText(t, e));
+          }
           if (mounted) setState(() {});
         },
       ),

@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
+import 'package:lawbid/core/permissions/permission_primer.dart';
 
 import 'package:lawbid/features/calls/application/call_quality.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
@@ -749,6 +750,15 @@ final callMediaFactoryProvider =
 final callMicPermissionProvider = Provider<Future<bool> Function()>(
   (ref) => () async {
     if (kIsWeb) return true;
+    // Owner 2026-10-22 (audit #13): Android explains first, at the first
+    // call (outgoing or answered); «Not now» = no call. The iPhone was
+    // asked right after sign-in (push_service.dart, PR #236).
+    if (defaultTargetPlatform == TargetPlatform.android &&
+        !await ref
+            .read(permissionPrimerProvider.notifier)
+            .explainMicrophone()) {
+      return false;
+    }
     try {
       final recorder = AudioRecorder();
       try {

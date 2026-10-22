@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
+import 'package:lawbid/core/media/app_image_cache.dart';
 import 'package:lawbid/core/navigation/shell/shell_layout.dart';
 import 'package:lawbid/core/navigation/shell/web_media_width.dart';
 import 'package:lawbid/features/reels/presentation/reel_video.dart';
@@ -85,6 +86,7 @@ class PostGridTile extends StatelessWidget {
                   cacheKey: p.media.isNotEmpty
                       ? '${p.media.first.fileId}:320'
                       : p.video!.thumbnailUrl,
+                  cacheManager: AppImageCaches.feed,
                   fit: BoxFit.cover,
                   memCacheWidth: 400,
                   placeholder: (_, __) =>
@@ -260,6 +262,7 @@ class ReelGridTile extends ConsumerWidget {
               CachedNetworkImage(
                 imageUrl: thumb,
                 cacheKey: thumb,
+                cacheManager: AppImageCaches.feed,
                 fit: BoxFit.cover,
                 memCacheWidth: 400,
                 placeholder: (_, __) => ColoredBox(color: colors.skeletonBase),

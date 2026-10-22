@@ -121,7 +121,7 @@ export function covers(outer: Permissions, inner: Permissions): boolean {
 }
 
 /** Sidebar badge sources (see shell/use-nav-counts). */
-export type CountKey = 'verification' | 'reports' | 'support' | 'appeals' | 'trust';
+export type CountKey = 'verification' | 'reports' | 'support' | 'appeals' | 'trust' | 'approvals';
 
 /** An area key, `everyone` for the personal workspace, `super` for
  * sections only the super admin opens, `moneyOwner` for owner-only money
@@ -233,6 +233,8 @@ export const GROUPS: readonly SectionGroup[] = [
       { href: '/partners', label: 'Партнёры', icon: 'handshake', area: 'money', hint: 'блогеры и агенты: плата за адвокатов и клиентов' },
       { href: '/country-partners', label: 'Партнёры стран', icon: 'globe', area: 'moneyOwner', hint: 'главный партнёр страны: команда, процент, цели' },
       { href: '/payroll', label: 'Зарплаты', icon: 'wallet', area: 'payroll', hint: 'сотрудники, массовая выплата' },
+      // Owner 2026-10-22 (maker-checker): big payouts and refunds wait for a second admin.
+      { href: '/approvals', label: 'Требуют подтверждения', icon: 'seal-check', area: 'approvals', count: 'approvals', hint: 'выплаты и возвраты, которые ждут второго админа' },
       { href: '/stars', label: 'Звёзды', icon: 'star', area: 'moneyOwner', hint: 'пакеты звёзд, подарки, цены наборов стикеров, отчёт' },
       { href: '/treasury', label: 'Прибыль и резерв', icon: 'bank', area: 'money', hint: 'расходы отдельно, на карту — чистая прибыль' },
     ],
@@ -293,6 +295,9 @@ function opens(me: AccessSubject, s: Section): boolean {
   // Owner 2026-10-06: the partner team's own page.
   if (s.area === 'partner') return !!me.countryPartnerId;
   if (s.area === 'super') return me.role === 'super_admin';
+  // Owner 2026-10-22: whoever can pay salaries or refund sees what waits
+  // for a second admin (the API shows each admin only their kinds).
+  if (s.area === 'approvals') return can(me, 'payroll', 'manage') || can(me, 'money', 'manage');
   // Document forms: the API lets only the super admin and moderators in.
   if (s.area === 'formTemplates') return me.role === 'super_admin' || me.role === 'moderator';
   // Owner-only money pages (prices, plans, analytics, payments to attorneys,

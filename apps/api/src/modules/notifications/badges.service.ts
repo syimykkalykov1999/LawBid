@@ -116,6 +116,80 @@ export class BadgesService {
     }
   }
 
+  /** Owner 2026-10-22: [invalidateNotifications] for many people, one
+   * round trip. */
+  async invalidateNotificationsMany(userIds: string[]): Promise<void> {
+    if (userIds.length === 0) return;
+    try {
+      const p = this.redis.pipeline();
+      for (const id of userIds) p.hdel(key(id), 'notifs');
+      await p.exec();
+    } catch {
+      // Redis down: the daily TTL still bounds the staleness.
+    }
+  }
+
+  /**
+   * Owner 2026-10-22 (server load audit, finding 7): [messageArrived] for
+   * every member a group message reached, batched — one settings query,
+   * one icon-switch query, a Redis pipeline for the counters and the reads,
+   * then one `badge:update` each. A member counted for [messageId] once is
+   * never counted again (a retried fan-out job).
+   */
+  async messagesArrived(userIds: string[], messageId: string): Promise<void> {
+    const ids = [...new Set(userIds)];
+    if (ids.length === 0) return;
+    const doneKey = `badge:msg:${messageId}`;
+    const claim = this.redis.pipeline();
+    for (const id of ids) claim.sadd(doneKey, id);
+    claim.expire(doneKey, TTL_SEC);
+    const claimed = (await claim.exec()) ?? [];
+    const fresh = ids.filter((_, i) => Number(claimed[i]?.[1] ?? 0) === 1);
+    if (fresh.length === 0) return;
+    const [settings, users] = await Promise.all([
+      this.prisma.notificationSetting.findMany({
+        where: { user_id: { in: fresh }, category: 'messages' },
+        select: { user_id: true, push_enabled: true },
+      }),
+      this.prisma.user.findMany({
+        where: { id: { in: fresh } },
+        select: { id: true, notif_icon_badge: true },
+      }),
+    ]);
+    // The same rule as [mutedCategories] for `messages`.
+    const setting = new Map(settings.map((s) => [s.user_id, s.push_enabled]));
+    const muted = new Set(
+      fresh.filter((id) => !(setting.get(id) ?? DEFAULT_PUSH.messages)),
+    );
+    const bump = this.redis.pipeline();
+    for (const id of fresh) {
+      if (muted.has(id)) continue;
+      bump.eval(
+        "if redis.call('HEXISTS', KEYS[1], 'chats') == 1 then return redis.call('HINCRBY', KEYS[1], 'chats', 1) end return 0",
+        1,
+        key(id),
+      );
+    }
+    for (const id of fresh) bump.hgetall(key(id));
+    const res = (await bump.exec()) ?? [];
+    const reads = res.slice(res.length - fresh.length);
+    const icon = new Map(users.map((u) => [u.id, u.notif_icon_badge]));
+    await Promise.all(
+      fresh.map(async (id, i) => {
+        const h = (reads[i]?.[1] ?? {}) as Record<string, string>;
+        // A missing or half hash is rebuilt the usual way (rare: expired).
+        const b =
+          h.chats !== undefined && h.notifs !== undefined
+            ? shape(Number(h.chats), Number(h.notifs))
+            : await this.get(id);
+        this.realtime.toUsers([id], 'badge:update', {
+          ...b,
+          iconBadge: icon.get(id) ?? true,
+        });
+      }),
+    );
+  }
+
   /**
    * Owner 2026-10-02: a category the user switched off in Settings →
    * Notifications still delivers (the chat, the bell list, the call) but

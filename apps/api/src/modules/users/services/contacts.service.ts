@@ -240,7 +240,15 @@ export class ContactsService {
         where: { id: userId },
         data:
           type === 'phone'
-            ? { phone_e164: normalized, phone_verified_at: now }
+            ? {
+                phone_e164: normalized,
+                phone_verified_at: now,
+                // Owner 2026-10-22: a new number is announced to the phone
+                // books that have it (contacts.joined job).
+                ...(previous !== normalized
+                  ? { contacts_announced_at: null }
+                  : {}),
+              }
             : { email: normalized, email_verified_at: now },
       });
       if (replaced) {

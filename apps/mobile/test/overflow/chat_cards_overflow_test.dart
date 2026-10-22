@@ -129,8 +129,9 @@ class _SavedRepo implements ChatExtrasRepository {
 }
 
 /// Owner rule: every new screen in the longest translation of every key,
-/// Nepali, German, Arabic, Marathi and Russian, at 360 dp, text x1.0 and
-/// x1.1 (the largest the app allows). Any RenderFlex overflow fails.
+/// Nepali, German, Arabic, Marathi and Russian, at 360 dp, text x1.0, x1.1
+/// and x1.3 (the largest the app shell allows). Any RenderFlex overflow
+/// fails.
 void main() {
   setUpAll(initializeDateFormatting);
 
@@ -153,7 +154,7 @@ void main() {
     prefs = await SharedPreferences.getInstance();
   });
 
-  for (final scale in [1.0, 1.1]) {
+  for (final scale in [1.0, 1.1, 1.3]) {
     for (final MapEntry(key: name, value: (t, dir)) in locales.entries) {
       group('no overflow at 360 dp ($name, text x$scale)', () {
         Future<void> pump(WidgetTester tester, Widget home) async {

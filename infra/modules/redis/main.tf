@@ -22,6 +22,19 @@ variable "replicas" {
   default = 1
 }
 variable "kms_key_arn" { type = string }
+variable "maxmemory_policy" {
+  type        = string
+  default     = "noeviction"
+  description = "noeviction for queues / socket adapter (BullMQ requires it); allkeys-lru only for a cache-only node (docs/runbooks/redis.md «Разделение»)."
+  validation {
+    condition     = contains(["noeviction", "allkeys-lru", "volatile-lru", "allkeys-lfu", "volatile-lfu"], var.maxmemory_policy)
+    error_message = "maxmemory_policy: noeviction (queues) or an LRU/LFU policy (cache-only node)."
+  }
+}
+variable "description" {
+  type    = string
+  default = "cache, queues, rate limits, realtime"
+}
 variable "tags" {
   type    = map(string)
   default = {}
@@ -62,17 +75,19 @@ resource "aws_elasticache_parameter_group" "this" {
   family = "redis7"
   # BullMQ requires noeviction (a dropped job key corrupts a queue); caches
   # carry their own TTLs, so memory pressure shows up as the redis-memory
-  # alarm instead of silent data loss.
+  # alarm instead of silent data loss. A cache-only node (stack
+  # `redis_cache_node`) uses allkeys-lru: full memory drops old cache keys
+  # instead of refusing writes.
   parameter {
     name  = "maxmemory-policy"
-    value = "noeviction"
+    value = var.maxmemory_policy
   }
   tags = var.tags
 }
 
 resource "aws_elasticache_replication_group" "this" {
   replication_group_id       = "${var.name}-redis"
-  description                = "${var.name} cache, queues, rate limits, realtime"
+  description                = "${var.name} ${var.description}"
   engine                     = "redis"
   engine_version             = "7.1"
   node_type                  = var.node_type

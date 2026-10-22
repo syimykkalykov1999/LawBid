@@ -12,7 +12,6 @@ import 'package:lawbid/core/l10n/l10n_translator.dart';
 import 'package:lawbid/core/l10n/static_translator.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
-import 'package:lawbid/features/chat/data/realtime_client.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
 import 'package:lawbid/features/notifications/application/system_notifications.dart';
 import 'package:lawbid/features/notifications/data/notifications_repository.dart';

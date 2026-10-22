@@ -23,6 +23,9 @@ plugins {
     id("org.jetbrains.kotlin.android") version "2.4.0" apply false
     // Owner 2026-10-03: Firebase push (FCM). Config per flavor in app/src/<flavor>/.
     id("com.google.gms.google-services") version "4.4.4" apply false
+    // Owner 2026-10-22: Sentry ties the R8 mapping of a prod release to the
+    // build so native Java/Kotlin crash stacks are readable (audit #11).
+    id("io.sentry.android.gradle") version "6.24.0" apply false
 }
 
 include(":app")

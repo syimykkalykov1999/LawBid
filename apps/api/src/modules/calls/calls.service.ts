@@ -28,7 +28,10 @@ import { ChatService } from '../chat/chat.service';
 import { FilesService } from '../files/files.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PushQueueService } from '../notifications/push/push-queue.service';
-import { RealtimePublisher } from '../realtime/realtime-publisher.service';
+import {
+  RealtimePublisher,
+  channelRoom,
+} from '../realtime/realtime-publisher.service';
 import { EntitlementsService } from '../plans/entitlements.service';
 import { SubscriptionAccessService } from '../subscriptions/subscription-access.service';
 import { GroupsService } from '../groups/groups.service';
@@ -597,7 +600,7 @@ export class CallsService {
           data: { status: 'left', left_at: now },
         });
       }
-      await this.announceGroupCall(call);
+      await this.announceGroupCall(call, [], true);
       if (
         call.conversation_id &&
         (outcome === 'missed' || outcome === 'canceled')
@@ -915,11 +918,42 @@ export class CallsService {
   }
 
   /** The group's members hear that its call changed (the row in the list
-   * and the bar in the chat refresh). Channels are read, not told: they may
-   * have thousands of subscribers. */
-  private async announceGroupCall(call: Call): Promise<void> {
+   * and the bar in the chat refresh). Owner 2026-10-22 (load audit finding
+   * 3): `call:ongoing` / `call:ongoing_ended` carry the state, so the chats
+   * tab, the open chat and the «Return» bar stop polling. A channel may have
+   * thousands of subscribers: only the sockets that have it open hear it
+   * (one emit to its room, see `channel:watch`). */
+  private async announceGroupCall(
+    call: Call,
+    rows: CallParticipant[] = [],
+    ended = false,
+  ): Promise<void> {
+    const over = ended || !LIVE.includes(call.status);
+    const joined = rows.filter((r) => r.status === 'joined');
+    const event = over ? 'call:ongoing_ended' : 'call:ongoing';
+    const payload = {
+      callId: call.id,
+      groupId: call.group_id,
+      channelId: call.channel_id,
+      ...(over
+        ? {}
+        : {
+            video: call.video,
+            joined: joined.length,
+            // Group calls are small (at most 9): who is in, so the app
+            // knows whether it is «mine» without asking.
+            ...(call.group_id
+              ? { joinedIds: joined.map((r) => r.user_id) }
+              : {}),
+          }),
+    };
+    if (call.channel_id) {
+      this.realtime.toRoom(channelRoom(call.channel_id), event, payload);
+    }
     if (!call.group_id || !this.groups) return;
     const ids = await this.groups.activeMemberIds(call.group_id);
+    this.realtime.toUsers(ids, event, payload);
+    // Older app builds still refresh on this one.
     this.realtime.toUsers(ids, 'group:update', {
       groupId: call.group_id,
       kind: 'call',
@@ -1109,7 +1143,7 @@ export class CallsService {
       hostId: await this.hostFor(call, rows),
       participants: await this.participantDtos(rows),
     });
-    await this.announceGroupCall(call);
+    await this.announceGroupCall(call, rows);
   }
 
   /** Turns a two-person call into a group call (idempotent). */

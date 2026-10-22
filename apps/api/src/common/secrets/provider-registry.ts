@@ -157,6 +157,17 @@ export const PROVIDERS: ProviderDefinition[] = [
         patternHint: '24+ letters / digits',
         env: 'BUNNY_WEBHOOK_TOKEN',
       },
+      {
+        // Audit #4 (2026-10-22): Bunny signs webhooks (X-BunnyStream-
+        // Signature, HMAC-SHA256 of the body) with this key. Optional:
+        // while empty the URL token above is the only check.
+        name: 'readOnlyApiKey',
+        label: 'Read-only API key (verifies webhook signatures)',
+        secret: true,
+        required: false,
+        pattern: /^[\w-]{20,}$/,
+        env: 'BUNNY_READ_ONLY_API_KEY',
+      },
     ],
     test: (f) =>
       probe(

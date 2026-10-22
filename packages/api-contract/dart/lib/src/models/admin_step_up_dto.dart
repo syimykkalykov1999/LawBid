@@ -8,16 +8,13 @@ part 'admin_step_up_dto.g.dart';
 
 @JsonSerializable()
 class AdminStepUpDto {
-  const AdminStepUpDto({this.code, this.password});
+  const AdminStepUpDto({required this.code});
 
   factory AdminStepUpDto.fromJson(Map<String, Object?> json) =>
       _$AdminStepUpDtoFromJson(json);
 
   /// The 6-digit authenticator code.
-  final String? code;
-
-  /// The admin’s own password (when two-factor is off).
-  final String? password;
+  final String code;
 
   Map<String, Object?> toJson() => _$AdminStepUpDtoToJson(this);
 }

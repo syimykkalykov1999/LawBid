@@ -1,0 +1,5 @@
+# Baseline of hardcoded strings (tool/ci/hardcoded_check.py, audit #15).
+# <path>\t<trimmed line>, one per occurrence. Shrink it, do not grow it.
+lib/features/groups/presentation/create_group_screen.dart	leading: Text('@', style: TextStyle(color: colors.textSecondary)),
+lib/features/groups/presentation/widgets/group_topic_list.dart	badge(Text('@', style: badgeStyle)),
+lib/features/social/presentation/screens/social_screens.dart	title: Text('#${widget.tag}'),

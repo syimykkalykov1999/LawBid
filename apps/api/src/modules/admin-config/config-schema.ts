@@ -240,6 +240,13 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 0,
     max: TRIAL_DAYS_MAX,
   };
+  out['billing.dual_approval_min_cents'] = {
+    ...out['billing.dual_approval_min_cents'],
+    description:
+      'Bulk payouts and refunds of this many cents or more wait for a second admin to approve them (0 = all of them). Changing it needs a fresh 2FA code.',
+    min: 0,
+    max: 100_000_000,
+  };
   out['admin.reason_required_areas'] = {
     ...out['admin.reason_required_areas'],
     description:

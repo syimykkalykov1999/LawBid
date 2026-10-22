@@ -9,8 +9,6 @@ import '../models/admin_change_own_credentials_dto.dart';
 import '../models/admin_invite_accept_dto.dart';
 import '../models/admin_invite_accept_result_envelope.dart';
 import '../models/admin_invite_preview_envelope.dart';
-import '../models/admin_login_start_dto.dart';
-import '../models/admin_login_verify_dto.dart';
 import '../models/admin_login_verify_result_envelope.dart';
 import '../models/admin_logout_result_envelope.dart';
 import '../models/admin_me_envelope.dart';
@@ -25,8 +23,9 @@ import '../models/admin_session_envelope.dart';
 import '../models/admin_step_up_dto.dart';
 import '../models/admin_step_up_result_envelope.dart';
 import '../models/admin_totp_dto.dart';
-import '../models/admin_two_factor_code_dto.dart';
-import '../models/admin_two_factor_enabled_envelope.dart';
+import '../models/admin_totp_setup_begin_dto.dart';
+import '../models/admin_totp_setup_finish_dto.dart';
+import '../models/admin_totp_setup_result_envelope.dart';
 import '../models/totp_enrollment_envelope.dart';
 
 part 'admin_auth_client.g.dart';
@@ -35,17 +34,17 @@ part 'admin_auth_client.g.dart';
 abstract class AdminAuthClient {
   factory AdminAuthClient(Dio dio, {String? baseUrl}) = _AdminAuthClient;
 
-  /// Send the sign-in code to an admin email
-  @POST('/admin/auth/login/start')
-  Future<void> adminLoginStart({
-    @Body() required AdminLoginStartDto body,
+  /// Forced first setup, step A: a secret / QR for the authenticator app (password ticket)
+  @POST('/admin/auth/login/totp-setup')
+  Future<TotpEnrollmentEnvelope> adminTotpSetupBegin({
+    @Body() required AdminTotpSetupBeginDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Check the email code; signs in (or returns the 2FA ticket when the admin turned two-factor on)
-  @POST('/admin/auth/login/verify')
-  Future<AdminLoginVerifyResultEnvelope> adminLoginVerify({
-    @Body() required AdminLoginVerifyDto body,
+  /// Forced first setup, step B: the first code switches the authenticator on → recovery codes (once) + session
+  @POST('/admin/auth/login/totp-confirm')
+  Future<AdminTotpSetupResultEnvelope> adminTotpSetupFinish({
+    @Body() required AdminTotpSetupFinishDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 
@@ -69,7 +68,7 @@ abstract class AdminAuthClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Confirm with the 2FA code (or the own password when two-factor is off) for 5 minutes before a sensitive change
+  /// Confirm with a fresh authenticator code for 5 minutes before a sensitive change (every try is audited)
   @POST('/admin/auth/step-up')
   Future<AdminStepUpResultEnvelope> stepUp({
     @Body() required AdminStepUpDto body,
@@ -87,14 +86,14 @@ abstract class AdminAuthClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// The invited admin chooses a login and password; the link is spent. Sign in next, then turn two-factor on in the profile.
+  /// The invited admin chooses a login and password; the link is spent. The first sign-in then sets up the authenticator (mandatory).
   @POST('/admin/auth/invite/accept')
   Future<AdminInviteAcceptResultEnvelope> adminInviteAccept({
     @Body() required AdminInviteAcceptDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Login + password: signs in (or returns the 2FA ticket when the admin turned two-factor on)
+  /// Login + password → a ticket for step 2: the authenticator code, or (totpSetupRequired) its forced first setup. Never a session on its own.
   @POST('/admin/auth/login/password')
   Future<AdminLoginVerifyResultEnvelope> adminLoginPassword({
     @Body() required AdminPasswordLoginDto body,
@@ -126,26 +125,6 @@ abstract class AdminAuthClient {
   @PUT('/admin/auth/me/security-question')
   Future<AdminOkEnvelope> adminSetSecurityQuestion({
     @Body() required AdminSecurityQuestionDto body,
-    @Extras() Map<String, dynamic>? extras,
-  });
-
-  /// Optional two-factor, step 1: a secret for the authenticator app
-  @POST('/admin/auth/2fa/begin')
-  Future<TotpEnrollmentEnvelope> twoFactorBegin({
-    @Extras() Map<String, dynamic>? extras,
-  });
-
-  /// Optional two-factor, step 2: confirm with a code; returns recovery codes once
-  @POST('/admin/auth/2fa/enable')
-  Future<AdminTwoFactorEnabledEnvelope> twoFactorEnable({
-    @Body() required AdminTwoFactorCodeDto body,
-    @Extras() Map<String, dynamic>? extras,
-  });
-
-  /// Turn two-factor off (needs a current code)
-  @POST('/admin/auth/2fa/disable')
-  Future<AdminOkEnvelope> twoFactorDisable({
-    @Body() required AdminTwoFactorCodeDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 }

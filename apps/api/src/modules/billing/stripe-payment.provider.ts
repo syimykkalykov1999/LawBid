@@ -126,6 +126,7 @@ export class StripePaymentProvider implements PaymentProvider {
     paymentMethodId: string;
     trialDays: number | null;
     metadata: Record<string, string>;
+    idempotencyKey: string;
   }): Promise<ProviderSubscription> {
     const sub = await this.stripe.subscriptions.create(
       {
@@ -145,9 +146,10 @@ export class StripePaymentProvider implements PaymentProvider {
         metadata: input.metadata,
       },
       {
-        // Retries within the hour dedupe; a later re-subscription with the
-        // same card is a new request (Stripe replays a key for 24 h).
-        idempotencyKey: `subscription:${input.metadata.userId}:${input.paymentMethodId}:${input.trialDays ?? 0}:${new Date().toISOString().slice(0, 13)}`,
+        // Audit #15 (2026-10-22): one key per client attempt, not per hour
+        // — a retry that crossed the hour used to create a second
+        // subscription. Stripe replays a key for 24 h.
+        idempotencyKey: `subscription:${input.metadata.userId}:${input.idempotencyKey}`,
       },
     );
     return mapSubscription(sub);

@@ -8,6 +8,7 @@ import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/config/web_push_config.dart';
 import 'package:lawbid/core/navigation/app_router.dart';
+import 'package:lawbid/core/permissions/permission_primer.dart';
 import 'package:lawbid/core/platform/chat_notifications_channel.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/call_media.dart';
@@ -61,9 +62,9 @@ class PushService {
     // and pushes show once the person allows them in the phone's settings.
     final prompt = optIn != false;
     if (!prompt) debugPrint('push: declined in onboarding, not prompting');
-    // Owner 2026-10-15: the phone's permission is asked here, whether or not
-    // the push SDK is set up in this build.
-    if (prompt) unawaited(_askSystemPermissions());
+    // Owner 2026-10-22 (audit #13): the phone's dialogs come after a short
+    // explanation (core/permissions/permission_primer.dart), asked below
+    // once Firebase is up — or without it when this build has none.
     // Owner 2026-10-22: a chat notification the app draws itself (Android)
     // opens its chat, also when it started the app.
     _subs.add(chatNotificationsChannel.opens.listen(_openData));
@@ -93,6 +94,7 @@ class PushService {
       }
     } on Object catch (e) {
       debugPrint('push disabled: $e');
+      if (prompt && !kIsWeb) unawaited(_explainThenAsk(null));
       _startedFor = null;
       return;
     }
@@ -103,13 +105,13 @@ class PushService {
       if (!kIsWeb) {
         FirebaseMessaging.onBackgroundMessage(lawbidBackgroundMessage);
       }
-      if (prompt) await m.requestPermission();
-      // Owner 2026-10-21: the iPhone asks for the microphone here, once
-      // after sign-in — not in the second the person answers a call (on the
-      // lock screen the question cannot even be shown, and the call was
-      // declined for it).
-      if (prompt && !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
-        await _ref.read(callMicPermissionProvider)();
+      if (prompt) {
+        // The browser: the token request is the prompt, as before.
+        if (kIsWeb) {
+          await m.requestPermission();
+        } else {
+          unawaited(_explainThenAsk(m));
+        }
       }
       final token = await m.getToken(
         vapidKey: kIsWeb ? WebPushConfig.vapidKey : null,
@@ -166,6 +168,30 @@ class PushService {
     } on Object catch (e) {
       debugPrint('push setup failed: $e');
       _startedFor = null; // try again on the next shell start
+    }
+  }
+
+  /// Owner 2026-10-22 (audit #13): a short explanation first, then the
+  /// phone's notification dialogs; on the iPhone the microphone right after
+  /// (same card, second step) — a call answered on the CallKit sheet must
+  /// already have it (PR #236). Android asks the microphone at the first
+  /// call instead (callMicPermissionProvider).
+  Future<void> _explainThenAsk(FirebaseMessaging? m) async {
+    final ios = defaultTargetPlatform == TargetPlatform.iOS;
+    try {
+      await _ref.read(permissionPrimerProvider.notifier).onboard(
+            notifications: () async {
+              await _askSystemPermissions();
+              if (m != null) await m.requestPermission();
+            },
+            microphone: ios
+                ? () async {
+                    await _ref.read(callMicPermissionProvider)();
+                  }
+                : null,
+          );
+    } on Object catch (e) {
+      debugPrint('permission ask failed: $e');
     }
   }
 

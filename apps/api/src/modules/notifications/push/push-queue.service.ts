@@ -8,6 +8,7 @@ import type { NotificationType } from '@prisma/client';
 import { Queue } from 'bullmq';
 import { PinoLogger } from 'nestjs-pino';
 import {
+  GROUP_PUSH_BATCH,
   NO_PUSH_TYPES,
   PUSH_JOB,
   PUSH_JOB_OPTS,
@@ -63,6 +64,73 @@ export class PushQueueService
     } catch (error) {
       this.logger.warn(
         { notificationId, err: error instanceof Error ? error.message : error },
+        'push enqueue failed',
+      );
+    }
+  }
+
+  /**
+   * Owner 2026-10-22 (server load audit, finding 7): many stored rows of
+   * one type (a channel post's subscribers) — one round trip (addBulk),
+   * jobId = row id as in [enqueue].
+   */
+  async enqueueMany(
+    notificationIds: string[],
+    type: NotificationType,
+  ): Promise<void> {
+    if (!this.queue || demoContext.isDemo() || notificationIds.length === 0) {
+      return;
+    }
+    const push = !NO_PUSH_TYPES.has(type);
+    try {
+      await this.queue.addBulk(
+        notificationIds.map((notificationId) => ({
+          name: PUSH_JOB,
+          data: { kind: 'notification' as const, notificationId, push },
+          opts: { ...PUSH_JOB_OPTS, jobId: notificationId },
+        })),
+      );
+    } catch (error) {
+      this.logger.warn(
+        { count: notificationIds.length, err: errMsg(error) },
+        'push enqueue failed',
+      );
+    }
+  }
+
+  /**
+   * Owner 2026-10-22 (finding 7): a group message's pushes — one job per
+   * GROUP_PUSH_BATCH members, all queued in one round trip. The job id per
+   * message and batch makes a retried fan-out queue nothing twice.
+   */
+  async enqueueGroupMessages(data: {
+    groupId: string;
+    messageId: string;
+    recipientIds: string[];
+  }): Promise<void> {
+    if (demoContext.isDemo() || !this.queue) return;
+    const jobs = [];
+    for (let i = 0; i < data.recipientIds.length; i += GROUP_PUSH_BATCH) {
+      jobs.push({
+        name: PUSH_JOB,
+        data: {
+          kind: 'group_messages' as const,
+          groupId: data.groupId,
+          messageId: data.messageId,
+          recipientIds: data.recipientIds.slice(i, i + GROUP_PUSH_BATCH),
+        },
+        opts: {
+          ...MESSAGE_JOB_OPTS,
+          jobId: `gm-${data.messageId}-${i / GROUP_PUSH_BATCH}`,
+        },
+      });
+    }
+    if (jobs.length === 0) return;
+    try {
+      await this.queue.addBulk(jobs);
+    } catch (error) {
+      this.logger.warn(
+        { messageId: data.messageId, err: errMsg(error) },
         'push enqueue failed',
       );
     }

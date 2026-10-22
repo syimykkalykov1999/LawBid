@@ -142,7 +142,8 @@ export class DataExportService {
       },
       'messages.json': messages.map((m) => ({
         ...m,
-        body_original: this.cipher?.open(m.body_original) ?? m.body_original,
+        body_original:
+          this.cipher?.open(m.body_original, m.id) ?? m.body_original,
       })),
     };
   }

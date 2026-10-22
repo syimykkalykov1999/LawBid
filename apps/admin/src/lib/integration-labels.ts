@@ -55,6 +55,7 @@ const FIELD_BY_NAME: Record<string, string> = {
   apiKey: 'API-ключ',
   tokenAuthKey: 'Ключ защиты CDN-ссылок',
   webhookToken: 'Токен вебхука (любая длинная случайная строка)',
+  readOnlyApiKey: 'Read-only API-ключ (проверка подписи вебхука)',
   secretKey: 'Секретный ключ',
   webhookSecret: 'Секрет подписи вебхука',
   connectWebhookSecret: 'Секрет вебхука Connect (оплаты клиент → адвокат)',

@@ -265,22 +265,45 @@ resource "aws_cloudfront_response_headers_policy" "web" {
   }
 }
 
+# Audit #10 (2026-10-22): which web release is live. The deploy uploads
+# every build to releases/<sha>/ and then switches `web_release` here (one
+# atomic write, seconds to propagate); a rollback switches it back. Until
+# the first versioned deploy the store is empty and the old root layout
+# is served. `web_app_paths` lists the build's top-level names (assets,
+# canvaskit, main.dart.wasm, ...) — those URLs are read from the release.
+resource "aws_cloudfront_key_value_store" "web" {
+  name    = "${var.name}-web-release"
+  comment = "Live web release (web-deploy.yml / rollback.yml)"
+}
+
 # The public pages are plain files in the same bucket: the SEO pages
 # (scripts/seo: /lawyers, /attorneys/<name>, /practice-areas) and the
 # company site (LawBidSite static export: /about, /pricing, the legal
 # pages...). Owner 2026-10-16: the app is on the domain root, the site's
-# landing moved to /about. Any address without a file extension is tried
-# as <address>/index.html; an app screen has no such file, S3 answers 403
-# and the app's own index.html is served (custom_error_response below).
+# landing moved to /about. A public-page address without a file extension
+# is read as <address>/index.html. Audit #14 (2026-10-22): when that file
+# is missing S3 answers 403 and the visitor gets a REAL 404 (the app's
+# page as the body, custom_error_response below) — a deleted /attorneys/x
+# is no longer a "soft 404" for search engines. Every other address
+# without an extension is an app screen and gets the app's page (200)
+# straight away, without the error detour.
 # www.<host> answers with a permanent redirect to <host> (one address for
 # search engines).
 resource "aws_cloudfront_function" "seo_index" {
-  name    = "${var.name}-seo-index"
-  runtime = "cloudfront-js-2.0"
-  comment = "www to the bare host; directory URLs of the public pages end in index.html"
-  publish = true
-  code    = <<-EOT
-    function handler(event) {
+  name                         = "${var.name}-seo-index"
+  runtime                      = "cloudfront-js-2.0"
+  comment                      = "www to the bare host; public pages end in index.html (real 404); app screens and files from the live release"
+  publish                      = true
+  key_value_store_associations = [aws_cloudfront_key_value_store.web.arn]
+  code                         = <<-EOT
+    import cf from 'cloudfront';
+    var kvs = cf.kvs('${aws_cloudfront_key_value_store.web.id}');
+    var PUBLIC = /^\/(lawyers|attorneys|practice-areas|about|clients|for-attorneys|features|pricing|faq|contact|download|terms|privacy|delete-account|client-agreement|attorney-agreement|eula|refunds|third-party-services|cookies|sms-consent|dmca|accessibility)(\/|$)/;
+    var ROOT_FILES = ['/sitemap.xml', '/robots.txt', '/public-paths.txt'];
+    async function get(key) {
+      try { return await kvs.get(key); } catch (e) { return ''; }
+    }
+    async function handler(event) {
       var request = event.request;
       var host = request.headers.host ? request.headers.host.value : '';
       if (host.indexOf('www.') === 0) {
@@ -301,9 +324,35 @@ resource "aws_cloudfront_function" "seo_index" {
       }
       var uri = request.uri;
       // /.well-known/ holds extension-less files (app links): served as is.
-      if (uri !== '/' && uri.indexOf('/.well-known/') !== 0 && uri.indexOf('.', uri.lastIndexOf('/')) === -1) {
-        request.uri = uri.charAt(uri.length - 1) === '/' ? uri + 'index.html' : uri + '/index.html';
+      if (uri.indexOf('/.well-known/') === 0 || ROOT_FILES.indexOf(uri) !== -1) return request;
+      var hasExt = uri.indexOf('.', uri.lastIndexOf('/')) !== -1;
+      if (uri !== '/' && PUBLIC.test(uri)) {
+        if (!hasExt) {
+          request.uri = uri.charAt(uri.length - 1) === '/' ? uri + 'index.html' : uri + '/index.html';
+        }
+        return request;
       }
+      var first = uri.split('/')[1] || '';
+      var release = await get('web_release');
+      if (!release) {
+        // The old layout (before the first versioned deploy): app files
+        // at the root, an app screen is the root index.html.
+        if (uri !== '/' && !hasExt && ['assets', 'canvaskit', 'icons'].indexOf(first) === -1) {
+          request.uri = '/index.html';
+        }
+        return request;
+      }
+      var base = '/releases/' + release;
+      var app = (',' + (await get('web_app_paths')) + ',').indexOf(',' + first + ',') !== -1;
+      if (uri === '/') {
+        request.uri = base + '/index.html';
+      } else if (app) {
+        request.uri = base + uri;
+      } else if (!hasExt) {
+        // An app screen: the same page, under a name noindex can tell apart.
+        request.uri = base + '/spa.html';
+      }
+      // Anything else (the company site's own files) stays at the root.
       return request;
     }
   EOT
@@ -323,9 +372,10 @@ resource "aws_cloudfront_function" "app_noindex" {
       var uri = event.request.uri;
       var indexable =
         uri === '/' || uri === '/index.html' ||
+        /^\/releases\/[^/]+\/index\.html$/.test(uri) ||
         /^\/(lawyers|attorneys|practice-areas|about|clients|for-attorneys|features|pricing|faq|contact|download|terms|privacy|delete-account|client-agreement|attorney-agreement|eula|refunds|third-party-services|cookies|sms-consent|dmca|accessibility)(\/|$)/.test(uri) ||
         uri === '/sitemap.xml' || uri === '/robots.txt';
-      var isFile = /\.[a-z0-9]{2,5}$/i.test(uri) && !/\/index\.html$/.test(uri);
+      var isFile = /\.[a-z0-9]{2,5}$/i.test(uri) && !/\/(index|spa)\.html$/.test(uri);
       if (!indexable && !isFile) {
         response.headers['x-robots-tag'] = { value: 'noindex' };
       }
@@ -400,19 +450,23 @@ resource "aws_cloudfront_distribution" "web" {
     }
   }
 
-  # S3 answers 403 for a missing key (no ListBucket for the OAC): the app
-  # shows its own page, the router decides what it is.
+  # S3 answers 403 for a missing key (no ListBucket for the OAC). App
+  # screens never get here (the viewer-request function sends them to the
+  # app's page), so a miss is a real miss: a deleted public page or a gone
+  # file. Audit #14: the status stays 404 (no soft 404s); the body is the
+  # app's page, whose router shows "not found". The deploy keeps a copy of
+  # the live index.html at the root for this.
   custom_error_response {
     error_code            = 403
-    response_code         = 200
+    response_code         = 404
     response_page_path    = "/index.html"
-    error_caching_min_ttl = 0
+    error_caching_min_ttl = 10
   }
   custom_error_response {
     error_code            = 404
-    response_code         = 200
+    response_code         = 404
     response_page_path    = "/index.html"
-    error_caching_min_ttl = 0
+    error_caching_min_ttl = 10
   }
 
   restrictions {
@@ -474,16 +528,30 @@ resource "aws_route53_record" "web_v6" {
   }
 }
 
-# What the deploy workflow needs: the bucket to upload to and the
-# distribution to invalidate (the role may only do these two things).
+# What the deploy workflow needs: the bucket to upload to, the distribution
+# to invalidate, and the release switch (audit #10: web-deploy.yml finds the
+# store through the distribution's viewer-request function; rollback.yml
+# switches it back).
 data "aws_iam_policy_document" "deploy" {
   statement {
     actions   = ["s3:PutObject", "s3:DeleteObject", "s3:GetObject", "s3:ListBucket"]
     resources = [aws_s3_bucket.web.arn, "${aws_s3_bucket.web.arn}/*"]
   }
   statement {
-    actions   = ["cloudfront:CreateInvalidation"]
+    actions   = ["cloudfront:CreateInvalidation", "cloudfront:GetDistributionConfig"]
     resources = [aws_cloudfront_distribution.web.arn]
+  }
+  statement {
+    actions   = ["cloudfront:DescribeFunction"]
+    resources = [aws_cloudfront_function.seo_index.arn]
+  }
+  statement {
+    actions = [
+      "cloudfront-keyvaluestore:DescribeKeyValueStore",
+      "cloudfront-keyvaluestore:GetKey",
+      "cloudfront-keyvaluestore:PutKey",
+    ]
+    resources = [aws_cloudfront_key_value_store.web.arn]
   }
 }
 
@@ -509,3 +577,4 @@ output "web_bucket" { value = aws_s3_bucket.web.bucket }
 output "web_distribution_id" { value = aws_cloudfront_distribution.web.id }
 output "web_cdn_domain" { value = aws_cloudfront_distribution.web.domain_name }
 output "web_deploy_policy_arn" { value = aws_iam_policy.deploy.arn }
+output "web_release_store_arn" { value = aws_cloudfront_key_value_store.web.arn }

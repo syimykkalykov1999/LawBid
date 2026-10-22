@@ -4,6 +4,11 @@ import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/features/chat/data/realtime_client.dart';
 
+// Owner 2026-10-22: other features read the event type from here, not from
+// chat's data layer (test/architecture/feature_boundaries_test.dart).
+export 'package:lawbid/features/chat/data/realtime_client.dart'
+    show RealtimeEvent;
+
 /// The `/realtime` socket for the signed-in session (docs/05 §8.5):
 /// created on sign-in, closed on sign-out; a rotated access token is
 /// re-checked on the live socket (`auth:refresh`).

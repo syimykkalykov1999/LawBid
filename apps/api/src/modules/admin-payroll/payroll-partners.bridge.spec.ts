@@ -85,14 +85,32 @@ describe('PayrollPartnersBridge', () => {
 
   it('marks commissions paid with the payroll payout as the reference', async () => {
     const t = make();
+    const c1 = '00000000-0000-4000-8000-0000000000c1';
     await t.settle()(
       [
-        { ref: 'partner:c1', payoutId: 'po1' },
+        { ref: `partner:${c1}`, payoutId: 'po1' },
         { ref: 'admin:x', payoutId: 'po1' },
       ],
       'paid',
     );
-    expect(t.partners.markPaid).toHaveBeenCalledWith(['c1'], {
+    expect(t.partners.markPaid).toHaveBeenCalledWith([c1], {
+      payoutRef: 'payroll:po1',
+    });
+  });
+
+  it('a `partner:` ref that is not a commission id is skipped, the real ones are still marked', async () => {
+    const t = make();
+    const c1 = '00000000-0000-4000-8000-0000000000c1';
+    await t.settle()(
+      [
+        { ref: 'partner:e2e:not-a-commission', payoutId: 'po1' },
+        { ref: `partner:${c1}`, payoutId: 'po1' },
+        { ref: 'partner:e2e:other', payoutId: 'po2' },
+      ],
+      'paid',
+    );
+    expect(t.partners.markPaid).toHaveBeenCalledTimes(1);
+    expect(t.partners.markPaid).toHaveBeenCalledWith([c1], {
       payoutRef: 'payroll:po1',
     });
   });

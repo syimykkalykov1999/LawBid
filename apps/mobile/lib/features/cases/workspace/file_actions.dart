@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, visibleForTesting;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -58,10 +58,51 @@ class CaseFileCache {
   static Future<bool> isDownloaded(FileRef f) async =>
       kIsWeb || (await _target(f)).existsSync();
 
+  /// Owner 2026-10-22 (load audit finding 8): a kept file not opened for
+  /// this long is deleted (downloaded again when needed).
+  static const keepFor = Duration(days: 7);
+
+  /// Deletes the files not used for [keepFor] and broken downloads. Runs
+  /// once in the background at app start; never throws.
+  static Future<void> cleanUp({DateTime? now}) async {
+    if (kIsWeb) return;
+    try {
+      final dir = Directory(
+        '${(await getApplicationSupportDirectory()).path}/case_files',
+      );
+      await cleanUpDir(dir, now: now ?? DateTime.now());
+    } on Object {
+      // Best effort: the next start tries again.
+    }
+  }
+
+  @visibleForTesting
+  static Future<void> cleanUpDir(Directory dir, {required DateTime now}) async {
+    if (!dir.existsSync()) return;
+    await for (final e in dir.list(followLinks: false)) {
+      if (e is! File) continue;
+      try {
+        if (now.difference(e.lastModifiedSync()) > keepFor) {
+          await e.delete();
+        }
+      } on Object {
+        // In use or already gone: skip it.
+      }
+    }
+  }
+
   static Future<File?> download(FileRef f) async {
     if (kIsWeb) return null;
     final file = await _target(f);
-    if (file.existsSync()) return file;
+    if (file.existsSync()) {
+      // Used now: the 7-day clean-up keeps it (owner 2026-10-22).
+      try {
+        file.setLastModifiedSync(DateTime.now());
+      } on Object {
+        // Read-only file system: keep using it.
+      }
+      return file;
+    }
     final tmp = File('${file.path}.part');
     await Dio().download(f.url, tmp.path);
     await tmp.rename(file.path);

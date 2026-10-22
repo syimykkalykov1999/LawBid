@@ -158,6 +158,7 @@ export const WIPE_TABLES: Readonly<Record<string, string>> = {
   post_views: 'post views',
   post_view_events: 'post view events (post statistics)',
   contact_matches: 'address-book matches',
+  contact_book_hashes: 'uploaded phone books (hashes only)',
   contact_sync_settings: 'contacts sync switches',
   case_tasks: 'case tasks',
   case_task_events: 'case task activity',
@@ -278,6 +279,9 @@ export const WIPE_TABLES: Readonly<Record<string, string>> = {
   data_export_jobs: '"download my data" jobs',
   audit_log:
     'admin actions of the test period (mostly on tester accounts); the trail starts clean at launch',
+  // Owner 2026-10-22: maker-checker requests of the test period.
+  admin_approvals:
+    'second-admin approvals of test payouts / refunds (pending ones would run on real money)',
   // demo world registry (the demo database itself is reset from the admin)
   demo_accounts: 'demo accounts registry',
   storage_snapshots: 'daily storage statistics of the test period',

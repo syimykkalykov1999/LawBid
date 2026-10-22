@@ -20,7 +20,6 @@ import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { AuditLogService } from '../admin-access/audit-log.service';
-import { OtpService } from '../auth/services/otp.service';
 import { RateLimitService } from '../auth/services/rate-limit.service';
 import { TokenService } from '../auth/services/token.service';
 import type { AdminActor } from './admin-auth.decorators';
@@ -29,6 +28,7 @@ import type {
   AdminLoginVerifyResultDto,
   AdminMeDto,
   AdminSessionDto,
+  AdminTotpSetupResultDto,
   TotpEnrollmentDto,
 } from './admin-auth.dto';
 import {
@@ -60,22 +60,25 @@ import {
 } from './totp.util';
 
 const TICKET_TTL_SECONDS = 5 * 60;
+/** Installing an authenticator app takes longer than typing a code. */
+const SETUP_TICKET_TTL_SECONDS = 15 * 60;
 const TICKET_MAX_ATTEMPTS = 5;
 /** A TOTP code stays unusable for the whole ±1-step window it is valid in. */
 const TOTP_REPLAY_WINDOW_SECONDS = 95;
 const RECOVERY_CODES = 10;
-const LOGIN_START_PER_EMAIL_PER_HOUR = 5;
-const LOGIN_VERIFY_PER_EMAIL_PER_HOUR = 10;
 const LOGIN_PASSWORD_PER_LOGIN_PER_HOUR = 10;
 const NEUTRAL_QUESTION = 'Secret question';
 const TOTP_ISSUER = 'LawBid Admin';
+/** Owner 2026-10-01: a step-up stays valid for 5 minutes of the session. */
+export const STEP_UP_TTL_SECONDS = 300;
 
 export const ADMIN_AUDIT = {
   login: 'admin.login',
   logout: 'admin.logout',
   totpEnrolled: 'admin.totp_enrolled',
-  totpDisabled: 'admin.totp_disabled',
   recoveryUsed: 'admin.recovery_code_used',
+  stepUp: 'admin.step_up',
+  stepUpFailed: 'admin.step_up_failed',
   passwordLogin: 'admin.login_password',
   credentialsChanged: 'admin.credentials_changed',
   securityQuestionSet: 'admin.security_question_set',
@@ -107,13 +110,25 @@ interface AdminRow {
 }
 
 /**
- * docs/06 §2.1 admin sign-in (owner 2026-10-02): login + password, or an
- * emailed code, signs in on its own. The authenticator (TOTP) is optional
- * and off by default: an admin who turns it on in the profile is asked for
- * its code after the first factor (`admin_credentials`). No registration —
- * accounts come from the "Администраторы" section. Every successful step that matters is an
- * audit_log row; the mobile session/refresh machinery is not involved
- * (admin JWT + Redis session only, AdminSessionService).
+ * docs/06 §2.1 admin sign-in. Owner 2026-10-22 (system audit #2, item 1):
+ * login + password, THEN the authenticator (TOTP) code — for every admin
+ * role, no exceptions. The old "emailed code alone" sign-in is gone: whoever
+ * held an admin's mailbox held the panel. An admin without an authenticator
+ * yet is sent through its setup (QR + ten recovery codes) right after the
+ * password, before any session exists.
+ *
+ * Why (cited in docs/runbooks/OWNER.md as well):
+ *  - Stripe makes two-step authentication mandatory for every Dashboard
+ *    user and asks for it again before sensitive changes
+ *    (https://docs.stripe.com/get-started/account/teams/roles);
+ *  - Slack lets workspace owners require 2FA for every member
+ *    (https://slack.com/help/articles/205138367);
+ *  - OWASP ASVS / the MFA cheat sheet and CISA: privileged accounts must
+ *    use MFA (https://cheatsheetseries.owasp.org/cheatsheets/Multifactor_Authentication_Cheat_Sheet.html).
+ *
+ * No registration — accounts come from the "Администраторы" section. Every
+ * step that matters is an audit_log row; the mobile session/refresh
+ * machinery is not involved (admin JWT + Redis session only).
  */
 @Injectable()
 export class AdminAuthService {
@@ -124,7 +139,6 @@ export class AdminAuthService {
   constructor(
     private readonly prisma: PrismaService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
-    private readonly otp: OtpService,
     private readonly tokens: TokenService,
     private readonly sessions: AdminSessionService,
     private readonly rateLimit: RateLimitService,
@@ -141,60 +155,14 @@ export class AdminAuthService {
     );
   }
 
-  /** Always 200 (anti-enumeration): a code is sent only to an active admin. */
-  async loginStart(email: string, ip: string | null): Promise<void> {
-    this.assertConfigured();
-    const normalized = email.trim().toLowerCase();
-    await this.limit(
-      ['admin-login', 'email', this.rateLimit.hashIdentifier(normalized)],
-      LOGIN_START_PER_EMAIL_PER_HOUR,
-    );
-    if (ip) {
-      await this.limit(['admin-login', 'ip', ip], this.loginStartPerIpPerHour);
-    }
-    const admin = await this.findAdmin(normalized);
-    if (!admin) return;
-    await this.otp.requestOtp('email', normalized, 'admin');
-  }
-
-  async loginVerify(
-    email: string,
-    code: string,
-    ip: string | null = null,
-    userAgent: string | null = null,
-  ): Promise<AdminLoginVerifyResultDto> {
-    this.assertConfigured();
-    const normalized = email.trim().toLowerCase();
-    await this.limit(
-      ['admin-verify', 'email', this.rateLimit.hashIdentifier(normalized)],
-      LOGIN_VERIFY_PER_EMAIL_PER_HOUR,
-    );
-    const admin = await this.findAdmin(normalized);
-    // A non-admin email gets the same answer as a wrong code.
-    const result = admin
-      ? await this.otp.verifyOtp('email', normalized, code, 'admin')
-      : 'invalid';
-    if (result !== 'ok' || !admin) {
-      throw new UnauthorizedException({
-        code:
-          result === 'expired'
-            ? ErrorCode.AUTH_OTP_EXPIRED
-            : result === 'locked'
-              ? ErrorCode.AUTH_OTP_LOCKED
-              : ErrorCode.AUTH_OTP_INVALID,
-        message: 'The code is not valid.',
-      });
-    }
-
-    return this.afterFirstFactor(admin, ip, userAgent, 'email_code');
-  }
-
-  /** Password first factor → the same 2FA ticket the emailed code gives. */
+  /**
+   * Step 1, login + password. Never a session: always a short ticket for
+   * step 2 — the authenticator code, or (no authenticator yet) its setup.
+   */
   async loginPassword(
     login: string,
     password: string,
     ip: string | null,
-    userAgent: string | null = null,
   ): Promise<AdminLoginVerifyResultDto> {
     this.assertConfigured();
     const normalized = normalizeLogin(login);
@@ -241,50 +209,103 @@ export class AdminAuthService {
         message: 'Wrong login or password.',
       });
     }
-    return this.afterFirstFactor(
-      { id: u.id, email: u.email, admin_role: u.admin_profile.admin_role },
-      ip,
-      userAgent,
-      'password',
-    );
+    return this.secondFactorTicket(u.id);
   }
 
   /**
-   * The first factor passed. An admin who turned on the authenticator gets
-   * a 2FA ticket to exchange with a code; everyone else is signed in now.
+   * The first factor passed: a ticket for step 2. `totpSetupRequired` tells
+   * the panel which step 2 it is — the code, or the forced first setup.
    */
-  private async afterFirstFactor(
-    admin: AdminRow,
-    ip: string | null,
-    userAgent: string | null,
-    method: 'password' | 'email_code',
+  private async secondFactorTicket(
+    adminId: string,
   ): Promise<AdminLoginVerifyResultDto> {
-    const cipher = this.assertConfigured();
     const cred = await this.prisma.adminCredential.findUnique({
-      where: { user_id: admin.id },
+      where: { user_id: adminId },
       select: { totp_enabled_at: true },
     });
-    if (cred?.totp_enabled_at) {
-      const jti = randomUUID();
-      await this.redis.set(this.ticketKey(jti), '0', 'EX', TICKET_TTL_SECONDS);
-      const ticket = this.tokens.signAdminTicket(
-        { sub: admin.id, jti },
-        TICKET_TTL_SECONDS,
-      );
-      return { ticket, session: null };
-    }
+    const setup = !cred?.totp_enabled_at;
+    const ttl = setup ? SETUP_TICKET_TTL_SECONDS : TICKET_TTL_SECONDS;
+    const jti = randomUUID();
+    await this.redis.set(this.ticketKey(jti), '0', 'EX', ttl);
+    const ticket = this.tokens.signAdminTicket({ sub: adminId, jti }, ttl);
+    return { ticket, session: null, totpSetupRequired: setup };
+  }
+
+  /**
+   * Forced enrolment, step A (owner 2026-10-22): an admin without an
+   * authenticator gets a fresh secret for the QR code. Only with a valid
+   * password ticket; nothing is switched on until a code confirms it.
+   */
+  async totpSetupBegin(ticket: string): Promise<TotpEnrollmentDto> {
+    const cipher = this.assertConfigured();
+    const { admin, cred } = await this.openTicket(ticket);
+    if (cred?.totp_enabled_at) throw ticketInvalid();
+    const secret = generateTotpSecret();
     await this.prisma.adminCredential.upsert({
       where: { user_id: admin.id },
-      create: {
-        user_id: admin.id,
-        totp_secret_enc: cipher.encrypt(generateTotpSecret()),
-        last_login_at: new Date(),
-      },
-      update: { last_login_at: new Date() },
+      create: { user_id: admin.id, totp_secret_enc: cipher.encrypt(secret) },
+      update: { totp_secret_enc: cipher.encrypt(secret) },
     });
     return {
-      ticket: null,
-      session: await this.issueSession(admin, ip, userAgent, method),
+      secret,
+      otpauthUri: otpauthUri({
+        issuer: TOTP_ISSUER,
+        account: admin.email,
+        secretBase32: secret,
+      }),
+    };
+  }
+
+  /**
+   * Forced enrolment, step B: the first code from the app switches the
+   * authenticator on, returns the ten recovery codes (shown once) and only
+   * then signs in. The ticket is spent.
+   */
+  async totpSetupFinish(
+    ticket: string,
+    code: string,
+    ip: string | null,
+    userAgent: string | null = null,
+  ): Promise<AdminTotpSetupResultDto> {
+    const cipher = this.assertConfigured();
+    const { admin, jti, cred } = await this.openTicket(ticket);
+    if (!cred || cred.totp_enabled_at) throw ticketInvalid();
+    const fresh =
+      verifyTotp(cipher.decrypt(cred.totp_secret_enc), code) &&
+      (await this.redis.set(
+        `adm:totp:used:${admin.id}:${code}`,
+        '1',
+        'EX',
+        TOTP_REPLAY_WINDOW_SECONDS,
+        'NX',
+      )) === 'OK';
+    if (!fresh) await this.failAttempt(jti, ErrorCode.ADMIN_TOTP_INVALID);
+    await this.consumeTicket(jti);
+    const recoveryCodes = Array.from(
+      { length: RECOVERY_CODES },
+      newRecoveryCode,
+    );
+    // Conditional: two parallel confirmations cannot both enrol.
+    const { count } = await this.prisma.adminCredential.updateMany({
+      where: { user_id: admin.id, totp_enabled_at: null },
+      data: {
+        totp_enabled_at: new Date(),
+        recovery_codes_hash: recoveryCodes.map(hashRecoveryCode),
+        last_login_at: new Date(),
+      },
+    });
+    if (count === 0) throw ticketInvalid();
+    await this.audit.record({
+      adminId: admin.id,
+      action: ADMIN_AUDIT.totpEnrolled,
+      targetType: 'admin',
+      targetId: admin.id,
+      after: { at: 'sign_in' },
+      ip,
+    });
+    return {
+      recoveryCodes,
+      session: await this.issueSession(admin, ip, userAgent, 'totp_setup'),
     };
   }
 
@@ -296,7 +317,7 @@ export class AdminAuthService {
   ): Promise<AdminSessionDto> {
     const cipher = this.assertConfigured();
     const { admin, jti, cred } = await this.openTicket(ticket);
-    if (!cred.totp_enabled_at) throw ticketInvalid();
+    if (!cred?.totp_enabled_at) throw ticketInvalid();
     const secret = cipher.decrypt(cred.totp_secret_enc);
     if (!verifyTotp(secret, code)) {
       await this.failAttempt(jti, ErrorCode.ADMIN_TOTP_INVALID);
@@ -597,9 +618,9 @@ export class AdminAuthService {
         },
       });
     }
-    // The owner signs in with login + password alone; a binding left over
-    // from the old sign-in flow would still ask for a code, so the console
-    // setup clears it (two-factor can be turned on again in the profile).
+    // The console is also the way back for an owner who lost the phone and
+    // the recovery codes: the old authenticator binding is cleared, so the
+    // next sign-in walks through the forced authenticator setup again.
     await this.prisma.adminCredential.update({
       where: { user_id: userId },
       data: { totp_enabled_at: null, recovery_codes_hash: [] },
@@ -664,8 +685,8 @@ export class AdminAuthService {
   /**
    * Forgot the password: the super admin answers the security question and
    * picks a new password. It does NOT sign anyone in (the new password is
-   * used on the next sign-in, with the authenticator when it is on), ends
-   * every session and is audited.
+   * used on the next sign-in, always followed by the authenticator code),
+   * ends every session and is audited.
    */
   async recoverPassword(
     login: string,
@@ -685,10 +706,10 @@ export class AdminAuthService {
       normalizeAnswer(answer),
       cred?.security_answer_hash ?? (await dummyHash()),
     );
-    // Owner 2026-10-02: the secret answer is enough to set a new password
-    // (the authenticator is optional now). It is rate limited (5/h per
-    // login, 10/h per IP), the answer has a 4-character minimum, every
-    // session ends and the change is audited.
+    // Owner 2026-10-02: the secret answer is enough to set a new password —
+    // it never signs in: the authenticator is still asked at the next
+    // sign-in (owner 2026-10-22). Rate limited (5/h per login, 10/h per
+    // IP), 4-character minimum answer, every session ends, audited.
     if (!ok || !cred?.security_answer_hash) {
       throw new UnauthorizedException({
         code: ErrorCode.ADMIN_RECOVERY_FAILED,
@@ -822,7 +843,7 @@ export class AdminAuthService {
     admin: AdminRow,
     ip: string | null,
     userAgent: string | null,
-    method: 'password' | 'email_code' | 'totp' | 'recovery_code',
+    method: 'totp' | 'totp_setup' | 'recovery_code',
   ): Promise<AdminSessionDto> {
     const jti = randomUUID();
     await this.sessions.create(admin.id, jti, { ip, userAgent });
@@ -910,36 +931,21 @@ export class AdminAuthService {
     });
   }
 
-  private async findAdmin(email: string): Promise<AdminRow | null> {
-    const user = await this.prisma.user.findFirst({
-      where: {
-        email,
-        role: 'admin',
-        status: 'active',
-        deleted_at: null,
-        admin_profile: { isNot: null },
-      },
-      select: { id: true, email: true, admin_profile: true },
-    });
-    if (!user?.email || !user.admin_profile) return null;
-    return {
-      id: user.id,
-      email: user.email,
-      admin_role: user.admin_profile.admin_role,
-    };
-  }
-
   /**
-   * Owner 2026-10-01: a fresh confirmation before a sensitive action (API
-   * keys, setting someone's password). With the authenticator on it is a
-   * fresh code; without it (2FA is optional) the admin's own password.
-   * Valid 5 minutes for this admin session; 5 tries / 15 min.
+   * Owner 2026-10-01 / 2026-10-22: a fresh authenticator code before a
+   * sensitive action (money out, someone's phone or password, keys, admin
+   * 2FA resets…). The authenticator is mandatory now, so there is no
+   * password fallback any more. Valid STEP_UP_TTL_SECONDS (5 min) for this
+   * admin session only; 5 tries / 15 min; every try is an audit row.
+   * Stripe asks for the 2FA code again before sensitive Dashboard actions
+   * the same way (https://docs.stripe.com/get-started/account/teams/roles).
    */
   async stepUp(
     adminId: string,
     sessionId: string,
-    proof: { code?: string; password?: string },
-  ) {
+    code: string | undefined,
+    ip: string | null = null,
+  ): Promise<{ validForSeconds: number }> {
     const cipher = this.assertConfigured();
     const r = await this.rateLimit.consumeFixedWindow(
       ['admin-stepup', adminId],
@@ -959,153 +965,50 @@ export class AdminAuthService {
     const cred = await this.prisma.adminCredential.findUnique({
       where: { user_id: adminId },
     });
-    let ok = false;
-    if (cred?.totp_enabled_at) {
-      const code = proof.code ?? '';
-      ok =
-        verifyTotp(cipher.decrypt(cred.totp_secret_enc), code) &&
-        (await this.redis.set(
-          `adm:totp:used:${adminId}:${code}`,
-          '1',
-          'EX',
-          TOTP_REPLAY_WINDOW_SECONDS,
-          'NX',
-        )) === 'OK';
-    } else if (cred?.password_hash) {
-      ok = await verifySecret(proof.password ?? '', cred.password_hash);
-    } else {
+    if (!cred?.totp_enabled_at) {
+      // Unreachable through the guard (no session without an
+      // authenticator); kept so the rule never depends on the caller.
       throw new ForbiddenException({
-        code: ErrorCode.ADMIN_STEP_UP_REQUIRED,
-        message: 'Set a password or turn on two-factor first.',
+        code: ErrorCode.ADMIN_TOTP_SETUP_REQUIRED,
+        message: 'Set up the authenticator first (sign in again).',
       });
     }
-    if (!ok) {
-      throw new ForbiddenException({
-        code: ErrorCode.ADMIN_TOTP_INVALID,
-        message: cred?.totp_enabled_at ? 'Wrong code.' : 'Wrong password.',
-      });
-    }
-    const ttl = 300;
-    await this.redis.set(`adm:stepup:${sessionId}`, '1', 'EX', ttl);
-    return { validForSeconds: ttl };
-  }
-
-  // ---- optional two-factor (authenticator) ---------------------------------
-
-  /** Step 1: a fresh secret to put into the authenticator app. Two-factor
-   * stays off until a code from the app confirms it. */
-  async twoFactorBegin(actor: AdminActor): Promise<TotpEnrollmentDto> {
-    const cipher = this.assertConfigured();
-    await this.limit(['admin-2fa-begin', actor.id], 10);
-    await this.ensureCredential(actor.id, cipher);
-    const cred = await this.prisma.adminCredential.findUniqueOrThrow({
-      where: { user_id: actor.id },
-      select: { totp_enabled_at: true },
-    });
-    if (cred.totp_enabled_at) throw invalid('Two-factor is already on.');
-    const user = await this.prisma.user.findUniqueOrThrow({
-      where: { id: actor.id },
-      select: { email: true },
-    });
-    const secret = generateTotpSecret();
-    await this.prisma.adminCredential.update({
-      where: { user_id: actor.id },
-      data: { totp_secret_enc: cipher.encrypt(secret) },
-    });
-    return {
-      secret,
-      otpauthUri: otpauthUri({
-        issuer: TOTP_ISSUER,
-        account: user.email ?? actor.id,
-        secretBase32: secret,
-      }),
-    };
-  }
-
-  /** Step 2: the app's code turns two-factor on and returns the one-time
-   * recovery codes (shown once). */
-  async twoFactorEnable(actor: AdminActor, code: string): Promise<string[]> {
-    const cipher = this.assertConfigured();
-    await this.limit(['admin-2fa-enable', actor.id], 10);
-    const cred = await this.prisma.adminCredential.findUnique({
-      where: { user_id: actor.id },
-    });
-    if (!cred) throw invalid('Start two-factor setup first.');
-    if (cred.totp_enabled_at) throw invalid('Two-factor is already on.');
+    const value = code ?? '';
     // Same single-use rule as the sign-in step (RFC 6238 §5.2).
-    const fresh =
-      verifyTotp(cipher.decrypt(cred.totp_secret_enc), code) &&
+    const ok =
+      /^\d{6}$/.test(value) &&
+      verifyTotp(cipher.decrypt(cred.totp_secret_enc), value) &&
       (await this.redis.set(
-        `adm:totp:used:${actor.id}:${code}`,
+        `adm:totp:used:${adminId}:${value}`,
         '1',
         'EX',
         TOTP_REPLAY_WINDOW_SECONDS,
         'NX',
       )) === 'OK';
-    if (!fresh) {
+    await this.audit.record({
+      adminId,
+      action: ok ? ADMIN_AUDIT.stepUp : ADMIN_AUDIT.stepUpFailed,
+      targetType: 'admin',
+      targetId: adminId,
+      after: ok ? { validForSeconds: STEP_UP_TTL_SECONDS } : undefined,
+      ip,
+    });
+    if (!ok) {
       throw new ForbiddenException({
         code: ErrorCode.ADMIN_TOTP_INVALID,
         message: 'Wrong code.',
       });
     }
-    const recoveryCodes = Array.from(
-      { length: RECOVERY_CODES },
-      newRecoveryCode,
-    );
-    await this.prisma.adminCredential.update({
-      where: { user_id: actor.id },
-      data: {
-        totp_enabled_at: new Date(),
-        recovery_codes_hash: recoveryCodes.map(hashRecoveryCode),
-      },
-    });
-    await this.audit.record({
-      adminId: actor.id,
-      action: ADMIN_AUDIT.totpEnrolled,
-      targetType: 'admin',
-      targetId: actor.id,
-      ip: actor.ip,
-    });
-    return recoveryCodes;
-  }
-
-  /** Turns two-factor off again; needs a current code (or a recovery code). */
-  async twoFactorDisable(actor: AdminActor, code: string): Promise<void> {
-    const cipher = this.assertConfigured();
-    await this.limit(['admin-2fa-disable', actor.id], 10);
-    const cred = await this.prisma.adminCredential.findUnique({
-      where: { user_id: actor.id },
-    });
-    if (!cred?.totp_enabled_at) throw invalid('Two-factor is already off.');
-    const viaApp = verifyTotp(cipher.decrypt(cred.totp_secret_enc), code);
-    const viaRecovery = cred.recovery_codes_hash.includes(
-      hashRecoveryCode(code),
-    );
-    if (!viaApp && !viaRecovery) {
-      throw new ForbiddenException({
-        code: ErrorCode.ADMIN_TOTP_INVALID,
-        message: 'Wrong code.',
-      });
-    }
-    await this.prisma.adminCredential.update({
-      where: { user_id: actor.id },
-      data: { totp_enabled_at: null, recovery_codes_hash: [] },
-    });
-    await this.audit.record({
-      adminId: actor.id,
-      action: ADMIN_AUDIT.totpDisabled,
-      targetType: 'admin',
-      targetId: actor.id,
-      ip: actor.ip,
-    });
+    await this.redis.set(stepUpKey(sessionId), '1', 'EX', STEP_UP_TTL_SECONDS);
+    return { validForSeconds: STEP_UP_TTL_SECONDS };
   }
 
   /** Throws unless [sessionId] passed a step-up in the last 5 minutes. */
   async assertStepUp(sessionId: string): Promise<void> {
-    if (!(await this.redis.exists(`adm:stepup:${sessionId}`))) {
+    if (!(await this.redis.exists(stepUpKey(sessionId)))) {
       throw new ForbiddenException({
         code: ErrorCode.ADMIN_STEP_UP_REQUIRED,
-        message: 'Confirm with your 2FA code or password first.',
+        message: 'Confirm with a fresh authenticator code first.',
       });
     }
   }
@@ -1185,7 +1088,7 @@ export class AdminAuthService {
   }
 
   /** The invitee picks a login and password; the link is spent. The
-   * authenticator is bound at the first sign-in (profile → two-factor). */
+   * authenticator is set up at the first sign-in (forced, owner 2026-10-22). */
   async acceptInvite(
     token: string,
     input: { login: string; password: string },
@@ -1269,6 +1172,9 @@ export class AdminAuthService {
 
 const invalid = (message: string) =>
   new BadRequestException({ code: ErrorCode.VALIDATION_ERROR, message });
+
+/** Redis flag of a passed step-up, per admin session. */
+export const stepUpKey = (sessionId: string) => `adm:stepup:${sessionId}`;
 
 const inviteGone = () =>
   new NotFoundException({

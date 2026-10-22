@@ -79,6 +79,8 @@ export const CRON_JOBS = {
   consultationsSweep: 'consultations.sweep',
   /** Owner 2026-10-21: Q&A — close unanswered after 30 days, purge deleted after 90. */
   legalQaSweep: 'legal-qa.sweep',
+  /** Owner 2026-10-22: "X from your contacts joined LawBid" (server-side). */
+  contactsJoined: 'contacts.joined',
   /** Owner 2026-10-05: archived tasks past the retention → removed. */
   taskArchivePurge: 'tasks.archive-purge',
   /** Owner 2026-10-05: client → attorney checkouts never finished → canceled. */
@@ -187,6 +189,7 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.taskReminders, pattern: '* * * * *' },
   { name: CRON_JOBS.consultationsSweep, pattern: '* * * * *' },
   { name: CRON_JOBS.legalQaSweep, pattern: '50 3 * * *' },
+  { name: CRON_JOBS.contactsJoined, pattern: '1-59/2 * * * *' },
   // 16:20 UTC: notices arrive in the US daytime.
   { name: CRON_JOBS.taskArchivePurge, pattern: '20 16 * * *' },
   { name: CRON_JOBS.casePaymentsExpire, pattern: '7-57/10 * * * *' },

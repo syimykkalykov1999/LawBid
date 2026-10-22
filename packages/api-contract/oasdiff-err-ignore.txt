@@ -173,3 +173,12 @@ GET /notifications added the new `groups` enum value to the `data/items/category
 GET /conversations/{id}/messages added the new `post` enum value to the `data/items/type` response property for the response status `200`
 POST /conversations/{id}/messages added the new `post` enum value to the `data/type` response property for the response status `201`
 POST /conversations/{id}/messages/{messageId}/listened added the new `post` enum value to the `data/type` response property for the response status `200`
+# Owner 2026-10-22 (system audit #2, item 1): the admin authenticator is mandatory — the emailed-code sign-in and the optional 2FA switch are gone (the admin panel changes in the same PR; no other client calls them)
+POST /admin/auth/login/start api path removed without deprecation
+POST /admin/auth/login/verify api path removed without deprecation
+POST /admin/auth/2fa/begin api path removed without deprecation
+POST /admin/auth/2fa/enable api path removed without deprecation
+POST /admin/auth/2fa/disable api path removed without deprecation
+POST /admin/auth/step-up the `code` request property became required
+POST /admin/auth/step-up the request property `code` became required
+POST /admin/auth/login/password added the new required response property `data/totpSetupRequired`

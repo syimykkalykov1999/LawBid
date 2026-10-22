@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/buttons/player_round_button.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
+import 'package:lawbid/core/media/app_image_cache.dart';
 import 'package:lawbid/core/media/playback_visibility.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/chat/application/voice_player.dart';
@@ -159,6 +160,7 @@ class _ChatVideoTileState extends State<ChatVideoTile> {
                         image: appNetworkImage(
                           _poster!,
                           decodeWidthFor(widget.fill ? 150 : 220),
+                          cache: AppImageCaches.chatMedia,
                         ),
                         fit: BoxFit.cover,
                         errorBuilder: (_, __, ___) => const SizedBox.shrink(),

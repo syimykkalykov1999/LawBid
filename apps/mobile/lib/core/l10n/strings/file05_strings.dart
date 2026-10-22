@@ -242,6 +242,8 @@ const file05Ru = <String, String>{
   'notif.list.review_requested': 'Оцените работу адвоката',
   'notif.list.review_received': 'У вас новый отзыв',
   'notif.list.new_follower': '{name} подписался(-ась) на вас',
+  // Owner 2026-10-22: sent by the server when a contact registers.
+  'notif.list.contact_joined': '{name} из ваших контактов теперь в LawBid',
   'notif.list.new_follower.many': '{name} и ещё {others} подписались на вас',
   'notif.list.post_like': '{name} отметил(-а) ваш пост',
   'notif.list.post_like.many': '{name} и ещё {others} отметили ваш пост',
@@ -501,6 +503,8 @@ const file05En = <String, String>{
   'notif.list.review_requested': 'Rate your attorney',
   'notif.list.review_received': 'You have a new review',
   'notif.list.new_follower': '{name} started following you',
+  // Owner 2026-10-22: sent by the server when a contact registers.
+  'notif.list.contact_joined': '{name} from your contacts joined LawBid',
   'notif.list.new_follower.many':
       '{name} and {others} others started following you',
   'notif.list.post_like': '{name} liked your post',

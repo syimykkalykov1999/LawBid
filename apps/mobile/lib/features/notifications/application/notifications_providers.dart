@@ -7,7 +7,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/features/cases/application/paged_notifier.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
-import 'package:lawbid/features/chat/data/realtime_client.dart';
 import 'package:lawbid/features/notifications/data/notifications_repository.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';

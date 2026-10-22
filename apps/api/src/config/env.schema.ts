@@ -98,6 +98,11 @@ export const envSchema = z
     // raises it: a busy CI runner stalls the event loop past 2 s while an
     // app boots, and the timer then fires before the reply is read.
     REDIS_COMMAND_TIMEOUT_MS: z.coerce.number().int().positive().default(2000),
+    // Owner 2026-10-22 (server load audit, finding 5): the Socket.IO Redis
+    // adapter. `sharded` (Redis 7 sharded pub/sub: an event reaches only the
+    // instances holding its room); `classic` = the old pub/sub, a rollback
+    // switch. Set the same value on the API and the worker.
+    SOCKET_IO_ADAPTER: z.enum(['sharded', 'classic']).default('sharded'),
     SUBSCRIPTION_PAST_DUE_GRACE_DAYS: z.coerce
       .number()
       .int()
@@ -412,6 +417,12 @@ export const envSchema = z
     // Owner 2026-10-15: a database call slower than this many ms is written
     // to the log (operation name and time only, never the values). 0 = off.
     DB_SLOW_QUERY_MS: z.coerce.number().int().min(0).default(300),
+    // Owner 2026-10-22 (server load audit, finding 1): request log lines.
+    // Failures (status >= 400) are always written; of the fast successful
+    // requests only this share (%, 0-100) is, and a request slower than
+    // HTTP_LOG_SLOW_MS ms always is (docs/COST_PROTECTION.md).
+    HTTP_LOG_SAMPLE_PERCENT: z.coerce.number().min(0).max(100).default(1),
+    HTTP_LOG_SLOW_MS: z.coerce.number().int().min(0).default(1000),
     // docs/02 §3.3 monthly disposable-domain refresh: plain text, one
     // domain per line, '#' comments (the open disposable-email-domains
     // blocklist by default).
@@ -617,6 +628,11 @@ export const envSchema = z
     ),
     BUNNY_TOKEN_AUTH_KEY: z.preprocess(blankToUndefined, z.string().optional()),
     BUNNY_WEBHOOK_TOKEN: z.preprocess(blankToUndefined, z.string().optional()),
+    // Audit #4: Bunny's Read-Only API key — verifies X-BunnyStream-Signature.
+    BUNNY_READ_ONLY_API_KEY: z.preprocess(
+      blankToUndefined,
+      z.string().optional(),
+    ),
     // OQ-041: STUN / TURN for in-app calls (TURN can also be set in the
     // admin → Integrations).
     STUN_URLS: z.preprocess(blankToUndefined, z.string().optional()),

@@ -167,12 +167,14 @@ export class AdminsController {
   @Roles('super_admin')
   @ApiOperation({ summary: 'Assign a role (ends the admin’s sessions)' })
   @ApiEnvelopeResponse(AdminAccountDto)
-  @ApiErrors(TARGET_ERRORS)
-  setAdminRole(
+  @ApiErrors({ ...TARGET_ERRORS, 403: [E.ADMIN_STEP_UP_REQUIRED] })
+  async setAdminRole(
     @CurrentAdmin() actor: AdminActor,
     @Param() params: AdminIdParamDto,
     @Body() dto: SetAdminRoleDto,
   ): Promise<AdminAccountDto> {
+    // Owner 2026-10-22: who may do what is identity — fresh 2FA code.
+    await this.auth.assertStepUp(actor.sessionId);
     return this.admins.setRole(actor, params.id, dto.role);
   }
 
@@ -182,12 +184,14 @@ export class AdminsController {
       'Toggle areas for an admin (view / manage), within what the caller holds. Keys, admin management and sessions cannot be granted; money, economy, budget limits and the audit log only by the super admin.',
   })
   @ApiEnvelopeResponse(AdminAccountDto)
-  @ApiErrors(TARGET_ERRORS)
-  setAdminPermissions(
+  @ApiErrors({ ...TARGET_ERRORS, 403: [E.ADMIN_STEP_UP_REQUIRED] })
+  async setAdminPermissions(
     @CurrentAdmin() actor: AdminActor,
     @Param() params: AdminIdParamDto,
     @Body() dto: SetAdminPermissionsDto,
   ): Promise<AdminAccountDto> {
+    // Owner 2026-10-22: who may do what is identity — fresh 2FA code.
+    await this.auth.assertStepUp(actor.sessionId);
     return this.admins.setPermissions(
       actor,
       params.id,
@@ -275,17 +279,33 @@ export class AdminsController {
     await this.admins.remove(actor, params.id);
   }
 
+  /**
+   * Owner 2026-10-22: only the super admin resets another admin's
+   * authenticator (a lost phone), after a fresh step-up; audited, the
+   * admin's sessions end and the next sign-in forces a new setup. Never
+   * one's own (that is the console: `npm run admin:set-credentials`).
+   */
   @Post(':id/reset-2fa')
+  @Roles('super_admin')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Reset 2FA: the next sign-in binds a new authenticator',
+    summary:
+      'Super admin: reset another admin’s authenticator (needs a fresh step-up); the next sign-in sets up a new one',
   })
   @ApiEnvelopeResponse(AdminAccountDto)
-  @ApiErrors(TARGET_ERRORS)
-  resetAdminTotp(
+  @ApiErrors({ ...TARGET_ERRORS, 403: [E.ADMIN_STEP_UP_REQUIRED] })
+  async resetAdminTotp(
     @CurrentAdmin() actor: AdminActor,
     @Param() params: AdminIdParamDto,
   ): Promise<AdminAccountDto> {
+    if (params.id === actor.id) {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_ERROR,
+        message: 'Your own authenticator is reset from the server console.',
+      });
+    }
+    await this.admins.assertCanManage(actor, params.id);
+    await this.auth.assertStepUp(actor.sessionId);
     return this.admins.resetTotp(actor, params.id);
   }
 }

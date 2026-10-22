@@ -11,6 +11,11 @@ variable "tags" {
   type    = map(string)
   default = {}
 }
+variable "backup_copy_account_ids" {
+  type        = list(string)
+  default     = []
+  description = "Separate backup account(s) allowed to use this key, so AWS Backup can copy RDS snapshots encrypted with it into their vault (modules/backup)."
+}
 
 data "aws_caller_identity" "current" {}
 data "aws_region" "current" {}
@@ -21,7 +26,7 @@ resource "aws_kms_key" "this" {
   enable_key_rotation     = true
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [
+    Statement = concat([
       {
         Sid       = "AccountAdmin"
         Effect    = "Allow"
@@ -51,8 +56,27 @@ resource "aws_kms_key" "this" {
         Condition = {
           ArnLike = { "AWS:SourceArn" = "arn:aws:cloudfront::${data.aws_caller_identity.current.account_id}:distribution/*" }
         }
-      }
-    ]
+      },
+      {
+        # Alarms (CloudWatch) and backup-job events (EventBridge) publish to
+        # the alerts topic, which is encrypted with this key: without this
+        # statement AWS drops the notification silently.
+        Sid       = "AlertPublishers"
+        Effect    = "Allow"
+        Principal = { Service = ["cloudwatch.amazonaws.com", "events.amazonaws.com"] }
+        Action    = ["kms:Decrypt", "kms:GenerateDataKey*"]
+        Resource  = "*"
+        Condition = {
+          StringEquals = { "aws:SourceAccount" = data.aws_caller_identity.current.account_id }
+        }
+      },
+      ], length(var.backup_copy_account_ids) == 0 ? [] : [{
+        Sid       = "BackupCopyAccount"
+        Effect    = "Allow"
+        Principal = { AWS = [for a in var.backup_copy_account_ids : "arn:aws:iam::${a}:root"] }
+        Action    = ["kms:Decrypt", "kms:DescribeKey", "kms:CreateGrant", "kms:ReEncrypt*", "kms:GenerateDataKey*"]
+        Resource  = "*"
+    }])
   })
   tags = var.tags
 }

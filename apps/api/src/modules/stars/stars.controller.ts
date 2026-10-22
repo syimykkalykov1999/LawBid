@@ -58,6 +58,7 @@ import {
   UpdateGiftDto,
 } from './stars.dto';
 import { StarsService, type Page } from './stars.service';
+import { AdminAuthService } from '../admin-auth/admin-auth.service';
 
 const E = ErrorCode;
 
@@ -204,7 +205,10 @@ export class StarsController {
 @AdminEndpoint('super_admin')
 @Controller('admin/stars')
 export class AdminStarsController {
-  constructor(private readonly stars: StarsService) {}
+  constructor(
+    private readonly stars: StarsService,
+    private readonly auth: AdminAuthService,
+  ) {}
 
   @Get('settings')
   @ApiOperation({ summary: 'Stars: packs, the gift fee, the daily brake' })
@@ -297,12 +301,15 @@ export class AdminStarsController {
   @ApiErrors({
     400: [E.VALIDATION_ERROR],
     402: [E.INSUFFICIENT_STARS],
+    403: [E.ADMIN_STEP_UP_REQUIRED],
     404: [E.NOT_FOUND],
   })
   async grantStars(
     @CurrentAdmin() admin: AdminActor,
     @Body() dto: GrantStarsDto,
   ): Promise<StarsBalanceDto> {
+    // Owner 2026-10-22: stars are bought with money — a fresh 2FA code.
+    await this.auth.assertStepUp(admin.sessionId);
     return {
       balance: await this.stars.grant(
         admin,

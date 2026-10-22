@@ -163,6 +163,8 @@ export const TYPE_TOPIC: Record<NotificationType, string> = {
   post_comment: 'comments',
   comment_reply: 'replies',
   new_follower: 'followers',
+  // "X from your contacts joined LawBid" (social, like a new follower).
+  contact_joined: 'followers',
   mention: 'mentions',
   post_repost: 'reactions',
   gift_received: 'reactions',

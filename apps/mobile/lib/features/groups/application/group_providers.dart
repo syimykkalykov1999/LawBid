@@ -6,7 +6,6 @@ import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/core/platform/chat_notifications_channel.dart';
 import 'package:lawbid/features/cases/application/paged_notifier.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
-import 'package:lawbid/features/chat/data/realtime_client.dart';
 import 'package:lawbid/features/groups/data/group_repository.dart';
 import 'package:lawbid/features/groups/domain/group_message_ext.dart';
 import 'package:lawbid/features/notifications/application/call_mute.dart';

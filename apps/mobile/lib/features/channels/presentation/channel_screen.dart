@@ -35,26 +35,9 @@ class ChannelScreen extends ConsumerStatefulWidget {
 
 class _ChannelScreenState extends ConsumerState<ChannelScreen> {
   String? _focusedFor;
-  Timer? _callTimer;
-
-  @override
-  void initState() {
-    super.initState();
-    // Inbox 20e: a channel may have thousands of subscribers, so nobody is
-    // told about its call — the open channel asks every 10 s instead.
-    _callTimer = Timer.periodic(const Duration(seconds: 10), (_) {
-      final id = ref.read(channelProvider(widget.channelRef)).value?.id;
-      if (mounted && id != null) {
-        ref.invalidate(channelRunningCallProvider(id));
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _callTimer?.cancel();
-    super.dispose();
-  }
+  // Owner 2026-10-22 (load audit finding 3): the call bar follows the
+  // server's `call:ongoing` events while the channel is open
+  // (channelRunningCallProvider) instead of asking every 10 s.
 
   /// The phone / video button (owner and admins): starts the channel's call.
   Future<void> _startCall(Channel channel, {required bool video}) async {

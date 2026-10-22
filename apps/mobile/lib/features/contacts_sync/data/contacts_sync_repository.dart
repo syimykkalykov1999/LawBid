@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:dio/dio.dart';
 import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/features/contacts_sync/data/contacts_book.dart';
 
 /// Server state of the user's contacts sync.
 class ContactsSyncStatus {
@@ -10,6 +11,7 @@ class ContactsSyncStatus {
     required this.matches,
     this.findByPhone = true,
     this.phoneRegion,
+    this.notifyJoined = true,
   });
 
   final bool enabled;
@@ -21,6 +23,10 @@ class ContactsSyncStatus {
   /// ISO country of the account number — the default region for numbers in
   /// national format.
   final String? phoneRegion;
+
+  /// «Notify me when contacts join LawBid» — owner 2026-10-22: the server
+  /// sends the notice.
+  final bool notifyJoined;
 }
 
 /// A phone-book number that belongs to a LawBid user ([hash] is the one the
@@ -71,6 +77,36 @@ class ContactsUploadResult {
 /// the whole book goes up in one request).
 typedef ContactsUploadProgress = void Function(ContactsUploadResult soFar);
 
+/// Owner 2026-10-22: the server's answer to a hash-checked sync.
+enum ContactsSyncStatusCode {
+  /// Done; [ContactsSyncAnswer.people] is the WHOLE list.
+  ok,
+
+  /// The book and the list are as the app has them; nothing was done.
+  notModified,
+
+  /// The server does not have the book the app named: send it whole.
+  resync,
+}
+
+class ContactsSyncAnswer {
+  const ContactsSyncAnswer({
+    required this.status,
+    required this.bookHash,
+    this.bookSize = 0,
+    this.matchesVersion = 0,
+    this.people = const [],
+  });
+
+  final ContactsSyncStatusCode status;
+
+  /// The server's book hash after this request (the next `baseHash`).
+  final String? bookHash;
+  final int bookSize;
+  final int matchesVersion;
+  final List<ContactPerson> people;
+}
+
 /// Owner 2026-10-13: `/contacts/sync`. Only
 /// SHA-256 hashes of phone numbers are sent (see phone_numbers.dart).
 // TODO(contract): switch to the generated ContactsSyncClient once
@@ -86,10 +122,26 @@ abstract interface class ContactsSyncRepository {
     ContactsUploadProgress? onProgress,
   });
 
+  /// Owner 2026-10-22 (like Telegram's contacts hash): one hash-checked
+  /// request — `bookHash` alone asks "changed?"; `full` sends the book
+  /// whole; `baseHash` + `added` / `removed` sends only the changes. A 429
+  /// is thrown (ApiException 429).
+  Future<ContactsSyncAnswer> sync({
+    bool full = false,
+    String? baseHash,
+    List<String> added = const [],
+    List<String> removed = const [],
+    String? bookHash,
+    int? matchesVersion,
+  });
+
   /// Turns the sync off and deletes every match.
   Future<void> remove();
 
   Future<void> setFindByPhone({required bool enabled});
+
+  /// «Notify me when contacts join LawBid» (stored on the server).
+  Future<void> setNotifyJoined({required bool enabled});
 }
 
 class ApiContactsSyncRepository implements ContactsSyncRepository {
@@ -123,6 +175,46 @@ class ApiContactsSyncRepository implements ContactsSyncRepository {
       matches: (data?['matches'] as num?)?.toInt() ?? 0,
       findByPhone: data?['findByPhone'] != false,
       phoneRegion: data?['phoneRegion'] as String?,
+      notifyJoined: data?['notifyJoined'] != false,
+    );
+  }
+
+  @override
+  Future<ContactsSyncAnswer> sync({
+    bool full = false,
+    String? baseHash,
+    List<String> added = const [],
+    List<String> removed = const [],
+    String? bookHash,
+    int? matchesVersion,
+  }) async {
+    final res = await guardApiCall(
+      () => _dio.post<Map<String, Object?>>(
+        '/contacts/sync',
+        data: {
+          if (full) 'full': true,
+          if (baseHash != null) 'baseHash': baseHash,
+          if (added.isNotEmpty) 'added': added,
+          if (removed.isNotEmpty) 'removed': removed,
+          if (bookHash != null) 'bookHash': bookHash,
+          if (matchesVersion != null) 'matchesVersion': matchesVersion,
+        },
+      ),
+    );
+    final data = (res.data?['data'] as Map?)?.cast<String, Object?>();
+    return ContactsSyncAnswer(
+      status: switch (data?['status']) {
+        'not_modified' => ContactsSyncStatusCode.notModified,
+        'resync' => ContactsSyncStatusCode.resync,
+        _ => ContactsSyncStatusCode.ok,
+      },
+      bookHash: data?['bookHash'] as String?,
+      bookSize: (data?['bookSize'] as num?)?.toInt() ?? 0,
+      matchesVersion: (data?['matchesVersion'] as num?)?.toInt() ?? 0,
+      people: [
+        for (final raw in (data?['people'] as List?) ?? const [])
+          if (contactPersonFromJson(raw) case final ContactPerson p) p,
+      ],
     );
   }
 
@@ -197,6 +289,14 @@ class ApiContactsSyncRepository implements ContactsSyncRepository {
   Future<void> setFindByPhone({required bool enabled}) => guardApiCall(
         () => _dio.put<void>(
           '/contacts/sync/find-by-phone',
+          data: {'enabled': enabled},
+        ),
+      );
+
+  @override
+  Future<void> setNotifyJoined({required bool enabled}) => guardApiCall(
+        () => _dio.put<void>(
+          '/contacts/sync/notify-joined',
           data: {'enabled': enabled},
         ),
       );

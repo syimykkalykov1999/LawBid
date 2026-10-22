@@ -1,5 +1,12 @@
 # Backup failed
 
+> **С 2026-10-22 (AWS Backup):** письма `lawbid-prod-db-backup-age` и
+> «резервная копия базы не сделана» приходят от плана AWS Backup
+> (`infra/modules/backup`). AWS Console → AWS Backup → Jobs → строка с
+> FAILED → Status message. Частая причина — копия попала в окно бэкапа или
+> обслуживания RDS: следующая ночь проходит сама. Два дня подряд — Claude
+> «бэкап». Подробно: [backups.md](backups.md).
+
 > **Для владельца:** Бэкапы делает провайдер базы PostgreSQL (управляемая база, например AWS RDS / Neon / Supabase). Откройте его консоль → Backups / Snapshots; ошибка — их поддержка или Claude «бэкап». Все письма и кнопки: [OWNER.md](OWNER.md).
 
 The managed PostgreSQL 16 provider (e.g. AWS RDS / Neon / Supabase — the

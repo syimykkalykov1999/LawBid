@@ -12,6 +12,7 @@ class ContactSyncStatusDto {
     required this.enabled,
     required this.matches,
     required this.findByPhone,
+    required this.notifyJoined,
     this.syncedAt,
     this.phoneRegion,
   });
@@ -31,6 +32,9 @@ class ContactSyncStatusDto {
 
   /// ISO country of the account number ("US", "KG"): the default region for national-format numbers in the address book.
   final String? phoneRegion;
+
+  /// «Notify me when contacts join LawBid» (owner 2026-10-22: sent by the server).
+  final bool notifyJoined;
 
   Map<String, Object?> toJson() => _$ContactSyncStatusDtoToJson(this);
 }

@@ -221,3 +221,23 @@ every cap to its floor, pauses new video uploads, keeps SMS for sign-in and
 password reset only and holds autoscaling at the minimum; it lets go by itself
 below 90 % of the allowance. The switch `economy_guard` (Функции) turns the
 whole thing off and restores everything it changed.
+
+## Логи запросов (owner 2026-10-22)
+
+CloudWatch Logs стоит $0.50 за ГБ. Раньше API писал строку на **каждый**
+запрос с полным объектом запроса (заголовки и т. п.) — при миллионе
+пользователей в день это терабайты и ~$3 000 в месяц. Теперь
+(`apps/api/src/common/logging/http-log-policy.ts`):
+
+| Что | Пишется | Где меняется |
+|---|---|---|
+| Ошибки (код ответа ≥ 500 или исключение) | всегда, уровень `error` | — |
+| Ответы 4xx | всегда, уровень `warn` | — |
+| Медленные запросы | всегда, уровень `warn` | env `HTTP_LOG_SLOW_MS` (по умолчанию 1000 мс) |
+| Остальные (быстрые и успешные) | случайная выборка | env `HTTP_LOG_SAMPLE_PERCENT` (по умолчанию 1 %) |
+
+Строка короткая: метод, адрес (значения параметров после `?` и секретные
+части пути — токен вебхука Bunny, приглашение админа, код вступления в
+группу — убраны), код ответа, время ответа, id запроса и id пользователя.
+Заголовков и тела запроса нет. Чтобы на время разбора проблемы видеть все
+запросы, поставьте `HTTP_LOG_SAMPLE_PERCENT=100` и перезапустите API.

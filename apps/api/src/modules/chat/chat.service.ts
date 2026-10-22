@@ -308,13 +308,11 @@ export class ChatService {
         AND: [
           { OR: [{ client_id: user.sub }, { attorney_id: user.sub }] },
           ...filters,
+          ...(updatedSince ? [this.changedSince(user.sub, updatedSince)] : []),
           ...(updatedSince ? [] : [{ NOT: pinnedFilter }]),
         ],
         // A chat appears in the list once it has a message (§8.1).
         last_message_at: { not: null },
-        ...(updatedSince
-          ? { updated_at: { gte: new Date(updatedSince) } }
-          : {}),
         ...(c
           ? {
               OR: [
@@ -343,6 +341,26 @@ export class ChatService {
   }
 
   /**
+   * Owner 2026-10-22 (load audit finding 2, Telegram getDifference): the
+   * app catches up after a socket gap with `updatedSince` instead of
+   * reloading its list. A chat changed when its row did (a new message, a
+   * status / request change) or when I read it on another device (my
+   * participant row's `last_read_at`, which the row itself never sees).
+   */
+  private changedSince(
+    me: string,
+    since: string,
+  ): Prisma.ConversationWhereInput {
+    const at = new Date(since);
+    return {
+      OR: [
+        { updated_at: { gte: at } },
+        { participants: { some: { user_id: me, last_read_at: { gte: at } } } },
+      ],
+    };
+  }
+
+  /**
    * Owner 2026-10-18: chat search. The chats of [me] where the OTHER person's
    * name (any alphabet / typo / word order) or @username, the case title, or
    * a (not deleted) message contains the typed words. Id → snippet of the
@@ -358,9 +376,14 @@ export class ChatService {
     if (!words.length) return new Map();
     const handle = `${escapeLike(q.trim().replace(/^@+/, '').toLowerCase())}%`;
     const rows = await this.prisma.$queryRaw<
-      { id: string; body: string | null; by_meta: boolean }[]
+      {
+        id: string;
+        body: string | null;
+        msg_id: string | null;
+        by_meta: boolean;
+      }[]
     >`
-      SELECT * FROM (SELECT c.id::TEXT AS id, msg.body AS body,
+      SELECT * FROM (SELECT c.id::TEXT AS id, msg.body AS body, msg.msg_id AS msg_id,
              ((NOT hidden.v AND (${nameMatchSql(q, Prisma.sql`o.full_name_lower`)}
                  OR coalesce(ap.username_lower, cp.username_lower) LIKE ${handle}))
               OR (cs.title IS NOT NULL AND ${allWordsSql(Prisma.sql`cs.title`, words)})) AS by_meta
@@ -374,7 +397,7 @@ export class ChatService {
                                   AND NOT c.contacts_unlocked
                                   AND c.case_id IS NOT NULL) AS v) hidden
       LEFT JOIN LATERAL (
-        SELECT m.body_display AS body FROM messages m
+        SELECT m.body_display AS body, m.id::TEXT AS msg_id FROM messages m
         WHERE m.conversation_id = c.id
           AND m.deleted_at IS NULL
           AND m.type IN ('text', 'attachment')
@@ -390,7 +413,10 @@ export class ChatService {
       else if (r.body !== null) {
         out.set(
           r.id,
-          snippetAround(this.cipher?.open(r.body) ?? r.body, words),
+          snippetAround(
+            this.cipher?.open(r.body, r.msg_id ?? '') ?? r.body,
+            words,
+          ),
         );
       }
     }
@@ -666,7 +692,7 @@ export class ChatService {
       });
     }
     if (src.expires_at) throw forwardNotAllowed();
-    const text = this.openBody(src.body_display);
+    const text = this.openBody(src.body_display, src.id);
     // Telegram: "Forwarded from <name>". A message that was already
     // forwarded keeps the first author's name.
     const author = src.sender_id
@@ -1134,8 +1160,11 @@ export class ChatService {
               note: giftNote,
             })
           : null;
+        // Audit #6: the id is chosen here, the sealed bodies are bound to it.
+        const messageId = randomUUID();
         const m = await tx.message.create({
           data: {
+            id: messageId,
             conversation_id: id,
             sender_id: user.sub,
             sent_by_membership_id: user.assistant?.membershipId ?? null,
@@ -1155,8 +1184,8 @@ export class ChatService {
                         : post
                           ? 'post'
                           : 'text',
-            body_original: this.seal(gift ? '' : body),
-            body_display: this.seal(gift ? '' : masked.text),
+            body_original: this.seal(gift ? '' : body, messageId),
+            body_display: this.seal(gift ? '' : masked.text, messageId),
             contact_masked: masked.masked,
             client_message_id: dto.clientMessageId,
             reply_to_id: replyToId,
@@ -1527,6 +1556,12 @@ export class ChatService {
         lastReadMessageId: result.lastReadMessageId,
         readAt: new Date().toISOString(),
       });
+      // Owner 2026-10-22 (load audit finding 2): my devices clear this
+      // chat's unread pill in their list without reloading it.
+      this.realtime.toUsers([user.sub], 'conversation:read', {
+        conversationId: id,
+        lastReadMessageId: result.lastReadMessageId,
+      });
       await this.badges.chatsChanged(user.sub);
     }
     return { lastReadMessageId: result.lastReadMessageId };
@@ -1774,7 +1809,9 @@ export class ChatService {
           : 'file';
       }
       case 'text':
-        return URL_RE.test(this.openBody(m.body_display)) ? 'link' : 'text';
+        return URL_RE.test(this.openBody(m.body_display, m.id))
+          ? 'link'
+          : 'text';
       default:
         throw new BadRequestException({
           code: ErrorCode.VALIDATION_ERROR,
@@ -1857,13 +1894,13 @@ export class ChatService {
         ),
         this.contactCards(
           rows.flatMap((m) =>
-            m.type === 'contact' ? [this.openBody(m.body_display)] : [],
+            m.type === 'contact' ? [this.openBody(m.body_display, m.id)] : [],
           ),
         ),
         // Owner 2026-10-21: the cards of shared posts, in one batch.
         this.postCards?.cards(
           rows.flatMap((m) => {
-            const postId = this.openBody(m.body_display);
+            const postId = this.openBody(m.body_display, m.id);
             return m.type === 'post' && UUID_RE.test(postId) ? [postId] : [];
           }),
         ) ?? Promise.resolve(new Map<string, SharedPostCardDto>()),
@@ -1884,8 +1921,8 @@ export class ChatService {
     });
   }
 
-  private openBody(stored: string): string {
-    return this.cipher?.open(stored) ?? stored;
+  private openBody(stored: string, messageId: string): string {
+    return this.cipher?.open(stored, messageId) ?? stored;
   }
 
   /** Owner 2026-10-20: only an attorney's public profile can be shared. */
@@ -1979,8 +2016,8 @@ export class ChatService {
     return out;
   }
 
-  private seal(text: string): string {
-    return this.cipher?.seal(text) ?? text;
+  private seal(text: string, messageId: string): string {
+    return this.cipher?.seal(text, messageId) ?? text;
   }
 
   /** Security review (docs/05): while contacts are locked the attorney
@@ -2042,7 +2079,7 @@ export class ChatService {
                 target.revoked_at || target.type !== 'text'
                   ? ''
                   : [
-                      ...(this.cipher?.open(target.body_display) ??
+                      ...(this.cipher?.open(target.body_display, target.id) ??
                         target.body_display),
                     ]
                       .slice(0, 120)
@@ -2081,15 +2118,15 @@ export class ChatService {
           : null,
       contact:
         m.type === 'contact'
-          ? (media?.contacts.get(this.openBody(m.body_display)) ?? null)
+          ? (media?.contacts.get(this.openBody(m.body_display, m.id)) ?? null)
           : null,
       post:
         m.type === 'post' && !revoked
-          ? (media?.posts.get(this.openBody(m.body_display)) ?? null)
+          ? (media?.posts.get(this.openBody(m.body_display, m.id)) ?? null)
           : null,
       body: revoked
         ? ''
-        : (this.cipher?.open(m.body_display) ?? m.body_display),
+        : (this.cipher?.open(m.body_display, m.id) ?? m.body_display),
       contactMasked: m.contact_masked,
       clientMessageId: m.sender_id === viewerId ? m.client_message_id : null,
       createdAt: m.created_at,
