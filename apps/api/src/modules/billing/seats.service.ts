@@ -300,14 +300,17 @@ export class SeatsService {
     status: SeatChangeResultDto['status'],
     extra: Partial<Omit<SeatChangeResultDto, 'status' | 'overview'>> = {},
   ): Promise<SeatChangeResultDto> {
+    const overview = await this.subscriptions.me(user);
     return {
+      // The old response shape first, for apps released before 2026-10-22.
+      ...overview,
       status,
       clientSecret: extra.clientSecret ?? null,
       amountCents: extra.amountCents ?? 0,
       currency: extra.currency || SUBSCRIPTION_CURRENCY,
       effectiveAt: extra.effectiveAt ?? null,
       changeId: extra.changeId ?? null,
-      overview: await this.subscriptions.me(user),
+      overview,
     };
   }
 

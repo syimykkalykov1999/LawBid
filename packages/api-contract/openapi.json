@@ -117314,6 +117314,68 @@
       "SeatChangeResultDto": {
         "type": "object",
         "properties": {
+          "subscription": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SubscriptionDto"
+              }
+            ]
+          },
+          "contractGrant": {
+            "nullable": true,
+            "description": "An active free subscription under a contract (isActive is true while it runs).",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ContractGrantInfoDto"
+              }
+            ]
+          },
+          "prices": {
+            "$ref": "#/components/schemas/PlanPricesDto"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "canStart": {
+            "type": "boolean",
+            "description": "Verified attorney without a live subscription may start."
+          },
+          "trialEligible": {
+            "type": "boolean"
+          },
+          "priceCents": {
+            "type": "integer"
+          },
+          "plan": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PublicPlanDto"
+              }
+            ]
+          },
+          "plans": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PublicPlanDto"
+            }
+          },
+          "entitlements": {
+            "$ref": "#/components/schemas/PlanEntitlementsDto"
+          },
+          "seats": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SeatSummaryDto"
+              }
+            ]
+          },
           "status": {
             "description": "applied = paid and usable now; requires_action = confirm the payment (3-D Secure) with clientSecret, then GET /subscriptions/me; failed = the card was declined, nothing changed; scheduled = fewer seats from effectiveAt (the period end), no refund.",
             "allOf": [
@@ -117348,6 +117410,17 @@
           }
         },
         "required": [
+          "subscription",
+          "contractGrant",
+          "prices",
+          "isActive",
+          "canStart",
+          "trialEligible",
+          "priceCents",
+          "plan",
+          "plans",
+          "entitlements",
+          "seats",
           "status",
           "clientSecret",
           "amountCents",

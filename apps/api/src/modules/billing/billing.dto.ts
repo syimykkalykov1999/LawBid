@@ -438,8 +438,13 @@ export const SEAT_CHANGE_RESULTS = [
   'scheduled',
 ] as const;
 
-/** Owner 2026-10-22: the outcome of POST /subscriptions/seats. */
-export class SeatChangeResultDto {
+/** Owner 2026-10-22: the outcome of POST /subscriptions/seats.
+ *
+ * It still carries every SubscriptionMeDto field at the top level (the
+ * response before 2026-10-22), so apps already in the stores keep reading
+ * it (docs/06 §7.2: a changed response must stay compatible); new apps
+ * read `status` and `overview`. */
+export class SeatChangeResultDto extends SubscriptionMeDto {
   @ApiProperty({
     enum: SEAT_CHANGE_RESULTS,
     enumName: 'SeatChangeResult',
