@@ -30,6 +30,9 @@ import {
   CheckoutRequestDto,
   CheckoutSessionDto,
   SetSeatsDto,
+  SeatChangeResultDto,
+  SeatPreviewDto,
+  SeatPreviewRequestDto,
   CompleteCheckoutDto,
   ConfirmSubscriptionDto,
   PaymentDto,
@@ -42,6 +45,7 @@ import {
 import type { Request } from 'express';
 import { PayPageService } from './pay-page.service';
 import { SubscriptionsService } from './subscriptions.service';
+import { SeatsService } from './seats.service';
 import { AttorneyOnly } from '../auth/assistant/assistant-context';
 
 const E = ErrorCode;
@@ -63,6 +67,7 @@ export class SubscriptionsController {
   constructor(
     private readonly subscriptions: SubscriptionsService,
     private readonly payPage: PayPageService,
+    private readonly seats: SeatsService,
   ) {}
 
   @Post('checkout')
@@ -115,23 +120,54 @@ export class SubscriptionsController {
     return this.subscriptions.switchToYearly(user);
   }
 
-  @Post('seats')
+  @Post('seats/preview')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Monthly plan: set the number of assistant seats (OQ-048)',
+    summary:
+      'What buying seats costs now (prorated rest of the period) and per month after (owner 2026-10-22)',
   })
-  @ApiEnvelopeResponse(SubscriptionMeDto)
+  @ApiEnvelopeResponse(SeatPreviewDto)
   @ApiErrors({
     ...ATTORNEY_ERRORS,
     400: [E.VALIDATION_ERROR],
     404: [E.SUBSCRIPTION_NOT_FOUND],
-    409: [E.SUBSCRIPTION_PLAN_INCLUDES_SEATS, E.ASSISTANT_SEATS_IN_USE],
+    409: [
+      E.SUBSCRIPTION_PLAN_INCLUDES_SEATS,
+      E.SEATS_TRIAL_NOT_ALLOWED,
+      E.SEATS_NOT_PAID_YET,
+    ],
+  })
+  previewSeats(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: SeatPreviewRequestDto,
+  ): Promise<SeatPreviewDto> {
+    return this.seats.preview(user, dto.seats);
+  }
+
+  @Post('seats')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Set the extra assistant seats: more = charged now (3-D Secure may be asked), fewer = from the period end, no refund (owner 2026-10-22)',
+  })
+  @ApiEnvelopeResponse(SeatChangeResultDto)
+  @ApiErrors({
+    ...ATTORNEY_ERRORS,
+    400: [E.VALIDATION_ERROR],
+    404: [E.SUBSCRIPTION_NOT_FOUND],
+    409: [
+      E.SUBSCRIPTION_PLAN_INCLUDES_SEATS,
+      E.ASSISTANT_SEATS_IN_USE,
+      E.SEATS_TRIAL_NOT_ALLOWED,
+      E.SEATS_NOT_PAID_YET,
+      E.SEATS_PREVIEW_STALE,
+    ],
   })
   setSeats(
     @CurrentUser() user: RequestUser,
     @Body() dto: SetSeatsDto,
-  ): Promise<SubscriptionMeDto> {
-    return this.subscriptions.setSeats(user, dto.seats);
+  ): Promise<SeatChangeResultDto> {
+    return this.seats.set(user, dto.seats, dto.prorationDate);
   }
 
   @Post('checkout/complete')
@@ -208,7 +244,12 @@ export class SubscriptionsController {
   @Get('me')
   @ApiOperation({ summary: 'Current subscription and access verdict' })
   @ApiEnvelopeResponse(SubscriptionMeDto)
-  mySubscription(@CurrentUser() user: RequestUser): Promise<SubscriptionMeDto> {
+  async mySubscription(
+    @CurrentUser() user: RequestUser,
+  ): Promise<SubscriptionMeDto> {
+    // Owner 2026-10-22: a removed seat whose period ended drops here too
+    // when the renewal webhook is late.
+    await this.seats.applyDueDecrease(user.sub);
     return this.subscriptions.me(user);
   }
 

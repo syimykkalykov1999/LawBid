@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:lawbid/features/plans/domain/plan_models.dart';
 import 'package:lawbid/features/subscription/data/card_collector.dart';
+import 'package:lawbid/features/subscription/data/payment_confirmer.dart';
 import 'package:lawbid/features/subscription/domain/subscription_models.dart';
 import 'package:lawbid/features/subscription/domain/subscription_repository.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
@@ -200,13 +201,62 @@ class FakeSubscriptionRepository implements SubscriptionRepository {
     return current = onComplete?.call() ?? current;
   }
 
+  /// Owner 2026-10-22: what a seat purchase answers (a lower count is
+  /// always `scheduled` — removed at the period end).
+  SeatChangeStatus seatStatus = SeatChangeStatus.applied;
+  Object? previewError;
+
+  int get _extraSeats =>
+      current.seats?.extra ?? current.subscription?.assistantSeats ?? 0;
+
   @override
-  Future<SubscriptionOverview> setSeats(int seats) async {
+  Future<SeatPreview> previewSeats(int seats) async {
+    calls.add('preview:$seats');
+    // ignore: only_throw_errors
+    if (previewError != null) throw previewError!;
+    final add = seats - _extraSeats;
+    return SeatPreview(
+      seats: seats,
+      currentSeats: _extraSeats,
+      amountNowCents: add > 0 ? add * 5000 : 0,
+      currency: 'usd',
+      prorationDate: 1792656000,
+      periodEnd: day,
+      seatCents: 10000,
+      monthlyIncreaseCents: add * 10000,
+      nextChargeCents: 39900 + seats * 10000,
+    );
+  }
+
+  @override
+  Future<SeatChangeOutcome> setSeats(int seats, {int? prorationDate}) async {
     calls.add('seats:$seats');
     final s = current.subscription!;
-    return current = makeOverview(
-      subscription: makeInfo(status: s.status, assistantSeats: seats),
-      trialEligible: false,
+    final status =
+        seats < _extraSeats ? SeatChangeStatus.scheduled : seatStatus;
+    if (status == SeatChangeStatus.applied) {
+      final had = current.seats;
+      current = makeOverview(
+        subscription: makeInfo(status: s.status, assistantSeats: seats),
+        trialEligible: false,
+        plans: current.plans,
+        plan: current.plan,
+        seats: had == null
+            ? null
+            : SeatSummary(
+                included: had.included,
+                extra: seats,
+                total: had.included + seats,
+                max: had.max,
+              ),
+      );
+    }
+    return SeatChangeOutcome(
+      status: status,
+      overview: current,
+      clientSecret:
+          status == SeatChangeStatus.requiresAction ? 'pi_secret' : null,
+      effectiveAt: status == SeatChangeStatus.scheduled ? day : null,
     );
   }
 
@@ -301,6 +351,19 @@ class FakeSubscriptionRepository implements SubscriptionRepository {
       ),
       trialEligible: false,
     );
+  }
+}
+
+/// Owner 2026-10-22: the bank's 3-D Secure check, faked.
+class FakePaymentConfirmer implements PaymentConfirmer {
+  final List<String> secrets = [];
+  Object? error;
+
+  @override
+  Future<void> confirm(String clientSecret) async {
+    secrets.add(clientSecret);
+    // ignore: only_throw_errors
+    if (error != null) throw error!;
   }
 }
 

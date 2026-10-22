@@ -317,7 +317,22 @@ class _MemberSheetState extends ConsumerState<_MemberSheet> {
   /// OQ-049: the attorney accepted responsibility in this sheet.
   bool _accepted = false;
 
+  /// Owner 2026-10-22: one assistant holds at most this many duties.
+  int get _maxDuties =>
+      ref.read(teamProvider).value?.maxDuties ?? TeamInfo.defaultMaxDuties;
+
+  void _tooMany() => showAppSnackBar(
+        context,
+        ref
+            .read(translatorProvider)
+            .t('team.roles.tooMany', {'max': '$_maxDuties'}),
+      );
+
   Future<void> _toggle(AssistantDuty d, bool on) async {
+    if (on && _duties.length >= _maxDuties) {
+      _tooMany();
+      return;
+    }
     // Audit 2026-10-04: asked once per edit, not at every switch.
     if (on && !_accepted) {
       final t = ref.read(translatorProvider);
@@ -334,6 +349,10 @@ class _MemberSheetState extends ConsumerState<_MemberSheet> {
   /// Owner 2026-10-05: a ready role sets several accesses in one tap
   /// (the attorney accepts responsibility once for all of them).
   Future<void> _applyRole(AssistantRole role) async {
+    if (role.duties.length > _maxDuties) {
+      _tooMany();
+      return;
+    }
     final t = ref.read(translatorProvider);
     final ok = await askLiability(context, t, t.t(role.labelKey));
     if (!ok || !mounted) return;
@@ -489,7 +508,11 @@ class _MemberSheetState extends ConsumerState<_MemberSheet> {
           ),
           const SizedBox(height: AppSpacing.xs),
           Text(
-            t.t('team.role.hint'),
+            // Owner 2026-10-22: with no ready role under the limit, the
+            // limit itself is what the attorney needs to read.
+            AssistantRole.values.any((r) => r.duties.length <= _maxDuties)
+                ? t.t('team.role.hint')
+                : t.t('team.roles.intro', {'max': '$_maxDuties'}),
             style: typography.caption.copyWith(color: colors.textSecondary),
           ),
           const SizedBox(height: AppSpacing.xs),
@@ -497,18 +520,21 @@ class _MemberSheetState extends ConsumerState<_MemberSheet> {
             spacing: AppSpacing.sm,
             runSpacing: AppSpacing.xs,
             children: [
+              // Owner 2026-10-22: only the ready roles that fit the
+              // per-assistant limit.
               for (final r in AssistantRole.values)
-                ChoiceChip(
-                  key: ValueKey('role-${r.name}'),
-                  label: Text(
-                    t.t(r.labelKey),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                if (r.duties.length <= _maxDuties)
+                  ChoiceChip(
+                    key: ValueKey('role-${r.name}'),
+                    label: Text(
+                      t.t(r.labelKey),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    selected: _duties.length == r.duties.length &&
+                        _duties.containsAll(r.duties),
+                    onSelected: (_) => _applyRole(r),
                   ),
-                  selected: _duties.length == r.duties.length &&
-                      _duties.containsAll(r.duties),
-                  onSelected: (_) => _applyRole(r),
-                ),
             ],
           ),
           const SizedBox(height: AppSpacing.xs),

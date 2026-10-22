@@ -172,6 +172,7 @@ class ApiTeamRepository implements TeamRepository {
         seats: d.seats,
         used: d.used,
         plan: d.plan.json ?? 'none',
+        maxDuties: d.maxDuties,
       );
 
   static ActivityEntry _activity(api.ActivityDto a) => ActivityEntry(

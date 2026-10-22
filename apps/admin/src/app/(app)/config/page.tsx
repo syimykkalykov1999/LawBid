@@ -21,6 +21,7 @@ import { formatDateTime } from '@/lib/utils';
 /** Russian explanations for the known keys (most server descriptions are null or English). */
 const KEY_TEXT: Record<string, string> = {
   'billing.max_assistant_seats': 'Сколько помощников может добавить адвокат (годовой тариф включает все).',
+  'assistants.max_duties': 'Сколько ролей (из 10) может быть у одного помощника; по умолчанию 3.',
   'cases.urgency_days_very_urgent': 'Дело с датой считается «очень срочным», если до даты осталось не больше стольких дней.',
   'cases.urgency_days_urgent': 'Дело с датой считается «срочным», если до даты осталось не больше стольких дней.',
   'cases.urgency_days_soon': 'Дело с датой считается «на этой неделе», если до даты осталось не больше стольких дней.',

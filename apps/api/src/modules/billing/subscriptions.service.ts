@@ -658,7 +658,6 @@ export class SubscriptionsService implements OnModuleDestroy {
     return check.promo;
   }
 
-  /** OQ-048: monthly plan — change the number of assistant seats. */
   /** Owner 2026-10-01: monthly → yearly "Prime" (attorney + 6 assistants);
    * Stripe invoices the difference now. */
   async switchToYearly(user: RequestUser): Promise<SubscriptionMeDto> {
@@ -707,83 +706,6 @@ export class SubscriptionsService implements OnModuleDestroy {
       },
     });
     await this.access.invalidate(user.sub);
-    return this.me(user);
-  }
-
-  async setSeats(user: RequestUser, seats: number): Promise<SubscriptionMeDto> {
-    await this.verifiedAttorney(user);
-    const row = await this.prisma.subscription.findUnique({
-      where: { user_id: user.sub },
-    });
-    if (
-      !row ||
-      !SubscriptionAccessService.rowIsActive(row) ||
-      !row.stripe_subscription_id
-    ) {
-      throw new NotFoundException({
-        code: ErrorCode.SUBSCRIPTION_NOT_FOUND,
-        message: 'No active subscription.',
-      });
-    }
-    // Owner 2026-10-05 (plan builder): [seats] = extra seats on top of the
-    // plan's included ones; the plan says how many may be bought.
-    const current = await this.entitlements.forUser(user.sub);
-    const mine = current.seats ?? { included: 0, extra: 0, total: 0, max: 0 };
-    const maxExtra = Math.max(0, mine.max - mine.included);
-    if (maxExtra === 0) {
-      throw new ConflictException({
-        code: ErrorCode.SUBSCRIPTION_PLAN_INCLUDES_SEATS,
-        message: `Your plan already includes ${mine.included} assistants; no extra seats can be added.`,
-        details: { included: mine.included },
-      });
-    }
-    if (seats > maxExtra) {
-      throw new BadRequestException({
-        code: ErrorCode.VALIDATION_ERROR,
-        message: 'Your plan does not allow that many extra assistants.',
-        details: { field: 'seats', max: maxExtra },
-      });
-    }
-    const live = await this.prisma.assistantMembership.count({
-      where: { attorney_id: user.sub, status: { not: 'removed' } },
-    });
-    if (mine.included + seats < live) {
-      throw new ConflictException({
-        code: ErrorCode.ASSISTANT_SEATS_IN_USE,
-        message: 'Remove assistants before lowering the number of seats.',
-        details: { inUse: live },
-      });
-    }
-    const seatKind =
-      typeof current.values.extra_seat_price_cents === 'number' &&
-      current.planCode
-        ? seatPriceKind(current.planCode)
-        : 'seat';
-    await this.provider.setSeatQuantity(
-      row.stripe_subscription_id,
-      await this.pricing.requirePriceId(seatKind),
-      seats,
-      [
-        ...(await this.pricing.knownPriceIds(seatKind)),
-        ...(seatKind === 'seat'
-          ? []
-          : await this.pricing.knownPriceIds('seat')),
-      ],
-    );
-    // Owner 2026-10-03: seats added or removed at today's seat price; the
-    // attorney's own plan amount stays what they bought.
-    const seatCents =
-      (await this.pricing.amountOf(seatKind)) ??
-      (await this.pricing.amount('seat'));
-    const base = Math.max(0, row.price_cents - row.assistant_seats * seatCents);
-    await this.prisma.subscription.update({
-      where: { id: row.id },
-      data: {
-        assistant_seats: seats,
-        price_cents: base + seats * seatCents,
-      },
-    });
-    await this.entitlements.invalidateUser(user.sub);
     return this.me(user);
   }
 
@@ -1192,6 +1114,12 @@ export class SubscriptionsService implements OnModuleDestroy {
       select: { id: true },
     });
     return !used;
+  }
+
+  /** Owner 2026-10-22: the same check for SeatsService (seat changes
+   * moved there: charged now, removed at the period end). */
+  assertVerifiedAttorney(user: RequestUser): Promise<{ email: string | null }> {
+    return this.verifiedAttorney(user);
   }
 
   private async verifiedAttorney(

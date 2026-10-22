@@ -4,8 +4,10 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import type { AssistantMembership, Prisma } from '@prisma/client';
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
   decodeCursor,
@@ -25,7 +27,9 @@ import { AttorneyProfilesService } from '../profiles/services/attorney-profiles.
 import { SubscriptionAccessService } from '../subscriptions/subscription-access.service';
 import { EntitlementsService } from '../plans/entitlements.service';
 import {
+  clampMaxDuties,
   DEFAULT_DUTIES,
+  DEFAULT_MAX_DUTIES,
   LIABILITY_DUTIES,
   LIABILITY_TERMS_VERSION,
 } from './assistant-duties';
@@ -85,7 +89,38 @@ export class AssistantsService {
     private readonly caseComments: CaseCommentsService,
     private readonly profiles: AttorneyProfilesService,
     private readonly files: FilesService,
+    // Owner 2026-10-22: `assistants.max_duties` (duties per assistant).
+    @Optional() private readonly settings?: AppSettingsService,
   ) {}
+
+  /** Owner 2026-10-22: how many duties one assistant may hold (admin
+   * setting `assistants.max_duties`, 3 by default). */
+  async maxDuties(): Promise<number> {
+    return clampMaxDuties(
+      this.settings
+        ? await this.settings.number('assistants.max_duties')
+        : DEFAULT_MAX_DUTIES,
+    );
+  }
+
+  /** Owner 2026-10-22: more assistants, nobody with the whole account —
+   * a change may not leave one assistant with more than `maxDuties`. An
+   * assistant given more before the limit existed may keep or lose
+   * duties, never gain one. */
+  async assertDutyCount(
+    before: readonly string[],
+    after: readonly string[],
+  ): Promise<void> {
+    const wanted = new Set(after);
+    const max = await this.maxDuties();
+    if (wanted.size <= max) return;
+    if (![...wanted].some((d) => !before.includes(d))) return;
+    throw new ConflictException({
+      code: ErrorCode.ASSISTANT_TOO_MANY_DUTIES,
+      message: `One assistant may hold at most ${max} duties — add another assistant for the rest.`,
+      details: { max, requested: wanted.size },
+    });
+  }
 
   // --- the assistant themself ------------------------------------------
 
@@ -288,6 +323,7 @@ export class AssistantsService {
       seats: s.seats,
       used: s.used,
       plan: s.plan ?? 'none',
+      maxDuties: await this.maxDuties(),
     };
   }
 
@@ -315,6 +351,7 @@ export class AssistantsService {
       }
     }
     const duties = dto.duties ?? [...DEFAULT_DUTIES];
+    await this.assertDutyCount([], duties);
     const granted = liabilityDiff([], duties).granted;
     assertLiability(granted, dto.acceptLiability);
     const m = await this.prisma.assistantMembership.create({
@@ -431,6 +468,7 @@ export class AssistantsService {
       ? liabilityDiff(m.duties, dto.duties)
       : { granted: [], revoked: [] };
     assertLiability(diff.granted, dto.acceptLiability);
+    if (dto.duties) await this.assertDutyCount(m.duties, dto.duties);
     await this.prisma.assistantMembership.update({
       where: { id },
       data: {

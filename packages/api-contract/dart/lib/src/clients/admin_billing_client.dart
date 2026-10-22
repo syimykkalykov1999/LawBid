@@ -11,11 +11,13 @@ import '../models/admin_payment_list_envelope.dart';
 import '../models/admin_plan_prices_envelope.dart';
 import '../models/admin_plan_result_envelope.dart';
 import '../models/admin_plans_envelope.dart';
+import '../models/admin_seat_change_list_envelope.dart';
 import '../models/admin_seat_limit_request_list_envelope.dart';
 import '../models/admin_set_plan_price_result_envelope.dart';
 import '../models/apply_plan_dto.dart';
 import '../models/apply_plan_result_envelope.dart';
 import '../models/approve_seat_limit_dto.dart';
+import '../models/assistant_seat_change_status.dart';
 import '../models/billing_overview_envelope.dart';
 import '../models/contract_grant_envelope.dart';
 import '../models/contract_grant_list_envelope.dart';
@@ -210,6 +212,17 @@ abstract class AdminBillingClient {
     @Query('userId') String? userId,
     @Query('from') DateTime? from,
     @Query('to') DateTime? to,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Assistant seat purchases and removals with the Stripe invoice (owner 2026-10-22, cursor).
+  ///
+  /// [cursor] - meta.nextCursor of the previous page.
+  @GET('/admin/billing/seat-changes')
+  Future<AdminSeatChangeListEnvelope> listSeatChanges({
+    @Query('cursor') String? cursor,
+    @Query('status') AssistantSeatChangeStatus? status,
+    @Query('userId') String? userId,
     @Extras() Map<String, dynamic>? extras,
   });
 

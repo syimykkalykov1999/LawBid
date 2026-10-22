@@ -18,6 +18,7 @@ import 'package:lawbid/features/subscription/data/card_collector.dart';
 import 'package:lawbid/features/subscription/domain/subscription_models.dart';
 import 'package:lawbid/features/subscription/presentation/pay_for_plan.dart';
 import 'package:lawbid/features/subscription/presentation/plan_picker.dart';
+import 'package:lawbid/features/subscription/presentation/seat_purchase_sheet.dart';
 import 'package:lawbid/features/subscription/subscription_routes.dart';
 import 'package:lawbid/features/team/presentation/assistant_code_card.dart';
 import 'package:lawbid/features/team/team_routes.dart';
@@ -162,14 +163,31 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen>
   }
 
   /// OQ-048: monthly plan — more or fewer assistant seats (changed in
-  /// the monthly card, owner 2026-10-01).
+  /// the monthly card, owner 2026-10-01). Owner 2026-10-22: more seats go
+  /// through the purchase sheet (charged now for the rest of the period,
+  /// 3-D Secure when asked); fewer seats stay until the period end.
   Future<void> _saveSeats(int next) async {
+    final o = ref.read(subscriptionOverviewProvider).value;
+    final current = o?.seats?.extra ?? o?.subscription?.assistantSeats ?? next;
+    if (next > current) {
+      // The sheet has its own pay button and progress; the card's «Save»
+      // does not spin behind it.
+      unawaited(buyAssistantSeats(context, ref, target: next));
+      return;
+    }
     try {
-      final o2 = await ref.read(subscriptionRepositoryProvider).setSeats(next);
-      ref.read(subscriptionOverviewProvider.notifier).apply(o2);
-      if (mounted) {
-        showAppSnackBar(context, _t.t('plans.seats.saved', {'seats': '$next'}));
-      }
+      final r = await ref.read(subscriptionRepositoryProvider).setSeats(next);
+      ref.read(subscriptionOverviewProvider.notifier).apply(r.overview);
+      if (!mounted) return;
+      final at = r.effectiveAt;
+      showAppSnackBar(
+        context,
+        r.status == SeatChangeStatus.scheduled && at != null
+            ? _t.t('seats.remove.scheduled', {
+                'date': ref.read(l10nFormatsProvider).date(at),
+              })
+            : _t.t('plans.seats.saved', {'seats': '$next'}),
+      );
     } on Object catch (e) {
       if (mounted) showAppSnackBar(context, errorText(_t, e));
     }

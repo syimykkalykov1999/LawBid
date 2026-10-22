@@ -13,6 +13,9 @@ import {
   type ProviderEvent,
   type ProviderRefund,
   type ProviderInvoice,
+  type ProviderSeatCharge,
+  type ProviderSeatItemInput,
+  type ProviderSeatPreview,
   type ProviderOneTimeCheckoutInput,
   type ProviderPrice,
   type ProviderPriceInput,
@@ -202,10 +205,10 @@ export class StripePaymentProvider implements PaymentProvider {
     seatPriceId: string,
     quantity: number,
     knownSeatPriceIds: string[] = [],
+    prorationBehavior: 'none' | 'create_prorations' = 'create_prorations',
   ): Promise<ProviderSubscription> {
     const sub = await this.stripe.subscriptions.retrieve(subscriptionId);
-    const ids = new Set([seatPriceId, ...knownSeatPriceIds]);
-    const item = sub.items.data.find((i) => ids.has(i.price.id));
+    const item = seatItemOf(sub, seatPriceId, knownSeatPriceIds);
     const items: Stripe.SubscriptionUpdateParams.Item[] = item
       ? quantity > 0
         ? [{ id: item.id, quantity }]
@@ -216,9 +219,142 @@ export class StripePaymentProvider implements PaymentProvider {
     return mapSubscription(
       await this.stripe.subscriptions.update(subscriptionId, {
         items,
-        proration_behavior: 'create_prorations',
+        proration_behavior: prorationBehavior,
       }),
     );
+  }
+
+  /**
+   * Owner 2026-10-22: «К оплате сейчас» — Stripe's own preview of the
+   * invoice the change creates at once (`always_invoice`), computed at
+   * [prorationDate] so the purchase charges exactly what was shown
+   * (docs.stripe.com/billing/subscriptions/prorations#preview-proration).
+   */
+  async previewSeatIncrease(
+    input: ProviderSeatItemInput & { addSeats: number; prorationDate: number },
+  ): Promise<ProviderSeatPreview> {
+    const sub = await this.stripe.subscriptions.retrieve(input.subscriptionId);
+    const item = seatItemOf(sub, input.seatPriceId, input.knownSeatPriceIds);
+    const quantity = (item?.quantity ?? 0) + input.addSeats;
+    const inv = await this.stripe.invoices.createPreview({
+      customer:
+        typeof sub.customer === 'string' ? sub.customer : sub.customer.id,
+      subscription: sub.id,
+      subscription_details: {
+        items: item
+          ? [{ id: item.id, quantity }]
+          : [{ price: input.seatPriceId, quantity }],
+        proration_behavior: 'always_invoice',
+        proration_date: input.prorationDate,
+      },
+    });
+    const lines = inv.lines?.data ?? [];
+    const prorations = lines.filter(isProrationLine);
+    // With always_invoice the preview IS the invoice charged now (only
+    // proration lines); should Stripe ever return the renewal invoice
+    // instead, only its proration lines are charged now.
+    const amountNowCents =
+      prorations.length > 0 && prorations.length < lines.length
+        ? prorations.reduce((sum, l) => sum + l.amount, 0)
+        : inv.amount_due;
+    return {
+      amountNowCents: Math.max(0, amountNowCents),
+      currency: inv.currency,
+      prorationDate: input.prorationDate,
+      periodEnd: mapSubscription(sub).currentPeriodEnd,
+    };
+  }
+
+  /**
+   * Owner 2026-10-22 (like Slack): the added seats are paid NOW — the
+   * prorated rest of the period on its own invoice — and recur with the
+   * monthly invoice after. `pending_if_incomplete`: Stripe applies the new
+   * quantity only once that invoice is paid; a card that needs 3-D Secure
+   * leaves the change pending (the app confirms the PaymentIntent), a
+   * declined card voids the invoice so nothing changes
+   * (docs.stripe.com/billing/subscriptions/pending-updates).
+   */
+  async chargeSeatIncrease(
+    input: ProviderSeatItemInput & {
+      quantity: number;
+      prorationDate: number;
+      idempotencyKey: string;
+    },
+  ): Promise<ProviderSeatCharge> {
+    const sub = await this.stripe.subscriptions.retrieve(input.subscriptionId);
+    const item = seatItemOf(sub, input.seatPriceId, input.knownSeatPriceIds);
+    const updated = await this.stripe.subscriptions.update(
+      input.subscriptionId,
+      {
+        items: item
+          ? [{ id: item.id, quantity: input.quantity }]
+          : [{ price: input.seatPriceId, quantity: input.quantity }],
+        proration_behavior: 'always_invoice',
+        proration_date: input.prorationDate,
+        payment_behavior: 'pending_if_incomplete',
+      },
+      { idempotencyKey: input.idempotencyKey },
+    );
+    const mapped = mapSubscription(updated);
+    const invoiceId = mapped.latestInvoiceId ?? null;
+    const invoice = invoiceId
+      ? await this.stripe.invoices.retrieve(invoiceId, {
+          expand: ['confirmation_secret', 'payments'],
+        })
+      : null;
+    const amountCents = invoice?.amount_due ?? 0;
+    const currency = invoice?.currency ?? 'usd';
+    if (!updated.pending_update || invoice?.status === 'paid') {
+      return {
+        status: 'applied',
+        invoiceId,
+        amountCents,
+        currency,
+        clientSecret: null,
+        subscription: mapped,
+      };
+    }
+    const intentId = paymentIntentOf(invoice);
+    const intent = intentId
+      ? await this.stripe.paymentIntents.retrieve(intentId)
+      : null;
+    if (
+      intent &&
+      (intent.status === 'requires_action' ||
+        intent.status === 'requires_confirmation')
+    ) {
+      return {
+        status: 'requires_action',
+        invoiceId,
+        amountCents,
+        currency,
+        clientSecret:
+          intent.client_secret ??
+          invoice?.confirmation_secret?.client_secret ??
+          null,
+        subscription: mapped,
+      };
+    }
+    // Declined: drop the pending change now instead of leaving an open
+    // invoice Stripe could still collect later.
+    if (invoiceId) await this.voidInvoice(invoiceId);
+    return {
+      status: 'failed',
+      invoiceId,
+      amountCents,
+      currency,
+      clientSecret: null,
+      subscription: mapped,
+    };
+  }
+
+  async voidInvoice(invoiceId: string): Promise<void> {
+    try {
+      await this.stripe.invoices.voidInvoice(invoiceId);
+    } catch (e) {
+      // Already paid / voided: nothing to undo.
+      if (!(e instanceof Stripe.errors.StripeInvalidRequestError)) throw e;
+    }
   }
 
   async switchToYearly(
@@ -832,6 +968,36 @@ function isNotFound(e: unknown): boolean {
   );
 }
 
+/** The subscription's assistant-seat item (current or an older seat price). */
+function seatItemOf(
+  sub: Stripe.Subscription,
+  seatPriceId: string,
+  known: string[] = [],
+): Stripe.SubscriptionItem | undefined {
+  const ids = new Set([seatPriceId, ...known]);
+  return sub.items.data.find((i) => ids.has(i.price.id));
+}
+
+function isProrationLine(l: Stripe.InvoiceLineItem): boolean {
+  const p = l.parent;
+  return Boolean(
+    p?.subscription_item_details?.proration ??
+    p?.invoice_item_details?.proration ??
+    (l as { proration?: boolean }).proration,
+  );
+}
+
+/** The PaymentIntent paying an invoice (API ≥ basil: invoice.payments). */
+function paymentIntentOf(invoice: Stripe.Invoice | null): string | null {
+  if (!invoice) return null;
+  for (const p of invoice.payments?.data ?? []) {
+    const pi = p.payment?.payment_intent;
+    if (pi) return typeof pi === 'string' ? pi : pi.id;
+  }
+  const legacy = (invoice as InvoiceLike).payment_intent;
+  return legacy ? (typeof legacy === 'string' ? legacy : legacy.id) : null;
+}
+
 type SubLike = Stripe.Subscription & {
   current_period_start?: number;
   current_period_end?: number;
@@ -862,6 +1028,19 @@ function mapSubscription(sub: Stripe.Subscription): ProviderSubscription {
         ? sub.default_payment_method
         : (sub.default_payment_method?.id ?? null),
     metadata: sub.metadata ?? {},
+    // Owner 2026-10-22: the sync reads the seat item's quantity from here.
+    items: (sub.items?.data ?? []).map((i) => ({
+      priceId: i.price.id,
+      quantity: i.quantity ?? 0,
+      unitAmountCents: i.price.unit_amount ?? null,
+    })),
+    pendingUpdateExpiresAt: sub.pending_update?.expires_at ?? null,
+    latestInvoiceId:
+      sub.latest_invoice == null
+        ? null
+        : typeof sub.latest_invoice === 'string'
+          ? sub.latest_invoice
+          : sub.latest_invoice.id,
   };
 }
 

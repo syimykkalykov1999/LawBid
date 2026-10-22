@@ -72,6 +72,7 @@ const CASES: Case[] = [
         svc as never,
         auth as never,
         GATE as never,
+        {} as never,
       ).createRefund(actor, {
         paymentId: 'p1',
         amountCents: 100,

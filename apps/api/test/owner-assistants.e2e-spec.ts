@@ -4,7 +4,9 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
+import type Redis from 'ioredis';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { REDIS_CLIENT } from '../src/redis/redis.constants';
 import { TokenService } from '../src/modules/auth/services/token.service';
 import { ensurePostPractices } from './support/post-practices';
 
@@ -43,11 +45,28 @@ describe('Assistants (e2e, OQ-048)', () => {
     prisma = app.get(PrismaService);
     tokens = app.get(TokenService);
     await ensurePostPractices(prisma);
+    // Owner 2026-10-22: an assistant holds at most 3 duties by default;
+    // these flows predate the limit and give one assistant many duties.
+    await setMaxDuties(10);
   });
 
   afterAll(async () => {
+    await prisma.appConfig.deleteMany({
+      where: { key: 'assistants.max_duties' },
+    });
+    await app.get<Redis>(REDIS_CLIENT).del('config:app_config');
     await app.close();
   });
+
+  async function setMaxDuties(value: number) {
+    await prisma.appConfig.upsert({
+      where: { key: 'assistants.max_duties' },
+      create: { key: 'assistants.max_duties', value },
+      update: { value },
+    });
+    // AppConfigService caches the whole table in Redis for 30 s.
+    await app.get<Redis>(REDIS_CLIENT).del('config:app_config');
+  }
 
   const api = () => request(base);
   const bearer = (id: string, role: string | null) => ({
@@ -966,5 +985,27 @@ describe('Assistants (e2e, OQ-048)', () => {
       .set(asst.auth)
       .send({ title: 'x', body: 'y', practiceCode: 'family_law' })
       .expect(403);
+  });
+
+  // Owner 2026-10-22: more assistants, nobody with the whole account.
+  it('one assistant holds at most assistants.max_duties duties', async () => {
+    await setMaxDuties(3);
+    try {
+      const att = await attorney(2);
+      const four = await api()
+        .post('/api/v1/team')
+        .set(att.auth)
+        .send({ duties: ['calls', 'chats', 'files', 'tasks'] })
+        .expect(409);
+      expect(four.body.error.code).toBe('ASSISTANT_TOO_MANY_DUTIES');
+      const ok = await api()
+        .post('/api/v1/team')
+        .set(att.auth)
+        .send({ duties: ['calls', 'chats', 'tasks'], acceptLiability: true })
+        .expect(201);
+      expect(ok.body.data.maxDuties).toBe(3);
+    } finally {
+      await setMaxDuties(10);
+    }
   });
 });

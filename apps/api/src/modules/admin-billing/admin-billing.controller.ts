@@ -39,6 +39,8 @@ import {
   AdminPaymentsQueryDto,
   AdminPromoQueryDto,
   AdminRefundsQueryDto,
+  AdminSeatChangeDto,
+  AdminSeatChangesQueryDto,
   BillingOverviewDto,
   ContractGrantDto,
   CreateContractGrantDto,
@@ -58,6 +60,7 @@ import { PromoCodesService } from './promo-codes.service';
 import { RefundsService } from './refunds.service';
 import { AdminAuthService } from '../admin-auth/admin-auth.service';
 import { AdminApprovalsService } from '../admin-auth/admin-approvals.service';
+import { SeatChangesAdminService } from './seat-changes-admin.service';
 
 const E = ErrorCode;
 
@@ -79,6 +82,7 @@ export class AdminBillingController {
     private readonly refundsService: RefundsService,
     private readonly auth: AdminAuthService,
     private readonly approvals: AdminApprovalsService,
+    private readonly seatChanges: SeatChangesAdminService,
   ) {}
 
   /** Owner 2026-10-22 (maker-checker): how an approved refund runs. */
@@ -304,6 +308,19 @@ export class AdminBillingController {
     @Query() q: AdminPaymentsQueryDto,
   ): Promise<Page<AdminPaymentDto>> {
     return this.refundsService.payments(q);
+  }
+
+  @Get('seat-changes')
+  @ApiOperation({
+    summary:
+      'Assistant seat purchases and removals with the Stripe invoice (owner 2026-10-22, cursor)',
+  })
+  @ApiEnvelopeResponse(AdminSeatChangeDto, { isArray: true })
+  @ApiErrors({ 400: [E.VALIDATION_ERROR] })
+  listSeatChanges(
+    @Query() q: AdminSeatChangesQueryDto,
+  ): Promise<Page<AdminSeatChangeDto>> {
+    return this.seatChanges.list(q);
   }
 
   @Get('refunds')
