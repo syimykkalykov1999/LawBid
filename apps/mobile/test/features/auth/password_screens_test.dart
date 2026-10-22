@@ -279,6 +279,58 @@ void main() {
       expect(repo.passwordsSet, ['12345678']);
     });
 
+    testWidgets(
+        'set password from Settings is optional: back closes it, saving '
+        'returns to Settings', (tester) async {
+      final c = ProviderContainer(
+        overrides: [...await authOverrides(repo: repo)],
+      );
+      addTearDown(c.dispose);
+      final router = GoRouter(
+        initialLocation: '/settings',
+        routes: [
+          GoRoute(
+            path: '/settings',
+            builder: (context, _) => Scaffold(
+              body: TextButton(
+                onPressed: () => context.push(AuthRoutes.setPassword),
+                child: const Text('open'),
+              ),
+            ),
+          ),
+          ...authRoutes(),
+        ],
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: c,
+          child: MaterialApp.router(
+            theme: AppTheme.light(),
+            routerConfig: router,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      expect(find.byType(SetPasswordScreen), findsOneWidget);
+      await tester.tap(find.bySemanticsLabel('Back'));
+      await tester.pumpAndSettle();
+      expect(find.byType(SetPasswordScreen), findsNothing);
+      expect(repo.passwordsSet, isEmpty);
+
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), '12345678');
+      await tester.pump();
+      await tester.tap(button('Continue'));
+      await tester.pumpAndSettle();
+      expect(repo.passwordsSet, ['12345678']);
+      expect(find.byType(SetPasswordScreen), findsNothing);
+      expect(find.text('open'), findsOneWidget);
+    });
+
     testWidgets('change password sends the current and the new one',
         (tester) async {
       await open(tester, AuthRoutes.changePassword);

@@ -10,6 +10,9 @@ const audit4Ru = <String, String>{
   'privacy.analytics': 'Статистика использования',
   'privacy.analytics.hint':
       'Анонимные счётчики открытых экранов помогают улучшать LawBid. Пока вы это не включите, ничего не отправляется.',
+  'settings.setPassword': 'Задать пароль',
+  'settings.setPassword.hint': 'Необязательно: вход без кода',
+  'auth.setPassword.saved': 'Пароль сохранён',
 };
 
 const audit4En = <String, String>{
@@ -18,4 +21,7 @@ const audit4En = <String, String>{
   'privacy.analytics': 'Usage statistics',
   'privacy.analytics.hint':
       'Anonymous counts of which screens are opened help us improve LawBid. Nothing is sent unless you turn this on.',
+  'settings.setPassword': 'Set a password',
+  'settings.setPassword.hint': 'Optional: sign in without a code',
+  'auth.setPassword.saved': 'Password saved',
 };

@@ -91,13 +91,27 @@ class SettingsScreen extends ConsumerWidget {
             label: t.t('settings.security'),
             onTap: () => context.push(AppRoutes.activeDevices),
           ),
-          // Owner 2026-10-13: change the sign-in password.
-          AppListRow(
-            key: const ValueKey('settings-change-password'),
-            icon: AppIcons.lockOutlineRounded,
-            label: t.t('auth.change.title'),
-            onTap: () => context.push(AuthRoutes.changePassword),
-          ),
+          // Owner 2026-10-13: change the sign-in password. Owner
+          // 2026-10-22 (audit #4 §2): the password is optional after the
+          // code — without one the row sets it («Задать пароль»).
+          if (ref.watch(
+            currentUserControllerProvider
+                .select((s) => s.user?.passwordRequired ?? false),
+          ))
+            AppListRow(
+              key: const ValueKey('settings-set-password'),
+              icon: AppIcons.lockOutlineRounded,
+              label: t.t('settings.setPassword'),
+              subtitle: t.t('settings.setPassword.hint'),
+              onTap: () => context.push(AuthRoutes.setPassword),
+            )
+          else
+            AppListRow(
+              key: const ValueKey('settings-change-password'),
+              icon: AppIcons.lockOutlineRounded,
+              label: t.t('auth.change.title'),
+              onTap: () => context.push(AuthRoutes.changePassword),
+            ),
           // docs/01 §3.6 "Подписка (адвокат)" → docs/06 §1.7 screens.
           if (ref.watch(currentUserRoleProvider) == UserRole.attorney)
             AppListRow(
