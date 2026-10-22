@@ -22,6 +22,9 @@
 #   FIREBASE_WEB_*         (optional) API_KEY, APP_ID, SENDER_ID, PROJECT_ID,
 #                          AUTH_DOMAIN, VAPID_KEY of the Firebase web app: push
 #                          in the browser; without them the web has no push
+#   FIREBASE_WEB_RECAPTCHA_KEY (optional) reCAPTCHA Enterprise site key of the
+#                          web app (Firebase → App Check); without it the web
+#                          sends no App Check token (docs/runbooks/APP_CHECK.md)
 name: Web deploy
 
 on:
@@ -77,6 +80,7 @@ jobs:
           --dart-define=FIREBASE_WEB_PROJECT_ID=${{ secrets.FIREBASE_WEB_PROJECT_ID }}
           --dart-define=FIREBASE_WEB_AUTH_DOMAIN=${{ secrets.FIREBASE_WEB_AUTH_DOMAIN }}
           --dart-define=FIREBASE_WEB_VAPID_KEY=${{ secrets.FIREBASE_WEB_VAPID_KEY }}
+          --dart-define=FIREBASE_WEB_RECAPTCHA_KEY=${{ secrets.FIREBASE_WEB_RECAPTCHA_KEY }}
 
       # The push worker needs the same keys (it cannot read the build's).
       - name: Fill the push worker's keys
