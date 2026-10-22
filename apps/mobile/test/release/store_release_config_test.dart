@@ -110,26 +110,52 @@ void main() {
     // Owner 2026-10-18: a dev `--release` APK on a phone played no reel —
     // the native video player refused the LAN http stream. The dev flavor
     // allows cleartext in debug, profile and release; prod/staging never.
+    // Security research #5 (2026-10-22), B2: the policy is the network
+    // security config — main is https-only with system CAs, the dev flavor
+    // and debug builds override it; the manifest flag is gone everywhere.
     expect(
-      read('android/app/src/dev/AndroidManifest.xml'),
-      contains('android:usesCleartextTraffic="true"'),
+      read('android/app/src/main/AndroidManifest.xml'),
+      contains(
+        'android:networkSecurityConfig="@xml/network_security_config"',
+      ),
     );
+    final strict =
+        read('android/app/src/main/res/xml/network_security_config.xml');
+    expect(strict, contains('cleartextTrafficPermitted="false"'));
+    expect(strict, contains('<certificates src="system" />'));
+    expect(strict, isNot(contains('src="user"')));
     for (final path in [
-      'android/app/src/main/AndroidManifest.xml',
-      'android/app/src/profile/AndroidManifest.xml',
+      'android/app/src/dev/res/xml/network_security_config.xml',
+      'android/app/src/debug/res/xml/network_security_config.xml',
     ]) {
-      expect(read(path), isNot(contains('usesCleartextTraffic')), reason: path);
+      expect(
+        read(path),
+        contains('cleartextTrafficPermitted="true"'),
+        reason: path,
+      );
+      expect(read(path), isNot(contains('src="user"')), reason: path);
     }
     for (final flavor in ['prod', 'staging']) {
-      final f = File('android/app/src/$flavor/AndroidManifest.xml');
-      if (f.existsSync()) {
-        expect(
-          f.readAsStringSync(),
-          isNot(contains('usesCleartextTraffic="true"')),
-          reason: flavor,
-        );
-      }
+      expect(
+        File('android/app/src/$flavor/res/xml/network_security_config.xml')
+            .existsSync(),
+        isFalse,
+        reason: '$flavor must inherit the https-only config',
+      );
     }
+    for (final path in Directory('android/app/src')
+        .listSync(recursive: true)
+        .whereType<File>()
+        .map((f) => f.path)
+        .where((p) => p.endsWith('AndroidManifest.xml'))) {
+      expect(read(path), isNot(contains('usesCleartextTraffic')), reason: path);
+    }
+  });
+
+  test('iOS: no NSAllowsArbitraryLoads — only local networking for dev', () {
+    final plist = read('ios/Runner/Info.plist');
+    expect(plist, isNot(contains('<key>NSAllowsArbitraryLoads</key>')));
+    expect(plist, contains('<key>NSAllowsLocalNetworking</key>'));
   });
 
   test('payment pages open in Safari on iOS, in-app tab on Android', () {
