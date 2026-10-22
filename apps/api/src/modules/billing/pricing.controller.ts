@@ -44,7 +44,7 @@ export class PricingController {
   @SkipVersionCheck()
   @Get()
   @Header('Access-Control-Allow-Origin', '*')
-  @Header('Cache-Control', 'public, max-age=60')
+  @Header('Cache-Control', 'public, max-age=300, stale-while-revalidate=3600')
   @ApiOperation({ summary: 'Current plan prices (set in the admin)' })
   @ApiEnvelopeResponse(PublicPricingDto)
   @ApiErrors({ 429: [ErrorCode.RATE_LIMITED] })

@@ -7,8 +7,10 @@ import {
   Put,
   Query,
   Req,
+  Res,
 } from '@nestjs/common';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
+import { notModified } from '../../../common/sync/cheap-etag';
 import { Throttle } from '@nestjs/throttler';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import {
@@ -156,7 +158,14 @@ export class AttorneysController {
   async getAttorneyProfile(
     @CurrentUser() user: RequestUser,
     @Param('username') username: string,
-  ): Promise<PublicAttorneyProfileDto> {
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<PublicAttorneyProfileDto | undefined> {
+    // Owner 2026-10-22 (client economy plan, package D): the cheap ETag is
+    // checked before the profile queries run; a match is a 304 (0 further
+    // queries, no body).
+    const tag = await this.profiles.publicEtag(username, user.sub);
+    if (tag && notModified(req, res, tag)) return undefined;
     return this.profiles.getPublic(username, user.sub);
   }
 }

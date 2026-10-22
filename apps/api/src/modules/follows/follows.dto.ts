@@ -13,6 +13,20 @@ import {
 import { RatingDto } from '../profiles/dto/attorney-profile.dto';
 import { ClientListItemDto } from '../profiles/dto/client-profile.dto';
 
+/** Owner 2026-10-22 (client economy plan, package D): POST / DELETE
+ * …/follow answer with the state, so the app fixes the profile locally
+ * instead of re-reading it. */
+export class FollowStateDto {
+  @ApiProperty({ description: 'Whether I follow this person now.' })
+  following!: boolean;
+
+  @ApiProperty({
+    type: 'integer',
+    description: 'Their followers now (not-yet-flushed deltas included).',
+  })
+  followersCount!: number;
+}
+
 export class AttorneyIdParamDto {
   @ApiProperty({ format: 'uuid' })
   @IsUUID('all')

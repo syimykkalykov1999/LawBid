@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../../redis/redis.constants';
+import { bumpConfigVersion } from './config-version';
 
 /** Same TTL reasoning as FeatureFlagsService — see that file's doc
  * comment. app_config changes even less often than feature_flags in
@@ -28,6 +29,7 @@ export function clearAppConfigMemo(): void {
 export async function dropAppConfigCache(redis: Redis): Promise<void> {
   clearAppConfigMemo();
   await redis.del(APP_CONFIG_CACHE_KEY);
+  await bumpConfigVersion(redis);
 }
 
 /**

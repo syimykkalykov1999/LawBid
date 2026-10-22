@@ -4,6 +4,7 @@ import { PrismaService } from '../../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../../redis/redis.constants';
 import { FLAG_CATALOG } from '../flag-catalog';
 import { lockFlags } from '../../../common/feature-flags/locked-flags';
+import { bumpConfigVersion } from './config-version';
 
 /** Same reasoning as I18nBundleService's bundle-version TTL
  * (i18n-bundle.service.ts): the admin's flag toggle writes straight to
@@ -112,5 +113,6 @@ export class FeatureFlagsService implements OnModuleInit {
    * writer that changes `feature_flags` (admin panel, file 6; e2e). */
   async invalidate(): Promise<void> {
     await this.redis.del(FLAGS_CACHE_KEY);
+    await bumpConfigVersion(this.redis);
   }
 }

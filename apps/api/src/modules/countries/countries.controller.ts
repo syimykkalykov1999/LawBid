@@ -39,7 +39,7 @@ export class CountriesController {
 
   @Public()
   @Get()
-  @Header('Cache-Control', 'public, max-age=60')
+  @Header('Cache-Control', 'public, max-age=300, stale-while-revalidate=3600')
   @ApiOperation({
     summary:
       'Switched-on countries with their regions (states / provinces), calling code and currency',
