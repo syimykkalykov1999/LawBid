@@ -6,7 +6,6 @@ import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
-import 'package:lawbid/features/chat/data/realtime_client.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// A chat partner's activity: online now, or when last seen.

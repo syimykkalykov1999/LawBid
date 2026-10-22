@@ -113,6 +113,44 @@ class Conversation {
         disappearAfterS: disappearAfterS,
       );
 
+  /// Owner 2026-10-22 (load audit finding 2): the same chat after a socket
+  /// event moved its last message / unread count (the list updates its row
+  /// instead of reloading); only the given ones change.
+  Conversation withActivity({
+    ChatMessage? lastMessage,
+    DateTime? lastMessageAt,
+    int? unreadCount,
+    DateTime? updatedAt,
+  }) =>
+      Conversation(
+        id: id,
+        caseId: caseId,
+        caseTitle: caseTitle,
+        status: status,
+        contactsUnlocked: contactsUnlocked,
+        blocked: blocked,
+        counterpart: counterpart,
+        lastMessage: lastMessage ?? this.lastMessage,
+        lastMessageAt: lastMessageAt ?? this.lastMessageAt,
+        unreadCount: unreadCount ?? this.unreadCount,
+        mutedUntil: mutedUntil,
+        callsMuted: callsMuted,
+        counterpartLastReadId: counterpartLastReadId,
+        counterpartLastReadAt: counterpartLastReadAt,
+        counterpartLastDeliveredId: counterpartLastDeliveredId,
+        updatedAt: updatedAt ?? this.updatedAt,
+        isDirect: isDirect,
+        request: request,
+        requestedByMe: requestedByMe,
+        folder: folder,
+        folderAuto: folderAuto,
+        waitingSince: waitingSince,
+        note: note,
+        pinnedAt: pinnedAt,
+        matchedMessage: matchedMessage,
+        disappearAfterS: disappearAfterS,
+      );
+
   /// Owner 2026-10-18: in a search by text, the message that matched —
   /// shown instead of the last-message preview.
   final String? matchedMessage;

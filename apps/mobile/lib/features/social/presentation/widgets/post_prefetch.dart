@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/widgets.dart';
+import 'package:lawbid/core/media/app_image_cache.dart';
 import 'package:lawbid/features/reels/presentation/reel_video.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart'
@@ -15,7 +16,11 @@ void prefetchPost(BuildContext context, Post p) {
   if (!_warmed.add(p.id)) return;
   if (_warmed.length > 400) _warmed.clear();
   void warm(String url, String key, int? width) {
-    final provider = CachedNetworkImageProvider(url, cacheKey: key);
+    final provider = CachedNetworkImageProvider(
+      url,
+      cacheKey: key,
+      cacheManager: AppImageCaches.feed,
+    );
     // Same wrapping as CachedNetworkImage(memCacheWidth) so the decoded
     // image is found in the memory cache, not just on disk.
     precacheImage(

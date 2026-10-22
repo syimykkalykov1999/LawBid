@@ -13,6 +13,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/media/app_image_cache.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/navigation/shell/shell_layout.dart';
 import 'package:lawbid/core/navigation/shell/web_media_width.dart';
@@ -2125,6 +2126,7 @@ class GoldRingAvatar extends StatelessWidget {
               url!,
               // Signed URLs change per request: cache by the stable path.
               cacheKey: Uri.parse(url!).path,
+              cacheManager: AppImageCaches.feed,
             ),
       initials: initials,
       size: ring ? size - 4 : size,
@@ -2515,6 +2517,7 @@ class _PostMediaCarouselState extends State<PostMediaCarousel>
                   CachedNetworkImage(
                     imageUrl: url,
                     cacheKey: key,
+                    cacheManager: AppImageCaches.feed,
                     // Screen width is enough; never decode the original.
                     memCacheWidth: decodeWidth,
                     fit: fit,

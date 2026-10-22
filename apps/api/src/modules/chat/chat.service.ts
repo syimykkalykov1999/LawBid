@@ -308,13 +308,11 @@ export class ChatService {
         AND: [
           { OR: [{ client_id: user.sub }, { attorney_id: user.sub }] },
           ...filters,
+          ...(updatedSince ? [this.changedSince(user.sub, updatedSince)] : []),
           ...(updatedSince ? [] : [{ NOT: pinnedFilter }]),
         ],
         // A chat appears in the list once it has a message (§8.1).
         last_message_at: { not: null },
-        ...(updatedSince
-          ? { updated_at: { gte: new Date(updatedSince) } }
-          : {}),
         ...(c
           ? {
               OR: [
@@ -339,6 +337,26 @@ export class ChatService {
         rows.length > CONVERSATIONS_PAGE && last?.last_message_at
           ? encodeCursor({ createdAt: last.last_message_at, id: last.id })
           : null,
+    };
+  }
+
+  /**
+   * Owner 2026-10-22 (load audit finding 2, Telegram getDifference): the
+   * app catches up after a socket gap with `updatedSince` instead of
+   * reloading its list. A chat changed when its row did (a new message, a
+   * status / request change) or when I read it on another device (my
+   * participant row's `last_read_at`, which the row itself never sees).
+   */
+  private changedSince(
+    me: string,
+    since: string,
+  ): Prisma.ConversationWhereInput {
+    const at = new Date(since);
+    return {
+      OR: [
+        { updated_at: { gte: at } },
+        { participants: { some: { user_id: me, last_read_at: { gte: at } } } },
+      ],
     };
   }
 
@@ -1537,6 +1555,12 @@ export class ChatService {
         conversationId: id,
         lastReadMessageId: result.lastReadMessageId,
         readAt: new Date().toISOString(),
+      });
+      // Owner 2026-10-22 (load audit finding 2): my devices clear this
+      // chat's unread pill in their list without reloading it.
+      this.realtime.toUsers([user.sub], 'conversation:read', {
+        conversationId: id,
+        lastReadMessageId: result.lastReadMessageId,
       });
       await this.badges.chatsChanged(user.sub);
     }

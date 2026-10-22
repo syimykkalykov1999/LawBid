@@ -7,6 +7,10 @@ import { REDIS_CLIENT } from '../../redis/redis.constants';
 export const REALTIME_NAMESPACE = '/realtime';
 export const userRoom = (id: string) => `user:${id}`;
 export const conversationRoom = (id: string) => `conversation:${id}`;
+/** Owner 2026-10-22 (load audit finding 3): the sockets that have this
+ * channel open (`channel:watch`) — its call changes reach only them, never
+ * every subscriber. */
+export const channelRoom = (id: string) => `channel:${id}`;
 /** Sockets of a user that have a conversation open (push suppression,
  * §8.4 "push получателю, если он не в этой беседе"). */
 export const viewingKey = (userId: string, conversationId: string) =>
@@ -80,6 +84,11 @@ export type RealtimeEvent =
   | 'call:removed'
   | 'call:vote'
   | 'call:invite'
+  // Owner 2026-10-22 (load audit finding 3): a group's / channel's call
+  // started or its people changed, and it ended — the chats tab, the open
+  // group / channel and the «Return» bar update without polling.
+  | 'call:ongoing'
+  | 'call:ongoing_ended'
   // Owner 2026-10-20 group chats: a new / changed message (poll edits and
   // deletions included), the group's settings or member list changed, my
   // own removal (the calls thread drops the person from a running call),
@@ -90,6 +99,9 @@ export type RealtimeEvent =
   | 'group:member_removed'
   | 'poll:update'
   | 'conversation:update'
+  // Owner 2026-10-22 (load audit finding 2): I read a chat (any device) —
+  // the chat lists drop its unread pill locally.
+  | 'conversation:read'
   | 'notification:new'
   | 'badge:update';
 
@@ -133,6 +145,16 @@ export class RealtimePublisher {
         return;
       }
       this.emitter.to(userIds.map(userRoom)).emit(event, data);
+    } catch {
+      // best-effort (see class doc)
+    }
+  }
+
+  /** Owner 2026-10-22: one emit to a room (e.g. [channelRoom]). */
+  toRoom(room: string, event: RealtimeEvent, data: unknown): void {
+    if (this.redis.status !== 'ready') return;
+    try {
+      this.emitter.to(room).emit(event, data);
     } catch {
       // best-effort (see class doc)
     }

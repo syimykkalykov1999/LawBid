@@ -19,7 +19,6 @@ import 'package:lawbid/features/calls/application/call_video_layout.dart';
 import 'package:lawbid/features/calls/data/calls_repository.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
-import 'package:lawbid/features/chat/data/realtime_client.dart';
 import 'package:lawbid/features/notifications/application/call_mute.dart';
 import 'package:lawbid/features/notifications/application/system_notifications.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
