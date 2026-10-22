@@ -2,7 +2,6 @@ import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/navigation/app_page_transitions.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
-import 'package:lawbid/features/case_payments/presentation/case_payments_history_screen.dart';
 import 'package:lawbid/features/case_payments/presentation/payout_account_screen.dart';
 
 /// Owner 2026-10-05: Settings → «Приём оплат» (attorney) and «Платежи по
@@ -24,11 +23,11 @@ List<RouteBase> casePaymentsRoutes(GlobalKey<NavigatorState> root) => [
         pageBuilder: (context, state) =>
             AppPageTransitions.push(state, const PayoutAccountScreen()),
       ),
+      // Owner 2026-10-22 (audit #4 §1): the case payments are a tab of the
+      // one «Платежи» page; old links (pushes, Stripe returns) land there.
       GoRoute(
         path: CasePaymentsRoutes.history,
-        parentNavigatorKey: root,
-        pageBuilder: (context, state) =>
-            AppPageTransitions.push(state, const CasePaymentsHistoryScreen()),
+        redirect: (context, state) => AppRoutes.paymentsTab('cases'),
       ),
       // Back from Stripe Checkout: the case screen re-reads the payment.
       for (final path in [

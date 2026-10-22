@@ -13,6 +13,12 @@ const audit4Ru = <String, String>{
   'settings.setPassword': 'Задать пароль',
   'settings.setPassword.hint': 'Необязательно: вход без кода',
   'auth.setPassword.saved': 'Пароль сохранён',
+  'payments.hub.title': 'Платежи',
+  'payments.tab.receipts': 'Чеки',
+  'payments.tab.cases': 'По делам',
+  'payments.tab.purchases': 'Покупки',
+  'payments.hint': 'Чеки, оплаты по делам и покупки',
+  'payments.purchases.empty': 'Покупок пока нет',
 };
 
 const audit4En = <String, String>{
@@ -24,4 +30,10 @@ const audit4En = <String, String>{
   'settings.setPassword': 'Set a password',
   'settings.setPassword.hint': 'Optional: sign in without a code',
   'auth.setPassword.saved': 'Password saved',
+  'payments.hub.title': 'Payments',
+  'payments.tab.receipts': 'Receipts',
+  'payments.tab.cases': 'Case payments',
+  'payments.tab.purchases': 'Purchases',
+  'payments.hint': 'Receipts, case payments and purchases',
+  'payments.purchases.empty': 'No purchases yet',
 };

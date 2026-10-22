@@ -10,45 +10,36 @@ import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:lawbid/features/subscription/application/subscription_providers.dart';
 import 'package:lawbid/features/subscription/domain/subscription_models.dart';
 
-/// docs/06 §1.7 п.4 — payments of the subscription (`payments` table),
-/// newest first, cursor-paged, with the usual loading/empty/error/offline
-/// states.
-class PaymentsScreen extends ConsumerWidget {
-  const PaymentsScreen({super.key});
+/// docs/06 §1.7 п.4 — payments of the subscription and Boosts (`payments`
+/// table), newest first, cursor-paged, with the usual loading/empty/error/
+/// offline states. Owner 2026-10-22 (audit #4 §1): the first tab of the one
+/// «Платежи» page of both roles (profile/presentation/screens/
+/// payments_hub_screen.dart).
+class SubscriptionPaymentsList extends ConsumerWidget {
+  const SubscriptionPaymentsList({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translatorProvider);
     final formats = ref.watch(l10nFormatsProvider);
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
     final value = ref.watch(paymentsProvider);
     final notifier = ref.read(paymentsProvider.notifier);
-    return Scaffold(
-      backgroundColor: colors.bg,
-      appBar: AppTopBar(
-        leading: AppBackButton(
-          semanticLabel: t.t('common.back'),
-          onPressed: () => Navigator.of(context).maybePop(),
-        ),
-        title: Text(t.t('payments.title')),
+    return PagedListBody<PaymentRecord>(
+      value: value,
+      t: t,
+      itemBuilder: (context, payment, index) => AppEntrance(
+        index: index.clamp(0, 6),
+        child: PaymentCard(payment: payment, t: t, formats: formats),
       ),
-      body: PagedListBody<PaymentRecord>(
-        value: value,
-        t: t,
-        itemBuilder: (context, payment, index) => AppEntrance(
-          index: index.clamp(0, 6),
-          child: PaymentCard(payment: payment, t: t, formats: formats),
-        ),
-        itemKey: (p) => p.id,
-        empty: AppEmptyState(
-          icon: AppIcons.receiptLongOutlined,
-          title: t.t('payments.empty.title'),
-          message: t.t('payments.empty.message'),
-        ),
-        onRefresh: notifier.refresh,
-        onLoadMore: notifier.loadMore,
-        onRetryMore: notifier.retryLoadMore,
+      itemKey: (p) => p.id,
+      empty: AppEmptyState(
+        icon: AppIcons.receiptLongOutlined,
+        title: t.t('payments.empty.title'),
+        message: t.t('payments.empty.message'),
       ),
+      onRefresh: notifier.refresh,
+      onLoadMore: notifier.loadMore,
+      onRetryMore: notifier.retryLoadMore,
     );
   }
 }

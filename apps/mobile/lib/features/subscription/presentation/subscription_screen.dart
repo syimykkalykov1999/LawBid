@@ -19,7 +19,6 @@ import 'package:lawbid/features/subscription/domain/subscription_models.dart';
 import 'package:lawbid/features/subscription/presentation/pay_for_plan.dart';
 import 'package:lawbid/features/subscription/presentation/plan_picker.dart';
 import 'package:lawbid/features/subscription/presentation/seat_purchase_sheet.dart';
-import 'package:lawbid/features/subscription/subscription_routes.dart';
 import 'package:lawbid/features/team/presentation/assistant_code_card.dart';
 import 'package:lawbid/features/team/team_routes.dart';
 import 'package:lawbid/shared/domain/payment_page_launch_mode.dart';
@@ -413,7 +412,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen>
             AppListRow(
               icon: AppIcons.receiptLongOutlined,
               label: t.t('subscription.action.payments'),
-              onTap: () => context.push(SubscriptionRoutes.payments),
+              onTap: () => context.push(AppRoutes.paymentsTab('receipts')),
             ),
           ],
         ),
