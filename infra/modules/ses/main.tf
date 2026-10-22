@@ -17,6 +17,17 @@ variable "dmarc_rua" {
   type        = string
   description = "Mailbox for DMARC aggregate reports, e.g. dmarc@lawbid.app"
 }
+# Security research #5 (2026-10-22), A9: `quarantine` now; `reject` once
+# four weeks of aggregate reports at dmarc_rua show only our own mail
+# passing (docs/runbooks/ses.md).
+variable "dmarc_policy" {
+  type    = string
+  default = "quarantine"
+  validation {
+    condition     = contains(["none", "quarantine", "reject"], var.dmarc_policy)
+    error_message = "dmarc_policy must be none, quarantine or reject."
+  }
+}
 variable "tags" {
   type    = map(string)
   default = {}
@@ -55,7 +66,7 @@ locals {
     verification  = { name = "_amazonses.${var.domain}", type = "TXT", records = [aws_ses_domain_identity.this.verification_token] }
     mail_from_mx  = { name = "mail.${var.domain}", type = "MX", records = ["10 feedback-smtp.${data.aws_region.current.name}.amazonses.com"] }
     mail_from_spf = { name = "mail.${var.domain}", type = "TXT", records = ["v=spf1 include:amazonses.com -all"] }
-    dmarc         = { name = "_dmarc.${var.domain}", type = "TXT", records = ["v=DMARC1; p=quarantine; rua=mailto:${var.dmarc_rua}; adkim=s; aspf=s"] }
+    dmarc         = { name = "_dmarc.${var.domain}", type = "TXT", records = ["v=DMARC1; p=${var.dmarc_policy}; rua=mailto:${var.dmarc_rua}; adkim=s; aspf=s"] }
   }
 }
 

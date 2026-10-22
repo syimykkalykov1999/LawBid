@@ -39,3 +39,31 @@ from a bridge with no access to a GitHub Actions runner, Docker, or the
 Flutter/Dart toolchain — see docs/CHANGELOG.md's CI-pipeline entry for
 exactly what was and wasn't locally verified. The real test is the first
 PR/push against `main`/`master` after this commit.
+
+## Supply chain (security research #5, 2026-10-22, A1–A2)
+
+- **Every `uses:` is pinned to a full commit SHA** with the version in a
+  trailing comment (`actions/checkout@11d5960a… # v4.4.0`). A moving tag
+  (`@v4`) can be re-pointed by whoever controls the action's repository —
+  that is how `tj-actions/changed-files` (CVE-2025-30066) leaked CI secrets
+  from thousands of repositories. Dependabot (`github-actions` ecosystem)
+  updates the SHA and the comment together. To bump one by hand: resolve
+  the tag with `gh api repos/<owner>/<repo>/git/ref/tags/<tag>` (an
+  annotated tag needs one more hop through `git/tags/<sha>`) and paste the
+  commit SHA.
+- **Every workflow declares top-level `permissions:`** — `contents: read`
+  unless a job needs more (`id-token: write` for the OIDC deploy roles,
+  `security-events: write` for CodeQL / Trivy SARIF, `contents: write`
+  for the mobile GitHub release). A job never gets the repository-wide
+  default token.
+- **`npm ci` runs with `ignore-scripts=true`** (root `.npmrc`, copied into
+  both Docker builds): no dependency runs code during installation. The
+  scripts we need run explicitly (`npx prisma generate` downloads Prisma's
+  engines; `npm run prepare` once after cloning installs the husky hooks).
+  `min-release-age=7` in the same file and `cooldown` in
+  `.github/dependabot.yml` keep a version that is less than a week old out
+  of the tree (security updates skip the cooldown).
+- Owner steps (GitHub → Settings): Actions → General → *Workflow
+  permissions: Read repository contents and packages* and *Require
+  approval for all outside collaborators*; Branches → `main`: require the
+  CI checks, forbid force pushes.

@@ -140,6 +140,24 @@ variable "hosted_zone_id" {
   default = null
 }
 variable "dmarc_rua" { type = string }
+variable "dmarc_policy" {
+  type    = string
+  default = "quarantine"
+}
+# Security research #5 (2026-10-22), A6 / A8.
+variable "security_hub_enabled" {
+  type        = bool
+  default     = false
+  description = "AWS Security Hub with the CIS 1.4 standard (a few dollars a month)."
+}
+variable "guardduty_alert_severity" {
+  type    = number
+  default = 7
+}
+variable "ecs_readonly_root_filesystem" {
+  type    = bool
+  default = true
+}
 variable "ses_from_address" { type = string }
 variable "api_image" { type = string }
 variable "admin_image" { type = string }
@@ -242,6 +260,31 @@ variable "worker_memory" {
 variable "waf_rate_limit_per_5m" {
   type    = number
   default = 3000
+}
+# Security research #5 (2026-10-22), A3: the sign-in code / password reset
+# paths get their own, much lower per-IP limit at the WAF (the API's own
+# OTP limits stay; this stops a flood before it reaches the API at all).
+variable "waf_otp_rate_limit_per_5m" {
+  type        = number
+  default     = 20
+  description = "Requests to the OTP / password-reset / phone-status paths from one IP in 5 minutes before the ALB WAF blocks it."
+}
+# AWS Bot Control (paid: ~$10/month + $1 per million requests). Off by
+# default; on, it only COUNTS (labels in the WAF metrics) until
+# `waf_bot_control_block` is switched on after reading them for a while.
+variable "waf_bot_control_enabled" {
+  type    = bool
+  default = false
+}
+variable "waf_bot_control_block" {
+  type        = bool
+  default     = false
+  description = "Block the Bot Control verdicts instead of counting them (only with waf_bot_control_enabled)."
+}
+variable "cdn_waf_rate_limit_per_5m" {
+  type        = number
+  default     = 2000
+  description = "Per-IP requests in 5 minutes on the web app and media CloudFront distributions."
 }
 variable "p95_target_ms" {
   type    = number
@@ -356,11 +399,22 @@ module "s3" {
   tags                = local.tags
 
   cors_allowed_origins = var.s3_cors_allowed_origins
+  media_web_acl_arn    = module.cdn_waf.web_acl_arn
+}
+
+# Security research #5 (2026-10-22), A3: one WAF for both CloudFront
+# distributions (the web app below and the media CDN in module "s3").
+module "cdn_waf" {
+  source            = "../cdn-waf"
+  name              = local.name
+  rate_limit_per_5m = var.cdn_waf_rate_limit_per_5m
+  tags              = local.tags
 }
 
 # Owner 2026-10-15: the web version of the app (S3 + CloudFront).
 module "web" {
   source                 = "../web"
+  web_acl_arn            = module.cdn_waf.web_acl_arn
   name                   = local.name
   web_host               = var.web_host
   certificate_arn        = var.web_certificate_arn
@@ -378,6 +432,7 @@ module "ses" {
   domain         = var.domain
   hosted_zone_id = var.hosted_zone_id
   dmarc_rua      = var.dmarc_rua
+  dmarc_policy   = var.dmarc_policy
   tags           = local.tags
 }
 
@@ -392,6 +447,10 @@ module "alb" {
   waf_rate_limit_per_5m = var.waf_rate_limit_per_5m
   admin_allowed_cidrs   = var.admin_allowed_cidrs
   tags                  = local.tags
+
+  waf_otp_rate_limit_per_5m = var.waf_otp_rate_limit_per_5m
+  waf_bot_control_enabled   = var.waf_bot_control_enabled
+  waf_bot_control_block     = var.waf_bot_control_block
 }
 
 resource "aws_security_group" "tasks" {
@@ -570,17 +629,18 @@ locals {
 }
 
 module "ecs" {
-  source                  = "../ecs"
-  name                    = local.name
-  vpc_id                  = module.network.vpc_id
-  private_subnet_ids      = module.network.private_subnet_ids
-  tasks_security_group_id = aws_security_group.tasks.id
-  api_target_group_arn    = module.alb.api_target_group_arn
-  admin_target_group_arn  = module.alb.admin_target_group_arn
-  api_image               = var.api_image
-  admin_image             = var.admin_image
-  kms_key_arn             = module.kms.key_arn
-  api_env                 = local.api_env
+  source                   = "../ecs"
+  name                     = local.name
+  readonly_root_filesystem = var.ecs_readonly_root_filesystem
+  vpc_id                   = module.network.vpc_id
+  private_subnet_ids       = module.network.private_subnet_ids
+  tasks_security_group_id  = aws_security_group.tasks.id
+  api_target_group_arn     = module.alb.api_target_group_arn
+  admin_target_group_arn   = module.alb.admin_target_group_arn
+  api_image                = var.api_image
+  admin_image              = var.admin_image
+  kms_key_arn              = module.kms.key_arn
+  api_env                  = local.api_env
   admin_env = {
     NODE_ENV      = "production"
     API_BASE_URL  = "https://${var.api_host}/api/v1"
@@ -710,6 +770,17 @@ module "monitoring" {
   canary_url        = var.uptime_canary_enabled ? "https://${var.api_host}/health/ready" : null
   min_daily_signups = var.min_daily_signups
   tags              = local.tags
+}
+
+# Security research #5 (2026-10-22), A6: CloudTrail, GuardDuty, Access
+# Analyzer, password policy; findings go to the alerts topic.
+module "security_baseline" {
+  source               = "../security-baseline"
+  name                 = local.name
+  alerts_topic_arn     = module.monitoring.alerts_topic_arn
+  alert_severity       = var.guardduty_alert_severity
+  security_hub_enabled = var.security_hub_enabled
+  tags                 = local.tags
 }
 
 resource "aws_route53_record" "hosts" {

@@ -1,4 +1,5 @@
 import { ContactsJoinedJob } from './contacts-joined.job';
+import { ContactsPepper } from '../../modules/contacts-sync/contacts-pepper';
 
 /**
  * Owner 2026-10-22: "X joined LawBid" comes from the server, once per
@@ -71,6 +72,7 @@ function make(
     prisma as never,
     notifications as never,
     redis as never,
+    new ContactsPepper({ get: () => undefined } as never),
   );
   return { job, prisma, notifications, redis };
 }
@@ -91,7 +93,10 @@ describe('ContactsJoinedJob', () => {
     // looked up by the hash, never a number
     expect(prisma.contactBookHash.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { phone_sha256: 'h'.repeat(64), owner_id: { not: 'new' } },
+        where: {
+          OR: [{ phone_hash: { in: ['h'.repeat(64)] } }],
+          owner_id: { not: 'new' },
+        },
       }),
     );
     // o3 blocked them, o4 already had them: only o1 and o2 get the match

@@ -2378,7 +2378,8 @@ erDiagram
   }
   contact_book_hashes {
     String owner_id PK,FK
-    String phone_sha256 PK
+    String phone_hash PK
+    Boolean peppered
     DateTime created_at
   }
   attorney_profile_views {

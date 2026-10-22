@@ -11,6 +11,11 @@ on:
     - cron: "0 3 * * *"
   workflow_dispatch:
 
+# Security research #5 (2026-10-22), A2: least privilege — the job only reads
+# the repository (no GITHUB_TOKEN writes anywhere in this workflow).
+permissions:
+  contents: read
+
 jobs:
   k6:
     runs-on: ubuntu-latest
@@ -21,9 +26,9 @@ jobs:
       - name: Staging is not configured yet
         if: env.STAGING_API_URL == ''
         run: echo "Add the STAGING_* secrets to run the nightly load test."
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         if: env.STAGING_API_URL != ''
-      - uses: grafana/setup-k6-action@v1
+      - uses: grafana/setup-k6-action@43b9fc21641a76002687994433dd586f56e791b1 # v1.2.2
         if: env.STAGING_API_URL != ''
       - name: k6 — feed, search, cases, bids, chat (5 minutes, read/write thresholds)
         if: env.STAGING_API_URL != ''

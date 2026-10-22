@@ -11,6 +11,7 @@ import {
   Query,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import {
   ApiBearerAuth,
   ApiHeader,
@@ -72,6 +73,9 @@ export class SubscriptionsController {
     private readonly seats: SeatsService,
   ) {}
 
+  // Security research #5 (2026-10-22), A11: card testing — a stolen-card
+  // script creating checkouts in a loop (each attempt costs a Stripe fee).
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('checkout')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -172,6 +176,9 @@ export class SubscriptionsController {
     return this.seats.set(user, dto.seats, dto.prorationDate);
   }
 
+  // Security research #5 (2026-10-22), A11: card testing — a stolen-card
+  // script creating checkouts in a loop (each attempt costs a Stripe fee).
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('seats/checkout')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
