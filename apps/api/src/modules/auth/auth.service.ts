@@ -52,6 +52,7 @@ import type { RequestUser } from './decorators/current-user.decorator';
 import type { AuthTokensResult } from './social/auth-result.types';
 import { LoginMethodPolicy } from './services/login-method-policy.service';
 import { NewDeviceNotifier } from './notifications/new-device-notifier.service';
+import { SignInChangeNotifier } from './notifications/sign-in-change-notifier.service';
 import { AssistantCodeService } from './assistant/assistant-code.service';
 import type { AssistantCodeLoginDto } from './dto/assistant-code-login.dto';
 
@@ -111,6 +112,8 @@ export class AuthService {
     @Optional() private readonly fraud?: ClientFraudService,
     // Owner 2026-10-07: admin-editable daily OTP cap per phone / e-mail.
     @Optional() private readonly settings?: AppSettingsService,
+    // Owner 2026-10-22 (security audit #3): "a sign-in method was added".
+    @Optional() private readonly signInChange?: SignInChangeNotifier,
   ) {}
 
   // ---------------------------------------------------------------------
@@ -1017,6 +1020,11 @@ export class AuthService {
       providerUid = verified.providerUid;
     }
 
+    // The e-mail the account had before, for the notice below.
+    const before = await this.prisma.user.findUnique({
+      where: { id: user.sub },
+      select: { email: true, email_verified_at: true },
+    });
     const linkResult = await this.identity.linkIdentifier(
       user.sub,
       dto.provider,
@@ -1040,6 +1048,14 @@ export class AuthService {
       eventType: AUTH_EVENT_TYPES.IDENTIFIER_LINKED,
       success: true,
       meta: { provider: dto.provider },
+    });
+    // Owner 2026-10-22 (security audit #3, finding 2): a new way into the
+    // account is announced on every device and to the previous e-mail.
+    await this.signInChange?.notify({
+      userId: user.sub,
+      kind: dto.provider,
+      previousEmail:
+        before?.email && before.email_verified_at ? before.email : null,
     });
   }
 

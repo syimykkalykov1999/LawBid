@@ -870,6 +870,13 @@ describe('Plan builder (e2e, owner 2026-10-05)', () => {
     expect(on.body.data.packs).toEqual([
       { id: 'pack_2', bids: 2, priceCents: 500 },
     ]);
+    // Owner 2026-10-22 (security audit #3, finding 8): a client has no
+    // attorney profile and used to pass the verification check.
+    const notAttorney = await api()
+      .post('/api/v1/bid-packs/pack_2/buy')
+      .set(c.auth)
+      .expect(403);
+    expect(notAttorney.body.error.code).toBe('FORBIDDEN');
 
     await setTerm('attorney_monthly', 'bids_per_month', 1);
     expect((await bid(cases[0])).status).toBe(201);

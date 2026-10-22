@@ -986,6 +986,125 @@ describe('Assistants (e2e, OQ-048)', () => {
       .send({ title: 'x', body: 'y', practiceCode: 'family_law' })
       .expect(403);
   });
+  it('security audit #3: an assistant acts on their own sign-in, never the attorney’s', async () => {
+    const att = await attorney(1);
+    const asst = await assistantUser();
+    await api()
+      .post('/api/v1/team')
+      .set(att.auth)
+      .send({ phone: asst.phone })
+      .expect(201);
+    await api()
+      .post('/api/v1/assistants/join/accept')
+      .set(asst.auth)
+      .expect(201);
+    const chain = randomUUID();
+    await prisma.session.create({
+      data: {
+        user_id: att.id,
+        session_chain_id: chain,
+        refresh_hash: `audit3-${randomUUID()}`,
+        expires_at: new Date(Date.now() + 86_400_000),
+      },
+    });
+
+    // Owner 2026-10-22: the attorney's devices are not the assistant's.
+    const list = await api()
+      .get('/api/v1/auth/sessions')
+      .set(asst.auth)
+      .expect(200);
+    expect(
+      (list.body.data as { sessionId: string }[]).map((s) => s.sessionId),
+    ).not.toContain(chain);
+    await api()
+      .delete(`/api/v1/auth/sessions/${chain}`)
+      .set(asst.auth)
+      .expect(404);
+    const row = await prisma.session.findFirstOrThrow({
+      where: { session_chain_id: chain },
+    });
+    expect(row.revoked_at).toBeNull();
+
+    // No duty: the attorney's groups and channels stay closed, and the
+    // attorney-only referral / partner routes refuse the assistant.
+    for (const path of ['/api/v1/groups', '/api/v1/channels']) {
+      const r = await api().get(path).set(asst.auth).expect(403);
+      expect(r.body.error.code).toBe('ASSISTANT_NOT_ALLOWED');
+    }
+    const ref = await api()
+      .post('/api/v1/referrals/apply')
+      .set(asst.auth)
+      .set('Idempotency-Key', randomUUID())
+      .send({ code: 'ABCDEF' })
+      .expect(403);
+    expect(ref.body.error.code).toBe('ASSISTANT_NOT_ALLOWED');
+    const partner = await api()
+      .post('/api/v1/partners/me/join')
+      .set(asst.auth)
+      .send({})
+      .expect(403);
+    expect(partner.body.error.code).toBe('ASSISTANT_NOT_ALLOWED');
+
+    // Finding 3: the attorney's stars and promotion credits.
+    for (const path of [
+      `/api/v1/stars/received-gifts/${randomUUID()}/convert`,
+      `/api/v1/stars/gifts/${randomUUID()}/send`,
+      `/api/v1/promotions/${randomUUID()}/stop`,
+    ]) {
+      const r = await api()
+        .post(path)
+        .set(asst.auth)
+        .set('Idempotency-Key', randomUUID())
+        .send({})
+        .expect(403);
+      expect(r.body.error.code).toBe('ASSISTANT_NOT_ALLOWED');
+    }
+  });
+  it('security audit #3 (finding 6): removing an assistant ends their own sessions', async () => {
+    const att = await attorney(1);
+    const asst = await assistantUser();
+    await api()
+      .post('/api/v1/team')
+      .set(att.auth)
+      .send({ phone: asst.phone })
+      .expect(201);
+    await api()
+      .post('/api/v1/assistants/join/accept')
+      .set(asst.auth)
+      .expect(201);
+    const chain = randomUUID();
+    await prisma.session.create({
+      data: {
+        user_id: asst.id,
+        session_chain_id: chain,
+        refresh_hash: `audit3-${randomUUID()}`,
+        expires_at: new Date(Date.now() + 86_400_000),
+      },
+    });
+    const live = {
+      Authorization: `Bearer ${tokens.signAccessToken({
+        sub: asst.id,
+        role: 'assistant',
+        sid: chain,
+        verified: false,
+        subscriptionStatus: 'none',
+      })}`,
+    };
+    await api().get('/api/v1/users/me').set(live).expect(200);
+
+    const team = await api().get('/api/v1/team').set(att.auth).expect(200);
+    await api()
+      .delete(`/api/v1/team/${team.body.data.members[0].id as string}`)
+      .set(att.auth)
+      .expect(200);
+
+    const gone = await api().get('/api/v1/users/me').set(live).expect(401);
+    expect(gone.body.error.code).toBe('AUTH_SESSION_REVOKED');
+    const row = await prisma.session.findFirstOrThrow({
+      where: { session_chain_id: chain },
+    });
+    expect(row.revoked_reason).toBe('assistant_removed');
+  });
 
   // Owner 2026-10-22: more assistants, nobody with the whole account.
   it('one assistant holds at most assistants.max_duties duties', async () => {

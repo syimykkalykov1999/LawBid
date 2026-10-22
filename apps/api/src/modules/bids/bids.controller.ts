@@ -71,6 +71,7 @@ export class BidsController {
   @ApiEnvelopeResponse(ConflictCheckDto)
   @ApiErrors({
     400: [E.VALIDATION_ERROR],
+    403: [E.USER_BLOCKED],
     404: [E.CASE_NOT_FOUND],
     429: [E.RATE_LIMITED],
   })
@@ -84,6 +85,9 @@ export class BidsController {
         message: 'Only attorneys can check a case for a conflict.',
       });
     }
+    // Owner 2026-10-22 (security audit #3, finding 7): only a case this
+    // attorney may open, and no block either way — before anything loads.
+    await this.conflicts.assertAllowed(user.sub, params.caseId);
     await this.conflicts.assertQuota(user.sub);
     const result = await this.conflicts.check(user.sub, params.caseId);
     await this.conflicts

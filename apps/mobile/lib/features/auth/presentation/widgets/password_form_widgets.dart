@@ -176,6 +176,7 @@ String passwordErrorKey(PasswordAuthStatus status) => switch (status) {
       PasswordAuthStatus.rateLimited => 'error.api.RATE_LIMITED',
       PasswordAuthStatus.unavailable => 'error.api.ACCOUNT_SUSPENDED',
       PasswordAuthStatus.providerDisabled => 'error.api.AUTH_PROVIDER_DISABLED',
+      PasswordAuthStatus.reauthRequired => 'error.api.REAUTH_REQUIRED',
       PasswordAuthStatus.networkError => 'error.api.NETWORK_ERROR',
     };
 

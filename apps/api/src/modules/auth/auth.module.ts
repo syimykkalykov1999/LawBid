@@ -36,6 +36,7 @@ import { PasswordAuthService } from './password-auth.service';
 import { PasswordService } from './services/password.service';
 import { LoginMethodPolicy } from './services/login-method-policy.service';
 import { NewDeviceNotifier } from './notifications/new-device-notifier.service';
+import { SignInChangeNotifier } from './notifications/sign-in-change-notifier.service';
 import { EmailLoginNotificationChannel } from './notifications/email-login-notification.channel';
 import { PushLoginNotificationChannel } from './notifications/push-login-notification.channel';
 import {
@@ -119,6 +120,8 @@ import { demoNoop } from '../../common/demo/demo-guards';
       inject: [EmailLoginNotificationChannel, PushLoginNotificationChannel],
     },
     NewDeviceNotifier,
+    // Owner 2026-10-22 (security audit #3): "your sign-in settings changed".
+    SignInChangeNotifier,
     AssistantContextService,
     {
       provide: SMS_PROVIDER,
@@ -174,6 +177,8 @@ import { demoNoop } from '../../common/demo/demo-guards';
     PasswordService,
     // ContactsService: per-user/per-identifier limits on contact OTPs.
     RateLimitService,
+    // ContactsService: the notice on a contact change (audit #3).
+    SignInChangeNotifier,
     // OQ-048: the assistant module drops the cache on team changes.
     AssistantContextService,
     // Owner 2026-10-04: joining a team with the attorney's code.

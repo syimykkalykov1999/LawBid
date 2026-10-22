@@ -54,8 +54,13 @@ class FakeAccountRepository implements AccountRepository {
   }
 
   @override
-  Future<void> linkContact(ContactType type, String value, String code) async {
-    calls.add('linkContact:${type.name}:$value:$code');
+  Future<void> linkContact(
+    ContactType type,
+    String value,
+    String code, {
+    String? reauthToken,
+  }) async {
+    calls.add('linkContact:${type.name}:$value:$code:$reauthToken');
     // ignore: only_throw_errors
     if (linkError != null) throw linkError!;
   }
@@ -290,7 +295,7 @@ void main() {
       expect(onboarding.calls, [
         'requestReauthCode:+15551234567',
         'reauth',
-        'requestContactCode:+12025550199',
+        'requestContactCode:+12025550199:rt',
       ]);
       expect(find.text('Enter the code'), findsOneWidget);
       expect(find.textContaining('(202) 555-0199'), findsOneWidget);
@@ -352,16 +357,77 @@ void main() {
     await tester.enterText(find.byType(TextField).first, 'x@example.com');
     await tester.tap(find.text('Send code'));
     await tester.pumpAndSettle();
+    // Owner 2026-10-22 (audit #3): the "it's me" step comes first.
+    expect(tester.takeException(), isNull);
+    await _enterOtp(tester, '111111');
     expect(find.text('Enter the code'), findsOneWidget);
     expect(tester.takeException(), isNull);
     await _tearDown(tester);
   });
 
+  testWidgets(
+      'owner 2026-10-22 (audit #3): adding a first email on an older session asks "it’s me" first',
+      (tester) async {
+    _tallView(tester);
+    final noEmail = meFixture(
+      role: UserRole.client,
+      consents: true,
+      firstName: 'Ann',
+      lastName: 'Lee',
+      phone: '+15551234567',
+      phoneVerified: true,
+      completed: true,
+    );
+    final onboarding = FakeOnboardingRepository(noEmail)
+      ..contactErrorWithoutReauth = const ApiException(
+        code: ApiErrorCodes.reauthRequired,
+        message: 'reauth',
+      );
+    final repo = FakeAccountRepository(() async => const [_phone]);
+    final wrap = await onboardingWrapper(
+      AppTheme.light(),
+      user: noEmail,
+      repo: onboarding,
+      extra: [
+        accountRepositoryProvider.overrideWithValue(repo),
+        ...emailFlowsOnOverrides(),
+      ],
+    );
+    await tester.pumpWidget(
+      wrap(
+        const AccountContactFlowScreen(
+          type: ContactType.email,
+          mode: AccountContactMode.primary,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).first, 'ann@example.com');
+    await tester.tap(find.text('Send code'));
+    await tester.pumpAndSettle();
+    expect(onboarding.calls, [
+      'requestContactCode:ann@example.com',
+      'requestReauthCode:+15551234567',
+    ]);
+    expect(find.text("Confirm it's you"), findsOneWidget);
+
+    await _enterOtp(tester, '111111');
+    expect(onboarding.calls.sublist(2), [
+      'reauth',
+      'requestContactCode:ann@example.com:rt',
+    ]);
+    expect(find.text('Enter the code'), findsOneWidget);
+    await _tearDown(tester);
+  });
+
   group('link an additional email (POST /auth/identifiers)', () {
-    testWidgets('code to the new email → linked → success', (tester) async {
+    testWidgets(
+        'owner 2026-10-22 (audit #3): "it’s me" code first, then the new email → linked',
+        (tester) async {
       _tallView(tester);
       final repo = FakeAccountRepository(() async => const [_phone]);
-      final wrap = await _wrap(repo);
+      final onboarding = FakeOnboardingRepository(_client);
+      final wrap = await _wrap(repo, onboarding: onboarding);
       await tester.pumpWidget(
         wrap(
           const AccountContactFlowScreen(
@@ -379,10 +445,16 @@ void main() {
       );
       await tester.tap(find.text('Send code'));
       await tester.pumpAndSettle();
+      // The identity code goes to a contact the account already has.
+      expect(onboarding.calls, ['requestReauthCode:+15551234567']);
+      expect(repo.calls, isEmpty);
+
+      await _enterOtp(tester, '111111');
+      expect(onboarding.calls.last, 'reauth');
       expect(repo.calls, ['requestLinkCode:email:work@example.com']);
 
       await _enterOtp(tester, '333333');
-      expect(repo.calls.last, 'linkContact:email:work@example.com:333333');
+      expect(repo.calls.last, 'linkContact:email:work@example.com:333333:rt');
       expect(
         find.text('You can now sign in with work@example.com.'),
         findsOneWidget,
@@ -412,6 +484,7 @@ void main() {
       await tester.enterText(find.byType(TextField).first, 'x@example.com');
       await tester.tap(find.text('Send code'));
       await tester.pumpAndSettle();
+      await _enterOtp(tester, '111111'); // "it's me"
       await _enterOtp(tester, '000000');
       expect(find.text('Enter the code'), findsOneWidget);
       expect(find.text('All set'), findsNothing);

@@ -98,6 +98,7 @@ export class BidPacksController {
   @ApiOperation({ summary: 'Start the payment for a pack' })
   @ApiEnvelopeResponse(BidPackBuyDto)
   @ApiErrors({
+    403: [E.FORBIDDEN, E.ATTORNEY_NOT_VERIFIED],
     404: [E.NOT_FOUND],
     409: [E.FEATURE_DISABLED],
     503: [E.PAYMENTS_NOT_CONFIGURED],

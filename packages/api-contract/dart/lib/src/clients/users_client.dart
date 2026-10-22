@@ -67,11 +67,13 @@ abstract class UsersClient {
   });
 
   /// docs/01 §11 step 3A: "Изменить телефон/email можно только с повторной.
-  /// проверкой (reauth + код на новый контакт)". Adding the FIRST contact of.
-  /// a type during onboarding needs no reauth (it would cost an extra paid.
-  /// code per contact); replacing an already-verified one does.
+  /// проверкой (reauth + код на новый контакт)". Owner 2026-10-22 (security.
+  /// audit #3, finding 2): adding a contact needs reauth too — an e-mail.
+  /// added to an account without one receives the password-reset codes.
+  /// Onboarding stays one code long: a sign-in made minutes ago on this.
+  /// session counts as the reauth (ReauthVerifier.assertRecentAuthentication).
   ///
-  /// [xReauthToken] - Single-use token from POST /auth/reauth; required only when replacing an already verified contact of this type.
+  /// [xReauthToken] - Single-use token from POST /auth/reauth; required unless this session signed in within the last 10 minutes.
   @POST('/users/me/contacts/request')
   Future<ContactCodeSentEnvelope> requestContact({
     @Body() required ContactRequestDto body,

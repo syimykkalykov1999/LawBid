@@ -64,6 +64,7 @@ export const EMAIL_TYPES: ReadonlySet<NotificationType> = new Set([
 export const QUIET_EXEMPT: ReadonlySet<NotificationType> = new Set([
   'security_new_device',
   'security_phone_changed',
+  'security_sign_in_changed',
   'task_reminder',
 ]);
 

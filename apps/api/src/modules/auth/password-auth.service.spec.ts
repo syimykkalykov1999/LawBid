@@ -1,4 +1,8 @@
-import { HttpException, UnauthorizedException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  HttpException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { PasswordAuthService } from './password-auth.service';
 import { PasswordService } from './services/password.service';
 import { AUTH_EVENT_TYPES } from './services/auth-event.service';
@@ -14,6 +18,7 @@ async function make(
     emailFlowsOn?: boolean;
     limited?: boolean;
     otpResult?: 'ok' | 'invalid' | 'expired' | 'locked';
+    noPassword?: boolean;
   } = {},
 ) {
   const passwords = new PasswordService();
@@ -25,7 +30,7 @@ async function make(
     phone_verified_at: new Date(),
     email: opts.verifiedEmail ? 'sofia@example.com' : null,
     email_verified_at: opts.verifiedEmail ? new Date() : null,
-    password_hash: hash,
+    password_hash: opts.noPassword ? null : hash,
   };
   const prisma = {
     userIdentifier: {
@@ -60,6 +65,7 @@ async function make(
   const bans = { assertAllowed: jest.fn().mockResolvedValue(undefined) };
   const revocation = {
     revokeAllChainsForUser: jest.fn().mockResolvedValue([]),
+    revokeOtherChainsForUser: jest.fn().mockResolvedValue([]),
   };
   const service = new PasswordAuthService(
     prisma as never,
@@ -253,18 +259,78 @@ describe('PasswordAuthService', () => {
     });
   });
 
+  const noReauth = () => ({
+    hasReauthToken: false,
+    assertReauth: jest
+      .fn()
+      .mockRejectedValue(
+        new ForbiddenException({ code: ErrorCode.REAUTH_REQUIRED }),
+      ),
+  });
+
   it('changing an existing password needs the current one', async () => {
     const { service, prisma } = await make();
     await expect(
       service.setPassword(
         { password: 'Another-pass-1', currentPassword: 'wrong-one' },
         { sub: 'u1' } as never,
+        noReauth(),
       ),
     ).rejects.toBeInstanceOf(UnauthorizedException);
     await service.setPassword(
       { password: 'Another-pass-1', currentPassword: 'Demo1234!' },
       { sub: 'u1' } as never,
+      noReauth(),
     );
     expect(prisma.user.update).toHaveBeenCalledTimes(1);
+  });
+
+  it('owner 2026-10-22 (audit #3): with no password yet, a bare access token cannot set one', async () => {
+    const { service, prisma } = await make({ noPassword: true });
+    const proof = noReauth();
+    await expect(
+      service.setPassword(
+        { password: 'Another-pass-1' },
+        { sub: 'u1' } as never,
+        proof,
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(proof.assertReauth).toHaveBeenCalledTimes(1);
+    expect(prisma.user.update).not.toHaveBeenCalled();
+
+    // A reauth (or the sign-up code minutes ago) lets it through.
+    await service.setPassword(
+      { password: 'Another-pass-1' },
+      { sub: 'u1' } as never,
+      { hasReauthToken: false, assertReauth: jest.fn() },
+    );
+    expect(prisma.user.update).toHaveBeenCalledTimes(1);
+  });
+
+  it('owner 2026-10-22 (audit #3): a reauth token replaces the current password', async () => {
+    const { service, prisma } = await make();
+    const assertReauth = jest.fn().mockResolvedValue(undefined);
+    await service.setPassword(
+      { password: 'Another-pass-1' },
+      { sub: 'u1' } as never,
+      { hasReauthToken: true, assertReauth },
+    );
+    expect(assertReauth).toHaveBeenCalledTimes(1);
+    expect(prisma.user.update).toHaveBeenCalledTimes(1);
+  });
+
+  it('owner 2026-10-22 (audit #3): a new password ends every OTHER session', async () => {
+    const { service, revocation } = await make();
+    await service.setPassword(
+      { password: 'Another-pass-1', currentPassword: 'Demo1234!' },
+      { sub: 'u1', sid: 'this-phone' } as never,
+      noReauth(),
+    );
+    expect(revocation.revokeOtherChainsForUser).toHaveBeenCalledWith(
+      'u1',
+      'this-phone',
+      'credentials_changed',
+    );
+    expect(revocation.revokeAllChainsForUser).not.toHaveBeenCalled();
   });
 });

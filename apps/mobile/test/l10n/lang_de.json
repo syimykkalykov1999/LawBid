@@ -2831,6 +2831,7 @@
 "notif.list.review_requested":"Bewerten Sie Ihren Anwalt",
 "notif.list.security_new_device":"Neue Anmeldung von einem anderen Gerät",
 "notif.list.security_phone_changed":"Der Support hat Ihre Telefonnummer auf Ihren Wunsch geändert",
+"notif.list.security_sign_in_changed":"Deine Anmeldedaten wurden geändert",
 "notif.list.subscription_payment_failed":"Wir konnten Ihr Abo nicht abbuchen",
 "notif.list.subscription_status":"Der Status Ihres Abos hat sich geändert",
 "notif.list.subscription_status.contract":"LawBid hat ein Vertrags-Abo für Sie eingerichtet",

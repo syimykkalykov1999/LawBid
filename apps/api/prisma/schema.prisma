@@ -542,6 +542,9 @@ enum NotificationType {
   partner_declined
   // Owner 2026-10-01: an admin changed the phone on the user's request.
   security_phone_changed
+  // Owner 2026-10-22 (security audit #3): a sign-in method, a contact or
+  // the password changed — told to every device and the old e-mail.
+  security_sign_in_changed
   // Owner 2026-10-05: client → attorney payments through the platform.
   case_payment_received
   case_payment_sent

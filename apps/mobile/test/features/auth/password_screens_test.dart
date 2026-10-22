@@ -1,6 +1,7 @@
 // ignore_for_file: lines_longer_than_80_chars
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -15,6 +16,11 @@ import 'package:lawbid/features/auth/presentation/screens/forgot_password_screen
 import 'package:lawbid/features/auth/presentation/screens/login_screen.dart';
 import 'package:lawbid/features/auth/presentation/screens/set_password_screen.dart';
 
+import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
+import 'package:lawbid/shared/domain/user_role.dart';
+
+import '../../helpers/fixtures.dart';
+import '../../helpers/onboarding_harness.dart';
 import 'auth_test_harness.dart';
 
 /// Records the password calls; the answers are set per test.
@@ -43,11 +49,20 @@ class PasswordRepo extends RecordingAuthRepository {
   Future<PasswordAuthResult> setPassword(
     String password, {
     String? currentPassword,
+    String? reauthToken,
   }) async {
     passwordsSet.add(password);
     currentPasswords.add(currentPassword);
+    reauthTokens.add(reauthToken);
+    // Owner 2026-10-22 (audit #3): the server's answer without a token.
+    if (reauthToken == null && needsReauth) {
+      return const PasswordAuthResult(PasswordAuthStatus.reauthRequired);
+    }
     return setResult;
   }
+
+  bool needsReauth = false;
+  final List<String?> reauthTokens = [];
 
   @override
   Future<PasswordAuthResult> requestPasswordReset(String identifier) async {
@@ -170,6 +185,7 @@ void main() {
       double textScale = 1,
       TextDirection direction = TextDirection.ltr,
       Object? extra,
+      List<Override> overrides = const [],
     }) async {
       tester.view
         ..physicalSize = size * tester.view.devicePixelRatio
@@ -177,9 +193,13 @@ void main() {
       addTearDown(tester.view.reset);
       final c = ProviderContainer(
         overrides: [
-          ...await authOverrides(repo: repo),
+          ...await authOverrides(
+            repo: repo,
+            fixedSignedOutUser: overrides.isEmpty,
+          ),
           if (translator != null)
             translatorProvider.overrideWithValue(translator),
+          ...overrides,
         ],
       );
       addTearDown(c.dispose);
@@ -277,6 +297,43 @@ void main() {
       await tester.tap(button('Continue'));
       await tester.pump();
       expect(repo.passwordsSet, ['12345678']);
+    });
+
+    testWidgets(
+        'owner 2026-10-22 (audit #3): an older session confirms "it’s me" before the first password',
+        (tester) async {
+      repo.needsReauth = true;
+      final me = meFixture(
+        role: UserRole.client,
+        consents: true,
+        phone: '+15551234567',
+        phoneVerified: true,
+      );
+      await open(
+        tester,
+        AuthRoutes.setPassword,
+        overrides: [
+          currentUserControllerProvider.overrideWith(
+            () => FixedUserController(CurrentUserState.ready(me)),
+          ),
+        ],
+      );
+      await tester.enterText(find.byType(TextField), '12345678');
+      await tester.pump();
+      await tester.tap(button('Continue'));
+      await tester.pumpAndSettle();
+      // Refused without a token: the code goes to the verified phone.
+      expect(repo.reauthTokens, [null]);
+      expect(find.textContaining('(555) 123-4567'), findsOneWidget);
+
+      final code = find.descendant(
+        of: find.byType(AppOtpField),
+        matching: find.byType(EditableText),
+      );
+      await tester.enterText(code.first, '111111');
+      await tester.pumpAndSettle();
+      expect(repo.passwordsSet, ['12345678', '12345678']);
+      expect(repo.reauthTokens.last, isNotNull);
     });
 
     testWidgets('change password sends the current and the new one',

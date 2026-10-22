@@ -36,7 +36,7 @@ function setup(chains: string[] = ['c1', 'c2']) {
       channel,
       msg: parseSessionRevoked(raw),
     }));
-  return { service, redis, published };
+  return { service, redis, prisma, published };
 }
 
 describe('SessionRevocationService publishes session:revoked', () => {
@@ -62,6 +62,44 @@ describe('SessionRevocationService publishes session:revoked', () => {
         channel: SESSION_REVOKED_CHANNEL,
         msg: { sessionId: 'c1', userId: 'u1' },
       },
+      {
+        channel: SESSION_REVOKED_CHANNEL,
+        msg: { sessionId: 'c2', userId: 'u1' },
+      },
+    ]);
+  });
+
+  it('owner 2026-10-22 (audit #3): revokeOtherChainsForUser keeps the current session', async () => {
+    const { service, prisma, redis, published } = setup(['c2']);
+    const ended = await service.revokeOtherChainsForUser(
+      'u1',
+      'c1',
+      'credentials_changed',
+    );
+    expect(ended).toEqual(['c2']);
+    expect(prisma.session.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          user_id: 'u1',
+          revoked_at: null,
+          session_chain_id: { not: 'c1' },
+        },
+      }),
+    );
+    expect(prisma.session.updateMany).toHaveBeenCalledWith({
+      where: { session_chain_id: { in: ['c2'] }, revoked_at: null },
+      data: {
+        revoked_at: expect.any(Date),
+        revoked_reason: 'credentials_changed',
+      },
+    });
+    expect(redis.set).toHaveBeenCalledWith(
+      'authbl:c2',
+      'credentials_changed',
+      'EX',
+      960,
+    );
+    expect(published()).toEqual([
       {
         channel: SESSION_REVOKED_CHANNEL,
         msg: { sessionId: 'c2', userId: 'u1' },
