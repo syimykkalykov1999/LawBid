@@ -99,8 +99,9 @@ void main() {
       await tester.pumpWidget(
         uxApp(
           Directionality(
-              textDirection: dir,
-              child: const ContactsScreen(initialContacts: true)),
+            textDirection: dir,
+            child: const ContactsScreen(initialContacts: true),
+          ),
           theme: AppTheme.dark(),
           size: narrowPhone,
           textScale: 1.1,

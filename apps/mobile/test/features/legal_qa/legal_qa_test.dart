@@ -37,46 +37,44 @@ Question _q({
   bool closed = false,
   bool enough = false,
   List<QaAnswer> answers = const [],
-}) =>
-    Question(
-      id: id,
-      title: 'Can my landlord keep the deposit after I moved out?',
-      body: 'I left the flat clean and gave notice two months ahead.',
-      isAnonymous: anonymous,
-      isMine: mine,
-      answerCount: answers.length,
-      canAnswer: canAnswer,
-      createdAt: _now,
-      practiceArea: const QaPracticeArea(
-        id: 'a1',
-        i18nKey: 'qa.entry.hint',
-        nameEn: 'Real estate',
-      ),
-      stateCode: 'NY',
-      author:
-          anonymous ? null : const QaPerson(id: 'u1', displayName: 'Anna K.'),
-      bestAnswerId: best,
-      myAnswerId: myAnswer,
-      closed: closed,
-      answersEnough: enough,
-      answers: answers,
-    );
+}) => Question(
+  id: id,
+  title: 'Can my landlord keep the deposit after I moved out?',
+  body: 'I left the flat clean and gave notice two months ahead.',
+  isAnonymous: anonymous,
+  isMine: mine,
+  answerCount: answers.length,
+  canAnswer: canAnswer,
+  createdAt: _now,
+  practiceArea: const QaPracticeArea(
+    id: 'a1',
+    i18nKey: 'qa.entry.hint',
+    nameEn: 'Real estate',
+  ),
+  stateCode: 'NY',
+  author: anonymous ? null : const QaPerson(id: 'u1', displayName: 'Anna K.'),
+  bestAnswerId: best,
+  myAnswerId: myAnswer,
+  closed: closed,
+  answersEnough: enough,
+  answers: answers,
+);
 
 QaAnswer _a({bool best = false, bool mine = false, int likes = 2}) => QaAnswer(
-      id: 'a1',
-      questionId: 'q1',
-      attorney: const QaPerson(
-        id: 'l1',
-        displayName: 'Jordan Lee',
-        username: 'jlee',
-      ),
-      body: 'Yes, within 14 days with an itemised list.',
-      likeCount: likes,
-      likedByMe: false,
-      isBest: best,
-      isMine: mine,
-      createdAt: _now,
-    );
+  id: 'a1',
+  questionId: 'q1',
+  attorney: const QaPerson(
+    id: 'l1',
+    displayName: 'Jordan Lee',
+    username: 'jlee',
+  ),
+  body: 'Yes, within 14 days with an itemised list.',
+  likeCount: likes,
+  likedByMe: false,
+  isBest: best,
+  isMine: mine,
+  createdAt: _now,
+);
 
 class _Repo extends LegalQaRepository {
   _Repo({this.items = const [], this.detailQuestion}) : super(Dio());
@@ -207,9 +205,7 @@ void main() {
     testWidgets('feed: the time is at the end of the card row (${dir.name})', (
       tester,
     ) async {
-      final repo = _Repo(items: [
-        _q(best: 'a1', answers: [_a(best: true)])
-      ]);
+      final repo = _Repo(items: [_q(best: 'a1', answers: [_a(best: true)])]);
       await pump(tester, const QaFeedScreen(), repo, dir: dir, textScale: 1.1);
       expect(tester.takeException(), isNull);
       final card = find.byType(QuestionCard);
@@ -278,8 +274,7 @@ void main() {
     ('mr', ShippedTranslator('mr'), TextDirection.ltr),
   ]) {
     for (final attorney in [false, true]) {
-      testWidgets(
-          'tabs and card fit at 360 dp ($name, '
+      testWidgets('tabs and card fit at 360 dp ($name, '
           '${attorney ? 'attorney' : 'client'})', (tester) async {
         final full = _q(best: 'a1', answers: [_a(best: true)]);
         await pump(

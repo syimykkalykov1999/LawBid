@@ -17,7 +17,7 @@ import 'package:lawbid/features/contacts_sync/presentation/contact_rows.dart';
 /// open for calls (same rule as in the conversation); otherwise the chat
 /// opens and says why.
 class ContactActions extends ConsumerWidget {
-  const ContactActions({required this.contact});
+  const ContactActions({required this.contact, super.key});
 
   final LawBidContact contact;
 
