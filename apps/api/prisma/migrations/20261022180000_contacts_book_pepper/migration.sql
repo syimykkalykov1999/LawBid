@@ -5,8 +5,8 @@
 -- API's contacts.pepper-backfill job re-hashes them in batches and reads
 -- both forms until it is done. The app does not change.
 
-ALTER TABLE "contact_book_hashes" RENAME COLUMN "phone_sha256" TO "phone_hash";
-ALTER INDEX "contact_book_hashes_phone_sha256_idx" RENAME TO "contact_book_hashes_phone_hash_idx";
+-- The column keeps its DB name (phone_sha256, mapped to `phone_hash` in
+-- Prisma): a rename is not safe for a rolling deploy.
 
 ALTER TABLE "contact_book_hashes"
   ADD COLUMN "peppered" BOOLEAN NOT NULL DEFAULT false;
