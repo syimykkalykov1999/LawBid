@@ -122,27 +122,39 @@ class _ChipsSearchRowState extends ConsumerState<ChipsSearchRow> {
           child: SizedBox(height: ChipsSearchRow.height, child: child),
         );
     if (_open) {
-      return bar(
-        Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.screenSide,
-            vertical: AppSpacing.xs,
-          ),
-          child: FlipSearchBar(
-            key: widget.fieldKey,
-            controller: _text,
-            focusNode: _focus,
-            semanticLabel: t.t(widget.hintKey),
-            cancelLabel: t.t('common.cancel'),
-            clearLabel: t.t('search.clear'),
-            showCancel: false,
-            hints: [t.t(widget.hintKey)],
-            onSubmitted: widget.onQuery,
-            trailing: AppIconButton(
-              key: widget.closeKey,
-              icon: AppIcon(AppIcons.closeRounded, color: colors.textSecondary),
-              semanticLabel: t.t('common.close'),
-              onPressed: _close,
+      // Owner 2026-10-22 (WhatsApp / Telegram): a tap on empty space outside
+      // the field closes the empty search itself, not only the keyboard.
+      // With text typed it stays (the results are being read); the keyboard
+      // still hides by the field's own rule.
+      return TapRegion(
+        onTapOutside: (_) {
+          if (_text.text.trim().isEmpty) _close();
+        },
+        child: bar(
+          Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.screenSide,
+              vertical: AppSpacing.xs,
+            ),
+            child: FlipSearchBar(
+              key: widget.fieldKey,
+              controller: _text,
+              focusNode: _focus,
+              semanticLabel: t.t(widget.hintKey),
+              cancelLabel: t.t('common.cancel'),
+              clearLabel: t.t('search.clear'),
+              showCancel: false,
+              hints: [t.t(widget.hintKey)],
+              onSubmitted: widget.onQuery,
+              trailing: AppIconButton(
+                key: widget.closeKey,
+                icon: AppIcon(
+                  AppIcons.closeRounded,
+                  color: colors.textSecondary,
+                ),
+                semanticLabel: t.t('common.close'),
+                onPressed: _close,
+              ),
             ),
           ),
         ),
