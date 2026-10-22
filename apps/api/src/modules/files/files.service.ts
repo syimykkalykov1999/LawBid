@@ -188,7 +188,7 @@ export class FilesService {
         HttpStatus.TOO_MANY_REQUESTS,
       );
     }
-    await this.costGuard.consume('storage');
+    await this.costGuard.consume('storage', 1, { userId });
     // Owner 2026-10-05 (demo mode): a demo account may upload a little
     // (settings demo.program.uploadQuotaMb) under its own key prefix, so
     // the demo world's objects are easy to find and delete.

@@ -217,7 +217,11 @@ export class VideosService {
       });
     }
     await this.limits.consume('video_upload', userId);
-    await this.costGuard.consume('video');
+    // Owner 2026-10-22 (audit #4 §6): priced per minute of video.
+    await this.costGuard.consume('video', 1, {
+      userId,
+      seconds: dto.durationSec,
+    });
     const keys = (await this.bunny.keys())!;
     const guid = await this.bunny.createVideo(
       dto.title?.trim() || 'LawBid',

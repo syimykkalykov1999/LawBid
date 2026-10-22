@@ -241,3 +241,18 @@ CloudWatch Logs стоит $0.50 за ГБ. Раньше API писал стро
 группу — убраны), код ответа, время ответа, id запроса и id пользователя.
 Заголовков и тела запроса нет. Чтобы на время разбора проблемы видеть все
 запросы, поставьте `HTTP_LOG_SAMPLE_PERCENT=100` и перезапустите API.
+
+## Money caps (owner 2026-10-22, audit #4 §6)
+
+The call caps above count calls; a translation of 5 000 characters and an SMS to Kazakhstan cost far more than one "unit". On top of them every guarded call now reserves its **estimated price** (millicents, `apps/api/src/common/cost-guard/cost-prices.ts`) in three daily counters before the call caps run:
+
+| Counter | Cap (US cents / day) | Default | Over the cap |
+|---|---|---|---|
+| All paid services | `budget.money.global_daily_cents` → `BUDGET_GLOBAL_DAILY_CENTS` | 50 000 ($500) | 503 `PROVIDER_BUDGET_EXCEEDED` |
+| One provider | `budget.<provider>.daily_cents` → `BUDGET_<PROVIDER>_DAILY_CENTS` → the call cap × nominal price | e.g. 300 SMS × $0.0083 | 503 |
+| One person (translate, uploads, video) | `budget.money.user_daily_cents` → `BUDGET_USER_DAILY_CENTS` | 500 ($5) | 429 `PROVIDER_BUDGET_EXCEEDED` (`details.scope = user`) |
+
+- Prices: translate per character ($20 / 1 M), SMS per destination country (Twilio tiers: US/CA $0.0083, tier B ~$0.08, expensive routes ~$0.30, unknown $0.10), e-mail $0.0001, identity check $1.50, upload $0.00005, video per minute $0.005, image moderation $0.001.
+- The old `BUDGET_<P>_*_MAX` call caps keep working unchanged (spike breaker) and, when no money cap is set for a provider, are converted into one.
+- 80 % of any money cap logs `alert: cost_budget, stage: threshold_80, money: true` once a day (the same CloudWatch metric filter as the call caps); exhaustion logs `stage: exhausted`.
+- 0 = no money cap for that counter. Edit live in Админка → Настройки (`budget.money.*`, `budget.<p>.daily_cents`).

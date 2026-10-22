@@ -21,17 +21,33 @@ const ENV: Record<string, number> = {
   BUDGET_ID_CHECK_PER_MINUTE_MAX: 5,
   BUDGET_ID_CHECK_DAILY_MAX: 20,
   BUDGET_ID_CHECK_MONTHLY_MAX: 200,
+  BUDGET_TRANSLATE_PER_MINUTE_MAX: 60,
+  BUDGET_TRANSLATE_DAILY_MAX: 5000,
+  BUDGET_TRANSLATE_MONTHLY_MAX: 50000,
 };
 
 const NOW = new Date('2026-09-27T13:45:12.000Z');
 
 function build(opts: {
   eval?: jest.Mock;
+  moneyEval?: jest.Mock;
   appConfig?: Record<string, unknown> | Error;
+  env?: Record<string, number>;
 }) {
+  // Owner 2026-10-22: the money budgets run first in their own script;
+  // `redis.eval` below is the call-cap script these tests assert on.
   const redis = {
     eval:
       opts.eval ?? jest.fn().mockResolvedValue([1, 0, 0, 0, 1, 0, 1, 0, 1, 0]),
+  };
+  const moneyEval = opts.moneyEval ?? jest.fn().mockResolvedValue([1, 0, 0]);
+  const decrby = jest.fn().mockResolvedValue(0);
+  const wired = {
+    decrby,
+    eval: (script: string, ...rest: unknown[]): Promise<unknown> =>
+      script.includes('local amount')
+        ? (moneyEval(script, ...rest) as Promise<unknown>)
+        : (redis.eval(script, ...rest) as Promise<unknown>),
   };
   const appConfig = {
     getConfig: jest.fn(() =>
@@ -45,6 +61,7 @@ function build(opts: {
       if (!(key in ENV)) throw new Error(`missing env ${key}`);
       return ENV[key];
     }),
+    get: jest.fn((key: string) => opts.env?.[key]),
   };
   const logger = {
     setContext: jest.fn(),
@@ -57,12 +74,12 @@ function build(opts: {
     }
   }
   const service = new TestGuard(
-    redis as never,
+    wired as never,
     appConfig as never,
     config as never,
     logger as never,
   );
-  return { service, redis, logger, appConfig };
+  return { service, redis, moneyEval, decrby, logger, appConfig };
 }
 
 async function expectBudgetError(p: Promise<unknown>): Promise<HttpException> {
@@ -266,5 +283,112 @@ describe('CostGuardService.consume', () => {
     await expect(service.consume('sms', 0)).rejects.toThrow(/invalid units/);
     await expect(service.consume('sms', 1.5)).rejects.toThrow(/invalid units/);
     expect(redis.eval).not.toHaveBeenCalled();
+  });
+});
+
+// Owner 2026-10-22 (audit #4 §6): spend caps in money.
+describe('CostGuardService money budgets', () => {
+  it('reserves the estimated millicents in the global, provider and user counters', async () => {
+    const { service, moneyEval } = build({
+      env: { BUDGET_GLOBAL_DAILY_CENTS: 50_000, BUDGET_USER_DAILY_CENTS: 500 },
+    });
+    await service.consume('sms', 1, { country: 'US', userId: 'u1' });
+    const args = moneyEval.mock.calls[0] as unknown[];
+    expect(args[1]).toBe(9);
+    expect(args.slice(2, 5)).toEqual([
+      'money:{m}:20260927:all:all',
+      'money:{m}:20260927:p:sms',
+      'money:{m}:20260927:u:u1',
+    ]);
+    // amount 830 (one US SMS), 3 counters; caps: $500, 300 SMS × 830, $5.
+    expect(args.slice(11)).toEqual([
+      830, 3, 50_000_000, 172800, 40_000_000, 249_000, 172800, 199_200, 500_000,
+      172800, 400_000,
+    ]);
+  });
+
+  it('prices SMS by country and translation by character', async () => {
+    const { service, moneyEval } = build({});
+    await service.consume('sms', 1, { country: 'KZ' });
+    await service.consume('translate', 1, { chars: 1000 });
+    // amount = the first ARGV after the 2 × 3 keys (no user given).
+    expect((moneyEval.mock.calls[0] as unknown[])[8]).toBe(30_000);
+    expect((moneyEval.mock.calls[1] as unknown[])[8]).toBe(2_000);
+  });
+
+  it('a person over their own daily cap gets 429 and nothing is spent', async () => {
+    const { service, redis } = build({
+      moneyEval: jest.fn().mockResolvedValue([0, 3, 499_000, 1]),
+      env: { BUDGET_USER_DAILY_CENTS: 500 },
+    });
+    try {
+      await service.consume('translate', 1, { chars: 900, userId: 'u1' });
+      throw new Error('expected a refusal');
+    } catch (e) {
+      expect((e as HttpException).getStatus()).toBe(429);
+      expect((e as HttpException).getResponse()).toMatchObject({
+        code: ErrorCode.PROVIDER_BUDGET_EXCEEDED,
+        details: { scope: 'user' },
+      });
+    }
+    expect(redis.eval).not.toHaveBeenCalled();
+  });
+
+  it('the global money cap refuses with 503 and logs the exhaustion once', async () => {
+    const { service, logger } = build({
+      moneyEval: jest.fn().mockResolvedValue([0, 1, 49_999_000, 1]),
+      env: { BUDGET_GLOBAL_DAILY_CENTS: 50_000 },
+    });
+    await expectBudgetError(service.consume('email'));
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        alert: 'cost_budget',
+        stage: 'exhausted',
+        money: true,
+        scope: 'global',
+      }),
+      expect.any(String),
+    );
+  });
+
+  it('warns at 80 % of a money cap', async () => {
+    const { service, logger } = build({
+      moneyEval: jest.fn().mockResolvedValue([1, 1, 0]),
+      env: { BUDGET_GLOBAL_DAILY_CENTS: 100 },
+    });
+    await service.consume('email');
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        alert: 'cost_budget',
+        stage: 'threshold_80',
+        money: true,
+        scope: 'global',
+      }),
+      expect.any(String),
+    );
+  });
+
+  it('a call refused by the call caps gives its money back', async () => {
+    const { service, decrby } = build({
+      eval: jest.fn().mockResolvedValue([0, 2, 300, 1]),
+    });
+    await expectBudgetError(service.consume('sms', 1, { country: 'US' }));
+    expect(decrby).toHaveBeenCalledWith('money:{m}:20260927:all:all', 830);
+    expect(decrby).toHaveBeenCalledWith('money:{m}:20260927:p:sms', 830);
+  });
+
+  it('admin cents in app_config win over env', async () => {
+    const { service } = build({
+      appConfig: {
+        'budget.money.global_daily_cents': 1234,
+        'budget.sms.daily_cents': 77,
+      },
+      env: { BUDGET_GLOBAL_DAILY_CENTS: 50_000 },
+    });
+    expect(await service.moneyCaps('sms')).toEqual({
+      global: 1_234_000,
+      provider: 77_000,
+      user: 0,
+    });
   });
 });

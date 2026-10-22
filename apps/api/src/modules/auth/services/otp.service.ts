@@ -169,7 +169,10 @@ export class OtpService {
           HttpStatus.SERVICE_UNAVAILABLE,
         );
       }
-      await this.costGuard.consume('sms');
+      // Owner 2026-10-22 (audit #4 §6): priced by the destination country.
+      await this.costGuard.consume('sms', 1, {
+        country: this.countries?.countryOfPhone(identifier) ?? null,
+      });
     } else {
       await this.costGuard.consume('email');
     }

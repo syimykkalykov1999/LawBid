@@ -7,7 +7,15 @@ import { CostAutoscaleService, historyKey } from './cost-autoscale.service';
  */
 
 const ENV: Record<string, number> = {};
-for (const p of ['SMS', 'EMAIL', 'ID_CHECK', 'STORAGE', 'TRANSLATE', 'VIDEO']) {
+for (const p of [
+  'SMS',
+  'EMAIL',
+  'ID_CHECK',
+  'STORAGE',
+  'TRANSLATE',
+  'VIDEO',
+  'IMAGE_MODERATION',
+]) {
   ENV[`BUDGET_${p}_PER_MINUTE_MAX`] = 30;
   ENV[`BUDGET_${p}_DAILY_MAX`] = 300;
   ENV[`BUDGET_${p}_MONTHLY_MAX`] = 5000;
