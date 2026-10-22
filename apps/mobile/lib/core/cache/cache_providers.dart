@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,6 +8,7 @@ import 'package:lawbid/core/cache/cache_limits.dart';
 import 'package:lawbid/core/cache/http_cache_interceptor.dart';
 import 'package:lawbid/core/cache/network_usage.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
+import 'package:lawbid/core/persistence/drift_web.dart' show isFlutterTest;
 import 'package:lawbid/core/persistence/persistence_providers.dart';
 
 /// The one cache database of the app (plan §5). Opened lazily on first use;
@@ -151,10 +151,6 @@ final httpCacheInterceptorProvider = Provider<HttpCacheInterceptor>(
     usage: ref.watch(networkUsageCounterProvider),
   ),
 );
-
-/// True under `flutter test` (never on the web).
-bool get isFlutterTest =>
-    !kIsWeb && Platform.environment.containsKey('FLUTTER_TEST');
 
 /// Today's network usage, persisted (SharedPreferences, one row per day,
 /// yesterday dropped) so the settings screen can show «за сегодня».

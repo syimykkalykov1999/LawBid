@@ -103,9 +103,11 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
       (e.code == ApiErrorCodes.groupNotFound ||
           e.code == ApiErrorCodes.groupForbidden);
 
-  void _refresh() => ref
-    ..invalidate(groupDetailProvider(_id))
-    ..invalidate(groupsProvider);
+  void _refresh() {
+    ref.invalidate(groupDetailProvider(_id));
+    // Package B: the list row catches up by `updatedSince`, not a reload.
+    ref.read(groupsProvider.notifier).catchUp();
+  }
 
   /// Runs a group change; returns the error text to show, or null on success
   /// (the screen takes the returned detail at once).
@@ -505,7 +507,7 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
   // --- leave / delete -------------------------------------------------------
 
   void _toInbox() {
-    ref.invalidate(groupsProvider);
+    ref.read(groupsProvider.notifier).removeWhere((g) => g.id == _id);
     context.go(ChatRoutes.inbox);
   }
 

@@ -1,10 +1,11 @@
+import 'dart:io' show Platform;
+
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:lawbid/core/persistence/drift_memory_stub.dart'
     if (dart.library.js_interop) 'package:lawbid/core/persistence/drift_memory_web.dart';
 import 'package:lawbid/core/platform/base_uri.dart';
-import 'package:path_provider/path_provider.dart';
 
 /// Where the web build finds SQLite and drift's worker. Ignored on
 /// Android/iOS. Both files live in `web/` (next to index.html) and are
@@ -25,9 +26,28 @@ final appDriftWebOptions = DriftWebOptions(
 /// only in the tab instead of staying on a blank screen: the caches start
 /// empty and refill from the server.
 QueryExecutor appDriftDatabase(String name) {
-  final stored = driftDatabase(name: name, web: appDriftWebOptions);
-  return kIsWeb ? _FallbackExecutor(stored, openMemoryDatabase) : stored;
+  if (kIsWeb) {
+    return _FallbackExecutor(
+      driftDatabase(name: name, web: appDriftWebOptions),
+      openMemoryDatabase,
+    );
+  }
+  // Owner 2026-10-22: under `flutter test` there is no documents directory
+  // (and a platform call never answers), so a database nobody overrode
+  // lives in the test's memory instead of holding the screen.
+  if (isFlutterTest) {
+    return LazyDatabase(() async {
+      final memory =
+          await openProcessMemoryDatabase(appDriftWebOptions.sqlite3Wasm);
+      return memory ?? driftDatabase(name: name, web: appDriftWebOptions);
+    });
+  }
+  return driftDatabase(name: name, web: appDriftWebOptions);
 }
+
+/// True under `flutter test` (never on the web).
+bool get isFlutterTest =>
+    !kIsWeb && Platform.environment.containsKey('FLUTTER_TEST');
 
 /// Owner 2026-10-22 (client economy plan §5): a cache database. On the web
 /// it lives only in the tab's memory (a shared or private computer keeps
@@ -35,28 +55,11 @@ QueryExecutor appDriftDatabase(String name) {
 /// file cannot be opened (or there is no documents directory, as in widget
 /// tests) the cache works in memory for this process.
 QueryExecutor appDriftCacheDatabase(String name) {
-  if (kIsWeb) {
-    return LazyDatabase(() async {
-      final memory =
-          await openProcessMemoryDatabase(appDriftWebOptions.sqlite3Wasm);
-      return memory ?? appDriftDatabase(name);
-    });
-  }
-  // drift_flutter starts opening the file as soon as it is built and
-  // reports a failure as an unhandled error, so the directories are
-  // checked first (a widget test has none).
+  if (!kIsWeb) return appDriftDatabase(name);
   return LazyDatabase(() async {
-    try {
-      await getApplicationDocumentsDirectory();
-      await getTemporaryDirectory();
-    } on Object catch (e) {
-      final memory =
-          await openProcessMemoryDatabase(appDriftWebOptions.sqlite3Wasm);
-      if (memory == null) rethrow;
-      _FallbackExecutor.debugPrintFallback(e);
-      return memory;
-    }
-    return driftDatabase(name: name, web: appDriftWebOptions);
+    final memory =
+        await openProcessMemoryDatabase(appDriftWebOptions.sqlite3Wasm);
+    return memory ?? appDriftDatabase(name);
   });
 }
 

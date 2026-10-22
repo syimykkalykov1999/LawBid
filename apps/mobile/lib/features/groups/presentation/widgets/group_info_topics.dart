@@ -32,10 +32,12 @@ class _GroupInfoTopicsState extends ConsumerState<GroupInfoTopics> {
   ) async {
     final t = ref.read(translatorProvider);
     try {
-      await ref
+      final all = await ref
           .read(groupRepositoryProvider)
           .updateTopic(widget.groupId, topic.id, change);
-      if (mounted) ref.invalidate(groupTopicsProvider(widget.groupId));
+      if (mounted) {
+        ref.read(groupTopicsProvider(widget.groupId).notifier).setAll(all);
+      }
     } on Object catch (e) {
       if (mounted) showAppSnackBar(context, errorText(t, e));
     }
@@ -82,9 +84,8 @@ class _GroupInfoTopicsState extends ConsumerState<GroupInfoTopics> {
           groupId: widget.groupId,
           topic: topic,
         );
-        if (changed && mounted) {
-          ref.invalidate(groupTopicsProvider(widget.groupId));
-        }
+        // The editor sheet applied its answer to the list itself.
+        if (changed && mounted) setState(() {});
       case _TopicAction.close:
         await _update(topic, const api.UpdateTopicDto(closed: true));
       case _TopicAction.reopen:

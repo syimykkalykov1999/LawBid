@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/core/sync/synced_list_notifier.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
 import 'package:lawbid/features/groups/data/group_repository.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_chat_tile.dart';
@@ -55,11 +56,55 @@ class FakeGroupRepository implements GroupRepository {
   Future<CursorPage<api.GroupDto>> groups({
     String? cursor,
     bool archived = false,
-  }) async =>
-      CursorPage(items: archived ? archivedItems : items);
+  }) async {
+    listCalls++;
+    return CursorPage(items: archived ? archivedItems : items);
+  }
+
+  /// How often the whole list / the thread page was read (package B).
+  int listCalls = 0;
+  int messagesCalls = 0;
 
   /// The groups in the groups' own Archive.
   List<api.GroupDto> archivedItems = [];
+
+  /// Package B: what `?updatedSince` answers; every call is counted.
+  SyncedPage<api.GroupDto> changed = const SyncedPage(items: []);
+  int changedCalls = 0;
+
+  @override
+  Future<SyncedPage<api.GroupDto>> groupsChangedSince(
+    DateTime since, {
+    bool archived = false,
+  }) async {
+    changedCalls++;
+    return changed;
+  }
+
+  /// Package B: what `?afterId` answers (null = 409, reload the page).
+  List<api.GroupMessageDto>? after = const [];
+  int afterCalls = 0;
+
+  @override
+  Future<List<api.GroupMessageDto>> messagesAfter(
+    String id,
+    String afterId, {
+    String? topicId,
+  }) async {
+    afterCalls++;
+    final a = after;
+    if (a == null) {
+      throw const ApiException(code: ApiErrorCodes.syncTooOld, message: '');
+    }
+    return a;
+  }
+
+  @override
+  Future<SyncedPage<api.GroupTopicDto>> topicsChangedSince(
+    String id,
+    DateTime since,
+  ) async =>
+      SyncedPage(items: topicList);
 
   @override
   Future<api.GroupDetailDto> group(String id) async => detail!;
@@ -104,8 +149,10 @@ class FakeGroupRepository implements GroupRepository {
     String id, {
     String? topicId,
     String? cursor,
-  }) async =>
-      CursorPage(items: thread);
+  }) async {
+    messagesCalls++;
+    return CursorPage(items: thread);
+  }
 
   @override
   Future<List<api.GroupTopicDto>> topics(String id) async => topicList;

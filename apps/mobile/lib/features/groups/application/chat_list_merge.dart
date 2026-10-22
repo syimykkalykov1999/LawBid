@@ -195,7 +195,7 @@ Future<void> updateMyGroup(
   bool? archived,
 }) async {
   final now = DateTime.now();
-  await ref.read(groupRepositoryProvider).updateMine(
+  final updated = await ref.read(groupRepositoryProvider).updateMine(
         id,
         api.UpdateGroupMeDto(
           pinned: pinned,
@@ -213,14 +213,17 @@ Future<void> updateMyGroup(
   // The write is done: updating the lists is best-effort, never an error.
   try {
     if (!ref.context.mounted) return;
+    // Package B: the answer is the row — applied here, nothing re-read
+    // (the Archive is another list without an event of its own).
     final notifier = ref.read(groupsProvider.notifier);
     if ((hidden ?? false) || archived != null) {
       notifier.removeWhere((g) => g.id == id);
+    } else {
+      notifier.applyMine(updated);
     }
     ref
       ..invalidate(archivedGroupsProvider)
       ..invalidate(chatFolderCountsProvider);
-    await notifier.refresh().catchError((Object _) {});
   } on Object {
     // The screen is gone; the next open re-reads the lists.
   }

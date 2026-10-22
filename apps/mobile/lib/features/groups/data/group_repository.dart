@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/core/sync/synced_list_notifier.dart' show SyncedPage;
 import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
@@ -25,6 +26,25 @@ class GroupRepository {
       () => _c.listGroups(cursor: cursor, archived: archived ? true : null),
     );
     return CursorPage(items: env.data, nextCursor: env.meta?.nextCursor);
+  }
+
+  /// Owner 2026-10-22 (client economy plan, package B): only the groups
+  /// changed since [since] (server time) plus the ids that left the list.
+  Future<SyncedPage<api.GroupDto>> groupsChangedSince(
+    DateTime since, {
+    bool archived = false,
+  }) async {
+    final env = await guardApiCall(
+      () => _c.listGroups(
+        updatedSince: since.toUtc(),
+        archived: archived ? true : null,
+      ),
+    );
+    return SyncedPage(
+      items: env.data,
+      deletedIds: env.meta?.deletedIds ?? const [],
+      syncedAt: env.meta?.syncedAt,
+    );
   }
 
   Future<api.GroupDetailDto> group(String id) async =>
@@ -165,6 +185,18 @@ class GroupRepository {
     return CursorPage(items: env.data, nextCursor: env.meta?.nextCursor);
   }
 
+  /// Package B: everything after [afterId] (oldest first, up to 200; more
+  /// → `409 SYNC_TOO_OLD`, the caller reloads the page).
+  Future<List<api.GroupMessageDto>> messagesAfter(
+    String id,
+    String afterId, {
+    String? topicId,
+  }) async =>
+      (await guardApiCall(
+        () => _c.listGroupMessages(id: id, topicId: topicId, afterId: afterId),
+      ))
+          .data;
+
   /// Owner 2026-10-21: one tab of the group's shared media, newest first.
   Future<CursorPage<api.GroupMessageDto>> shared(
     String id,
@@ -221,6 +253,17 @@ class GroupRepository {
 
   Future<List<api.GroupTopicDto>> topics(String id) async =>
       (await guardApiCall(() => _c.listGroupTopics(id: id))).data;
+
+  /// Package B: only the topics changed since [since].
+  Future<SyncedPage<api.GroupTopicDto>> topicsChangedSince(
+    String id,
+    DateTime since,
+  ) async {
+    final env = await guardApiCall(
+      () => _c.listGroupTopics(id: id, updatedSince: since.toUtc()),
+    );
+    return SyncedPage(items: env.data, syncedAt: env.meta?.syncedAt);
+  }
 
   Future<api.GroupTopicDto> createTopic(
     String id,

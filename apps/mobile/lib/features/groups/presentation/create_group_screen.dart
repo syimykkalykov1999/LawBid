@@ -138,7 +138,8 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
               joinApproval: _type == api.GroupType.closed ? _approval : null,
             ),
           );
-      ref.invalidate(groupsProvider);
+      // Package B: the new row comes with one `updatedSince`.
+      ref.read(groupsProvider.notifier).catchUp();
       if (!mounted) return;
       context.pushReplacement(GroupRoutes.group(group.id));
     } on ApiException catch (e) {

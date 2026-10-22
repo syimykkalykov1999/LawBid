@@ -23,8 +23,9 @@ Future<String?> answerGroupInvite(
   }
   ref
     ..invalidate(groupInvitesProvider)
-    ..invalidate(groupsProvider)
     ..invalidate(messageRequestsCountProvider)
     ..invalidate(chatFolderCountsProvider);
+  // Package B: a joined group enters the list by one `updatedSince`.
+  if (joined != null) ref.read(groupsProvider.notifier).catchUp();
   return joined;
 }

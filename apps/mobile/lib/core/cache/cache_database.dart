@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart';
 import 'package:lawbid/core/persistence/drift_web.dart';
+import 'package:lawbid/core/sync/synced_list_notifier.dart' show SyncStateStore;
 
 part 'cache_database.g.dart';
 
@@ -122,7 +123,7 @@ class CachedTranslations extends Table {
     CachedTranslations,
   ],
 )
-class CacheDatabase extends _$CacheDatabase {
+class CacheDatabase extends _$CacheDatabase implements SyncStateStore {
   CacheDatabase([QueryExecutor? executor])
       : super(executor ?? appDriftCacheDatabase('lawbid_cache'));
 
@@ -193,6 +194,7 @@ class CacheDatabase extends _$CacheDatabase {
 
   // --- sync state -------------------------------------------------------
 
+  @override
   Future<DateTime?> syncedAt(String owner, String listKey) async =>
       (await (select(syncState)
                 ..where(
@@ -201,6 +203,7 @@ class CacheDatabase extends _$CacheDatabase {
               .getSingleOrNull())
           ?.syncedAt;
 
+  @override
   Future<void> setSyncedAt(String owner, String listKey, DateTime at) =>
       into(syncState).insertOnConflictUpdate(
         SyncStateCompanion.insert(
@@ -210,6 +213,7 @@ class CacheDatabase extends _$CacheDatabase {
         ),
       );
 
+  @override
   Future<void> clearSyncedAt(String owner, String listKey) => (delete(syncState)
         ..where((r) => r.owner.equals(owner) & r.listKey.equals(listKey)))
       .go();
