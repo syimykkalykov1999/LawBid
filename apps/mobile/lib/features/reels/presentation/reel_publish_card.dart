@@ -11,8 +11,8 @@ import 'package:lawbid/features/reels/application/reel_publish_job.dart';
 /// Owner 2026-10-21 (like Instagram): the reel being published is a card at
 /// the top of the feed itself — never a bar over the app. A thin line of
 /// progress runs along its bottom edge while the video is compressed,
-/// uploaded and encoded; «Cancel» while it goes, «Retry» inside the card
-/// when it failed (the video is kept); «Published» leaves by itself.
+/// uploaded and encoded; «×» while it goes, «Retry» (and «×») inside the
+/// card when it failed (the video is kept); «Published» leaves by itself.
 class ReelPublishCard extends ConsumerStatefulWidget {
   const ReelPublishCard({super.key});
 
@@ -39,7 +39,11 @@ class _ReelPublishCardState extends ConsumerState<ReelPublishCard> {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final job = ref.read(reelPublishJobProvider.notifier);
-    final percent = '${(s.progress * 100).round()}';
+    final cover = job.request?.cover;
+    // Owner 2026-10-22 (Instagram): one line for the whole publish — it
+    // never runs to the end and starts again at «0%» between the phases.
+    final overall = s.overall;
+    final percent = '${(overall * 100).round()}';
     final failed = s.phase == ReelPublishPhase.failed;
     final done = s.phase == ReelPublishPhase.done;
     final label = switch (s.phase) {
@@ -52,11 +56,13 @@ class _ReelPublishCardState extends ConsumerState<ReelPublishCard> {
       ReelPublishPhase.done => t.t('post.brief.published'),
       _ => t.t('reels.upload.failed'),
     };
-    final action = failed
-        ? (t.t('error.retry'), job.retry)
+    // Owner 2026-10-22 (Instagram): a small «×» (not a word) stops it while
+    // it goes; a failed one keeps «Retry» and can be put away with «×».
+    final close = failed
+        ? job.dismiss
         : done || s.phase == ReelPublishPhase.processing
             ? null
-            : (t.t('common.cancel'), job.cancel);
+            : job.cancel;
     return Container(
       margin: const EdgeInsets.fromLTRB(
         AppSpacing.screenSide,
@@ -79,16 +85,39 @@ class _ReelPublishCardState extends ConsumerState<ReelPublishCard> {
               padding: const EdgeInsets.all(AppSpacing.sm),
               child: Row(
                 children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: colors.border,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(
-                      done ? Icons.check_rounded : Icons.play_arrow_rounded,
-                      color: colors.text,
+                  // Owner 2026-10-22 (Instagram): the reel's own cover from
+                  // the first moment, not a grey box.
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: SizedBox(
+                      width: 40,
+                      height: 52,
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          if (cover != null && cover.isNotEmpty)
+                            Image.memory(
+                              cover,
+                              fit: BoxFit.cover,
+                              gaplessPlayback: true,
+                              errorBuilder: (_, __, ___) =>
+                                  ColoredBox(color: colors.border),
+                            )
+                          else
+                            ColoredBox(color: colors.border),
+                          if (done || cover == null || cover.isEmpty)
+                            Center(
+                              child: AppIcon(
+                                done
+                                    ? AppIcons.checkRounded
+                                    : AppIcons.playArrowRounded,
+                                color: cover == null || cover.isEmpty
+                                    ? colors.text
+                                    : ChatColors.onMediaScrim,
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
                   ),
                   const SizedBox(width: AppSpacing.sm),
@@ -102,16 +131,16 @@ class _ReelPublishCardState extends ConsumerState<ReelPublishCard> {
                       ),
                     ),
                   ),
-                  if (action != null)
+                  if (failed)
                     InkWell(
-                      onTap: action.$2,
+                      onTap: job.retry,
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
                           horizontal: AppSpacing.sm,
                           vertical: AppSpacing.xs,
                         ),
                         child: Text(
-                          action.$1,
+                          t.t('error.retry'),
                           style: type.bodySmall.copyWith(
                             color: colors.goldDark,
                             fontWeight: FontWeight.w600,
@@ -119,18 +148,40 @@ class _ReelPublishCardState extends ConsumerState<ReelPublishCard> {
                         ),
                       ),
                     ),
+                  if (close != null)
+                    IconButton(
+                      onPressed: close,
+                      tooltip: t.t('common.cancel'),
+                      visualDensity: VisualDensity.compact,
+                      icon: AppIcon(
+                        AppIcons.closeRounded,
+                        size: 20,
+                        color: colors.textSecondary,
+                      ),
+                    ),
                 ],
               ),
             ),
-            if (s.busy)
+            if (s.busy &&
+                (s.phase == ReelPublishPhase.posting ||
+                    s.phase == ReelPublishPhase.processing))
               LinearProgressIndicator(
-                value: s.phase == ReelPublishPhase.posting ||
-                        s.phase == ReelPublishPhase.processing
-                    ? null
-                    : s.progress,
                 minHeight: 2,
                 color: colors.gold,
                 backgroundColor: colors.border,
+              )
+            // Smooth: the line glides to each new value.
+            else if (s.busy)
+              TweenAnimationBuilder<double>(
+                tween: Tween(end: overall),
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeOut,
+                builder: (_, v, __) => LinearProgressIndicator(
+                  value: v,
+                  minHeight: 2,
+                  color: colors.gold,
+                  backgroundColor: colors.border,
+                ),
               ),
           ],
         ),

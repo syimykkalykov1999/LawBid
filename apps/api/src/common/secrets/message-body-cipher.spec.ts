@@ -16,6 +16,22 @@ describe('MessageBodyCipher (scaling TZ point 11)', () => {
     expect(c.open(sealed)).toBe('Call me at 555-0100');
   });
 
+  it('an empty caption (photo/video without text) opens to empty', () => {
+    // Owner 2026-10-22: the bubble showed `enc:v2.m1.…` under a photo —
+    // the sealed '' has an empty ciphertext segment.
+    const c = cipher({ MESSAGE_ENC_KEYS: K1, MESSAGE_ENC_ACTIVE_KID: 'k1' });
+    const sealed = c.seal('');
+    expect(sealed.endsWith('.')).toBe(true);
+    expect(c.open(sealed)).toBe('');
+  });
+
+  it('a tampered empty caption is not opened as empty', () => {
+    const c = cipher({ MESSAGE_ENC_KEYS: K1, MESSAGE_ENC_ACTIVE_KID: 'k1' });
+    const [pre, kid, iv] = c.seal('').split('.');
+    const forged = `${pre}.${kid}.${iv}.AAAAAAAAAAAAAAAAAAAAAA.`;
+    expect(c.open(forged)).toBe(forged);
+  });
+
   it('two seals of the same text differ (random IV)', () => {
     const c = cipher({ MESSAGE_ENC_KEYS: K1, MESSAGE_ENC_ACTIVE_KID: 'k1' });
     expect(c.seal('hi')).not.toBe(c.seal('hi'));

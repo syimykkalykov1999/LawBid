@@ -551,6 +551,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                 cut: v.cut,
                 previewSize: v.size,
                 coverFileId: v.coverFileId,
+                cover: v.coverBytes ?? v.frame,
                 title: _parts.$1,
                 text: _parts.$2,
                 place: '',

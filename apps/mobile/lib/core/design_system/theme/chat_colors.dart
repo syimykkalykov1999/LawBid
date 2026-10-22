@@ -101,6 +101,10 @@ final class ChatColors extends ThemeExtension<ChatColors> {
   static const Color mediaScrim = Color(0x73000000);
   static const Color onMediaScrim = Color(0xFFFFFFFF);
 
+  /// Owner 2026-10-22 (Instagram / WhatsApp): the soft shade rising from
+  /// the bottom of a caption-less photo / video under its time and ticks.
+  static const Color mediaFade = Color(0x00000000);
+
   final Color wallpaper;
   final Color pattern;
   final Color mine;

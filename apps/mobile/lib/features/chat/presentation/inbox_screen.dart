@@ -664,8 +664,12 @@ String messagePreview(Translator t, ChatMessage m, {String? me}) {
         : (a?.isVideo ?? false)
             ? '🎥 ${t.t('chat.attach.video')}'
             : '📄 ${t.t('chat.attach.label')}';
-    return m.body.isEmpty ? label : '$label · ${m.body}';
+    // Owner 2026-10-22: no caption → the kind alone («📷 Фото»).
+    final caption = m.body.trim();
+    return caption.isEmpty ? label : '$label · $caption';
   }
+  // Owner 2026-10-22: a body the server could not open is no text.
+  if (m.unreadable && m.body.isEmpty) return t.t('chat.unreadable');
   return m.body.replaceAll(kContactMask, t.t('chat.masked'));
 }
 
