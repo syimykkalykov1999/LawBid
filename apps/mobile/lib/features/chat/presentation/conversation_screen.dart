@@ -1030,12 +1030,23 @@ class _Bubble extends ConsumerWidget {
   /// first, [message] is the newest — its time, ticks and caption).
   final List<ChatMessage>? group;
 
-  Widget _attachment(WidgetRef ref, ChatMessage m) {
+  Widget _attachment(
+    WidgetRef ref,
+    ChatMessage m, {
+    EdgeInsetsGeometry captionPadding = EdgeInsets.zero,
+  }) {
     final g = group;
-    if (g == null) return AttachmentMessageBody(message: m, mine: mine);
+    if (g == null) {
+      return AttachmentMessageBody(
+        message: m,
+        mine: mine,
+        captionPadding: captionPadding,
+      );
+    }
     return ChatAttachmentGroupBody(
       messages: g,
       mine: mine,
+      captionPadding: captionPadding,
       onRetry: (x) => ref.read(chatThreadProvider(threadId).notifier).retry(x),
     );
   }
@@ -1092,6 +1103,12 @@ class _Bubble extends ConsumerWidget {
     // A photo / video without a caption: a thin frame, the time on it.
     final media =
         a != null && (a.isImage || a.isVideo) && m.body.trim().isEmpty;
+    // Owner 2026-10-22 (Instagram / WhatsApp): with a caption the photo
+    // still fills the bubble edge to edge (a 3 px frame); the caption,
+    // headers and time keep the text inset.
+    final framed = a != null && (a.isImage || a.isVideo) && !media;
+    const inset = EdgeInsets.symmetric(horizontal: AppSpacing.md - 3);
+    Widget pad(Widget w) => framed ? Padding(padding: inset, child: w) : w;
     final giftName = m.gift == null ? '' : giftTitle(t, m.gift!.gift);
     final fileNames = [
       for (final x in group ?? [m]) x.attachment?.name ?? '',
@@ -1176,12 +1193,14 @@ class _Bubble extends ConsumerWidget {
             ),
             padding: media
                 ? const EdgeInsets.all(3)
-                : const EdgeInsets.fromLTRB(
-                    AppSpacing.md,
-                    AppSpacing.sm,
-                    AppSpacing.md,
-                    AppSpacing.xs,
-                  ),
+                : framed
+                    ? const EdgeInsets.fromLTRB(3, 3, 3, AppSpacing.xs)
+                    : const EdgeInsets.fromLTRB(
+                        AppSpacing.md,
+                        AppSpacing.sm,
+                        AppSpacing.md,
+                        AppSpacing.xs,
+                      ),
             decoration: BoxDecoration(
               color: mine ? chat.mine : chat.theirs,
               borderRadius: BorderRadius.only(
@@ -1196,33 +1215,51 @@ class _Bubble extends ConsumerWidget {
                 ? Stack(
                     children: [
                       _attachment(ref, m),
-                      // WhatsApp: the time (and ticks) on the picture.
+                      // Owner 2026-10-22 (Instagram / WhatsApp): the time
+                      // and ticks on a soft shade rising from the bottom,
+                      // no box around them.
                       PositionedDirectional(
-                        end: 6,
-                        bottom: 6,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: ChatColors.mediaScrim,
-                            borderRadius: BorderRadius.circular(AppRadii.pill),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                f.time(m.createdAt),
-                                style: type.caption.copyWith(
-                                  color: ChatColors.onMediaScrim,
+                        start: 0,
+                        end: 0,
+                        bottom: 0,
+                        child: IgnorePointer(
+                          child: ClipRRect(
+                            borderRadius: const BorderRadius.vertical(
+                              bottom: Radius.circular(12),
+                            ),
+                            child: Container(
+                              height: 36,
+                              alignment: AlignmentDirectional.bottomEnd,
+                              padding: const EdgeInsetsDirectional.only(
+                                end: 8,
+                                bottom: 5,
+                              ),
+                              decoration: const BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  colors: [
+                                    ChatColors.mediaFade,
+                                    ChatColors.mediaScrim,
+                                  ],
                                 ),
                               ),
-                              if (mine) ...[
-                                const SizedBox(width: 3),
-                                ticks(ChatColors.onMediaScrim),
-                              ],
-                            ],
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    f.time(m.createdAt),
+                                    style: type.caption.copyWith(
+                                      color: ChatColors.onMediaScrim,
+                                    ),
+                                  ),
+                                  if (mine) ...[
+                                    const SizedBox(width: 3),
+                                    ticks(ChatColors.onMediaScrim),
+                                  ],
+                                ],
+                              ),
+                            ),
                           ),
                         ),
                       ),
@@ -1234,7 +1271,11 @@ class _Bubble extends ConsumerWidget {
                     children: [
                       if (m.forwarded && !m.revoked)
                         Padding(
-                          padding: const EdgeInsets.only(bottom: 3),
+                          padding: EdgeInsets.only(
+                            bottom: 3,
+                            left: framed ? inset.left : 0,
+                            right: framed ? inset.right : 0,
+                          ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
@@ -1265,7 +1306,11 @@ class _Bubble extends ConsumerWidget {
                         ),
                       if (m.replyTo != null && !m.revoked)
                         Padding(
-                          padding: const EdgeInsets.only(bottom: 4),
+                          padding: EdgeInsets.only(
+                            bottom: 4,
+                            left: framed ? inset.left : 0,
+                            right: framed ? inset.right : 0,
+                          ),
                           child: ConstrainedBox(
                             constraints: BoxConstraints(
                               minWidth: MediaQuery.sizeOf(context).width * 0.4,
@@ -1310,7 +1355,11 @@ class _Bubble extends ConsumerWidget {
                         )
                       else if (m.kind == MessageKind.attachment &&
                           m.attachment != null)
-                        _attachment(ref, m)
+                        _attachment(
+                          ref,
+                          m,
+                          captionPadding: framed ? inset : EdgeInsets.zero,
+                        )
                       else if (m.kind == MessageKind.contact &&
                           m.contact != null)
                         ContactCardBody(card: m.contact!, mine: mine)
@@ -1319,6 +1368,30 @@ class _Bubble extends ConsumerWidget {
                       // Owner 2026-10-21 (Instagram): a shared post.
                       else if (m.kind == MessageKind.post && m.post != null)
                         PostCardBody(card: m.post!, mine: mine)
+                      // Owner 2026-10-22: a body the server could not open —
+                      // a placeholder, never the `enc:v2…` ciphertext.
+                      else if (m.unreadable && m.body.isEmpty)
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            AppIcon(
+                              AppIcons.lockOutlineRounded,
+                              size: 15,
+                              color: meta,
+                            ),
+                            const SizedBox(width: 6),
+                            Flexible(
+                              child: Text(
+                                t.t('chat.unreadable'),
+                                style: type.body.copyWith(
+                                  color: meta,
+                                  fontStyle: FontStyle.italic,
+                                  height: 1.35,
+                                ),
+                              ),
+                            ),
+                          ],
+                        )
                       else
                         _MessageText(
                           message: m,
@@ -1326,32 +1399,34 @@ class _Bubble extends ConsumerWidget {
                           style: type.body.copyWith(color: fg, height: 1.35),
                         ),
                       const SizedBox(height: 2),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (m.pinned && !m.revoked) ...[
-                            AppIcon(AppIcons.pushPin, size: 11, color: meta),
-                            const SizedBox(width: 4),
-                          ],
-                          if (m.editedAt != null && !m.revoked) ...[
-                            Text(
-                              t.t('chat.edited'),
-                              style: type.caption.copyWith(
-                                color: meta,
-                                fontStyle: FontStyle.italic,
+                      pad(
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (m.pinned && !m.revoked) ...[
+                              AppIcon(AppIcons.pushPin, size: 11, color: meta),
+                              const SizedBox(width: 4),
+                            ],
+                            if (m.editedAt != null && !m.revoked) ...[
+                              Text(
+                                t.t('chat.edited'),
+                                style: type.caption.copyWith(
+                                  color: meta,
+                                  fontStyle: FontStyle.italic,
+                                ),
                               ),
+                              const SizedBox(width: 4),
+                            ],
+                            Text(
+                              f.time(m.createdAt),
+                              style: type.caption.copyWith(color: meta),
                             ),
-                            const SizedBox(width: 4),
+                            if (mine && !m.revoked) ...[
+                              const SizedBox(width: 4),
+                              ticks(meta),
+                            ],
                           ],
-                          Text(
-                            f.time(m.createdAt),
-                            style: type.caption.copyWith(color: meta),
-                          ),
-                          if (mine && !m.revoked) ...[
-                            const SizedBox(width: 4),
-                            ticks(meta),
-                          ],
-                        ],
+                        ),
                       ),
                     ],
                   ),

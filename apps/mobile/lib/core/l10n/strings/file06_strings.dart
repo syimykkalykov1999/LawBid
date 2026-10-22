@@ -17,6 +17,8 @@ const file06Ru = <String, String>{
   'chat.act.deleteMe': 'Удалить у меня',
   'chat.deleted': 'Сообщение удалено',
   'chat.deletedMine': 'Вы удалили это сообщение',
+  // Owner 2026-10-22: never the `enc:v2…` ciphertext.
+  'chat.unreadable': 'Не удалось расшифровать сообщение',
   'chat.edited': 'изменено',
   'chat.forwarded': 'Пересланное сообщение',
   'chat.forwardedFrom': 'Переслано от {name}',
@@ -546,6 +548,7 @@ const file06En = <String, String>{
   'chat.act.deleteMe': 'Delete for me',
   'chat.deleted': 'This message was deleted',
   'chat.deletedMine': 'You deleted this message',
+  'chat.unreadable': "Couldn't decrypt this message",
   'chat.edited': 'edited',
   'chat.forwarded': 'Forwarded',
   'chat.forwardedFrom': 'Forwarded from {name}',

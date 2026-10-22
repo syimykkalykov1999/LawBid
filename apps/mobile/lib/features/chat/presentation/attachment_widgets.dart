@@ -250,11 +250,16 @@ class AttachmentMessageBody extends ConsumerWidget {
   const AttachmentMessageBody({
     required this.message,
     required this.mine,
+    this.captionPadding = EdgeInsets.zero,
     super.key,
   });
 
   final ChatMessage message;
   final bool mine;
+
+  /// Owner 2026-10-22: the text inset of the caption when the photo fills
+  /// the bubble edge to edge (Instagram / WhatsApp).
+  final EdgeInsetsGeometry captionPadding;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -330,13 +335,16 @@ class AttachmentMessageBody extends ConsumerWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         content,
-        if (message.body.isNotEmpty) ...[
+        if (message.body.trim().isNotEmpty) ...[
           const SizedBox(height: AppSpacing.xs),
           SizedBox(
             width: captionWidth,
-            child: Text(
-              message.body,
-              style: type.body.copyWith(color: fg, height: 1.35),
+            child: Padding(
+              padding: captionPadding,
+              child: Text(
+                message.body,
+                style: type.body.copyWith(color: fg, height: 1.35),
+              ),
             ),
           ),
         ],

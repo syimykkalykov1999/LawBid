@@ -924,7 +924,10 @@ abstract final class ChatMappers {
         sticker:
             d.sticker == null ? null : StickersRepository.sticker(d.sticker!),
         gift: d.gift == null ? null : StarsMappers.send(d.gift!),
-        body: d.body,
+        // Owner 2026-10-22: a sealed body never reaches a bubble or the
+        // inbox preview (a caption-less photo showed `enc:v2.m1.…`).
+        body: isSealedChatBody(d.body) ? '' : d.body,
+        unreadable: isSealedChatBody(d.body),
         contactMasked: d.contactMasked,
         clientMessageId: d.clientMessageId,
         createdAt: d.createdAt,
@@ -946,7 +949,9 @@ abstract final class ChatMappers {
                   api.ReplyPreviewDtoType.call => MessageKind.call,
                   _ => MessageKind.text,
                 },
-                snippet: d.replyTo!.snippet,
+                snippet: isSealedChatBody(d.replyTo!.snippet)
+                    ? ''
+                    : d.replyTo!.snippet,
                 revoked: d.replyTo!.revoked,
               ),
         reactions: [
