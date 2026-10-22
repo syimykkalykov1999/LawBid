@@ -16,7 +16,6 @@ import 'package:lawbid/features/calls/application/call_video_layout.dart';
 import 'package:lawbid/features/calls/data/calls_repository.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
-import 'package:lawbid/features/chat/data/realtime_client.dart';
 
 /// OQ-041: the call state machine — ring out, pick-up, signaling,
 /// hang-up; ring in, accept, decline; busy; refusals; answered on another

@@ -1,7 +1,6 @@
 {
  "deep": [
   "features/auth/domain/login_identifier.dart -> contacts_sync/data/phone_numbers.dart",
-  "features/calls/application/call_controller.dart -> chat/data/realtime_client.dart",
   "features/cases/presentation/screens/attorney_case_screen.dart -> translation/data/content_translation_repository.dart",
   "features/cases/presentation/screens/bid_detail_screen.dart -> translation/data/content_translation_repository.dart",
   "features/cases/presentation/screens/case_comments_screen.dart -> social/data/social_repository.dart",
@@ -15,10 +14,8 @@
   "features/client_plan/data/client_plan_repository.dart -> plans/data/plan_mappers.dart",
   "features/demo/domain/demo_models.dart -> auth/data/auth_dtos.dart",
   "features/groups/application/group_avatar_upload.dart -> profile/data/avatar_upload_repository.dart",
-  "features/groups/application/group_providers.dart -> chat/data/realtime_client.dart",
   "features/groups/presentation/widgets/group_attach.dart -> chat/data/chat_repository.dart",
   "features/groups/presentation/widgets/group_info_avatar.dart -> profile/data/avatar_upload_repository.dart",
-  "features/notifications/application/notifications_providers.dart -> chat/data/realtime_client.dart",
   "features/onboarding/data/onboarding_repository.dart -> auth/data/auth_api_client.dart",
   "features/profile/application/delete_account_controller.dart -> auth/data/auth_repository.dart",
   "features/profile/data/avatar_upload_repository.dart -> onboarding/data/current_user_mapper.dart",
