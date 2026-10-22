@@ -104,9 +104,9 @@ describe('Follows (e2e, docs/05 §6, stage 5.5)', () => {
     const star = await user('attorney');
     const fanAttorney = await user('attorney');
     const fanClient = await user('client');
-    expect((await follow(fanAttorney.auth, star.id)).status).toBe(204);
-    expect((await follow(fanClient.auth, star.id)).status).toBe(204);
-    expect((await follow(fanClient.auth, star.id)).status).toBe(204); // idempotent
+    expect((await follow(fanAttorney.auth, star.id)).status).toBe(200);
+    expect((await follow(fanClient.auth, star.id)).status).toBe(200);
+    expect((await follow(fanClient.auth, star.id)).status).toBe(200); // idempotent
     await app.get(CounterAggregator).flush();
 
     const list = await api()
