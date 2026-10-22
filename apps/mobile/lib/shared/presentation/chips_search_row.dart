@@ -123,13 +123,10 @@ class _ChipsSearchRowState extends ConsumerState<ChipsSearchRow> {
         );
     if (_open) {
       // Owner 2026-10-22 (WhatsApp / Telegram): a tap on empty space outside
-      // the field closes the empty search itself, not only the keyboard.
-      // With text typed it stays (the results are being read); the keyboard
-      // still hides by the field's own rule.
+      // the field always closes the search itself (text cleared, field
+      // hidden), not only the keyboard — even with text typed.
       return TapRegion(
-        onTapOutside: (_) {
-          if (_text.text.trim().isEmpty) _close();
-        },
+        onTapOutside: (_) => _close(),
         child: bar(
           Padding(
             padding: const EdgeInsets.symmetric(

@@ -41,7 +41,7 @@ void main() {
     expect(find.byKey(const ValueKey('list-search-open')), findsOneWidget);
   });
 
-  testWidgets('with text typed, a tap outside keeps the search open',
+  testWidgets('with text typed, a tap outside still closes the search',
       (tester) async {
     await pump(tester);
     await tester.tap(find.byKey(const ValueKey('list-search-open')));
@@ -49,6 +49,6 @@ void main() {
     await tester.enterText(find.byType(EditableText), 'abc');
     await tester.tap(find.byKey(const Key('empty-space')));
     await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('list-search')), findsOneWidget);
+    expect(find.byKey(const ValueKey('list-search')), findsNothing);
   });
 }
