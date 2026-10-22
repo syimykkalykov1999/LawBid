@@ -64,6 +64,11 @@ resource "aws_lb" "this" {
   subnets                    = var.public_subnet_ids
   drop_invalid_header_fields = true
   # Socket.IO long-polling/WebSocket frames must outlive the default 60 s.
+  # The API's HTTP keep-alive (server.keepAliveTimeout in
+  # apps/api/src/main.ts, 310 s) must stay LONGER than this idle timeout:
+  # the ALB, not the API, closes an idle connection, so the ALB never
+  # reuses a socket the API has just closed (sporadic 502). AWS:
+  # https://docs.aws.amazon.com/elasticloadbalancing/latest/application/application-load-balancers.html#connection-idle-timeout
   idle_timeout = 300
   dynamic "access_logs" {
     for_each = var.access_logs_bucket == null ? [] : [var.access_logs_bucket]

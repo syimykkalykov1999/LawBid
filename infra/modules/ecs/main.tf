@@ -2,7 +2,8 @@
 # `worker`, `admin`), a one-off `migrate` task definition (`prisma migrate
 # deploy` under the lawbid_migrator connection, run by the deploy
 # pipeline before the prod rollout), CPU-target autoscaling (60 %, min 2
-# tasks in 2 AZs), deployment circuit breaker with rollback, secrets
+# tasks in 2 AZs; plus requests per task for the api and waiting jobs per
+# task for the worker), deployment circuit breaker with rollback, secrets
 # injected from Secrets Manager (never in the task definition JSON).
 terraform {
   required_providers {
@@ -132,6 +133,16 @@ variable "alb_resource_label" {
 variable "api_requests_per_task" {
   type    = number
   default = 200
+}
+variable "metrics_namespace" {
+  type        = string
+  default     = ""
+  description = "CloudWatch namespace of the app metrics (LawBid/<name>, modules/monitoring); holds QueueWaitingTotal. Empty = worker scales on CPU only."
+}
+variable "worker_jobs_per_task" {
+  type        = number
+  default     = 50
+  description = "Queue-depth scaling of the worker: target waiting jobs per running worker task. 0 = CPU only."
 }
 variable "log_retention_days" {
   type    = number
@@ -579,6 +590,68 @@ resource "aws_appautoscaling_policy" "api_requests" {
     predefined_metric_specification {
       predefined_metric_type = "ALBRequestCountPerTarget"
       resource_label         = var.alb_resource_label
+    }
+  }
+}
+
+# Owner 2026-10-22 (load audit #10): the worker also scales on queue depth.
+# CPU stays low while jobs wait on Stripe / FCM / ClamAV, so CPU alone never
+# adds a worker for a backlog. Metric: QueueWaitingTotal (one line a minute
+# from the worker's ops.metrics job, log metric filter in modules/monitoring)
+# divided by the running worker tasks (Container Insights): the AWS
+# "backlog per task" pattern. The CPU policy above stays; with two target
+# tracking policies the larger desired count wins.
+# https://docs.aws.amazon.com/autoscaling/application/userguide/application-auto-scaling-target-tracking-metric-math.html
+resource "aws_appautoscaling_policy" "worker_queue" {
+  count              = var.worker_jobs_per_task > 0 && var.metrics_namespace != "" ? 1 : 0
+  name               = "${var.name}-worker-queue"
+  policy_type        = "TargetTrackingScaling"
+  service_namespace  = aws_appautoscaling_target.svc["worker"].service_namespace
+  scalable_dimension = aws_appautoscaling_target.svc["worker"].scalable_dimension
+  resource_id        = aws_appautoscaling_target.svc["worker"].resource_id
+  target_tracking_scaling_policy_configuration {
+    target_value       = var.worker_jobs_per_task
+    scale_in_cooldown  = 600
+    scale_out_cooldown = 60
+    customized_metric_specification {
+      metrics {
+        id          = "waiting"
+        label       = "Waiting jobs, all consumed queues"
+        return_data = false
+        metric_stat {
+          metric {
+            metric_name = "QueueWaitingTotal"
+            namespace   = var.metrics_namespace
+          }
+          stat = "Maximum"
+        }
+      }
+      metrics {
+        id          = "tasks"
+        label       = "Running worker tasks"
+        return_data = false
+        metric_stat {
+          metric {
+            metric_name = "RunningTaskCount"
+            namespace   = "ECS/ContainerInsights"
+            dimensions {
+              name  = "ClusterName"
+              value = aws_ecs_cluster.this.name
+            }
+            dimensions {
+              name  = "ServiceName"
+              value = aws_ecs_service.worker.name
+            }
+          }
+          stat = "Average"
+        }
+      }
+      metrics {
+        id          = "per_task"
+        label       = "Waiting jobs per worker task"
+        expression  = "waiting / tasks"
+        return_data = true
+      }
     }
   }
 }

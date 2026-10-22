@@ -47,8 +47,24 @@ api_spot    = true
 redis_node_type = "cache.t4g.micro" # cache.r7g.large → t4g.micro (≈ $12)
 redis_replicas  = 0                 # 1 → 0 (no failover replica)
 
-nat_per_az          = false # one NAT gateway instead of one per AZ (≈ $33 saved)
-interface_endpoints = []    # AWS API traffic goes through the NAT (≈ $73 saved)
+nat_per_az = false # one NAT gateway instead of one per AZ (≈ $33 saved)
+# Owner 2026-10-22: image pulls, logs and secrets go through VPC endpoints,
+# not the NAT (S3 gateway endpoint is always on and free). In the first AZ
+# only, the same AZ as the single NAT: 4 × $7.3 ≈ $29/month.
+interface_endpoints    = ["ecr.api", "ecr.dkr", "logs", "secretsmanager"]
+interface_endpoint_azs = 1
+
+# --- backups and the database (owner 2026-10-22, docs/runbooks/backups.md)
+# The prod RDS was created outside Terraform; name it here so AWS Backup
+# copies it daily to us-west-2 and `terraform plan` warns when Multi-AZ /
+# retention are off. Terraform never modifies it.
+existing_database_identifier = "lawbid-prod-postgres"
+backup_enabled               = true
+backup_retention_days        = 35
+# backup_copy_account_id     = "123456789012" # optional separate backup account (vault created there first)
+
+# Worker autoscaling: one more worker for every 50 waiting jobs (CPU 60 % stays).
+worker_jobs_per_task = 50
 
 # --- money (zero maintenance) ----------------------------------------------
 monthly_budget_usd = 200 # e-mails at $100 / $160 / $200; at $200 the server stays at the minimum until the next month
