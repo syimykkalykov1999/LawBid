@@ -33,6 +33,11 @@ import { BadgesService } from '../notifications/badges.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { RealtimePublisher } from '../realtime/realtime-publisher.service';
 import {
+  GroupFanoutQueue,
+  broadcastAudiences,
+  type GroupFanoutJob,
+} from './group-fanout.queue';
+import {
   GroupPresenter,
   NOBODY,
   isAdminRole,
@@ -83,7 +88,6 @@ import {
 const GROUPS_PAGE = 30;
 const MESSAGES_PAGE = 30;
 const INVITE_RETRY_MS = 24 * 3600 * 1000;
-const FANOUT_CHUNK = 50;
 const TOPICS_MAX = 100;
 const TOPIC_COLORS = 7;
 
@@ -143,6 +147,9 @@ export class GroupsService {
     private readonly addPolicy: GroupAddPolicy,
     private readonly usernames: UsernamePolicyService,
     private readonly reco: RecommendationsService,
+    // Owner 2026-10-22 (server load audit, finding 7): realtime, badges
+    // and pushes of a message go out from the ordered fan-out queue.
+    private readonly fanoutQueue: GroupFanoutQueue,
   ) {}
 
   // ------------------------------------------------------------ membership
@@ -2204,8 +2211,56 @@ export class GroupsService {
     return (await this.presenter.messages([row], viewerId))[0];
   }
 
-  /** Realtime `group:message` to every live member (personalised flags). */
+  /**
+   * Realtime `group:message` to every live member (personalised flags).
+   * Owner 2026-10-22 (server load audit, finding 7): queued on the group's
+   * fan-out partition (GroupFanoutQueue) — members get a group's events in
+   * the order they happened, and the request does not wait for them.
+   */
   async broadcast(groupId: string, row: ChatGroupMessage): Promise<void> {
+    await this.fanoutQueue.enqueue(
+      { kind: 'broadcast', groupId, messageId: row.id },
+      // Every change is its own event (each edit of one message too).
+      `b-${row.id}-${Date.now()}-${randomBytes(4).toString('hex')}`,
+      () => this.deliverBroadcast(groupId, row),
+    );
+  }
+
+  /** A new user-written message: unhide, broadcast, badge and push
+   * ([push] false: no push — the earlier messages of a forwarded batch).
+   * Owner 2026-10-22 (finding 7): one job per message (job id = the
+   * message), delivered by [deliverFanOut]. */
+  async fanOut(
+    groupId: string,
+    row: ChatGroupMessage,
+    opts: { push?: boolean } = {},
+  ): Promise<void> {
+    const push = opts.push !== false;
+    await this.fanoutQueue.enqueue(
+      { kind: 'message', groupId, messageId: row.id, push },
+      `fo-${row.id}`,
+      () => this.deliverMessage(groupId, row, push),
+    );
+  }
+
+  /** The worker side of [broadcast] / [fanOut] (GroupFanoutWorker): the
+   * message as it is now (an edit or deletion since is included). */
+  async deliverFanOut(job: GroupFanoutJob): Promise<void> {
+    const row = await this.prisma.chatGroupMessage.findFirst({
+      where: { id: job.messageId, group_id: job.groupId, deleted_at: {} },
+    });
+    if (!row) return;
+    if (job.kind === 'broadcast')
+      return this.deliverBroadcast(job.groupId, row);
+    return this.deliverMessage(job.groupId, row, job.push !== false);
+  }
+
+  /** One publish per audience (at most four), not one per member. */
+  private async deliverBroadcast(
+    groupId: string,
+    row: ChatGroupMessage,
+    memberIds?: string[],
+  ): Promise<void> {
     if (row.type === 'system') {
       const g = await this.prisma.chatGroup.findUnique({
         where: { id: groupId },
@@ -2214,48 +2269,45 @@ export class GroupsService {
       if (g && !g.show_service_messages) return;
     }
     const [ids, [dto]] = await Promise.all([
-      this.activeMemberIds(groupId),
+      memberIds ?? this.activeMemberIds(groupId),
       this.presenter.messages([row], NOBODY),
     ]);
     if (!dto) return;
-    for (const uid of ids) {
-      this.realtime.toUsers([uid], 'group:message', {
-        message: {
-          ...dto,
-          mine: row.sender_id === uid,
-          mentionsMe: !dto.deleted && row.mention_ids.includes(uid),
-        },
+    for (const a of broadcastAudiences(
+      ids,
+      row.sender_id,
+      row.mention_ids,
+      !!dto.deleted,
+    )) {
+      this.realtime.toUsers(a.userIds, 'group:message', {
+        message: { ...dto, mine: a.mine, mentionsMe: a.mentionsMe },
       });
     }
   }
 
-  /** A new user-written message: unhide, broadcast, badge and push
-   * ([push] false: no push — the earlier messages of a forwarded batch). */
-  async fanOut(
+  /** Unhide the chat, the event, then badges (batched) and the pushes
+   * (queued 500 members per job). */
+  private async deliverMessage(
     groupId: string,
     row: ChatGroupMessage,
-    opts: { push?: boolean } = {},
+    push: boolean,
   ): Promise<void> {
     await this.prisma.chatGroupMember.updateMany({
       where: { group_id: groupId, hidden_at: { not: null }, left_at: null },
       data: { hidden_at: null },
     });
-    await this.broadcast(groupId, row);
-    const ids = (await this.activeMemberIds(groupId)).filter(
-      (u) => u !== row.sender_id,
-    );
-    for (let i = 0; i < ids.length; i += FANOUT_CHUNK) {
-      await Promise.all(
-        ids.slice(i, i + FANOUT_CHUNK).map(async (uid) => {
-          await this.badges.messageArrived(uid);
-          if (opts.push === false) return;
-          await this.notifications.emit({
-            type: 'new_message',
-            recipientId: uid,
-            payload: { groupId, conversationId: groupId, messageId: row.id },
-          });
-        }),
-      );
+    const members = await this.activeMemberIds(groupId);
+    await this.deliverBroadcast(groupId, row, members);
+    // Deleted before the job ran: nothing to count or ring.
+    if (row.deleted_at) return;
+    const ids = members.filter((u) => u !== row.sender_id);
+    await this.badges.messagesArrived(ids, row.id);
+    if (push) {
+      await this.notifications.queueGroupMessagePushes({
+        groupId,
+        messageId: row.id,
+        recipientIds: ids,
+      });
     }
   }
 

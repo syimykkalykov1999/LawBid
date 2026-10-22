@@ -22,7 +22,7 @@ import { FeatureFlagsService } from '../feature-flags/services/feature-flags.ser
 import { FilesService } from '../files/files.service';
 import { decodeOffset, encodeOffset } from '../recommendations/offset-cursor';
 import { RecommendationsService } from '../recommendations/recommendations.service';
-import { NotificationsService } from '../notifications/notifications.service';
+import { ChannelFanoutRunner } from './channel-fanout.runner';
 import { UserBriefService } from '../user-brief/user-brief.service';
 import type {
   VideoUploadDto,
@@ -54,7 +54,6 @@ import {
 export const CHANNELS_FLAG = 'channels';
 const PAGE = 20;
 const LIST_MAX = 100;
-const FANOUT_BATCH = 200;
 
 export interface ChannelPage<T> {
   items: T[];
@@ -101,7 +100,9 @@ export class ChannelsService {
     private readonly limits: UsageLimitsService,
     private readonly flags: FeatureFlagsService,
     private readonly briefs: UserBriefService,
-    private readonly notifications: NotificationsService,
+    // Owner 2026-10-22 (server load audit, finding 7): subscribers are
+    // notified by the `channel-fanout` queue, not in this process.
+    private readonly fanout: ChannelFanoutRunner,
     private readonly usernames: UsernamePolicyService,
     private readonly reco: RecommendationsService,
     private readonly config: ConfigService,
@@ -639,9 +640,17 @@ export class ChannelsService {
       return p;
     });
     if (opts.notify !== false) {
-      void this.fanout(channel, row).catch((e: unknown) =>
-        this.logger.warn(`channel fan-out failed: ${String(e)}`),
-      );
+      void this.fanout
+        .start({
+          channelId: channel.id,
+          channelTitle: channel.title,
+          channelUsername: channel.username,
+          postId: row.id,
+          authorId: row.author_id,
+        })
+        .catch((e: unknown) =>
+          this.logger.warn(`channel fan-out failed: ${String(e)}`),
+        );
     }
     const [out] = await this.presentPosts([row], me);
     return out;
@@ -1100,50 +1109,6 @@ export class ChannelsService {
         code: ErrorCode.POST_NOT_ALLOWED,
         message: 'Only verified accounts can publish.',
       });
-    }
-  }
-
-  /** Tells every subscriber who has not muted the channel, in batches. */
-  private async fanout(channel: Channel, post: ChannelPost): Promise<void> {
-    const hidden = await this.blocks.hiddenIds(post.author_id);
-    let after: string | undefined;
-    for (;;) {
-      const subs = await this.prisma.channelSubscription.findMany({
-        where: {
-          channel_id: channel.id,
-          muted: false,
-          OR: [{ muted_until: null }, { muted_until: { lte: new Date() } }],
-          user_id: { notIn: [...hidden, post.author_id] },
-        },
-        orderBy: { user_id: 'asc' },
-        take: FANOUT_BATCH,
-        ...(after
-          ? {
-              cursor: {
-                channel_id_user_id: { channel_id: channel.id, user_id: after },
-              },
-              skip: 1,
-            }
-          : {}),
-        select: { user_id: true },
-      });
-      if (subs.length === 0) return;
-      await Promise.all(
-        subs.map((s) =>
-          this.notifications.emit({
-            type: 'channel_post',
-            recipientId: s.user_id,
-            payload: {
-              channelId: channel.id,
-              channelTitle: channel.title,
-              channelUsername: channel.username,
-              postId: post.id,
-            },
-          }),
-        ),
-      );
-      after = subs[subs.length - 1].user_id;
-      if (subs.length < FANOUT_BATCH) return;
     }
   }
 

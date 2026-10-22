@@ -10,6 +10,7 @@ import { UserBriefModule } from '../user-brief/user-brief.module';
 import { VideosModule } from '../videos/videos.module';
 import { ChannelsController } from './channels.controller';
 import { ChannelsService } from './channels.service';
+import { ChannelFanoutModule } from './channel-fanout.module';
 
 /** Owner 2026-10-20 — Telegram-style channels. */
 @Module({
@@ -23,6 +24,9 @@ import { ChannelsService } from './channels.service';
     BlocksModule,
     UsernamesModule,
     RecommendationsModule,
+    // Owner 2026-10-22: queues a post's notifications (and runs them
+    // while JOBS_ENABLED; the worker process always does).
+    ChannelFanoutModule.register({ mode: 'api' }),
   ],
   controllers: [ChannelsController],
   providers: [ChannelsService],
