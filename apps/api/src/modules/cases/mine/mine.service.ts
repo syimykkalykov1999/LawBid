@@ -24,6 +24,7 @@ import {
   encodeCursor,
 } from '../../../common/pagination/cursor.util';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { parseUpdatedSince, syncedAt } from '../../../common/sync/sync.util';
 import type { RequestUser } from '../../auth/decorators/current-user.decorator';
 import { SubscriptionAccessService } from '../../subscriptions/subscription-access.service';
 import { CaseBidsService } from '../case-bids/case-bids.service';
@@ -129,44 +130,58 @@ export class MineService {
     cursor: string | undefined,
     limit = MINE_PAGE_DEFAULT,
     search: MineFilterFields = {},
+    updatedSince?: string,
   ): Promise<Page<MyBidItemDto>> {
     if (user.role !== 'attorney') throw forbidden('Attorneys only.');
+    // Owner 2026-10-22 (client economy plan, package E): the delta — my
+    // bids whose row or case changed since; the ones outside this tab now
+    // come back as deletedIds.
+    const since = parseUpdatedSince(updatedSince);
+    const tab: Prisma.BidWhereInput =
+      filter === 'completed'
+        ? {
+            OR: [
+              {
+                status: {
+                  in: FINISHED_BIDS.filter((x) => x !== 'accepted'),
+                },
+              },
+              {
+                status: 'accepted',
+                case: { status: { in: ['closed', 'archived'] } },
+              },
+            ],
+          }
+        : {
+            status: filter === 'active' ? 'active' : { in: FINISHED_BIDS },
+          };
     const rows = await this.prisma.bid.findMany({
       where: {
         attorney_id: user.sub,
         // Owner 2026-09-30: search and filters in "Mine".
-        ...(hasMineFilter(search)
+        ...(hasMineFilter(search) && !since
           ? { case: await mineWhere(this.prisma, search) }
           : {}),
-        AND: [
-          filter === 'completed'
-            ? {
+        AND: since
+          ? [
+              {
                 OR: [
-                  {
-                    status: {
-                      in: FINISHED_BIDS.filter((x) => x !== 'accepted'),
-                    },
-                  },
-                  {
-                    status: 'accepted',
-                    case: { status: { in: ['closed', 'archived'] } },
-                  },
+                  { updated_at: { gte: since } },
+                  { case: { updated_at: { gte: since } } },
                 ],
-              }
-            : {
-                status: filter === 'active' ? 'active' : { in: FINISHED_BIDS },
               },
-          keyset(cursor),
-        ],
+            ]
+          : [tab, keyset(cursor)],
       },
       orderBy: [{ updated_at: 'desc' }, { id: 'desc' }],
-      take: limit + 1,
+      take: since ? 500 : limit + 1,
       include: {
         case: {
           select: {
             id: true,
             title: true,
             status: true,
+            updated_at: true,
             primary_state_code: true,
             practice_area: {
               select: { name_en: true, i18n_key: true, code: true },
@@ -176,13 +191,30 @@ export class MineService {
         offers: { orderBy: { round_no: 'desc' }, take: 1 },
       },
     });
-    const page = rows.slice(0, limit);
+    const inTab = (b: (typeof rows)[number]) =>
+      filter === 'completed'
+        ? (FINISHED_BIDS.includes(b.status) && b.status !== 'accepted') ||
+          (b.status === 'accepted' &&
+            (b.case.status === 'closed' || b.case.status === 'archived'))
+        : filter === 'active'
+          ? b.status === 'active'
+          : FINISHED_BIDS.includes(b.status);
+    const page = since ? rows.filter(inTab) : rows.slice(0, limit);
     const last = page[page.length - 1];
     const covers = await this.photos.coverUrls(
       page.map((b) => b.case.id),
       user.sub,
     );
     return {
+      ...(since
+        ? {
+            deletedIds: rows.filter((b) => !inTab(b)).map((b) => b.id),
+            syncedAt: syncedAt(
+              rows.flatMap((b) => [b.updated_at, b.case.updated_at]),
+              since,
+            ),
+          }
+        : {}),
       items: page.map((b) => ({
         ...bidFields(b),
         coverUrl: covers.get(b.case.id) ?? null,
@@ -198,7 +230,7 @@ export class MineService {
         lastOffer: offerFields(b.offers[0], b),
       })),
       nextCursor:
-        rows.length > limit && last
+        !since && rows.length > limit && last
           ? encodeCursor({ createdAt: last.updated_at, id: last.id })
           : null,
     };
@@ -212,9 +244,14 @@ export class MineService {
     cursor: string | undefined,
     limit = MINE_PAGE_DEFAULT,
     search: MineFilterFields = {},
+    updatedSince?: string,
   ): Promise<Page<WorkItemDto>> {
     if (user.role !== 'attorney') throw forbidden('Attorneys only.');
-    const c = cursor ? decodeCursor(cursor) : undefined;
+    // Owner 2026-10-22 (client economy plan, package E): the delta — my
+    // accepted bids whose row or case changed since; rows outside this tab
+    // (the case closed / reopened) come back as deletedIds.
+    const since = parseUpdatedSince(updatedSince);
+    const c = cursor && !since ? decodeCursor(cursor) : undefined;
     // From the attorney's accepted bids — index bids(attorney_id, status,
     // updated_at) — rather than scanning cases (load review, file 04).
     const [bids, active] = await Promise.all([
@@ -222,17 +259,27 @@ export class MineService {
         where: {
           attorney_id: user.sub,
           status: 'accepted',
-          accepted_for_case: {
-            status: { in: WORK_STATUSES[filter] },
-            // Owner 2026-10-18: also by the client's name / @username (when
-            // the attorney sees names) and accent-insensitively.
-            ...(await mineWhere(this.prisma, search, {
-              attorneyId: user.sub,
-              withClient: search.q
-                ? await this.subscriptions.isActive(user.sub)
-                : false,
-            })),
-          },
+          accepted_for_case: since
+            ? { isNot: null }
+            : {
+                status: { in: WORK_STATUSES[filter] },
+                // Owner 2026-10-18: also by the client's name / @username
+                // (when the attorney sees names) and accent-insensitively.
+                ...(await mineWhere(this.prisma, search, {
+                  attorneyId: user.sub,
+                  withClient: search.q
+                    ? await this.subscriptions.isActive(user.sub)
+                    : false,
+                })),
+              },
+          ...(since
+            ? {
+                OR: [
+                  { updated_at: { gte: since } },
+                  { accepted_for_case: { updated_at: { gte: since } } },
+                ],
+              }
+            : {}),
           ...(c
             ? {
                 OR: [
@@ -243,7 +290,7 @@ export class MineService {
             : {}),
         },
         orderBy: [{ updated_at: 'desc' }, { id: 'desc' }],
-        take: limit + 1,
+        take: since ? 500 : limit + 1,
         select: {
           id: true,
           fee_type: true,
@@ -256,6 +303,7 @@ export class MineService {
               id: true,
               title: true,
               status: true,
+              updated_at: true,
               auto_close_at: true,
               closed_at: true,
               primary_state_code: true,
@@ -276,7 +324,12 @@ export class MineService {
       }),
       this.subscriptions.isActive(user.sub),
     ]);
-    const page = bids.slice(0, limit);
+    const inTab = (b: (typeof bids)[number]) =>
+      !!b.accepted_for_case &&
+      (WORK_STATUSES[filter] as readonly string[]).includes(
+        b.accepted_for_case.status,
+      );
+    const page = since ? bids.filter(inTab) : bids.slice(0, limit);
     const last = page[page.length - 1];
     const covers = await this.photos.coverUrls(
       page.flatMap((b) =>
@@ -292,6 +345,18 @@ export class MineService {
         )
       : new Map<string, { url256: string | null }>();
     return {
+      ...(since
+        ? {
+            deletedIds: bids.filter((b) => !inTab(b)).map((b) => b.id),
+            syncedAt: syncedAt(
+              bids.flatMap((b) => [
+                b.updated_at,
+                b.accepted_for_case?.updated_at,
+              ]),
+              since,
+            ),
+          }
+        : {}),
       items: page.flatMap((b) => {
         const k = b.accepted_for_case;
         if (!k) return [];
@@ -325,7 +390,7 @@ export class MineService {
         ];
       }),
       nextCursor:
-        bids.length > limit && last
+        !since && bids.length > limit && last
           ? encodeCursor({ createdAt: last.updated_at, id: last.id })
           : null,
     };

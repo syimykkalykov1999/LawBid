@@ -16,6 +16,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { MaxTextChars } from '../../common/app-settings/max-text-chars.decorator';
+import { UpdatedSinceQuery } from '../../common/sync/sync.util';
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
@@ -303,6 +304,11 @@ export class ConsultationsQueryDto {
   @IsOptional()
   @IsString()
   cursor?: string;
+
+  @UpdatedSinceQuery(
+    'Owner 2026-10-22 (client economy plan, package E): only my consultations changed since (ISO); meta.deletedIds = the ones that left this view; meta.syncedAt = pass it back next time. Older than 7 days → 409 SYNC_TOO_OLD.',
+  )
+  updatedSince?: string;
 }
 
 export class ConsultationPersonDto {
@@ -378,4 +384,7 @@ export class ConsultationDto {
 export interface ConsultationPage {
   items: ConsultationDto[];
   nextCursor: string | null;
+  /** Owner 2026-10-22 (package E): with ?updatedSince. */
+  deletedIds?: string[];
+  syncedAt?: string;
 }

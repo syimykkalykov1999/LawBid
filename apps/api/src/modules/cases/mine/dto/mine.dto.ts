@@ -17,6 +17,7 @@ import { CaseFeedItemDto } from '../../dto/cases-feed.dto';
 import { CaseDto, CasePhotoDto } from '../../dto/case-responses.dto';
 
 import { MineFilterFields } from '../mine-filters';
+import { UpdatedSinceQuery } from '../../../../common/sync/sync.util';
 
 export const MINE_PAGE_DEFAULT = 20;
 export const MINE_PAGE_MAX = 50;
@@ -52,6 +53,11 @@ export class ListMyBidsQueryDto extends PageQuery {
   @IsOptional()
   @IsIn(MY_BIDS_FILTERS)
   filter?: MyBidsFilter;
+
+  @UpdatedSinceQuery(
+    'Owner 2026-10-22 (client economy plan, package E): only my bids changed since (ISO); meta.deletedIds = bids that left this tab; meta.syncedAt = pass it back next time. Older than 7 days → 409 SYNC_TOO_OLD.',
+  )
+  updatedSince?: string;
 }
 
 export const MY_WORK_FILTERS = ['active', 'closed'] as const;
@@ -63,6 +69,11 @@ export class ListMyWorkQueryDto extends PageQuery {
   @IsOptional()
   @IsIn(MY_WORK_FILTERS)
   filter?: MyWorkFilter;
+
+  @UpdatedSinceQuery(
+    'Owner 2026-10-22 (client economy plan, package E): only the work rows (accepted bid or its case) changed since (ISO); meta.deletedIds = rows that left this tab (the case closed / reopened); meta.syncedAt = pass it back next time. Older than 7 days → 409 SYNC_TOO_OLD.',
+  )
+  updatedSince?: string;
 }
 
 /** GET /saved-items (docs/04 §11.2 "Сохранённое": cases). */
@@ -239,4 +250,7 @@ export class CaseConversationDto {
 export interface Page<T> {
   items: T[];
   nextCursor: string | null;
+  /** Owner 2026-10-22 (package E): with ?updatedSince. */
+  deletedIds?: string[];
+  syncedAt?: string;
 }

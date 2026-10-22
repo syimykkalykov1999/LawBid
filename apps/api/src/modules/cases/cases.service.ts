@@ -17,6 +17,7 @@ import {
   encodeCursor,
 } from '../../common/pagination/cursor.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import { parseUpdatedSince, syncedAt } from '../../common/sync/sync.util';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import type { RequestMeta } from '../auth/services/session.service';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
@@ -1136,13 +1137,22 @@ export class CasesService {
     this.assertClientRole(user);
     const filter = query.filter ?? 'active';
     const limit = query.limit ?? MY_CASES_PAGE_DEFAULT;
-    const cursor = query.cursor ? decodeCursor(query.cursor) : undefined;
+    // Owner 2026-10-22 (client economy plan, package E): the delta — every
+    // case of mine changed since; the ones outside this tab now come back
+    // as deletedIds (the status moved them to another tab, or they are gone).
+    const since = parseUpdatedSince(query.updatedSince);
+    const cursor =
+      query.cursor && !since ? decodeCursor(query.cursor) : undefined;
     const rows = await this.prisma.case.findMany({
       where: {
         client_id: user.sub,
-        status: FILTER_STATUSES[filter],
-        // Owner 2026-09-30: search and filters in "Mine".
-        ...(await mineWhere(this.prisma, query)),
+        ...(since
+          ? { updated_at: { gte: since } }
+          : {
+              status: FILTER_STATUSES[filter],
+              // Owner 2026-09-30: search and filters in "Mine".
+              ...(await mineWhere(this.prisma, query)),
+            }),
         ...(cursor
           ? {
               OR: [
@@ -1153,10 +1163,19 @@ export class CasesService {
           : {}),
       },
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
-      take: limit + 1,
+      take: since ? 500 : limit + 1,
       include: CASE_DETAIL_INCLUDE,
     });
-    const page = rows.slice(0, limit);
+    const inTab = (k: (typeof rows)[number]) => {
+      const s = FILTER_STATUSES[filter];
+      const allowed = Array.isArray(s)
+        ? (s as unknown[])
+        : typeof s === 'object' && s !== null && 'in' in s
+          ? ((s as { in: unknown[] }).in ?? [])
+          : [s];
+      return k.deleted_at === null && allowed.includes(k.status);
+    };
+    const page = since ? rows.filter(inTab) : rows.slice(0, limit);
     const last = page[page.length - 1];
     const covers = await this.photos.coverUrls(
       page.map((k) => k.id),
@@ -1170,9 +1189,18 @@ export class CasesService {
         coverUrl: covers.get(k.id) ?? null,
       })),
       nextCursor:
-        rows.length > limit && last
+        !since && rows.length > limit && last
           ? encodeCursor({ createdAt: last.created_at, id: last.id })
           : null,
+      ...(since
+        ? {
+            deletedIds: rows.filter((k) => !inTab(k)).map((k) => k.id),
+            syncedAt: syncedAt(
+              rows.map((k) => k.updated_at),
+              since,
+            ),
+          }
+        : {}),
     };
   }
 

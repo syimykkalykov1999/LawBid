@@ -7,6 +7,7 @@ import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
 import { BadgesService } from '../src/modules/notifications/badges.service';
+import { NotificationsService } from '../src/modules/notifications/notifications.service';
 import { RealtimePublisher } from '../src/modules/realtime/realtime-publisher.service';
 
 /**
@@ -415,6 +416,114 @@ describe('Client economy (e2e, owner 2026-10-22)', () => {
       'Renamed',
     );
     spy.mockRestore();
+  });
+
+  // ------------------------------------------------------------ package E
+
+  it('E: a bid notification publishes case:update to the client; my lists answer deltas with deletedIds', async () => {
+    const cl = await client();
+    const att = await attorney();
+    const parent = await prisma.practiceArea.upsert({
+      where: { code: 'eco_e2e' },
+      create: {
+        code: 'eco_e2e',
+        name_en: 'Eco',
+        i18n_key: 'practice.eco_e2e',
+        sort: 0,
+      },
+      update: {},
+    });
+    const area = await prisma.practiceArea.upsert({
+      where: { code: 'eco_e2e.leaf' },
+      create: {
+        code: 'eco_e2e.leaf',
+        parent_id: parent.id,
+        name_en: 'Leaf',
+        i18n_key: 'practice.eco_e2e.leaf',
+        sort: 0,
+      },
+      update: {},
+    });
+    const kase = await prisma.case.create({
+      data: {
+        client_id: cl.id,
+        title: 'Delta case',
+        description: 'Details',
+        practice_area_id: area.id,
+        primary_state_code: 'NJ',
+        status: 'open',
+        budget_mode: 'clarify_later',
+      },
+    });
+    const publisher = app.get(RealtimePublisher);
+    const spy = jest.spyOn(publisher, 'toUsers');
+    const notifications = app.get(NotificationsService);
+    await notifications.emit({
+      type: 'bid_received',
+      recipientId: cl.id,
+      payload: { caseId: kase.id, bidId: randomUUID() },
+    });
+    expect(spy).toHaveBeenCalledWith(
+      [cl.id],
+      'case:update',
+      expect.objectContaining({ caseId: kase.id, kind: 'bid_new' }),
+    );
+    spy.mockRestore();
+
+    const since = new Date(Date.now() - 60_000).toISOString();
+    const mine = await api()
+      .get('/api/v1/users/me/cases')
+      .set(cl.auth)
+      .query({ updatedSince: since })
+      .expect(200);
+    expect(ids(mine.body.data)).toContain(kase.id);
+    expect(mine.body.meta.deletedIds).toEqual([]);
+    const syncedAt = mine.body.meta.syncedAt as string;
+
+    // Closing moves the case out of the "active" tab → deletedIds.
+    await prisma.case.update({
+      where: { id: kase.id },
+      data: { status: 'closed', closed_at: new Date() },
+    });
+    const after = await api()
+      .get('/api/v1/users/me/cases')
+      .set(cl.auth)
+      .query({ updatedSince: syncedAt })
+      .expect(200);
+    expect(ids(after.body.data)).not.toContain(kase.id);
+    expect(after.body.meta.deletedIds).toContain(kase.id);
+
+    const bids = await api()
+      .get('/api/v1/users/me/bids')
+      .set(att.auth)
+      .query({ updatedSince: since })
+      .expect(200);
+    expect(bids.body.data).toEqual([]);
+    expect(bids.body.meta).toMatchObject({ deletedIds: [], nextCursor: null });
+    const work = await api()
+      .get('/api/v1/users/me/work')
+      .set(att.auth)
+      .query({ updatedSince: since })
+      .expect(200);
+    expect(work.body.meta.deletedIds).toEqual([]);
+    const cons = await api()
+      .get('/api/v1/consultations')
+      .set(cl.auth)
+      .query({ updatedSince: since })
+      .expect(200);
+    expect(cons.body.meta).toMatchObject({ deletedIds: [] });
+    expect(typeof cons.body.meta.syncedAt).toBe('string');
+    const invites = await api()
+      .get('/api/v1/invites')
+      .set(att.auth)
+      .query({ updatedSince: since })
+      .expect(200);
+    expect(invites.body.meta).toMatchObject({ deletedIds: [] });
+    await api()
+      .get('/api/v1/consultations')
+      .set(cl.auth)
+      .query({ updatedSince: '2020-01-01T00:00:00Z' })
+      .expect(409);
   });
 
   it('D: reference lists carry a private / public Cache-Control with stale-while-revalidate', async () => {

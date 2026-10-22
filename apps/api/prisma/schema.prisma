@@ -1749,6 +1749,8 @@ model Case {
   @@index([status, closed_at])
   // Owner 2026-10-05: the daily deadline-reminder job.
   @@index([deadline_at])
+  // Owner 2026-10-22 (client economy plan, package E): GET /users/me/cases?updatedSince.
+  @@index([client_id, updated_at(sort: Desc)])
   @@map("cases")
 }
 
@@ -4012,6 +4014,8 @@ model CaseInvite {
 
   @@unique([case_id, attorney_id], map: "case_invites_case_attorney_key")
   @@index([attorney_id, status], map: "case_invites_attorney_status_idx")
+  // Owner 2026-10-22 (client economy plan, package E): GET /invites?updatedSince.
+  @@index([attorney_id, updated_at], map: "case_invites_attorney_updated_idx")
   @@index([client_id, created_at], map: "case_invites_client_created_idx")
   @@map("case_invites")
 }
@@ -6585,6 +6589,9 @@ model Consultation {
   @@index([attorney_id, starts_at])
   @@index([client_id, starts_at])
   @@index([status, starts_at])
+  // Owner 2026-10-22 (client economy plan, package E): GET /consultations?updatedSince.
+  @@index([attorney_id, updated_at])
+  @@index([client_id, updated_at])
   @@map("consultations")
 }
 

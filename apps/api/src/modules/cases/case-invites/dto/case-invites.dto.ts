@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { UpdatedSinceQuery } from '../../../../common/sync/sync.util';
 import {
   IsIn,
   IsInt,
@@ -96,6 +97,11 @@ export class InviteListQueryDto {
   @IsString()
   @MaxLength(200)
   cursor?: string;
+
+  @UpdatedSinceQuery(
+    'Owner 2026-10-22 (client economy plan, package E): only my invites changed since (ISO); meta.deletedIds = invites no longer pending (with status=pending); meta.syncedAt = pass it back next time. Older than 7 days → 409 SYNC_TOO_OLD.',
+  )
+  updatedSince?: string;
 }
 
 /** One invite as either side sees it. The attorney never sees the
@@ -210,4 +216,7 @@ export class CaseInviteDto {
 export interface CaseInvitePage {
   items: CaseInviteDto[];
   nextCursor: string | null;
+  /** Owner 2026-10-22 (package E): with ?updatedSince. */
+  deletedIds?: string[];
+  syncedAt?: string;
 }
