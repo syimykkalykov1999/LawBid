@@ -23,6 +23,10 @@ abstract final class ApiErrorCodes {
   // (426 -> forced-update screen).
   static const appUpdateRequired = 'APP_UPDATE_REQUIRED';
 
+  /// Owner 2026-10-22 (client economy plan): `?updatedSince` / `afterId`
+  /// older than the server keeps — reload the list from the first page.
+  static const syncTooOld = 'SYNC_TOO_OLD';
+
   // Auth (docs/01 §10, stage 1.4). TOKEN_EXPIRED is the one code
   // AuthInterceptor's silent refresh keys off (§10.4).
   static const tokenExpired = 'TOKEN_EXPIRED';
@@ -317,6 +321,7 @@ abstract final class ApiErrorCodes {
     idempotencyKeyRequired,
     idempotencyKeyConflict,
     appUpdateRequired,
+    syncTooOld,
     tokenExpired,
     authOtpInvalid,
     authOtpExpired,

@@ -11,6 +11,7 @@ import 'package:lawbid/features/cases/application/paged_notifier.dart';
 import 'package:lawbid/features/feed/application/feed_topics.dart'
     show topicTagFor;
 import 'package:lawbid/features/profile/application/profile_providers.dart';
+import 'package:lawbid/features/social/application/post_insights_providers.dart';
 import 'package:lawbid/features/social/data/social_local_database.dart';
 import 'package:lawbid/features/social/data/social_repository.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
@@ -747,22 +748,21 @@ class SocialActions {
   }
 
   /// Owner 2026-10-20: a reel / video was watched (3 s of real playback).
-  /// The counter moves only after the server confirmed (204); the server
-  /// counts one view per viewer per 24 h, the true number returns on refresh.
-  Future<void> recordView(Post post) async {
+  /// Owner 2026-10-22 (client economy plan, package A): the view rides in
+  /// the `POST /posts/events` batch (flush in 4 s, at most once per post
+  /// per 30 min from this device); the counter moves at once (the server
+  /// counts one view per viewer per 24 h, the true number returns on
+  /// refresh).
+  void recordView(Post post) {
+    _ref.read(postEventsQueueProvider).view(post.id);
     if (!_viewed.add(post.id)) return;
-    try {
-      await _repo.recordPostView(post.id);
-      final now = _latest(post);
-      _ref
-          .read(postOverridesProvider.notifier)
-          .put(now.copyWith(viewCount: now.viewCount + 1));
-    } on Object {
-      _viewed.remove(post.id);
-    }
+    final now = _latest(post);
+    _ref
+        .read(postOverridesProvider.notifier)
+        .put(now.copyWith(viewCount: now.viewCount + 1));
   }
 
-  /// Posts already counted in this session (one view per post).
+  /// Posts already counted in this session (one «+1» per post).
   static final _viewed = <String>{};
 
   Future<Object?> toggleSave(Post post) => _guard('save:${post.id}', () async {

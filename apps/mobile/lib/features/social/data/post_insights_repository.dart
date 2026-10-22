@@ -4,7 +4,26 @@ import 'package:lawbid/features/social/domain/post_insights_models.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// What the app reports for a post's statistics.
-enum PostEventKind { impression, profileVisit }
+enum PostEventKind {
+  impression('impression'),
+  profileVisit('profile_visit'),
+
+  /// Owner 2026-10-22 (client economy plan, package A): a view, batched
+  /// with the others instead of `POST /posts/{id}/view`.
+  view('view');
+
+  const PostEventKind(this.wire);
+
+  /// The server's name of the kind (also the disk queue's).
+  final String wire;
+
+  static PostEventKind? fromWire(String wire) {
+    for (final k in values) {
+      if (k.wire == wire) return k;
+    }
+    return null;
+  }
+}
 
 /// Owner 2026-10-18 — `GET /posts/:id/insights` (the author only) and
 /// `POST /posts/events` (impressions and profile visits, in batches).
@@ -56,9 +75,13 @@ class PostInsightsRepository {
             for (final (id, kind) in events)
               api.PostEventItemDto(
                 postId: id,
-                kind: kind == PostEventKind.impression
-                    ? api.PostEventItemDtoKind.impression
-                    : api.PostEventItemDtoKind.profileVisit,
+                kind: switch (kind) {
+                  PostEventKind.impression =>
+                    api.PostEventItemDtoKind.impression,
+                  PostEventKind.profileVisit =>
+                    api.PostEventItemDtoKind.profileVisit,
+                  PostEventKind.view => api.PostEventItemDtoKind.view,
+                },
               ),
           ],
         ),

@@ -123,7 +123,7 @@ class _WonCaseRepo extends FakeCasesRepository {
       bidFixture(status: BidStatus.accepted);
 
   @override
-  Future<void> recordView(String caseId) async {}
+  Future<void> recordViews(List<String> caseIds) async {}
 }
 
 class _StaleCaseRepo extends FakeCasesRepository {

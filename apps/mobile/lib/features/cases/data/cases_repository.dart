@@ -183,7 +183,9 @@ abstract interface class CasesRepository {
     List<String> states = const [],
   });
   Future<FeedCase> attorneyCase(String caseId);
-  Future<void> recordView(String caseId);
+  /// Owner 2026-10-22 (client economy plan, package A): views of several
+  /// cases in one `POST /cases/views` (1–50 ids).
+  Future<void> recordViews(List<String> caseIds);
   Future<void> setSaved(String caseId, {required bool saved});
   Future<CaseBid> placeBid(String caseId, BidInput input);
   Future<CursorPage<MyBid>> myBids(
@@ -579,8 +581,9 @@ class ApiCasesRepository implements CasesRepository {
       );
 
   @override
-  Future<void> recordView(String caseId) =>
-      guardApiCall(() => _cases.recordCaseView(id: caseId));
+  Future<void> recordViews(List<String> caseIds) => guardApiCall(
+        () => _cases.recordCaseViews(body: api.CaseViewsDto(caseIds: caseIds)),
+      );
 
   @override
   Future<void> setSaved(String caseId, {required bool saved}) {
