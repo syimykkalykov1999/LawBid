@@ -115,7 +115,14 @@ class TeamInfo {
     required this.seats,
     required this.used,
     required this.plan,
+    this.maxDuties = defaultMaxDuties,
   });
+
+  /// Owner 2026-10-22: one assistant holds at most this many duties (the
+  /// admin's `assistants.max_duties`) — more assistants, nobody with the
+  /// whole account.
+  static const defaultMaxDuties = 3;
+  final int maxDuties;
 
   final List<TeamMember> members;
   final int seats;

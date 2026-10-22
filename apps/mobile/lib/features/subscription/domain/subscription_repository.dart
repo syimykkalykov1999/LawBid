@@ -23,8 +23,13 @@ abstract interface class SubscriptionRepository {
   /// Owner 2026-10-02: is [code] usable for [plan]?
   Future<PromoCheck> validatePromo(String code, SubscriptionPlan plan);
 
-  /// OQ-048: monthly plan — change the number of assistant seats.
-  Future<SubscriptionOverview> setSeats(int seats);
+  /// Owner 2026-10-22: the price of [seats] extra seats now and per month.
+  Future<SeatPreview> previewSeats(int seats);
+
+  /// OQ-048 / owner 2026-10-22: set the extra assistant seats — more are
+  /// charged now (send the preview's [prorationDate]; 3-D Secure may be
+  /// asked), fewer go at the period end without a refund.
+  Future<SeatChangeOutcome> setSeats(int seats, {int? prorationDate});
 
   /// Owner 2026-10-01: monthly → yearly Prime (the difference is charged).
   Future<SubscriptionOverview> switchToYearly();
