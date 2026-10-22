@@ -10,7 +10,12 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiHeader,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 import {
   ApiEnvelopeResponse,
   ApiErrors,
@@ -163,6 +168,9 @@ export class SubscriptionsController {
     summary:
       'Card confirmed → create the subscription (7-day trial when eligible)',
   })
+  // Optional: older apps send no key (the server then makes its own).
+  // Lower case: the same parameter as the @Headers() below, not a second one.
+  @ApiHeader({ name: 'idempotency-key', required: false })
   @ApiEnvelopeResponse(SubscriptionMeDto)
   @ApiErrors({
     ...ATTORNEY_ERRORS,

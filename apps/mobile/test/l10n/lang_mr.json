@@ -2779,6 +2779,7 @@
 "notif.list.completion_requested":"अशिलाने प्रकरण पूर्ण म्हणून चिन्हांकित केले — कृपया पुष्टी करा",
 "notif.list.consultation_update":"सल्लामसलत अपडेट",
 "notif.list.contact_issue_update":"आपल्या संपर्क तक्रारीवर निर्णय झाला आहे",
+"notif.list.contact_joined":"तुमच्या संपर्कांतील {name} LawBid वर सामील झाले",
 "notif.list.data_export_ready":"आपला डेटा एक्स्पोर्ट तयार आहे",
 "notif.list.dispute_resolved":"केस विवाद सोडवला",
 "notif.list.followed_brief":"{name} ने एक brief पोस्ट केला",

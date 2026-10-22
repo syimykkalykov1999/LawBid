@@ -17465,7 +17465,16 @@
     "/subscriptions/confirm": {
       "post": {
         "operationId": "confirmSubscription",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "idempotency-key",
+            "required": false,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
