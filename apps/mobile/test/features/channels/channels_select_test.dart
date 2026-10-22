@@ -138,8 +138,8 @@ void main() {
   });
 
   testWidgets(
-      'a channel I follow: long press picks it; only «mute» is on, and it '
-      'mutes', (tester) async {
+      'a channel I follow: long press picks it; pin, archive and mute are on '
+      '(read and delete are not)', (tester) async {
     final channels = FakeChannelsRepository()
       ..listed = [fakeChannel(subscribed: true)];
     await pump(tester, channels: channels);
@@ -162,20 +162,65 @@ void main() {
         )
         .properties
         .enabled!;
-    expect(enabled('select-mute'), isTrue);
-    for (final k in [
-      'select-archive',
-      'select-pin',
-      'select-read',
-      'select-delete',
-    ]) {
+    for (final k in ['select-mute', 'select-archive', 'select-pin']) {
+      expect(enabled(k), isTrue, reason: k);
+    }
+    for (final k in ['select-read', 'select-delete']) {
       expect(enabled(k), isFalse, reason: k);
     }
 
+    // Muting asks for how long (1 hour · 8 hours · 2 days · forever).
     await tester.tap(find.byKey(const ValueKey('select-mute')));
     await tester.pumpAndSettle();
-    expect(channels.calls, contains('mute:true'));
+    for (final label in ['For 1 hour', 'For 8 hours', 'For 2 days']) {
+      expect(find.text(label), findsOneWidget, reason: label);
+    }
+    await tester.tap(find.text('Forever'));
+    await tester.pumpAndSettle();
+    expect(channels.calls, contains('organize:muted=true'));
     expect(find.byType(ChatSelectionBar), findsNothing);
+    await end(tester);
+  });
+
+  testWidgets("a channel is pinned and archived into the channels' own Archive",
+      (tester) async {
+    final channels = FakeChannelsRepository()
+      ..listed = [fakeChannel(subscribed: true)];
+    await pump(tester, channels: channels);
+    await tester.tap(find.text('Channels').last);
+    await tester.pumpAndSettle();
+
+    await tester.longPress(find.byKey(const ValueKey('channel-row-ch-1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('select-pin')));
+    await tester.pumpAndSettle();
+    expect(channels.calls, contains('organize:pinned=true'));
+
+    await tester.longPress(find.byKey(const ValueKey('channel-row-ch-1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('select-archive')));
+    await tester.pumpAndSettle();
+    expect(channels.calls, contains('organize:archived=true'));
+    await end(tester);
+  });
+
+  testWidgets('each section shows its own «Archive» row, opening its screen',
+      (tester) async {
+    final channels = FakeChannelsRepository()
+      ..listed = [fakeChannel(subscribed: true)]
+      ..archivedListed = [fakeChannel(id: 'ch-2', subscribed: true)];
+    await pump(tester, channels: channels);
+    // Groups: none archived, no row.
+    expect(find.byKey(const ValueKey('section-archive-row')), findsNothing);
+    await tester.tap(find.text('Channels').last);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('section-archive-row')), findsOneWidget);
+    expect(
+      tester
+          .widget<Text>(find.byKey(const ValueKey('section-archive-count')))
+          .data,
+      '1',
+    );
     await end(tester);
   });
 

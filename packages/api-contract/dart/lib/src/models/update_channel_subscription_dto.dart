@@ -8,12 +8,23 @@ part 'update_channel_subscription_dto.g.dart';
 
 @JsonSerializable()
 class UpdateChannelSubscriptionDto {
-  const UpdateChannelSubscriptionDto({required this.muted});
+  const UpdateChannelSubscriptionDto({
+    this.muted,
+    this.mutedUntil,
+    this.pinned,
+    this.archived,
+  });
 
   factory UpdateChannelSubscriptionDto.fromJson(Map<String, Object?> json) =>
       _$UpdateChannelSubscriptionDtoFromJson(json);
 
-  final bool muted;
+  /// true = muted for good, false = unmuted (also ends a timed mute).
+  final bool? muted;
+
+  /// Muted until this moment (1 h / 8 h / 2 days).
+  final DateTime? mutedUntil;
+  final bool? pinned;
+  final bool? archived;
 
   Map<String, Object?> toJson() => _$UpdateChannelSubscriptionDtoToJson(this);
 }

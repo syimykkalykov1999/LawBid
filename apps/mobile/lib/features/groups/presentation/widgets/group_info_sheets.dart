@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/l10n/translator.dart';
 
 /// One option of [showGroupChoiceSheet].
 class GroupChoice<T> {
@@ -318,3 +319,52 @@ Future<bool> confirmGroupAction(
   );
   return ok ?? false;
 }
+
+/// Owner 2026-10-21 (inbox 27, Telegram): the same «Notifications» choice in
+/// every chat, group and channel — 1 hour · 8 hours · 2 days · forever, and
+/// «Unmute» while muted.
+enum MuteChoice { off, hour, hours8, days2, forever }
+
+/// How long [c] mutes (null for [MuteChoice.off]).
+Duration? muteDuration(MuteChoice c) => switch (c) {
+      MuteChoice.hour => const Duration(hours: 1),
+      MuteChoice.hours8 => const Duration(hours: 8),
+      MuteChoice.days2 => const Duration(days: 2),
+      MuteChoice.forever => const Duration(days: 3650),
+      MuteChoice.off => null,
+    };
+
+/// The choice sheet; [muted] adds «Unmute» on top.
+Future<MuteChoice?> pickMute(
+  BuildContext context,
+  Translator t, {
+  required bool muted,
+}) =>
+    showGroupChoiceSheet<MuteChoice>(
+      context,
+      title: t.t('group.info.mute.title'),
+      choices: [
+        if (muted)
+          GroupChoice(
+            value: MuteChoice.off,
+            label: t.t('group.info.mute.off'),
+            icon: AppIcons.notificationsActiveOutlined,
+          ),
+        GroupChoice(
+          value: MuteChoice.hour,
+          label: t.t('group.info.mute.hour'),
+        ),
+        GroupChoice(
+          value: MuteChoice.hours8,
+          label: t.t('group.info.mute.hours8'),
+        ),
+        GroupChoice(
+          value: MuteChoice.days2,
+          label: t.t('group.info.mute.days2'),
+        ),
+        GroupChoice(
+          value: MuteChoice.forever,
+          label: t.t('group.info.mute.forever'),
+        ),
+      ],
+    );

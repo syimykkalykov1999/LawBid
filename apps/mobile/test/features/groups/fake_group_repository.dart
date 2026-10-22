@@ -56,7 +56,10 @@ class FakeGroupRepository implements GroupRepository {
     String? cursor,
     bool archived = false,
   }) async =>
-      CursorPage(items: items);
+      CursorPage(items: archived ? archivedItems : items);
+
+  /// The groups in the groups' own Archive.
+  List<api.GroupDto> archivedItems = [];
 
   @override
   Future<api.GroupDetailDto> group(String id) async => detail!;

@@ -59197,6 +59197,15 @@
             }
           },
           {
+            "name": "archived",
+            "required": false,
+            "in": "query",
+            "description": "Owner 2026-10-21: the Archive of the channels (subscribed / managed).",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
             "name": "q",
             "required": false,
             "in": "query",
@@ -60067,7 +60076,7 @@
             "bearer": []
           }
         ],
-        "summary": "Mute / unmute notifications of a channel",
+        "summary": "My mute (timed or forever), pin and Archive of a channel",
         "tags": [
           "channels"
         ]
@@ -139620,6 +139629,20 @@
           "isMuted": {
             "type": "boolean"
           },
+          "mutedUntil": {
+            "type": "string",
+            "nullable": true,
+            "description": "Muted until this moment (null: not timed; «forever» is isMuted).",
+            "format": "date-time"
+          },
+          "isPinned": {
+            "type": "boolean",
+            "description": "Pinned to the top of my list."
+          },
+          "isArchived": {
+            "type": "boolean",
+            "description": "In my channels' Archive."
+          },
           "myRole": {
             "nullable": true,
             "description": "My role in the channel, null for a plain reader.",
@@ -139767,6 +139790,17 @@
           "isMuted": {
             "type": "boolean"
           },
+          "mutedUntil": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "isPinned": {
+            "type": "boolean"
+          },
+          "isArchived": {
+            "type": "boolean"
+          },
           "subscriberCount": {
             "type": "integer"
           }
@@ -139795,12 +139829,21 @@
         "type": "object",
         "properties": {
           "muted": {
+            "type": "boolean",
+            "description": "true = muted for good, false = unmuted (also ends a timed mute)."
+          },
+          "mutedUntil": {
+            "type": "string",
+            "description": "Muted until this moment (1 h / 8 h / 2 days).",
+            "format": "date-time"
+          },
+          "pinned": {
+            "type": "boolean"
+          },
+          "archived": {
             "type": "boolean"
           }
-        },
-        "required": [
-          "muted"
-        ]
+        }
       },
       "ChannelAdminDto": {
         "type": "object",

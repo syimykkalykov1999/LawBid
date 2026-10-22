@@ -5,6 +5,7 @@ import {
   ArrayMaxSize,
   IsArray,
   IsBoolean,
+  IsDateString,
   IsIn,
   IsInt,
   IsOptional,
@@ -90,6 +91,18 @@ export class ChannelDto {
   @ApiProperty()
   isMuted!: boolean;
 
+  /** Muted until this moment (null: not timed; «forever» is isMuted). */
+  @ApiPropertyOptional({ type: String, format: 'date-time', nullable: true })
+  mutedUntil!: string | null;
+
+  /** Pinned to the top of my list. */
+  @ApiPropertyOptional()
+  isPinned!: boolean;
+
+  /** In my channels' Archive. */
+  @ApiPropertyOptional()
+  isArchived!: boolean;
+
   /** My role in the channel, null for a plain reader. */
   @ApiPropertyOptional({
     enum: CHANNEL_ROLES,
@@ -121,6 +134,13 @@ export class ChannelListQueryDto {
   @IsOptional()
   @IsIn(['discover', 'subscribed', 'managed'])
   scope?: 'discover' | 'subscribed' | 'managed';
+
+  /** Owner 2026-10-21: the Archive of the channels (subscribed / managed). */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean()
+  archived?: boolean;
 
   @ApiPropertyOptional({ maxLength: 64, description: 'Title or @username.' })
   @IsOptional()
@@ -352,14 +372,41 @@ export class ChannelSubscriptionDto {
   @ApiProperty()
   isMuted!: boolean;
 
+  @ApiPropertyOptional({ type: String, format: 'date-time', nullable: true })
+  mutedUntil!: string | null;
+
+  @ApiPropertyOptional()
+  isPinned!: boolean;
+
+  @ApiPropertyOptional()
+  isArchived!: boolean;
+
   @ApiProperty({ type: 'integer' })
   subscriberCount!: number;
 }
 
 export class UpdateChannelSubscriptionDto {
-  @ApiProperty()
+  /** true = muted for good, false = unmuted (also ends a timed mute). */
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsBoolean()
-  muted!: boolean;
+  muted?: boolean;
+
+  /** Muted until this moment (1 h / 8 h / 2 days). */
+  @ApiPropertyOptional({ type: String, format: 'date-time' })
+  @IsOptional()
+  @IsDateString()
+  mutedUntil?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  pinned?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  archived?: boolean;
 }
 
 export class ChannelCommentDto {

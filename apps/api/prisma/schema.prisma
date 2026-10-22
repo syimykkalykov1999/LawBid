@@ -6059,13 +6059,19 @@ model ChannelAdmin {
 }
 
 model ChannelSubscription {
-  channel_id String   @db.Uuid
-  channel    Channel  @relation(fields: [channel_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "channel_subscriptions_channel_fkey")
-  user_id    String   @db.Uuid
-  user       User     @relation("ChannelSubscriber", fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "channel_subscriptions_user_fkey")
+  channel_id  String    @db.Uuid
+  channel     Channel   @relation(fields: [channel_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "channel_subscriptions_channel_fkey")
+  user_id     String    @db.Uuid
+  user        User      @relation("ChannelSubscriber", fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "channel_subscriptions_user_fkey")
   /// No notifications from this channel.
-  muted      Boolean  @default(false)
-  created_at DateTime @default(now()) @db.Timestamptz
+  muted       Boolean   @default(false)
+  /// Owner 2026-10-21 (Telegram): muted for a time (1 h / 8 h / 2 days);
+  /// «forever» is `muted`. Past = not muted.
+  muted_until DateTime? @db.Timestamptz
+  /// My pin / my Archive of the channel (each section has its own).
+  pinned_at   DateTime? @db.Timestamptz
+  archived_at DateTime? @db.Timestamptz
+  created_at  DateTime  @default(now()) @db.Timestamptz
 
   @@id([channel_id, user_id])
   @@index([user_id, created_at(sort: Desc)], map: "channel_subscriptions_user_idx")

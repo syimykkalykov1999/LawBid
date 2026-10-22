@@ -70,6 +70,12 @@ const notFound = (what = 'Channel') =>
 const forbidden = (message: string) =>
   new ForbiddenException({ code: ErrorCode.FORBIDDEN, message });
 
+/** Muted for good, or until a moment still ahead. */
+const isMutedNow = (
+  sub: { muted: boolean; muted_until: Date | null } | null | undefined,
+): boolean =>
+  !!sub && (sub.muted || (sub.muted_until?.getTime() ?? 0) > Date.now());
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
@@ -118,6 +124,7 @@ export class ChannelsService {
     scope: 'discover' | 'subscribed' | 'managed' = 'discover',
     q?: string,
     cursor?: string,
+    archived = false,
   ): Promise<ChannelPage<ChannelDto>> {
     await this.assertEnabled();
     const me = user.sub;
@@ -163,7 +170,13 @@ export class ChannelsService {
         take: 30,
       });
     }
-    return { items: await this.presentChannels(rows, me), nextCursor: null };
+    const items = await this.presentChannels(rows, me);
+    if (scope === 'discover') return { items, nextCursor: null };
+    // Owner 2026-10-21 (inbox 22c): the Archive is the channels' own; the
+    // pinned ones stay on top (the rest keeps its order).
+    const shown = items.filter((c) => c.isArchived === archived);
+    shown.sort((a, b) => Number(b.isPinned) - Number(a.isPinned));
+    return { items: shown, nextCursor: null };
   }
 
   /**
@@ -355,16 +368,41 @@ export class ChannelsService {
     return this.subscription(ch.id, user.sub);
   }
 
+  /**
+   * My own switches of a channel I follow: mute (forever, or until a
+   * moment; «unmute» clears both), pin and Archive.
+   */
   async mute(
     user: RequestUser,
     id: string,
-    muted: boolean,
+    change: {
+      muted?: boolean;
+      mutedUntil?: string | null;
+      pinned?: boolean;
+      archived?: boolean;
+    },
   ): Promise<ChannelSubscriptionDto> {
     await this.assertEnabled();
     const ch = await this.findReadable(user.sub, id);
+    const data: Prisma.ChannelSubscriptionUpdateManyMutationInput = {};
+    if (change.muted !== undefined) {
+      data.muted = change.muted;
+      if (!change.muted) data.muted_until = null;
+    }
+    if (change.mutedUntil) {
+      const until = new Date(change.mutedUntil);
+      data.muted = false;
+      data.muted_until = until;
+    }
+    if (change.pinned !== undefined) {
+      data.pinned_at = change.pinned ? new Date() : null;
+    }
+    if (change.archived !== undefined) {
+      data.archived_at = change.archived ? new Date() : null;
+    }
     const { count } = await this.prisma.channelSubscription.updateMany({
       where: { channel_id: ch.id, user_id: user.sub },
-      data: { muted },
+      data,
     });
     if (count === 0) throw notFound('Subscription');
     return this.subscription(ch.id, user.sub);
@@ -387,7 +425,10 @@ export class ChannelsService {
     ]);
     return {
       isSubscribed: sub !== null,
-      isMuted: sub?.muted ?? false,
+      isMuted: isMutedNow(sub),
+      mutedUntil: sub?.muted_until?.toISOString() ?? null,
+      isPinned: sub?.pinned_at != null,
+      isArchived: sub?.archived_at != null,
       subscriberCount: ch?.subscriber_count ?? 0,
     };
   }
@@ -1071,6 +1112,7 @@ export class ChannelsService {
         where: {
           channel_id: channel.id,
           muted: false,
+          OR: [{ muted_until: null }, { muted_until: { lte: new Date() } }],
           user_id: { notIn: [...hidden, post.author_id] },
         },
         orderBy: { user_id: 'asc' },
@@ -1116,7 +1158,13 @@ export class ChannelsService {
       this.files.avatarUrlsMany(rows.map((r) => r.avatar_file_id)),
       this.prisma.channelSubscription.findMany({
         where: { user_id: viewerId, channel_id: { in: ids } },
-        select: { channel_id: true, muted: true },
+        select: {
+          channel_id: true,
+          muted: true,
+          muted_until: true,
+          pinned_at: true,
+          archived_at: true,
+        },
       }),
       this.prisma.channelAdmin.findMany({
         where: { user_id: viewerId, channel_id: { in: ids } },
@@ -1157,7 +1205,10 @@ export class ChannelsService {
           postCount: r.post_count,
           owner,
           isSubscribed: subBy.has(r.id),
-          isMuted: subBy.get(r.id)?.muted ?? false,
+          isMuted: isMutedNow(subBy.get(r.id)),
+          mutedUntil: subBy.get(r.id)?.muted_until?.toISOString() ?? null,
+          isPinned: subBy.get(r.id)?.pinned_at != null,
+          isArchived: subBy.get(r.id)?.archived_at != null,
           myRole: role,
           lastPostAt: r.last_post_at ? r.last_post_at.toISOString() : null,
           createdAt: r.created_at.toISOString(),

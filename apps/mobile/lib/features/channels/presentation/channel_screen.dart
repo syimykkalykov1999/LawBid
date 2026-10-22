@@ -15,6 +15,7 @@ import 'package:lawbid/features/channels/presentation/channel_post_card.dart';
 import 'package:lawbid/features/channels/presentation/channel_widgets.dart';
 import 'package:lawbid/features/groups/application/group_call_port.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_call_ui.dart';
+import 'package:lawbid/features/groups/presentation/widgets/group_info_sheets.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart'
     show VerifiedCheck;
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
@@ -534,9 +535,14 @@ class _ChannelHeaderState extends ConsumerState<ChannelHeader> {
                 semanticLabel: channel.isMuted
                     ? t.t('channel.unmute')
                     : t.t('channel.mute'),
-                onPressed: () => _run(
-                  () => controller.setMuted(muted: !channel.isMuted),
-                ),
+                // Owner 2026-10-21 (inbox 27, Telegram): muting asks for how
+                // long; a muted channel unmutes at once.
+                onPressed: () => _run(() async {
+                  if (channel.isMuted) return controller.setMutedFor(null);
+                  final pick = await pickMute(context, t, muted: false);
+                  if (pick == null) return;
+                  await controller.setMutedFor(muteDuration(pick));
+                }),
               ),
             ],
             const SizedBox(width: AppSpacing.sm),

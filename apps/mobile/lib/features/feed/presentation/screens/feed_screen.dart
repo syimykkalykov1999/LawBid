@@ -12,6 +12,7 @@ import 'package:lawbid/features/feed/application/feed_topics.dart';
 import 'package:lawbid/features/feed/application/news_flag.dart';
 import 'package:lawbid/features/feed/presentation/widgets/feed_chrome.dart';
 import 'package:lawbid/features/feed/presentation/widgets/topic_filter_bar.dart';
+import 'package:lawbid/features/reels/presentation/reel_publish_card.dart';
 import 'package:lawbid/features/reels/presentation/reels_screen.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart';
@@ -293,6 +294,9 @@ class _TopicFeedState extends ConsumerState<_TopicFeed> {
         // Owner 2026-10-20: stories live on the Chats screen; the feed only
         // keeps the «posted» note of a finished publish.
         const StoryPublishWatcher(),
+        // Owner 2026-10-21 (like Instagram): the reel being published is a
+        // card at the top of the feed, not a bar over the app.
+        const ReelPublishCard(),
         Expanded(
           // Owner 2026-09-30: News, or one qualification (with its
           // subcategories), optionally in states.

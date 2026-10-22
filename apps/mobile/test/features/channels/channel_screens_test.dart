@@ -93,7 +93,14 @@ void main() {
     testWidgets('no subscriptions is a plain empty state, not an error',
         (tester) async {
       final repo = FakeChannelsRepository();
-      await pump(tester, const ChannelsScreen(), repo);
+      await pump(
+        tester,
+        const ChannelsScreen(),
+        repo,
+        extra: [
+          groupRepositoryProvider.overrideWithValue(FakeGroupRepository([])),
+        ],
+      );
       expect(find.byType(AppErrorState), findsNothing);
       expect(find.byType(ChannelsEmpty), findsWidgets);
     });
@@ -137,13 +144,15 @@ void main() {
         (tester) async {
       final repo = FakeChannelsRepository()..listed = [fakeChannel()];
       await pump(tester, const ChannelsScreen(), repo);
-      expect(repo.calls, contains('list:subscribed:'));
+      // Owner 2026-10-21 (inbox 34): the screen opens on «Mine».
+      expect(repo.calls, contains('list:managed:'));
+      expect(repo.calls, isNot(contains('list:subscribed:')));
       await tester.tap(find.text('Discover'));
       await tester.pumpAndSettle();
       expect(repo.calls, contains('recommended:'));
-      await tester.tap(find.text('Mine'));
+      await tester.tap(find.text('Following'));
       await tester.pumpAndSettle();
-      expect(repo.calls, contains('list:managed:'));
+      expect(repo.calls, contains('list:subscribed:'));
       final outer = tester.widget<PageView>(find.byType(PageView).first);
       expect(outer.physics, isA<NeverScrollableScrollPhysics>());
       await tester.pumpWidget(const SizedBox());
