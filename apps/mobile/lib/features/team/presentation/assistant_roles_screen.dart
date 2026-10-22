@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
+import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/text/bidi.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
@@ -173,8 +175,11 @@ class _AssistantRolesScreenState extends ConsumerState<AssistantRolesScreen> {
                   label: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 160),
                     child: Text(
-                      '${m.label.isEmpty ? unnamed : m.label}'
-                      ' · ${m.duties.length}/${info.maxDuties}',
+                      // Owner 2026-10-15: the count in the language's digits.
+                      '${m.label.isEmpty ? unnamed : m.label} · '
+                      '${ltrIsolate(
+                        context.digits('${m.duties.length}/${info.maxDuties}'),
+                      )}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
