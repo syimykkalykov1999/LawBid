@@ -80,40 +80,14 @@ jobs:
         working-directory: apps/mobile
         run: flutter analyze
 
-      - name: Check for hardcoded string literals in presentation/ (advisory)
-        # file 01 §15 stage 1.6 and §9.4, reiterated as a required PR check
-        # in file 06 §7.2.3 — ADVISORY here, not blocking: a real scan
-        # found pre-existing violations (e.g. phone_screen.dart's "US +1"
-        # prefix) that aren't part of this CI-pipeline task's scope to fix.
-        # Making this blocking today would break CI on day one for an
-        # unrelated, pre-existing issue. See docs/CHANGELOG.md's
-        # CI-pipeline entry. Tighten to blocking once those are cleared —
-        # tracked there, not a bare TODO.
+      - name: No new hardcoded strings or colours (blocking)
+        # file 01 §9.4 (localization) and §8.1 (colours), file 06 §7.2.3.
+        # Audit #15 (2026-10-22): blocking against a baseline of the
+        # findings that existed then (tool/ci/hardcoded_*.allow); a new one
+        # fails. How to fix or allow one: the header of
+        # tool/ci/hardcoded_check.py.
         working-directory: apps/mobile
-        continue-on-error: true
-        run: |
-          hits=$(grep -rnE "Text(\.rich)?\(\s*['\"]" lib --include="*.dart" \
-            | grep -v -E '\.g\.dart|\.freezed\.dart' || true)
-          if [ -n "$hits" ]; then
-            echo "$hits"
-            echo "::warning::Hardcoded string literal(s) found under lib/ — see file 01 §9.4 (localization)."
-          fi
-
-      - name: Check for hardcoded colors outside design_system/ (advisory)
-        # file 01 §8.1 ("никаких hardcode-цветов в виджетах"), reiterated
-        # in file 06 §7.2.3 — ADVISORY here for the same reason as the
-        # string-literal check above: pre-existing violations exist
-        # (delete_account_screen.dart's Colors.white usages).
-        working-directory: apps/mobile
-        continue-on-error: true
-        run: |
-          hits=$(grep -rnE "Colors\.[a-zA-Z]+|Color\(0x" lib --include="*.dart" \
-            | grep -v -E '\.g\.dart|\.freezed\.dart' \
-            | grep -v 'lib/core/design_system/' || true)
-          if [ -n "$hits" ]; then
-            echo "$hits"
-            echo "::warning::Hardcoded Color(s) found outside core/design_system/ — see file 01 §8.1."
-          fi
+        run: python3 tool/ci/hardcoded_check.py
 
       - name: flutter test (unit, widget, golden)
         working-directory: apps/mobile

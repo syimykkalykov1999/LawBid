@@ -1,0 +1,11 @@
+{
+  "_how": "High/critical npm advisories that may stay for now. Gate: scripts/ci/npm-audit-gate.mjs (api-ci.yml). Each entry needs id (GHSA), package, reason and an expiry date (YYYY-MM-DD); an expired entry fails CI again.",
+  "advisories": [
+    {
+      "id": "GHSA-ggr8-5vv4-36mx",
+      "package": "deepmerge-ts (via prisma -> @prisma/config)",
+      "reason": "Only in the Prisma CLI (migrations/generate at build time), never in the API at runtime; the fix is the Prisma 7 major upgrade.",
+      "expires": "2027-01-31"
+    }
+  ]
+}
