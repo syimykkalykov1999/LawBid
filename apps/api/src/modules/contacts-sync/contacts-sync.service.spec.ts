@@ -9,6 +9,8 @@ import {
   ContactsSyncService,
   HASHES_PER_ACCOUNT_PER_DAY,
 } from './contacts-sync.service';
+import { APP_SETTINGS } from '../../common/app-settings/app-settings.defaults';
+import { USAGE_LIMITS } from '../../common/usage-limits/usage-limits.service';
 
 const sha = (s: string) => createHash('sha256').update(s).digest('hex');
 
@@ -58,12 +60,23 @@ function make(
     }),
   };
   const limits = { consume: jest.fn().mockResolvedValue(undefined) };
+  // HyperLogLogs as exact sets: what is counted is distinct hashes.
+  const sets = new Map<string, Set<string>>();
   const redis = {
     del: jest.fn().mockResolvedValue(1),
     get: jest.fn().mockResolvedValue(null),
     set: jest.fn().mockResolvedValue('OK'),
-    incrby: jest.fn().mockResolvedValue(1),
     expire: jest.fn().mockResolvedValue(1),
+    pfadd: jest.fn((key: string, ...items: string[]) => {
+      const set = sets.get(key) ?? new Set<string>();
+      sets.set(key, set);
+      const before = set.size;
+      for (const i of items) set.add(i);
+      return Promise.resolve(set.size > before ? 1 : 0);
+    }),
+    pfcount: jest.fn((key: string) =>
+      Promise.resolve(sets.get(key)?.size ?? 0),
+    ),
   };
   const files = { avatarUrlsMany: jest.fn().mockResolvedValue(new Map()) };
   const svc = new ContactsSyncService(
@@ -91,6 +104,12 @@ describe('UploadContactHashesDto', () => {
     ['not an array', 'abc'],
   ])('rejects %s', async (_n, v) => {
     expect((await check(v)).length).toBeGreaterThan(0);
+  });
+
+  it('accepts a whole phone book in one request', async () => {
+    const book = Array.from({ length: 3000 }, (_, i) => sha(`+1999${i}`));
+    expect(await check(book)).toHaveLength(0);
+    expect(CONTACT_HASHES_MAX).toBeGreaterThanOrEqual(5000);
   });
 
   it('rejects more than the cap', async () => {
@@ -183,20 +202,65 @@ describe('ContactsSyncService.upload', () => {
 });
 
 describe('ContactsSyncService limits and privacy', () => {
-  it('refuses an account past its daily hash cap', async () => {
-    const { svc, redis, prisma } = make();
-    redis.incrby.mockResolvedValue(HASHES_PER_ACCOUNT_PER_DAY + 1);
-    await expect(svc.upload('me', [sha('a')])).rejects.toMatchObject({
-      status: 429,
-    });
+  const book = (n: number, from = 0) =>
+    Array.from({ length: n }, (_, i) => sha(`+1999${from + i}`));
+
+  it('a 700-number book in one request', async () => {
+    const { svc, limits, prisma } = make();
+    await svc.upload('me', book(700));
+    expect(limits.consume).toHaveBeenCalledTimes(1);
+    expect(
+      prisma.user.findMany.mock.calls[0][0].where.phone_sha256.in,
+    ).toHaveLength(700);
+  });
+
+  it('old builds: the same book in 100-hash parts works too', async () => {
+    const { svc, limits } = make();
+    const all = book(700);
+    for (let i = 0; i < all.length; i += 100) {
+      await svc.upload('me', all.slice(i, i + 100));
+    }
+    expect(limits.consume).toHaveBeenCalledTimes(7);
+  });
+
+  it('syncing the same book again costs nothing of the daily cap', async () => {
+    const { svc } = make();
+    const all = book(HASHES_PER_ACCOUNT_PER_DAY - 10);
+    for (let i = 0; i < 5; i++) {
+      await expect(svc.upload('me', all)).resolves.toBeDefined();
+    }
+  });
+
+  it('refuses an account past its daily cap of distinct numbers', async () => {
+    const { svc, prisma } = make();
+    await svc.upload('me', book(HASHES_PER_ACCOUNT_PER_DAY));
+    prisma.user.findMany.mockClear();
+    await expect(
+      svc.upload('me', book(1, HASHES_PER_ACCOUNT_PER_DAY)),
+    ).rejects.toMatchObject({ status: 429 });
     expect(prisma.user.findMany).not.toHaveBeenCalled();
   });
 
   it('counts the address too', async () => {
     const { svc, redis } = make();
     await svc.upload('me', [sha('a')], '1.2.3.4');
-    const keys = redis.incrby.mock.calls.map((c: unknown[]) => String(c[0]));
+    const keys = redis.pfadd.mock.calls.map((c: unknown[]) => String(c[0]));
     expect(keys.some((k) => k.includes(':ip:1.2.3.4:'))).toBe(true);
+  });
+
+  it('the request limit is per hour, not per day', () => {
+    expect(USAGE_LIMITS.contacts_sync).toEqual({
+      setting: 'rate_limit.contacts_sync_per_hour',
+      windowSec: 3600,
+    });
+    expect(
+      APP_SETTINGS['rate_limit.contacts_sync_per_hour'],
+    ).toBeGreaterThanOrEqual(30);
+    expect(
+      (APP_SETTINGS as Record<string, unknown>)[
+        'rate_limit.contacts_sync_per_day'
+      ],
+    ).toBeUndefined();
   });
 
   it('turning "find me" off drops me from other people lists', async () => {

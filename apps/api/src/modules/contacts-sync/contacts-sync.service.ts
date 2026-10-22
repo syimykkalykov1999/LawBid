@@ -13,11 +13,17 @@ import type {
   ContactUploadResultDto,
 } from './contacts-sync.dto';
 
-/** Most unique hashes one account may upload per day (all chunks). */
-export const HASHES_PER_ACCOUNT_PER_DAY = 5000;
-/** The same per client address, against many accounts from one place. */
-export const HASHES_PER_IP_PER_DAY = 20000;
-const DAY_SECONDS = 86400;
+/**
+ * Most DIFFERENT hashes one account may upload per day. Owner 2026-10-22:
+ * counted as distinct numbers (a Redis HyperLogLog), so syncing the same
+ * book again — the app does at every start of the day, on pull-to-refresh,
+ * after a reinstall — costs nothing; only guessing new numbers does.
+ */
+export const HASHES_PER_ACCOUNT_PER_DAY = 10000;
+/** The same per client address (a carrier NAT hides many phones). */
+export const HASHES_PER_IP_PER_DAY = 50000;
+/** The day keys live a little longer than the day they count. */
+const KEY_TTL_SECONDS = 2 * 86400;
 /** Share of matched hashes that looks like number guessing, not a book. */
 const SUSPICIOUS_MATCH_RATIO = 0.6;
 const SUSPICIOUS_MIN_HASHES = 100;
@@ -35,7 +41,8 @@ const SUSPICIOUS_MIN_HASHES = 100;
  * - privacy review 2026-10-20: the answer is minimal — attorneys (public
  *   profiles) in full, clients only when they allow "find me by my number"
  *   and then first name + avatar only; blocked people (both ways) and
- *   assistants never; daily caps per account and per address; a high match
+ *   assistants never; daily caps of distinct numbers per account and per
+ *   address plus an hourly request limit (owner 2026-10-22); a high match
  *   share goes to Sentry. The hashes are plain SHA-256 of E.164 (the same
  *   as users.phone_sha256): TODO stage 2 — HMAC with a server pepper so the
  *   hash can't be precomputed.
@@ -85,9 +92,11 @@ export class ContactsSyncService {
     }
   }
 
-  private async charge(key: string, amount: number, limit: number) {
-    const used = await this.redis.incrby(key, amount);
-    if (used === amount) await this.redis.expire(key, DAY_SECONDS);
+  /** Adds [hashes] to the day's distinct set behind [key]; 429 past [limit]. */
+  private async charge(key: string, hashes: string[], limit: number) {
+    await this.redis.pfadd(key, ...hashes);
+    await this.redis.expire(key, KEY_TTL_SECONDS);
+    const used = await this.redis.pfcount(key);
     if (used > limit) {
       throw new HttpException(
         {
@@ -109,14 +118,14 @@ export class ContactsSyncService {
     const unique = [...new Set(hashes)];
     const day = new Date().toISOString().slice(0, 10);
     await this.charge(
-      `contacts:hashes:u:${userId}:${day}`,
-      unique.length,
+      `contacts:distinct:u:${userId}:${day}`,
+      unique,
       HASHES_PER_ACCOUNT_PER_DAY,
     );
     if (ip) {
       await this.charge(
-        `contacts:hashes:ip:${ip}:${day}`,
-        unique.length,
+        `contacts:distinct:ip:${ip}:${day}`,
+        unique,
         HASHES_PER_IP_PER_DAY,
       );
     }

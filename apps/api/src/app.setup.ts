@@ -13,6 +13,9 @@ import type { AppEnv } from './config/env.schema';
 import { buildOpenApiDocument } from './openapi/openapi.config';
 
 export const GLOBAL_PREFIX = 'api/v1';
+/** POST /contacts/sync: the whole phone book in one body (configureApp). */
+export const CONTACTS_SYNC_PATH = `/${GLOBAL_PREFIX}/contacts/sync`;
+export const CONTACTS_BODY_LIMIT = '1mb';
 export const UNPREFIXED_ROUTES = [
   '/health/live',
   '/health/ready',
@@ -56,6 +59,22 @@ export function responseCompression() {
  * production wiring instead of a hand-copied approximation of it.
  */
 import { startSentry } from './telemetry/sentry';
+
+/**
+ * docs/06 §4.1 body cap. Owner 2026-10-22: the whole phone book goes up in
+ * one request (up to CONTACT_HASHES_MAX hashes, ~67 bytes each), so
+ * POST /contacts/sync is parsed first with its own, bigger cap; the general
+ * parser then leaves that body alone.
+ */
+export function useBodyParsers(
+  app: Pick<NestExpressApplication, 'use'>,
+  bodyLimit: string,
+): void {
+  app.use(CONTACTS_SYNC_PATH, express.json({ limit: CONTACTS_BODY_LIMIT }));
+  app.use(express.json({ limit: bodyLimit }));
+  app.use(express.urlencoded({ limit: bodyLimit, extended: false }));
+}
+
 export function configureApp(
   app: NestExpressApplication,
   options: ConfigureAppOptions = {},
@@ -150,9 +169,7 @@ export function configureApp(
   // docs/06 §4.1: request body cap. `rawBody: true` (main.ts) keeps the
   // Stripe webhook's raw bytes; the cap applies to it as well — Stripe
   // events are a few KB.
-  const bodyLimit = `${config.get<number>('BODY_LIMIT_KB', 256)}kb`;
-  app.use(express.json({ limit: bodyLimit }));
-  app.use(express.urlencoded({ limit: bodyLimit, extended: false }));
+  useBodyParsers(app, `${config.get<number>('BODY_LIMIT_KB', 256)}kb`);
 
   // docs/06 §4.3: Sentry only when a DSN is set (Admin → Integrations
   // first, then SENTRY_DSN); personal data is scrubbed before anything
