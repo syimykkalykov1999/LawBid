@@ -106,10 +106,12 @@ export class PayrollPartnersBridge implements OnModuleInit {
     }
     const byPayout = new Map<string, string[]>();
     for (const i of mine) {
-      byPayout.set(i.payoutId, [
-        ...(byPayout.get(i.payoutId) ?? []),
-        i.ref.slice(REF.length),
-      ]);
+      const id = i.ref.slice(REF.length);
+      // Only real commission ids: another `partner:` ref (hand-made
+      // accrual, e2e fixture) would fail the uuid lookup and, with it,
+      // the marking of every real commission in the same payout.
+      if (!UUID.test(id)) continue;
+      byPayout.set(i.payoutId, [...(byPayout.get(i.payoutId) ?? []), id]);
     }
     for (const [payoutId, ids] of byPayout) {
       await this.partners.markPaid(ids, { payoutRef: `payroll:${payoutId}` });

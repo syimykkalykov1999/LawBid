@@ -1,5 +1,6 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { RequiresDuty } from '../auth/assistant/assistant-context';
 import {
   ApiEnvelopeResponse,
   ApiErrors,
@@ -19,6 +20,8 @@ import type { GroupMessagePage } from './groups.dto';
 @ApiTags('groups')
 @ApiBearerAuth()
 @ApiErrors(AUTHENTICATED_ERRORS)
+// Owner 2026-10-22 (security audit #3): the same "chats" duty as the group.
+@RequiresDuty('chats')
 @Controller('groups')
 export class GroupSharedController {
   constructor(private readonly shared: GroupSharedService) {}

@@ -33,6 +33,7 @@ import type {
   PasswordResetRequestDto,
   SetPasswordDto,
 } from './dto/password.dto';
+import { SignInChangeNotifier } from './notifications/sign-in-change-notifier.service';
 
 const WINDOW_SECONDS = 3600;
 /** Wrong-password guesses per phone / e-mail and per IP, per hour. */
@@ -51,6 +52,16 @@ const RESET_VERIFY_PER_IDENTIFIER = 10;
 const RESET_VERIFY_PER_IP = 30;
 
 type Channel = 'phone' | 'email';
+
+/** Owner 2026-10-22 (security audit #3): how POST /auth/password proves
+ * the caller is the account holder — see ReauthVerifier. */
+export interface PasswordReauthProof {
+  /** An X-Reauth-Token header came with the request. */
+  hasReauthToken: boolean;
+  /** Consumes that token, or accepts a sign-in made minutes ago; throws
+   * REAUTH_REQUIRED / REAUTH_INVALID otherwise. */
+  assertReauth: () => Promise<void>;
+}
 
 export interface PasswordResetSent {
   sent: true;
@@ -79,6 +90,8 @@ export class PasswordAuthService {
     private readonly revocation: SessionRevocationService,
     // Owner 2026-10-16: reset-code caps are admin-editable.
     @Optional() private readonly settings?: AppSettingsService,
+    // Owner 2026-10-22 (security audit #3): "your password changed".
+    @Optional() private readonly signInChange?: SignInChangeNotifier,
   ) {}
 
   // POST /auth/password/login
@@ -163,12 +176,22 @@ export class PasswordAuthService {
   }
 
   // POST /auth/password (signed in)
-  async setPassword(dto: SetPasswordDto, current: RequestUser): Promise<void> {
+  async setPassword(
+    dto: SetPasswordDto,
+    current: RequestUser,
+    reauth: PasswordReauthProof,
+  ): Promise<void> {
     await this.loginMethods.assertEnabled('password');
     const user = await this.prisma.user.findUniqueOrThrow({
       where: { id: current.sub },
     });
-    if (user.password_hash) {
+    // Owner 2026-10-22 (security audit #3, finding 1): an account that signs
+    // in by SMS has no password — before, anyone holding its access token
+    // (an assistant, a thief) could set one. Now: a reauth token, or the
+    // current password, or (no password yet) a sign-in minutes ago.
+    if (reauth.hasReauthToken || !user.password_hash) {
+      await reauth.assertReauth();
+    } else {
       await this.limit(['pwd-change', 'user', user.id], LOGIN_PER_IDENTIFIER);
       const ok = await this.passwords.verify(
         dto.currentPassword ?? '',
@@ -187,6 +210,18 @@ export class PasswordAuthService {
       eventType: AUTH_EVENT_TYPES.PASSWORD_SET,
       success: true,
       meta: { changed: Boolean(user.password_hash) },
+    });
+    // Owner 2026-10-22 (security audit #3, finding 5): a new password ends
+    // every other session (a thief's included); this device stays in.
+    await this.revocation.revokeOtherChainsForUser(
+      user.id,
+      current.sid,
+      'credentials_changed',
+    );
+    await this.signInChange?.notify({
+      userId: user.id,
+      kind: 'password',
+      previousEmail: user.email && user.email_verified_at ? user.email : null,
     });
   }
 

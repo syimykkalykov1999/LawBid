@@ -812,6 +812,19 @@ export const NOTIFICATION_TEMPLATES: Partial<
       body: 'Поддержка сменила номер телефона в вашем аккаунте по вашему запросу. Это были не вы? Сразу напишите в поддержку.',
     },
   },
+  // Owner 2026-10-22 (security audit #3): no contact values in the push
+  // (docs/05 §9.5) — only that something changed and where to look.
+  security_sign_in_changed: {
+    group: 'system',
+    en: {
+      title: 'Sign-in settings changed',
+      body: 'A phone, e-mail, sign-in method or password changed on your account. Not you? Open Active devices and sign out everywhere.',
+    },
+    ru: {
+      title: 'Изменены данные для входа',
+      body: 'В вашем аккаунте изменились телефон, почта, способ входа или пароль. Это были не вы? Откройте «Активные устройства» и выйдите везде.',
+    },
+  },
 };
 
 /** Types without a template yet (docs/05 adds theirs). */

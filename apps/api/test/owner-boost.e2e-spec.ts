@@ -414,6 +414,53 @@ describe('Boost (e2e, owner 2026-10-15)', () => {
     expect(ext.body.data.status).toBe('pending_payment');
   });
 
+  it('owner 2026-10-22 (audit #3): a promo code is redeemed atomically, for its audience only', async () => {
+    await setSettings({});
+    const first = await user('attorney');
+    const second = await user('attorney');
+    const client = await user('client');
+    const code = `AUDIT3${randomUUID().slice(0, 8)}`.toUpperCase();
+    const promo = await prisma.promoCode.create({
+      data: {
+        code,
+        discount_type: 'percent',
+        percent_off: 100,
+        audience: 'attorney',
+        applies_to: 'promotion',
+        max_redemptions: 1,
+        created_by: first.id,
+      },
+    });
+    const boost = async (who: { id: string; auth: Record<string, string> }) => {
+      const p = await post(who.id);
+      return api()
+        .post(`/api/v1/posts/${p.id}/promotions`)
+        .set({ ...who.auth, 'Idempotency-Key': randomUUID() })
+        .send({ days: 1, dailyBudgetCents: 500, promoCode: code });
+    };
+
+    // An attorneys' code is not a client's.
+    const wrong = await boost(client);
+    expect(wrong.status).toBe(400);
+    expect(wrong.body.error.code).toBe('PROMO_CODE_INVALID');
+
+    // Two requests at once for the last redemption: exactly one wins.
+    const [a, b] = await Promise.all([boost(first), boost(second)]);
+    expect([a.status, b.status].sort()).toEqual([201, 400]);
+    const after = await prisma.promoCode.findUniqueOrThrow({
+      where: { id: promo.id },
+    });
+    expect(after.redeemed_count).toBe(1);
+    expect(
+      await prisma.promoRedemption.count({ where: { promo_id: promo.id } }),
+    ).toBe(1);
+
+    // The winner cannot use it a second time either.
+    const winner = a.status === 201 ? first : second;
+    const again = await boost(winner);
+    expect(again.status).toBe(400);
+  });
+
   it('the payment history says what a payment was for', async () => {
     await setSettings({});
     const u = await user('attorney');

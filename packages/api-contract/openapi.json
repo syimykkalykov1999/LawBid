@@ -1522,6 +1522,15 @@
         "operationId": "linkIdentifier",
         "parameters": [
           {
+            "name": "X-Reauth-Token",
+            "in": "header",
+            "description": "Required: single-use token from POST /auth/reauth (a new sign-in method).",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "Idempotency-Key",
             "in": "header",
             "description": "Replays the stored response for a retried request (24h); a different body with the same key is 409 IDEMPOTENCY_KEY_CONFLICT.",
@@ -1563,7 +1572,7 @@
             }
           },
           "401": {
-            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED, AUTH_OTP_INVALID, AUTH_SOCIAL_TOKEN_INVALID",
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED, AUTH_OTP_INVALID, AUTH_SOCIAL_TOKEN_INVALID, REAUTH_INVALID",
             "content": {
               "application/json": {
                 "schema": {
@@ -1573,7 +1582,7 @@
             }
           },
           "403": {
-            "description": "Forbidden: AUTH_PROVIDER_DISABLED",
+            "description": "Forbidden: AUTH_PROVIDER_DISABLED, REAUTH_REQUIRED",
             "content": {
               "application/json": {
                 "schema": {
@@ -1819,7 +1828,17 @@
     "/auth/password": {
       "post": {
         "operationId": "setPassword",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "X-Reauth-Token",
+            "in": "header",
+            "description": "Single-use token from POST /auth/reauth: replaces currentPassword; with no password yet it is required unless this session signed in within the last 10 minutes.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -1852,7 +1871,7 @@
             }
           },
           "401": {
-            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED, AUTH_INVALID_CREDENTIALS",
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED, AUTH_INVALID_CREDENTIALS, REAUTH_INVALID",
             "content": {
               "application/json": {
                 "schema": {
@@ -1862,7 +1881,7 @@
             }
           },
           "403": {
-            "description": "Forbidden: AUTH_PROVIDER_DISABLED",
+            "description": "Forbidden: AUTH_PROVIDER_DISABLED, REAUTH_REQUIRED",
             "content": {
               "application/json": {
                 "schema": {
@@ -1907,7 +1926,7 @@
             "bearer": []
           }
         ],
-        "summary": "Sets the password of the signed-in account (right after the sign-up\ncode); changing an existing one needs `currentPassword`.",
+        "summary": "Sets the password of the signed-in account (right after the sign-up\ncode); changing an existing one needs `currentPassword`. Owner\n2026-10-22 (security audit #3): either the current password or a\nreauth token — and with no password yet, a reauth token unless this\nsession signed in minutes ago (the sign-up code itself).",
         "tags": [
           "auth"
         ]
@@ -11238,6 +11257,16 @@
           },
           "401": {
             "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: USER_BLOCKED",
             "content": {
               "application/json": {
                 "schema": {
@@ -27634,7 +27663,7 @@
           {
             "name": "X-Reauth-Token",
             "in": "header",
-            "description": "Single-use token from POST /auth/reauth; required only when replacing an already verified contact of this type.",
+            "description": "Single-use token from POST /auth/reauth; required unless this session signed in within the last 10 minutes.",
             "required": false,
             "schema": {
               "type": "string"
@@ -27748,7 +27777,7 @@
             "bearer": []
           }
         ],
-        "summary": "docs/01 §11 step 3A: \"Изменить телефон/email можно только с повторной\nпроверкой (reauth + код на новый контакт)\". Adding the FIRST contact of\na type during onboarding needs no reauth (it would cost an extra paid\ncode per contact); replacing an already-verified one does.",
+        "summary": "docs/01 §11 step 3A: \"Изменить телефон/email можно только с повторной\nпроверкой (reauth + код на новый контакт)\". Owner 2026-10-22 (security\naudit #3, finding 2): adding a contact needs reauth too — an e-mail\nadded to an account without one receives the password-reset codes.\nOnboarding stays one code long: a sign-in made minutes ago on this\nsession counts as the reauth (ReauthVerifier.assertRecentAuthentication).",
         "tags": [
           "users"
         ]
@@ -54387,6 +54416,7 @@
                 "admin_login_code",
                 "contact_otp",
                 "new_device",
+                "sign_in_changed",
                 "data_export",
                 "notification"
               ]
@@ -54511,6 +54541,7 @@
                 "admin_login_code",
                 "contact_otp",
                 "new_device",
+                "sign_in_changed",
                 "data_export",
                 "notification"
               ]
@@ -54645,6 +54676,7 @@
                 "admin_login_code",
                 "contact_otp",
                 "new_device",
+                "sign_in_changed",
                 "data_export",
                 "notification"
               ]
@@ -54764,6 +54796,7 @@
                 "admin_login_code",
                 "contact_otp",
                 "new_device",
+                "sign_in_changed",
                 "data_export",
                 "notification"
               ]
@@ -54900,6 +54933,7 @@
                 "admin_login_code",
                 "contact_otp",
                 "new_device",
+                "sign_in_changed",
                 "data_export",
                 "notification"
               ]
@@ -76962,6 +76996,16 @@
           },
           "401": {
             "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN, ATTORNEY_NOT_VERIFIED",
             "content": {
               "application/json": {
                 "schema": {
@@ -138475,6 +138519,7 @@
               "admin_login_code",
               "contact_otp",
               "new_device",
+              "sign_in_changed",
               "data_export",
               "notification"
             ],
@@ -138586,6 +138631,7 @@
               "admin_login_code",
               "contact_otp",
               "new_device",
+              "sign_in_changed",
               "data_export",
               "notification"
             ],

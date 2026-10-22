@@ -12,3 +12,7 @@ export {
 } from './domain/contingency';
 export { budgetFilterSql } from './queries/budget-filter.sql';
 export { maskContactInfo } from './domain/contact-detector';
+// Owner 2026-10-22 (security audit #3): the conflict check (bids) asks the
+// same view policy before it loads a case.
+export { CaseAccessPolicy } from './policies/case-access.policy';
+export { caseNotFound } from './domain/case-state-machine';

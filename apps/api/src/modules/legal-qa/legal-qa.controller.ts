@@ -42,6 +42,7 @@ import {
   type QuestionPage,
 } from './legal-qa.dto';
 import { LegalQaService } from './legal-qa.service';
+import { AttorneyOnly } from '../auth/assistant/assistant-context';
 
 const E = ErrorCode;
 const IDEMPOTENCY_HEADER = { name: 'Idempotency-Key', required: false };
@@ -121,6 +122,10 @@ export class LegalQaController {
     return this.qa.remove(user, p.id);
   }
 
+  // Owner 2026-10-22 (security audit #3): a public answer speaks for the
+  // attorney — an assistant needs the "publish" duty (OQ-049), the same as
+  // posts and comments.
+  @AttorneyOnly('publish')
   @Put(':id/answer')
   @ApiOperation({ summary: 'Answer (or edit my answer) — verified attorney' })
   @ApiEnvelopeResponse(AnswerDto)
@@ -139,6 +144,7 @@ export class LegalQaController {
     return this.qa.answer(user, p.id, dto.body);
   }
 
+  @AttorneyOnly('publish')
   @Delete(':id/answer')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete my answer' })

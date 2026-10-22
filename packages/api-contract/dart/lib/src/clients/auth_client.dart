@@ -116,9 +116,11 @@ abstract class AuthClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
+  /// [xReauthToken] - Required: single-use token from POST /auth/reauth (a new sign-in method).
   @POST('/auth/identifiers')
   Future<IdentifierLinkedEnvelope> linkIdentifier({
     @Body() required LinkIdentifierDto body,
+    @Header('X-Reauth-Token') String? xReauthToken,
     @Extras() Map<String, dynamic>? extras,
   });
 
@@ -138,10 +140,16 @@ abstract class AuthClient {
   });
 
   /// Sets the password of the signed-in account (right after the sign-up.
-  /// code); changing an existing one needs `currentPassword`.
+  /// code); changing an existing one needs `currentPassword`. Owner.
+  /// 2026-10-22 (security audit #3): either the current password or a.
+  /// reauth token — and with no password yet, a reauth token unless this.
+  /// session signed in minutes ago (the sign-up code itself).
+  ///
+  /// [xReauthToken] - Single-use token from POST /auth/reauth: replaces currentPassword; with no password yet it is required unless this session signed in within the last 10 minutes.
   @POST('/auth/password')
   Future<PasswordSavedEnvelope> setPassword({
     @Body() required SetPasswordDto body,
+    @Header('X-Reauth-Token') String? xReauthToken,
     @Extras() Map<String, dynamic>? extras,
   });
 

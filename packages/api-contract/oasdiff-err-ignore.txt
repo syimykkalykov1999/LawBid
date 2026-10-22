@@ -126,11 +126,9 @@ GET /moderation/notices added the new `story` enum value to the `data/items/targ
 GET /reports/mine added the new `channel` enum value to the `data/items/targetType` response property for the response status `200`
 GET /reports/mine added the new `channel_post` enum value to the `data/items/targetType` response property for the response status `200`
 GET /reports/mine added the new `story` enum value to the `data/items/targetType` response property for the response status `200`
-<<<<<<< HEAD
 GET /conversations/{id}/messages added the new `gift` enum value to the `data/items/type` response property for the response status `200`
 POST /conversations/{id}/messages added the new `gift` enum value to the `data/type` response property for the response status `201`
 POST /conversations/{id}/messages/{messageId}/listened added the new `gift` enum value to the `data/type` response property for the response status `200`
-=======
 # 2026-10-20: the moderation queue and card gain two report targets (legal_question, legal_answer); admin web only, the generated clients map unknown values to $unknown
 GET /admin/moderation/queue added the new `legal_answer` enum value to the `data/items/targetType` response property for the response status `200`
 GET /admin/moderation/queue added the new `legal_question` enum value to the `data/items/targetType` response property for the response status `200`
@@ -313,3 +311,7 @@ POST /users/me/role added the new `nl` enum value to the `data/pendingLegalDocum
 POST /users/me/role added the new `pl` enum value to the `data/pendingLegalDocuments/items/locale` response property for the response status `200`
 POST /users/me/role added the new `pt` enum value to the `data/pendingLegalDocuments/items/locale` response property for the response status `200`
 POST /users/me/role added the new `uk` enum value to the `data/pendingLegalDocuments/items/locale` response property for the response status `200`
+# Owner 2026-10-22 (security audit #3, finding 2): a new admin-editable e-mail ("your sign-in details changed"); only the admin panel reads these keys and shows any key it gets
+GET /admin/email-templates added the new `sign_in_changed` enum value to the `data/items/key` response property for the response status `200`
+GET /admin/email-templates/{key}/{locale} added the new `sign_in_changed` enum value to the `data/key` response property for the response status `200`
+PUT /admin/email-templates/{key}/{locale} added the new `sign_in_changed` enum value to the `data/key` response property for the response status `200`

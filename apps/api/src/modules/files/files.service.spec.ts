@@ -370,6 +370,75 @@ describe('FilesService', () => {
     });
   });
 
+  describe('assertReadable (security audit #3, finding 8)', () => {
+    const none = () => jest.fn().mockResolvedValue(null);
+    const withSources = (hit?: string) => {
+      const { service, deps } = make();
+      const prisma = deps.prisma as unknown as Record<
+        string,
+        { findFirst: jest.Mock }
+      >;
+      for (const model of [
+        'message',
+        'chatGroupMessage',
+        'channelPost',
+        'documentTemplate',
+      ]) {
+        prisma[model] = {
+          findFirst:
+            model === hit ? jest.fn().mockResolvedValue({ id: 'x' }) : none(),
+        };
+      }
+      return { service, prisma };
+    };
+    const theirs = { id: 'f1', owner_user_id: 'someone-else' };
+
+    it('the owner reads their own file without any lookup', async () => {
+      const { service, prisma } = withSources();
+      await service.assertReadable('u1', { id: 'f1', owner_user_id: 'u1' });
+      expect(prisma.message.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('someone else’s file shown nowhere the user may look is a 404', async () => {
+      const { service } = withSources();
+      expect(await code(service.assertReadable('u1', theirs))).toBe(
+        'NOT_FOUND',
+      );
+    });
+
+    it.each(['message', 'chatGroupMessage', 'channelPost', 'documentTemplate'])(
+      'a file shown in a readable %s passes',
+      async (hit) => {
+        const { service } = withSources(hit);
+        await expect(
+          service.assertReadable('u1', theirs),
+        ).resolves.toBeUndefined();
+      },
+    );
+
+    it('a chat message counts only in a chat the user takes part in', async () => {
+      const { service, prisma } = withSources();
+      await code(service.assertReadable('u1', theirs));
+      expect(prisma.message.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            file_id: 'f1',
+            conversation: {
+              OR: [{ client_id: 'u1' }, { attorney_id: 'u1' }],
+            },
+          }),
+        }),
+      );
+    });
+
+    it('copyForUser refuses a file the user cannot read', async () => {
+      const { service } = withSources();
+      expect(
+        await code(service.copyForUser('f1', 'u2', 'chat_attachment')),
+      ).toBe('NOT_FOUND');
+    });
+  });
+
   describe('links', () => {
     it('serves media links only for clean media files', async () => {
       expect(await make().service.mediaUrl('f1')).toBe('http://signed');

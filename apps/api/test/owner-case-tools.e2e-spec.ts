@@ -1002,5 +1002,29 @@ describe('Case tools (e2e, 2026-10-20)', () => {
       .get(`/api/v1/cases/${again}/conflict-check`)
       .set(att.auth);
     expect(same.body.data.conflict).toBe(false);
+
+    // Owner 2026-10-22 (security audit #3, finding 7): another client's
+    // closed case the attorney never worked on is not theirs to probe...
+    const closed = await makeCase(newClient, null, {
+      title: 'Closed elsewhere',
+      description: 'maria gonzalez',
+    });
+    await prisma.case.update({
+      where: { id: closed },
+      data: { status: 'closed' },
+    });
+    const probe = await api()
+      .get(`/api/v1/cases/${closed}/conflict-check`)
+      .set(att.auth);
+    expect(probe.status).toBe(404);
+    expect(probe.body.error.code).toBe('CASE_NOT_FOUND');
+    // ...and a block either way refuses the check.
+    await prisma.userBlock.create({
+      data: { blocker_id: newClient.id, blocked_id: att.id },
+    });
+    const blocked = await api()
+      .get(`/api/v1/cases/${named}/conflict-check`)
+      .set(att.auth);
+    expect(blocked.status).not.toBe(200);
   });
 });

@@ -184,13 +184,21 @@ class AuthApiClient {
   }
 
   /// `POST /auth/password` — sets the password of the signed-in account.
-  Future<void> setPassword(String password, {String? currentPassword}) =>
+  /// Owner 2026-10-22 (security audit #3): [reauthToken] from
+  /// `POST /auth/reauth` when the server asks for it (no password yet and
+  /// the sign-in is not fresh).
+  Future<void> setPassword(
+    String password, {
+    String? currentPassword,
+    String? reauthToken,
+  }) =>
       guardApiCall(
         () => _auth.setPassword(
           body: api.SetPasswordDto(
             password: password,
             currentPassword: currentPassword,
           ),
+          xReauthToken: reauthToken,
         ),
       );
 
