@@ -457,6 +457,9 @@ enum MessageType {
 }
 
 enum NotificationType {
+  // Owner 2026-10-22: «X from your contacts joined LawBid» (server-side,
+  // contacts.joined job; the «Уведомлять, когда контакты появятся» switch).
+  contact_joined
   // Owner 2026-10-21: «X invites you to a group» (Requests).
   group_invite
   // Owner 2026-10-20: a new post in a channel I subscribed to.
@@ -799,6 +802,10 @@ model User {
   /// Owner 2026-10-20: clients can be found by people who have their number
   /// in the address book (contacts sync); attorneys' profiles are public.
   find_by_phone            Boolean                 @default(true)
+  /// Owner 2026-10-22: when the people who have this number in their phone
+  /// book were told "X joined LawBid" (the contacts.joined job). Null: not
+  /// yet (a new account or a new number).
+  contacts_announced_at    DateTime?               @db.Timestamptz
   /// Owner 2026-10-05: feed content — 'all' or 'legal_only' (general
   /// posts hidden from feed, search and recommendations); null = the admin
   /// default `feed.default_content_mode`.
@@ -932,6 +939,8 @@ model User {
   contact_matches             ContactMatch[]                 @relation("ContactOwner")
   contact_matched_by          ContactMatch[]                 @relation("ContactMatched")
   contact_sync                ContactSyncSetting?
+  // Owner 2026-10-22: the stored phone book (hashes only).
+  contact_book_hashes         ContactBookHash[]
 
   // Trigram GIN on full_name_lower is a *partial* index (raw SQL): Prisma
   // can't declare gin_trgm_ops, and ignores partial indexes in its diff.
@@ -5715,12 +5724,42 @@ model ContactMatch {
 
 /// Owner 2026-10-13: whether a user syncs contacts, and when last.
 model ContactSyncSetting {
-  user_id   String    @id @db.Uuid
-  user      User      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "contact_sync_settings_user_fkey")
-  enabled   Boolean   @default(true)
-  synced_at DateTime? @db.Timestamptz
+  user_id         String    @id @db.Uuid
+  user            User      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "contact_sync_settings_user_fkey")
+  enabled         Boolean   @default(true)
+  synced_at       DateTime? @db.Timestamptz
+  /// Owner 2026-10-22 (like Telegram's contacts hash): XOR of the stored
+  /// phone-book hashes (contact_book_hashes), 64 hex. The app sends its
+  /// own; equal → "not modified", no work. Null: unknown → the app uploads
+  /// the whole book once.
+  book_hash       String?   @db.Char(64)
+  /// How many numbers are stored (cap CONTACT_BOOK_MAX).
+  book_size       Int       @default(0)
+  /// Bumped when the people list changes without an upload (someone from
+  /// the book joined, a person hid their number): the app's daily check
+  /// then gets the new list.
+  matches_version Int       @default(0)
+  /// «Уведомлять, когда контакты появятся в LawBid»: the server sends the
+  /// "X joined LawBid" notice only while this is on.
+  notify_joined   Boolean   @default(true)
 
   @@map("contact_sync_settings")
+}
+
+/// Owner 2026-10-22 (contacts sync like Telegram/WhatsApp): the user's
+/// uploaded phone book as SHA-256 hashes of E.164 numbers, never numbers.
+/// Kept so the app sends only what was added / removed, deleted contacts
+/// drop their match, and a person who registers later is announced by the
+/// server ("X joined LawBid"). DELETE /contacts/sync removes all of it.
+model ContactBookHash {
+  owner_id     String   @db.Uuid
+  owner        User     @relation(fields: [owner_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "contact_book_hashes_owner_fkey")
+  phone_sha256 String   @db.Char(64)
+  created_at   DateTime @default(now()) @db.Timestamptz
+
+  @@id([owner_id, phone_sha256])
+  @@index([phone_sha256])
+  @@map("contact_book_hashes")
 }
 
 /// Owner 2026-10-14: how often an attorney's profile was opened, per day

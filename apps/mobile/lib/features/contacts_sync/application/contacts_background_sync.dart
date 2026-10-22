@@ -1,41 +1,36 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lawbid/core/l10n/l10n_providers.dart';
-import 'package:lawbid/core/navigation/root_messenger.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/features/contacts_sync/application/contacts_sync_providers.dart';
 import 'package:lawbid/features/contacts_sync/application/phone_contacts.dart';
-import 'package:lawbid/features/notifications/application/system_notifications.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 
 // Per account ('<key>.<userId>'): two people on one phone, or a new login,
-// never inherit each other's "known" list, 24 h gate or switch.
+// never inherit each other's 24 h gate or switch.
 const _lastKey = 'contacts_auto_sync_at_v1';
-const _knownKey = 'contacts_known_ids_v1';
-const _initKey = 'contacts_known_init_v1';
 const _notifyKey = 'contacts_notify_new_v1';
 
 /// How often the phone book is read again without the user asking.
 const contactsAutoSyncEvery = Duration(hours: 24);
 
 /// Owner 2026-10-20 (like WhatsApp): once the user has allowed contacts
-/// sync, the app re-syncs by itself at start and once a day, and says
-/// "X is now on LawBid" when a person from the phone book appears. Never
-/// asks for the permission on its own: only runs after the user allowed it
-/// on this install and while the sync is on.
+/// sync, the app re-syncs by itself at start and once a day. Never asks for
+/// the permission on its own: only runs after the user allowed it on this
+/// install and while the sync is on.
+///
+/// Owner 2026-10-22 (like Telegram): the daily pass is a hash check —
+/// nothing goes up when the book did not change, only the difference when
+/// it did (ContactsBookSync). "X joined LawBid" is sent by the SERVER when
+/// that person registers (push `contact_joined`), so the app no longer
+/// compares lists to announce it; the «notify me» switch is stored there.
 class ContactsBackgroundSync with WidgetsBindingObserver {
   ContactsBackgroundSync(this._ref);
 
   final Ref _ref;
   bool _started = false;
   bool _running = false;
-
-  /// The notices shown, for tests (the platform call itself is not).
-  @visibleForTesting
-  final announced = <String>[];
 
   String _key(String base, String userId) => '$base.$userId';
 
@@ -54,6 +49,8 @@ class ContactsBackgroundSync with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) unawaited(run());
   }
 
+  /// «Notify me when contacts join LawBid»: the device's copy of the
+  /// server's switch (on by default).
   bool get notifyNew {
     final me = _ref.read(currentUserIdProvider);
     if (me == null) return true;
@@ -61,12 +58,26 @@ class ContactsBackgroundSync with WidgetsBindingObserver {
         '0';
   }
 
+  /// Saves the switch on the server (it sends the notice); the device's
+  /// copy goes back when the server refuses.
   Future<void> setNotifyNew({required bool on}) async {
     final me = _ref.read(currentUserIdProvider);
     if (me == null) return;
-    await _ref
-        .read(localKvStoreProvider)
-        .setString(_key(_notifyKey, me), on ? '1' : '0');
+    final kv = _ref.read(localKvStoreProvider);
+    final before = kv.getString(_key(_notifyKey, me));
+    await kv.setString(_key(_notifyKey, me), on ? '1' : '0');
+    try {
+      await _ref
+          .read(contactsSyncRepositoryProvider)
+          .setNotifyJoined(enabled: on);
+    } on Object {
+      if (before == null) {
+        await kv.remove(_key(_notifyKey, me));
+      } else {
+        await kv.setString(_key(_notifyKey, me), before);
+      }
+      rethrow;
+    }
   }
 
   bool _due(String me) {
@@ -87,52 +98,22 @@ class ContactsBackgroundSync with WidgetsBindingObserver {
       final status = await _ref.read(contactsSyncStatusProvider.future);
       if (!status.enabled) return;
       final kv = _ref.read(localKvStoreProvider);
+      await kv.setString(
+        _key(_notifyKey, me),
+        status.notifyJoined ? '1' : '0',
+      );
       final data = await _ref.refresh(phoneContactsProvider.future);
-      // A pass whose match request failed is tried again at the next start
-      // (and its "known" list would be the old one).
+      // A pass whose request failed is tried again at the next start.
       if (data.denied || data.matchFailed) return;
-      final known = {
-        for (final id in (jsonDecode(
-          kv.getString(_key(_knownKey, me)) ?? '[]',
-        ) as List))
-          '$id',
-      };
-      // "First pass done" is its own flag: a first pass that finds nobody
-      // still counts, so the first person who joins later is announced.
-      final firstPass = kv.getString(_key(_initKey, me)) == null;
-      final now = {for (final c in data.onLawBid) c.userId: c};
-      await kv.setString(_key(_knownKey, me), jsonEncode(now.keys.toList()));
-      await kv.setString(_key(_initKey, me), '1');
       // Only after a pass that worked: a failed one is tried again soon.
       await kv.setString(
         _key(_lastKey, me),
         DateTime.now().toIso8601String(),
       );
-      if (firstPass || !notifyNew) return;
-      final fresh = [
-        for (final e in now.entries)
-          if (!known.contains(e.key)) e.value,
-      ];
-      if (fresh.isNotEmpty) await _announce(fresh);
     } on Object {
       // Offline, rate-limited, permission taken away: try at the next start.
     } finally {
       _running = false;
-    }
-  }
-
-  Future<void> _announce(List<LawBidContact> fresh) async {
-    final t = _ref.read(translatorProvider);
-    final body = fresh.length == 1
-        ? t.t('phoneContacts.joined', {'name': fresh.first.title})
-        : t.t('phoneContacts.joinedMany', {'count': '${fresh.length}'});
-    announced.add(body);
-    final shown =
-        await _ref.read(systemNotificationsProvider).showTest('LawBid', body);
-    // iOS has no local channel here: the open app says it instead.
-    if (!shown) {
-      rootMessengerKey.currentState
-          ?.showSnackBar(SnackBar(content: Text(body)));
     }
   }
 }

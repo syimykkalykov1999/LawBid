@@ -296,6 +296,19 @@ export const NOTIFICATION_TEMPLATES: Partial<
     },
     ru: { title: 'Вас отметили', body: 'Вас отметили в LawBid.' },
   },
+  // Owner 2026-10-22: someone from the phone book registered (sent by the
+  // server, contacts.joined job). No name: the push carries no personal data.
+  contact_joined: {
+    group: 'social',
+    en: {
+      title: 'New on LawBid',
+      body: 'Someone from your contacts joined LawBid. Say hello.',
+    },
+    ru: {
+      title: 'Новый человек в LawBid',
+      body: 'Ваш контакт теперь в LawBid. Напишите ему.',
+    },
+  },
   // Owner 2026-10-21: an invitation to a group (Requests).
   group_invite: {
     group: 'social',
