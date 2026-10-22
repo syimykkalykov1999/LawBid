@@ -2769,6 +2769,8 @@ model ChatGroup {
 
   @@index([created_by])
   @@index([avatar_file_id])
+  // Owner 2026-10-22 (client economy plan, package B): GET /groups?updatedSince.
+  @@index([updated_at])
   @@map("chat_groups")
 }
 
@@ -2800,6 +2802,8 @@ model ChatGroupMember {
 
   @@id([group_id, user_id])
   @@index([user_id, left_at])
+  // Owner 2026-10-22 (client economy plan, package B): my memberships changed since.
+  @@index([user_id, updated_at])
   @@map("chat_group_members")
 }
 

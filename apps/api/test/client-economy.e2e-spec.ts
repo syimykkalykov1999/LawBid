@@ -7,6 +7,7 @@ import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
 import { BadgesService } from '../src/modules/notifications/badges.service';
+import { RealtimePublisher } from '../src/modules/realtime/realtime-publisher.service';
 
 /**
  * Owner 2026-10-22 — client economy plan (docs/perf/CLIENT_ECONOMY_PLAN_
@@ -59,6 +60,7 @@ describe('Client economy (e2e, owner 2026-10-22)', () => {
   });
 
   const api = () => request(base);
+  const ids = (rows: unknown) => (rows as { id: string }[]).map((r) => r.id);
   const bearer = (id: string, role: 'client' | 'attorney') => ({
     Authorization: `Bearer ${tokens.signAccessToken({
       sub: id,
@@ -308,6 +310,111 @@ describe('Client economy (e2e, owner 2026-10-22)', () => {
       .expect(200);
     expect(moved.headers.etag).not.toBe(etag);
     expect(moved.body.data.badges.notificationsUnread).toBe(1);
+  });
+
+  // ------------------------------------------------------------ package B
+
+  async function groupOf(ownerId: string, memberId: string) {
+    const made = await api()
+      .post('/api/v1/groups')
+      .set(bearer(ownerId, 'client'))
+      .send({ title: 'Delta', type: 'closed', memberIds: [memberId] })
+      .expect(201);
+    const id = made.body.data.id as string;
+    const invites = await api()
+      .get('/api/v1/groups/invites')
+      .set(bearer(memberId, 'client'))
+      .expect(200);
+    const inv = (invites.body.data as { id: string; groupId: string }[]).find(
+      (i) => i.groupId === id,
+    );
+    await api()
+      .post(`/api/v1/groups/invites/${inv!.id}/accept`)
+      .set(bearer(memberId, 'client'))
+      .expect(200);
+    return id;
+  }
+
+  it('B: GET /groups?updatedSince, messages?afterId, topics?updatedSince; leaving puts the id in deletedIds', async () => {
+    const owner = await client();
+    const ann = await client();
+    const gid = await groupOf(owner.id, ann.id);
+    const send = (auth: Record<string, string>, body: string) =>
+      api()
+        .post(`/api/v1/groups/${gid}/messages`)
+        .set(auth)
+        .send({ clientMessageId: randomUUID(), type: 'text', body })
+        .expect(201);
+    const m1 = await send(owner.auth, 'one');
+    const first = await api()
+      .get('/api/v1/groups')
+      .set(ann.auth)
+      .query({ updatedSince: new Date(Date.now() - 60_000).toISOString() })
+      .expect(200);
+    expect(ids(first.body.data)).toContain(gid);
+    expect(first.body.meta.deletedIds).toEqual([]);
+    const syncedAt = first.body.meta.syncedAt as string;
+    expect(new Date(syncedAt).getTime()).toBeGreaterThan(0);
+
+    await send(owner.auth, 'two');
+    await send(owner.auth, 'three');
+    const after = await api()
+      .get(`/api/v1/groups/${gid}/messages`)
+      .set(ann.auth)
+      .query({ afterId: m1.body.data.id })
+      .expect(200);
+    expect((after.body.data as { body: string }[]).map((m) => m.body)).toEqual([
+      'two',
+      'three',
+    ]);
+    expect(after.body.meta.nextCursor).toBeNull();
+
+    const topics = await api()
+      .get(`/api/v1/groups/${gid}/topics`)
+      .set(ann.auth)
+      .query({ updatedSince: syncedAt })
+      .expect(200);
+    expect(topics.body.data).toEqual([]);
+    expect(topics.body.meta.deletedIds).toEqual([]);
+
+    await api()
+      .get('/api/v1/groups')
+      .set(ann.auth)
+      .query({ updatedSince: '2020-01-01T00:00:00Z' })
+      .expect(409);
+
+    await api().post(`/api/v1/groups/${gid}/leave`).set(ann.auth).expect(204);
+    const gone = await api()
+      .get('/api/v1/groups')
+      .set(ann.auth)
+      .query({ updatedSince: syncedAt })
+      .expect(200);
+    expect(ids(gone.body.data)).not.toContain(gid);
+    expect(gone.body.meta.deletedIds).toContain(gid);
+  });
+
+  it('B: group:update carries the shared card when the info changes', async () => {
+    const owner = await client();
+    const ann = await client();
+    const gid = await groupOf(owner.id, ann.id);
+    const publisher = app.get(RealtimePublisher);
+    const spy = jest.spyOn(publisher, 'toUsers');
+    await api()
+      .patch(`/api/v1/groups/${gid}`)
+      .set(owner.auth)
+      .send({ title: 'Renamed' })
+      .expect(200);
+    const call = spy.mock.calls.find(
+      ([, event, data]) =>
+        event === 'group:update' &&
+        (data as { groupId: string; card?: unknown }).groupId === gid &&
+        (data as { card?: unknown }).card !== undefined,
+    );
+    expect(call).toBeDefined();
+    expect((call![2] as { card: { title: string } }).card.title).toBe(
+      'Renamed',
+    );
+    spy.mockRestore();
   });
 
   it('D: reference lists carry a private / public Cache-Control with stale-while-revalidate', async () => {
