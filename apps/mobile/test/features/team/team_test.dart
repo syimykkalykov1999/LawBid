@@ -324,6 +324,15 @@ void main() {
 
     testWidgets('owner 2026-10-05: a role sets its accesses in one tap',
         (tester) async {
+      // Owner 2026-10-22: a ready role shows only when it fits the admin's
+      // per-assistant limit (3 by default; here the admin allows 10).
+      repo.teamInfo = const TeamInfo(
+        members: [],
+        seats: 2,
+        used: 0,
+        plan: 'monthly',
+        maxDuties: 10,
+      );
       await repo.addAssistant(name: 'Sam');
       await pump(tester, const TeamScreen());
       await tester.tap(find.text('Sam').first);
@@ -373,6 +382,9 @@ void main() {
         find.byType(ListView).last,
         const Offset(0, -200),
       );
+      // Owner 2026-10-22: the limit note may push the switches lower.
+      await tester.ensureVisible(find.byKey(const ValueKey('duty-calls')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('duty-calls')));
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('liability-check')), findsOneWidget);

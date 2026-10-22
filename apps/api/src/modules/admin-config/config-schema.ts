@@ -85,6 +85,18 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 1,
     max: SEATS_HARD_CAP,
   };
+  // Owner 2026-10-22: duties per assistant (10 exist; the app and the API
+  // both refuse more).
+  out['assistants.max_duties'] = {
+    ...out['assistants.max_duties'],
+    type: 'integer',
+    description:
+      'How many duties (roles) one assistant may hold at most, out of 10.',
+    min: 1,
+    // The 10 duties of assistants/assistant-duties.ts (not imported: the
+    // admin config stays free of feature modules).
+    max: 10,
+  };
   // Owner 2026-10-05: case urgency thresholds (days left) and reminders.
   for (const level of ['very_urgent', 'urgent', 'soon', 'within_month']) {
     out[`cases.urgency_days_${level}`] = {

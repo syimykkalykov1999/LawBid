@@ -12,6 +12,9 @@ import '../models/confirm_subscription_dto.dart';
 import '../models/payment_list_envelope.dart';
 import '../models/portal_session_envelope.dart';
 import '../models/public_pricing_envelope.dart';
+import '../models/seat_change_result_envelope.dart';
+import '../models/seat_preview_envelope.dart';
+import '../models/seat_preview_request_dto.dart';
 import '../models/set_seats_dto.dart';
 import '../models/start_subscription_result_envelope.dart';
 import '../models/subscription_me_envelope.dart';
@@ -36,9 +39,16 @@ abstract class SubscriptionsClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Monthly plan: set the number of assistant seats (OQ-048)
+  /// What buying seats costs now (prorated rest of the period) and per month after (owner 2026-10-22)
+  @POST('/subscriptions/seats/preview')
+  Future<SeatPreviewEnvelope> previewSeats({
+    @Body() required SeatPreviewRequestDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Set the extra assistant seats: more = charged now (3-D Secure may be asked), fewer = from the period end, no refund (owner 2026-10-22)
   @POST('/subscriptions/seats')
-  Future<SubscriptionMeEnvelope> setSeats({
+  Future<SeatChangeResultEnvelope> setSeats({
     @Body() required SetSeatsDto body,
     @Extras() Map<String, dynamic>? extras,
   });

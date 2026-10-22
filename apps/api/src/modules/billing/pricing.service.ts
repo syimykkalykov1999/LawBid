@@ -286,6 +286,24 @@ export class PricingService {
     return [...new Set(ids)];
   }
 
+  /** Owner 2026-10-22: every Stripe price ever used for assistant seats
+   * (the legacy `seat` and each plan's `seat.<code>`) — how the webhook
+   * sync finds the seat item on a subscription. */
+  async allSeatPriceIds(): Promise<string[]> {
+    await refreshProvider(this.provider);
+    const mode = this.mode();
+    const rows = await this.prisma.planPrice.findMany({
+      where: { OR: [{ kind: 'seat' }, { kind: { startsWith: 'seat.' } }] },
+      select: { stripe_price_ids: true },
+    });
+    const ids = rows
+      .map((r) => jsonMap(r.stripe_price_ids)[mode])
+      .filter((v): v is string => !!v);
+    const legacy = await this.legacyPriceId('seat');
+    if (legacy) ids.push(legacy);
+    return [...new Set(ids)];
+  }
+
   mode(): PriceMode {
     return this.provider.name === 'fake'
       ? 'fake'

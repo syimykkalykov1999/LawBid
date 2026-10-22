@@ -239,8 +239,15 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(save);
       await tester.pumpAndSettle();
+      // Owner 2026-10-22: more seats open the purchase sheet — the price
+      // now (prorated) and per month after, then pay.
+      expect(repo.calls, contains('preview:3'));
+      expect(find.text(r'Due now: $50 (until Oct 6, 2026)'), findsOneWidget);
+      expect(find.text(r'Then +$100 a month'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('seats-buy-pay')));
+      await tester.pumpAndSettle();
       expect(repo.calls, contains('seats:3'));
-      expect(find.text('Assistant seats: 3'), findsOneWidget);
+      expect(find.text('Seats added'), findsOneWidget);
       expect(find.byKey(const ValueKey('seats-save')), findsNothing);
     });
 

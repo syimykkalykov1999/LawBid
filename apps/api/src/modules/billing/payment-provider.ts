@@ -28,6 +28,51 @@ export interface ProviderSubscription {
   canceledAt: number | null;
   defaultPaymentMethodId: string | null;
   metadata: Record<string, string>;
+  /** Owner 2026-10-22: the items with their quantities — the sync reads
+   * the assistant-seat item's quantity from here (absent on old fakes). */
+  items?: ProviderSubscriptionItem[];
+  /** A `payment_behavior=pending_if_incomplete` change waiting for its
+   * invoice to be paid (expires at that moment, unix seconds). */
+  pendingUpdateExpiresAt?: number | null;
+  latestInvoiceId?: string | null;
+}
+
+export interface ProviderSubscriptionItem {
+  priceId: string;
+  quantity: number;
+  /** The price's amount per unit and period, in cents. */
+  unitAmountCents: number | null;
+}
+
+/** Owner 2026-10-22: what buying seats now costs (Stripe's preview of
+ * the invoice the change creates at once). */
+export interface ProviderSeatPreview {
+  /** The prorated rest of the current period for the added seats. */
+  amountNowCents: number;
+  currency: string;
+  /** The proration moment to send back with the purchase (unix seconds). */
+  prorationDate: number;
+  /** Where the current period ends (unix seconds); null when unknown. */
+  periodEnd: number | null;
+}
+
+export interface ProviderSeatCharge {
+  /** applied = paid, the seats are on the subscription; requires_action =
+   * the bank asks for 3-D Secure ([clientSecret] is the PaymentIntent's);
+   * failed = the card was declined (the invoice is voided, nothing changed). */
+  status: 'applied' | 'requires_action' | 'failed';
+  invoiceId: string | null;
+  amountCents: number;
+  currency: string;
+  clientSecret: string | null;
+  subscription: ProviderSubscription;
+}
+
+export interface ProviderSeatItemInput {
+  subscriptionId: string;
+  seatPriceId: string;
+  /** Older seat prices whose item keeps its price (quantity only). */
+  knownSeatPriceIds?: string[];
 }
 
 export interface ProviderInvoice {
@@ -155,7 +200,27 @@ export interface PaymentProvider {
     /** Owner 2026-10-03: older seat prices — an existing seat item on one
      * of them keeps its price and only changes quantity. */
     knownSeatPriceIds?: string[],
+    /** Owner 2026-10-22: `none` for a seat removed at the period end (no
+     * refund, no credit); default `create_prorations` (legacy). */
+    prorationBehavior?: 'none' | 'create_prorations',
   ): Promise<ProviderSubscription>;
+  /** Owner 2026-10-22: the price of going from the subscription's current
+   * seat quantity up by [addSeats] now (the invoice it would create). */
+  previewSeatIncrease(
+    input: ProviderSeatItemInput & { addSeats: number; prorationDate: number },
+  ): Promise<ProviderSeatPreview>;
+  /** Owner 2026-10-22: set the seat quantity to [quantity] and charge the
+   * prorated rest of the period NOW (`always_invoice`); the change is
+   * applied only when that invoice is paid (`pending_if_incomplete`). */
+  chargeSeatIncrease(
+    input: ProviderSeatItemInput & {
+      quantity: number;
+      prorationDate: number;
+      idempotencyKey: string;
+    },
+  ): Promise<ProviderSeatCharge>;
+  /** Voids an open invoice (a pending seat change that will not be paid). */
+  voidInvoice?(invoiceId: string): Promise<void>;
   /** Owner 2026-10-01: monthly → yearly ("Prime"): every item replaced by
    * the yearly price; the difference is invoiced now. */
   switchToYearly(

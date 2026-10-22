@@ -51,6 +51,7 @@ import 'package:lawbid/core/l10n/strings/qr_strings.dart';
 import 'package:lawbid/core/l10n/strings/reels_docs_strings.dart';
 import 'package:lawbid/core/l10n/strings/reels_strings.dart';
 import 'package:lawbid/core/l10n/strings/saved_cards_strings.dart';
+import 'package:lawbid/core/l10n/strings/seat_roles_strings.dart';
 import 'package:lawbid/core/l10n/strings/share_to_strings.dart';
 import 'package:lawbid/core/l10n/strings/stale_case_strings.dart';
 import 'package:lawbid/core/l10n/strings/stars_strings.dart';
@@ -1212,6 +1213,7 @@ class StaticTranslatorRu extends _MapTranslator {
         ...starsRu,
         ...feedContentRu,
         ...newsOffRu,
+        ...seatRolesRu,
         ...feedFreshRu,
         ...chatNoteRu,
         ...shareToRu,
@@ -2654,6 +2656,7 @@ class StaticTranslatorEn extends _MapTranslator {
         ...starsEn,
         ...feedContentEn,
         ...newsOffEn,
+        ...seatRolesEn,
         ...feedFreshEn,
         ...chatNoteEn,
         ...shareToEn,
