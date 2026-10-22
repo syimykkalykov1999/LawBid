@@ -3,8 +3,7 @@ import { ErrorCode } from '../../../common/errors/error-code.enum';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { matchesIn, type MatchBy, type Person } from './conflict.logic';
-import { CaseAccessPolicy } from '../../cases/policies/case-access.policy';
-import { caseNotFound } from '../../cases/domain/case-state-machine';
+import { CaseAccessPolicy, caseNotFound } from '../../cases/cases.public';
 import { assertNoBlockBetween } from '../../blocks/block-check';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 

@@ -4,7 +4,7 @@ import { PinoLogger } from 'nestjs-pino';
 import { CostGuardService } from '../../../common/cost-guard/cost-guard.service';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { NotificationsService } from '../../notifications/notifications.service';
-import { FeatureFlagsService } from '../../feature-flags/services/feature-flags.service';
+import { FeatureFlagsService } from '../../feature-flags/feature-flags.public';
 import { emailFlowsOn } from '../../feature-flags/email-flows';
 import { EMAIL_PROVIDER } from '../providers/provider.tokens';
 import type { EmailProvider } from '../providers/email/email-provider.interface';

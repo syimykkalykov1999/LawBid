@@ -21,8 +21,10 @@ import {
   AuthEventService,
   AUTH_EVENT_TYPES,
 } from '../../auth/services/auth-event.service';
-import { SignInChangeNotifier } from '../../auth/notifications/sign-in-change-notifier.service';
-import { SessionRevocationService } from '../../auth/services/session-revocation.service';
+import {
+  SessionRevocationService,
+  SignInChangeNotifier,
+} from '../../auth/auth.public';
 
 /**
  * POST /users/me/contacts/request + /verify (docs/01_FOUNDATION_AUTH.md

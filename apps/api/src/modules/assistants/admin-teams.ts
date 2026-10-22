@@ -58,7 +58,7 @@ import {
   findActiveGrant,
   paidSeats,
 } from '../subscriptions/contract-grant.util';
-import { SessionRevocationService } from '../auth/services/session-revocation.service';
+import { SessionRevocationService } from '../auth/auth.public';
 import { endAssistantSessions } from './end-assistant-sessions';
 
 const trim = ({ value }: { value: unknown }) =>

@@ -1,4 +1,4 @@
-import type { SessionRevocationService } from '../auth/services/session-revocation.service';
+import type { SessionRevocationService } from '../auth/auth.public';
 
 /**
  * Owner 2026-10-22 (security audit #3, finding 6): removing an assistant

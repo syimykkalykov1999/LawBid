@@ -47,7 +47,7 @@ import {
   JoinCodeCipher,
   newJoinCode,
 } from './join-code';
-import { SessionRevocationService } from '../auth/services/session-revocation.service';
+import { SessionRevocationService } from '../auth/auth.public';
 import { endAssistantSessions } from './end-assistant-sessions';
 
 const PAGE = 30;
