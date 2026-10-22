@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/config/web_push_config.dart';
 import 'package:lawbid/core/navigation/app_router.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
+import 'package:lawbid/features/calls/application/call_media.dart';
 import 'package:lawbid/features/calls/application/callkit_bridge.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
@@ -94,6 +95,13 @@ class PushService {
         FirebaseMessaging.onBackgroundMessage(lawbidBackgroundMessage);
       }
       if (prompt) await m.requestPermission();
+      // Owner 2026-10-21: the iPhone asks for the microphone here, once
+      // after sign-in — not in the second the person answers a call (on the
+      // lock screen the question cannot even be shown, and the call was
+      // declined for it).
+      if (prompt && !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
+        await _ref.read(callMicPermissionProvider)();
+      }
       final token = await m.getToken(
         vapidKey: kIsWeb ? WebPushConfig.vapidKey : null,
       );
@@ -211,8 +219,10 @@ class PushService {
       }
     }
 
+    // One shared subscription for the whole app (callkitEvents): a second
+    // direct listener would take the channel from the call controller.
     _subs.add(
-      FlutterCallkitIncoming.onEvent.listen(
+      callkitEvents().listen(
         (e) {
           if (e is CallEventActionDidUpdateDevicePushTokenVoip) {
             unawaited(send());

@@ -1,4 +1,5 @@
 import AVFoundation
+import CallKit
 import Flutter
 import PushKit
 import UIKit
@@ -6,7 +7,9 @@ import UserNotifications
 import flutter_callkit_incoming
 
 @main
-@objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate, PKPushRegistryDelegate {
+@objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate,
+  PKPushRegistryDelegate, CallkitIncomingAppDelegate
+{
   /// Owner 2026-10-17: incoming calls arrive as VoIP (PushKit) pushes so
   /// iOS shows the call screen and rings even when the app is closed.
   private var voipRegistry: PKPushRegistry?
@@ -87,6 +90,16 @@ import flutter_callkit_incoming
     }
     let p = payload.dictionaryPayload
     let callId = (p["callId"] as? String) ?? UUID().uuidString
+    // Owner 2026-10-21: the open app's socket may have reported this very
+    // call a moment ago — a second report of the same id would end the one
+    // being answered. One CallKit call per call id.
+    let shown = callkit.activeCalls().contains { item in
+      (item["id"] as? String)?.caseInsensitiveCompare(callId) == .orderedSame
+    }
+    if shown {
+      completion()
+      return
+    }
     let name = (p["callerName"] as? String) ?? "LawBid"
     let video = (p["video"] as? String) == "1"
     let data = flutter_callkit_incoming.Data(
@@ -117,6 +130,56 @@ import flutter_callkit_incoming
       fromPushKit: true
     ) {
       completion()
+    }
+  }
+
+  // MARK: - CallKit (CallkitIncomingAppDelegate)
+
+  /// Owner 2026-10-21 (Apple / LiveKit's CallKit design): the call answered
+  /// on the system sheet is THE call for its whole life — the answer is
+  /// confirmed to iOS at once (a late or missing confirmation ends the
+  /// call), it is never ended and re-created, and WebRTC starts its audio
+  /// only when iOS hands the audio session over (didActivate).
+  func onAccept(_ call: Call, _ action: CXAnswerCallAction) {
+    action.fulfill()
+  }
+
+  func onDecline(_ call: Call, _ action: CXEndCallAction) {
+    action.fulfill()
+  }
+
+  func onEnd(_ call: Call, _ action: CXEndCallAction) {
+    action.fulfill()
+  }
+
+  func onTimeOut(_ call: Call) {}
+
+  func didActivateAudioSession(_ audioSession: AVAudioSession) {
+    webrtcAudioSession(activated: true, audioSession)
+  }
+
+  func didDeactivateAudioSession(_ audioSession: AVAudioSession) {
+    webrtcAudioSession(activated: false, audioSession)
+  }
+
+  func providerDidReset() {}
+
+  /// Tells WebRTC's RTCAudioSession that CallKit activated / deactivated
+  /// the audio session (looked up by name: the framework ships with
+  /// flutter_webrtc, there is no module to import here). Without this
+  /// WebRTC never learns the session is live — a call answered from the
+  /// sheet has no sound, or its audio unit fails and the call ends.
+  private func webrtcAudioSession(activated: Bool, _ session: AVAudioSession) {
+    guard let cls = NSClassFromString("RTCAudioSession") else { return }
+    guard
+      let shared = (cls as AnyObject).perform(NSSelectorFromString("sharedInstance"))?
+        .takeUnretainedValue() as? NSObject
+    else { return }
+    let selector = NSSelectorFromString(
+      activated ? "audioSessionDidActivate:" : "audioSessionDidDeactivate:"
+    )
+    if shared.responds(to: selector) {
+      _ = shared.perform(selector, with: session)
     }
   }
 }

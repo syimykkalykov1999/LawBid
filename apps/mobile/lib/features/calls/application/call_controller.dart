@@ -6,7 +6,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/audio/app_sounds.dart';
+import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/core/connectivity/connectivity_providers.dart';
+import 'package:lawbid/core/diagnostics/crash_reporter.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/network/api_error.dart';
@@ -242,6 +244,16 @@ class SystemRingingCall extends Notifier<String?> {
 
 final systemRingingCallProvider =
     NotifierProvider<SystemRingingCall, String?>(SystemRingingCall.new);
+
+/// Owner 2026-10-21 (the iPhone drops a call the moment it is answered):
+/// every step of a call goes to the server's crash list, test builds only
+/// (dev / staging) — one device test then tells the whole story, no
+/// second build for a log. Nothing is sent from the store build.
+void callTrace(String message) {
+  if (AppEnvironment.current.isProd) return;
+  final at = DateTime.now().toUtc().toIso8601String().substring(11, 23);
+  CrashReporter.instance?.report('calltrace $at $message', StackTrace.empty);
+}
 
 /// The caller gives up after this — about a minute, like WhatsApp (owner
 /// 2026-10-20; it was 30 s); the server marks a forgotten call missed a
@@ -575,9 +587,11 @@ class CallController extends Notifier<CallSession> {
     if (_accepting == call.id) return;
     _accepting = call.id;
     final gen = _gen;
+    callTrace('accept ${call.id} start');
     unawaited(ref.read(appSoundsProvider).stopRingtone());
     if (!await ref.read(callMicPermissionProvider)()) {
       // Cannot talk: decline, so the caller is not left waiting.
+      callTrace('accept ${call.id}: microphone not allowed, declining');
       if (!ref.mounted || state.call?.id != call.id) return;
       _accepting = null;
       state = state.copyWith(errorCode: kMicDenied);
@@ -605,7 +619,10 @@ class CallController extends Notifier<CallSession> {
       final acceptF = _repo.accept(call.id);
       unawaited(acceptF.then<void>((_) {}, onError: (Object _) {}));
       await _openMedia(call.id, video: call.video, peer: call.peer.id);
+      callTrace('accept ${call.id}: media open');
       final accepted = await acceptF;
+      callTrace('accept ${call.id}: server accepted, status '
+          '${accepted.status} gen=${gen == _gen} mounted=${ref.mounted}');
       // The call ended (or another began) while the answer was in flight.
       if (!ref.mounted || gen != _gen) return;
       state = state.copyWith(call: accepted);
@@ -622,10 +639,12 @@ class CallController extends Notifier<CallSession> {
       }
       unawaited(_nudgeSignals(call.id));
     } on ApiException catch (e) {
+      callTrace('accept ${call.id}: server refused ${e.statusCode} ${e.code}');
       if (gen != _gen) return;
       state = state.copyWith(errorCode: e.code);
       _finish(CallStatus.failed);
     } on Object catch (e) {
+      callTrace('accept ${call.id}: failed: $e');
       if (gen != _gen) return;
       if (_isMicDenied(e)) state = state.copyWith(errorCode: kMicDenied);
       _finish(CallStatus.failed);
@@ -1075,6 +1094,8 @@ class CallController extends Notifier<CallSession> {
   /// A ring that arrived by push / the system call UI (app was in the
   /// background): load it and show it here.
   Future<void> ringFromPush(String callId, {bool accept = false}) async {
+    callTrace('ringFromPush $callId accept=$accept phase=${state.phase} '
+        'current=${state.call?.id}');
     if (state.busy && state.call?.id != callId) {
       // Talking already: the system ring for this one must go, and the
       // caller hears it was declined (busy).
@@ -1108,8 +1129,9 @@ class CallController extends Notifier<CallSession> {
         }
       }
       if (accept) await this.accept();
-    } on Object {
+    } on Object catch (e) {
       // Still unreachable after the retries: take the system call down.
+      callTrace('ringFromPush $callId failed: $e');
       unawaited(ref.read(systemCallUiProvider).dismiss(callId));
     }
   }
@@ -1152,6 +1174,8 @@ class CallController extends Notifier<CallSession> {
   String? _accepting;
 
   void _ring(AppCall call, {bool showSystemUi = true}) {
+    callTrace('ring ${call.id} systemUi=$showSystemUi '
+        'lifecycle=${WidgetsBinding.instance.lifecycleState}');
     _reset();
     state = CallSession(
       phase: CallPhase.incoming,
@@ -1699,6 +1723,8 @@ class CallController extends Notifier<CallSession> {
   void _finish(CallStatus outcome, {AppCall? call, bool keepOpen = false}) {
     final wasCalling = state.busy;
     final endedId = call?.id ?? state.call?.id;
+    callTrace('finish $endedId outcome=$outcome phase=${state.phase} '
+        'error=${state.errorCode}');
     if (endedId != null) {
       final ui = ref.read(systemCallUiProvider);
       unawaited(ui.dismiss(endedId).then<void>((_) => ui.endAll()));
