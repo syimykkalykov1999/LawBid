@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { BadgesDto } from '../notifications/notifications-api.dto';
-import { MeDto } from '../users/dto/user-responses.dto';
+import { MeDto } from '../users/users.public';
 
 /**
  * Owner 2026-10-22 (client economy plan, package G): everything the app

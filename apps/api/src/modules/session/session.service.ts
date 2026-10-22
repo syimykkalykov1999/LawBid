@@ -5,13 +5,12 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { CALL_SILENT_MS } from '../calls/calls.service';
-import { BootstrapService } from '../feature-flags/services/bootstrap.service';
-import { readConfigVersion } from '../feature-flags/services/config-version';
-import { BadgesService, type Badges } from '../notifications/badges.service';
 import {
-  OnboardingService,
-  type MeView,
-} from '../users/services/onboarding.service';
+  BootstrapService,
+  readConfigVersion,
+} from '../feature-flags/feature-flags.public';
+import { BadgesService, type Badges } from '../notifications/badges.service';
+import { OnboardingService, type MeView } from '../users/users.public';
 
 /** The session ETag rotates at least this often — the safety net for
  * inputs that no stamp below covers (a legal acceptance, an avatar scan). */
