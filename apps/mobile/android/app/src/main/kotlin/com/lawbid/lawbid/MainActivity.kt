@@ -16,6 +16,7 @@ import android.media.Ringtone
 import android.media.RingtoneManager
 import android.os.Build
 import android.provider.Settings
+import android.view.WindowManager
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -279,6 +280,28 @@ class MainActivity : FlutterFragmentActivity() {
         ChatNotifications.openTarget(intent)?.let { pendingChatOpen = it }
         // A cold start from the notification: Dart asks for it (pendingAction).
         callActionOf(intent)?.let { pendingCallAction = it }
+        // Security research #5 (2026-10-22), B5: FLAG_SECURE while a screen
+        // with an ID document / licence is open (lib/core/platform/
+        // secure_screen.dart) — screenshots and recordings show black.
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "lawbid/secure_screen",
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "setSecure" -> {
+                    val secure = call.argument<Boolean>("secure") == true
+                    runOnUiThread {
+                        if (secure) {
+                            window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                        } else {
+                            window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                        }
+                    }
+                    result.success(null)
+                }
+                else -> result.notImplemented()
+            }
+        }
         // Owner 2026-10-05 (docs/CLIENT_FRAUD.md): ANDROID_ID for the
         // X-Device-Key header (lib/core/network/device_key.dart). Stable for
         // this app on this phone until a factory reset; the server keeps
