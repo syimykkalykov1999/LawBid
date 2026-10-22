@@ -8,6 +8,7 @@ import {
   Param,
   Post,
   Req,
+  UnauthorizedException,
   UseInterceptors,
 } from '@nestjs/common';
 import type { Request } from 'express';
@@ -59,6 +60,11 @@ import { AssistantCodeLoginDto } from './dto/assistant-code-login.dto';
 import { TokenService } from './services/token.service';
 import { QrLoginService } from './services/qr-login.service';
 import {
+  ClearsWebSessionCookie,
+  WebSessionCookieInterceptor,
+  WebSessionCookies,
+} from './web-session-cookie';
+import {
   QrLoginAnsweredDto,
   QrLoginCreateDto,
   QrLoginCreatedDto,
@@ -99,6 +105,9 @@ const IdempotencyKeyHeader = ApiHeader({
 @ApiTags('auth')
 @ApiErrors(COMMON_ERRORS)
 @Controller('auth')
+// Owner 2026-10-22 (audit #7): the website's refresh token goes into an
+// HttpOnly cookie on every route that issues one (see web-session-cookie).
+@UseInterceptors(WebSessionCookieInterceptor)
 export class AuthController {
   constructor(
     private readonly auth: AuthService,
@@ -106,6 +115,7 @@ export class AuthController {
     private readonly passwordAuth: PasswordAuthService,
     private readonly tokens: TokenService,
     private readonly qrLogin: QrLoginService,
+    private readonly webCookies: WebSessionCookies,
   ) {}
 
   @ApiEnvelopeResponse(OtpSentDto)
@@ -276,13 +286,27 @@ export class AuthController {
     @Body() dto: RefreshTokenDto,
     @Req() req: Request,
   ): Promise<AuthTokensDto> {
-    return this.auth.refresh(dto, this.meta(req));
+    // Owner 2026-10-22: the website sends an empty refreshToken; its token
+    // is the HttpOnly cookie (only from an allowed web origin with the
+    // web-session header — the CSRF check).
+    let refreshToken = dto.refreshToken;
+    if (!refreshToken) {
+      refreshToken = (await this.webCookies.fromRequest(req)) ?? '';
+      if (!refreshToken) {
+        throw new UnauthorizedException({
+          code: ErrorCode.AUTH_REFRESH_INVALID,
+          message: 'Refresh token is invalid.',
+        });
+      }
+    }
+    return this.auth.refresh({ ...dto, refreshToken }, this.meta(req));
   }
 
   @ApiBearerAuth()
   @ApiEnvelopeResponse(LoggedOutDto)
   @ApiErrors({ 401: BEARER_401 })
   @Post('logout')
+  @ClearsWebSessionCookie()
   @HttpCode(HttpStatus.OK)
   async logout(@CurrentUser() user: RequestUser): Promise<LoggedOutDto> {
     await this.auth.logout(user);
@@ -293,6 +317,7 @@ export class AuthController {
   @ApiEnvelopeResponse(LoggedOutDto)
   @ApiErrors({ 401: BEARER_401 })
   @Post('logout-all')
+  @ClearsWebSessionCookie()
   @HttpCode(HttpStatus.OK)
   async logoutAll(@CurrentUser() user: RequestUser): Promise<LoggedOutDto> {
     await this.auth.logoutAll(user);

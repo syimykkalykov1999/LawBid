@@ -50,8 +50,22 @@ class HeadersInterceptor extends Interceptor {
     // Owner 2026-10-05 (docs/CLIENT_FRAUD.md): see DeviceKey.
     final deviceKey = DeviceKey.current;
     if (deviceKey != null) options.headers['X-Device-Key'] = deviceKey;
+    applyWebSession(options, isWeb: kIsWeb);
     handler.next(options);
   }
+
+  /// Owner 2026-10-22 (audit #7): on the website the refresh token is an
+  /// HttpOnly cookie the API sets on `/auth/*`. Those calls ask for cookie
+  /// mode and let the browser send / store the cookie; every other call
+  /// stays cookie-free (Bearer only). A demo session is told apart by the
+  /// server (its header / token), so the flag is the same for all.
+  static void applyWebSession(RequestOptions options, {required bool isWeb}) {
+    if (!isWeb || !options.uri.path.contains('/auth/')) return;
+    options.headers[webSessionHeader] = '1';
+    options.extra['withCredentials'] = true;
+  }
+
+  static const webSessionHeader = 'X-LawBid-Web-Session';
 
   static String _languageTag(Ref ref) {
     final language =
