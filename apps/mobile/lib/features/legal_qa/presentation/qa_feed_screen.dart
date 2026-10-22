@@ -104,21 +104,16 @@ class _QaFeedScreenState extends ConsumerState<QaFeedScreen> {
     return Scaffold(
       backgroundColor: colors.bg,
       appBar: AppTopBar(
-        title: Align(
-          alignment: AlignmentDirectional.centerStart,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 300),
-            child: QaTabsBar(
-              value: _tab,
-              onChanged: _pick,
-              labels: [
-                t.t('qa.tab.all'),
-                t.t('qa.tab.mine'),
-                t.t('qa.tab.solved'),
-                t.t('qa.tab.unanswered'),
-              ],
-            ),
-          ),
+        // Owner 2026-10-22: one bar, placed by itself, for client and attorney.
+        title: QaTabsBar(
+          value: _tab,
+          onChanged: _pick,
+          labels: [
+            t.t('qa.tab.all'),
+            t.t('qa.tab.mine'),
+            t.t('qa.tab.solved'),
+            t.t('qa.tab.unanswered'),
+          ],
         ),
         leading: AppBackButton(
           semanticLabel: t.t('common.back'),
