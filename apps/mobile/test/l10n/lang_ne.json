@@ -1294,6 +1294,7 @@
 "chat.unarchive":"अभिलेखबाट",
 "chat.unmute":"अनम्युट गर्नुहोस्",
 "chat.unread.divider":"{n} नपढिएका सन्देश",
+"chat.unreadable":"यो सन्देश डिक्रिप्ट गर्न सकिएन",
 "chat.voice.cancel":"रेकर्डिङ मेटाउनुहोस्",
 "chat.voice.duringCall":"कलको समयमा उपलब्ध छैन",
 "chat.voice.hold":"रेकर्ड गर्न माइक बटन थिचिराख्नुहोस्",

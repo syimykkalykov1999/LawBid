@@ -1294,6 +1294,7 @@
 "chat.unarchive":"إلغاء الأرشفة",
 "chat.unmute":"إلغاء الكتم",
 "chat.unread.divider":"{n} رسائل غير مقروءة",
+"chat.unreadable":"تعذّر فك تشفير هذه الرسالة",
 "chat.voice.cancel":"حذف التسجيل",
 "chat.voice.duringCall":"غير متاح أثناء المكالمة",
 "chat.voice.hold":"اضغط مطولًا على زر الميكروفون للتسجيل",

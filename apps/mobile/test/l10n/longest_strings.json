@@ -1294,6 +1294,7 @@
 "chat.unarchive":"Yọ kúrò nínú ìpamọ́",
 "chat.unmute":"Хомӯшкуниро бекор кардан",
 "chat.unread.divider":"{n} hindi pa nababasang mensahe",
+"chat.unreadable":"Níorbh fhéidir an teachtaireacht seo a dhíchriptiú",
 "chat.voice.cancel":"Supprimer l'enregistrement",
 "chat.voice.duringCall":"Nuk është i disponueshëm gjatë një thirrjeje",
 "chat.voice.hold":"Mbani të shtypur butonin e mikrofonit për të regjistruar",

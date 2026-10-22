@@ -1294,6 +1294,7 @@
 "chat.unarchive":"Aus Archiv",
 "chat.unmute":"Stummschaltung aufheben",
 "chat.unread.divider":"{n} ungelesene Nachrichten",
+"chat.unreadable":"Diese Nachricht konnte nicht entschlüsselt werden",
 "chat.voice.cancel":"Aufnahme löschen",
 "chat.voice.duringCall":"Während eines Anrufs nicht möglich",
 "chat.voice.hold":"Mikrofon-Taste gedrückt halten, um aufzunehmen",
