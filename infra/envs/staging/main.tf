@@ -75,6 +75,16 @@ module "stack" {
   backup_enabled         = var.backup_enabled
   worker_jobs_per_task   = var.worker_jobs_per_task
   interface_endpoint_azs = var.interface_endpoint_azs
+
+  # Security research #5 (2026-10-22): WAF, cloud detector, container.
+  waf_otp_rate_limit_per_5m    = var.waf_otp_rate_limit_per_5m
+  waf_bot_control_enabled      = var.waf_bot_control_enabled
+  waf_bot_control_block        = var.waf_bot_control_block
+  cdn_waf_rate_limit_per_5m    = var.cdn_waf_rate_limit_per_5m
+  security_hub_enabled         = var.security_hub_enabled
+  guardduty_alert_severity     = var.guardduty_alert_severity
+  ecs_readonly_root_filesystem = var.ecs_readonly_root_filesystem
+  dmarc_policy                 = var.dmarc_policy
 }
 
 output "stack" { value = module.stack }
