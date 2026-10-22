@@ -20,6 +20,9 @@
  *   the per-user daily quota.
  * - video: Bunny Stream — one unit per reel upload session created by
  *   VideosService (encoding + storage + CDN delivery).
+ * - image_moderation: AWS Rekognition DetectModerationLabels — one unit
+ *   per image checked (owner 2026-10-22, MediaModerationService); a
+ *   repeat of the same picture reuses the stored verdict for free.
  */
 export const COST_PROVIDERS = [
   'sms',
@@ -28,6 +31,7 @@ export const COST_PROVIDERS = [
   'storage',
   'translate',
   'video',
+  'image_moderation',
 ] as const;
 export type CostProvider = (typeof COST_PROVIDERS)[number];
 

@@ -18,6 +18,7 @@ import { RealtimeModule } from '../modules/realtime/realtime.module';
 import { BillingModule } from '../modules/billing/billing.module';
 import { PlansCoreModule } from '../modules/plans/plans.module';
 import { PrivacyModule } from '../modules/privacy/privacy.module';
+import { MediaModerationModule } from '../modules/media-moderation/media-moderation.module';
 import { BroadcastFanoutModule } from '../modules/admin-content/broadcast-fanout.module';
 import { GroupFanoutModule } from '../modules/groups/group-fanout.module';
 import { ChannelFanoutModule } from '../modules/channels/channel-fanout.module';
@@ -78,6 +79,8 @@ import { ModerationModule } from '../modules/moderation/moderation.module';
     BillingModule.register({ mode: 'worker' }),
     // docs/06 §5 (stage 6.9): data export ZIP worker.
     PrivacyModule.register({ mode: 'worker' }),
+    // Owner 2026-10-22 (audit #4 §5): the `media-moderation` queue.
+    MediaModerationModule.register({ mode: 'worker' }),
     // Audit 2026-10-02: admin broadcast fan-out (`admin-broadcast` queue).
     BroadcastFanoutModule.register({ mode: 'worker' }),
     // Owner 2026-10-22 (server load audit, finding 7): group messages

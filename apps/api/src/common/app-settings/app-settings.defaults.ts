@@ -113,6 +113,15 @@ export const FILE_06_SETTINGS = {
   // §3.3 "массовые ссылки" / "повторяющийся текст от одного автора" → hold.
   'moderation.max_links': 3,
   'moderation.duplicate_window_hours': 24,
+  // Owner 2026-10-22 (audit #4 §5): image moderation (AWS Rekognition).
+  // Confidence 0–100: at `hide` the photo / reel is hidden at once and
+  // queued; at `review` it stays up and is queued; below that it is clean.
+  'moderation.image.enabled': true,
+  'moderation.image.hide_confidence': 90,
+  'moderation.image.review_confidence': 60,
+  /** The lowest label confidence the provider reports (Rekognition
+   * MinConfidence). */
+  'moderation.image.min_confidence': 50,
 } as const;
 
 // Owner 2026-10-01: video reels (Bunny Stream) and stickers — tunables the

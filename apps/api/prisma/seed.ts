@@ -351,6 +351,10 @@ async function seedAppConfig(): Promise<void> {
     'budget.video.per_minute_max': 30,
     'budget.video.daily_max': 1000,
     'budget.video.monthly_max': 10000,
+    // Owner 2026-10-22: AWS Rekognition image moderation.
+    'budget.image_moderation.per_minute_max': 300,
+    'budget.image_moderation.daily_max': 20000,
+    'budget.image_moderation.monthly_max': 300000,
     'sms.allowed_country_codes': ['US'],
   };
   for (const [key, value] of Object.entries(costKeys)) {

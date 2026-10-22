@@ -34,6 +34,7 @@ const PROVIDERS: { key: string; label: string }[] = [
   { key: 'storage', label: 'Загрузки файлов' },
   { key: 'translate', label: 'Перевод' },
   { key: 'video', label: 'Видео' },
+  { key: 'image_moderation', label: 'Проверка фото (AWS)' },
 ];
 
 const WINDOWS: { key: Window; label: string }[] = [

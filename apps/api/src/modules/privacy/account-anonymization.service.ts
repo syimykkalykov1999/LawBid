@@ -293,10 +293,24 @@ export class AccountAnonymizationService {
       },
       select: { id: true, s3_bucket: true, s3_key: true },
     });
+    // Owner 2026-10-22 (18 U.S.C. §2258A(h)): a picture matched as CSAM is
+    // evidence — kept (never served) for the report, not released here.
+    const evidence = new Set(
+      (
+        await this.prisma.mediaModerationCheck.findMany({
+          where: {
+            owner_user_id: userId,
+            status: 'csam_match',
+            file_id: { not: null },
+          },
+          select: { file_id: true },
+        })
+      ).map((c) => c.file_id),
+    );
     // Owner 2026-10-05: objects shared with another user's identical
     // upload stay for them; everything else goes, previews included.
     await this.release.release(
-      files.map((f) => f.id),
+      files.filter((f) => !evidence.has(f.id)).map((f) => f.id),
       'account_deleted',
       now,
     );
@@ -409,9 +423,10 @@ export class AccountAnonymizationService {
         where: { user_id: userId, revoked_at: null },
         data: { revoked_at: now, revoked_reason: 'account_deletion' },
       });
-      if (files.length > 0) {
+      const released = files.filter((f) => !evidence.has(f.id));
+      if (released.length > 0) {
         await tx.file.updateMany({
-          where: { id: { in: files.map((f) => f.id) } },
+          where: { id: { in: released.map((f) => f.id) } },
           data: { deleted_at: now },
         });
       }

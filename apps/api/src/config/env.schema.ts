@@ -520,6 +520,22 @@ export const envSchema = z
       .int()
       .nonnegative()
       .default(10000),
+    // Owner 2026-10-22: AWS Rekognition — one unit per image checked.
+    BUDGET_IMAGE_MODERATION_PER_MINUTE_MAX: z.coerce
+      .number()
+      .int()
+      .nonnegative()
+      .default(300),
+    BUDGET_IMAGE_MODERATION_DAILY_MAX: z.coerce
+      .number()
+      .int()
+      .nonnegative()
+      .default(20000),
+    BUDGET_IMAGE_MODERATION_MONTHLY_MAX: z.coerce
+      .number()
+      .int()
+      .nonnegative()
+      .default(300000),
     // POST /files/presign per authenticated user (docs/03 stage 3.2): a
     // verification request needs ~10 files, a post up to 10 photos.
     FILES_PRESIGN_LIMIT_PER_USER_PER_HOUR: z.coerce
@@ -632,6 +648,32 @@ export const envSchema = z
     BUNNY_READ_ONLY_API_KEY: z.preprocess(
       blankToUndefined,
       z.string().optional(),
+    ),
+    // Owner 2026-10-22 (audit #4 §5): image moderation and CSAM reporting
+    // (env fallbacks of the admin integrations aws_rekognition / photodna /
+    // ncmec; docs/SECURITY_TODO.md).
+    REKOGNITION_REGION: optionalMatching(
+      awsRegionPattern,
+      'REKOGNITION_REGION must be an AWS region, e.g. us-east-1',
+    ),
+    REKOGNITION_ACCESS_KEY_ID: z.preprocess(
+      blankToUndefined,
+      z.string().optional(),
+    ),
+    REKOGNITION_SECRET_ACCESS_KEY: z.preprocess(
+      blankToUndefined,
+      z.string().optional(),
+    ),
+    PHOTODNA_SUBSCRIPTION_KEY: z.preprocess(
+      blankToUndefined,
+      z.string().optional(),
+    ),
+    PHOTODNA_ENDPOINT: z.preprocess(blankToUndefined, z.string().optional()),
+    NCMEC_USERNAME: z.preprocess(blankToUndefined, z.string().optional()),
+    NCMEC_PASSWORD: z.preprocess(blankToUndefined, z.string().optional()),
+    NCMEC_ENVIRONMENT: z.preprocess(
+      blankToUndefined,
+      z.enum(['test', 'production']).optional(),
     ),
     // OQ-041: STUN / TURN for in-app calls (TURN can also be set in the
     // admin → Integrations).

@@ -6800,3 +6800,70 @@ model LegalHold {
   @@index([request_id])
   @@map("legal_holds")
 }
+
+/// Owner 2026-10-22 (audit #4 §5, App Store 1.2): one automated check of a
+/// public image (post photo, avatar, review photo) or a reel thumbnail —
+/// AWS Rekognition DetectModerationLabels plus the CSAM hash matcher
+/// (PhotoDNA adapter). `flagged`, `hidden` and `csam_match` rows form the
+/// admin's media moderation queue.
+model MediaModerationCheck {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  file_id        String?      @unique @db.Uuid
+  video_asset_id String?      @unique @db.Uuid
+  owner_user_id  String       @db.Uuid
+  /// The file's purpose, or `reel` for a video thumbnail.
+  purpose        String       @db.VarChar(24)
+  /// SHA-256 of the checked bytes: the same picture again reuses the
+  /// verdict instead of a second paid call.
+  content_sha256 String?      @db.VarChar(64)
+  /// pending | clean | flagged | hidden | csam_match | skipped | error.
+  status         String       @default("pending") @db.VarChar(12)
+  /// not_checked | not_configured | no_match | match.
+  csam_status    String       @default("not_checked") @db.VarChar(16)
+  provider       String?      @db.VarChar(24)
+  /// [{name, parent, confidence}] as the provider returned them.
+  labels         Json         @default("[]")
+  max_confidence Float?
+  top_label      String?      @db.VarChar(120)
+  /// Why it was not checked: disabled | not_configured | budget | format.
+  skip_reason    String?      @db.VarChar(40)
+  error          String?      @db.VarChar(500)
+  /// What the auto-hide changed ([{type, id}] or [{type:'avatar', id}])
+  /// so an approval restores exactly that.
+  hidden_targets Json         @default("[]")
+  /// approved | removed — the moderator's decision.
+  decision       String?      @db.VarChar(10)
+  decided_by     String?      @db.Uuid
+  decided_at     DateTime?    @db.Timestamptz
+  created_at     DateTime     @default(now()) @db.Timestamptz
+  checked_at     DateTime?    @db.Timestamptz
+  csam_reports   CsamReport[]
+
+  @@index([status, created_at], map: "media_moderation_checks_status_idx")
+  @@index([content_sha256], map: "media_moderation_checks_sha_idx")
+  @@index([owner_user_id], map: "media_moderation_checks_owner_idx")
+  @@map("media_moderation_checks")
+}
+
+/// Owner 2026-10-22 (18 U.S.C. §2258A): a report of apparent CSAM to the
+/// NCMEC CyberTipline. Created automatically on a hash match or by an
+/// admin; `manual_required` while the NCMEC adapter has no keys (the owner
+/// files it by hand, docs/SECURITY_TODO.md). The evidence stays preserved.
+model CsamReport {
+  id                 String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  check_id           String               @db.Uuid
+  check              MediaModerationCheck @relation(fields: [check_id], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "csam_reports_check_fkey")
+  /// pending | submitted | manual_required | failed.
+  status             String               @default("pending") @db.VarChar(16)
+  provider           String               @default("ncmec") @db.VarChar(16)
+  external_report_id String?              @db.VarChar(64)
+  error              String?              @db.VarChar(500)
+  /// The admin who filed it; null = the automatic hash match.
+  created_by         String?              @db.Uuid
+  created_at         DateTime             @default(now()) @db.Timestamptz
+  submitted_at       DateTime?            @db.Timestamptz
+
+  @@index([status, created_at], map: "csam_reports_status_idx")
+  @@index([check_id], map: "csam_reports_check_idx")
+  @@map("csam_reports")
+}

@@ -116,6 +116,7 @@ import {
 } from './modules/countries/countries.module';
 import { AdminEmailTemplatesModule } from './modules/admin-email-templates/admin-email-templates.module';
 import { PrivacyModule } from './modules/privacy/privacy.module';
+import { MediaModerationModule } from './modules/media-moderation/media-moderation.module';
 import { CostGuardModule } from './common/cost-guard/cost-guard.module';
 import { JobsModule } from './jobs/jobs.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
@@ -271,6 +272,8 @@ const isDev =
     AdminEmailTemplatesModule,
     // docs/06 §5 (stage 6.9): data export endpoint + privacy services.
     PrivacyModule.register({ mode: 'api' }),
+    // Owner 2026-10-22 (audit #4 §5): image / reel-thumbnail moderation.
+    MediaModerationModule.register({ mode: 'api' }),
     UsersModule,
     I18nModule,
     CasesModule,
