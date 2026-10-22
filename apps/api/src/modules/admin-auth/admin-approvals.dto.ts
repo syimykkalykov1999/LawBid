@@ -35,7 +35,15 @@ export class AdminApprovalPersonDto {
 
 export class AdminApprovalDto {
   @ApiProperty({ format: 'uuid' }) id!: string;
-  @ApiProperty({ enum: ['payroll_bulk_payout', 'billing_refund'] })
+  @ApiProperty({
+    enum: [
+      'payroll_bulk_payout',
+      'billing_refund',
+      'payroll_bonus',
+      'partner_payout',
+      'partner_commission_paid',
+    ],
+  })
   kind!: string;
   @ApiProperty({ description: 'Russian label of the kind.' }) label!: string;
   @ApiProperty() summary!: string;

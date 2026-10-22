@@ -5350,7 +5350,7 @@
             }
           },
           "403": {
-            "description": "Forbidden: FORBIDDEN",
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
             "content": {
               "application/json": {
                 "schema": {
@@ -5467,7 +5467,7 @@
             }
           },
           "403": {
-            "description": "Forbidden: FORBIDDEN",
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
             "content": {
               "application/json": {
                 "schema": {
@@ -49539,7 +49539,7 @@
             }
           },
           "403": {
-            "description": "Forbidden: FORBIDDEN",
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
             "content": {
               "application/json": {
                 "schema": {
@@ -49550,6 +49550,16 @@
           },
           "404": {
             "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: ADMIN_APPROVAL_PENDING",
             "content": {
               "application/json": {
                 "schema": {
@@ -78358,7 +78368,7 @@
             }
           },
           "403": {
-            "description": "Forbidden: FORBIDDEN",
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
             "content": {
               "application/json": {
                 "schema": {
@@ -109763,7 +109773,10 @@
             "type": "string",
             "enum": [
               "payroll_bulk_payout",
-              "billing_refund"
+              "billing_refund",
+              "payroll_bonus",
+              "partner_payout",
+              "partner_commission_paid"
             ]
           },
           "label": {

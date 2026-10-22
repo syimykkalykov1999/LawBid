@@ -300,7 +300,20 @@ describe('stage 6.2 — admin auth, RBAC, audit, admins, dashboard (e2e)', () =>
         .expect(403);
     }
 
-    // Toggles: only what they hold; the manager right and roles stay with the super admin.
+    // Toggles: only what they hold; the manager right and roles stay with
+    // the super admin. Owner 2026-10-22: changing rights needs a fresh
+    // step-up first (it also covers the credentials change below).
+    const noStepUp = await api()
+      .patch(`/api/v1/admin/admins/${staffId}/permissions`)
+      .set(mgr.auth)
+      .send({ permissions: { users: 'manage', support: 'view' } })
+      .expect(403);
+    expect((noStepUp.body as Body).error?.code).toBe('ADMIN_STEP_UP_REQUIRED');
+    await api()
+      .post('/api/v1/admin/auth/step-up')
+      .set(mgr.auth)
+      .send({ code: totpCode(mgr.totpSecret, Date.now() - 30_000) })
+      .expect(200);
     await api()
       .patch(`/api/v1/admin/admins/${staffId}/permissions`)
       .set(mgr.auth)
@@ -349,18 +362,9 @@ describe('stage 6.2 — admin auth, RBAC, audit, admins, dashboard (e2e)', () =>
     }
     await api().get('/api/v1/admin/integrations').set(mgr.auth).expect(404);
 
-    // They set the new colleague's login and password (fresh confirmation first).
+    // They set the new colleague's login and password (the step-up above
+    // is still fresh).
     const colleagueLogin = `staff.${randomUUID().slice(0, 6)}`;
-    await api()
-      .put(`/api/v1/admin/admins/${staffId}/credentials`)
-      .set(mgr.auth)
-      .send({ login: colleagueLogin, password: 'Strong-pass-2026!' })
-      .expect(403);
-    await api()
-      .post('/api/v1/admin/auth/step-up')
-      .set(mgr.auth)
-      .send({ code: totpCode(mgr.totpSecret, Date.now() - 30_000) })
-      .expect(200);
     await api()
       .put(`/api/v1/admin/admins/${staffId}/credentials`)
       .set(mgr.auth)
@@ -473,7 +477,21 @@ describe('stage 6.2 — admin auth, RBAC, audit, admins, dashboard (e2e)', () =>
       .set(fresh.auth)
       .expect(200);
 
-    // Role change → sessions revoked; new role applies on the next sign-in.
+    // Role change (fresh step-up, owner 2026-10-22) → sessions revoked;
+    // new role applies on the next sign-in.
+    const roleNoStepUp = await api()
+      .patch(`/api/v1/admin/admins/${id}/role`)
+      .set(sup.auth)
+      .send({ role: 'support' })
+      .expect(403);
+    expect((roleNoStepUp.body as Body).error?.code).toBe(
+      'ADMIN_STEP_UP_REQUIRED',
+    );
+    await api()
+      .post('/api/v1/admin/auth/step-up')
+      .set(sup.auth)
+      .send({ code: totpCode(sup.totpSecret, Date.now() - 30_000) })
+      .expect(200);
     await api()
       .patch(`/api/v1/admin/admins/${id}/role`)
       .set(sup.auth)
@@ -517,20 +535,8 @@ describe('stage 6.2 — admin auth, RBAC, audit, admins, dashboard (e2e)', () =>
       .set(sup.auth)
       .expect(200);
 
-    // Reset 2FA (super admin, fresh step-up) → next sign-in enrolls again
-    // (new secret, new codes).
-    const needsStepUp = await api()
-      .post(`/api/v1/admin/admins/${id}/reset-2fa`)
-      .set(sup.auth)
-      .expect(403);
-    expect((needsStepUp.body as Body).error?.code).toBe(
-      'ADMIN_STEP_UP_REQUIRED',
-    );
-    await api()
-      .post('/api/v1/admin/auth/step-up')
-      .set(sup.auth)
-      .send({ code: totpCode(sup.totpSecret, Date.now() - 30_000) })
-      .expect(200);
+    // Reset 2FA (super admin, the fresh step-up above) → next sign-in
+    // enrolls again (new secret, new codes).
     await api()
       .post(`/api/v1/admin/admins/${id}/reset-2fa`)
       .set(sup.auth)

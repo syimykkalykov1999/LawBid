@@ -37,7 +37,14 @@ import {
  * money modules register how their kind runs (`register`), so neither
  * side imports the other.
  */
-export type ApprovalKind = 'payroll_bulk_payout' | 'billing_refund';
+export type ApprovalKind =
+  | 'payroll_bulk_payout'
+  | 'billing_refund'
+  // Owner 2026-10-22 («лечи всё»): also a payroll bonus and a partner
+  // payout marked paid, from the same limit.
+  | 'payroll_bonus'
+  | 'partner_payout'
+  | 'partner_commission_paid';
 
 export interface ApprovalKindSpec {
   kind: ApprovalKind;

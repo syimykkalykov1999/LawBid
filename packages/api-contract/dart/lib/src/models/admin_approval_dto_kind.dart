@@ -10,6 +10,12 @@ enum AdminApprovalDtoKind {
   payrollBulkPayout('payroll_bulk_payout'),
   @JsonValue('billing_refund')
   billingRefund('billing_refund'),
+  @JsonValue('payroll_bonus')
+  payrollBonus('payroll_bonus'),
+  @JsonValue('partner_payout')
+  partnerPayout('partner_payout'),
+  @JsonValue('partner_commission_paid')
+  partnerCommissionPaid('partner_commission_paid'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

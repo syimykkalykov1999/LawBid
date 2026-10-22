@@ -167,12 +167,14 @@ export class AdminsController {
   @Roles('super_admin')
   @ApiOperation({ summary: 'Assign a role (ends the admin’s sessions)' })
   @ApiEnvelopeResponse(AdminAccountDto)
-  @ApiErrors(TARGET_ERRORS)
-  setAdminRole(
+  @ApiErrors({ ...TARGET_ERRORS, 403: [E.ADMIN_STEP_UP_REQUIRED] })
+  async setAdminRole(
     @CurrentAdmin() actor: AdminActor,
     @Param() params: AdminIdParamDto,
     @Body() dto: SetAdminRoleDto,
   ): Promise<AdminAccountDto> {
+    // Owner 2026-10-22: who may do what is identity — fresh 2FA code.
+    await this.auth.assertStepUp(actor.sessionId);
     return this.admins.setRole(actor, params.id, dto.role);
   }
 
@@ -182,12 +184,14 @@ export class AdminsController {
       'Toggle areas for an admin (view / manage), within what the caller holds. Keys, admin management and sessions cannot be granted; money, economy, budget limits and the audit log only by the super admin.',
   })
   @ApiEnvelopeResponse(AdminAccountDto)
-  @ApiErrors(TARGET_ERRORS)
-  setAdminPermissions(
+  @ApiErrors({ ...TARGET_ERRORS, 403: [E.ADMIN_STEP_UP_REQUIRED] })
+  async setAdminPermissions(
     @CurrentAdmin() actor: AdminActor,
     @Param() params: AdminIdParamDto,
     @Body() dto: SetAdminPermissionsDto,
   ): Promise<AdminAccountDto> {
+    // Owner 2026-10-22: who may do what is identity — fresh 2FA code.
+    await this.auth.assertStepUp(actor.sessionId);
     return this.admins.setPermissions(
       actor,
       params.id,

@@ -8,7 +8,7 @@ import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
 import { ReferralsService } from '../src/modules/referrals/referrals.service';
 import { PartnersService } from '../src/modules/partners/partners.service';
-import { adminSession } from './support/admin-login';
+import { adminSession, adminStepUp } from './support/admin-login';
 
 /**
  * Owner 2026-10-05: partner (affiliate) program. A partner's code binds the
@@ -195,6 +195,9 @@ describe('Partner program (e2e)', () => {
     expect(detail.body.data.referred[0].email).toBeNull();
     const attCommission = detail.body.data.commissions[0].id as string;
 
+    // Owner 2026-10-22: marking money paid needs a fresh step-up (and a
+    // second admin from the dual-approval limit on; 70 USD is below it).
+    await adminStepUp(base, admin);
     // Owner 2026-10-05 (legal): no payout before the W-9 is on file.
     await api()
       .post(`/api/v1/admin/partners/${partnerId}/pay`)

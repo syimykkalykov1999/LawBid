@@ -45,6 +45,12 @@ import { AdminPayrollService } from './admin-payroll.service';
 
 const E = ErrorCode;
 
+/** What a stored payroll-bonus approval runs with. */
+interface BonusPayload {
+  employeeId: string;
+  accrual: CreatePayrollAccrualDto;
+}
+
 /**
  * Owner 2026-10-05 — Деньги → Зарплаты. Area `payroll`: the super admin,
  * the deputy (the admin who manages admins) and admins given the area
@@ -73,6 +79,19 @@ export class AdminPayrollController {
       },
       execute: (requester, payload) =>
         this.payroll.payBulk(requester, payload as PayrollBulkPayDto),
+    });
+    this.approvals.register({
+      kind: 'payroll_bonus',
+      label: 'Зарплаты: бонус сотруднику',
+      route: {
+        path: '/api/v1/admin/payroll/employees/x/accruals',
+        method: 'POST',
+        roles: ['super_admin', 'finance', 'moderator', 'support', 'verifier'],
+      },
+      execute: (requester, payload) => {
+        const p = payload as BonusPayload;
+        return this.payroll.addAccrual(requester, p.employeeId, p.accrual);
+      },
     });
   }
 
@@ -206,12 +225,29 @@ export class AdminPayrollController {
     summary: 'Add a bonus or adjustment, paid with the next payout',
   })
   @ApiEnvelopeResponse(PayrollAccrualDto)
-  @ApiErrors({ 400: [E.VALIDATION_ERROR], 404: [E.NOT_FOUND] })
-  addPayrollAccrual(
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    403: [E.ADMIN_STEP_UP_REQUIRED],
+    404: [E.NOT_FOUND],
+    409: [E.ADMIN_APPROVAL_PENDING],
+  })
+  async addPayrollAccrual(
     @CurrentAdmin() admin: AdminActor,
     @Param() p: AdminIdParamDto,
     @Body() dto: CreatePayrollAccrualDto,
   ): Promise<PayrollAccrualDto> {
+    // Owner 2026-10-22: a bonus is money out with the next payout — a
+    // fresh 2FA code, and a second admin from the dual-approval limit on
+    // (a deduction, <= 0, moves no money out).
+    await this.auth.assertStepUp(admin.sessionId);
+    if (dto.amountCents > 0) {
+      await this.approvals.gate(admin, {
+        kind: 'payroll_bonus',
+        payload: { employeeId: p.id, accrual: dto } satisfies BonusPayload,
+        amountCents: dto.amountCents,
+        summary: `${dto.kind === 'bonus' ? 'Бонус' : 'Корректировка'} ${(dto.amountCents / 100).toFixed(2)}, период ${dto.period}: ${dto.note}`,
+      });
+    }
     return this.payroll.addAccrual(admin, p.id, dto);
   }
 

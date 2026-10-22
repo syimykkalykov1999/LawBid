@@ -278,6 +278,9 @@ describe('Admin roles, presets and invite links (e2e)', () => {
       manage_admins: true,
     });
     const target = await adminSession(base, prisma, 'support');
+    // Owner 2026-10-22: changing rights needs a fresh step-up first.
+    await stepUp(owner);
+    await stepUp(deputy);
     for (const perms of [{ money: 'view' }, { audit: 'view' }]) {
       await api()
         .patch(`/api/v1/admin/admins/${target.userId}/permissions`)

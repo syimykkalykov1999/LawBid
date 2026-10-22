@@ -6,7 +6,7 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
-import { adminSession } from './support/admin-login';
+import { adminSession, adminStepUp } from './support/admin-login';
 import { PAYMENT_PROVIDER } from '../src/modules/billing/billing.constants';
 import type { FakePaymentProvider } from '../src/modules/billing/fake-payment.provider';
 import { StarsService } from '../src/modules/stars/stars.service';
@@ -553,6 +553,13 @@ describe('Stars, gifts and paid stickers (e2e)', () => {
       })
       .expect(400);
     const u = await user('client', 'Granted');
+    // Owner 2026-10-22: stars by hand need a fresh step-up.
+    await api()
+      .post('/api/v1/admin/stars/grant')
+      .set(admin.auth)
+      .send({ userId: u.id, amount: 15, reason: 'e2e present' })
+      .expect(403);
+    await adminStepUp(base, admin);
     const g = await api()
       .post('/api/v1/admin/stars/grant')
       .set(admin.auth)
