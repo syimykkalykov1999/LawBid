@@ -12,6 +12,7 @@ import 'package:lawbid/core/navigation/app_router.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/navigation/root_messenger.dart';
 import 'package:lawbid/core/navigation/route_observer.dart';
+import 'package:lawbid/core/permissions/permission_primer_host.dart';
 import 'package:lawbid/core/platform/web_consent_notice.dart';
 import 'package:lawbid/core/platform/web_safe_area.dart';
 import 'package:lawbid/core/theme/preferences_sync.dart';
@@ -88,22 +89,26 @@ class LawBidApp extends ConsumerWidget {
                     child: GestureDetector(
                       behavior: HitTestBehavior.translucent,
                       onTap: dropKeyboard,
-                      child: AccountSuspendedGate(
-                        child: AppUpdateGate(
-                          child: child == null
-                              ? null
-                              // OQ-041: the call screen pops over any route.
-                              : CallHost(
-                                  router: router,
-                                  // Owner 2026-10-21: no «connection lost»
-                                  // banner for users, ever (screens keep
-                                  // their cache and retry quietly).
-                                  // Owner 2026-10-05 (docs/CLIENT_FRAUD.md).
-                                  child: AccountRestrictedHost(
+                      // Owner 2026-10-22 (audit #13): the explanation before
+                      // the phone's notification / microphone dialogs.
+                      child: PermissionPrimerHost(
+                        child: AccountSuspendedGate(
+                          child: AppUpdateGate(
+                            child: child == null
+                                ? null
+                                // OQ-041: the call screen pops over any route.
+                                : CallHost(
                                     router: router,
-                                    child: child,
+                                    // Owner 2026-10-21: no «connection lost»
+                                    // banner for users, ever (screens keep
+                                    // their cache and retry quietly).
+                                    // Owner 2026-10-05 (docs/CLIENT_FRAUD.md).
+                                    child: AccountRestrictedHost(
+                                      router: router,
+                                      child: child,
+                                    ),
                                   ),
-                                ),
+                          ),
                         ),
                       ),
                     ),
