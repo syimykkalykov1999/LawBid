@@ -17,6 +17,8 @@ import {
   type ProviderSeatItemInput,
   type ProviderSeatPreview,
   type ProviderOneTimeCheckoutInput,
+  type ProviderPaymentIntent,
+  type ProviderPaymentIntentInput,
   type ProviderPrice,
   type ProviderPriceInput,
   type ProviderSetupIntent,
@@ -531,6 +533,68 @@ export class StripePaymentProvider implements PaymentProvider {
         : undefined,
     );
     return { id: s.id, url: s.url ?? '' };
+  }
+
+  /** Owner 2026-10-22: a one-time payment confirmed by Stripe.js on our
+   * card page. `card` covers Apple Pay and Google Pay (wallet cards); no
+   * Link, no bank methods. */
+  async createPaymentIntent(
+    input: ProviderPaymentIntentInput,
+  ): Promise<ProviderPaymentIntent> {
+    const pi = await this.stripe.paymentIntents.create(
+      {
+        amount: input.amountCents,
+        currency: input.currency,
+        description: input.description,
+        payment_method_types: ['card'],
+        metadata: input.metadata,
+        ...(input.receiptEmail ? { receipt_email: input.receiptEmail } : {}),
+      },
+      { idempotencyKey: input.idempotencyKey },
+    );
+    return mapPaymentIntent(pi);
+  }
+
+  async retrievePaymentIntent(
+    id: string,
+  ): Promise<ProviderPaymentIntent | null> {
+    try {
+      return mapPaymentIntent(await this.stripe.paymentIntents.retrieve(id));
+    } catch (e) {
+      if (e instanceof Stripe.errors.StripeInvalidRequestError) return null;
+      throw e;
+    }
+  }
+
+  async cancelPaymentIntent(id: string): Promise<ProviderPaymentIntent | null> {
+    try {
+      return mapPaymentIntent(await this.stripe.paymentIntents.cancel(id));
+    } catch (e) {
+      // Already paid / canceled: report its real state.
+      if (!(e instanceof Stripe.errors.StripeInvalidRequestError)) throw e;
+      return this.retrievePaymentIntent(id);
+    }
+  }
+
+  async expireCheckoutSession(
+    id: string,
+  ): Promise<ProviderCheckoutSession | null> {
+    try {
+      return mapCheckout(await this.stripe.checkout.sessions.expire(id));
+    } catch (e) {
+      // Already complete / expired: report its real state.
+      if (!(e instanceof Stripe.errors.StripeInvalidRequestError)) throw e;
+      return this.retrieveCheckoutSession(id);
+    }
+  }
+
+  async setSubscriptionPaymentMethod(
+    subscriptionId: string,
+    paymentMethodId: string,
+  ): Promise<void> {
+    await this.stripe.subscriptions.update(subscriptionId, {
+      default_payment_method: paymentMethodId,
+    });
   }
 
   async retrieveInvoice(id: string): Promise<ProviderInvoice | null> {
@@ -1065,6 +1129,17 @@ function mapInvoice(inv: Stripe.Invoice): ProviderInvoice {
     paidAt: inv.status_transitions?.paid_at ?? null,
     paymentIntentId: typeof pi === 'string' ? pi : (pi?.id ?? null),
     failureCode: null,
+  };
+}
+
+function mapPaymentIntent(pi: Stripe.PaymentIntent): ProviderPaymentIntent {
+  return {
+    id: pi.id,
+    status: pi.status,
+    amountCents: pi.amount,
+    currency: pi.currency,
+    clientSecret: pi.client_secret ?? null,
+    metadata: pi.metadata ?? {},
   };
 }
 

@@ -454,6 +454,8 @@ export 'models/seat_change_result.dart';
 export 'models/seat_change_result_dto.dart';
 export 'models/set_seats_dto.dart';
 export 'models/seat_change_result_envelope.dart';
+export 'models/seat_checkout_dto.dart';
+export 'models/seat_checkout_envelope.dart';
 export 'models/complete_checkout_dto.dart';
 export 'models/start_subscription_result_dto.dart';
 export 'models/start_subscription_result_envelope.dart';

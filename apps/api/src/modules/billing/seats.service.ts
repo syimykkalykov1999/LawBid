@@ -293,6 +293,32 @@ export class SeatsService {
     await this.entitlements.invalidateUser(userId);
   }
 
+  /**
+   * Owner 2026-10-22: a card saved on our card page (or Apple Pay / Google
+   * Pay) becomes the subscription's card before the seats are charged to
+   * it. The SetupIntent must be this attorney's and succeeded.
+   */
+  async useCard(user: RequestUser, setupIntentId: string): Promise<void> {
+    const ctx = await this.context(user);
+    const si = await this.provider.retrieveSetupIntent(setupIntentId);
+    const customer = await this.subscriptions.customerId(user.sub, null);
+    if (
+      !si ||
+      si.status !== 'succeeded' ||
+      !si.paymentMethodId ||
+      si.customerId !== customer
+    ) {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_ERROR,
+        message: 'The card was not saved. Try again.',
+      });
+    }
+    await this.provider.setSubscriptionPaymentMethod?.(
+      ctx.row.stripe_subscription_id,
+      si.paymentMethodId,
+    );
+  }
+
   // --- helpers -------------------------------------------------------------
 
   private async result(

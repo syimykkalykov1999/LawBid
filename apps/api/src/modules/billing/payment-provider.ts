@@ -269,6 +269,24 @@ export interface PaymentProvider {
   createOneTimeCheckout?(
     input: ProviderOneTimeCheckoutInput,
   ): Promise<{ id: string; url: string }>;
+  /** Owner 2026-10-22: a one-time payment confirmed on our own card page
+   * (card fields, Apple Pay, Google Pay) instead of Stripe's hosted page. */
+  createPaymentIntent?(
+    input: ProviderPaymentIntentInput,
+  ): Promise<ProviderPaymentIntent>;
+  retrievePaymentIntent?(id: string): Promise<ProviderPaymentIntent | null>;
+  /** Voids an unpaid PaymentIntent; returns its state after the call (a
+   * paid one stays `succeeded` — the caller then applies it). */
+  cancelPaymentIntent?(id: string): Promise<ProviderPaymentIntent | null>;
+  /** Closes an open hosted checkout so it can not be paid any more;
+   * returns the session after the call (`complete` = it was paid). */
+  expireCheckoutSession?(id: string): Promise<ProviderCheckoutSession | null>;
+  /** Owner 2026-10-22: a new card from the card page becomes the
+   * subscription's card (seat purchases are charged to it). */
+  setSubscriptionPaymentMethod?(
+    subscriptionId: string,
+    paymentMethodId: string,
+  ): Promise<void>;
 
   // ---- Stripe Connect (owner 2026-10-05: client → attorney payments) ----
 
@@ -411,6 +429,50 @@ export interface ProviderOneTimeCheckoutInput {
   successUrl: string;
   cancelUrl: string;
   idempotencyKey?: string;
+}
+
+/** Owner 2026-10-22: a one-time payment on our own card page. */
+export interface ProviderPaymentIntentInput {
+  amountCents: number;
+  currency: string;
+  description: string;
+  metadata: Record<string, string>;
+  receiptEmail?: string | null;
+  idempotencyKey: string;
+}
+
+export interface ProviderPaymentIntent {
+  id: string;
+  /** Stripe's status: requires_payment_method, requires_action,
+   * processing, succeeded, canceled, … */
+  status: string;
+  amountCents: number;
+  currency: string;
+  clientSecret: string | null;
+  metadata: Record<string, string>;
+}
+
+/** A PaymentIntent in the shape the checkout appliers read. */
+export function paymentIntentAsCheckout(
+  pi: ProviderPaymentIntent,
+): ProviderCheckoutSession {
+  const paid = pi.status === 'succeeded';
+  return {
+    id: pi.id,
+    url: null,
+    status: paid ? 'complete' : 'open',
+    customerId: null,
+    subscriptionId: null,
+    metadata: pi.metadata,
+    paymentIntentId: pi.id,
+    amountTotalCents: pi.amountCents,
+    paymentStatus: paid ? 'paid' : 'unpaid',
+  };
+}
+
+/** Ids of PaymentIntents (Stripe's and the fake provider's). */
+export function isPaymentIntentId(id: string | null | undefined): boolean {
+  return !!id && /^(pi_|fake_pi_)/.test(id);
 }
 
 export interface ProviderCouponInput {
