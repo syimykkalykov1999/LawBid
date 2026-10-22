@@ -6,8 +6,16 @@
 
 const audit4Ru = <String, String>{
   'legal.attorneyAdvertising': 'Реклама адвоката',
+  'privacy.section.data': 'Данные',
+  'privacy.analytics': 'Статистика использования',
+  'privacy.analytics.hint':
+      'Анонимные счётчики открытых экранов помогают улучшать LawBid. Пока вы это не включите, ничего не отправляется.',
 };
 
 const audit4En = <String, String>{
   'legal.attorneyAdvertising': 'Attorney Advertising',
+  'privacy.section.data': 'Data',
+  'privacy.analytics': 'Usage statistics',
+  'privacy.analytics.hint':
+      'Anonymous counts of which screens are opened help us improve LawBid. Nothing is sent unless you turn this on.',
 };
