@@ -10,6 +10,7 @@ and the registrar/DNS access listed below.
 infra/
   modules/
     postgres/    RDS PostgreSQL 16 with daily backups + point-in-time restore (opt-in: create_database = true)
+    backup/      AWS Backup: daily DB copy, second-region vault, optional backup-account copy, alarms
     network/     VPC, 2 AZs, public + private subnets, NAT per AZ, VPC endpoints
     kms/         one CMK per environment (S3, Secrets Manager, logs, Redis)
     s3/          documents (private, versioned, SSE-KMS, cross-region replica),
@@ -45,11 +46,73 @@ infra/
    roles of docs/02 §6.3 (`lawbid_migrator`, `lawbid_app`,
    `lawbid_retention`, `lawbid_readonly`) and allow the VPC's NAT IPs.
 
+## Надёжность, 2026-10-22 (решения владельца) — что изменилось
+
+Коротко: база переживает падение одной зоны AWS (Multi-AZ), её копии
+каждую ночь уезжают в другой регион, восстановление проверяется одной
+командой, обработчик фоновых задач добавляет копии по длине очереди, а
+скачивание образов, логи и секреты идут мимо NAT.
+
+| # | Что | Где | Включено по умолчанию |
+|---|---|---|---|
+| 1 | RDS Multi-AZ, хранение автоматических копий ≥ 14 дней (проверка), защита от удаления | `modules/postgres` (`multi_az`), `database_multi_az` в env | prod `true`, staging `false` |
+| 2 | AWS Backup: копия базы каждую ночь (06:00 UTC), перенос в us-west-2; по желанию — в отдельный резервный аккаунт | новый `modules/backup`; `backup_enabled`, `backup_copy_account_id` | prod да (нужен `existing_database_identifier`), staging нет; резервный аккаунт выключен |
+| 3 | Прод-база вне Terraform: проверка настроек при `plan` (предупреждение, не ошибка) + тревоги «нет копии за сутки» и «копия упала» | `modules/stack` (`check`), `modules/backup` | prod |
+| 4 | Учебное восстановление одной командой | `scripts/ops/restore-drill.sh`, `docs/runbooks/restore-drill.md` | — |
+| 5 | Обработчик (worker) масштабируется по очереди: цель 50 ждущих задач на копию; CPU 60 % остаётся вторым правилом | `modules/ecs` (`worker_queue`), метрика `QueueWaitingTotal` (`modules/monitoring` + строка лога из `ops-metrics.job.ts`) | да; `worker_jobs_per_task = 0` выключает |
+| 6 | VPC endpoints: ECR (api + dkr), CloudWatch Logs, Secrets Manager + бесплатный S3 gateway | `modules/network` (`interface_endpoint_azs`), `launch.tfvars.example` | на стартовом размере — в одной зоне |
+| 7 | План разделения Redis (очереди / кэш) + выключенная переменная второго узла | `modules/redis` (`maxmemory_policy`), `redis_cache_node`; `docs/runbooks/redis.md` | выключено |
+| 8 | Тревоги CloudWatch и EventBridge могут писать в зашифрованную тему SNS (политика ключа KMS + политика темы) | `modules/kms`, `modules/monitoring` | да |
+
+Пункт 8 — найденная попутно ошибка: тема тревог зашифрована нашим ключом
+KMS, а у CloudWatch не было права этим ключом пользоваться, поэтому письма
+тревог могли не приходить вовсе. Теперь право есть.
+
+### Сколько стоит (us-east-1, цены 2026-10, в месяц)
+
+| Что | Цена |
+|---|---|
+| Multi-AZ базы | ≈ ×2 цены инстанса и диска: `db.t4g.micro` +$12–15, `db.t4g.medium` ≈ +$50 |
+| AWS Backup | хранение копий ≈ $0.095/ГБ в каждом регионе (копии инкрементальные) + перенос в us-west-2 $0.02/ГБ. База 10 ГБ ≈ $3–6 |
+| VPC endpoints | $7.30 за endpoint в одной зоне: 4 шт. × 1 зона ≈ **$29** (полный размер 5 × 2 зоны ≈ $73) + $0.01/ГБ вместо $0.045/ГБ через NAT. Честно: при малом трафике это дороже, чем NAT (окупается от ≈ 800 ГБ/мес через NAT); выигрыш — образы, логи и секреты не зависят от NAT |
+| Масштабирование по очереди | ≈ $0.50 (одна метрика из логов + 2 тревоги автомасштабирования) |
+| Тревоги бэкапа | ≈ $0.10 |
+| Второй Redis для кэша | $0 (выключен); если включить — ≈ $12 |
+| **Итого на стартовом размере** | **≈ +$45–50** |
+
+### Порядок применения (делает владелец, Claude `apply` не запускает)
+
+1. Консоль RDS: Multi-AZ, 14 дней, окно бэкапа, защита от удаления —
+   [docs/runbooks/backups.md](../docs/runbooks/backups.md) «Консоль RDS».
+2. В `infra/envs/prod/terraform.tfvars` добавить строки из
+   `launch.tfvars.example` (блок «backups and the database» и
+   `interface_endpoints` / `interface_endpoint_azs`).
+3. `terraform plan -out=plan.bin` → `plan-guard.sh plan.bin` → `apply`
+   (точные команды: [DEPLOY_PROD.md](../docs/runbooks/DEPLOY_PROD.md) «Надёжность»).
+4. Выложить новый код API (строка `queue_waiting_total` в логе обработчика;
+   до этого правило очереди просто молчит).
+5. Утро после первой ночи: AWS Backup → Jobs — `Completed` и копия в
+   us-west-2; затем `scripts/ops/restore-drill.sh` и строка в журнале.
+
+### Staging (сначала там, потом прод)
+
+`envs/staging` — та же сборка модулей, только меньше: одна зона NAT,
+endpoints в одной зоне, без Multi-AZ и без AWS Backup, бюджет $50; база —
+своя, отдельная (прод-данные туда не попадают). Сейчас staging не создан
+(переменная GitHub `STAGING_ENABLED` не задана, `deploy.yml` идёт сразу в
+прод с подтверждением). Чтобы проверять изменения сначала на нём:
+отдельный аккаунт AWS → `infra/bootstrap` → `cd infra/envs/staging`,
+`terraform.tfvars` из примера → `init` / `plan` / `apply` → секреты →
+GitHub: `STAGING_ENABLED=true` + `AWS_DEPLOY_ROLE_STAGING`,
+`STAGING_API_URL`, `STAGING_ADMIN_URL`. После этого каждый Deploy идёт
+staging → smoke → кнопка → прод. Инфраструктурные изменения — так же:
+сначала `plan`/`apply` в `envs/staging`, через день — в `envs/prod`.
+
 ## Launch size
 
 `envs/prod/launch.tfvars.example` is the small starting size (one api and
-one worker task, t4g.micro Redis without a replica, one NAT gateway, no
-interface endpoints; ≈ $140/month of AWS at 2026-10 prices). Growing is a
+one worker task, t4g.micro Redis without a replica, one NAT gateway,
+interface endpoints in one AZ (+≈ $29 since 2026-10-22); ≈ $140/month before that change of AWS at 2026-10 prices). Growing is a
 change of numbers in `terraform.tfvars` and `terraform apply`: the
 variables without an override keep the full-size defaults of
 `variables.tf` (min 2 tasks, r7g.large Redis with a replica, NAT per AZ).

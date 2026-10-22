@@ -75,15 +75,37 @@ variable "p95_target_ms" {
   type    = number
   default = 600
 }
-# Load/cost review: staging runs one NAT and skips the KMS/Secrets Manager
-# interface endpoints (reachable through the NAT), prod keeps one NAT per AZ.
+# Load/cost review: staging runs one NAT and skips the KMS interface
+# endpoint (reachable through the NAT), prod keeps one NAT per AZ. Owner
+# 2026-10-22: Secrets Manager joins ECR and logs (same set as prod launch),
+# all in the first AZ only (half the hourly price).
 variable "nat_per_az" {
   type    = bool
   default = false
 }
 variable "interface_endpoints" {
   type    = list(string)
-  default = ["ecr.api", "ecr.dkr", "logs"]
+  default = ["ecr.api", "ecr.dkr", "logs", "secretsmanager"]
+}
+variable "interface_endpoint_azs" {
+  type    = number
+  default = 1
+}
+
+# Reliability (owner 2026-10-22): staging stays cheap — no Multi-AZ, no
+# AWS Backup plan; worker queue-depth scaling is on so it is tested here
+# before prod.
+variable "database_multi_az" {
+  type    = bool
+  default = false
+}
+variable "backup_enabled" {
+  type    = bool
+  default = false
+}
+variable "worker_jobs_per_task" {
+  type    = number
+  default = 50
 }
 variable "admin_allowed_cidrs" {
   type    = list(string)

@@ -97,6 +97,16 @@ export class OpsMetricsJob implements OnModuleDestroy {
       out.push(row);
       this.logger.info({ metric: 'queue_depth', ...row }, 'queue depth');
     }
+    // Owner 2026-10-22: the worker service scales on this one number
+    // (CloudWatch QueueWaitingTotal ÷ running tasks, infra/modules/ecs).
+    // The DLQ has no consumer, so its jobs never count as backlog.
+    const waiting = out
+      .filter((r) => r.queue !== STRIPE_WEBHOOKS_DLQ)
+      .reduce((sum, r) => sum + r.waiting, 0);
+    this.logger.info(
+      { metric: 'queue_waiting_total', waiting },
+      'queue waiting total',
+    );
     return out;
   }
 

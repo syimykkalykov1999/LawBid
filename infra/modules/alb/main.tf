@@ -68,6 +68,8 @@ resource "aws_lb" "this" {
   # ALB_IDLE_TIMEOUT_S) must stay LONGER than this (currently 310 s vs 300 s),
   # or the ALB reuses sockets Node already closed and users get random 502s.
   # Change both together.
+  # AWS:
+  # https://docs.aws.amazon.com/elasticloadbalancing/latest/application/application-load-balancers.html#connection-idle-timeout
   idle_timeout = 300
   dynamic "access_logs" {
     for_each = var.access_logs_bucket == null ? [] : [var.access_logs_bucket]

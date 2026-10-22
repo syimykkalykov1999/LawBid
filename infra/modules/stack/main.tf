@@ -49,6 +49,58 @@ variable "database_backup_retention_days" {
   type    = number
   default = 14
 }
+variable "database_multi_az" {
+  type        = bool
+  default     = false
+  description = "RDS Multi-AZ (standby in the second AZ, automatic failover). ≈ ×2 the instance price. Prod: true."
+}
+variable "existing_database_identifier" {
+  type        = string
+  default     = ""
+  description = "RDS identifier of a database created outside Terraform (prod: lawbid-prod-postgres). Used for the AWS Backup plan and the plan-time settings check; never modified."
+}
+variable "backup_enabled" {
+  type        = bool
+  default     = false
+  description = "AWS Backup plan for the database: daily copy in this region + the replica region (modules/backup). Prod: true."
+}
+variable "backup_retention_days" {
+  type    = number
+  default = 35
+}
+variable "backup_copy_account_id" {
+  type        = string
+  default     = ""
+  description = "Optional separate backup AWS account (same Organization). Empty = no cross-account copy. Its vault must exist first (docs/runbooks/backups.md)."
+}
+variable "backup_copy_vault_name" {
+  type    = string
+  default = "lawbid-backup-copy"
+}
+variable "backup_copy_region" {
+  type        = string
+  default     = ""
+  description = "Region of the backup account's vault; empty = the main region."
+}
+variable "interface_endpoint_azs" {
+  type        = number
+  default     = 0
+  description = "0 = interface endpoints in every AZ; 1 = first AZ only (launch size, half the price)."
+}
+variable "redis_cache_node" {
+  type        = bool
+  default     = false
+  description = "Second Redis only for caches (allkeys-lru), so the queue / socket Redis (noeviction) never fills with cache keys. Its URL is injected as REDIS_CACHE_URL; the app uses it once it reads that variable (docs/runbooks/redis.md)."
+}
+variable "redis_cache_node_type" {
+  type    = string
+  default = "cache.t4g.micro"
+}
+variable "worker_jobs_per_task" {
+  type        = number
+  default     = 50
+  description = "Worker autoscaling on queue depth: waiting jobs per worker task. 0 = CPU only."
+}
 variable "turn_enabled" {
   type        = bool
   default     = false
@@ -252,6 +304,8 @@ module "kms" {
   source = "../kms"
   name   = local.name
   tags   = local.tags
+
+  backup_copy_account_ids = var.backup_copy_account_id == "" ? [] : [var.backup_copy_account_id]
 }
 
 module "kms_replica" {
@@ -269,6 +323,8 @@ module "network" {
   nat_per_az          = var.nat_per_az
   interface_endpoints = var.interface_endpoints
   tags                = local.tags
+
+  interface_endpoint_azs = var.interface_endpoint_azs
 }
 
 module "turn" {
@@ -369,7 +425,75 @@ module "postgres" {
   kms_key_arn                = module.kms.key_arn
   instance_class             = var.database_instance_class
   backup_retention_days      = var.database_backup_retention_days
+  multi_az                   = var.database_multi_az
   tags                       = local.tags
+}
+
+# Second Redis for caches only (owner 2026-10-22: planned, off by default).
+module "redis_cache" {
+  count                      = var.redis_cache_node ? 1 : 0
+  source                     = "../redis"
+  name                       = "${local.name}-cache"
+  vpc_id                     = module.network.vpc_id
+  subnet_ids                 = module.network.private_subnet_ids
+  allowed_security_group_ids = [aws_security_group.tasks.id]
+  node_type                  = var.redis_cache_node_type
+  replicas                   = 0
+  maxmemory_policy           = "allkeys-lru"
+  description                = "cache only (allkeys-lru)"
+  kms_key_arn                = module.kms.key_arn
+  tags                       = local.tags
+}
+
+# --- database backups (owner 2026-10-22) ----------------------------------
+# The prod database is created outside Terraform (create_database = false).
+# Terraform never changes it; it only backs it up (AWS Backup works on any
+# RDS instance of the account) and checks its settings at plan time.
+locals {
+  database_arn = var.create_database ? module.postgres[0].arn : (
+    var.existing_database_identifier == "" ? "" :
+    "arn:aws:rds:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:db:${var.existing_database_identifier}"
+  )
+}
+
+# Read-only: the existing instance's settings (plan fails if the named
+# instance does not exist — a typo in existing_database_identifier).
+data "aws_db_instance" "existing" {
+  count                  = !var.create_database && var.existing_database_identifier != "" ? 1 : 0
+  db_instance_identifier = var.existing_database_identifier
+}
+
+# A failed assertion is a warning in `terraform plan`, never an error.
+check "existing_database_settings" {
+  assert {
+    condition     = alltrue([for d in data.aws_db_instance.existing : d.multi_az || !var.database_multi_az])
+    error_message = "Production database is not Multi-AZ. RDS console → Modify → Multi-AZ DB instance (docs/runbooks/backups.md, «Консоль RDS»)."
+  }
+  assert {
+    condition     = alltrue([for d in data.aws_db_instance.existing : d.backup_retention_period >= var.database_backup_retention_days])
+    error_message = "Production database keeps automated backups for fewer days than database_backup_retention_days (14). RDS console → Modify → Backup retention period."
+  }
+  assert {
+    condition     = alltrue([for d in data.aws_db_instance.existing : d.storage_encrypted])
+    error_message = "Production database storage is not encrypted."
+  }
+}
+
+module "backup" {
+  count               = var.backup_enabled && local.database_arn != "" ? 1 : 0
+  source              = "../backup"
+  providers           = { aws = aws, aws.replica = aws.replica }
+  name                = local.name
+  resource_arns       = [local.database_arn]
+  kms_key_arn         = module.kms.key_arn
+  replica_kms_key_arn = module.kms_replica.key_arn
+  retention_days      = var.backup_retention_days
+  copy_retention_days = var.backup_retention_days
+  copy_account_vault_arn = var.backup_copy_account_id == "" ? "" : (
+    "arn:aws:backup:${var.backup_copy_region == "" ? data.aws_region.current.name : var.backup_copy_region}:${var.backup_copy_account_id}:backup-vault:${var.backup_copy_vault_name}"
+  )
+  alerts_topic_arn = module.monitoring.alerts_topic_arn
+  tags             = local.tags
 }
 
 module "secrets" {
@@ -431,6 +555,7 @@ locals {
   app_secret_arns = merge(
     { for k in local.secret_names : k => module.secrets.arns[k] },
     { REDIS_URL = module.redis.redis_url_secret_arn },
+    var.redis_cache_node ? { REDIS_CACHE_URL = module.redis_cache[0].redis_url_secret_arn } : {},
   )
 }
 
@@ -479,6 +604,10 @@ module "ecs" {
   night_scale_down                 = var.night_scale_down
   night_min_tasks                  = var.night_min_tasks
   tags                             = local.tags
+
+  # Same namespace as modules/monitoring (QueueWaitingTotal).
+  metrics_namespace    = "LawBid/${local.name}"
+  worker_jobs_per_task = var.worker_jobs_per_task
 }
 
 # Task role: the app's own permissions (buckets, SES, KMS for SSE-KMS).
@@ -603,5 +732,7 @@ output "ses_dns" {
 }
 output "database_endpoint" { value = one(module.postgres[*].endpoint) }
 output "database_instance_id" { value = one(module.postgres[*].instance_id) }
+output "backup_vault" { value = one(module.backup[*].vault_name) }
+output "backup_dr_vault_arn" { value = one(module.backup[*].dr_vault_arn) }
 output "alerts_topic_arn" { value = module.monitoring.alerts_topic_arn }
 output "budget_name" { value = module.budget.budget_name }

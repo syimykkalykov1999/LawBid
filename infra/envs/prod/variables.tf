@@ -182,6 +182,63 @@ variable "database_instance_class" {
 variable "database_backup_retention_days" {
   type    = number
   default = 14
+  validation {
+    condition     = var.database_backup_retention_days >= 14 && var.database_backup_retention_days <= 35
+    error_message = "Prod keeps automated backups 14–35 days (owner 2026-10-22)."
+  }
+}
+
+# --- reliability (owner 2026-10-22, docs/runbooks/backups.md) -------------
+variable "database_multi_az" {
+  type        = bool
+  default     = true
+  description = "RDS Multi-AZ for a Terraform-managed database; for the existing one it is checked at plan time (warning) and switched on in the console."
+}
+variable "existing_database_identifier" {
+  type        = string
+  default     = ""
+  description = "The production RDS created outside Terraform (lawbid-prod-postgres): backed up by AWS Backup and checked at plan time, never modified."
+}
+variable "backup_enabled" {
+  type    = bool
+  default = true
+}
+variable "backup_retention_days" {
+  type    = number
+  default = 35
+}
+variable "backup_copy_account_id" {
+  type        = string
+  default     = ""
+  description = "Optional separate backup account id (12 digits). Empty = copies only to the second region (replica_region)."
+  validation {
+    condition     = var.backup_copy_account_id == "" || can(regex("^[0-9]{12}$", var.backup_copy_account_id))
+    error_message = "backup_copy_account_id: empty or a 12-digit AWS account id."
+  }
+}
+variable "backup_copy_vault_name" {
+  type    = string
+  default = "lawbid-backup-copy"
+}
+variable "backup_copy_region" {
+  type    = string
+  default = ""
+}
+variable "interface_endpoint_azs" {
+  type    = number
+  default = 0
+}
+variable "redis_cache_node" {
+  type    = bool
+  default = false
+}
+variable "redis_cache_node_type" {
+  type    = string
+  default = "cache.t4g.micro"
+}
+variable "worker_jobs_per_task" {
+  type    = number
+  default = 50
 }
 
 variable "turn_enabled" {
