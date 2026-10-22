@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowRight, Gift, PencilSimple, Tag, UsersThree, type Icon } from '@phosphor-icons/react';
+import { ArrowRight, Gift, IdentificationBadge, PencilSimple, Tag, UsersThree, type Icon } from '@phosphor-icons/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'motion/react';
 import { useState } from 'react';
@@ -98,6 +98,17 @@ export default function PricesPage() {
             label="Мест"
             min={1}
             saved={(n) => `Лимит помощников: ${n}`}
+          />
+          {/* Owner 2026-10-22: больше помощников, никому не весь аккаунт. */}
+          <NumberSettingCard
+            canWrite={canWrite}
+            settingKey={DUTIES_KEY}
+            icon={IdentificationBadge}
+            title="Максимум ролей у одного помощника"
+            text="Сколько из 10 ролей (звонки, чаты, файлы, дела, черновики ставок, посты, задачи, профиль, ставки, публикация) адвокат может дать одному помощнику. По умолчанию 3 — остальное отдают другому помощнику. Кто уже получил больше, свои роли сохраняет, но новых не получит."
+            label="Ролей"
+            min={1}
+            saved={(n) => `Максимум ролей у помощника: ${n}`}
           />
           <SeatRequests canWrite={canWrite} />
           <History data={data} />
@@ -268,6 +279,7 @@ function EditDialog({ it, onClose }: { it: Item; onClose: () => void }) {
 
 const SEAT_KEY = 'billing.max_assistant_seats';
 const TRIAL_KEY = 'billing.trial_days';
+const DUTIES_KEY = 'assistants.max_duties';
 
 /** Owner 2026-10-05: one whole-number setting edited right on Цены (seat
  * limit, free trial days); the API validates the range and audits it. */

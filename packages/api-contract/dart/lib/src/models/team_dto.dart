@@ -16,6 +16,7 @@ class TeamDto {
     required this.seats,
     required this.used,
     required this.plan,
+    required this.maxDuties,
   });
 
   factory TeamDto.fromJson(Map<String, Object?> json) =>
@@ -25,6 +26,9 @@ class TeamDto {
   final int seats;
   final int used;
   final TeamDtoPlan plan;
+
+  /// Owner 2026-10-22: the most duties one assistant may hold (admin setting assistants.max_duties).
+  final int maxDuties;
 
   Map<String, Object?> toJson() => _$TeamDtoToJson(this);
 }

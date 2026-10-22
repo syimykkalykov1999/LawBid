@@ -245,6 +245,8 @@ export default function SubscriptionsPage() {
       </Table>
       <LoadMore q={list} />
 
+      <SeatChanges />
+
       <SubscriptionDetails
         row={selected}
         canWrite={canWrite}
@@ -420,6 +422,98 @@ function Item({ label, children }: { label: string; children: React.ReactNode })
     <div>
       <dt className="text-xs text-faint">{label}</dt>
       <dd className="mt-0.5 text-ink">{children}</dd>
+    </div>
+  );
+}
+
+/** Owner 2026-10-22: what a seat change did (assistant_seat_changes). */
+const SEAT_CHANGE_STATUS: Record<string, string> = {
+  pending: 'ждёт оплаты (3-D Secure)',
+  paid: 'оплачено',
+  failed: 'карта отклонена',
+  expired: 'не оплачено, отменено',
+  scheduled: 'уберётся в конце периода',
+  applied: 'убрано',
+  canceled: 'отменено адвокатом',
+};
+
+/**
+ * Owner 2026-10-22: «Покупки мест» — every change of an attorney's assistant
+ * seats. A purchase is charged at once (the rest of the month) with its own
+ * Stripe invoice; a removal is free and takes effect at the period end.
+ */
+function SeatChanges() {
+  const { canOpenUsers } = useBillingRole();
+  const q = useInfiniteQuery({
+    queryKey: ['billing-seat-changes'],
+    initialPageParam: undefined as string | undefined,
+    queryFn: async ({ pageParam }) =>
+      (await api.GET('/admin/billing/seat-changes', { params: { query: { cursor: pageParam } } })).data!,
+    getNextPageParam: (last) => last.meta?.nextCursor ?? undefined,
+  });
+  const rows = q.data?.pages.flatMap((p) => p.data) ?? [];
+  return (
+    <div className="mt-8">
+      <h2 className="mb-1 text-sm font-medium text-heading">Покупки мест</h2>
+      <p className="mb-3 text-xs text-muted">
+        Купленное место оплачивается сразу — за остаток месяца, отдельным счётом Stripe; дальше входит в ежемесячный платёж. Убранное место остаётся до конца
+        оплаченного периода, деньги не возвращаются.
+      </p>
+      <ErrorNote text={q.error ? errorText(q.error) : null} />
+      <Table>
+        <thead>
+          <tr>
+            <Th>Когда</Th>
+            <Th>Адвокат</Th>
+            <Th className="text-right">Мест</Th>
+            <Th className="text-right">Сумма</Th>
+            <Th>Статус</Th>
+            <Th>Счёт Stripe</Th>
+          </tr>
+        </thead>
+        <tbody>
+          {q.isPending ? (
+            <TableEmpty colSpan={6} loading />
+          ) : rows.length === 0 ? (
+            <TableEmpty colSpan={6}>Мест пока не покупали</TableEmpty>
+          ) : (
+            rows.map((c) => (
+              <tr key={c.id}>
+                <Td className="whitespace-nowrap text-muted">{formatDateTime(c.createdAt)}</Td>
+                <Td>
+                  <UserCell user={c.user} userId={c.userId} link={canOpenUsers} />
+                </Td>
+                <Td className="text-right whitespace-nowrap tabular-nums">
+                  {c.fromSeats} → {c.toSeats}
+                </Td>
+                <Td className="text-right font-medium whitespace-nowrap tabular-nums">{c.amountCents ? usd(c.amountCents, 2) : '—'}</Td>
+                <Td>
+                  <StatusPill map={SEAT_CHANGE_STATUS} value={c.status} />
+                  {c.status === 'scheduled' && c.effectiveAt ? <div className="text-xs text-faint">с {formatDate(c.effectiveAt)}</div> : null}
+                </Td>
+                <Td>
+                  {c.invoiceUrl ? (
+                    <a
+                      href={c.invoiceUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 font-mono text-[11px] text-ink hover:underline"
+                      title={c.stripeInvoiceId ?? undefined}
+                    >
+                      {c.stripeInvoiceId?.slice(0, 14)}… <ArrowSquareOut size={12} />
+                    </a>
+                  ) : c.stripeInvoiceId ? (
+                    <span className="font-mono text-[11px] text-faint">{c.stripeInvoiceId.slice(0, 14)}…</span>
+                  ) : (
+                    <span className="text-faint">—</span>
+                  )}
+                </Td>
+              </tr>
+            ))
+          )}
+        </tbody>
+      </Table>
+      <LoadMore q={q} />
     </div>
   );
 }
