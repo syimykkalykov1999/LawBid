@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
-import { TokenService } from '../auth/services/token.service';
+import { TokenService } from '../auth/auth.public';
 import { AnalyticsConsentService } from './analytics-consent.service';
 import { AdminAccessModule } from '../admin-access/admin-access.module';
 import { FeatureFlagsModule } from '../feature-flags/feature-flags.module';

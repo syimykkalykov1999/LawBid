@@ -112,7 +112,11 @@ describe('ChatTranslationService', () => {
     expect(body).toMatchObject({ q: 'Hello', target: 'ru' });
     // Only the uncached call is metered.
     expect(s.costGuard.consume).toHaveBeenCalledTimes(1);
-    expect(s.costGuard.consume).toHaveBeenCalledWith('translate');
+    // Owner 2026-10-22: priced per character, against the person's budget.
+    expect(s.costGuard.consume).toHaveBeenCalledWith('translate', 1, {
+      chars: 5,
+      userId: 'u1',
+    });
   });
 
   it('does not call Google when the global translate budget is spent', async () => {

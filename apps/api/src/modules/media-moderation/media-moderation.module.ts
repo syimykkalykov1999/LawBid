@@ -1,7 +1,6 @@
 import { type DynamicModule, Module } from '@nestjs/common';
 import { AdminAccessModule } from '../admin-access/admin-access.module';
-import { FileReleaseService } from '../files/storage/file-release.service';
-import { S3StorageService } from '../files/storage/s3-storage.service';
+import { FileReleaseService, S3StorageService } from '../files/files.public';
 import { VideosModule } from '../videos/videos.module';
 import { AdminMediaModerationController } from './admin-media-moderation.controller';
 import {

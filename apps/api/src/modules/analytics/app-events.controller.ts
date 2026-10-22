@@ -7,7 +7,7 @@ import {
   Post,
 } from '@nestjs/common';
 import type { Request } from 'express';
-import { TokenService } from '../auth/services/token.service';
+import { TokenService } from '../auth/auth.public';
 import { AnalyticsConsentService } from './analytics-consent.service';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';

@@ -16,8 +16,7 @@ import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withDeleted } from '../../prisma/soft-delete.extension';
 import { withTxRetry } from '../../prisma/tx-retry.util';
-import { FileReleaseService } from '../files/storage/file-release.service';
-import { S3StorageService } from '../files/storage/s3-storage.service';
+import { FileReleaseService, S3StorageService } from '../files/files.public';
 import {
   ModerationService,
   type ContentAction,
