@@ -1,3 +1,4 @@
+import { AnalyticsConsentService } from '../../analytics/analytics-consent.service';
 import {
   BadRequestException,
   ConflictException,
@@ -95,6 +96,7 @@ export interface MeView {
   avatarFileId: string | null;
   avatarUrl: string | null;
   requiredConsentsGranted: boolean;
+  analyticsConsent: boolean | null;
   /** Owner 2026-10-05: the legal documents of the user's role that they
    * have not accepted at the current version (the app shows the
    * acceptance screen; empty = nothing to accept). */
@@ -132,6 +134,8 @@ export class OnboardingService {
     private readonly files: FilesService,
     private readonly legalAcceptance: LegalAcceptanceService,
     @Optional() private readonly flags?: FeatureFlagsService,
+    // Owner 2026-10-22 (audit #4 §5): the app gates analytics on it.
+    @Optional() private readonly analyticsConsent?: AnalyticsConsentService,
   ) {}
 
   async getMe(userId: string): Promise<MeView> {
@@ -179,6 +183,7 @@ export class OnboardingService {
       pendingAll,
       emailOn,
       passwordOn,
+      analyticsConsent,
     ] = await Promise.all([
       this.requiredConsentRowsGranted(userId),
       this.profiles.facts(userId, user.role, user.onboarding_state?.data),
@@ -191,6 +196,7 @@ export class OnboardingService {
       ),
       emailFlowsOn(this.flags),
       this.flags ? this.flags.isEnabled('password_login', true) : true,
+      this.analyticsConsent?.latest(userId) ?? Promise.resolve(null),
     ]);
     const pendingLegal = pendingAll.filter((p) =>
       roleDocTypes.includes(p.docType),
@@ -220,6 +226,7 @@ export class OnboardingService {
       avatarFileId: user.avatar_file_id,
       avatarUrl,
       requiredConsentsGranted: consentsOk,
+      analyticsConsent,
       pendingLegalDocuments: pendingLegal,
       passwordSet: user.password_hash !== null,
       passwordRequired: passwordOn && passwordMissing(user),
