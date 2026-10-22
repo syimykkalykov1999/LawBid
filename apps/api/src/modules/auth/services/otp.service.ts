@@ -1,3 +1,4 @@
+import { SloMetricsService } from '../../../common/ops/slo-metrics.service';
 import {
   OTP_LOCKOUT_MEMORY_SECONDS,
   OTP_LOCKOUT_SCHEDULE_SECONDS,
@@ -122,6 +123,8 @@ export class OtpService {
     private readonly appConfig: AppConfigService,
     @Optional() private readonly countries?: CountriesService,
     @Optional() private readonly ops?: OpsStateService,
+    // Owner 2026-10-22 (audit #4 §7): OTP delivery SLO.
+    @Optional() private readonly slo?: SloMetricsService,
   ) {
     this.codeTtlSeconds = this.config.getOrThrow<number>(
       'OTP_CODE_TTL_SECONDS',
@@ -169,7 +172,10 @@ export class OtpService {
           HttpStatus.SERVICE_UNAVAILABLE,
         );
       }
-      await this.costGuard.consume('sms');
+      // Owner 2026-10-22 (audit #4 §6): priced by the destination country.
+      await this.costGuard.consume('sms', 1, {
+        country: this.countries?.countryOfPhone(identifier) ?? null,
+      });
     } else {
       await this.costGuard.consume('email');
     }
@@ -188,6 +194,8 @@ export class OtpService {
 
     if (channel === 'phone') {
       await this.smsProvider.send(identifier, code);
+      // Owner 2026-10-22 (audit #4 §7): verified / sent = delivery SLO.
+      this.slo?.count('otpSent');
     } else {
       const email = this.normalize('email', identifier);
       const ttlMinutes = Math.ceil(this.codeTtlSeconds / 60);
@@ -235,6 +243,9 @@ export class OtpService {
       ...OTP_LOCKOUT_SCHEDULE_SECONDS,
     )) as [OtpVerifyResult, number];
 
+    if (result[0] === 'ok' && channel === 'phone') {
+      this.slo?.count('otpVerified');
+    }
     return result[0];
   }
 

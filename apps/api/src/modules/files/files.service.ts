@@ -1,4 +1,8 @@
 import {
+  BLOCKING_STATUSES,
+  isModeratedPurpose,
+} from '../media-moderation/media-moderation.constants';
+import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
@@ -184,7 +188,7 @@ export class FilesService {
         HttpStatus.TOO_MANY_REQUESTS,
       );
     }
-    await this.costGuard.consume('storage');
+    await this.costGuard.consume('storage', 1, { userId });
     // Owner 2026-10-05 (demo mode): a demo account may upload a little
     // (settings demo.program.uploadQuotaMb) under its own key prefix, so
     // the demo world's objects are easy to find and delete.
@@ -351,7 +355,33 @@ export class FilesService {
         details: { purpose: file.purpose, scanStatus: file.scan_status },
       });
     }
+    // Owner 2026-10-22 (audit #4 §5): a picture the image moderation hid
+    // can't be posted anywhere else either.
+    if (
+      isModeratedPurpose(file.purpose) &&
+      (await this.mediaBlocked(file.id))
+    ) {
+      throw new ConflictException({
+        code: ErrorCode.FILE_NOT_ATTACHABLE,
+        message: 'This picture breaks the community rules.',
+        details: { purpose: file.purpose, moderation: 'rejected' },
+      });
+    }
     return file;
+  }
+
+  /** Owner 2026-10-22: the image moderation hid this picture and no
+   * moderator approved it (media_moderation_checks, one indexed row). */
+  private async mediaBlocked(fileId: string): Promise<boolean> {
+    const check = await this.prisma.mediaModerationCheck.findUnique({
+      where: { file_id: fileId },
+      select: { status: true, decision: true },
+    });
+    return (
+      !!check &&
+      (BLOCKING_STATUSES as readonly string[]).includes(check.status) &&
+      check.decision !== 'approved'
+    );
   }
 
   /** Signed link to a clean avatar/post image, null otherwise. */

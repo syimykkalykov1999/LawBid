@@ -51,6 +51,32 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       };
     }
   }
+  // Owner 2026-10-22 (audit #4 §6): daily spend caps in US cents.
+  for (const provider of COST_PROVIDERS) {
+    out[`budget.${provider}.daily_cents`] = {
+      type: 'integer',
+      defaultValue: null,
+      description: `Daily money cap for ${provider}, in US cents (empty = the call cap converted with the price table; 0 = no money cap).`,
+      min: 0,
+      max: 100_000_000,
+    };
+  }
+  out['budget.money.global_daily_cents'] = {
+    type: 'integer',
+    defaultValue: null,
+    description:
+      'Daily money cap for all paid services together, in US cents (empty = BUDGET_GLOBAL_DAILY_CENTS, $500; 0 = none). An alert fires at 80 %.',
+    min: 0,
+    max: 100_000_000,
+  };
+  out['budget.money.user_daily_cents'] = {
+    type: 'integer',
+    defaultValue: null,
+    description:
+      'Daily money cap per person (translations, uploads, video), in US cents (empty = BUDGET_USER_DAILY_CENTS, $5; 0 = none).',
+    min: 0,
+    max: 1_000_000,
+  };
   // Owner 2026-10-15: how long each free-text field may be. Whole numbers
   // inside what the database and the request validators accept.
   for (const [key, def] of Object.entries(TEXT_LIMIT_DEFS)) {
@@ -96,6 +122,19 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     // The 10 duties of assistants/assistant-duties.ts (not imported: the
     // admin config stays free of feature modules).
     max: 10,
+  };
+  // Owner 2026-10-22 (audit #4 §6): group / channel / post caps.
+  out['groups.max_members'] = {
+    ...out['groups.max_members'],
+    description: 'Most members in one group (2–5000).',
+    min: 2,
+    max: 5000,
+  };
+  out['channels.max_owned'] = {
+    ...out['channels.max_owned'],
+    description: 'Most channels one person may own (0 = no cap).',
+    min: 0,
+    max: 10_000,
   };
   // Owner 2026-10-05: case urgency thresholds (days left) and reminders.
   for (const level of ['very_urgent', 'urgent', 'soon', 'within_month']) {

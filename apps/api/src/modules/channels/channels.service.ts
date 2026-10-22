@@ -233,10 +233,21 @@ export class ChannelsService {
       ErrorCode.CHANNEL_USERNAME_TAKEN,
       { title: dto.title },
     );
-    // Owner 2026-10-21 (inbox 21): no cap on channels per person.
+    // Owner 2026-10-22 (audit #4 §6): generous caps again (2026-10-21
+    // removed them; spam and fan-out costs) — both set in the admin.
+    const max = await this.settings.number('channels.max_owned');
+    const owned = await this.prisma.channel.count({ where: { owner_id: me } });
+    if (max > 0 && owned >= max) {
+      throw new ConflictException({
+        code: ErrorCode.CHANNEL_LIMIT_REACHED,
+        message: 'You have the most channels allowed.',
+        details: { max },
+      });
+    }
     if (dto.avatarFileId) {
       await this.files.assertAttachable(me, dto.avatarFileId, ['avatar']);
     }
+    await this.limits.consume('channel_create', me);
     try {
       const ch = await this.prisma.channel.create({
         data: {

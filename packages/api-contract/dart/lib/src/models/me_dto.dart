@@ -31,6 +31,7 @@ class MeDto {
     required this.avatarFileId,
     required this.avatarUrl,
     required this.requiredConsentsGranted,
+    required this.analyticsConsent,
     required this.pendingLegalDocuments,
     required this.passwordSet,
     required this.passwordRequired,
@@ -65,6 +66,9 @@ class MeDto {
   /// Short-lived signed link to the avatar (1024 px JPEG).
   final String? avatarUrl;
   final bool requiredConsentsGranted;
+
+  /// Owner 2026-10-22 (audit #4 §5): my latest answer to the «analytics» consent; null = never asked. The app sends usage events only when this is true (the server drops them when it is false).
+  final bool? analyticsConsent;
 
   /// Legal documents of my role I have not accepted at the current version (new or materially changed). Empty = nothing to accept. The app shows the acceptance screen; publishing a case and placing a bid answer LEGAL_REACCEPT_REQUIRED meanwhile.
   final List<PendingLegalDocumentDto> pendingLegalDocuments;

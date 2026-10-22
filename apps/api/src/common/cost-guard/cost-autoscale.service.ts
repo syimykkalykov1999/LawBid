@@ -51,6 +51,7 @@ const PROVIDER_TEXT: Record<CostProvider, string> = {
   storage: 'file uploads',
   translate: 'translations',
   video: 'video uploads',
+  image_moderation: 'image moderation checks',
 };
 const WINDOW_TEXT: Record<CostWindow, string> = {
   minute: 'per-minute',

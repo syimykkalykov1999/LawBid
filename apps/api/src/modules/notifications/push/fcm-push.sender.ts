@@ -1,3 +1,4 @@
+import { SloMetricsService } from '../../../common/ops/slo-metrics.service';
 import { CircuitBreaker } from '../../../common/resilience/resilience';
 import { Inject, Injectable } from '@nestjs/common';
 import { JWT } from 'google-auth-library';
@@ -72,6 +73,8 @@ export class FcmPushSender implements PushSender {
     private readonly tokens: PushTokensService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     private readonly logger: PinoLogger,
+    // Owner 2026-10-22 (audit #4 §7): push failure SLO.
+    private readonly slo?: SloMetricsService,
   ) {
     this.logger.setContext(FcmPushSender.name);
     this.url = `https://fcm.googleapis.com/v1/projects/${creds.projectId}/messages:send`;
@@ -289,6 +292,7 @@ export class FcmPushSender implements PushSender {
         // Network / timeout: release the claim so the retry sends.
         await this.redis.del(`${sentKey}:${device}`);
         temporary++;
+        this.slo?.count('pushFailed');
         this.logger.warn(
           {
             userId: message.userId,
@@ -298,7 +302,10 @@ export class FcmPushSender implements PushSender {
         );
         return;
       }
-      if (res.ok) return;
+      if (res.ok) {
+        this.slo?.count('pushOk');
+        return;
+      }
       const body = (await res.json().catch(() => ({}))) as {
         error?: { status?: string; details?: { errorCode?: string }[] };
       };
@@ -314,6 +321,7 @@ export class FcmPushSender implements PushSender {
       }
       await this.redis.del(`${sentKey}:${device}`);
       temporary++;
+      this.slo?.count('pushFailed');
       this.logger.warn(
         { userId: message.userId, status: res.status, code },
         'fcm send failed',
@@ -365,6 +373,7 @@ export class DynamicPushSender implements PushSender {
     private readonly redis: Redis,
     private readonly logger: PinoLogger,
     private readonly fallback: PushSender,
+    private readonly slo?: SloMetricsService,
   ) {}
 
   async send(message: PushMessage, dedupeKey: string): Promise<void> {
@@ -396,6 +405,7 @@ export class DynamicPushSender implements PushSender {
           this.tokens,
           this.redis,
           this.logger,
+          this.slo,
         ),
       };
     }

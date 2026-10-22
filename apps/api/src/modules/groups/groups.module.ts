@@ -1,3 +1,4 @@
+import { UsageLimitsModule } from '../../common/usage-limits/usage-limits.module';
 import { UsernamesModule } from '../usernames/usernames.module';
 import { GroupAddPolicy } from './group-add-policy';
 import { Module } from '@nestjs/common';
@@ -20,6 +21,8 @@ import { GroupFanoutQueue } from './group-fanout.queue';
 /** Owner 2026-10-20: group chats and polls; realtime in RealtimeModule. */
 @Module({
   imports: [
+    // Owner 2026-10-22: `rate_limit.group_create_per_day`.
+    UsageLimitsModule,
     AdminAccessModule,
     BlocksModule,
     FilesModule,

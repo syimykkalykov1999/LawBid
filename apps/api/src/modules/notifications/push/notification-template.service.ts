@@ -35,6 +35,18 @@ export class NotificationTemplateService {
     return { title: title ?? fallback.title, body: body ?? fallback.body };
   }
 
+  /** Owner 2026-10-22 (audit #4 §4): every app language — the person's
+   * language, its base (pt-BR → pt), then English from the table; the
+   * built-in en / ru text only before the translations are imported. */
+  private async lookupChain(lang: string, key: string): Promise<string | null> {
+    const base = lang.split(/[-_]/)[0];
+    for (const code of [...new Set([lang, base, 'en'])]) {
+      const v = await this.lookupOne(code, key);
+      if (v) return v;
+    }
+    return null;
+  }
+
   /**
    * Owner 2026-10-07 (phone test): the push says what actually happened.
    * A `verification_update` with a `kind` uses the app's own
@@ -140,7 +152,11 @@ export class NotificationTemplateService {
     return { title: base.title, body };
   }
 
-  private async lookup(lang: string, key: string): Promise<string | null> {
+  private lookup(lang: string, key: string): Promise<string | null> {
+    return this.lookupChain(lang || 'en', key);
+  }
+
+  private async lookupOne(lang: string, key: string): Promise<string | null> {
     const cacheKey = `${lang}:${key}`;
     const hit = this.cache.get(cacheKey);
     if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.v;

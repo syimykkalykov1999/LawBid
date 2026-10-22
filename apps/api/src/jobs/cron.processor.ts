@@ -45,6 +45,7 @@ import { CallsService } from '../modules/calls/calls.service';
 import { PostVideosService } from '../modules/posts/post-videos.service';
 import { ClientReviewsService } from '../modules/client-reviews/client-reviews.service';
 import { AccountAnonymizationService } from '../modules/privacy/account-anonymization.service';
+import { AccountDeletionRunner } from '../modules/privacy/account-deletion.runner';
 import { LegalExportBuilder } from '../modules/admin-data-requests/legal-export.builder';
 import { LegalRetentionService } from '../modules/admin-data-requests/legal-retention.service';
 import { ExportsCleanupService } from '../modules/privacy/exports-cleanup.service';
@@ -125,6 +126,8 @@ export class CronProcessor {
     @Optional() private readonly legalQaSweep?: LegalQaSweepJob,
     // Owner 2026-10-22: `contacts.joined`.
     @Optional() private readonly contactsJoined?: ContactsJoinedJob,
+    // Owner 2026-10-22: one queued job per account to anonymize.
+    @Optional() private readonly accountDeletion?: AccountDeletionRunner,
   ) {}
 
   async process(name: string): Promise<unknown> {
@@ -178,7 +181,9 @@ export class CronProcessor {
       case CRON_JOBS.notificationsRetention:
         return this.notificationsRetention.run();
       case CRON_JOBS.privacyAnonymize:
-        return this.anonymization.anonymizeDue();
+        return this.accountDeletion
+          ? this.accountDeletion.scheduleDue()
+          : this.anonymization.anonymizeDue();
       case CRON_JOBS.journalRetention:
         return this.journalRetention.run();
       case CRON_JOBS.journalChainVerify:

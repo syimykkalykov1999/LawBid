@@ -14,9 +14,9 @@ import '../models/admin_legal_version_envelope.dart';
 import '../models/admin_legal_version_list_envelope.dart';
 import '../models/dmca_decide_dto.dart';
 import '../models/dmca_status.dart';
+import '../models/legal_locale.dart';
 import '../models/legal_settings_dto.dart';
 import '../models/legal_settings_envelope.dart';
-import '../models/locale.dart';
 import '../models/publish_legal_dto.dart';
 import '../models/save_legal_draft_dto.dart';
 import '../models/type3.dart';
@@ -95,7 +95,7 @@ abstract class AdminLegalClient {
   @GET('/admin/legal/documents/{type}/{locale}/history')
   Future<AdminLegalVersionListEnvelope> getAdminLegalHistory({
     @Path('type') required Type3 type,
-    @Path('locale') required Locale locale,
+    @Path('locale') required LegalLocale locale,
     @Extras() Map<String, dynamic>? extras,
   });
 
@@ -103,7 +103,7 @@ abstract class AdminLegalClient {
   @PUT('/admin/legal/documents/{type}/{locale}/draft')
   Future<AdminLegalVersionEnvelope> saveAdminLegalDraft({
     @Path('type') required Type3 type,
-    @Path('locale') required Locale locale,
+    @Path('locale') required LegalLocale locale,
     @Body() required SaveLegalDraftDto body,
     @Extras() Map<String, dynamic>? extras,
   });
@@ -112,7 +112,7 @@ abstract class AdminLegalClient {
   @DELETE('/admin/legal/documents/{type}/{locale}/draft')
   Future<void> discardAdminLegalDraft({
     @Path('type') required Type3 type,
-    @Path('locale') required Locale locale,
+    @Path('locale') required LegalLocale locale,
     @Extras() Map<String, dynamic>? extras,
   });
 
@@ -120,7 +120,7 @@ abstract class AdminLegalClient {
   @POST('/admin/legal/documents/{type}/{locale}/publish')
   Future<AdminLegalVersionEnvelope> publishAdminLegalDocument({
     @Path('type') required Type3 type,
-    @Path('locale') required Locale locale,
+    @Path('locale') required LegalLocale locale,
     @Body() required PublishLegalDto body,
     @Extras() Map<String, dynamic>? extras,
   });

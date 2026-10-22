@@ -1,6 +1,85 @@
-{ "attorneys": [
-  { "username": "anna.lee", "displayName": "Anna Lee", "bio": "Family law in California, <b>12</b> years.", "firmNames": ["Lee & Co"], "languages": ["en", "ru"], "ratingAvg": 4.8, "ratingCount": 12, "trustBadge": true,
-    "practiceAreas": [{ "code": "family_law.divorce", "name": "Divorce" }, { "code": "family_law.child_custody", "name": "Child Custody" }], "licensedStates": ["CA", "NV"] },
-  { "username": "bob.stone", "displayName": "Bob Stone", "bio": null, "firmNames": [], "languages": ["en"], "ratingAvg": 0, "ratingCount": 0, "trustBadge": false,
-    "practiceAreas": [{ "code": "dui_and_dwi.first_offense_dui", "name": "First Offense DUI" }], "licensedStates": ["TX"] }
-] }
+{
+  "attorneys": [
+    {
+      "username": "anna.lee",
+      "displayName": "Anna Lee",
+      "bio": "Family law in California, <b>12</b> years.",
+      "firmNames": [
+        "Lee & Co"
+      ],
+      "languages": [
+        "en",
+        "ru"
+      ],
+      "ratingAvg": 4.8,
+      "ratingCount": 12,
+      "trustBadge": true,
+      "practiceAreas": [
+        {
+          "code": "family_law.divorce",
+          "name": "Divorce"
+        },
+        {
+          "code": "family_law.child_custody",
+          "name": "Child Custody"
+        }
+      ],
+      "licensedStates": [
+        "CA",
+        "NV"
+      ],
+      "photoUrl": "https://cdn.example.test/avatars/anna.jpg"
+    },
+    {
+      "username": "bob.stone",
+      "displayName": "Bob Stone",
+      "bio": null,
+      "firmNames": [],
+      "languages": [
+        "en"
+      ],
+      "ratingAvg": 0,
+      "ratingCount": 0,
+      "trustBadge": false,
+      "practiceAreas": [
+        {
+          "code": "dui_and_dwi.first_offense_dui",
+          "name": "First Offense DUI"
+        }
+      ],
+      "licensedStates": [
+        "TX"
+      ]
+    },
+    {
+      "username": "Mixed.Case",
+      "displayName": "Mixed Case",
+      "bio": "Family law in California, <b>12</b> years.",
+      "firmNames": [
+        "Lee & Co"
+      ],
+      "languages": [
+        "en",
+        "ru"
+      ],
+      "ratingAvg": 4.8,
+      "ratingCount": 12,
+      "trustBadge": true,
+      "practiceAreas": [
+        {
+          "code": "family_law.divorce",
+          "name": "Divorce"
+        },
+        {
+          "code": "family_law.child_custody",
+          "name": "Child Custody"
+        }
+      ],
+      "licensedStates": [
+        "CA",
+        "NV"
+      ],
+      "photoUrl": null
+    }
+  ]
+}

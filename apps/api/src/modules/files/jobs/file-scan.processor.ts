@@ -17,6 +17,7 @@ import {
   FILE_MIME,
 } from '../files.policy';
 import type { ImageFormat } from '../processing/image-processor';
+import { MediaModerationQueue } from '../../media-moderation/media-moderation.queue';
 
 export type ScanOutcome =
   | 'clean'
@@ -49,6 +50,9 @@ export class FileScanProcessor {
     @Inject(VIRUS_SCANNER) private readonly scanner: VirusScanner | null,
     private readonly logger: PinoLogger,
     @Optional() private readonly settings?: AppSettingsService,
+    // Owner 2026-10-22 (audit #4 §5): clean public pictures go on to the
+    // image moderation check (post photos, avatars, review photos).
+    @Optional() private readonly moderation?: MediaModerationQueue,
   ) {
     this.logger.setContext(FileScanProcessor.name);
   }
@@ -56,7 +60,10 @@ export class FileScanProcessor {
   async run(fileId: string, finalAttempt: boolean): Promise<ScanOutcome> {
     const file = await this.prisma.file.findUnique({ where: { id: fileId } });
     if (!file || file.scan_status !== 'pending') return 'skipped:not-pending';
-    if (await this.deduplicate(file)) return 'deduplicated';
+    if (await this.deduplicate(file)) {
+      await this.moderation?.enqueueFile(file.id, file.purpose);
+      return 'deduplicated';
+    }
     if (!this.scanner) {
       this.logger.warn(
         { fileId, alert: 'no_virus_scanner' },
@@ -150,6 +157,7 @@ export class FileScanProcessor {
             : {}),
         },
       });
+      await this.moderation?.enqueueFile(fileId, file.purpose);
       return 'clean';
     } catch (err) {
       if (!finalAttempt) throw err;

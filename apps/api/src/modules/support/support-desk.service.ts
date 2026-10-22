@@ -1,3 +1,4 @@
+import { ServerTextsService } from '../../common/i18n/server-texts.service';
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import type { Prisma, SupportTicket } from '@prisma/client';
 import { PinoLogger } from 'nestjs-pino';
@@ -9,6 +10,7 @@ import { parsePermissions } from '../admin-auth/admin-permissions';
 import type { EmailProvider } from '../auth/providers/email/email-provider.interface';
 import { EMAIL_PROVIDER } from '../auth/providers/provider.tokens';
 import {
+  AFTER_HOURS_KEY,
   afterHoursText,
   escalate,
   isOpen,
@@ -43,6 +45,7 @@ export class SupportDeskService {
     private readonly writer: AppSettingsWriter,
     private readonly logger: PinoLogger,
     @Optional() @Inject(EMAIL_PROVIDER) private readonly email?: EmailProvider,
+    @Optional() private readonly texts?: ServerTextsService,
   ) {
     this.logger.setContext(SupportDeskService.name);
   }
@@ -165,7 +168,15 @@ export class SupportDeskService {
       data: {
         ticket_id: ticket.id,
         auto: true,
-        body: afterHoursText(userLanguage, nextOpening(h, now), h.timeZone),
+        body: afterHoursText(
+          userLanguage,
+          nextOpening(h, now),
+          h.timeZone,
+          // Owner 2026-10-22 (audit #4 §4): in every app language.
+          await this.texts?.text(userLanguage, AFTER_HOURS_KEY, {
+            en: '',
+          }),
+        ),
         // Just after the user's message, so the thread reads in order.
         created_at: new Date(now.getTime() + 1),
       },

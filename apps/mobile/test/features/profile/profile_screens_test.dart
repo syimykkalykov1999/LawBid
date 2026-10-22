@@ -146,6 +146,8 @@ void main() {
             'consultationEnabled': false,
             'isBlocked': false,
             'hasBlockedMe': false,
+            'advertisingLabel': false,
+            'publicUrl': 'https://lawbid.dev/attorneys/jane.doe/',
           };
       PublicAttorneyProfile map(String? main, String? small) =>
           ProfileMappers.publicProfile(

@@ -154,6 +154,9 @@ export class UpdateCountrySettingsDto {
 
 export class CountryRegionAdminDto extends CountryRegionDto {
   @ApiProperty() isActive!: boolean;
+  /** Owner 2026-10-22 (audit #4 §5): attorneys licensed here show the
+   * «Attorney Advertising» label (on by default for New York). */
+  @ApiProperty() attorneyAdvertisingLabel!: boolean;
 }
 
 export class AddCountryRegionDto {
@@ -189,5 +192,10 @@ export class CountryRegionParamDto {
 }
 
 export class UpdateCountryRegionDto {
-  @ApiProperty() @IsBoolean() isActive!: boolean;
+  @ApiPropertyOptional() @IsOptional() @IsBoolean() isActive?: boolean;
+  /** Owner 2026-10-22 (audit #4 §5): the «Attorney Advertising» switch. */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  attorneyAdvertisingLabel?: boolean;
 }

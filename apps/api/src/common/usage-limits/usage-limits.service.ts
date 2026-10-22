@@ -28,6 +28,9 @@ export type LimitedAction =
   // Owner 2026-10-20: stories and channels.
   | 'story_create'
   | 'channel_create'
+  // Owner 2026-10-22 (audit #4 §6): groups per day, posts per hour.
+  | 'group_create'
+  | 'post_create_hourly'
   | 'channel_post'
   | 'channel_comment'
   | 'consultation_book'
@@ -67,6 +70,14 @@ export const USAGE_LIMITS: Record<
   channel_create: {
     setting: 'rate_limit.channel_create_per_day',
     windowSec: DAY,
+  },
+  group_create: {
+    setting: 'rate_limit.group_create_per_day',
+    windowSec: DAY,
+  },
+  post_create_hourly: {
+    setting: 'rate_limit.post_create_per_hour',
+    windowSec: HOUR,
   },
   channel_post: {
     setting: 'rate_limit.channel_post_per_hour',

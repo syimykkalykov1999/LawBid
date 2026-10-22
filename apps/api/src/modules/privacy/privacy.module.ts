@@ -14,7 +14,9 @@ import { JournalModule } from '../journal/journal.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { NOTIFICATION_EMAIL } from '../notifications/push/push.constants';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
+import { VideosModule } from '../videos/videos.module';
 import { AccountAnonymizationService } from './account-anonymization.service';
+import { AccountDeletionRunner } from './account-deletion.runner';
 import { DataExportController } from './data-export.controller';
 import { DataExportRunner } from './data-export.runner';
 import { DataExportService } from './data-export.service';
@@ -49,6 +51,8 @@ export class PrivacyModule {
         JournalModule,
         // «Вход и письма по почте» gates the data-export e-mail.
         FeatureFlagsModule,
+        // Owner 2026-10-22: reels / story videos go at Bunny on deletion.
+        VideosModule,
         ...(options.mode === 'api' ? [AuthModule] : []),
       ],
       controllers: options.mode === 'api' ? [DataExportController] : [],
@@ -62,6 +66,7 @@ export class PrivacyModule {
           useFactory: createEmailProvider,
         },
         AccountAnonymizationService,
+        AccountDeletionRunner,
         DataExportService,
         DataExportRunner,
         JournalRetentionService,
@@ -70,6 +75,7 @@ export class PrivacyModule {
       ],
       exports: [
         AccountAnonymizationService,
+        AccountDeletionRunner,
         DataExportService,
         DataExportRunner,
         JournalRetentionService,

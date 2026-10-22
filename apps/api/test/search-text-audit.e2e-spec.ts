@@ -20,9 +20,12 @@ describe('Search text audit (e2e)', () => {
   let prisma: PrismaService;
   let tokens: TokenService;
   let base = '';
-  const hex = randomUUID().replace(/-/g, '').slice(0, 8);
-  // Letters only, so the token is one word in every language of the query.
-  const tok = hex.replace(/[0-9]/g, (d) => 'ghijklmnop'[Number(d)]);
+  // Owner 2026-10-22 (audit #4 §10): a FIXED token (letters only, one word
+  // in every language). A random one made the run flaky: with typo-tolerant
+  // search, two random tokens sometimes landed close enough to match each
+  // other's "no match" probes. The e2e database is emptied per run, and no
+  // other suite uses these letters.
+  const tok = 'qkzvwxjb';
   const cyr = [...tok]
     .map((ch) => 'бвгджзклмнпрст'[ch.charCodeAt(0) % 13])
     .join('');
@@ -237,7 +240,7 @@ describe('Search text audit (e2e)', () => {
     }
     // Prefix of the topic name.
     expect(await ids('/search/posts', topicEn.slice(0, 8))).toContain(p.id);
-    expect(await ids('/search/posts', `nomatch${tok}zz`)).toEqual([]);
+    expect(await ids('/search/posts', 'yxplughnomatchzz')).toEqual([]);
   });
 
   it('posts: a small typo in a title still finds it', async () => {
@@ -280,7 +283,7 @@ describe('Search text audit (e2e)', () => {
     ]) {
       expect(await ids('/search/people', q)).toContain(attorneyId);
     }
-    expect(await ids('/search/people', `nobody${tok}zz`)).toEqual([]);
+    expect(await ids('/search/people', 'yxplughnobodyzz')).toEqual([]);
   });
 
   it('people: attorneys by practice name in RU and EN, by state name; blocked users hidden', async () => {
@@ -334,7 +337,7 @@ describe('Search text audit (e2e)', () => {
     ]) {
       expect(await search(q)).toContain(c.id);
     }
-    expect(await search(`nomatch${tok}zz`)).toEqual([]);
+    expect(await search('yxplughnomatchzz')).toEqual([]);
   });
 
   it('"My cases": description, city, state, topic RU/EN; the segment is respected', async () => {
@@ -370,6 +373,6 @@ describe('Search text audit (e2e)', () => {
       expect(await mine('active', q)).not.toContain(`Finished matter ${tok}`);
     }
     expect(await mine('closed', topicRu)).toEqual([`Finished matter ${tok}`]);
-    expect(await mine('active', `nomatch${tok}zz`)).toEqual([]);
+    expect(await mine('active', 'yxplughnomatchzz')).toEqual([]);
   });
 });

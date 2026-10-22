@@ -48,6 +48,8 @@ function make(
           .fn()
           .mockResolvedValue({ storage_quota_mb: overrides.quotaMb ?? null }),
       },
+      // Owner 2026-10-22: no image moderation verdict for the file.
+      mediaModerationCheck: { findUnique: jest.fn().mockResolvedValue(null) },
     },
     redis: {
       set: jest.fn().mockResolvedValue('OK'),
@@ -126,7 +128,9 @@ describe('FilesService', () => {
         60,
         3600,
       );
-      expect(deps.costGuard.consume).toHaveBeenCalledWith('storage');
+      expect(deps.costGuard.consume).toHaveBeenCalledWith('storage', 1, {
+        userId: expect.any(String),
+      });
       const [key, value, , ttl] = deps.redis.set.mock.calls[0] as [
         string,
         string,

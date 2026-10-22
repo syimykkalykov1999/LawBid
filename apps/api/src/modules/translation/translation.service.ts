@@ -123,7 +123,11 @@ export class TranslationService {
       );
     }
 
-    await this.costGuard?.consume('translate');
+    // Owner 2026-10-22 (audit #4 §6): Google bills per character.
+    await this.costGuard?.consume('translate', 1, {
+      chars: text.length,
+      userId: user.sub,
+    });
     const out = await this.callGoogle(key, text, target, zone, hash);
     // Counted only after a successful call: a Google error costs no quota.
     if ((await this.redis.incr(quotaKey)) === 1) {
@@ -145,7 +149,7 @@ export class TranslationService {
   ): Promise<string> {
     const key = (await this.secrets.get('google_translate'))?.fields.apiKey;
     if (!key) throw translationUnavailable();
-    await this.costGuard?.consume('translate');
+    await this.costGuard?.consume('translate', 1, { chars: text.length });
     const hash = createHash('sha256').update(text).digest('hex').slice(0, 12);
     const out = await this.callGoogle(
       key,

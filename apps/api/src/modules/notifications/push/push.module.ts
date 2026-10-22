@@ -1,3 +1,4 @@
+import { SloMetricsService } from '../../../common/ops/slo-metrics.service';
 import { FeatureFlagsModule } from '../../feature-flags/feature-flags.module';
 import { DynamicModule, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -43,13 +44,20 @@ export class PushModule {
         ApnsVoipSender,
         {
           provide: PUSH_SENDER,
-          inject: [SecretsService, PushTokensService, REDIS_CLIENT, PinoLogger],
+          inject: [
+            SecretsService,
+            PushTokensService,
+            REDIS_CLIENT,
+            PinoLogger,
+            { token: SloMetricsService, optional: true },
+          ],
           // Owner 2026-10-01: FCM keys from the admin or the env, per send.
           useFactory: (
             secrets: SecretsService,
             tokens: PushTokensService,
             redis: Redis,
             logger: PinoLogger,
+            slo?: SloMetricsService,
           ): PushSender =>
             new DynamicPushSender(
               secrets,
@@ -57,6 +65,7 @@ export class PushModule {
               redis,
               logger,
               new LoggingPushSender(logger),
+              slo,
             ),
         },
         {

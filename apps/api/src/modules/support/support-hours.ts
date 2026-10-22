@@ -87,12 +87,42 @@ export function escalate(priority: string): string {
   return i < 0 ? 'high' : order[Math.min(i + 1, order.length - 1)];
 }
 
-/** The after-hours answer, in the user's language (en otherwise). */
+/** Owner 2026-10-22 (audit #4 §4): the app's own after-hours line
+ * (`support.eta.closed`, 85 languages): «… back: {when}». */
+export const AFTER_HOURS_KEY = 'support.eta.closed';
+
+/** «{when}» of the after-hours line: weekday and time of the next opening
+ * in the person's own locale (Intl knows every app language). */
+export function openingLabel(
+  opensAt: Date,
+  timeZone: string,
+  lang: string,
+): string {
+  try {
+    return new Intl.DateTimeFormat(lang || 'en', {
+      timeZone,
+      weekday: 'long',
+      hour: 'numeric',
+      minute: '2-digit',
+      timeZoneName: 'short',
+    }).format(opensAt);
+  } catch {
+    return opensAt.toISOString();
+  }
+}
+
+/** The after-hours answer, in the user's language: [template] is the
+ * translated `support.eta.closed`; without it the built-in en / ru / es
+ * sentence. */
 export function afterHoursText(
   lang: string,
   opensAt: Date,
   timeZone: string,
+  template?: string | null,
 ): string {
+  if (template && template.includes('{when}')) {
+    return template.replace(/\{when\}/g, openingLabel(opensAt, timeZone, lang));
+  }
   const when = formatOpening(opensAt, timeZone, lang);
   const l = lang.slice(0, 2);
   const texts: Record<string, string> = {

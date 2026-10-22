@@ -49,8 +49,15 @@ export class FeatureFlagsService implements OnModuleInit {
   async onModuleInit(): Promise<void> {
     if (process.env.NODE_ENV === 'test') return;
     try {
+      // Owner 2026-10-22 (audit #4 §8): retired flags leave the database.
+      const retired = FLAG_CATALOG.filter((f) => f.retired).map((f) => f.key);
+      if (retired.length > 0) {
+        await this.prisma.featureFlag.deleteMany({
+          where: { key: { in: retired } },
+        });
+      }
       const made = await this.prisma.featureFlag.createMany({
-        data: FLAG_CATALOG.map((f) => ({
+        data: FLAG_CATALOG.filter((f) => !f.retired).map((f) => ({
           key: f.key,
           enabled: f.enabled,
           description: f.description,

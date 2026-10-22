@@ -1,3 +1,4 @@
+import { AttorneyAdvertisingService } from './attorney-advertising.service';
 import {
   ConflictException,
   ForbiddenException,
@@ -57,6 +58,7 @@ export class AdminCountriesService {
     @Inject(EMAIL_PROVIDER) private readonly email: EmailProvider,
     @InjectPinoLogger(AdminCountriesService.name)
     private readonly logger: PinoLogger,
+    @Optional() private readonly advertising?: AttorneyAdvertisingService,
     @Optional() private readonly flags?: FeatureFlagsService,
   ) {}
 
@@ -236,6 +238,7 @@ export class AdminCountriesService {
       name: r.name,
       isoCode: r.iso_code,
       isActive: r.is_active,
+      attorneyAdvertisingLabel: r.attorney_advertising_label,
     }));
   }
 
@@ -289,6 +292,7 @@ export class AdminCountriesService {
       name: row.name,
       isoCode: row.iso_code,
       isActive: row.is_active,
+      attorneyAdvertisingLabel: row.attorney_advertising_label,
     };
   }
 
@@ -296,17 +300,21 @@ export class AdminCountriesService {
     admin: AdminActor,
     code: string,
     region: string,
-    isActive: boolean,
+    patch: { isActive?: boolean; attorneyAdvertisingLabel?: boolean },
   ): Promise<CountryRegionAdminDto> {
     this.assertInScope(admin, code);
     const before = await this.prisma.state.findUnique({
       where: { code: region },
     });
     if (!before || before.country_code !== code) throw notFound('Region');
+    const isActive = patch.isActive ?? before.is_active;
+    // Owner 2026-10-22 (audit #4 §5): the «Attorney Advertising» switch.
+    const label =
+      patch.attorneyAdvertisingLabel ?? before.attorney_advertising_label;
     const row = await withTxRetry(this.prisma, async (tx) => {
       const after = await tx.state.update({
         where: { code: region },
-        data: { is_active: isActive },
+        data: { is_active: isActive, attorney_advertising_label: label },
       });
       await this.audit.record(
         {
@@ -314,8 +322,18 @@ export class AdminCountriesService {
           action: COUNTRIES_AUDIT.region,
           targetType: 'country',
           targetId: null,
-          before: { country: code, region, isActive: before.is_active },
-          after: { country: code, region, isActive },
+          before: {
+            country: code,
+            region,
+            isActive: before.is_active,
+            attorneyAdvertisingLabel: before.attorney_advertising_label,
+          },
+          after: {
+            country: code,
+            region,
+            isActive,
+            attorneyAdvertisingLabel: label,
+          },
           ip: admin.ip,
         },
         tx,
@@ -323,11 +341,13 @@ export class AdminCountriesService {
       return after;
     });
     this.countries.invalidate();
+    this.advertising?.invalidate();
     return {
       code: row.code,
       name: row.name,
       isoCode: row.iso_code,
       isActive: row.is_active,
+      attorneyAdvertisingLabel: row.attorney_advertising_label,
     };
   }
 

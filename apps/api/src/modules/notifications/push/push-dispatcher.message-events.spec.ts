@@ -91,7 +91,7 @@ describe('PushDispatcher message events', () => {
       'j',
     );
     expect(sent[0].key).toBe('r:m1:actor:👍');
-    expect(sent[0].message.body).toContain('Otto reacted 👍');
+    expect(sent[0].message.body).toContain('Otto: Reaction 👍');
     expect(sent[0].message.collapseKey).toBe('react-m1');
   });
 

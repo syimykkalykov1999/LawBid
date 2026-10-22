@@ -7,12 +7,88 @@ import { AppConfigService } from '../../modules/feature-flags/services/app-confi
 import { ErrorCode } from '../errors/error-code.enum';
 import {
   COST_ALERT_RATIO,
+  COST_PROVIDERS,
   COST_WINDOW_CONFIG,
   COST_WINDOWS,
   type CostProvider,
   type CostWindow,
 } from './cost-guard.constants';
 import { assertNotDemo } from '../demo/demo-guards';
+import {
+  capMillicentsFromCalls,
+  estimateMillicents,
+  type CostEstimateInput,
+} from './cost-prices';
+
+/** Owner 2026-10-22 (audit #4 §6): what a guarded call weighs and who
+ * makes it. All optional — `consume('email')` still works. */
+export interface CostOptions {
+  /** The person the spend is for: their own daily money budget applies. */
+  userId?: string | null;
+  /** translate: characters of source text. */
+  chars?: number;
+  /** sms: destination country (ISO-3166 alpha-2). */
+  country?: string | null;
+  /** video: duration in seconds. */
+  seconds?: number;
+  /** An exact price in millicents (overrides the estimate). */
+  millicents?: number;
+}
+
+export type MoneyScope = 'global' | 'provider' | 'user';
+const MONEY_SCOPES: MoneyScope[] = ['global', 'provider', 'user'];
+
+// Money windows (daily, millicents) of one call, atomically: KEYS are n
+// counters, n warn flags, n exhausted flags; ARGV: amount, n, then per
+// counter: cap (0 = no cap), ttl, warnAt. Same two phases as CONSUME_LUA.
+// Returns {1, w1..wn} or {0, i, current, firstRejection}.
+const MONEY_LUA = `
+local amount = tonumber(ARGV[1])
+local n = tonumber(ARGV[2])
+for i = 1, n do
+  local base = 2 + (i - 1) * 3
+  local cap = tonumber(ARGV[base + 1])
+  if cap > 0 then
+    local cur = tonumber(redis.call('GET', KEYS[i]) or '0')
+    if cur + amount > cap then
+      local ttl = tonumber(ARGV[base + 2])
+      local first = redis.call('SET', KEYS[2 * n + i], '1', 'NX', 'EX', ttl)
+      local f = 0
+      if first then f = 1 end
+      return {0, i, cur, f}
+    end
+  end
+end
+local out = {1}
+for i = 1, n do
+  local base = 2 + (i - 1) * 3
+  local ttl = tonumber(ARGV[base + 2])
+  local warnAt = tonumber(ARGV[base + 3])
+  local v = redis.call('INCRBY', KEYS[i], amount)
+  if redis.call('TTL', KEYS[i]) < 0 then redis.call('EXPIRE', KEYS[i], ttl) end
+  local w = 0
+  if warnAt > 0 and v >= warnAt then
+    if redis.call('SET', KEYS[n + i], '1', 'NX', 'EX', ttl) then w = 1 end
+  end
+  out[#out + 1] = w
+end
+return out
+`;
+
+const MONEY_TTL_SEC = 2 * 86_400;
+
+/** `money:{m}:20261022:p:sms` — one hash tag, so the script stays
+ * Redis-Cluster safe (all counters of one call in one slot). */
+export function moneyCounterKey(
+  scope: MoneyScope,
+  at: Date,
+  id: string,
+): string {
+  const iso = at.toISOString();
+  const day = iso.slice(0, 4) + iso.slice(5, 7) + iso.slice(8, 10);
+  const tag = scope === 'global' ? 'all' : scope === 'provider' ? 'p' : 'u';
+  return `money:{m}:${day}:${tag}:${id}`;
+}
 
 // One atomic round trip for all windows of one provider.
 // KEYS: n counter keys, then n warn-flag keys, then n exhausted-flag keys.
@@ -113,7 +189,11 @@ export class CostGuardService {
     this.logger.setContext(CostGuardService.name);
   }
 
-  async consume(provider: CostProvider, units = 1): Promise<void> {
+  async consume(
+    provider: CostProvider,
+    units = 1,
+    opts: CostOptions = {},
+  ): Promise<void> {
     if (!Number.isInteger(units) || units < 1) {
       throw new Error(`CostGuardService.consume: invalid units ${units}`);
     }
@@ -122,6 +202,11 @@ export class CostGuardService {
     if (provider !== 'storage') assertNotDemo('This service');
     const caps = await this.resolveCaps(provider);
     const now = this.now();
+    // Owner 2026-10-22 (audit #4 §6): the money budgets first (global,
+    // this provider, this person — daily, in cents); the call caps below
+    // stay as the spike breaker. A call refused by the call caps gives
+    // its money back.
+    const money = await this.reserveMoney(provider, units, opts, caps, now);
     const n = COST_WINDOWS.length;
     const counterKeys = COST_WINDOWS.map((w) =>
       costCounterKey(provider, w, now),
@@ -163,6 +248,7 @@ export class CostGuardService {
     }
 
     if (!result.allowed) {
+      await this.refundMoney(money);
       const window = COST_WINDOWS[result.windowIndex - 1];
       if (result.firstRejection) {
         const payload = {
@@ -210,6 +296,184 @@ export class CostGuardService {
         );
       }
     });
+  }
+
+  /** Daily money caps in millicents (0 = no cap): app_config cents, env
+   * cents, else (provider) the per-call daily cap converted to money. */
+  async moneyCaps(
+    provider: CostProvider,
+    callCaps?: CostCaps,
+  ): Promise<Record<MoneyScope, number>> {
+    let stored: Record<string, unknown> = {};
+    try {
+      stored = await this.appConfig.getConfig();
+    } catch {
+      // env fallbacks below
+    }
+    const cents = (key: string, env: string): number | undefined =>
+      this.parseCap(stored[key]) ??
+      this.parseCap(this.config.get<number | string>(env));
+    const providerCents = cents(
+      `budget.${provider}.daily_cents`,
+      `BUDGET_${provider.toUpperCase()}_DAILY_CENTS`,
+    );
+    const daily = (callCaps ?? (await this.resolveCaps(provider))).daily;
+    return {
+      global:
+        (cents(
+          'budget.money.global_daily_cents',
+          'BUDGET_GLOBAL_DAILY_CENTS',
+        ) ?? 0) * 1000,
+      provider:
+        providerCents !== undefined
+          ? providerCents * 1000
+          : capMillicentsFromCalls(provider, daily),
+      user:
+        (cents('budget.money.user_daily_cents', 'BUDGET_USER_DAILY_CENTS') ??
+          0) * 1000,
+    };
+  }
+
+  /** Today's spend in cents (global, per provider) for the admin. */
+  async moneyToday(now: Date = this.now()): Promise<{
+    globalCents: number;
+    providers: Record<string, number>;
+  }> {
+    const keys = [
+      moneyCounterKey('global', now, 'all'),
+      ...COST_PROVIDERS.map((p) => moneyCounterKey('provider', now, p)),
+    ];
+    const vals = await this.redis.mget(...keys);
+    const cents = (v: string | null) => Math.round(Number(v ?? 0) / 1000);
+    return {
+      globalCents: cents(vals[0]),
+      providers: Object.fromEntries(
+        COST_PROVIDERS.map((p, i) => [p, cents(vals[i + 1])]),
+      ),
+    };
+  }
+
+  private async reserveMoney(
+    provider: CostProvider,
+    units: number,
+    opts: CostOptions,
+    callCaps: CostCaps,
+    now: Date,
+  ): Promise<{ keys: string[]; amount: number } | null> {
+    const input: CostEstimateInput = {
+      units,
+      chars: opts.chars,
+      country: opts.country,
+      seconds: opts.seconds,
+    };
+    const amount = Math.max(
+      0,
+      Math.round(opts.millicents ?? estimateMillicents(provider, input)),
+    );
+    if (amount === 0) return null;
+    const caps = await this.moneyCaps(provider, callCaps);
+    const scopes = MONEY_SCOPES.filter((s) => s !== 'user' || !!opts.userId);
+    const keys = scopes.map((s) =>
+      moneyCounterKey(
+        s,
+        now,
+        s === 'global' ? 'all' : s === 'provider' ? provider : opts.userId!,
+      ),
+    );
+    const argv: number[] = [amount, scopes.length];
+    for (const s of scopes) {
+      const cap = caps[s];
+      argv.push(
+        cap,
+        MONEY_TTL_SEC,
+        cap > 0 ? Math.max(1, Math.ceil(cap * COST_ALERT_RATIO)) : 0,
+      );
+    }
+    let raw: unknown;
+    try {
+      raw = await this.redis.eval(
+        MONEY_LUA,
+        keys.length * 3,
+        ...keys,
+        ...keys.map((k) => `${k}:warn`),
+        ...keys.map((k) => `${k}:x`),
+        ...argv,
+      );
+    } catch (err) {
+      this.logger.error(
+        { err, provider, alert: 'cost_guard_unavailable' },
+        'Cost guard cannot reach Redis — refusing paid call (fail closed)',
+      );
+      throw this.unavailable();
+    }
+    const out = Array.isArray(raw) ? raw.map((v) => Number(v)) : [];
+    if (out[0] === 0) {
+      const scope = scopes[out[1] - 1] ?? 'global';
+      if (out[3] === 1) {
+        this.logger.error(
+          {
+            provider,
+            scope,
+            usedCents: Math.round(out[2] / 1000),
+            capCents: Math.round(caps[scope] / 1000),
+            alert: 'cost_budget',
+            stage: 'exhausted',
+            money: true,
+          },
+          'Daily money budget used up — paid calls are being refused',
+        );
+      }
+      throw new HttpException(
+        {
+          code: ErrorCode.PROVIDER_BUDGET_EXCEEDED,
+          message:
+            scope === 'user'
+              ? 'You reached today’s limit for this service. Try again tomorrow.'
+              : 'This service is temporarily unavailable. Try again later.',
+          details: {
+            scope,
+            retryAfterSeconds: this.secondsUntilWindowEnd('daily', now),
+          },
+        },
+        scope === 'user'
+          ? HttpStatus.TOO_MANY_REQUESTS
+          : HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
+    if (out[0] !== 1) {
+      this.logger.error(
+        { provider, alert: 'cost_guard_unavailable' },
+        'Cost guard got a malformed Redis reply — refusing paid call',
+      );
+      throw this.unavailable();
+    }
+    scopes.forEach((scope, i) => {
+      if (out[1 + i] === 1) {
+        this.logger.warn(
+          {
+            provider,
+            scope,
+            capCents: Math.round(caps[scope] / 1000),
+            alert: 'cost_budget',
+            stage: 'threshold_80',
+            money: true,
+          },
+          'Daily money budget reached 80%',
+        );
+      }
+    });
+    return { keys, amount };
+  }
+
+  private async refundMoney(
+    money: { keys: string[]; amount: number } | null,
+  ): Promise<void> {
+    if (!money) return;
+    try {
+      for (const k of money.keys) await this.redis.decrby(k, money.amount);
+    } catch {
+      // best effort: the counter only over-counts until midnight
+    }
   }
 
   /** Effective caps for a provider: app_config value if it is a

@@ -191,6 +191,14 @@ export class MeDto {
   requiredConsentsGranted!: boolean;
 
   @ApiProperty({
+    type: Boolean,
+    nullable: true,
+    description:
+      'Owner 2026-10-22 (audit #4 §5): my latest answer to the «analytics» consent; null = never asked. The app sends usage events only when this is true (the server drops them when it is false).',
+  })
+  analyticsConsent!: boolean | null;
+
+  @ApiProperty({
     type: [PendingLegalDocumentDto],
     description:
       'Legal documents of my role I have not accepted at the current version (new or materially changed). Empty = nothing to accept. The app shows the acceptance screen; publishing a case and placing a bid answer LEGAL_REACCEPT_REQUIRED meanwhile.',

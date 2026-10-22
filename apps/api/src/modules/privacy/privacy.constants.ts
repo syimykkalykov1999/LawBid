@@ -15,3 +15,32 @@ export interface PrivacyModuleOptions {
 export const DELETED_MESSAGE_BODY = '[deleted]';
 export const DELETED_FIRST_NAME = 'Deleted';
 export const DELETED_LAST_NAME = 'User';
+
+/**
+ * Owner 2026-10-22 (audit #4 §5, GDPR Art. 17): every file purpose that
+ * holds the person's own content is released when the account is
+ * anonymized. Not here: `data_export` (expires on its own),
+ * `document_template` (admin content), `sticker` (packs others use) and
+ * `task_attachment` (the attorney's planner purge owns them).
+ */
+export const ANONYMIZED_FILE_PURPOSES = [
+  'avatar',
+  'verification_document',
+  'verification_selfie',
+  // OQ-040: voice notes are the sender's messages — gone too.
+  'chat_voice',
+  // OQ-047: files the user sent in chats.
+  'chat_attachment',
+  'post_image',
+  'post_video',
+  'post_attachment',
+  'case_photo',
+  'case_attachment',
+  'review_photo',
+  'support_attachment',
+] as const;
+
+/** Owner 2026-10-22: one BullMQ job per account to anonymize (retries,
+ * one bad account never blocks the others). */
+export const ACCOUNT_DELETION_QUEUE = 'account-deletion';
+export const ACCOUNT_DELETION_JOB = 'privacy.anonymize-user';
