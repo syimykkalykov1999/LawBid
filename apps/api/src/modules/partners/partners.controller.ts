@@ -21,6 +21,7 @@ import {
 } from '../auth/decorators/current-user.decorator';
 import { JoinPartnerDto, PartnerMeDto } from './partners.dto';
 import { PartnersService } from './partners.service';
+import { AttorneyOnly } from '../auth/assistant/assistant-context';
 
 /** Owner 2026-10-05: the partner's own screen (Settings → Partner program). */
 @ApiTags('partners')
@@ -42,6 +43,9 @@ export class PartnersController {
     return this.partners.me(user.sub);
   }
 
+  // Owner 2026-10-22 (security audit #3): joining the partner program and
+  // accepting its terms bind the attorney personally — not an assistant.
+  @AttorneyOnly()
   @Post('me/join')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -67,6 +71,7 @@ export class PartnersController {
     });
   }
 
+  @AttorneyOnly()
   @Post('me/accept-terms')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({

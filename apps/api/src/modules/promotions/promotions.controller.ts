@@ -43,6 +43,7 @@ import {
   PromotionQuoteQueryDto,
 } from './promotions.dto';
 import { PromotionsService } from './promotions.service';
+import { AttorneyOnly } from '../auth/assistant/assistant-context';
 
 import type { Request } from 'express';
 
@@ -91,6 +92,10 @@ export class PromotionsController {
     return this.promotions.caseState(user.sub, p.id);
   }
 
+  // Owner 2026-10-22 (security audit #3, finding 3): a paid promotion
+  // spends the attorney's credits — billing is the attorney's own, and no
+  // assistant duty covers spending money (OQ-048).
+  @AttorneyOnly()
   @Post('cases/:id/promotions')
   @UseGuards(RequireIdempotencyKeyGuard)
   @UseInterceptors(IdempotencyInterceptor)
@@ -138,6 +143,7 @@ export class PromotionsController {
     return this.promotions.postState(user.sub, p.id);
   }
 
+  @AttorneyOnly()
   @Post('posts/:id/promotions')
   @UseGuards(RequireIdempotencyKeyGuard)
   @UseInterceptors(IdempotencyInterceptor)
@@ -194,6 +200,7 @@ export class PromotionsController {
     return this.promotions.stats(user.sub, p.id);
   }
 
+  @AttorneyOnly()
   @Post('promotions/:id/stop')
   @ApiOperation({ summary: 'Stop my running / unpaid promotion early' })
   @ApiEnvelopeResponse(CasePromotionDto)

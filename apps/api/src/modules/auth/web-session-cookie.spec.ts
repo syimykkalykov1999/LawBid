@@ -179,6 +179,7 @@ describe('web session cookie', () => {
         {} as never,
         {} as never,
         cookies(),
+        {} as never,
       );
       return { auth, controller };
     };

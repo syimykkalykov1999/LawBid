@@ -9,6 +9,7 @@ import {
   Post,
   Req,
   UnauthorizedException,
+  UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import type { Request } from 'express';
@@ -59,6 +60,10 @@ import { ContinueLoginDto } from './dto/continue-login.dto';
 import { AssistantCodeLoginDto } from './dto/assistant-code-login.dto';
 import { TokenService } from './services/token.service';
 import { QrLoginService } from './services/qr-login.service';
+import { AssistantSelf } from './assistant/assistant-context';
+import { ReauthGuard } from './guards/reauth.guard';
+import { ReauthRequired } from './decorators/reauth-required.decorator';
+import { ReauthVerifier } from './services/reauth-verifier.service';
 import {
   ClearsWebSessionCookie,
   WebSessionCookieInterceptor,
@@ -77,6 +82,10 @@ const E = ErrorCode;
 /** Global JwtAuthGuard 401s, for the routes that need a bearer token. */
 const BEARER_401 = [E.UNAUTHORIZED, E.TOKEN_EXPIRED, E.AUTH_SESSION_REVOKED];
 /** Optional on every route guarded by IdempotencyInterceptor. */
+/** Owner 2026-10-22 (security audit #3): the single-use token from
+ * POST /auth/reauth, for the routes that change how the account signs in. */
+const ReauthTokenHeader = (description: string) =>
+  ApiHeader({ name: 'X-Reauth-Token', required: false, description });
 const IdempotencyKeyHeader = ApiHeader({
   name: 'Idempotency-Key',
   required: false,
@@ -104,6 +113,13 @@ const IdempotencyKeyHeader = ApiHeader({
  */
 @ApiTags('auth')
 @ApiErrors(COMMON_ERRORS)
+// Owner 2026-10-22 (security audit #3, finding 1): every route here is
+// about the caller's OWN sign-in — sessions, identifiers, password, reauth,
+// the QR approval. An assistant's token must never be swapped for the
+// attorney here, or the assistant could link their own e-mail / Google to
+// the attorney's account, set the attorney's password or sign the
+// attorney's devices out (OWASP ASVS V4.1.3 least privilege).
+@AssistantSelf()
 @Controller('auth')
 // Owner 2026-10-22 (audit #7): the website's refresh token goes into an
 // HttpOnly cookie on every route that issues one (see web-session-cookie).
@@ -116,6 +132,7 @@ export class AuthController {
     private readonly tokens: TokenService,
     private readonly qrLogin: QrLoginService,
     private readonly webCookies: WebSessionCookies,
+    private readonly reauthVerifier: ReauthVerifier,
   ) {}
 
   @ApiEnvelopeResponse(OtpSentDto)
@@ -366,13 +383,27 @@ export class AuthController {
   @ApiEnvelopeResponse(IdentifierLinkedDto, { status: HttpStatus.CREATED })
   @ApiErrors({
     400: [E.VALIDATION_ERROR],
-    401: [...BEARER_401, E.AUTH_OTP_INVALID, E.AUTH_SOCIAL_TOKEN_INVALID],
-    403: [E.AUTH_PROVIDER_DISABLED],
+    401: [
+      ...BEARER_401,
+      E.AUTH_OTP_INVALID,
+      E.AUTH_SOCIAL_TOKEN_INVALID,
+      E.REAUTH_INVALID,
+    ],
+    403: [E.AUTH_PROVIDER_DISABLED, E.REAUTH_REQUIRED],
     409: [E.IDENTIFIER_ALREADY_LINKED, E.IDEMPOTENCY_KEY_CONFLICT],
     503: [E.AUTH_PROVIDER_DISABLED],
   })
   @IdempotencyKeyHeader
+  @ReauthTokenHeader(
+    'Required: single-use token from POST /auth/reauth (a new sign-in method).',
+  )
   @Post('identifiers')
+  // Owner 2026-10-22 (security audit #3, findings 1–2): a new sign-in
+  // method is a permanent way into the account — a stolen 15-minute access
+  // token must not be able to add the thief's e-mail or Google account.
+  // OWASP ASVS V3.7.1: reauthenticate before changing account data.
+  @UseGuards(ReauthGuard)
+  @ReauthRequired()
   @UseInterceptors(IdempotencyInterceptor)
   async linkIdentifier(
     @Body() dto: LinkIdentifierDto,
@@ -420,22 +451,32 @@ export class AuthController {
   }
 
   /** Sets the password of the signed-in account (right after the sign-up
-   * code); changing an existing one needs `currentPassword`. */
+   * code); changing an existing one needs `currentPassword`. Owner
+   * 2026-10-22 (security audit #3): either the current password or a
+   * reauth token — and with no password yet, a reauth token unless this
+   * session signed in minutes ago (the sign-up code itself). */
   @ApiBearerAuth()
   @ApiEnvelopeResponse(PasswordSavedDto)
   @ApiErrors({
     400: [E.VALIDATION_ERROR],
-    401: [...BEARER_401, E.AUTH_INVALID_CREDENTIALS],
-    403: [E.AUTH_PROVIDER_DISABLED],
+    401: [...BEARER_401, E.AUTH_INVALID_CREDENTIALS, E.REAUTH_INVALID],
+    403: [E.AUTH_PROVIDER_DISABLED, E.REAUTH_REQUIRED],
     429: [E.RATE_LIMITED],
   })
+  @ReauthTokenHeader(
+    'Single-use token from POST /auth/reauth: replaces currentPassword; with no password yet it is required unless this session signed in within the last 10 minutes.',
+  )
   @Post('password')
   @HttpCode(HttpStatus.OK)
   async setPassword(
     @Body() dto: SetPasswordDto,
     @CurrentUser() user: RequestUser,
+    @Req() req: Request & { user?: RequestUser },
   ): Promise<PasswordSavedDto> {
-    await this.passwordAuth.setPassword(dto, user);
+    await this.passwordAuth.setPassword(dto, user, {
+      hasReauthToken: this.reauthVerifier.hasToken(req),
+      assertReauth: () => this.reauthVerifier.assertRecentAuthentication(req),
+    });
     return { saved: true };
   }
 

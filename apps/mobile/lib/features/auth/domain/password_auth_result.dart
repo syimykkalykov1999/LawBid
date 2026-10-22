@@ -17,6 +17,10 @@ enum PasswordAuthStatus {
 
   /// The admin switched password sign-in off.
   providerDisabled,
+
+  /// Owner 2026-10-22 (security audit #3): the server wants a fresh "it's
+  /// me" code first (no password yet and the sign-in is not recent).
+  reauthRequired,
   networkError,
 }
 

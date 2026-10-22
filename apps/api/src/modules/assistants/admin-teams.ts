@@ -58,6 +58,8 @@ import {
   findActiveGrant,
   paidSeats,
 } from '../subscriptions/contract-grant.util';
+import { SessionRevocationService } from '../auth/auth.public';
+import { endAssistantSessions } from './end-assistant-sessions';
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
@@ -153,6 +155,8 @@ export class AdminTeamsService {
     private readonly audit: AuditLogService,
     @Optional() private readonly settings?: AppSettingsService,
     @Optional() private readonly entitlements?: EntitlementsService,
+    // Owner 2026-10-22 (security audit #3, finding 6).
+    @Optional() private readonly revocation?: SessionRevocationService,
   ) {}
 
   async list(q?: string): Promise<AdminTeamRowDto[]> {
@@ -267,6 +271,7 @@ export class AdminTeamsService {
       );
     });
     if (m.assistant_user_id) await this.context.invalidate(m.assistant_user_id);
+    await endAssistantSessions(this.revocation, m.assistant_user_id);
     return this.get(m.attorney_id);
   }
 

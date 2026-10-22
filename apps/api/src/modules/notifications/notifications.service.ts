@@ -110,6 +110,7 @@ export const NOTIFICATION_CATEGORY: Record<
   moderation_notice: 'system',
   security_new_device: 'system',
   security_phone_changed: 'system',
+  security_sign_in_changed: 'system',
   // Owner 2026-10-20: booking and «Вопрос юристу».
   consultation_update: 'cases',
   legal_question_new: 'new_cases',
@@ -201,6 +202,7 @@ export const NOTIFICATION_IMPORTANT: Record<NotificationType, boolean> = {
   moderation_notice: true,
   security_new_device: false,
   security_phone_changed: true,
+  security_sign_in_changed: true,
   consultation_update: true,
   legal_question_new: false,
   legal_answer_update: true,

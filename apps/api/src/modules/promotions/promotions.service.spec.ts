@@ -63,11 +63,23 @@ function setup(opts: { enabled?: boolean; credits?: number } = {}) {
     payment: { create: jest.fn().mockResolvedValue({ id: 'pay1' }) },
     report: { count: jest.fn().mockResolvedValue(0) },
     post: { findUnique: jest.fn().mockResolvedValue(null) },
-    user: { findUnique: jest.fn().mockResolvedValue({ email: 'c@x.io' }) },
-    promoCode: { findUnique: jest.fn(), update: jest.fn() },
+    user: {
+      findUnique: jest
+        .fn()
+        .mockResolvedValue({ email: 'c@x.io', role: 'client' }),
+    },
+    promoCode: {
+      findUnique: jest.fn(),
+      update: jest.fn(),
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      fields: { max_redemptions: 'promo_codes.max_redemptions' },
+    },
     promoRedemption: {
       findUnique: jest.fn().mockResolvedValue(null),
       create: jest.fn(),
+      createMany: jest.fn().mockResolvedValue({ count: 1 }),
+      updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+      deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
     $transaction: jest.fn(),
   };
@@ -357,10 +369,88 @@ describe('PromotionsService.create', () => {
       promoCode: 'FREE',
     });
     expect(res.status).toBe('active');
-    expect(s.prisma.promoRedemption.create).toHaveBeenCalled();
-    expect(s.prisma.promoCode.update).toHaveBeenCalledWith({
-      where: { id: 'pc' },
+    expect(s.prisma.promoRedemption.createMany).toHaveBeenCalledWith(
+      expect.objectContaining({ skipDuplicates: true }),
+    );
+    expect(s.prisma.promoCode.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: 'pc',
+        OR: [
+          { max_redemptions: null },
+          { redeemed_count: { lt: 'promo_codes.max_redemptions' } },
+        ],
+      },
       data: { redeemed_count: { increment: 1 } },
+    });
+    // The redemption row goes in before the counter moves.
+    expect(
+      s.prisma.promoRedemption.createMany.mock.invocationCallOrder[0],
+    ).toBeLessThan(s.prisma.promoCode.updateMany.mock.invocationCallOrder[0]);
+  });
+
+  const freeCode = (over: Record<string, unknown> = {}) => ({
+    id: 'pc',
+    active: true,
+    applies_to: 'promotion',
+    audience: 'all',
+    starts_at: null,
+    expires_at: null,
+    max_redemptions: 1,
+    redeemed_count: 0,
+    discount_type: 'percent',
+    percent_off: 100,
+    amount_off_cents: null,
+    free_days: null,
+    ...over,
+  });
+
+  it('owner 2026-10-22 (audit #3): a code used up by a parallel request rolls the booking back', async () => {
+    const s = setup();
+    s.prisma.promoCode.findUnique.mockResolvedValue(freeCode());
+    // The other request won the last redemption between check and booking.
+    s.prisma.promoCode.updateMany.mockResolvedValue({ count: 0 });
+    await expect(
+      s.service.create('owner', 'c1', { days: 1, promoCode: 'FREE' }),
+    ).rejects.toMatchObject({ response: { code: 'PROMO_CODE_INVALID' } });
+  });
+
+  it('owner 2026-10-22 (audit #3): a second use by the same person is refused, not kept', async () => {
+    const s = setup();
+    s.prisma.promoCode.findUnique.mockResolvedValue(
+      freeCode({ max_redemptions: null }),
+    );
+    s.prisma.promoRedemption.createMany.mockResolvedValue({ count: 0 });
+    await expect(
+      s.service.create('owner', 'c1', { days: 1, promoCode: 'FREE' }),
+    ).rejects.toMatchObject({ response: { code: 'PROMO_CODE_INVALID' } });
+    expect(s.prisma.promoCode.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('owner 2026-10-22 (audit #3): an attorney-only code does not work for a client', async () => {
+    const s = setup();
+    s.prisma.promoCode.findUnique.mockResolvedValue(
+      freeCode({ audience: 'attorney' }),
+    );
+    await expect(
+      s.service.create('owner', 'c1', { days: 1, promoCode: 'FREE' }),
+    ).rejects.toMatchObject({ response: { code: 'PROMO_CODE_INVALID' } });
+    expect(s.prisma.promoRedemption.createMany).not.toHaveBeenCalled();
+  });
+
+  it('owner 2026-10-22 (audit #3): an abandoned checkout gives its code back', async () => {
+    const s = setup();
+    s.prisma.casePromotion.findUnique.mockResolvedValue({
+      promo_code_id: 'pc',
+    });
+    await expect(
+      s.service.abandon('p1', 'owner', 'checkout_expired'),
+    ).resolves.toBe(true);
+    expect(s.prisma.promoRedemption.deleteMany).toHaveBeenCalledWith({
+      where: { promo_id: 'pc', user_id: 'owner', payment_id: null },
+    });
+    expect(s.prisma.promoCode.updateMany).toHaveBeenCalledWith({
+      where: { id: 'pc', redeemed_count: { gt: 0 } },
+      data: { redeemed_count: { decrement: 1 } },
     });
   });
 });

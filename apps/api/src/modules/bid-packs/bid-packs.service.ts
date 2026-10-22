@@ -158,8 +158,21 @@ export class BidPacksService {
   }
 
   /** Owner 2026-10-16: packs are for verified attorneys (rollback:
-   * `billing.require_verified_for_purchases` off). */
+   * `billing.require_verified_for_purchases` off). Owner 2026-10-22
+   * (security audit #3, finding 8): only an attorney buys offer packs at
+   * all — a client has no attorney profile, so the check below let them
+   * through; and with verification required, no profile is not verified. */
   private async assertVerified(userId: string): Promise<void> {
+    const buyer = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
+    if (buyer?.role !== 'attorney') {
+      throw new ForbiddenException({
+        code: ErrorCode.FORBIDDEN,
+        message: 'Offer packs are for attorneys.',
+      });
+    }
     if (!this.settings) return;
     if (
       !(await this.settings.boolean('billing.require_verified_for_purchases'))
@@ -170,7 +183,7 @@ export class BidPacksService {
       where: { user_id: userId },
       select: { verification_status: true },
     });
-    if (p && p.verification_status !== 'verified') {
+    if (!p || p.verification_status !== 'verified') {
       throw new ForbiddenException({
         code: ErrorCode.ATTORNEY_NOT_VERIFIED,
         message: 'Offer packs are available after verification.',

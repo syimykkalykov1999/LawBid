@@ -1,10 +1,12 @@
 import type { AddressInfo, Server } from 'node:net';
+import { randomUUID } from 'node:crypto';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { LoggerErrorInterceptor, Logger } from 'nestjs-pino';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { TokenService } from '../src/modules/auth/services/token.service';
 import { attachCleanAvatar } from './support/clean-avatar';
 
 /**
@@ -484,6 +486,42 @@ describe('Profiles onboarding (e2e) — client_profiles / attorney_profiles', ()
       }),
     ]);
 
+    // Owner 2026-10-22 (audit #3): the sign-in was an hour ago — a fresh
+    // sign-in would itself count as the reauth.
+    await prisma.session.updateMany({
+      where: { user_id: userId },
+      data: { created_at: new Date(Date.now() - 3_600_000) },
+    });
+    // An account older than its own sign-up: changes are announced.
+    await prisma.user.update({
+      where: { id: userId },
+      data: { created_at: new Date(Date.now() - 2 * 86_400_000) },
+    });
+    const notices = () =>
+      prisma.notification.count({
+        where: { user_id: userId, type: 'security_sign_in_changed' },
+      });
+    // A second session (the website, or a thief's): it ends on the change.
+    const otherChain = randomUUID();
+    await prisma.session.create({
+      data: {
+        user_id: userId,
+        session_chain_id: otherChain,
+        refresh_hash: `audit3-${otherChain}`,
+        platform: 'web',
+        expires_at: new Date(Date.now() + 86_400_000),
+      },
+    });
+    const otherAuth = {
+      Authorization: `Bearer ${app.get(TokenService).signAccessToken({
+        sub: userId,
+        role: 'client',
+        sid: otherChain,
+        verified: false,
+        subscriptionStatus: 'none',
+      })}`,
+    };
+    await api().get('/api/v1/users/me').set(otherAuth).expect(200);
     const newPhone = nextPhone();
     const noReauth = await api()
       .post('/api/v1/users/me/contacts/request')
@@ -527,6 +565,14 @@ describe('Profiles onboarding (e2e) — client_profiles / attorney_profiles', ()
     ]);
     const me = await api().get('/api/v1/users/me').set(auth).expect(200);
     expect(me.body.data.phone).toBe(newPhone);
+    // Owner 2026-10-22 (audit #3): the change is announced on every device,
+    // and every other session ends — this one stays signed in.
+    expect(await notices()).toBe(1);
+    const dropped = await api()
+      .get('/api/v1/users/me')
+      .set(otherAuth)
+      .expect(401);
+    expect(dropped.body.error.code).toBe('AUTH_SESSION_REVOKED');
 
     // Linking an ADDITIONAL phone sign-in method via POST /auth/identifiers
     // (email delivery isn't runnable here, see onboarding.e2e-spec.ts).
@@ -535,9 +581,31 @@ describe('Profiles onboarding (e2e) — client_profiles / attorney_profiles', ()
       .post('/api/v1/auth/otp/request')
       .send({ channel: 'phone', identifier: extra })
       .expect(200);
+    // Owner 2026-10-22 (audit #3): a new sign-in method always needs a
+    // reauth token, however fresh the session.
+    const refused = await api()
+      .post('/api/v1/auth/identifiers')
+      .set(auth)
+      .send({ provider: 'phone', identifier: extra, code: '000000' })
+      .expect(403);
+    expect(refused.body.error.code).toBe('REAUTH_REQUIRED');
+    await api()
+      .post('/api/v1/auth/otp/request')
+      .send({ channel: 'phone', identifier: newPhone })
+      .expect(200);
+    const again = await api()
+      .post('/api/v1/auth/reauth')
+      .set(auth)
+      .send({ method: 'otp', identifier: newPhone, code: '000000' })
+      .expect(201);
+    await api()
+      .post('/api/v1/auth/otp/request')
+      .send({ channel: 'phone', identifier: extra })
+      .expect(200);
     await api()
       .post('/api/v1/auth/identifiers')
       .set(auth)
+      .set('X-Reauth-Token', again.body.data.reauthToken as string)
       .send({ provider: 'phone', identifier: extra, code: '000000' })
       .expect(201);
     const withExtra = await api()
@@ -548,5 +616,7 @@ describe('Profiles onboarding (e2e) — client_profiles / attorney_profiles', ()
       expect.objectContaining({ value: newPhone, isPrimaryContact: true }),
       expect.objectContaining({ value: extra, isPrimaryContact: false }),
     ]);
+    // ...and so is a new sign-in method.
+    expect(await notices()).toBe(2);
   });
 });

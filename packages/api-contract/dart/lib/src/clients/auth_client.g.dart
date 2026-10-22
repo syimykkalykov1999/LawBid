@@ -408,13 +408,15 @@ class _AuthClient implements AuthClient {
   @override
   Future<IdentifierLinkedEnvelope> linkIdentifier({
     required LinkIdentifierDto body,
+    String? xReauthToken,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
     _extra.addAll(extras ?? <String, dynamic>{});
     final queryParameters = <String, dynamic>{};
     queryParameters.removeWhere((k, v) => v == null);
-    final _headers = <String, dynamic>{};
+    final _headers = <String, dynamic>{r'X-Reauth-Token': xReauthToken};
+    _headers.removeWhere((k, v) => v == null);
     final _data = <String, dynamic>{};
     _data.addAll(body.toJson());
     final _options = _setStreamType<IdentifierLinkedEnvelope>(
@@ -507,13 +509,15 @@ class _AuthClient implements AuthClient {
   @override
   Future<PasswordSavedEnvelope> setPassword({
     required SetPasswordDto body,
+    String? xReauthToken,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
     _extra.addAll(extras ?? <String, dynamic>{});
     final queryParameters = <String, dynamic>{};
     queryParameters.removeWhere((k, v) => v == null);
-    final _headers = <String, dynamic>{};
+    final _headers = <String, dynamic>{r'X-Reauth-Token': xReauthToken};
+    _headers.removeWhere((k, v) => v == null);
     final _data = <String, dynamic>{};
     _data.addAll(body.toJson());
     final _options = _setStreamType<PasswordSavedEnvelope>(

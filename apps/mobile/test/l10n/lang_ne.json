@@ -2831,6 +2831,7 @@
 "notif.list.review_requested":"आफ्नो वकिलको मूल्याङ्कन गर्नुहोस्",
 "notif.list.security_new_device":"अर्को डिभाइसबाट नयाँ साइन इन",
 "notif.list.security_phone_changed":"तपाईंको अनुरोधमा सहायताले तपाईंको फोन नम्बर परिवर्तन गर्‍यो",
+"notif.list.security_sign_in_changed":"तपाईंको साइन इन विवरण परिवर्तन भयो",
 "notif.list.subscription_payment_failed":"हामी तपाईंको सदस्यताको शुल्क लिन सकेनौं",
 "notif.list.subscription_status":"तपाईंको सदस्यताको स्थिति परिवर्तन भयो",
 "notif.list.subscription_status.contract":"LawBid ले तपाईंका लागि सम्झौता सदस्यता मिलायो",

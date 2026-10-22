@@ -32,6 +32,7 @@ import {
   LegalPublicDto,
 } from './legal.dto';
 import { LegalService } from './legal.service';
+import { AttorneyOnly } from '../auth/assistant/assistant-context';
 
 /** Owner 2026-10-05 (legal): the app's legal texts, the DMCA agent and
  * DMCA notices filed from the app. */
@@ -67,6 +68,9 @@ export class LegalController {
     return this.legal.dmcaAgent();
   }
 
+  // Owner 2026-10-22 (security audit #3): a DMCA notice / counter-notice
+  // is a sworn statement in the person's own name — never an assistant's.
+  @AttorneyOnly()
   @Post('dmca')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
@@ -91,6 +95,7 @@ export class LegalController {
     return this.dmca.mine(user.sub);
   }
 
+  @AttorneyOnly()
   @Post('dmca/:id/counter')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
