@@ -75,5 +75,6 @@ class ContactsSyncActions {
   }
 }
 
-final contactsSyncActionsProvider =
-    Provider<ContactsSyncActions>(ContactsSyncActions.new);
+final contactsSyncActionsProvider = Provider<ContactsSyncActions>(
+  ContactsSyncActions.new,
+);

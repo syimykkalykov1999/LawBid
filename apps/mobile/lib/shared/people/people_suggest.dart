@@ -42,10 +42,10 @@ class SuggestedPerson {
   factory SuggestedPerson.fromRow(PersonRow row) {
     final a = row.attorney;
     final c = row.client;
-    final name = [a?.firstName ?? c?.firstName, a?.lastName ?? c?.lastName]
-        .whereType<String>()
-        .join(' ')
-        .trim();
+    final name = [
+      a?.firstName ?? c?.firstName,
+      a?.lastName ?? c?.lastName,
+    ].whereType<String>().join(' ').trim();
     return SuggestedPerson(
       id: row.id,
       username: row.username,
