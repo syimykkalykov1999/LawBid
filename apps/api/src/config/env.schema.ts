@@ -136,6 +136,11 @@ export const envSchema = z
     OTP_CODE_SECRET: z.string().min(32),
     OTP_KEY_PEPPER: z.string().min(32),
     AUTH_EVENT_PEPPER: z.string().min(32),
+    // Security research #5 (2026-10-22), A7: HMAC pepper for the stored
+    // phone-book hashes (contacts-sync). Optional so a deploy never fails
+    // for it; without it the API warns at boot on production and stores
+    // the plain hashes as before.
+    CONTACTS_PEPPER: z.string().min(32).optional(),
     OTP_CODE_TTL_SECONDS: z.coerce.number().int().positive().default(600),
     OTP_MAX_ATTEMPTS: z.coerce.number().int().positive().default(5),
     OTP_LOCKOUT_SECONDS: z.coerce.number().int().positive().default(900),
@@ -779,6 +784,21 @@ export const envSchema = z
             'DATABASE_URL needs sslmode=require (or verify-ca / verify-full) on staging/production: the database connection must be encrypted',
         });
       }
+    }
+    // Security research #5 (2026-10-22), A12: the Redis link is TLS on a
+    // deployed environment (ElastiCache in-transit encryption, modules/
+    // redis writes rediss://). A plain redis:// there would send the
+    // auth token and every session / OTP key in clear text.
+    if (
+      (env.NODE_ENV === 'production' || env.NODE_ENV === 'staging') &&
+      !env.REDIS_URL.startsWith('rediss://')
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['REDIS_URL'],
+        message:
+          'REDIS_URL must be rediss:// (TLS) on staging/production: the Redis connection must be encrypted',
+      });
     }
     // Security audit 2026-10-01: deployed behind the ALB with 0 hops,
     // req.ip is the load balancer for everyone and every per-IP limit

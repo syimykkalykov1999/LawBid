@@ -81,6 +81,9 @@ export const CRON_JOBS = {
   legalQaSweep: 'legal-qa.sweep',
   /** Owner 2026-10-22: "X from your contacts joined LawBid" (server-side). */
   contactsJoined: 'contacts.joined',
+  /** Security research #5 (2026-10-22), A7: re-hash the phone-book rows
+   * written before CONTACTS_PEPPER (batches of 2000, until none is left). */
+  contactsPepperBackfill: 'contacts.pepper-backfill',
   /** Owner 2026-10-05: archived tasks past the retention → removed. */
   taskArchivePurge: 'tasks.archive-purge',
   /** Owner 2026-10-05: client → attorney checkouts never finished → canceled. */
@@ -190,6 +193,7 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.consultationsSweep, pattern: '* * * * *' },
   { name: CRON_JOBS.legalQaSweep, pattern: '50 3 * * *' },
   { name: CRON_JOBS.contactsJoined, pattern: '1-59/2 * * * *' },
+  { name: CRON_JOBS.contactsPepperBackfill, pattern: '3-58/5 * * * *' },
   // 16:20 UTC: notices arrive in the US daytime.
   { name: CRON_JOBS.taskArchivePurge, pattern: '20 16 * * *' },
   { name: CRON_JOBS.casePaymentsExpire, pattern: '7-57/10 * * * *' },
