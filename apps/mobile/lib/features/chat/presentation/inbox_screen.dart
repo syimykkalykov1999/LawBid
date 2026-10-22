@@ -39,6 +39,7 @@ import 'package:lawbid/features/onboarding/application/current_user_controller.d
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
+import 'package:lawbid/features/stories/application/stories_providers.dart';
 import 'package:lawbid/features/stories/presentation/stories_tray.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
@@ -816,6 +817,16 @@ class ConversationsView extends ConsumerWidget {
             : null;
     // Owner 2026-10-20 (Telegram): the stories strip under the folders,
     // hidden by default; two separate pulls open it.
+    // Owner 2026-10-22: stories are off for now (storiesEnabled), so the
+    // strip and its pull-to-open gesture are not even mounted.
+    if (!ref.watch(storiesEnabledProvider)) {
+      return Column(
+        children: [
+          if (filters != null) filters,
+          Expanded(child: body),
+        ],
+      );
+    }
     return CollapsingHeader(
       collapsible: const StoriesTray(),
       hint: const StoriesChevron(),

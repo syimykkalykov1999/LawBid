@@ -7,6 +7,12 @@ import 'package:lawbid/features/legal_qa/domain/qa_models.dart';
 /// Unanswered. [labels] are in [QaTab.values] order. Each tab is as wide
 /// as its label needs; when the four do not fit (long languages at
 /// 360 dp) the labels shrink instead of being cut.
+///
+/// Owner 2026-10-22: the client's tabs looked cramped next to the attorney's.
+/// The bar owns its whole placement (the screen just hands it over as the
+/// header title, for every role alike): centred in the header, up to
+/// [maxWidth] wide, the four tabs EQUAL when every label fits its share, and
+/// only sized by label when one is longer (long languages).
 class QaTabsBar extends StatelessWidget {
   const QaTabsBar({
     required this.value,
@@ -19,6 +25,8 @@ class QaTabsBar extends StatelessWidget {
   final List<String> labels;
   final ValueChanged<QaTab> onChanged;
 
+  /// The widest the segment grows on a big screen.
+  static const maxWidth = 340.0;
   static const _height = 32.0;
   static const _padding = 8.0;
 
@@ -41,6 +49,31 @@ class QaTabsBar extends StatelessWidget {
       return width.ceil();
     }
 
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: maxWidth),
+        child: LayoutBuilder(
+          builder: (context, box) {
+            final widths = [for (final l in labels) flex(l)];
+            // Inside the 2 dp frame, every tab gets a quarter of the room.
+            final share = (box.maxWidth - 4) / QaTab.values.length;
+            final equal = widths.every((w) => w <= share);
+            return _segment(
+              colors,
+              type,
+              equal ? const [1, 1, 1, 1] : widths,
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _segment(
+    AppColorTokens colors,
+    AppTypographyTokens type,
+    List<int> flexes,
+  ) {
     return Container(
       key: const ValueKey('qa-tabs'),
       height: _height,
@@ -53,7 +86,7 @@ class QaTabsBar extends StatelessWidget {
         children: [
           for (final tab in QaTab.values)
             Expanded(
-              flex: flex(labels[tab.index]),
+              flex: flexes[tab.index],
               child: Semantics(
                 button: true,
                 selected: tab == value,

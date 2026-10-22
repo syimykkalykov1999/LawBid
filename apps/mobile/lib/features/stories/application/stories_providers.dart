@@ -17,11 +17,21 @@ final storiesRepositoryProvider = Provider<StoriesRepository>(
   ),
 );
 
-/// The `stories` feature flag (admin → Feature flags).
+/// Owner 2026-10-22: stories are hidden everywhere in the next update (the
+/// code stays). ONE switch for the whole app: with it `false` nothing links to
+/// stories — no tray / chevron in Chats, no «add to story» in the share
+/// sheets, no ring or camera «+» on avatars (a tap opens the profile / photo
+/// exactly as for a person without a story), for every role alike. Flip it to
+/// `true` to bring them back (the server `stories` flag still applies too).
+const storiesEnabled = false;
+
+/// The `stories` feature flag (admin → Feature flags), behind [storiesEnabled].
 final storiesEnabledProvider = Provider<bool>(
-  (ref) => ref.watch(
-    featureFlagsControllerProvider.select((s) => s.isEnabled('stories')),
-  ),
+  (ref) =>
+      storiesEnabled &&
+      ref.watch(
+        featureFlagsControllerProvider.select((s) => s.isEnabled('stories')),
+      ),
 );
 
 /// The longest story video, seconds (`stories.max_video_sec`, 15 by default).
