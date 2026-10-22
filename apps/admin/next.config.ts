@@ -3,29 +3,22 @@ import type { NextConfig } from 'next';
 // docs/06 §4.1: strict headers for the admin origin. The API token lives
 // in an httpOnly cookie (app/api/auth/session) and every API call goes
 // through app/api/proxy, so the browser never holds the admin JWT.
+// Audit #8 (2026-10-22): the page CSP is per request with a nonce
+// (src/middleware.ts + src/lib/csp.ts); /api answers JSON/files only and
+// gets a no-script CSP here. HSTS: one year, subdomains, preload.
 const securityHeaders = [
   { key: 'X-Frame-Options', value: 'DENY' },
   { key: 'X-Content-Type-Options', value: 'nosniff' },
   { key: 'Referrer-Policy', value: 'no-referrer' },
   { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
-  // Outside production http: is allowed too: on a phone in the same Wi-Fi
-  // the local storage (MinIO) answers at http://<mac-ip>:9000.
+  { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains; preload' },
+];
+
+// No scripts at all; default-src 'self' keeps a proxied PDF viewable.
+const apiHeaders = [
   {
     key: 'Content-Security-Policy',
-    value: [
-      "default-src 'self'",
-      // `next dev` needs eval for react-refresh; production stays strict.
-      `script-src 'self' 'unsafe-inline'${process.env.NODE_ENV === 'production' ? '' : " 'unsafe-eval'"}`,
-      "style-src 'self' 'unsafe-inline'",
-      `img-src 'self' data: blob: https:${process.env.NODE_ENV === 'production' ? '' : ' http:'}`,
-      // Reels play from signed Bunny/S3 links and sticker files upload
-      // straight to the media bucket (admin/media).
-      `media-src 'self' https: blob:${process.env.NODE_ENV === 'production' ? '' : ' http:'}`,
-      `connect-src 'self' https:${process.env.NODE_ENV === 'production' ? '' : ' http:'}`,
-      "frame-ancestors 'none'",
-      "base-uri 'self'",
-      "form-action 'self'",
-    ].join('; '),
+    value: "default-src 'self'; script-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
   },
 ];
 
@@ -36,7 +29,10 @@ const nextConfig: NextConfig = {
   // server bundle (apps/admin/Dockerfile).
   output: 'standalone',
   async headers() {
-    return [{ source: '/(.*)', headers: securityHeaders }];
+    return [
+      { source: '/(.*)', headers: securityHeaders },
+      { source: '/api/:path*', headers: apiHeaders },
+    ];
   },
 };
 
