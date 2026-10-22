@@ -5,6 +5,8 @@ plugins {
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
     id("com.google.gms.google-services")
+    // Owner 2026-10-22: native crashes / ANRs go to Sentry (sentry_flutter).
+    id("io.sentry.android.gradle")
 }
 
 // Only the prod flavor (com.lawbid.lawbid) is registered in Firebase; its
@@ -148,4 +150,25 @@ dependencies {
 
 flutter {
     source = "../.."
+}
+
+// Owner 2026-10-22 (audit #11): the Sentry SDK itself comes with
+// sentry_flutter; this plugin only stamps each prod release with an id for
+// its R8 mapping and uploads that mapping when SENTRY_AUTH_TOKEN (and
+// SENTRY_ORG) are set — without them the build works, stacks of Java/Kotlin
+// frames just stay obfuscated. dev/staging are skipped.
+sentry {
+    autoInstallation { enabled.set(false) }
+    ignoredFlavors.set(setOf("dev", "staging"))
+    includeProguardMapping.set(true)
+    autoUploadProguardMapping.set(!System.getenv("SENTRY_AUTH_TOKEN").isNullOrEmpty())
+    System.getenv("SENTRY_ORG")?.let { org.set(it) }
+    projectName.set("lawbid-mobile")
+    System.getenv("SENTRY_AUTH_TOKEN")?.let { authToken.set(it) }
+    uploadNativeSymbols.set(false)
+    includeNativeSources.set(false)
+    includeSourceContext.set(false)
+    includeDependenciesReport.set(false)
+    tracingInstrumentation { enabled.set(false) }
+    telemetry.set(false)
 }

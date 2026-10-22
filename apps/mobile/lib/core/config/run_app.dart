@@ -11,6 +11,7 @@ import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/core/deeplinks/deep_link_controller.dart';
 import 'package:lawbid/core/diagnostics/app_events.dart';
 import 'package:lawbid/core/diagnostics/crash_reporter.dart';
+import 'package:lawbid/core/diagnostics/sentry_native.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/network/device_key.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
@@ -60,6 +61,9 @@ Future<void> runLawBid(AppFlavor flavor) async {
 
   // Owner 2026-10-15: the app's own crash reports (admin → Вылеты).
   CrashReporter.install(prefs, AppEnvironment.current);
+  // Owner 2026-10-22: Sentry's native SDK (native crashes, ANRs) with the
+  // DSN the last bootstrap saved — prod release only, never delays paint.
+  unawaited(SentryNative.start(prefs, flavor));
   // Owner 2026-10-15: the app's own usage events (admin → Аналитика).
   AppEvents.install(prefs, AppEnvironment.current);
   applyWebNoticeChoice(prefs);
