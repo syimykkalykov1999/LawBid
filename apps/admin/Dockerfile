@@ -6,7 +6,9 @@ FROM node:22-alpine AS build
 # `next build`. Build stage only.
 ENV NODE_OPTIONS=--max-old-space-size=4096
 WORKDIR /repo
-COPY package.json package-lock.json ./
+# .npmrc: ignore-scripts (security research #5, A1) — the build runs the
+# scripts it needs by hand (prisma generate / next build).
+COPY package.json package-lock.json .npmrc ./
 COPY apps/admin/package.json apps/admin/package.json
 COPY packages/api-contract/openapi.json packages/api-contract/openapi.json
 RUN npm ci --workspace apps/admin --include-workspace-root

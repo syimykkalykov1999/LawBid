@@ -5,7 +5,9 @@ FROM node:22-alpine AS build
 # ~2 GB heap (out of memory on the owner's Mac, 2026-10-07). Build stage only.
 ENV NODE_OPTIONS=--max-old-space-size=4096
 WORKDIR /repo
-COPY package.json package-lock.json ./
+# .npmrc: ignore-scripts (security research #5, A1) — the build runs the
+# scripts it needs by hand (prisma generate / next build).
+COPY package.json package-lock.json .npmrc ./
 COPY apps/api/package.json apps/api/package.json
 COPY packages ./packages
 RUN npm ci --workspace apps/api --include-workspace-root
