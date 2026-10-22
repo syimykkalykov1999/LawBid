@@ -264,6 +264,7 @@ export class FakePaymentProvider implements PaymentProvider {
       paymentMethodId: c.paymentMethodId,
       trialDays: s.trialDays,
       metadata: s.metadata,
+      idempotencyKey: `checkout:${id}`,
     });
     this.checkouts.set(id, {
       ...s,
@@ -324,6 +325,7 @@ export class FakePaymentProvider implements PaymentProvider {
     paymentMethodId: string;
     trialDays: number | null;
     metadata: Record<string, string>;
+    idempotencyKey?: string;
   }): Promise<ProviderSubscription> {
     const now = Math.floor(Date.now() / 1000);
     const month = 30 * 86_400;
