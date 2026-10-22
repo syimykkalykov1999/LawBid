@@ -2505,6 +2505,9 @@ erDiagram
     String channel_id PK,FK
     String user_id PK,FK
     Boolean muted
+    DateTime muted_until "nullable"
+    DateTime pinned_at "nullable"
+    DateTime archived_at "nullable"
     DateTime created_at
   }
   channel_posts {

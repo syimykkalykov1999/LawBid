@@ -34,11 +34,14 @@ abstract class ChannelsClient {
 
   /// Channels: discover / search, the ones I follow, the ones I run.
   ///
+  /// [archived] - Owner 2026-10-21: the Archive of the channels (subscribed / managed).
+  ///
   /// [q] - Title or @username.
   ///
   /// [cursor] - Discover without q: opaque cursor of the ranked list.
   @GET('/channels')
   Future<ChannelListEnvelope> channelList({
+    @Query('archived') bool? archived,
     @Query('q') String? q,
     @Query('cursor') String? cursor,
     @Query('scope') Scope2? scope = Scope2.discover,
@@ -97,7 +100,7 @@ abstract class ChannelsClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Mute / unmute notifications of a channel
+  /// My mute (timed or forever), pin and Archive of a channel
   @PATCH('/channels/{id}/subscription')
   Future<ChannelSubscriptionEnvelope> channelMute({
     @Path('id') required String id,

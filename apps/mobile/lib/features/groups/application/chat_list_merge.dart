@@ -190,6 +190,7 @@ Future<void> updateMyGroup(
   String id, {
   bool? pinned,
   bool? muted,
+  Duration? mutedFor,
   bool? hidden,
   bool? archived,
 }) async {
@@ -200,11 +201,13 @@ Future<void> updateMyGroup(
           pinned: pinned,
           hidden: hidden,
           archived: archived,
-          mutedUntil: muted == null
-              ? null
-              : muted
-                  ? now.add(const Duration(days: 3650))
-                  : now.subtract(const Duration(seconds: 1)),
+          mutedUntil: mutedFor != null
+              ? now.add(mutedFor)
+              : muted == null
+                  ? null
+                  : muted
+                      ? now.add(const Duration(days: 3650))
+                      : now.subtract(const Duration(seconds: 1)),
         ),
       );
   // The write is done: updating the lists is best-effort, never an error.

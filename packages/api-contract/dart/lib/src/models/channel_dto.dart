@@ -29,6 +29,9 @@ class ChannelDto {
     this.avatarUrl,
     this.avatarFullUrl,
     this.protectContent,
+    this.mutedUntil,
+    this.isPinned,
+    this.isArchived,
     this.myRole,
     this.lastPostAt,
     this.ongoingCall,
@@ -60,6 +63,15 @@ class ChannelDto {
   final UserBriefDto owner;
   final bool isSubscribed;
   final bool isMuted;
+
+  /// Muted until this moment (null: not timed; «forever» is isMuted).
+  final DateTime? mutedUntil;
+
+  /// Pinned to the top of my list.
+  final bool? isPinned;
+
+  /// In my channels' Archive.
+  final bool? isArchived;
 
   /// My role in the channel, null for a plain reader.
   final ChannelRole? myRole;

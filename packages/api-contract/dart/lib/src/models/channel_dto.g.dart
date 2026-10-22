@@ -22,6 +22,11 @@ ChannelDto _$ChannelDtoFromJson(Map<String, dynamic> json) => ChannelDto(
   avatarUrl: json['avatarUrl'] as String?,
   avatarFullUrl: json['avatarFullUrl'] as String?,
   protectContent: json['protectContent'] as bool?,
+  mutedUntil: json['mutedUntil'] == null
+      ? null
+      : DateTime.parse(json['mutedUntil'] as String),
+  isPinned: json['isPinned'] as bool?,
+  isArchived: json['isArchived'] as bool?,
   myRole: json['myRole'] == null
       ? null
       : ChannelRole.fromJson(json['myRole'] as String),
@@ -49,6 +54,9 @@ Map<String, dynamic> _$ChannelDtoToJson(ChannelDto instance) =>
       'owner': instance.owner.toJson(),
       'isSubscribed': instance.isSubscribed,
       'isMuted': instance.isMuted,
+      'mutedUntil': ?instance.mutedUntil?.toIso8601String(),
+      'isPinned': ?instance.isPinned,
+      'isArchived': ?instance.isArchived,
       'myRole': ?instance.myRole?.toJson(),
       'lastPostAt': ?instance.lastPostAt?.toIso8601String(),
       'createdAt': instance.createdAt.toIso8601String(),

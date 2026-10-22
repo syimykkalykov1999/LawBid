@@ -10,10 +10,9 @@ import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/presentation/chat_selection_bar.dart';
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart';
 import 'package:lawbid/features/groups/application/chat_list_merge.dart';
-import 'package:lawbid/features/groups/application/group_providers.dart';
-import 'package:lawbid/features/groups/presentation/widgets/group_chat_tile.dart';
 
-/// Owner 2026-10-20 (Telegram): the chats and groups I moved to the Archive.
+/// Owner 2026-10-20 (Telegram): the chats I moved to the Archive. Owner
+/// 2026-10-21 (inbox 22c): groups and channels have an Archive of their own.
 /// Same rows, swipes and multi-select as the Chats list; the menu offers
 /// «Unarchive». A new message does not bring a chat back.
 class ArchiveScreen extends ConsumerWidget {
@@ -28,7 +27,8 @@ class ArchiveScreen extends ConsumerWidget {
     final selecting = selection != null;
     final value = combineChatLists(
       ref.watch(folderConversationsProvider(ChatListFolder.archive)),
-      ref.watch(archivedGroupsProvider),
+      const AsyncLoading(),
+      withGroups: false,
     );
     final entries = value.value?.items ?? const <ChatListEntry>[];
     return PopScope(
@@ -68,8 +68,7 @@ class ArchiveScreen extends ConsumerWidget {
                       conversation: conversation,
                       inArchive: true,
                     ),
-                  GroupChatEntry(:final group) =>
-                    GroupChatTile(group: group, inArchive: true),
+                  GroupChatEntry() => const SizedBox.shrink(),
                 },
                 empty: AppEmptyState(
                   icon: AppIcons.inventory2Outlined,
@@ -77,18 +76,12 @@ class ArchiveScreen extends ConsumerWidget {
                 ),
                 onRefresh: () async {
                   ref.invalidate(chatFolderCountsProvider);
-                  await Future.wait([
-                    ref
-                        .read(
-                          folderConversationsProvider(ChatListFolder.archive)
-                              .notifier,
-                        )
-                        .refresh(),
-                    ref
-                        .read(archivedGroupsProvider.notifier)
-                        .refresh()
-                        .catchError((Object _) {}),
-                  ]);
+                  await ref
+                      .read(
+                        folderConversationsProvider(ChatListFolder.archive)
+                            .notifier,
+                      )
+                      .refresh();
                 },
                 onLoadMore: () {
                   ref
@@ -97,7 +90,6 @@ class ArchiveScreen extends ConsumerWidget {
                             .notifier,
                       )
                       .loadMore();
-                  ref.read(archivedGroupsProvider.notifier).loadMore();
                 },
                 onRetryMore: () {
                   ref
@@ -106,7 +98,6 @@ class ArchiveScreen extends ConsumerWidget {
                             .notifier,
                       )
                       .retryLoadMore();
-                  ref.read(archivedGroupsProvider.notifier).retryLoadMore();
                 },
               ),
             ),
@@ -115,10 +106,6 @@ class ArchiveScreen extends ConsumerWidget {
                 chats: [
                   for (final e in entries)
                     if (e is DirectChatEntry) e.conversation,
-                ],
-                groups: [
-                  for (final e in entries)
-                    if (e is GroupChatEntry) e.group,
                 ],
                 inArchive: true,
               ),

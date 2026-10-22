@@ -77,7 +77,7 @@ export class ChannelsController {
     @CurrentUser() user: RequestUser,
     @Query() q: ChannelListQueryDto,
   ): Promise<ChannelPage<ChannelDto>> {
-    return this.channels.list(user, q.scope, q.q, q.cursor);
+    return this.channels.list(user, q.scope, q.q, q.cursor, q.archived);
   }
 
   @Post()
@@ -175,7 +175,9 @@ export class ChannelsController {
   }
 
   @Patch(':id/subscription')
-  @ApiOperation({ summary: 'Mute / unmute notifications of a channel' })
+  @ApiOperation({
+    summary: 'My mute (timed or forever), pin and Archive of a channel',
+  })
   @ApiEnvelopeResponse(ChannelSubscriptionDto)
   @ApiErrors({ 404: [E.NOT_FOUND] })
   channelMute(
@@ -183,7 +185,7 @@ export class ChannelsController {
     @Param() p: ChannelIdParamDto,
     @Body() dto: UpdateChannelSubscriptionDto,
   ): Promise<ChannelSubscriptionDto> {
-    return this.channels.mute(user, p.id, dto.muted);
+    return this.channels.mute(user, p.id, dto);
   }
 
   @Get(':id/admins')

@@ -31,6 +31,14 @@ final channelListProvider =
       ref.watch(channelsRepositoryProvider).list(key.scope, q: key.query),
 );
 
+/// Owner 2026-10-21 (inbox 22c): the channels I moved to the channels' own
+/// Archive.
+final archivedChannelsProvider = FutureProvider.autoDispose<List<Channel>>(
+  (ref) => ref
+      .watch(channelsRepositoryProvider)
+      .list(ChannelScope.subscribed, archived: true),
+);
+
 /// «Discover» with nothing typed: an endless list, ranked for me first.
 class RecommendedChannelsNotifier extends PagedNotifier<Channel> {
   @override
@@ -98,6 +106,28 @@ class ChannelController extends AsyncNotifier<Channel> {
     }
   }
 
+  /// Owner 2026-10-21 (inbox 27): mute for [span] (a very long one = for
+  /// good); null unmutes.
+  Future<void> setMutedFor(Duration? span) async {
+    final c = state.value;
+    if (c == null) return;
+    final forever = span != null && span.inDays >= 3000;
+    state = AsyncData(c.copyWith(isMuted: span != null));
+    try {
+      final next = await _repo.organize(
+        c,
+        muted: span == null || forever ? span != null : null,
+        mutedUntil:
+            span == null || forever ? null : DateTime.now().toUtc().add(span),
+      );
+      if (ref.mounted) state = AsyncData(next);
+      _refreshLists();
+    } on Object {
+      if (ref.mounted) state = AsyncData(c);
+      rethrow;
+    }
+  }
+
   /// Puts a saved channel (edit form) in place of the shown one.
   // ignore: use_setters_to_change_properties
   void replace(Channel next) {
@@ -105,7 +135,9 @@ class ChannelController extends AsyncNotifier<Channel> {
     _refreshLists();
   }
 
-  void _refreshLists() => ref.invalidate(channelListProvider);
+  void _refreshLists() => ref
+    ..invalidate(channelListProvider)
+    ..invalidate(archivedChannelsProvider);
 }
 
 /// The posts of a channel, newest first, loaded page by page.
