@@ -25,6 +25,10 @@ import 'package:lawbid/shared/people/people_suggest_list.dart';
 /// Owner 2026-10-21 (Zoom): a tap on a tile in a video call makes that
 /// person the big picture, the others shrink to a strip below; a tap on the
 /// big one goes back to the grid, a tap on a strip tile switches to them.
+///
+/// Owner 2026-10-22 (Zoom «spotlight»): every tile also carries a small
+/// «expand» mark, so the way to make someone big is seen, not guessed; the
+/// big picture has a «back to everyone» button.
 class CallGroupGrid extends ConsumerWidget {
   const CallGroupGrid({required this.session, required this.media, super.key});
 
@@ -83,6 +87,7 @@ class CallGroupGrid extends ConsumerWidget {
     final m = media;
     final focusId = ref.watch(callVideoLayoutProvider).focusId;
     final camerasOff = ref.watch(callCamerasOffProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
     final focused = session.video
         ? members.where((x) => x.userId == focusId).firstOrNull
         : null;
@@ -96,6 +101,12 @@ class CallGroupGrid extends ConsumerWidget {
           final tile = Size(w, h.clamp(60, 280));
           Widget tileFor(CallMember member, Size size) {
             final isMe = member.userId == me;
+            // The big one has the «back to everyone» button instead.
+            final expand = session.video && member.userId != focused?.userId
+                ? () => ref
+                    .read(callVideoLayoutProvider.notifier)
+                    .toggleFocus(member.userId)
+                : null;
             return SizedBox.fromSize(
               size: size,
               child: m == null
@@ -108,6 +119,7 @@ class CallGroupGrid extends ConsumerWidget {
                       mirror: isMe,
                       micOff: isMe ? session.muted : member.muted,
                       cameraOff: session.video,
+                      onExpand: expand,
                     )
                   : ListenableBuilder(
                       listenable: Listenable.merge([
@@ -134,6 +146,7 @@ class CallGroupGrid extends ConsumerWidget {
                           mirror: isMe,
                           micOff: isMe ? session.muted : member.muted,
                           cameraOff: session.video && stream == null,
+                          onExpand: expand,
                         );
                       },
                     ),
@@ -192,14 +205,16 @@ class CallGroupGrid extends ConsumerWidget {
                                 child: DecoratedBox(
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
-                                    color: Colors.black.withValues(alpha: 0.45),
+                                    color: colors.callScrim,
                                   ),
-                                  child: const Padding(
-                                    padding: EdgeInsets.all(8),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(8),
+                                    // Owner 2026-10-22: the grid mark — back
+                                    // to everyone (Zoom's gallery view).
                                     child: AppIcon(
-                                      AppIcons.peopleOutlineRounded,
+                                      AppIcons.gridViewRounded,
                                       size: 20,
-                                      color: Colors.white,
+                                      color: colors.callInk,
                                     ),
                                   ),
                                 ),
@@ -254,7 +269,11 @@ class _MemberTile extends StatelessWidget {
     required this.mirror,
     required this.micOff,
     this.cameraOff = false,
+    this.onExpand,
   });
+
+  /// Makes this person the big picture (video calls); null on the big one.
+  final VoidCallback? onExpand;
 
   final CallMember member;
   final bool isMe;
@@ -326,6 +345,16 @@ class _MemberTile extends StatelessWidget {
                     ),
                     child: Row(
                       children: [
+                        // Owner 2026-10-22 (Zoom): the mic-off mark sits by
+                        // the name; the corner holds the «expand» mark.
+                        if (micOff && !ringing) ...[
+                          AppIcon(
+                            AppIcons.micOffRounded,
+                            size: 14,
+                            color: colors.callInk,
+                          ),
+                          const SizedBox(width: AppSpacing.xs),
+                        ],
                         Expanded(
                           child: Text(
                             member.name,
@@ -364,22 +393,16 @@ class _MemberTile extends StatelessWidget {
                     ),
                   ),
                 ),
-              if (micOff && !ringing)
+              if (onExpand != null && !ringing)
                 PositionedDirectional(
-                  top: AppSpacing.xs,
-                  end: AppSpacing.xs,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.black.withValues(alpha: 0.5),
-                    ),
-                    child: const Padding(
-                      padding: EdgeInsets.all(4),
-                      child: AppIcon(
-                        AppIcons.micOffRounded,
-                        size: 14,
-                        color: Colors.white,
-                      ),
+                  top: 0,
+                  end: 0,
+                  child: Consumer(
+                    builder: (context, ref, _) => CallOverlayIcon(
+                      key: Key('call-tile-expand-${member.userId}'),
+                      icon: AppIcons.cornersOut,
+                      label: ref.watch(translatorProvider).t('call.expand'),
+                      onTap: onExpand!,
                     ),
                   ),
                 ),

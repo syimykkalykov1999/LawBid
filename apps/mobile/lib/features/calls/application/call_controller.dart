@@ -63,13 +63,21 @@ class CallSession {
     this.cameraOn = true,
     this.reconnecting = false,
     this.notice,
+    this.videoPrompt,
   });
+
+  /// Owner 2026-10-22 (WhatsApp): the member (user id) who just switched
+  /// their camera on while ours is off — the screen asks «Turn on yours?».
+  final String? videoPrompt;
 
   /// Group calls: something the screen tells the person for a moment
   /// ([kNoticeMutedByHost]).
   final String? notice;
 
   /// Owner 2026-10-05: a video call; [cameraOn] = our camera is sending.
+  /// Owner 2026-10-22: it changes mid-call — a voice call becomes a video
+  /// one when either side switches a camera on, and goes back to voice
+  /// when no camera is left on.
   final bool video;
   final bool cameraOn;
 
@@ -109,10 +117,13 @@ class CallSession {
     CallStatus? outcome,
     String? errorCode,
     String? staleCallId,
+    bool? video,
     bool? cameraOn,
     bool? reconnecting,
     String? notice,
     bool clearNotice = false,
+    String? videoPrompt,
+    bool clearVideoPrompt = false,
   }) =>
       CallSession(
         phase: phase ?? this.phase,
@@ -124,10 +135,11 @@ class CallSession {
         outcome: outcome ?? this.outcome,
         errorCode: errorCode ?? this.errorCode,
         staleCallId: staleCallId ?? this.staleCallId,
-        video: video,
+        video: video ?? this.video,
         cameraOn: cameraOn ?? this.cameraOn,
         reconnecting: reconnecting ?? this.reconnecting,
         notice: clearNotice ? null : notice ?? this.notice,
+        videoPrompt: clearVideoPrompt ? null : videoPrompt ?? this.videoPrompt,
       );
 }
 
@@ -275,6 +287,10 @@ const kNoticeMutedByHost = 'MUTED_BY_HOST';
 const kNoticeVotePassed = 'VOTE_PASSED';
 const kNoticeVoteFailed = 'VOTE_FAILED';
 
+/// Owner 2026-10-22: a camera can be switched on mid-call in calls of up to
+/// this many people (a mesh: every camera goes to every member).
+const kVideoSwitchMaxPeople = 9;
+
 /// The link must come up this fast after pick-up, else "failed".
 const kCallConnectTimeout = Duration(seconds: 45);
 
@@ -337,6 +353,17 @@ class CallController extends Notifier<CallSession> {
 
   // Per-member links (a two-person call has one).
   final _offered = <String>{};
+
+  /// Owner 2026-10-22: links we sent a new offer on mid-call (a camera
+  /// switched on) whose answer has not come yet.
+  final _renegotiating = <String>{};
+
+  /// The call began as a video call: every member is taken to send a
+  /// picture until they say their camera is off.
+  bool _startedVideo = false;
+
+  /// Members who switched their camera on mid-call ({'type':'video'}).
+  final _videoPeers = <String>{};
 
   /// An offer (we answer) or an answer (we offered) has come through: the
   /// signalling reaches us, no need to nudge it again (see [_nudgeSignals]).
@@ -907,6 +934,11 @@ class CallController extends Notifier<CallSession> {
     );
     // Someone new may have joined: tell them our camera is off.
     if (!state.cameraOn) _shareCamera();
+    // Owner 2026-10-22: or that it was switched on mid-call (a call that
+    // began as voice), so their screen shows it.
+    if (!_startedVideo && state.video && state.cameraOn) {
+      _shareVideo(on: true, cameraToo: false);
+    }
     // The host switched our microphone off and we missed the event.
     final mine = members.where((m) => m.userId == _me).firstOrNull;
     if (mine != null && mine.joined && mine.mutedByHost && !state.muted) {
@@ -1005,6 +1037,8 @@ class CallController extends Notifier<CallSession> {
 
   void _forgetLink(String peer) {
     _offered.remove(peer);
+    _renegotiating.remove(peer);
+    _videoPeers.remove(peer);
     _connected.remove(peer);
     _stopReconnect(peer);
   }
@@ -1044,6 +1078,164 @@ class CallController extends Notifier<CallSession> {
           )
           .then<void>((_) {}, onError: (Object _) {}),
     );
+  }
+
+  // --- Camera on / off mid-call (owner 2026-10-22) -------------------------
+
+  /// The camera button may switch video on / off here: a live call from a
+  /// chat (1:1 or a group of up to [kVideoSwitchMaxPeople]); a channel's
+  /// call keeps its own rule (the camera of a call that began as video).
+  bool get canSwitchVideo {
+    final call = state.call;
+    if (call == null ||
+        state.phase != CallPhase.active ||
+        call.channelId != null) {
+      return false;
+    }
+    return call.participants.where((m) => m.joined).length <=
+        kVideoSwitchMaxPeople;
+  }
+
+  /// Owner 2026-10-22 (WhatsApp / Zoom): the camera button. A voice call
+  /// becomes a video call: the camera opens, every link gets a new offer
+  /// that carries it, the others hear {'type':'video','on':true} and are
+  /// asked whether to turn theirs on. A camera that is on goes off for
+  /// real (its light too); with no camera left on either side the screen
+  /// goes back to the voice layout.
+  ///
+  /// The signals travel through the server untouched; it is not told.
+  // TODO(owner): the server's `call.video` keeps how the call began, so the
+  // call history labels a voice call that turned video as «audio». Marking
+  // it would need a small call-update endpoint (not added yet).
+  Future<void> toggleVideo() async {
+    final call = state.call;
+    final media = _media;
+    if (call == null || media == null || !canSwitchVideo) return;
+    final on = !(state.video && state.cameraOn);
+    if (on) {
+      final speaker = state.speaker;
+      state = state.copyWith(
+        video: true,
+        cameraOn: true,
+        clearVideoPrompt: true,
+      );
+      try {
+        await media.enableVideo();
+      } on Object {
+        // No camera, or the camera permission refused: as it was.
+        if (!ref.mounted || state.call?.id != call.id) return;
+        state = state.copyWith(cameraOn: false, video: _anyPeerVideo());
+        return;
+      }
+      if (!ref.mounted ||
+          state.call?.id != call.id ||
+          !identical(_media, media)) {
+        return;
+      }
+      // Like a video call from the start: the picture comes with the
+      // loudspeaker (WhatsApp).
+      if (!speaker) await toggleSpeaker();
+      for (final p in media.peers.toList()) {
+        if (p.isNotEmpty) await _renegotiate(call.id, p);
+      }
+    } else {
+      state = state.copyWith(
+        cameraOn: false,
+        video: _anyPeerVideo(),
+        clearVideoPrompt: true,
+      );
+      try {
+        await media.disableVideo();
+      } on Object {
+        // The camera is already gone.
+      }
+    }
+    _shareVideo(on: on);
+  }
+
+  /// «Not now» on the «Turn on yours?» prompt.
+  void dismissVideoPrompt() {
+    if (state.videoPrompt != null) {
+      state = state.copyWith(clearVideoPrompt: true);
+    }
+  }
+
+  /// Someone else's picture is on: a call that began as video (until they
+  /// say their camera is off), or one they switched on mid-call.
+  bool _anyPeerVideo() {
+    final off = ref.read(callCamerasOffProvider);
+    return (_media?.peers ?? const <String>{}).any(
+      (p) =>
+          p.isNotEmpty &&
+          (_startedVideo || _videoPeers.contains(p)) &&
+          !off.contains(p),
+    );
+  }
+
+  /// Everyone hears our camera went on / off: the new {'type':'video'} for
+  /// this version, the older {'type':'camera'} for apps that only know it
+  /// (they show our photo instead of a frozen frame).
+  void _shareVideo({required bool on, bool cameraToo = true}) {
+    final call = state.call;
+    if (call == null || !state.busy) return;
+    final send = ref.read(callSignalSenderProvider);
+    for (final data in [
+      {'type': 'video', 'on': on},
+      if (cameraToo) {'type': 'camera', 'on': on},
+    ]) {
+      unawaited(
+        send(call.id, data).then<void>((_) {}, onError: (Object _) {}),
+      );
+    }
+  }
+
+  /// A member's camera went on / off mid-call. On, while ours is off: the
+  /// screen shows their picture, a short sound plays and the prompt asks
+  /// whether to turn ours on — once per switch-on.
+  void _onPeerVideo(String peer, {required bool on}) {
+    final call = state.call;
+    if (call == null || call.channelId != null || !state.busy) return;
+    ref.read(callCamerasOffProvider.notifier).set(peer, on: on);
+    if (on) {
+      final fresh = _videoPeers.add(peer);
+      final mineOff = !(state.video && state.cameraOn);
+      if (!state.video) {
+        state = state.copyWith(video: true, cameraOn: false);
+        if (!state.speaker) unawaited(toggleSpeaker());
+      }
+      if (fresh && mineOff) {
+        state = state.copyWith(videoPrompt: peer);
+        unawaited(ref.read(appSoundsProvider).videoRequest());
+      }
+      return;
+    }
+    _videoPeers.remove(peer);
+    if (state.videoPrompt == peer) {
+      state = state.copyWith(clearVideoPrompt: true);
+    }
+    if (state.video && !state.cameraOn && !_anyPeerVideo()) {
+      state = state.copyWith(video: false);
+    }
+  }
+
+  /// A new offer on a live link (our camera changed what it carries).
+  Future<void> _renegotiate(String callId, String peer) async {
+    final media = _media;
+    if (media == null || !media.peers.contains(peer)) return;
+    _renegotiating.add(peer);
+    try {
+      final offer = await media.createOfferFor(peer);
+      await ref.read(callSignalSenderProvider)(callId, offer, to: peer);
+    } on Object {
+      _renegotiating.remove(peer);
+    }
+  }
+
+  /// Perfect negotiation: of two members the one with the smaller user id
+  /// is polite — in a clash of offers it gives way.
+  bool _politeTo(String peer) {
+    final me = _me;
+    return me == null || me.compareTo(peer) < 0;
   }
 
   Future<void> switchCamera() async {
@@ -1251,6 +1443,7 @@ class CallController extends Notifier<CallSession> {
     if (gen != _gen || !ref.mounted) return;
     final media = ref.read(callMediaFactoryProvider)();
     _media = media;
+    _startedVideo = video;
     await media.open(
       servers,
       video: video,
@@ -1506,11 +1699,34 @@ class CallController extends Notifier<CallSession> {
           _signalSeen = true;
           // A member we have no link with yet: they joined after us.
           if (!media.peers.contains(peer)) await _addLink(call.id, peer);
+          // Owner 2026-10-22 (perfect negotiation): both sides offered at
+          // once — two cameras switched on together, or a camera and an ICE
+          // restart. The polite side (the smaller user id) takes its own
+          // offer back and answers theirs; the other ignores the offer that
+          // came (its own gets answered).
+          var rolledBack = false;
+          if (await media.offerPendingFor(peer)) {
+            if (!_politeTo(peer)) return;
+            try {
+              await media.rollbackFor(peer);
+            } on Object {
+              // Cannot take it back: wait for their answer instead.
+              return;
+            }
+            rolledBack = true;
+          }
           final answer = await media.answerFor(peer, data);
           await ref.read(callSignalSenderProvider)(call.id, answer, to: peer);
+          // The offer we took back carried a camera change: send it again.
+          if (rolledBack && _renegotiating.remove(peer)) {
+            unawaited(_renegotiate(call.id, peer));
+          }
         case 'answer':
-          if (!_offered.contains(peer)) return;
+          if (!_offered.contains(peer) && !_renegotiating.contains(peer)) {
+            return;
+          }
           _signalSeen = true;
+          _renegotiating.remove(peer);
           await media.setAnswerFor(peer, data);
         case 'candidate':
           if (media.peers.contains(peer)) {
@@ -1520,6 +1736,16 @@ class CallController extends Notifier<CallSession> {
           ref
               .read(callCamerasOffProvider.notifier)
               .set(peer, on: data['on'] != false);
+          // Owner 2026-10-22: no camera left on on either side — the
+          // voice layout (WhatsApp).
+          if (data['on'] == false &&
+              state.video &&
+              !state.cameraOn &&
+              !_anyPeerVideo()) {
+            state = state.copyWith(video: false);
+          }
+        case 'video':
+          _onPeerVideo(peer, on: data['on'] != false);
         case 'restart':
           // The side that answered lost the route: the offerer renews it.
           if (_offered.contains(peer)) await _restartIce(peer);
@@ -1782,6 +2008,9 @@ class CallController extends Notifier<CallSession> {
     _mediaOpen = false;
     _earlySignals.clear();
     _offered.clear();
+    _renegotiating.clear();
+    _videoPeers.clear();
+    _startedVideo = false;
     _signalSeen = false;
     _connected.clear();
     _syncAgain = false;

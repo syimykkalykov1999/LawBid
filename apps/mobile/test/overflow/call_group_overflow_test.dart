@@ -8,6 +8,7 @@ import 'package:lawbid/core/l10n/l10n_translator.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
+import 'package:lawbid/features/calls/presentation/call_controls.dart';
 import 'package:lawbid/features/calls/presentation/call_group.dart';
 import 'package:lawbid/features/calls/presentation/call_screen.dart';
 import 'package:lawbid/features/calls/presentation/call_widgets.dart';
@@ -165,6 +166,29 @@ void main() {
           await tester.tap(find.byKey(const Key('call-focus-back')));
           await tester.pump(const Duration(milliseconds: 300));
           expect(find.byKey(const Key('call-focus-back')), findsNothing);
+          expect(tester.takeException(), isNull);
+          await tester.pump(const Duration(seconds: 5));
+        });
+
+        // Owner 2026-10-22 (Zoom): the «expand» mark on a tile makes that
+        // person big; the «turn on yours?» prompt fits with a long name.
+        testWidgets('video: the expand mark, and the turn-on prompt',
+            (tester) async {
+          await pump(
+            tester,
+            _session(6, video: true).copyWith(
+              cameraOn: false,
+              videoPrompt: 'u2',
+            ),
+            const CallScreen(),
+          );
+          expect(find.byType(CallVideoPrompt), findsOneWidget);
+          expect(tester.takeException(), isNull);
+          await tester.tap(find.byKey(const Key('call-tile-expand-u2')));
+          await tester.pump(const Duration(milliseconds: 300));
+          expect(find.byKey(const Key('call-focus-back')), findsOneWidget);
+          // The big one carries the way back, not a second expand mark.
+          expect(find.byKey(const Key('call-tile-expand-u2')), findsNothing);
           expect(tester.takeException(), isNull);
           await tester.pump(const Duration(seconds: 5));
         });
