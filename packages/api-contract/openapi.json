@@ -63573,7 +63573,7 @@
             "bearer": []
           }
         ],
-        "summary": "Upload SHA-256 hashes of address-book numbers (E.164); only matches with LawBid users are kept",
+        "summary": "Contacts sync: \"changed?\" by book hash, then only added / removed SHA-256 hashes of E.164 numbers (old builds: {hashes})",
         "tags": [
           "contacts-sync"
         ]
@@ -63632,6 +63632,86 @@
           }
         ],
         "summary": "Turn contacts sync off and delete every match (idempotent)",
+        "tags": [
+          "contacts-sync"
+        ]
+      }
+    },
+    "/contacts/sync/notify-joined": {
+      "put": {
+        "operationId": "setNotifyJoined",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetNotifyJoinedDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "«Notify me when contacts join LawBid» on or off",
         "tags": [
           "contacts-sync"
         ]
@@ -141360,12 +141440,17 @@
             "type": "string",
             "nullable": true,
             "description": "ISO country of the account number (\"US\", \"KG\"): the default region for national-format numbers in the address book."
+          },
+          "notifyJoined": {
+            "type": "boolean",
+            "description": "«Notify me when contacts join LawBid» (owner 2026-10-22: sent by the server)."
           }
         },
         "required": [
           "enabled",
           "matches",
-          "findByPhone"
+          "findByPhone",
+          "notifyJoined"
         ]
       },
       "ContactSyncStatusEnvelope": {
@@ -141430,11 +141515,34 @@
             "description": "Hashes of this upload that belong to LawBid users."
           },
           "people": {
-            "description": "Who matched, with the hash the app sent. Not stored: only the owner → user pair is.",
+            "description": "Old `{hashes}` upload: who of this upload matched. Hash-checked sync (`status: ok`): EVERY person of the stored book on LawBid; the app replaces its list. Empty for not_modified / resync.",
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/ContactPersonDto"
             }
+          },
+          "status": {
+            "enum": [
+              "ok",
+              "not_modified",
+              "resync"
+            ],
+            "type": "string",
+            "description": "Hash-checked sync only (absent for `{hashes}`). not_modified: the book and the people list are as the app has them, nothing was done. resync: the server does not have the book `baseHash` names: send it whole (`full`)."
+          },
+          "bookHash": {
+            "type": "string",
+            "nullable": true,
+            "description": "The stored book hash after this request (the next `baseHash`)."
+          },
+          "bookSize": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "matchesVersion": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Version of the people list (send it back as `matchesVersion`)."
           }
         },
         "required": [
@@ -141448,20 +141556,49 @@
           "hashes": {
             "minItems": 1,
             "maxItems": 10000,
-            "description": "Lowercase hex SHA-256 of each normalized E.164 number (\"+14155552680\"). Never raw numbers.",
+            "description": "Old builds: lowercase hex SHA-256 of each normalized E.164 number (\"+14155552680\"). Never raw numbers.",
             "example": [
               "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
             ],
             "type": "array",
             "items": {
-              "type": "string",
-              "pattern": "^[0-9a-f]{64}$"
+              "type": "string"
             }
+          },
+          "full": {
+            "type": "boolean",
+            "description": "The whole book: `added` replaces every stored hash (first sync, or after `resync`)."
+          },
+          "added": {
+            "maxItems": 10000,
+            "description": "Hashes added since `baseHash` (or the whole book with `full`).",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "removed": {
+            "maxItems": 10000,
+            "description": "Hashes removed from the book since `baseHash`.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "baseHash": {
+            "type": "string",
+            "description": "The book hash the app believes the server has (from the last answer). Required with `added` / `removed` unless `full`."
+          },
+          "bookHash": {
+            "type": "string",
+            "description": "XOR of every hash of the app’s book now (after this request). Alone: the \"not modified\" check."
+          },
+          "matchesVersion": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "The `matchesVersion` of the people list the app has; a newer one on the server sends the list again."
           }
-        },
-        "required": [
-          "hashes"
-        ]
+        }
       },
       "ContactUploadResultEnvelope": {
         "type": "object",
@@ -141475,6 +141612,18 @@
         },
         "required": [
           "data"
+        ]
+      },
+      "SetNotifyJoinedDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "«Notify me when contacts join LawBid»: the server sends \"X joined LawBid\"."
+          }
+        },
+        "required": [
+          "enabled"
         ]
       },
       "SetFindByPhoneDto": {

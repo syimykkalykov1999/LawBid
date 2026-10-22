@@ -127,6 +127,11 @@ String? notificationRoute({
       return AppRoutes.lawyer((s('actorUsername') ?? actorUsername)!);
     case 'review_received':
       return AppRoutes.profile;
+    // Owner 2026-10-22: someone from my phone book joined LawBid (sent by
+    // the server) — an attorney's profile, or the Contacts list.
+    case 'contact_joined':
+      if (actorUsername != null) return AppRoutes.lawyer(actorUsername);
+      return AppRoutes.contacts;
     case 'new_follower':
       if (actorUsername != null) return AppRoutes.lawyer(actorUsername);
       return myId == null ? null : SocialRoutes.followers(myId);
@@ -464,7 +469,7 @@ IconData _icon(AppNotification n) => switch (n.type) {
         AppIcons.modeCommentRounded,
       // Owner 2026-10-07: Threads-style reposts.
       'post_repost' => AppIcons.autoModeRounded,
-      'new_follower' => AppIcons.personAddAlt1Rounded,
+      'new_follower' || 'contact_joined' => AppIcons.personAddAlt1Rounded,
       // Owner 2026-10-20: channels.
       'channel_post' => AppIcons.campaignOutlined,
       // OQ-041.

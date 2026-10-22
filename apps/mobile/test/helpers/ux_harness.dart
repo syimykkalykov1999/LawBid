@@ -74,6 +74,23 @@ class _NoContactsSync implements ContactsSyncRepository {
 
   @override
   Future<void> setFindByPhone({required bool enabled}) async {}
+
+  @override
+  Future<ContactsSyncAnswer> sync({
+    bool full = false,
+    String? baseHash,
+    List<String> added = const [],
+    List<String> removed = const [],
+    String? bookHash,
+    int? matchesVersion,
+  }) async =>
+      const ContactsSyncAnswer(
+        status: ContactsSyncStatusCode.ok,
+        bookHash: null,
+      );
+
+  @override
+  Future<void> setNotifyJoined({required bool enabled}) async {}
 }
 
 /// "Asked already": the soft row shows, no system dialog in tests.

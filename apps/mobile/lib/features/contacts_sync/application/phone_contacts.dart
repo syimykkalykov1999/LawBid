@@ -1,16 +1,14 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter/foundation.dart' show compute, kIsWeb;
 import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/network/api_error.dart';
-import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/core/platform/chat_notifications_channel.dart';
+import 'package:lawbid/features/contacts_sync/application/contacts_book_sync.dart';
 import 'package:lawbid/features/contacts_sync/application/contacts_sync_providers.dart';
 import 'package:lawbid/features/contacts_sync/data/contacts_sync_repository.dart';
 import 'package:lawbid/features/contacts_sync/data/phone_numbers.dart';
-import 'package:lawbid/features/social/application/social_providers.dart';
 
 /// One phone-book entry: the name and its raw numbers.
 class PhoneBookEntry {
@@ -109,65 +107,6 @@ class ContactsConsent extends Notifier<bool> {
 final contactsConsentProvider =
     NotifierProvider<ContactsConsent, bool>(ContactsConsent.new);
 
-const _cacheKey = 'contacts_cache_v1';
-
-/// How long the device remembers who matched; inside it only numbers not
-/// seen before are sent.
-const contactsCacheTtl = Duration(hours: 24);
-
-class _Cache {
-  const _Cache(this.at, this.region, this.hashes, this.people);
-
-  final DateTime at;
-  final String? region;
-  final Set<String> hashes;
-  final List<ContactPerson> people;
-
-  bool get fresh => DateTime.now().difference(at) < contactsCacheTtl;
-
-  String encode() => jsonEncode({
-        'at': at.toIso8601String(),
-        'region': region,
-        'hashes': hashes.toList(),
-        'people': [
-          for (final p in people)
-            {
-              'hash': p.hash,
-              'userId': p.userId,
-              'displayName': p.displayName,
-              'username': p.username,
-              'avatarUrl': p.avatarUrl,
-              'role': p.role,
-            },
-        ],
-      });
-
-  static _Cache? decode(String? raw) {
-    if (raw == null) return null;
-    try {
-      final m = jsonDecode(raw) as Map<String, dynamic>;
-      return _Cache(
-        DateTime.parse(m['at'] as String),
-        m['region'] as String?,
-        {for (final h in m['hashes'] as List) '$h'},
-        [
-          for (final raw in m['people'] as List)
-            ContactPerson(
-              hash: (raw as Map)['hash'] as String,
-              userId: raw['userId'] as String,
-              displayName: raw['displayName'] as String? ?? '',
-              username: raw['username'] as String?,
-              avatarUrl: raw['avatarUrl'] as String?,
-              role: raw['role'] as String?,
-            ),
-        ],
-      );
-    } on Object {
-      return null;
-    }
-  }
-}
-
 /// What can be shown while the book is being matched: the phone book with
 /// the people known so far (from the device cache, then from each answer).
 /// Null when nothing is in progress. Owner 2026-10-22: the Contacts tab
@@ -265,20 +204,19 @@ PhoneContacts _view(
 }
 
 /// Reads the phone book, hashes the numbers on the device (off the main
-/// thread), uploads only the hashes and joins the answer back to the names.
-/// Nothing is read or sent before the person said yes. The result is kept on
-/// the device for a day: inside it only new numbers are uploaded, after it
-/// the book is synced again; a 429 keeps what was already received.
+/// thread), syncs only hashes and joins the answer back to the names.
+/// Nothing is read or sent before the person said yes.
 ///
-/// Owner 2026-10-22: the whole book goes up in one request (parts only when
-/// the firewall refuses it, see ApiContactsSyncRepository); the book is on
-/// screen (phoneContactsLiveProvider) before the answer, and a failed
-/// answer never empties the tab — the book stays, with the people known
-/// before, and the request is retried quietly.
+/// Owner 2026-10-22: the book is on screen (phoneContactsLiveProvider)
+/// before the answer, and a failed answer never empties the tab — the book
+/// stays, with the people known before, and the request is retried
+/// quietly. The sync itself is hash-checked and sends only changes
+/// (ContactsBookSync): an unchanged book costs one tiny "changed?" request
+/// at most once an hour; the device keeps the people list between runs.
 final phoneContactsProvider = FutureProvider<PhoneContacts>((ref) async {
   final actions = ref.read(contactsSyncActionsProvider);
-  final kv = ref.read(localKvStoreProvider);
-  final cache = _Cache.decode(kv.getString(_cacheKey));
+  final bookSync = ref.read(contactsBookSyncProvider);
+  final saved = bookSync.saved;
   ContactsSyncStatus? status;
   try {
     status = await ref.read(contactsSyncStatusProvider.future);
@@ -296,81 +234,37 @@ final phoneContactsProvider = FutureProvider<PhoneContacts>((ref) async {
   if (entries == null) return const PhoneContacts(denied: true);
   // Allowed on this install: the daily background sync may run from now on.
   await actions.markAsked();
-  final region = status?.phoneRegion ?? cache?.region;
+  final region = status?.phoneRegion ?? saved?.region;
   final byHash = await compute(
     hashPhoneBook,
     (numbers: [for (final e in entries) e.numbers], region: region),
   );
-  final reuse = cache != null && cache.fresh && cache.region == region;
-  final all = byHash.keys.toSet();
-  final todo = reuse ? all.difference(cache.hashes) : all;
   // Known before this pass: on screen at once, replaced by the answer.
-  final known = <String, ContactPerson>{
-    if (cache != null && cache.region == region)
-      for (final p in cache.people) p.userId: p,
-  };
+  final known = saved != null && saved.region == region
+      ? saved.people
+      : const <ContactPerson>[];
   final live = ref.read(phoneContactsLiveProvider.notifier)
-    ..show(_view(entries, byHash, known.values));
-
-  // People received in this pass.
-  final received = <String, ContactPerson>{};
-  final uploaded = <String>{if (reuse) ...cache.hashes};
-  var limited = false;
+    ..show(_view(entries, byHash, known));
   final retries = ref.read(_retriesProvider);
-  if (todo.isNotEmpty) {
-    try {
-      final res = await ref.read(contactsSyncRepositoryProvider).upload(
-            todo,
-            onProgress: (soFar) => live.show(
-              _view(
-                entries,
-                byHash,
-                {
-                  ...known,
-                  for (final p in soFar.people) p.userId: p,
-                }.values,
-              ),
-            ),
-          );
-      uploaded.addAll(res.uploaded);
-      for (final p in res.people) {
-        received[p.userId] = p;
-      }
-      limited = res.limited;
-    } on ApiException {
-      // The book stays on screen with the people known before; the
-      // request is tried again quietly. The cache is left as it was.
-      final delays = ref.read(contactsRetryDelaysProvider);
-      if (retries.count < delays.length) {
-        final timer = Timer(delays[retries.count++], ref.invalidateSelf);
-        ref.onDispose(timer.cancel);
-      }
-      live.show(null);
-      return _view(entries, byHash, known.values, matchFailed: true);
+  final ContactsBookSyncResult res;
+  try {
+    res = await bookSync.sync(
+      byHash.keys.toSet(),
+      region: region,
+      onProgress: (soFar) => live.show(_view(entries, byHash, soFar)),
+    );
+  } on ApiException {
+    // The book stays on screen with the people known before; the request
+    // is tried again quietly.
+    final delays = ref.read(contactsRetryDelaysProvider);
+    if (retries.count < delays.length) {
+      final timer = Timer(delays[retries.count++], ref.invalidateSelf);
+      ref.onDispose(timer.cancel);
     }
+    live.show(null);
+    return _view(entries, byHash, known, matchFailed: true);
   }
   retries.count = 0;
-  // A full pass replaces the list (people who went away disappear); inside
-  // the day, or when a limit cut the pass short, the old list is kept.
-  final kept = <String, ContactPerson>{
-    if (cache != null && (reuse || limited))
-      for (final p in cache.people) p.userId: p,
-    ...received,
-  };
-  await kv.setString(
-    _cacheKey,
-    _Cache(
-      limited
-          ? (cache?.at ?? DateTime(2000))
-          : (reuse ? cache.at : DateTime.now()),
-      region,
-      uploaded,
-      kept.values.toList(),
-    ).encode(),
-  );
-  ref
-    ..invalidate(contactsSyncStatusProvider)
-    ..invalidate(suggestionsProvider);
   live.show(null);
-  return _view(entries, byHash, kept.values, limited: limited);
+  return _view(entries, byHash, res.people, limited: res.limited);
 });

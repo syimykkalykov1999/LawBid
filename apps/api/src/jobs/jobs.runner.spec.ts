@@ -237,7 +237,8 @@ describe('JobsRunner', () => {
     // (nightly) for government-request archives.
     // Owner 2026-10-21: + chat.disappearing (every 2 minutes).
     // Owner 2026-10-21: + legal-qa.sweep (nightly).
-    expect(upserts).toHaveLength(58);
+    // Owner 2026-10-22: + contacts.joined (every 2 minutes).
+    expect(upserts).toHaveLength(59);
     const byName = Object.fromEntries(
       upserts.map((c: unknown[]) => [c[0], c[1]]),
     );

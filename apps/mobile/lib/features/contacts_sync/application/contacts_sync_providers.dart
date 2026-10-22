@@ -3,6 +3,7 @@ import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
+import 'package:lawbid/features/contacts_sync/application/contacts_book_sync.dart';
 import 'package:lawbid/features/contacts_sync/data/contacts_sync_repository.dart';
 import 'package:lawbid/features/contacts_sync/data/phone_numbers.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
@@ -58,9 +59,11 @@ class ContactsSyncActions {
     final numbers = await _ref.read(phoneBookReaderProvider)();
     if (numbers == null) return false;
     final status = await _ref.read(contactsSyncStatusProvider.future);
-    await _ref
-        .read(contactsSyncRepositoryProvider)
-        .upload(contactHashes(numbers, region: status.phoneRegion));
+    // Owner 2026-10-22: hash-checked, only changes (ContactsBookSync).
+    await _ref.read(contactsBookSyncProvider).sync(
+          contactHashes(numbers, region: status.phoneRegion),
+          region: status.phoneRegion,
+        );
     _ref
       ..invalidate(contactsSyncStatusProvider)
       ..invalidate(suggestionsProvider);
@@ -69,6 +72,8 @@ class ContactsSyncActions {
 
   Future<void> remove() async {
     await _ref.read(contactsSyncRepositoryProvider).remove();
+    // The server forgot the book: so does the device.
+    await _ref.read(contactsBookSyncProvider).forget();
     _ref
       ..invalidate(contactsSyncStatusProvider)
       ..invalidate(suggestionsProvider);

@@ -13,6 +13,12 @@ ContactUploadResultDto _$ContactUploadResultDtoFromJson(
   people: (json['people'] as List<dynamic>)
       .map((e) => ContactPersonDto.fromJson(e as Map<String, dynamic>))
       .toList(),
+  status: json['status'] == null
+      ? null
+      : ContactUploadResultDtoStatus.fromJson(json['status'] as String),
+  bookHash: json['bookHash'] as String?,
+  bookSize: (json['bookSize'] as num?)?.toInt(),
+  matchesVersion: (json['matchesVersion'] as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$ContactUploadResultDtoToJson(
@@ -20,4 +26,8 @@ Map<String, dynamic> _$ContactUploadResultDtoToJson(
 ) => <String, dynamic>{
   'matched': instance.matched,
   'people': instance.people.map((e) => e.toJson()).toList(),
+  'status': ?instance.status?.toJson(),
+  'bookHash': ?instance.bookHash,
+  'bookSize': ?instance.bookSize,
+  'matchesVersion': ?instance.matchesVersion,
 };

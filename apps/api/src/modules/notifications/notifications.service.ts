@@ -63,6 +63,8 @@ export const NOTIFICATION_CATEGORY: Record<
   channel_post: 'channels',
   // Owner 2026-10-21: an invitation to a group.
   group_invite: 'groups',
+  // Owner 2026-10-22: someone from my phone book joined LawBid.
+  contact_joined: 'social',
   // OQ-048: the attorney's team.
   assistant_request: 'messages',
   assistant_task: 'cases',
@@ -158,6 +160,7 @@ export const NOTIFICATION_IMPORTANT: Record<NotificationType, boolean> = {
   followed_post: false,
   channel_post: false,
   group_invite: true,
+  contact_joined: false,
   assistant_request: true,
   assistant_task: true,
   assistant_bid_draft: true,
