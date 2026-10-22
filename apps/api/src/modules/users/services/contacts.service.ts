@@ -22,6 +22,7 @@ import {
   AUTH_EVENT_TYPES,
 } from '../../auth/services/auth-event.service';
 import { SignInChangeNotifier } from '../../auth/notifications/sign-in-change-notifier.service';
+import { SessionRevocationService } from '../../auth/services/session-revocation.service';
 
 /**
  * POST /users/me/contacts/request + /verify (docs/01_FOUNDATION_AUTH.md
@@ -53,6 +54,8 @@ export class ContactsService {
     @Optional() private readonly flags?: FeatureFlagsService,
     // Owner 2026-10-22 (security audit #3): "your contact changed".
     @Optional() private readonly signInChange?: SignInChangeNotifier,
+    // Owner 2026-10-22 (security audit #3): other sessions end on a change.
+    @Optional() private readonly revocation?: SessionRevocationService,
   ) {}
 
   /** True when the user already has a verified contact of this type —
@@ -167,6 +170,8 @@ export class ContactsService {
     type: 'phone' | 'email',
     value: string,
     code: string,
+    /** The session making the change: it stays signed in. */
+    keepSessionId?: string,
   ): Promise<void> {
     const normalized = this.normalize(type, value);
     const result = await this.otp.verifyOtp(type, normalized, code, 'contact');
@@ -269,6 +274,14 @@ export class ContactsService {
       meta: { type, replaced },
     });
     if (previous !== normalized) {
+      // Owner 2026-10-22 (security audit #3, finding 5; ASVS V3.3.3): a new
+      // phone / e-mail ends every other session — a thief's session must
+      // not outlive the owner's "I changed my number".
+      await this.revocation?.revokeOtherChainsForUser(
+        userId,
+        keepSessionId,
+        'credentials_changed',
+      );
       // Owner 2026-10-22 (security audit #3, finding 2): told on every
       // device and to the e-mail the account had before this change.
       await this.signInChange?.notify({

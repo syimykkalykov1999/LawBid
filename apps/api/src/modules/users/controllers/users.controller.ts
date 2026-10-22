@@ -234,7 +234,13 @@ export class UsersController {
     @CurrentUser() user: RequestUser,
     @Body() dto: ContactVerifyDto,
   ): Promise<ContactVerifiedDto> {
-    await this.contacts.verify(user.sub, dto.type, dto.value, dto.code);
+    await this.contacts.verify(
+      user.sub,
+      dto.type,
+      dto.value,
+      dto.code,
+      user.sid,
+    );
     return { verified: true };
   }
 

@@ -353,11 +353,34 @@ describe('Onboarding (e2e) — stage 1.7 server side', () => {
       .set(auth)
       .send({ password: 'Strong-pass-2', currentPassword: 'wrong-pass-0' })
       .expect(401);
+    const sessionsBefore = await prisma.session.count({
+      where: { user_id: userId, revoked_at: null },
+    });
+    const other = await prisma.session.create({
+      data: {
+        user_id: userId,
+        session_chain_id: randomUUID(),
+        refresh_hash: `audit3-${randomUUID()}`,
+        platform: 'web',
+        expires_at: new Date(Date.now() + 86_400_000),
+      },
+    });
     await api()
       .post('/api/v1/auth/password')
       .set(auth)
       .send({ password: 'Strong-pass-2', currentPassword: 'Strong-pass-1' })
       .expect(200);
+    // Every other session ended; this one is still signed in.
+    const ended = await prisma.session.findUniqueOrThrow({
+      where: { id: other.id },
+    });
+    expect(ended.revoked_reason).toBe('credentials_changed');
+    expect(
+      await prisma.session.count({
+        where: { user_id: userId, revoked_at: null },
+      }),
+    ).toBe(sessionsBefore);
+    await api().get('/api/v1/users/me').set(auth).expect(200);
   });
 
   it('bootstrap legal documents carry an id for consents.documentId', async () => {

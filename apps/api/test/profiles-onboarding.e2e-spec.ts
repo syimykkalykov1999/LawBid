@@ -1,10 +1,12 @@
 import type { AddressInfo, Server } from 'node:net';
+import { randomUUID } from 'node:crypto';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { LoggerErrorInterceptor, Logger } from 'nestjs-pino';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { TokenService } from '../src/modules/auth/services/token.service';
 import { attachCleanAvatar } from './support/clean-avatar';
 
 /**
@@ -499,6 +501,27 @@ describe('Profiles onboarding (e2e) — client_profiles / attorney_profiles', ()
       prisma.notification.count({
         where: { user_id: userId, type: 'security_sign_in_changed' },
       });
+    // A second session (the website, or a thief's): it ends on the change.
+    const otherChain = randomUUID();
+    await prisma.session.create({
+      data: {
+        user_id: userId,
+        session_chain_id: otherChain,
+        refresh_hash: `audit3-${otherChain}`,
+        platform: 'web',
+        expires_at: new Date(Date.now() + 86_400_000),
+      },
+    });
+    const otherAuth = {
+      Authorization: `Bearer ${app.get(TokenService).signAccessToken({
+        sub: userId,
+        role: 'client',
+        sid: otherChain,
+        verified: false,
+        subscriptionStatus: 'none',
+      })}`,
+    };
+    await api().get('/api/v1/users/me').set(otherAuth).expect(200);
     const newPhone = nextPhone();
     const noReauth = await api()
       .post('/api/v1/users/me/contacts/request')
@@ -542,8 +565,14 @@ describe('Profiles onboarding (e2e) — client_profiles / attorney_profiles', ()
     ]);
     const me = await api().get('/api/v1/users/me').set(auth).expect(200);
     expect(me.body.data.phone).toBe(newPhone);
-    // Owner 2026-10-22 (audit #3): the change is announced on every device.
+    // Owner 2026-10-22 (audit #3): the change is announced on every device,
+    // and every other session ends — this one stays signed in.
     expect(await notices()).toBe(1);
+    const dropped = await api()
+      .get('/api/v1/users/me')
+      .set(otherAuth)
+      .expect(401);
+    expect(dropped.body.error.code).toBe('AUTH_SESSION_REVOKED');
 
     // Linking an ADDITIONAL phone sign-in method via POST /auth/identifiers
     // (email delivery isn't runnable here, see onboarding.e2e-spec.ts).

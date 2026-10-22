@@ -65,6 +65,7 @@ async function make(
   const bans = { assertAllowed: jest.fn().mockResolvedValue(undefined) };
   const revocation = {
     revokeAllChainsForUser: jest.fn().mockResolvedValue([]),
+    revokeOtherChainsForUser: jest.fn().mockResolvedValue([]),
   };
   const service = new PasswordAuthService(
     prisma as never,
@@ -316,5 +317,20 @@ describe('PasswordAuthService', () => {
     );
     expect(assertReauth).toHaveBeenCalledTimes(1);
     expect(prisma.user.update).toHaveBeenCalledTimes(1);
+  });
+
+  it('owner 2026-10-22 (audit #3): a new password ends every OTHER session', async () => {
+    const { service, revocation } = await make();
+    await service.setPassword(
+      { password: 'Another-pass-1', currentPassword: 'Demo1234!' },
+      { sub: 'u1', sid: 'this-phone' } as never,
+      noReauth(),
+    );
+    expect(revocation.revokeOtherChainsForUser).toHaveBeenCalledWith(
+      'u1',
+      'this-phone',
+      'credentials_changed',
+    );
+    expect(revocation.revokeAllChainsForUser).not.toHaveBeenCalled();
   });
 });

@@ -211,6 +211,13 @@ export class PasswordAuthService {
       success: true,
       meta: { changed: Boolean(user.password_hash) },
     });
+    // Owner 2026-10-22 (security audit #3, finding 5): a new password ends
+    // every other session (a thief's included); this device stays in.
+    await this.revocation.revokeOtherChainsForUser(
+      user.id,
+      current.sid,
+      'credentials_changed',
+    );
     await this.signInChange?.notify({
       userId: user.id,
       kind: 'password',
