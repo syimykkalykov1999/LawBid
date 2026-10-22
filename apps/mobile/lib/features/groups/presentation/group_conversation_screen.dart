@@ -65,7 +65,6 @@ class _GroupConversationScreenState
   final Map<String, GlobalKey> _keys = {};
   StreamSubscription<Object?>? _events;
   Timer? _highlightTimer;
-  Timer? _callTimer;
 
   api.GroupMessageDto? _replyTo;
   api.GroupMessageDto? _editing;
@@ -87,10 +86,9 @@ class _GroupConversationScreenState
   void initState() {
     super.initState();
     _scroll.addListener(_onScroll);
-    // A call may start or end in the group while this chat is open.
-    _callTimer = Timer.periodic(const Duration(seconds: 10), (_) {
-      if (mounted) ref.invalidate(groupRunningCallProvider(widget.groupId));
-    });
+    // A call may start or end in the group while this chat is open:
+    // groupRunningCallProvider follows the server's `call:ongoing` events
+    // (owner 2026-10-22, load audit finding 3: no 10 s polling).
     // Being removed while the screen is open (also in the topic list,
     // which has no message thread of its own).
     _events = ref.read(realtimeEventsProvider).listen((e) {
@@ -101,14 +99,6 @@ class _GroupConversationScreenState
           mounted) {
         setState(() => _removed = true);
       }
-      // Inbox 20e: someone started / joined / left / ended the group's call.
-      if (e.name == 'group:update' &&
-          data is Map &&
-          data['groupId'] == widget.groupId &&
-          data['kind'] == 'call' &&
-          mounted) {
-        ref.invalidate(groupRunningCallProvider(widget.groupId));
-      }
     });
   }
 
@@ -116,7 +106,6 @@ class _GroupConversationScreenState
   void dispose() {
     _events?.cancel();
     _highlightTimer?.cancel();
-    _callTimer?.cancel();
     _scroll
       ..removeListener(_onScroll)
       ..dispose();

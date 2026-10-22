@@ -23,6 +23,7 @@ import {
 } from '../auth/services/token.service';
 import {
   REALTIME_NAMESPACE,
+  channelRoom,
   conversationRoom,
   userRoom,
   viewingKey,
@@ -371,6 +372,43 @@ export class RealtimeGateway
     await socket.leave(conversationRoom(id));
     state(socket).viewing.delete(id);
     await this.redis.srem(viewingKey(state(socket).user.sub, id), socket.id);
+    return { ok: true };
+  }
+
+  /** Owner 2026-10-22 (load audit finding 3): an open channel hears its
+   * call start / change / end (`call:ongoing`, `call:ongoing_ended`) instead
+   * of asking every 10 s. Only its owner / admins and subscribers. */
+  @SubscribeMessage('channel:watch')
+  async watchChannel(
+    @ConnectedSocket() socket: Socket,
+    @MessageBody() body: { channelId?: unknown },
+  ): Promise<{ ok: boolean }> {
+    const id = typeof body?.channelId === 'string' ? body.channelId : '';
+    const uid = state(socket)?.user?.sub;
+    if (!uid || !UUID_RE.test(id)) return { ok: false };
+    const where = { channel_id_user_id: { channel_id: id, user_id: uid } };
+    const reader =
+      (await this.prisma.channelAdmin.findUnique({
+        where,
+        select: { user_id: true },
+      })) ??
+      (await this.prisma.channelSubscription.findUnique({
+        where,
+        select: { user_id: true },
+      }));
+    if (!reader) return { ok: false };
+    await socket.join(channelRoom(id));
+    return { ok: true };
+  }
+
+  @SubscribeMessage('channel:unwatch')
+  async unwatchChannel(
+    @ConnectedSocket() socket: Socket,
+    @MessageBody() body: { channelId?: unknown },
+  ): Promise<{ ok: boolean }> {
+    const id = typeof body?.channelId === 'string' ? body.channelId : '';
+    if (!UUID_RE.test(id)) return { ok: false };
+    await socket.leave(channelRoom(id));
     return { ok: true };
   }
 

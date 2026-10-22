@@ -115,4 +115,16 @@ class OngoingGroupCall {
 
   /// I am in it now («Return» instead of «Join»).
   final bool mine;
+
+  /// Owner 2026-10-22: the same call after a `call:ongoing` event.
+  OngoingGroupCall withPeople({required int joined, required bool mine}) =>
+      OngoingGroupCall(
+        id: id,
+        groupId: groupId,
+        groupTitle: groupTitle,
+        groupAvatarUrl: groupAvatarUrl,
+        video: video,
+        joined: joined,
+        mine: mine,
+      );
 }
