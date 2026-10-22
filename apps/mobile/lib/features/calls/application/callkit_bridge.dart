@@ -33,6 +33,10 @@ class CallkitSystemUi implements SystemCallUi {
 
   @override
   Future<void> dismiss(String callId) async {
+    final from = StackTrace.current.toString().split('\n');
+    callTrace(
+      'callkit dismiss $callId from ${from.skip(1).take(2).join(' | ')}',
+    );
     // The plugin reports our own endCall back as an "ended" / "declined"
     // event: that is not the user hanging up (Android: answering from the
     // heads-up ended the call it had just answered).
@@ -69,20 +73,26 @@ class CallkitSystemUi implements SystemCallUi {
   @override
   Future<void> answered(AppCall call) async {
     if (defaultTargetPlatform == TargetPlatform.iOS) {
-      // Answered on the CallKit screen: keep that call (green bar in the
-      // status bar, audio session kept by the system, e.g. when screen
-      // recording starts) and end it only when the call ends.
+      // Owner 2026-10-21 (Apple / LiveKit's CallKit design): the system
+      // call is THE call for its whole life. Answered on the sheet: it stays
+      // (green bar, audio session held by iOS). Answered in the app while
+      // the sheet rings: answer that same call — never end it and start a
+      // new one (that ended the call the person had just answered).
       try {
         final calls = await FlutterCallkitIncoming.activeCalls();
-        if (calls.any((c) => c.id == call.id && c.isAccepted)) return;
-        if (calls.any((c) => c.id == call.id)) {
-          // A ringing one: replace it with a connected call.
-          _ignoreEnded(call.id);
-          await dismiss(call.id);
+        final mine = calls.where((c) => c.id == call.id).firstOrNull;
+        if (mine != null) {
+          callTrace('answered: callkit keeps ${call.id} '
+              'accepted=${mine.isAccepted}');
+          if (!mine.isAccepted) {
+            await FlutterCallkitIncoming.setCallConnected(call.id);
+          }
+          return;
         }
       } on Object {
         // No plugin: fall through.
       }
+      callTrace('answered: no callkit call for ${call.id}, registering');
       await showOngoing(call);
       return;
     }
@@ -123,6 +133,35 @@ class CallkitSystemUi implements SystemCallUi {
       debugPrint('callkit ongoing unavailable: $e');
     }
   }
+}
+
+StreamController<CallEvent?>? _callkitEvents;
+
+/// The ONE subscription to the plugin's event channel. iPhone test
+/// 2026-10-22 (the answered call «dropped»): a Flutter event channel feeds
+/// its last subscriber only — the push service's token listener, opened
+/// after the call controller's, took the channel, and «Accept» from the
+/// CallKit sheet never reached the controller (iOS had answered, the app
+/// kept ringing, the caller heard ringback until the 60 s timeout). Every
+/// listener in the app goes through this one stream.
+Stream<CallEvent?> callkitEvents() {
+  final existing = _callkitEvents;
+  if (existing != null) return existing.stream;
+  final controller = StreamController<CallEvent?>.broadcast();
+  _callkitEvents = controller;
+  try {
+    FlutterCallkitIncoming.onEvent.listen(
+      controller.add,
+      onError: (Object e, StackTrace s) {
+        callTrace('callkit event error: $e');
+        controller.addError(e, s);
+      },
+    );
+  } on Object catch (e) {
+    // No plugin (tests, desktop): an empty stream.
+    callTrace('callkit events unavailable: $e');
+  }
+  return controller.stream;
 }
 
 /// CallKit ids we ended ourselves a moment ago: their "ended" event is not
@@ -324,21 +363,31 @@ final callkitEventsProvider = Provider<void>((ref) {
   // also lets incoming calls ring.
   StreamSubscription<CallEvent?>? sub;
   try {
-    sub = FlutterCallkitIncoming.onEvent.listen(
+    sub = callkitEvents().listen(
       (event) async {
+        callTrace('callkit event ${event.runtimeType}');
         final controller = ref.read(callControllerProvider.notifier);
         switch (event) {
           case CallEventActionCallAccept(:final callKitParams):
+            callTrace('callkit accept ${callKitParams.id}');
             await controller.ringFromPush(callKitParams.id, accept: true);
           case CallEventActionCallEnded(:final callKitParams):
             // iOS: "End" on the system call UI (the green pill / lock
             // screen) hangs up. Our own endCall() also reports it — the
             // call is already over then.
             final s = ref.read(callControllerProvider);
+            callTrace('callkit ended ${callKitParams.id} '
+                'byUs=${_endedByUs(callKitParams.id)} phase=${s.phase}');
             if (systemEndHangsUp(s, callKitParams.id)) {
               await controller.hangUp();
             }
+          case CallEventActionCallTimeout(:final id):
+            callTrace('callkit timeout $id');
+          case CallEventActionCallToggleAudioSession(:final isActive):
+            callTrace('callkit audio session active=$isActive');
           case CallEventActionCallDecline(:final callKitParams):
+            callTrace('callkit decline ${callKitParams.id} '
+                'byUs=${_endedByUs(callKitParams.id)}');
             // Our own dismiss (answered elsewhere, replaced by the ongoing
             // call) is reported as a decline too: not the user's choice.
             if (_endedByUs(callKitParams.id)) break;
