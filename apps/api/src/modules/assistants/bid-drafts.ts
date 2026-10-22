@@ -8,9 +8,11 @@ import {
   HttpStatus,
   Injectable,
   NotFoundException,
+  Optional,
   Param,
   Put,
 } from '@nestjs/common';
+import { NotificationsService } from '../notifications/notifications.service';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -98,7 +100,10 @@ export class BidDraftDto extends BidDraftBodyDto {
 
 @Injectable()
 export class BidDraftsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly notifications?: NotificationsService,
+  ) {}
 
   async get(user: RequestUser, caseId: string): Promise<BidDraftDto> {
     const d = await this.prisma.bidDraft.findUnique({
@@ -157,6 +162,12 @@ export class BidDraftsService {
     }
     const payload = { ...dto } as Prisma.InputJsonObject;
     const by = user.assistant?.name.slice(0, 80) ?? null;
+    const existed = await this.prisma.bidDraft.findUnique({
+      where: {
+        attorney_id_case_id: { attorney_id: user.sub, case_id: caseId },
+      },
+      select: { case_id: true },
+    });
     await this.prisma.bidDraft.upsert({
       where: {
         attorney_id_case_id: { attorney_id: user.sub, case_id: caseId },
@@ -169,6 +180,15 @@ export class BidDraftsService {
       },
       update: { payload, prepared_by_name: by },
     });
+    // Owner 2026-10-21 (inbox 30): the attorney hears that an assistant
+    // prepared a bid (once per draft; Settings → From assistants → Bids).
+    if (user.assistant && !existed) {
+      await this.notifications?.emit({
+        type: 'assistant_bid_draft',
+        recipientId: user.sub,
+        payload: { caseId },
+      });
+    }
     return this.get(user, caseId);
   }
 

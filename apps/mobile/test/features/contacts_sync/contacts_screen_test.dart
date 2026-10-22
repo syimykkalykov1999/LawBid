@@ -67,7 +67,7 @@ void main() {
                   textDirection: dir,
                   child: picker
                       ? const Scaffold(body: ContactPickerSheet())
-                      : const ContactsScreen(),
+                      : const ContactsScreen(initialContacts: true),
                 ),
                 theme: theme,
                 size: narrowPhone,
@@ -98,7 +98,10 @@ void main() {
       useNarrowPhone(tester);
       await tester.pumpWidget(
         uxApp(
-          Directionality(textDirection: dir, child: const ContactsScreen()),
+          Directionality(
+            textDirection: dir,
+            child: const ContactsScreen(initialContacts: true),
+          ),
           theme: AppTheme.dark(),
           size: narrowPhone,
           textScale: 1.1,
@@ -128,7 +131,7 @@ void main() {
     useNarrowPhone(tester);
     await tester.pumpWidget(
       uxApp(
-        const ContactsScreen(),
+        const ContactsScreen(initialContacts: true),
         theme: AppTheme.dark(),
         size: narrowPhone,
         overrides: uxOverrides(
@@ -149,7 +152,7 @@ void main() {
     useNarrowPhone(tester);
     await tester.pumpWidget(
       uxApp(
-        const ContactsScreen(),
+        const ContactsScreen(initialContacts: true),
         theme: AppTheme.light(),
         size: narrowPhone,
         overrides: uxOverrides(

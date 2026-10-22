@@ -373,6 +373,18 @@ export const NOTIFICATION_TEMPLATES: Partial<
     en: { title: 'New task', body: 'Your assistant set a task for you.' },
     ru: { title: 'Новая задача', body: 'Помощник поставил вам задачу.' },
   },
+  // Owner 2026-10-21 (inbox 30).
+  assistant_bid_draft: {
+    group: 'bids',
+    en: {
+      title: 'Bid draft ready',
+      body: 'Your assistant prepared a bid. Check it and send.',
+    },
+    ru: {
+      title: 'Черновик бида готов',
+      body: 'Помощник подготовил бид. Проверьте и отправьте.',
+    },
+  },
   assistant_joined: {
     group: 'system',
     en: {

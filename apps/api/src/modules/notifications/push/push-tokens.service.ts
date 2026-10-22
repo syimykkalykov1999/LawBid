@@ -19,6 +19,7 @@ export class PushTokensService {
     token: string,
     platform: string,
     localReminders = false,
+    chatStyle = false,
   ): Promise<void> {
     const session = await this.prisma.session.findFirst({
       where: {
@@ -38,12 +39,14 @@ export class PushTokensService {
         fcm_token: token,
         platform,
         local_reminders: localReminders,
+        chat_style: chatStyle,
       },
       update: {
         user_id: userId,
         session_id: session.id,
         platform,
         local_reminders: localReminders,
+        chat_style: chatStyle,
         last_seen_at: new Date(),
       },
     });
@@ -115,6 +118,17 @@ export class PushTokensService {
         platform: { in: ['android', 'ios'] },
         local_reminders: true,
       },
+      select: { fcm_token: true },
+    });
+    return rows.map((r) => r.fcm_token);
+  }
+
+  /** Owner 2026-10-22: Android devices whose app draws chat notifications
+   * itself (WhatsApp-style, with the sender's photo) from a data-only push.
+   * Older app versions never set it and keep the normal alert. */
+  async chatStyleTokens(userId: string): Promise<string[]> {
+    const rows = await this.prisma.pushToken.findMany({
+      where: { user_id: userId, platform: 'android', chat_style: true },
       select: { fcm_token: true },
     });
     return rows.map((r) => r.fcm_token);

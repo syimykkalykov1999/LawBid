@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -15,7 +16,7 @@ import 'package:lawbid/features/social/domain/social_models.dart';
 
 /// Owner 2026-10-15: publishing a reel no longer holds the screen — the
 /// form closes at once, the video is compressed, uploaded and posted by
-/// this job in the background, with a thin progress strip over the app.
+/// this job in the background (the card at the top of the feed shows it).
 /// Owner 2026-10-19 («шкала — обманка»): after the upload the video is
 /// still being processed (Bunny); [processing] says so honestly and the
 /// strip turns «Published» only when the reel can really be watched.
@@ -48,11 +49,30 @@ class ReelPublishState {
     this.phase = ReelPublishPhase.idle,
     this.progress = 0,
     this.error,
+    this.uploadFrom = 0,
   });
 
   final ReelPublishPhase phase;
+
+  /// 0…1 within the current phase.
   final double progress;
   final Object? error;
+
+  /// Owner 2026-10-22 (Instagram, one line for the whole publish): where
+  /// the upload starts on the line — after the compression's share when the
+  /// phone compressed the video, else from the very start.
+  final double uploadFrom;
+
+  /// The share of the compression on the line.
+  static const compressShare = 0.3;
+
+  /// 0…1 of the whole publish (compression, then the upload); 1 after.
+  double get overall => switch (phase) {
+        ReelPublishPhase.compressing => progress * compressShare,
+        ReelPublishPhase.uploading => uploadFrom + progress * (1 - uploadFrom),
+        ReelPublishPhase.idle || ReelPublishPhase.failed => 0,
+        _ => 1,
+      };
 
   bool get busy =>
       phase == ReelPublishPhase.compressing ||
@@ -74,6 +94,7 @@ class ReelPublishRequest {
     required this.photoIds,
     required this.attachments,
     this.coverFileId,
+    this.cover,
   });
 
   final XFile file;
@@ -88,6 +109,10 @@ class ReelPublishRequest {
 
   /// A cover picked from the gallery (an uploaded post image), if any.
   final String? coverFileId;
+
+  /// Owner 2026-10-22 (Instagram): the cover the form showed — the publish
+  /// card's thumbnail from the first moment.
+  final Uint8List? cover;
 }
 
 class ReelPublishJob extends Notifier<ReelPublishState> {
@@ -97,6 +122,9 @@ class ReelPublishJob extends Notifier<ReelPublishState> {
 
   @override
   ReelPublishState build() => const ReelPublishState();
+
+  /// The reel being published (or the failed one «Retry» sends again).
+  ReelPublishRequest? get request => _last;
 
   Future<void> start(ReelPublishRequest r) async {
     if (state.busy) return;
@@ -108,7 +136,12 @@ class ReelPublishJob extends Notifier<ReelPublishState> {
     try {
       final video = await _compressed(r);
       if (_cancel?.isCancelled ?? true) return;
-      state = const ReelPublishState(phase: ReelPublishPhase.uploading);
+      final from =
+          identical(video, r.file) ? 0.0 : ReelPublishState.compressShare;
+      state = ReelPublishState(
+        phase: ReelPublishPhase.uploading,
+        uploadFrom: from,
+      );
       final upload = await repo.createUpload(
         sizeBytes: await video.length(),
         durationSec: r.cut.sourceSec,
@@ -126,6 +159,7 @@ class ReelPublishJob extends Notifier<ReelPublishState> {
         onProgress: (v) => state = ReelPublishState(
           phase: ReelPublishPhase.uploading,
           progress: v,
+          uploadFrom: from,
         ),
       );
       state = const ReelPublishState(

@@ -20,6 +20,7 @@ class ChipsSearchRow extends ConsumerStatefulWidget {
     this.leading,
     this.trailing,
     this.openSignal = 0,
+    this.hideWhenClosed = false,
     this.openKey = const ValueKey('list-search-open'),
     this.fieldKey = const ValueKey('list-search'),
     this.closeKey = const ValueKey('list-search-close'),
@@ -36,6 +37,10 @@ class ChipsSearchRow extends ConsumerStatefulWidget {
   /// Owner 2026-10-21: a button in the magnifier's place (Chats: «+»; the
   /// magnifier then lives in the top bar and opens the row by [openSignal]).
   final Widget? trailing;
+
+  /// Owner 2026-10-22: nothing at all while closed (the magnifier is
+  /// elsewhere and the chips are gone) — only the opened search takes room.
+  final bool hideWhenClosed;
 
   /// Each change opens the search (a magnifier outside the row).
   final int openSignal;
@@ -122,32 +127,42 @@ class _ChipsSearchRowState extends ConsumerState<ChipsSearchRow> {
           child: SizedBox(height: ChipsSearchRow.height, child: child),
         );
     if (_open) {
-      return bar(
-        Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.screenSide,
-            vertical: AppSpacing.xs,
-          ),
-          child: FlipSearchBar(
-            key: widget.fieldKey,
-            controller: _text,
-            focusNode: _focus,
-            semanticLabel: t.t(widget.hintKey),
-            cancelLabel: t.t('common.cancel'),
-            clearLabel: t.t('search.clear'),
-            showCancel: false,
-            hints: [t.t(widget.hintKey)],
-            onSubmitted: widget.onQuery,
-            trailing: AppIconButton(
-              key: widget.closeKey,
-              icon: AppIcon(AppIcons.closeRounded, color: colors.textSecondary),
-              semanticLabel: t.t('common.close'),
-              onPressed: _close,
+      // Owner 2026-10-22 (WhatsApp / Telegram): a tap on empty space outside
+      // the field always closes the search itself (text cleared, field
+      // hidden), not only the keyboard — even with text typed.
+      return TapRegion(
+        onTapOutside: (_) => _close(),
+        child: bar(
+          Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.screenSide,
+              vertical: AppSpacing.xs,
+            ),
+            child: FlipSearchBar(
+              key: widget.fieldKey,
+              controller: _text,
+              focusNode: _focus,
+              semanticLabel: t.t(widget.hintKey),
+              cancelLabel: t.t('common.cancel'),
+              clearLabel: t.t('search.clear'),
+              showCancel: false,
+              hints: [t.t(widget.hintKey)],
+              onSubmitted: widget.onQuery,
+              trailing: AppIconButton(
+                key: widget.closeKey,
+                icon: AppIcon(
+                  AppIcons.closeRounded,
+                  color: colors.textSecondary,
+                ),
+                semanticLabel: t.t('common.close'),
+                onPressed: _close,
+              ),
             ),
           ),
         ),
       );
     }
+    if (widget.hideWhenClosed) return const SizedBox.shrink();
     return bar(
       Row(
         children: [

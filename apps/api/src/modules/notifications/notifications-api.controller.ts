@@ -25,6 +25,7 @@ import {
   DeletePushTokenDto,
   NewCaseAlertsDto,
   NotificationDto,
+  IconBadgeDto,
   NotificationSettingsDto,
   NotificationsQueryDto,
   PushTokenDto,
@@ -36,6 +37,7 @@ import {
   ReadNotificationsResultDto,
   UpdateNewCaseAlertsDto,
   UpdateNotificationSettingsDto,
+  UpdateTopicSettingsDto,
 } from './notifications-api.dto';
 import { NotificationsApiService } from './notifications-api.service';
 import { PushTokensService } from './push/push-tokens.service';
@@ -85,10 +87,15 @@ export class NotificationsApiController {
   @Get('badges')
   @ApiOperation({ summary: 'Unread chats + notifications (§10)' })
   @ApiEnvelopeResponse(BadgesDto)
-  getBadges(@CurrentUser() user: RequestUser): Promise<Badges> {
-    return user.assistant
-      ? this.badges.forAssistant(user.sub, user.assistant.userId)
-      : this.badges.get(user.sub);
+  async getBadges(@CurrentUser() user: RequestUser): Promise<Badges> {
+    // Owner 2026-10-21: the icon switch is the device owner's own.
+    const me = user.assistant?.userId ?? user.sub;
+    return this.badges.withIcon(
+      me,
+      user.assistant
+        ? await this.badges.forAssistant(user.sub, user.assistant.userId)
+        : await this.badges.get(user.sub),
+    );
   }
 
   // OQ-048: an assistant has their own notifications and devices.
@@ -160,6 +167,29 @@ export class NotificationsApiController {
     return this.api.setQuietHours(user.sub, dto);
   }
 
+  // Owner 2026-10-21 (inbox 30): a switch per kind of notification.
+  @AssistantSelf()
+  @Put('notification-settings/topics')
+  @ApiOperation({ summary: 'Kinds of notifications on/off; locked stay on' })
+  @ApiEnvelopeResponse(NotificationSettingsDto)
+  @ApiErrors({ 400: [ErrorCode.VALIDATION_ERROR] })
+  updateNotificationTopics(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: UpdateTopicSettingsDto,
+  ) {
+    return this.api.updateTopics(user.sub, dto.items);
+  }
+
+  // Owner 2026-10-21 (inbox 29): «Счётчик на иконке в меню».
+  @AssistantSelf()
+  @Put('notification-settings/icon-badge')
+  @ApiOperation({ summary: 'Unread number on the app icon on/off' })
+  @ApiEnvelopeResponse(NotificationSettingsDto)
+  @ApiErrors({ 400: [ErrorCode.VALIDATION_ERROR] })
+  setIconBadge(@CurrentUser() user: RequestUser, @Body() dto: IconBadgeDto) {
+    return this.api.setIconBadge(user.sub, dto.enabled);
+  }
+
   // OQ-048: an assistant has their own notifications and devices.
   @AssistantSelf()
   @Post('push-tokens')
@@ -176,6 +206,7 @@ export class NotificationsApiController {
       dto.token,
       dto.platform,
       dto.localReminders === true && dto.platform === 'android',
+      dto.chatStyle === true && dto.platform === 'android',
     );
   }
 

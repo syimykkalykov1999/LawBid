@@ -5,6 +5,7 @@ import type Redis from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
 import { REDIS_CLIENT } from '../../../redis/redis.constants';
 import {
+  NO_BADGE_CHANNEL_SUFFIX,
   PUSH_SOUNDS,
   type PushMessage,
   type PushSender,
@@ -86,10 +87,16 @@ export class FcmPushSender implements PushSender {
       ? await this.tokens.armedReminders(message.userId)
       : new Map<string, Set<string>>();
     const key = reminderKey(message.data);
+    // Owner 2026-10-22: Android apps that draw the chat notification
+    // themselves (sender's photo, one stack per chat).
+    const chatStyle = new Set(
+      message.chat ? await this.tokens.chatStyleTokens(message.userId) : [],
+    );
     for (const device of devices) {
       if (skip.has(device)) continue;
       if (key && armed.get(device)?.has(key)) continue;
-      const dataOnly = message.call || localReminder.has(device);
+      const ownChat = chatStyle.has(device);
+      const dataOnly = message.call || localReminder.has(device) || ownChat;
       // Claim the device before the call: a crash between FCM's 200 and
       // the mark can at most skip a push, never double it (load review).
       const claimed = await this.redis.set(
@@ -130,42 +137,54 @@ export class FcmPushSender implements PushSender {
                         ...message.data,
                         title: message.title,
                         body: message.body,
+                        // Owner 2026-10-22 (inbox 29): the app draws this
+                        // chat alert itself — «Счётчик на иконке» off makes
+                        // it use the channel without a launcher badge.
+                        ...(ownChat && message.iconBadge === false
+                          ? { iconBadge: '0' }
+                          : {}),
                       }
                     : message.data,
                   android: message.call
                     ? { priority: 'high', ttl: `${CALL_TTL_SEC}s` }
-                    : dataOnly
-                      ? { priority: 'high', ttl: `${REMINDER_TTL_SEC}s` }
-                      : {
-                          priority: 'high',
-                          ...(message.ttlSec
-                            ? { ttl: `${message.ttlSec}s` }
-                            : {}),
-                          ...(message.collapseKey
-                            ? { collapse_key: message.collapseKey }
-                            : {}),
-                          ...(message.sound || message.reminder
-                            ? {
-                                notification: {
-                                  ...(message.sound
-                                    ? {
-                                        channel_id:
-                                          PUSH_SOUNDS[message.sound].channelId,
-                                        sound:
-                                          PUSH_SOUNDS[message.sound].android,
-                                      }
-                                    : {}),
-                                  // One notification per task / per message
-                                  // thread: a repeat replaces it.
-                                  ...(message.collapseKey
-                                    ? { tag: message.collapseKey }
-                                    : message.reminder && message.data?.taskId
-                                      ? { tag: `task:${message.data.taskId}` }
+                    : ownChat
+                      ? { priority: 'high' }
+                      : dataOnly
+                        ? { priority: 'high', ttl: `${REMINDER_TTL_SEC}s` }
+                        : {
+                            priority: 'high',
+                            ...(message.ttlSec
+                              ? { ttl: `${message.ttlSec}s` }
+                              : {}),
+                            ...(message.collapseKey
+                              ? { collapse_key: message.collapseKey }
+                              : {}),
+                            ...(message.sound || message.reminder
+                              ? {
+                                  notification: {
+                                    ...(message.sound
+                                      ? {
+                                          channel_id:
+                                            PUSH_SOUNDS[message.sound]
+                                              .channelId +
+                                            (message.iconBadge === false
+                                              ? NO_BADGE_CHANNEL_SUFFIX
+                                              : ''),
+                                          sound:
+                                            PUSH_SOUNDS[message.sound].android,
+                                        }
                                       : {}),
-                                },
-                              }
-                            : {}),
-                        },
+                                    // One notification per task / per message
+                                    // thread: a repeat replaces it.
+                                    ...(message.collapseKey
+                                      ? { tag: message.collapseKey }
+                                      : message.reminder && message.data?.taskId
+                                        ? { tag: `task:${message.data.taskId}` }
+                                        : {}),
+                                  },
+                                }
+                              : {}),
+                          },
                   apns: {
                     // Push 2026-10-19: delivered at once (screen off / Low Power
                     // mode too) as a visible alert; a call is useless after it
@@ -232,8 +251,11 @@ export class FcmPushSender implements PushSender {
                         // Lets a notification service extension (if one is
                         // added) enrich the alert; ignored without one.
                         'mutable-content': 1,
-                        ...(message.collapseKey
-                          ? { 'thread-id': message.collapseKey }
+                        ...(message.threadId || message.collapseKey
+                          ? {
+                              'thread-id':
+                                message.threadId ?? message.collapseKey,
+                            }
                           : {}),
                       },
                     },

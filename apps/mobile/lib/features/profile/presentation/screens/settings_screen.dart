@@ -357,7 +357,7 @@ class SettingsScreen extends ConsumerWidget {
           AppListRow(
             icon: AppIcons.contactPhoneOutlined,
             label: t.t('phoneContacts.title'),
-            onTap: () => context.push(AppRoutes.contacts),
+            onTap: () => context.push('${AppRoutes.contacts}?tab=contacts'),
           ),
           // OQ-028: who I blocked, with Unblock.
           AppListRow(

@@ -458,7 +458,13 @@ class ChatMessage {
     this.reactions = const [],
     this.pinned = false,
     this.expiresAt,
+    this.unreadable = false,
   });
+
+  /// Owner 2026-10-22: the server handed back a sealed `enc:v2…` body it
+  /// could not open. [body] is then '' and a text bubble says «Couldn't
+  /// decrypt this message» — the ciphertext is never shown.
+  final bool unreadable;
 
   /// Owner 2026-10-20: set for [MessageKind.gift]; the note is [body].
   final GiftSend? gift;
@@ -563,8 +569,18 @@ class ChatMessage {
         gift: gift,
         contact: contact,
         post: post,
+        unreadable: unreadable,
       );
 }
+
+/// Owner 2026-10-22: the at-rest envelope of a chat body
+/// (MessageBodyCipher: `enc:v2.<kid>.<iv>.<tag>.<ct>`, ct empty for an
+/// empty caption). A body of this shape reaching the app is ciphertext the
+/// server failed to open — under a photo it looked like `enc:v2.m1.oSY…`.
+final _sealedBody = RegExp(r'^enc:v\d+\.[\w-]+\.[\w-]+\.[\w-]+\.[\w-]*$');
+
+/// True when [body] is a sealed (undecrypted) message body.
+bool isSealedChatBody(String body) => _sealedBody.hasMatch(body);
 
 /// UUID v4 for clientMessageId (idempotency key of a message, §8.4).
 String newClientMessageId() {

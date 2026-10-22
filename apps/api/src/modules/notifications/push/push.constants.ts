@@ -91,6 +91,10 @@ export interface PushMessage {
   data: Record<string, string>;
   /** iOS app icon number = badge total (docs/05 §10). */
   badge?: number;
+  /** Owner 2026-10-21 (inbox 29): false = «Счётчик на иконке в меню» is
+   * off — Android shows the alert through the twin channel that puts no
+   * badge / dot on the launcher icon ([NO_BADGE_CHANNEL_SUFFIX]). */
+  iconBadge?: boolean;
   /** OQ-041: an incoming call — Android gets a data-only high-priority
    * message (the app shows the full-screen ringing UI itself); iOS a
    * time-sensitive alert. */
@@ -118,9 +122,24 @@ export interface PushMessage {
   /** Owner 2026-10-21: the alert is worth nothing after this many seconds
    * (a call from a group chat: about a minute) — the push service drops it. */
   ttlSec?: number;
+  /** Owner 2026-10-22 (WhatsApp): a chat message whose `data` carries the
+   * sender, their photo and the text (chat-push.ts). An Android app that
+   * draws chat notifications itself (`push_tokens.chat_style`) gets it
+   * data-only and shows a MessagingStyle notification per chat; every
+   * other device gets the normal alert. */
+  chat?: boolean;
+  /** Owner 2026-10-22: the iPhone's notification stack (`thread-id`) — one
+   * per chat, so a chat's messages are grouped like WhatsApp. Defaults to
+   * [collapseKey]. */
+  threadId?: string;
 }
 
 export type PushSoundKind = 'message' | 'notification';
+
+/** Owner 2026-10-21 (inbox 29): the twin of each Android channel created
+ * with setShowBadge(false) in MainActivity.kt ("chats_nobadge",
+ * "general_nobadge"); a channel's badge can't be changed once made. */
+export const NO_BADGE_CHANNEL_SUFFIX = '_nobadge';
 
 /** Android channel ids (created in MainActivity.kt) and the sound per kind:
  * the phone's default notification sound on both platforms. */

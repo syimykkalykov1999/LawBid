@@ -14,6 +14,11 @@ import {
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
+import {
+  TOPIC_BLOCKS,
+  TOPIC_KEYS,
+  type TopicBlock,
+} from './notification-topics';
 
 export const CATEGORIES = [
   'messages',
@@ -146,6 +151,12 @@ export class BadgesDto {
 
   @ApiProperty()
   total!: number;
+
+  @ApiPropertyOptional({
+    description:
+      'Owner 2026-10-21: false = keep the app icon clear (the user switched the icon counter off).',
+  })
+  iconBadge?: boolean;
 }
 
 export class CategorySettingDto {
@@ -165,6 +176,29 @@ export class CategorySettingDto {
 export class CategorySettingViewDto extends CategorySettingDto {
   @ApiProperty({ description: '`system` can not be turned off (§9.5).' })
   locked!: boolean;
+}
+
+/** Owner 2026-10-21 (inbox 30): one switch of Settings → Notifications. */
+export class TopicSettingViewDto {
+  @ApiProperty({ enum: TOPIC_KEYS, enumName: 'NotificationTopic' })
+  topic!: string;
+
+  @ApiProperty({ enum: TOPIC_BLOCKS, enumName: 'NotificationTopicBlock' })
+  block!: TopicBlock;
+
+  @ApiProperty()
+  pushEnabled!: boolean;
+
+  @ApiProperty({ description: "Can't be turned off." })
+  locked!: boolean;
+
+  @ApiProperty({ description: 'Shown to attorneys only.' })
+  attorneyOnly!: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Needs this switch on too (shown nested under it).',
+  })
+  parent?: string;
 }
 
 /** Owner 2026-10-20: the device's IANA time zone. */
@@ -209,6 +243,45 @@ export class NotificationSettingsDto {
 
   @ApiPropertyOptional({ type: QuietHoursDto, nullable: true })
   quietHours!: QuietHoursDto | null;
+
+  @ApiProperty({
+    description:
+      'Owner 2026-10-21: the unread number on the app icon (default true).',
+  })
+  iconBadge!: boolean;
+
+  @ApiProperty({
+    type: [TopicSettingViewDto],
+    description:
+      'Owner 2026-10-21: a switch per kind of notification, in screen order.',
+  })
+  topics!: TopicSettingViewDto[];
+}
+
+export class TopicSettingDto {
+  @ApiProperty({ enum: TOPIC_KEYS, enumName: 'NotificationTopic' })
+  @IsIn(TOPIC_KEYS)
+  topic!: string;
+
+  @ApiProperty()
+  @IsBoolean()
+  pushEnabled!: boolean;
+}
+
+export class UpdateTopicSettingsDto {
+  @ApiProperty({ type: [TopicSettingDto] })
+  @IsArray()
+  @ArrayMaxSize(TOPIC_KEYS.length)
+  @ValidateNested({ each: true })
+  @Type(() => TopicSettingDto)
+  items!: TopicSettingDto[];
+}
+
+/** Owner 2026-10-21 (inbox 29): «Счётчик на иконке в меню». */
+export class IconBadgeDto {
+  @ApiProperty()
+  @IsBoolean()
+  enabled!: boolean;
 }
 
 export class UpdateNotificationSettingsDto {
@@ -238,6 +311,14 @@ export class PushTokenDto {
   @IsOptional()
   @IsBoolean()
   localReminders?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      "Owner 2026-10-22: this app draws chat notifications itself (sender's photo, one per chat) from a data-only push (Android).",
+  })
+  @IsOptional()
+  @IsBoolean()
+  chatStyle?: boolean;
 }
 
 /** Owner 2026-10-20: the planner reminders an iPhone has armed locally. */

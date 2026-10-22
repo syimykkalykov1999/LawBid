@@ -8,17 +8,14 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
-import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/call_history_providers.dart';
-import 'package:lawbid/features/calls/domain/call_models.dart';
-import 'package:lawbid/features/chat/application/chat_providers.dart';
-import 'package:lawbid/features/chat/domain/chat_models.dart';
-import 'package:lawbid/features/chat/presentation/contact_info_screen.dart';
 import 'package:lawbid/features/chat/presentation/open_direct_chat.dart';
 import 'package:lawbid/features/contacts_sync/application/contacts_background_sync.dart';
 import 'package:lawbid/features/contacts_sync/application/contacts_sync_providers.dart';
 import 'package:lawbid/features/contacts_sync/application/phone_contacts.dart';
 import 'package:lawbid/features/contacts_sync/presentation/calls_tab.dart';
+import 'package:lawbid/features/contacts_sync/presentation/chats_tab.dart';
+import 'package:lawbid/features/contacts_sync/presentation/contact_actions.dart';
 import 'package:lawbid/features/contacts_sync/presentation/contact_rows.dart';
 import 'package:lawbid/features/contacts_sync/presentation/contacts_section.dart';
 import 'package:lawbid/features/contacts_sync/presentation/contacts_states.dart';
@@ -33,20 +30,31 @@ import 'package:lawbid/shared/people/people_suggest_list.dart';
 ///
 /// Owner 2026-10-21: two sections under a segmented switch — «Contacts» and
 /// «Calls» (history and the group calls running now, like WhatsApp).
+///
+/// Owner 2026-10-22: three sections, «Chats» (my people) first and opened by
+/// default, then «Contacts» and «Calls».
 class ContactsScreen extends ConsumerStatefulWidget {
-  const ContactsScreen({this.initialCalls = false, super.key});
+  const ContactsScreen({
+    this.initialCalls = false,
+    this.initialContacts = false,
+    super.key,
+  });
 
-  /// Opens on the «Calls» section.
+  /// Opens on the «Calls» section (otherwise on «Chats»).
   final bool initialCalls;
+
+  /// Opens on the «Contacts» section.
+  final bool initialContacts;
 
   @override
   ConsumerState<ContactsScreen> createState() => _ContactsScreenState();
 }
 
 class _ContactsScreenState extends ConsumerState<ContactsScreen> {
-  late bool _calls = widget.initialCalls;
-  late final PageController _pages =
-      PageController(initialPage: _calls ? 1 : 0);
+  /// 0 «Chats», 1 «Contacts», 2 «Calls».
+  late int _section =
+      widget.initialCalls ? 2 : (widget.initialContacts ? 1 : 0);
+  late final PageController _pages = PageController(initialPage: _section);
 
   @override
   void dispose() {
@@ -55,17 +63,17 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
   }
 
   /// A tap on the segment slides to the section; a swipe lands here too.
-  void _show(bool calls, {bool slide = true}) {
-    if (calls == _calls) return;
+  void _show(int section, {bool slide = true}) {
+    if (section == _section) return;
     ref.read(callLogSelectionProvider.notifier).stop();
-    setState(() => _calls = calls);
+    setState(() => _section = section);
     if (!slide || !_pages.hasClients) return;
     if (context.reduceMotion) {
-      _pages.jumpToPage(calls ? 1 : 0);
+      _pages.jumpToPage(section);
     } else {
       unawaited(
         _pages.animateToPage(
-          calls ? 1 : 0,
+          section,
           duration: const Duration(milliseconds: 250),
           curve: Curves.easeOutCubic,
         ),
@@ -88,13 +96,16 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
               onPressed: () => Navigator.of(context).maybePop(),
             ),
             title: ContactsCallsSegment(
-              calls: _calls,
-              contactsLabel: t.t('phoneContacts.title'),
-              callsLabel: t.t('calls.title'),
+              selected: _section,
+              labels: [
+                t.t('inbox.tab.chats'),
+                t.t('phoneContacts.title'),
+                t.t('calls.title'),
+              ],
               onChanged: _show,
             ),
             actions: [
-              if (_calls)
+              if (_section == 2)
                 const CallLogMenuButton()
               else
                 const SizedBox(width: AppSizes.hitTarget),
@@ -113,8 +124,9 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
         // the app (the same on Android and iOS).
         body: PageView(
           controller: _pages,
-          onPageChanged: (i) => _show(i == 1, slide: false),
+          onPageChanged: (i) => _show(i, slide: false),
           children: [
+            const ChatsTab(),
             if (kIsWeb)
               AppEmptyState(
                 icon: AppIcons.contactPhoneOutlined,
@@ -235,7 +247,7 @@ class _BodyState extends ConsumerState<_Body> {
                   itemBuilder: (context, i) => LawBidContactRow(
                     contact: onLawBid[i],
                     onTap: () => _openProfile(context, ref, onLawBid[i]),
-                    trailing: _Actions(contact: onLawBid[i]),
+                    trailing: ContactActions(contact: onLawBid[i]),
                   ),
                 ),
               // Owner 2026-10-21 (inbox 25b, Instagram): anyone in the app
@@ -326,82 +338,6 @@ void _openPerson(BuildContext context, WidgetRef ref, SuggestedPerson p) {
           : AppRoutes.client(p.username),
     ),
   );
-}
-
-/// Message / call / video of one contact. A call needs the chat to be
-/// open for calls (same rule as in the conversation); otherwise the chat
-/// opens and says why.
-class _Actions extends ConsumerWidget {
-  const _Actions({required this.contact});
-
-  final LawBidContact contact;
-
-  Future<void> _call(
-    BuildContext context,
-    WidgetRef ref, {
-    required bool video,
-  }) async {
-    final t = ref.read(translatorProvider);
-    try {
-      // An existing direct chat decides; none is created just to find out.
-      final all = await ref.read(conversationsProvider.future);
-      Conversation? conv;
-      for (final c in all.items) {
-        if (c.isDirect && c.counterpart.id == contact.userId) conv = c;
-      }
-      if (conv == null || !chatAudioCallAllowed(ref, conv)) {
-        if (context.mounted) {
-          showAppSnackBar(context, t.t('call.notAllowedRequest'));
-          if (conv == null) {
-            await openDirectChat(context, ref, contact.userId);
-          }
-        }
-        return;
-      }
-      await ref.read(callControllerProvider.notifier).call(
-            conv.id,
-            peer: CallPeer(
-              id: contact.userId,
-              isAttorney: contact.person.isAttorney,
-              displayName: contact.title,
-              username: contact.person.username,
-              avatarUrl: contact.person.avatarUrl,
-            ),
-            video: video,
-          );
-    } on Object {
-      if (context.mounted) {
-        showAppSnackBar(context, t.t('error.default.message'));
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final t = ref.watch(translatorProvider);
-    final video = ref.watch(videoCallsEnabledProvider);
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        ContactActionButton(
-          icon: AppIcons.chatBubbleOutlineRounded,
-          label: t.t('phoneContacts.message'),
-          onPressed: () => openDirectChat(context, ref, contact.userId),
-        ),
-        ContactActionButton(
-          icon: AppIcons.callOutlined,
-          label: t.t('call.button'),
-          onPressed: () => _call(context, ref, video: false),
-        ),
-        if (video)
-          ContactActionButton(
-            icon: AppIcons.videoCameraOutlined,
-            label: t.t('call.videoButton'),
-            onPressed: () => _call(context, ref, video: true),
-          ),
-      ],
-    );
-  }
 }
 
 /// Clients: "Let people find me by my number" (on by default). Attorneys'

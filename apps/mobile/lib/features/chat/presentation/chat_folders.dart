@@ -5,6 +5,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
     show showConfirmSheet;
 import 'package:lawbid/features/chat/application/chat_providers.dart';
@@ -36,83 +37,114 @@ class ChatFolderPills extends ConsumerWidget {
           ChatListFolder.cases => counts?.cases,
           _ => null,
         };
+    // Owner 2026-10-22 (Instagram DM tabs): the pills share the whole row in
+    // equal widths with small gaps; the label shrinks to fit a long language.
+    // «Requests» ends with a chevron.
+    // "General" tab is hidden: it meant the same as "All".
+    // Owner 2026-10-19: «Основные» (primary) is hidden too; its
+    // filter stays in the code.
+    final shown = [
+      for (final f in ChatListFolder.values)
+        if (f != ChatListFolder.general &&
+            f != ChatListFolder.primary &&
+            f != ChatListFolder.archive)
+          f,
+    ];
     return SizedBox(
       height: 32,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsetsDirectional.only(
-          start: AppSpacing.sm,
-          end: AppSpacing.sm,
-        ),
-        children: [
-          // "General" tab is hidden: it meant the same as "All".
-          // Owner 2026-10-19: «Основные» (primary) is hidden too; its
-          // filter stays in the code.
-          for (final f in ChatListFolder.values)
-            if (f != ChatListFolder.general &&
-                f != ChatListFolder.primary &&
-                f != ChatListFolder.archive) ...[
-              Semantics(
-                selected: f == value,
-                button: true,
-                child: GestureDetector(
-                  key: ValueKey('chat-folder-${f.name}'),
-                  onTap: () {
-                    HapticFeedback.selectionClick();
-                    onChanged(f);
-                  },
-                  child: AnimatedContainer(
-                    duration: dur,
-                    // Owner 2026-10-20: a little smaller, to fit at 360 dp.
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: f == value ? colors.navy : colors.surface,
-                      borderRadius: BorderRadius.circular(AppRadii.pill),
-                      border: Border.all(
-                        color: f == value ? colors.gold : colors.border,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          t.t('chat.folder.${f.name}'),
-                          style: type.bodySmall.copyWith(
-                            color:
-                                f == value ? AppColorsDark.text : colors.text,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        if ((countOf(f) ?? 0) > 0) ...[
-                          const SizedBox(width: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 1,
-                            ),
-                            decoration: BoxDecoration(
-                              color: colors.gold,
-                              borderRadius:
-                                  BorderRadius.circular(AppRadii.pill),
-                            ),
-                            child: Text(
-                              context.digits(countOf(f) ?? 0),
-                              style: type.caption.copyWith(
-                                color: AppColorsLight.navy,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
+      child: Padding(
+        padding: const EdgeInsetsDirectional.only(start: AppSpacing.sm),
+        child: Row(
+          children: [
+            for (var i = 0; i < shown.length; i++) ...[
+              if (i > 0) const SizedBox(width: AppSpacing.xs),
+              Expanded(
+                child: _pill(
+                  context,
+                  shown[i],
+                  t: t,
+                  colors: colors,
+                  type: type,
+                  dur: dur,
+                  count: countOf(shown[i]) ?? 0,
                 ),
               ),
-              const SizedBox(width: AppSpacing.sm),
             ],
-        ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _pill(
+    BuildContext context,
+    ChatListFolder f, {
+    required Translator t,
+    required AppColorTokens colors,
+    required AppTypographyTokens type,
+    required Duration dur,
+    required int count,
+  }) {
+    final selected = f == value;
+    final fg = selected ? AppColorsDark.text : colors.text;
+    return Semantics(
+      selected: selected,
+      button: true,
+      child: GestureDetector(
+        key: ValueKey('chat-folder-${f.name}'),
+        behavior: HitTestBehavior.opaque,
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onChanged(f);
+        },
+        child: AnimatedContainer(
+          duration: dur,
+          padding: const EdgeInsets.symmetric(horizontal: 6),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: selected ? colors.navy : colors.surface,
+            borderRadius: BorderRadius.circular(AppRadii.pill),
+            border: Border.all(color: selected ? colors.gold : colors.border),
+          ),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  t.t('chat.folder.${f.name}'),
+                  maxLines: 1,
+                  style: type.bodySmall.copyWith(
+                    color: fg,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                if (count > 0) ...[
+                  const SizedBox(width: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 5,
+                      vertical: 1,
+                    ),
+                    decoration: BoxDecoration(
+                      color: colors.gold,
+                      borderRadius: BorderRadius.circular(AppRadii.pill),
+                    ),
+                    child: Text(
+                      context.digits(count),
+                      style: type.caption.copyWith(
+                        color: AppColorsLight.navy,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+                if (f == ChatListFolder.requests)
+                  AppIcon(AppIcons.chevronRightRounded, size: 16, color: fg),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

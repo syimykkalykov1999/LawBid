@@ -1,7 +1,12 @@
 import { unreadMessagesSql } from '../groups/group-unread.sql';
 import { Inject, Injectable } from '@nestjs/common';
-import type { NotificationCategory } from '@prisma/client';
-import { DEFAULT_PUSH, LOCKED_CATEGORIES } from './notification-rules';
+import type { NotificationCategory, NotificationType } from '@prisma/client';
+import {
+  ALWAYS_PUSH,
+  DEFAULT_PUSH,
+  LOCKED_CATEGORIES,
+} from './notification-rules';
+import { TYPE_TOPIC, readTopics, topicOn } from './notification-topics';
 import type Redis from 'ioredis';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
@@ -11,6 +16,10 @@ export interface Badges {
   chatsUnread: number;
   notificationsUnread: number;
   total: number;
+  /** Owner 2026-10-21 (inbox 29): the «Счётчик на иконке в меню» switch;
+   * false = the app keeps its icon clear. Sent with GET /badges and
+   * `badge:update` only. */
+  iconBadge?: boolean;
 }
 
 const key = (userId: string) => `badge:${userId}`;
@@ -65,6 +74,37 @@ export class BadgesService {
     return shape(chats.chatsUnread, mine.notificationsUnread);
   }
 
+  /** Owner 2026-10-21 (inbox 29): the «Счётчик на иконке в меню» switch
+   * (default on). */
+  async iconBadgeOn(userId: string): Promise<boolean> {
+    const u = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { notif_icon_badge: true },
+    });
+    return u?.notif_icon_badge ?? true;
+  }
+
+  /** The number a push puts on the app icon: the total, or 0 while the
+   * switch is off (0 also clears an older number, like Telegram). */
+  async forIcon(userId: string): Promise<number> {
+    return (await this.iconFor(userId)).badge;
+  }
+
+  /** [forIcon] plus the switch itself: off also sends the Android alert
+   * through a channel without a launcher badge (PushMessage.iconBadge). */
+  async iconFor(userId: string): Promise<{ badge: number; on: boolean }> {
+    const [b, on] = await Promise.all([
+      this.get(userId),
+      this.iconBadgeOn(userId),
+    ]);
+    return { badge: on ? b.total : 0, on };
+  }
+
+  /** [b] plus the [ownerId]'s icon switch (GET /badges, `badge:update`). */
+  async withIcon(ownerId: string, b: Badges): Promise<Badges> {
+    return { ...b, iconBadge: await this.iconBadgeOn(ownerId) };
+  }
+
   /** A notification row was written (maybe not committed yet): drop the
    * cached count so the next read recounts; the delivery job recounts
    * and publishes after commit. */
@@ -94,6 +134,46 @@ export class BadgesService {
       if (!(set.get(c) ?? DEFAULT_PUSH[c])) muted.add(c);
     }
     return muted;
+  }
+
+  /**
+   * Owner 2026-10-21 (inbox 30): the user's switches per kind of
+   * notification. `on(topic)` — the effective value (a finer switch not set
+   * yet follows its old category); `raw` — only what the user set.
+   */
+  async topicSwitches(userId: string): Promise<{
+    on: (topic: string) => boolean;
+    /** The switch itself, whatever its parent says. */
+    own: (topic: string) => boolean;
+    raw: Record<string, boolean>;
+  }> {
+    const [rows, u] = await Promise.all([
+      this.prisma.notificationSetting.findMany({
+        where: { user_id: userId },
+        select: { category: true, push_enabled: true },
+      }),
+      this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { notif_topics: true },
+      }),
+    ]);
+    const set = new Map(rows.map((r) => [r.category, r.push_enabled]));
+    const categoryOn = (c: NotificationCategory) =>
+      LOCKED_CATEGORIES.has(c) || (set.get(c) ?? DEFAULT_PUSH[c]);
+    const raw = readTopics(u?.notif_topics);
+    return {
+      on: (t) => topicOn(t, raw, categoryOn),
+      own: (t) => topicOn(t, raw, categoryOn, true),
+      raw,
+    };
+  }
+
+  /** Types switched off (never counted on a badge, never pushed). */
+  private async mutedTypes(userId: string): Promise<string[]> {
+    const { on } = await this.topicSwitches(userId);
+    return (Object.keys(TYPE_TOPIC) as NotificationType[]).filter(
+      (t) => !ALWAYS_PUSH.has(t) && !on(TYPE_TOPIC[t]),
+    );
   }
 
   /** Settings → Notifications changed: recount both badges. */
@@ -137,7 +217,11 @@ export class BadgesService {
   }
 
   private async publish(userId: string): Promise<void> {
-    this.realtime.toUsers([userId], 'badge:update', await this.get(userId));
+    this.realtime.toUsers(
+      [userId],
+      'badge:update',
+      await this.withIcon(userId, await this.get(userId)),
+    );
   }
 
   private async rebuild(userId: string): Promise<Badges> {
@@ -155,12 +239,13 @@ export class BadgesService {
 
   /** Partial index notifications_user_unread_idx; stops at the cap. */
   private async countNotifications(userId: string): Promise<number> {
-    const muted = [...(await this.mutedCategories(userId))].map(String);
+    // Owner 2026-10-21 (inbox 30): per kind of notification.
+    const muted = await this.mutedTypes(userId);
     const [row] = await this.prisma.$queryRaw<{ n: bigint }[]>`
       SELECT count(*) AS n FROM (
         SELECT 1 FROM notifications
         WHERE user_id = ${userId}::UUID AND read_at IS NULL
-          AND NOT (category::TEXT = ANY(${muted}::TEXT[]))
+          AND NOT (type::TEXT = ANY(${muted}::TEXT[]))
         LIMIT ${NOTIFS_CAP}) x`;
     return Number(row?.n ?? 0);
   }

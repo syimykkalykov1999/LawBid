@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/shell/shell_layout.dart';
+import 'package:lawbid/core/navigation/shell/web_page_frame.dart';
 import 'package:lawbid/features/cases/presentation/screens/attorney_cases_tab.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/chat/presentation/chats_icon_button.dart';
+import 'package:lawbid/features/chat/presentation/inbox_screen.dart';
 import 'package:lawbid/features/feed/application/feed_content.dart';
 import 'package:lawbid/features/feed/application/feed_topics.dart';
 import 'package:lawbid/features/feed/application/news_flag.dart';
@@ -28,6 +31,12 @@ import 'package:lawbid/features/team/domain/team_models.dart';
 ///
 /// Clients: one post stream. Attorneys: "Лента" (posts) and "Кейсы"
 /// (docs/04 §4.2) tabs.
+///
+/// Owner 2026-10-22 («дальше слайд переходит в Чаты и обратно выходит»):
+/// Chats is the page after the last tab (every role) — a swipe on from it
+/// slides Chats in, a swipe back (or its back arrow) slides the feed back;
+/// the header's chats icon slides there too. The bottom bar slides away
+/// with it. Deep links still push the Chats screen (`/inbox`).
 class FeedScreen extends ConsumerStatefulWidget {
   const FeedScreen({super.key});
 
@@ -35,13 +44,54 @@ class FeedScreen extends ConsumerStatefulWidget {
   ConsumerState<FeedScreen> createState() => _FeedScreenState();
 }
 
-enum _FeedTab { posts, reels, cases }
+enum _FeedTab { posts, reels, cases, chats }
 
 class _FeedScreenState extends ConsumerState<FeedScreen> {
   // docs/05 §2.1: attorneys get "Лента" (posts) and "Кейсы"; switching
   // keeps each tab's scroll position (IndexedStack keeps both alive).
   _FeedTab _tab = _FeedTab.posts;
   final _chrome = FeedChromeController();
+
+  /// The feed tab Chats was opened from (its back arrow returns there).
+  _FeedTab _beforeChats = _FeedTab.posts;
+
+  /// The shell's bottom bar (slides away on the Chats page).
+  ValueNotifier<double>? _navAway;
+
+  void _go(_FeedTab v) => setState(() {
+        if (v == _FeedTab.chats && _tab != _FeedTab.chats) _beforeChats = _tab;
+        _tab = v;
+        _chrome.show();
+      });
+
+  @override
+  void initState() {
+    super.initState();
+    // A feed built anew starts on Posts: the bar is back.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _setNavAway(0);
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _navAway = InsideMainShell.navAwayOf(context);
+  }
+
+  /// Moves the bottom bar; never while the frame is laid out.
+  void _setNavAway(double v) {
+    final n = _navAway;
+    if (n == null || n.value == v) return;
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) n.value = v;
+      });
+    } else {
+      n.value = v;
+    }
+  }
 
   // Owner 2026-10-18 (speed): the attorney's Cases tab is built the first
   // time it is opened (SwipePages builds a page when it comes into view),
@@ -60,6 +110,15 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
     // Audit 2026-10-02: an assistant sees the Cases tab only with "cases".
     final attorney = ref.watch(actsAsAttorneyProvider) &&
         ref.watch(canDoProvider(AssistantDuty.cases));
+    final tabs = [
+      _FeedTab.posts,
+      _FeedTab.reels,
+      if (attorney) _FeedTab.cases,
+    ];
+    // The tab lit in the header while Chats is on screen: the one beside it.
+    final lit =
+        _tab == _FeedTab.chats || !tabs.contains(_tab) ? tabs.last : _tab;
+    final back = tabs.contains(_beforeChats) ? _beforeChats : tabs.last;
 
     // Owner 2026-10-12: one header for every tab — the logo on the left,
     // Posts | Reels (| Cases) in the middle, chats on the right — with the
@@ -94,7 +153,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
           // Owner 2026-10-13: the header is fixed — logo, tabs and chats
           // stay on a scroll; only the filters leave.
           center: PillTabs<_FeedTab>(
-            value: _tab,
+            value: lit,
             padding: EdgeInsets.zero,
             onDark: onDark,
             tabs: [
@@ -102,24 +161,20 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
               (_FeedTab.reels, t.t('reels.title')),
               if (attorney) (_FeedTab.cases, t.t('feed.tab.cases')),
             ],
-            onChanged: (v) => setState(() {
-              _tab = v;
-              _chrome.show();
-            }),
+            onChanged: _go,
           ),
           trailing: [
             _FloatDisc(
               forceDark: onDark,
-              icon: ({required dark}) => ChatsIconButton(onDark: dark),
+              icon: ({required dark}) => ChatsIconButton(
+                onDark: dark,
+                onOpen: () => _go(_FeedTab.chats),
+              ),
             ),
           ],
         );
 
-    final tabs = [
-      _FeedTab.posts,
-      _FeedTab.reels,
-      if (attorney) _FeedTab.cases,
-    ];
+    final pages = [...tabs, _FeedTab.chats];
     final topInset = MediaQuery.paddingOf(context).top;
     final bottomInset = MediaQuery.paddingOf(context).bottom;
 
@@ -151,18 +206,26 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
             topInset: topInset,
             bottomInset: bottomInset,
           ),
+        _FeedTab.chats => InboxScreen(onBack: () => _go(back)),
       };
       return TickerMode(enabled: tab == _tab, child: page);
     }
 
-    return SwipePages<_FeedTab>(
-      value: _tab,
-      values: tabs,
-      onChanged: (v) => setState(() {
-        _tab = v;
-        _chrome.show();
-      }),
-      pageBuilder: (_, tab) => pageFor(tab),
+    return PopScope(
+      // Android back on Chats slides back to the feed.
+      canPop: _tab != _FeedTab.chats,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _tab == _FeedTab.chats) _go(back);
+      },
+      child: SwipePages<_FeedTab>(
+        value: pages.contains(_tab) ? _tab : _FeedTab.posts,
+        values: pages,
+        onChanged: _go,
+        // The bottom bar slides down as Chats slides in.
+        onPosition: (page) =>
+            _setNavAway((page - (pages.length - 2)).clamp(0.0, 1.0)),
+        pageBuilder: (_, tab) => pageFor(tab),
+      ),
     );
   }
 

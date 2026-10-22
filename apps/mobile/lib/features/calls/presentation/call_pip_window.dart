@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/calls/application/call_video_layout.dart';
 import 'package:lawbid/features/calls/presentation/call_widgets.dart';
 
@@ -64,6 +65,7 @@ class _CallPipWindowState extends ConsumerState<CallPipWindow> {
   @override
   Widget build(BuildContext context) {
     final layout = ref.watch(callVideoLayoutProvider);
+    final t = ref.watch(translatorProvider);
     final rtl = Directionality.of(context) == TextDirection.rtl;
     return LayoutBuilder(
       builder: (context, box) {
@@ -111,30 +113,26 @@ class _CallPipWindowState extends ConsumerState<CallPipWindow> {
                       ),
                     ),
                     PositionedDirectional(
-                      top: 2,
-                      end: 2,
-                      child: GestureDetector(
+                      top: 0,
+                      end: 0,
+                      child: CallOverlayIcon(
                         key: const Key('call-pip-hide'),
-                        behavior: HitTestBehavior.opaque,
+                        icon: AppIcons.closeRounded,
+                        label: t.t('common.close'),
                         onTap:
                             ref.read(callVideoLayoutProvider.notifier).hidePip,
-                        child: Padding(
-                          padding: const EdgeInsets.all(6),
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: Colors.black.withValues(alpha: 0.45),
-                            ),
-                            child: const Padding(
-                              padding: EdgeInsets.all(3),
-                              child: AppIcon(
-                                AppIcons.closeRounded,
-                                size: 14,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-                        ),
+                      ),
+                    ),
+                    // Owner 2026-10-22 (Zoom): the same «expand» mark as on
+                    // a group tile — this picture becomes the big one.
+                    PositionedDirectional(
+                      top: 0,
+                      start: 0,
+                      child: CallOverlayIcon(
+                        key: const Key('call-pip-expand'),
+                        icon: AppIcons.cornersOut,
+                        label: t.t('call.expand'),
+                        onTap: widget.onTap,
                       ),
                     ),
                   ],

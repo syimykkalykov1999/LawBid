@@ -1,5 +1,6 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { ErrorCode } from '../../common/errors/error-code.enum';
+import { MessageBodyCipher } from '../../common/secrets/message-body-cipher';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import {
@@ -21,6 +22,7 @@ export class ChatTranslationService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly translation: TranslationService,
+    @Optional() private readonly cipher?: MessageBodyCipher,
   ) {}
 
   async translate(
@@ -43,7 +45,12 @@ export class ChatTranslationService {
       },
       select: { body_display: true },
     });
-    const text = m?.body_display.trim() ?? '';
+    // Owner 2026-10-22: bodies are sealed at rest (MessageBodyCipher) —
+    // open it, or Google gets (and the bubble shows) `enc:v2.…`.
+    const shown = m
+      ? (this.cipher?.open(m.body_display) ?? m.body_display)
+      : '';
+    const text = shown.trim();
     if (!m || text === '') {
       throw new NotFoundException({
         code: ErrorCode.NOT_FOUND,

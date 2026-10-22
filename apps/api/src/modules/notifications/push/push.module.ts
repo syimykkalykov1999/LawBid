@@ -7,6 +7,7 @@ import { REDIS_CLIENT } from '../../../redis/redis.constants';
 import { createEmailProvider } from '../../auth/providers/email/email-provider.factory';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { NotificationsModule } from '../notifications.module';
+import { FilesModule } from '../../files/files.module';
 import { DynamicPushSender } from './fcm-push.sender';
 import { SecretsService } from '../../../common/secrets/secrets.service';
 import { LoggingPushSender } from './logging-push.sender';
@@ -32,7 +33,8 @@ export class PushModule {
     return {
       module: PushModule,
       // FeatureFlagsModule: «Вход и письма по почте» gates the e-mail leg.
-      imports: [NotificationsModule, FeatureFlagsModule],
+      // FilesModule (owner 2026-10-22): the sender's photo on a message push.
+      imports: [NotificationsModule, FeatureFlagsModule, FilesModule],
       providers: [
         { provide: PUSH_MODULE_OPTIONS, useValue: options },
         PushTokensService,

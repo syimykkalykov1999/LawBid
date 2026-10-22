@@ -20,10 +20,8 @@ Future<List<LawBidContact>?> showContactPicker(
       context: context,
       isScrollControlled: true,
       closeByHandleOnly: true,
-      builder: (_) => ContactPickerSheet(
-        excludeUserIds: excludeUserIds,
-        title: title,
-      ),
+      builder: (_) =>
+          ContactPickerSheet(excludeUserIds: excludeUserIds, title: title),
     );
 
 class ContactPickerSheet extends ConsumerStatefulWidget {
@@ -165,10 +163,9 @@ class _ContactPickerSheetState extends ConsumerState<ContactPickerSheet> {
               Padding(
                 padding: const EdgeInsets.all(AppSpacing.screenSide),
                 child: AppButton(
-                  label: t.t(
-                    'phoneContacts.add',
-                    {'count': '${_picked.length}'},
-                  ),
+                  label: t.t('phoneContacts.add', {
+                    'count': '${_picked.length}',
+                  }),
                   isEnabled: _picked.isNotEmpty,
                   onPressed: () => Navigator.of(context).pop(List.of(_picked)),
                 ),

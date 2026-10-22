@@ -108,7 +108,8 @@ String? notificationRoute({
     // Owner 2026-09-30 (opt-in alerts).
     case 'followed_post':
       return postId == null ? null : SocialRoutes.post(postId);
-    case 'new_case' || 'new_urgent_case':
+    // Owner 2026-10-21 (inbox 30): an assistant's bid draft opens the case.
+    case 'new_case' || 'new_urgent_case' || 'assistant_bid_draft':
       return caseId == null ? null : AppRoutes.caseDetail(caseId);
     // Owner 2026-10-05: a case's date (court hearing…) is near, today,
     // passed, or was moved by the other side.
@@ -525,6 +526,18 @@ IconData _icon(AppNotification n) => switch (n.type) {
         },
     };
 
+/// Owner 2026-10-22: the magnifier in the Inbox header opens the
+/// notifications search (each tap is a new number).
+final notificationSearchOpenProvider =
+    NotifierProvider.autoDispose<_NotifSearchOpen, int>(_NotifSearchOpen.new);
+
+class _NotifSearchOpen extends Notifier<int> {
+  @override
+  int build() => 0;
+
+  void open() => state++;
+}
+
 /// docs/05 §9.1 notifications: newest first, grouped "Сегодня", "На этой
 /// неделе", "Раньше"; a gold dot marks unread; a tap opens the target and
 /// marks the row read.
@@ -552,6 +565,8 @@ class NotificationsView extends ConsumerStatefulWidget {
 
 class _NotificationsViewState extends ConsumerState<NotificationsView> {
   /// Owner 2026-10-01: the assistants' activity lives under the bell.
+  /// Owner 2026-10-22: the chip that switched it is gone — no way in for now.
+  // ignore: prefer_final_fields
   bool _assistants = false;
 
   @override
@@ -559,86 +574,19 @@ class _NotificationsViewState extends ConsumerState<NotificationsView> {
     final t = ref.watch(translatorProvider);
     final team = ref.watch(currentUserRoleProvider) == UserRole.attorney &&
         !ref.watch(isAssistantProvider);
-    final group = ref.watch(notificationGroupProvider);
     final list =
         team && _assistants ? const AssistantActivityList() : _list(context, t);
-    final trailing = widget.trailing;
 
-    // Owner 2026-10-06: All · Important · Other (· Assistants).
-    void pick(NotifGroup? g, {bool assistants = false}) {
-      setState(() => _assistants = assistants);
-      if (!assistants) ref.read(notificationGroupProvider.notifier).set(g);
-    }
-
-    Widget chip(
-      String key,
-      String label, {
-      required bool selected,
-      required VoidCallback onTap,
-    }) =>
-        Padding(
-          padding: const EdgeInsetsDirectional.only(end: AppSpacing.sm),
-          child: AppChip(
-            key: ValueKey(key),
-            label: label,
-            selected: selected,
-            onTap: onTap,
-          ),
-        );
-
-    final chips = SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsetsDirectional.only(start: AppSpacing.sm),
-      child: Row(
-        children: [
-          chip(
-            'notif-view-all',
-            t.t('notif.view.all'),
-            selected: !_assistants && group == null,
-            onTap: () => pick(null),
-          ),
-          chip(
-            'notif-view-important',
-            t.t('notif.view.important'),
-            selected: !_assistants && group == NotifGroup.important,
-            onTap: () => pick(NotifGroup.important),
-          ),
-          chip(
-            'notif-view-other',
-            t.t('notif.view.other'),
-            selected: !_assistants && group == NotifGroup.other,
-            onTap: () => pick(NotifGroup.other),
-          ),
-          if (team)
-            chip(
-              'notif-view-assistants',
-              t.t('notif.view.assistants'),
-              selected: _assistants,
-              onTap: () => pick(null, assistants: true),
-            ),
-        ],
-      ),
-    );
     return Column(
       children: [
-        // Owner 2026-10-20: the chips and a round magnifier in one row (the
-        // assistants' activity has its own list, no search).
-        if (team && _assistants)
-          Padding(
-            padding: const EdgeInsetsDirectional.only(
-              end: AppSpacing.xs,
-              bottom: AppSpacing.sm,
-            ),
-            child: Row(
-              children: [
-                Expanded(child: chips),
-                if (trailing != null) trailing,
-              ],
-            ),
-          )
-        else
+        // Owner 2026-10-22: no section chips any more — the list shows
+        // everything; the magnifier lives in the Inbox header and opens this
+        // search (the assistants' activity has its own list, no search).
+        if (!(team && _assistants))
           ChipsSearchRow(
-            chips: chips,
+            chips: const SizedBox.shrink(),
+            hideWhenClosed: true,
+            openSignal: ref.watch(notificationSearchOpenProvider),
             hintKey: 'notif.search.hint',
             query: ref.read(notificationQueryProvider),
             onQuery: ref.read(notificationQueryProvider.notifier).set,

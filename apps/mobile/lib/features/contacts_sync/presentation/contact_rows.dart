@@ -139,10 +139,7 @@ class InviteContactRow extends ConsumerWidget {
       ),
       child: Row(
         children: [
-          GoldRingAvatar(
-            initials: avatarInitials(contact.name),
-            size: 36,
-          ),
+          GoldRingAvatar(initials: avatarInitials(contact.name), size: 36),
           const SizedBox(width: AppSpacing.md),
           Expanded(
             child: Text(
@@ -218,8 +215,10 @@ class ContactCheck extends StatelessWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: on ? colors.accent : null,
-        border:
-            Border.all(color: on ? colors.accent : colors.border, width: 1.5),
+        border: Border.all(
+          color: on ? colors.accent : colors.border,
+          width: 1.5,
+        ),
       ),
       alignment: Alignment.center,
       child:

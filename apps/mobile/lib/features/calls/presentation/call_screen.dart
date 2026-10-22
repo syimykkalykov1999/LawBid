@@ -13,8 +13,11 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/call_foreground.dart';
+import 'package:lawbid/features/calls/application/call_media.dart';
 import 'package:lawbid/features/calls/application/call_video_layout.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
+import 'package:lawbid/features/calls/presentation/call_add_panel.dart';
+import 'package:lawbid/features/calls/presentation/call_controls.dart';
 import 'package:lawbid/features/calls/presentation/call_group.dart';
 import 'package:lawbid/features/calls/presentation/call_pip_window.dart';
 import 'package:lawbid/features/calls/presentation/call_vote.dart';
@@ -31,8 +34,13 @@ import 'package:lawbid/features/subscription/presentation/paywall_screen.dart';
 /// rings here). Closes itself when the call is over.
 ///
 /// Owner 2026-10-05: a video call shows the other side full screen and our
-/// camera in a small window (top corner); buttons Mute · Camera · End ·
-/// Flip camera.
+/// camera in a small window (top corner).
+///
+/// Owner 2026-10-22 (WhatsApp): one control pill for every call under way —
+/// Speaker · Video · Mute · End; the camera flip sits in the top bar while
+/// our camera is on. The video button turns a voice call into a video call
+/// (and back); when the other side does it, their picture comes up with
+/// «Turn on yours?».
 class CallScreen extends ConsumerStatefulWidget {
   const CallScreen({super.key});
 
@@ -259,15 +267,86 @@ class _CallScreenState extends ConsumerState<CallScreen>
     final media = c.media;
     final layout = ref.watch(callVideoLayoutProvider);
     final peerCameraOff = ref.watch(callCamerasOffProvider).contains(peer?.id);
-    // 1:1 video, answered: a tap on the empty screen clears the buttons.
-    final selfBig = layout.selfBig && s.cameraOn;
-    final hideChrome = layout.controlsHidden &&
-        s.video &&
-        !group &&
-        s.phase == CallPhase.active;
-    final remote = s.video && !group ? media?.remoteVideo : null;
-    final local = s.video && !group ? media?.localVideo : null;
+    final promptId = s.videoPrompt;
+    final promptName = promptId == null
+        ? ''
+        : s.call?.participants
+                .where((m) => m.userId == promptId)
+                .firstOrNull
+                ?.name ??
+            peer?.name ??
+            '';
 
+    // 1:1: the screen follows the two pictures as they come and go.
+    Widget screen(MediaStream? remoteStream, MediaStream? localStream) {
+      final peerVideo = remoteStream != null && !peerCameraOff;
+      final myVideo = s.cameraOn && localStream != null;
+      final videoLive = s.video &&
+          !group &&
+          s.phase == CallPhase.active &&
+          (myVideo || remoteStream != null);
+      // Owner 2026-10-22 (WhatsApp): our camera on and theirs not here
+      // yet — our own picture fills the screen until theirs arrives.
+      final selfBig = myVideo && (layout.selfBig || remoteStream == null);
+      // 1:1 video, answered: a tap on the empty screen clears the buttons.
+      final hideChrome = layout.controlsHidden && videoLive;
+      final smallStream = selfBig
+          ? (peerVideo ? remoteStream : null)
+          : (myVideo ? localStream : null);
+      return _screen(
+        context,
+        t: t,
+        colors: colors,
+        type: type,
+        s: s,
+        c: c,
+        peer: peer,
+        name: name,
+        group: group,
+        ringing: ringing,
+        media: media,
+        layout: layout,
+        promptName: promptName,
+        videoLive: videoLive,
+        selfBig: selfBig,
+        hideChrome: hideChrome,
+        bigStream: !videoLive
+            ? null
+            : selfBig
+                ? localStream
+                : (peerVideo ? remoteStream : null),
+        smallStream: videoLive ? smallStream : null,
+      );
+    }
+
+    if (media == null || group) return screen(null, null);
+    return ListenableBuilder(
+      listenable: Listenable.merge([media.remoteVideo, media.localVideo]),
+      builder: (_, __) =>
+          screen(media.remoteVideo.value, media.localVideo.value),
+    );
+  }
+
+  Widget _screen(
+    BuildContext context, {
+    required Translator t,
+    required AppColorTokens colors,
+    required AppTypographyTokens type,
+    required CallSession s,
+    required CallController c,
+    required CallPeer? peer,
+    required String name,
+    required bool group,
+    required bool ringing,
+    required CallMedia? media,
+    required CallVideoLayout layout,
+    required String promptName,
+    required bool videoLive,
+    required bool selfBig,
+    required bool hideChrome,
+    required MediaStream? bigStream,
+    required MediaStream? smallStream,
+  }) {
     return SystemNavBandColor(
       color: colors.navy,
       child: AnnotatedRegion<SystemUiOverlayStyle>(
@@ -301,36 +380,24 @@ class _CallScreenState extends ConsumerState<CallScreen>
                 fit: StackFit.expand,
                 children: [
                   // The big picture: the other side once theirs arrives (ours
-                  // when the small window was tapped). A tap on the empty
-                  // screen hides / shows the controls.
-                  if (remote != null && local != null)
+                  // when the small window was tapped, or while theirs is not
+                  // here yet); their photo while their camera is off. A tap
+                  // on the empty screen hides / shows the controls.
+                  if (videoLive)
                     Positioned.fill(
                       child: GestureDetector(
                         key: const Key('call-video-bg'),
                         behavior: HitTestBehavior.opaque,
-                        onTap: s.phase == CallPhase.active
-                            ? ref
-                                .read(callVideoLayoutProvider.notifier)
-                                .toggleControls
-                            : null,
-                        child: ValueListenableBuilder<MediaStream?>(
-                          valueListenable: selfBig ? local : remote,
-                          builder: (_, stream, __) =>
-                              stream == null || s.phase != CallPhase.active
-                                  ? const SizedBox.shrink()
-                                  : !selfBig && peerCameraOff
-                                      ? Center(
-                                          child: CallAvatar(
-                                            peer: peer,
-                                            size: 120,
-                                          ),
-                                        )
-                                      : CallVideoView(
-                                          key: ValueKey(selfBig),
-                                          stream: stream,
-                                          mirror: selfBig,
-                                        ),
-                        ),
+                        onTap: ref
+                            .read(callVideoLayoutProvider.notifier)
+                            .toggleControls,
+                        child: bigStream == null
+                            ? Center(child: CallAvatar(peer: peer, size: 120))
+                            : CallVideoView(
+                                key: ValueKey(selfBig),
+                                stream: bigStream,
+                                mirror: selfBig,
+                              ),
                       ),
                     ),
                   IgnorePointer(
@@ -361,6 +428,20 @@ class _CallScreenState extends ConsumerState<CallScreen>
                                   else
                                     const SizedBox(width: 44, height: 44),
                                   const Spacer(),
+                                  // Owner 2026-10-22 (WhatsApp): the camera
+                                  // flip, only while our camera is on.
+                                  if (s.video &&
+                                      s.cameraOn &&
+                                      s.busy &&
+                                      s.phase != CallPhase.incoming) ...[
+                                    _TopButton(
+                                      key: const Key('call-btn-flip'),
+                                      icon: AppIcons.cameraRotateOutlined,
+                                      label: t.t('call.flipCamera'),
+                                      onTap: () => unawaited(c.switchCamera()),
+                                    ),
+                                    const SizedBox(width: AppSpacing.sm),
+                                  ],
                                   // Owner 2026-10-20: the rightmost button
                                   // always sits at the right edge (the same
                                   // inset as the minimise button on the left);
@@ -370,7 +451,7 @@ class _CallScreenState extends ConsumerState<CallScreen>
                                       icon: AppIcons.personAddAlt1Rounded,
                                       label: t.t('call.addParticipant'),
                                       onTap: () => unawaited(
-                                        showAddToCallSheet(context),
+                                        showAddToCallPanel(context),
                                       ),
                                     ),
                                     if (group)
@@ -453,6 +534,20 @@ class _CallScreenState extends ConsumerState<CallScreen>
                                 notice: s.notice!,
                               ),
                             ],
+                            if (s.videoPrompt != null) ...[
+                              const SizedBox(height: AppSpacing.sm),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: AppSpacing.md,
+                                ),
+                                child: CallVideoPrompt(
+                                  key: ValueKey(s.videoPrompt),
+                                  name: promptName,
+                                  onTurnOn: () => unawaited(c.toggleVideo()),
+                                  onNotNow: c.dismissVideoPrompt,
+                                ),
+                              ),
+                            ],
                             if (group && s.call?.vote != null) ...[
                               const SizedBox(height: AppSpacing.sm),
                               CallVoteStrip(vote: s.call!.vote!, call: s.call!),
@@ -470,8 +565,7 @@ class _CallScreenState extends ConsumerState<CallScreen>
                             else
                               const Spacer(),
                             // A live video call: the picture is the background.
-                            if (!group &&
-                                !(s.video && s.phase == CallPhase.active))
+                            if (!group && !videoLive)
                               SizedBox(
                                 width: 220,
                                 height: 220,
@@ -492,10 +586,14 @@ class _CallScreenState extends ConsumerState<CallScreen>
                               ),
                             if (!group) const Spacer(),
                             Padding(
-                              padding: const EdgeInsets.fromLTRB(
-                                AppSpacing.xl,
+                              padding: EdgeInsets.fromLTRB(
+                                s.phase == CallPhase.incoming
+                                    ? AppSpacing.xl
+                                    : AppSpacing.md,
                                 0,
-                                AppSpacing.xl,
+                                s.phase == CallPhase.incoming
+                                    ? AppSpacing.xl
+                                    : AppSpacing.md,
                                 AppSpacing.xxl,
                               ),
                               child: s.phase == CallPhase.incoming
@@ -519,72 +617,30 @@ class _CallScreenState extends ConsumerState<CallScreen>
                                         ),
                                       ],
                                     )
-                                  : Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.spaceAround,
-                                      children: [
-                                        _RoundButton(
-                                          icon: s.muted
-                                              ? AppIcons.micOffRounded
-                                              : AppIcons.micRounded,
-                                          label: t.t('call.mute'),
-                                          color: Colors.white.withValues(
-                                            alpha: s.muted ? 0.9 : 0.14,
-                                          ),
-                                          iconColor: s.muted
-                                              ? colors.navy
-                                              : Colors.white,
-                                          selected: s.muted,
-                                          onTap: s.busy ? c.toggleMute : null,
-                                        ),
-                                        _RoundButton(
-                                          icon: AppIcons.callEndRounded,
-                                          label: t.t('call.end'),
-                                          color: colors.danger,
-                                          onTap: s.busy
-                                              ? () => unawaited(_pressEnd(c, s))
-                                              : null,
-                                        ),
-                                        if (s.video) ...[
-                                          _RoundButton(
-                                            icon: s.cameraOn
-                                                ? AppIcons.videoCameraOutlined
-                                                : AppIcons.videocamOffOutlined,
-                                            label: t.t('call.camera'),
-                                            color: Colors.white.withValues(
-                                              alpha: s.cameraOn ? 0.14 : 0.9,
-                                            ),
-                                            iconColor: s.cameraOn
-                                                ? Colors.white
-                                                : colors.navy,
-                                            selected: !s.cameraOn,
-                                            onTap:
-                                                s.busy ? c.toggleCamera : null,
-                                          ),
-                                          _RoundButton(
-                                            icon: AppIcons.cameraRotateOutlined,
-                                            label: t.t('call.flipCamera'),
-                                            color: Colors.white
-                                                .withValues(alpha: 0.14),
-                                            onTap: s.busy && s.cameraOn
-                                                ? c.switchCamera
+                                  : FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      child: CallControlBar(
+                                        speaker: s.speaker,
+                                        videoOn: s.video && s.cameraOn,
+                                        muted: s.muted,
+                                        onSpeaker: s.busy
+                                            ? () => unawaited(c.toggleSpeaker())
+                                            : null,
+                                        // Owner 2026-10-22: switches video
+                                        // on / off mid-call; a channel's
+                                        // video call keeps the plain camera
+                                        // pause.
+                                        onVideo: c.canSwitchVideo
+                                            ? () => unawaited(c.toggleVideo())
+                                            : s.video && s.busy
+                                                ? () =>
+                                                    unawaited(c.toggleCamera())
                                                 : null,
-                                          ),
-                                        ] else
-                                          _RoundButton(
-                                            icon: AppIcons.volumeUpRounded,
-                                            label: t.t('call.speaker'),
-                                            color: Colors.white.withValues(
-                                              alpha: s.speaker ? 0.9 : 0.14,
-                                            ),
-                                            iconColor: s.speaker
-                                                ? colors.navy
-                                                : Colors.white,
-                                            selected: s.speaker,
-                                            onTap:
-                                                s.busy ? c.toggleSpeaker : null,
-                                          ),
-                                      ],
+                                        onMute: s.busy ? c.toggleMute : null,
+                                        onEnd: s.busy
+                                            ? () => unawaited(_pressEnd(c, s))
+                                            : null,
+                                      ),
                                     ),
                             ),
                           ],
@@ -593,28 +649,15 @@ class _CallScreenState extends ConsumerState<CallScreen>
                     ),
                   ),
                   // The other picture, small: drag, swap by a tap, put away.
-                  if (local != null &&
-                      remote != null &&
-                      s.phase == CallPhase.active &&
-                      !hideChrome &&
-                      !layout.pipHidden)
+                  if (smallStream != null && !hideChrome && !layout.pipHidden)
                     Positioned.fill(
-                      child: ValueListenableBuilder<MediaStream?>(
-                        valueListenable: selfBig ? remote : local,
-                        builder: (_, stream, __) => stream == null ||
-                                (!selfBig && !s.cameraOn)
-                            ? const SizedBox.shrink()
-                            : CallPipWindow(
-                                stream: stream,
-                                mirror: !selfBig,
-                                topInset: MediaQuery.paddingOf(context).top +
-                                    AppSpacing.xxl,
-                                bottomInset:
-                                    MediaQuery.paddingOf(context).bottom + 190,
-                                onTap: ref
-                                    .read(callVideoLayoutProvider.notifier)
-                                    .swap,
-                              ),
+                      child: CallPipWindow(
+                        stream: smallStream,
+                        mirror: !selfBig,
+                        topInset:
+                            MediaQuery.paddingOf(context).top + AppSpacing.xxl,
+                        bottomInset: MediaQuery.paddingOf(context).bottom + 190,
+                        onTap: ref.read(callVideoLayoutProvider.notifier).swap,
                       ),
                     ),
                 ],
@@ -633,6 +676,7 @@ class _TopButton extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.onTap,
+    super.key,
   });
 
   final IconData icon;
@@ -641,11 +685,12 @@ class _TopButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
     return Semantics(
       button: true,
       label: label,
       child: Material(
-        color: Colors.white.withValues(alpha: 0.14),
+        color: colors.callInk.withValues(alpha: 0.14),
         shape: const CircleBorder(),
         child: InkWell(
           customBorder: const CircleBorder(),
@@ -654,11 +699,7 @@ class _TopButton extends StatelessWidget {
             width: 44,
             height: 44,
             child: Center(
-              child: AppIcon(
-                icon,
-                size: 24,
-                color: Colors.white.withValues(alpha: 1),
-              ),
+              child: AppIcon(icon, size: 24, color: colors.callInk),
             ),
           ),
         ),
@@ -748,26 +789,22 @@ class _RoundButton extends StatelessWidget {
     required this.label,
     required this.color,
     required this.onTap,
-    this.iconColor = Colors.white,
-    this.selected,
   });
 
   final IconData icon;
   final String label;
   final Color color;
-  final Color iconColor;
   final VoidCallback? onTap;
-  final bool? selected;
 
   @override
   Widget build(BuildContext context) {
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
     // Expanded (always a child of a button Row): equal slots, so long
     // translated labels wrap inside their own slot instead of overlapping.
     return Expanded(
       child: Semantics(
         button: true,
-        toggled: selected,
         enabled: onTap != null,
         label: label,
         excludeSemantics: true,
@@ -787,7 +824,7 @@ class _RoundButton extends StatelessWidget {
                 width: 72,
                 height: 72,
                 decoration: BoxDecoration(shape: BoxShape.circle, color: color),
-                child: AppIcon(icon, color: iconColor, size: 32),
+                child: AppIcon(icon, color: colors.callInk, size: 32),
               ),
             ),
             const SizedBox(height: AppSpacing.sm),
@@ -795,7 +832,7 @@ class _RoundButton extends StatelessWidget {
               label,
               textAlign: TextAlign.center,
               style: type.caption
-                  .copyWith(color: Colors.white.withValues(alpha: 0.85)),
+                  .copyWith(color: colors.callInk.withValues(alpha: 0.85)),
             ),
           ],
         ),

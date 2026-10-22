@@ -1,6 +1,5 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -67,7 +66,27 @@ class _CallVideoViewState extends State<CallVideoView> {
         );
 }
 
-/// The member's photo in a gold ring, or their initials on navy.
+/// Owner 2026-10-22: the call screen stays dark navy in every theme; the
+/// ink and fills drawn on it come from the theme's tokens, named here once.
+extension CallInk on AppColorTokens {
+  /// Icons and text on the call's dark background (white in every theme —
+  /// the same ink as on the red end button).
+  Color get callInk => onDanger;
+
+  /// The dark pill behind the call buttons (WhatsApp): opaque, so it reads
+  /// the same over the navy and over a moving picture.
+  Color get callPill =>
+      Color.alphaBlend(onDanger.withValues(alpha: 0.10), navy);
+
+  /// The round backing of a small icon laid over a picture.
+  Color get callScrim => navy.withValues(alpha: 0.6);
+}
+
+/// Owner 2026-10-22: the member's photo, loaded and cached like every
+/// avatar in the app ([AppAvatar] + [appNetworkImage], the same cache key),
+/// with their initials underneath — a photo that is loading or fails to
+/// load (an expired link, no network) shows the letters, never Flutter's
+/// grey cross.
 class CallAvatar extends StatelessWidget {
   const CallAvatar({required this.peer, required this.size, super.key});
 
@@ -76,52 +95,56 @@ class CallAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
     final url = peer?.avatarUrl;
-    final initials = (peer?.name ?? '?')
-        .replaceAll(RegExp('[@\u2066-\u2069]'), '')
-        .split(' ')
-        .where((w) => w.isNotEmpty)
-        .take(2)
-        .map((w) => w[0].toUpperCase())
-        .join();
-    return Container(
-      width: size,
-      height: size,
-      padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: LinearGradient(
-          colors: [colors.goldLight, colors.gold, colors.goldDark],
-        ),
-      ),
-      child: ClipOval(
-        child: url == null
-            ? ColoredBox(
-                color: colors.navy,
-                child: Center(
-                  child: Text(
-                    initials.isEmpty ? '?' : initials,
-                    style: TextStyle(
-                      color: colors.goldLight,
-                      fontSize: size * 0.34,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              )
-            : Image(image: appNetworkImage(url, 600), fit: BoxFit.cover),
-      ),
+    return AppAvatar(
+      size: size,
+      initials: avatarInitials(peer?.name ?? ''),
+      imageProvider: url == null || url.isEmpty
+          ? null
+          : appNetworkImage(url, decodeWidthFor(size)),
     );
   }
 }
 
-/// Picks people from the phone book for "Add participant": the user ids
-/// ticked, or null when closed. Wired in the app root (the calls feature
-/// does not import the contacts feature); without it the button is hidden.
-typedef CallContactPicker = Future<List<String>?> Function(
-  BuildContext context,
-  Set<String> excludeUserIds,
-);
+/// A small round icon button laid over a picture (put away, expand).
+class CallOverlayIcon extends StatelessWidget {
+  const CallOverlayIcon({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.size = 14,
+    super.key,
+  });
 
-final callContactPickerProvider = Provider<CallContactPicker?>((ref) => null);
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    return Semantics(
+      button: true,
+      label: label,
+      excludeSemantics: true,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(6),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: colors.callScrim,
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.xs),
+              child: AppIcon(icon, size: size, color: colors.callInk),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

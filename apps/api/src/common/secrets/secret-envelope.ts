@@ -54,7 +54,12 @@ export class SecretEnvelope {
   decrypt(stored: string, aad: string): string {
     const [version, kid, iv, tag, ct] = stored.split('.');
     const key = kid ? this.keys.get(kid) : undefined;
-    if (version !== 'v2' || !key || !iv || !tag || !ct) {
+    // Owner 2026-10-22: a photo/video sent without a caption seals '' —
+    // its ciphertext segment is empty (`v2.kid.iv.tag.`). `!ct` rejected
+    // it, the chat fell back to the stored string and the bubble showed
+    // `enc:v2.m1.…` under the photo. Empty is valid; only a missing
+    // segment is not (GCM's tag still authenticates the empty text).
+    if (version !== 'v2' || !key || !iv || !tag || ct === undefined) {
       throw new Error('Unrecognized secret format or unknown key id');
     }
     const decipher = createDecipheriv(

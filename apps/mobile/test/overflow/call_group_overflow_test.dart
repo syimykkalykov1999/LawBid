@@ -8,11 +8,14 @@ import 'package:lawbid/core/l10n/l10n_translator.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
+import 'package:lawbid/features/calls/presentation/call_add_panel.dart';
+import 'package:lawbid/features/calls/presentation/call_controls.dart';
 import 'package:lawbid/features/calls/presentation/call_group.dart';
 import 'package:lawbid/features/calls/presentation/call_screen.dart';
-import 'package:lawbid/features/calls/presentation/call_widgets.dart';
+import 'package:lawbid/shared/people/my_people.dart';
 
 import '../helpers/long_locale.dart';
+import '../helpers/long_people.dart';
 import '../helpers/ux_harness.dart';
 
 /// Owner 2026-10-20 (group calls): the call screen with three to seven
@@ -100,7 +103,7 @@ void main() {
           final overrides = <Override>[
             ...uxOverrides(translator: t),
             callMyIdProvider.overrideWithValue('u0'),
-            callContactPickerProvider.overrideWithValue((_, __) async => null),
+            myPeopleProvider.overrideWith((_) async => longPeople()),
             callControllerProvider.overrideWith(() => _Fixed(s)),
           ];
           await tester.pumpWidget(
@@ -169,6 +172,29 @@ void main() {
           await tester.pump(const Duration(seconds: 5));
         });
 
+        // Owner 2026-10-22 (Zoom): the «expand» mark on a tile makes that
+        // person big; the «turn on yours?» prompt fits with a long name.
+        testWidgets('video: the expand mark, and the turn-on prompt',
+            (tester) async {
+          await pump(
+            tester,
+            _session(6, video: true).copyWith(
+              cameraOn: false,
+              videoPrompt: 'u2',
+            ),
+            const CallScreen(),
+          );
+          expect(find.byType(CallVideoPrompt), findsOneWidget);
+          expect(tester.takeException(), isNull);
+          await tester.tap(find.byKey(const Key('call-tile-expand-u2')));
+          await tester.pump(const Duration(milliseconds: 300));
+          expect(find.byKey(const Key('call-focus-back')), findsOneWidget);
+          // The big one carries the way back, not a second expand mark.
+          expect(find.byKey(const Key('call-tile-expand-u2')), findsNothing);
+          expect(tester.takeException(), isNull);
+          await tester.pump(const Duration(seconds: 5));
+        });
+
         testWidgets('host presses end while links are still connecting: asked',
             (tester) async {
           await pump(
@@ -207,14 +233,14 @@ void main() {
           });
         }
 
-        testWidgets('add sheet', (tester) async {
+        testWidgets('add panel', (tester) async {
           await pump(
             tester,
             _session(3),
             Scaffold(
               body: Builder(
                 builder: (context) => TextButton(
-                  onPressed: () => showAddToCallSheet(context),
+                  onPressed: () => showAddToCallPanel(context),
                   child: const Text('open'),
                 ),
               ),

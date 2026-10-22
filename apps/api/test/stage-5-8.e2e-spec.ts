@@ -376,6 +376,7 @@ describe('Notifications, push, badges (e2e, docs/05 §9-§10, stage 5.8)', () =>
       chatsUnread: 2,
       notificationsUnread: 1,
       total: 3,
+      iconBadge: true,
     });
 
     const read = await api()

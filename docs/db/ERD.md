@@ -26,6 +26,8 @@ erDiagram
     DateTime password_set_at "nullable"
     String ui_language
     String timezone "nullable"
+    Boolean notif_icon_badge
+    Json notif_topics
     Boolean hide_like_counts
     enum_ThemePref theme
     String suspended_reason "nullable"
@@ -941,6 +943,7 @@ erDiagram
     String fcm_token UK
     String platform
     Boolean local_reminders
+    Boolean chat_style
     DateTime last_seen_at
     DateTime created_at
   }

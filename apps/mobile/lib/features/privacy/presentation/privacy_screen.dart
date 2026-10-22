@@ -103,7 +103,8 @@ class PrivacyScreen extends ConsumerWidget {
                   key: const ValueKey('privacy-find-by-phone'),
                   icon: AppIcons.phoneOutlined,
                   label: t.t('phoneContacts.findByPhone'),
-                  onTap: () => context.push(AppRoutes.contacts),
+                  onTap: () =>
+                      context.push('${AppRoutes.contacts}?tab=contacts'),
                 ),
                 AppListRow(
                   icon: AppIcons.blockRounded,

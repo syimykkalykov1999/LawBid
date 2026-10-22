@@ -92358,6 +92358,180 @@
         ]
       }
     },
+    "/notification-settings/topics": {
+      "put": {
+        "operationId": "updateNotificationTopics",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTopicSettingsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationSettingsEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Kinds of notifications on/off; locked stay on",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/notification-settings/icon-badge": {
+      "put": {
+        "operationId": "setIconBadge",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IconBadgeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationSettingsEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Unread number on the app icon on/off",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
     "/push-tokens": {
       "post": {
         "operationId": "registerPushToken",
@@ -156404,6 +156578,10 @@
           },
           "total": {
             "type": "number"
+          },
+          "iconBadge": {
+            "type": "boolean",
+            "description": "Owner 2026-10-21: false = keep the app icon clear (the user switched the icon counter off)."
           }
         },
         "required": [
@@ -156485,6 +156663,92 @@
           }
         }
       },
+      "NotificationTopic": {
+        "type": "string",
+        "enum": [
+          "messages",
+          "groups",
+          "channels",
+          "calls",
+          "chatMentions",
+          "likes",
+          "comments",
+          "replies",
+          "followers",
+          "mentions",
+          "reactions",
+          "following",
+          "bidNew",
+          "bidDecision",
+          "newCases",
+          "caseMessages",
+          "caseDeadlines",
+          "casePayments",
+          "caseUpdates",
+          "tasks",
+          "assistants",
+          "assistantCases",
+          "assistantBids",
+          "assistantTasks",
+          "assistantMessages",
+          "security",
+          "account",
+          "partner",
+          "news"
+        ]
+      },
+      "NotificationTopicBlock": {
+        "type": "string",
+        "enum": [
+          "chats",
+          "feed",
+          "bids",
+          "cases",
+          "assistants",
+          "system"
+        ]
+      },
+      "TopicSettingViewDto": {
+        "type": "object",
+        "properties": {
+          "topic": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/NotificationTopic"
+              }
+            ]
+          },
+          "block": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/NotificationTopicBlock"
+              }
+            ]
+          },
+          "pushEnabled": {
+            "type": "boolean"
+          },
+          "locked": {
+            "type": "boolean",
+            "description": "Can't be turned off."
+          },
+          "attorneyOnly": {
+            "type": "boolean",
+            "description": "Shown to attorneys only."
+          },
+          "parent": {
+            "type": "string",
+            "description": "Needs this switch on too (shown nested under it)."
+          }
+        },
+        "required": [
+          "topic",
+          "block",
+          "pushEnabled",
+          "locked",
+          "attorneyOnly"
+        ]
+      },
       "NotificationSettingsDto": {
         "type": "object",
         "properties": {
@@ -156502,10 +156766,23 @@
                 "$ref": "#/components/schemas/QuietHoursDto"
               }
             ]
+          },
+          "iconBadge": {
+            "type": "boolean",
+            "description": "Owner 2026-10-21: the unread number on the app icon (default true)."
+          },
+          "topics": {
+            "description": "Owner 2026-10-21: a switch per kind of notification, in screen order.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TopicSettingViewDto"
+            }
           }
         },
         "required": [
-          "categories"
+          "categories",
+          "iconBadge",
+          "topics"
         ]
       },
       "NotificationSettingsEnvelope": {
@@ -156652,6 +156929,50 @@
           "timezone"
         ]
       },
+      "TopicSettingDto": {
+        "type": "object",
+        "properties": {
+          "topic": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/NotificationTopic"
+              }
+            ]
+          },
+          "pushEnabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "topic",
+          "pushEnabled"
+        ]
+      },
+      "UpdateTopicSettingsDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TopicSettingDto"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "IconBadgeDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled"
+        ]
+      },
       "PushTokenDto": {
         "type": "object",
         "properties": {
@@ -156672,6 +156993,10 @@
           "localReminders": {
             "type": "boolean",
             "description": "Owner 2026-10-20: this app keeps planner reminders locally and shows the reminder push itself (Android)."
+          },
+          "chatStyle": {
+            "type": "boolean",
+            "description": "Owner 2026-10-22: this app draws chat notifications itself (sender's photo, one per chat) from a data-only push (Android)."
           }
         },
         "required": [

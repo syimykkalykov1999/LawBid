@@ -270,8 +270,8 @@ void main() {
     await tester.pumpAndSettle();
     // The groups button next to the search box is gone.
     expect(find.byKey(const ValueKey('chats-compose')), findsNothing);
-    // Owner 2026-10-21 (swapped): ONE magnifier, in the top bar; the «+» on
-    // the right of the folder chips in the SAME row.
+    // Owner 2026-10-22: ONE magnifier, in the top bar; the «+» is a
+    // floating button at the bottom right (not in the folder row).
     expect(find.byIcon(AppIcons.searchRounded), findsOneWidget);
     expect(find.byKey(const ValueKey('chat-search-open')), findsNothing);
     final chip =
@@ -279,8 +279,8 @@ void main() {
     final plus = tester.getCenter(find.byKey(const ValueKey('chats-new-chat')));
     final lupa =
         tester.getCenter(find.byKey(const ValueKey('chat-search-top')));
-    expect((chip.dy - plus.dy).abs(), lessThan(8));
-    expect(plus.dx, greaterThan(chip.dx));
+    expect(plus.dy, greaterThan(chip.dy + 200));
+    expect(plus.dx, greaterThan(500));
     expect(lupa.dy, lessThan(chip.dy - 20));
     // The top magnifier opens the search in the row.
     await tester.tap(find.byKey(const ValueKey('chat-search-top')));

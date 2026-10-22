@@ -27,6 +27,7 @@ import {
   QUIET_EXEMPT,
   quietHoursEnd,
 } from '../notification-rules';
+import { topicOf } from '../notification-topics';
 import { NotificationTemplateService } from './notification-template.service';
 import { fillTemplate } from './notification-templates';
 import { PushQueueService } from './push-queue.service';
@@ -42,6 +43,15 @@ import {
   type PushSender,
 } from './push.constants';
 import { MessageBodyCipher } from '../../../common/secrets/message-body-cipher';
+import { viewerContext } from '../../../common/viewer/viewer-context';
+import { FilesService } from '../../files/files.service';
+import {
+  CHAT_SENDER_SELECT,
+  chatPushData,
+  chatPushKind,
+  chatPushPreview,
+  chatSenderName,
+} from './chat-push';
 
 export interface PushModuleOptions {
   mode: 'api' | 'worker';
@@ -98,6 +108,8 @@ export class PushDispatcher
     // Owner 2026-10-17: iPhone calls as VoIP (PushKit) pushes.
     @Optional() private readonly voip?: ApnsVoipSender,
     @Optional() private readonly voipTokens?: VoipTokensService,
+    // Owner 2026-10-22: the sender's photo on a message push (WhatsApp).
+    @Optional() private readonly files?: FilesService,
   ) {
     this.logger.setContext(PushDispatcher.name);
   }
@@ -193,6 +205,11 @@ export class PushDispatcher
     if (call.group_id) {
       // Owner 2026-10-21: «mute calls» of the group silences this too.
       if (await this.callsMutedFor(data.recipientId, call)) return 'no_push';
+      // Owner 2026-10-21 (inbox 30): «Calls» off — no «Join» notice (it
+      // is not a ringing call to me; the call stays in the group's list).
+      if (!(await this.pushAllowed(data.recipientId, 'calls'))) {
+        return 'disabled';
+      }
       return this.dispatchGroupCallNotice(data, call, invite, language);
     }
     // Owner 2026-10-02: calls switched off still come through — silently
@@ -380,9 +397,12 @@ export class PushDispatcher
     if (data.push === false) return 'no_push';
     // Audit 2026-10-02: read in the app while quiet hours held it → no push.
     if (data.deferred && n.read_at) return 'no_push';
+    // Owner 2026-10-21 (inbox 30): the switch of this very kind.
     if (
       !ALWAYS_PUSH.has(n.type) &&
-      !(await this.pushAllowed(n.user_id, n.category))
+      !(await this.badges.topicSwitches(n.user_id)).on(
+        topicOf(n.type, n.payload as Record<string, unknown> | null),
+      )
     ) {
       return 'disabled';
     }
@@ -448,13 +468,14 @@ export class PushDispatcher
         .join(' ');
       if (caller) shown = { title: caller, body: text.title };
     }
-    const badge = (await this.badges.get(n.user_id)).total;
+    const icon = await this.badges.iconFor(n.user_id);
     await this.sender.send(
       {
         userId: n.user_id,
         ...shown,
         data: deepLink,
-        badge,
+        badge: icon.badge,
+        ...(icon.on ? {} : { iconBadge: false }),
         sound: 'notification',
         ...(n.type === 'task_reminder' ? { reminder: true } : {}),
       },
@@ -513,12 +534,14 @@ export class PushDispatcher
           system_kind: true,
           system_payload: true,
           mention_ids: true,
+          created_at: true,
+          file: { select: { mime: true } },
           poll: { select: { question: true } },
         },
       }),
       this.prisma.chatGroup.findUnique({
         where: { id: data.groupId },
-        select: { title: true, deleted_at: true },
+        select: { title: true, deleted_at: true, avatar_file_id: true },
       }),
     ]);
     if (
@@ -536,6 +559,9 @@ export class PushDispatcher
     const ru = user.ui_language === 'ru';
     const mentioned = message.mention_ids.includes(data.recipientId);
     let body: string;
+    // Owner 2026-10-22: who wrote it, their photo and the bare text, for the
+    // app's own notification (Android MessagingStyle shows each sender).
+    let chat: Record<string, string> | undefined;
     if (message.type === 'system') {
       const payload = (message.system_payload ?? {}) as {
         targetIds?: string[];
@@ -551,12 +577,11 @@ export class PushDispatcher
       const sender = message.sender_id
         ? await this.prisma.user.findUnique({
             where: { id: message.sender_id },
-            select: { first_name: true, last_name: true },
+            select: CHAT_SENDER_SELECT,
           })
         : null;
-      const who = [sender?.first_name, sender?.last_name]
-        .filter(Boolean)
-        .join(' ');
+      // Owner 2026-10-22: the display name, else the @username.
+      const who = chatSenderName(sender);
       const caption = [
         ...(message.type === 'poll'
           ? (message.poll?.question ?? '')
@@ -564,24 +589,44 @@ export class PushDispatcher
       ]
         .slice(0, MESSAGE_PREVIEW_CHARS)
         .join('');
-      const preview =
-        message.type === 'poll'
-          ? `📊 ${caption}`
-          : message.type === 'attachment'
-            ? (ru ? '📎 Файл' : '📎 File') + (caption ? `: ${caption}` : '')
-            : caption;
-      body = (who ? `${who}: ` : '') + preview;
+      const kind = chatPushKind(message.type, message.file?.mime);
+      let preview = chatPushPreview(kind, caption, ru);
       if (mentioned) {
-        body = (ru ? '@ Вас упомянули. ' : '@ Mentioned you. ') + body;
+        preview = (ru ? '@ Вас упомянули. ' : '@ Mentioned you. ') + preview;
       }
+      // Telegram: the group on top, «Имя: текст» below.
+      body = (who ? `${who}: ` : '') + preview;
+      const pics = await this.avatarUrls(data.recipientId, [
+        sender?.avatar_file_id,
+        group.avatar_file_id,
+      ]);
+      chat = chatPushData({
+        senderId: message.sender_id,
+        senderName: who,
+        senderAvatar: pics.get(sender?.avatar_file_id ?? '') ?? null,
+        senderAvatarKey: sender?.avatar_file_id ?? null,
+        text: preview,
+        kind,
+        sentAt: message.created_at,
+        group: {
+          title: group.title,
+          avatar: pics.get(group.avatar_file_id ?? '') ?? null,
+          avatarKey: group.avatar_file_id,
+        },
+      });
     }
     const muted = !!member.muted_until && member.muted_until > new Date();
     if (muted && !mentioned) return 'muted';
     if (await this.realtime.isViewing(data.recipientId, data.groupId)) {
       return 'viewing';
     }
-    // Owner 2026-10-21: groups have their own switch (Telegram).
-    if (!(await this.pushAllowed(data.recipientId, 'groups'))) {
+    // Owner 2026-10-21: groups have their own switch (Telegram); an
+    // @mention follows «Mentions» (inbox 30).
+    const sw = await this.badges.topicSwitches(data.recipientId);
+    if (
+      !(mentioned && sw.on('chatMentions')) &&
+      !(sw.on('groups') && !(mentioned && muted))
+    ) {
       return 'disabled';
     }
     if (!data.deferred) {
@@ -591,7 +636,7 @@ export class PushDispatcher
         return 'deferred';
       }
     }
-    const badge = (await this.badges.get(data.recipientId)).total;
+    const icon = await this.badges.iconFor(data.recipientId);
     await this.sender.send(
       {
         userId: data.recipientId,
@@ -602,9 +647,14 @@ export class PushDispatcher
           groupId: data.groupId,
           conversationId: data.groupId,
           messageId: data.messageId,
+          ...chat,
         },
-        badge,
+        badge: icon.badge,
+        ...(icon.on ? {} : { iconBadge: false }),
         sound: 'message',
+        // One stack per chat in the shade (WhatsApp).
+        threadId: data.groupId,
+        ...(chat ? { chat: true } : {}),
       },
       `m:${data.messageId}`,
     );
@@ -649,6 +699,7 @@ export class PushDispatcher
           revoked_at: true,
           sender_id: true,
           sent_by_name: true,
+          file: { select: { mime: true } },
         },
       }),
     ]);
@@ -687,6 +738,15 @@ export class PushDispatcher
     if (!(await this.pushAllowed(data.recipientId, 'messages'))) {
       return 'disabled';
     }
+    // Owner 2026-10-21 (inbox 30): «Reactions» off silences reactions to
+    // my messages too (not set yet = as before).
+    if (
+      data.event === 'reaction' &&
+      (await this.badges.topicSwitches(data.recipientId)).raw.reactions ===
+        false
+    ) {
+      return 'disabled';
+    }
     if (!data.deferred) {
       const until = await this.quietUntil(data.recipientId);
       if (until) {
@@ -702,61 +762,40 @@ export class PushDispatcher
     ]
       .slice(0, MESSAGE_PREVIEW_CHARS)
       .join('');
-    const preview =
-      message.type === 'voice'
-        ? (ru ? '🎤 Голосовое сообщение' : '🎤 Voice message') +
-          // WhatsApp: "🎤 0:12".
-          (message.duration_ms
-            ? ` ${Math.floor(message.duration_ms / 60000)}:${String(
-                Math.floor(message.duration_ms / 1000) % 60,
-              ).padStart(2, '0')}`
-            : '')
-        : // OQ-047: say what was attached; the file name stays private.
-          message.type === 'attachment'
-          ? (ru ? '📎 Файл' : '📎 File') + (caption ? `: ${caption}` : '')
-          : // Owner 2026-10-01: a sticker.
-            message.type === 'sticker'
-            ? ru
-              ? 'Стикер'
-              : 'Sticker'
-            : // Owner 2026-10-20: a gift / a shared attorney / a place.
-              message.type === 'gift'
-              ? ru
-                ? '🎁 Подарок'
-                : '🎁 Gift'
-              : message.type === 'contact'
-                ? ru
-                  ? '👤 Контакт'
-                  : '👤 Contact'
-                : message.type === 'place'
-                  ? `📍 ${caption}`
-                  : // Owner 2026-10-21: a shared post (the body is its id).
-                    message.type === 'post'
-                    ? ru
-                      ? '📰 Публикация'
-                      : '📰 Post'
-                    : caption;
+    // Owner 2026-10-22: «📷 Фото» / «🎥 Видео» / «📎 Файл» / «🎤 …».
+    const kind = chatPushKind(message.type, message.file?.mime);
+    const preview = chatPushPreview(kind, caption, ru, message.duration_ms);
     // Owner 2026-10-01: an assistant's message says so (not who exactly).
     const from = message.sent_by_name
       ? ru
         ? 'Помощник адвоката: '
         : "Attorney's assistant: "
       : '';
-    const badge = (await this.badges.get(data.recipientId)).total;
+    const icon = await this.badges.iconFor(data.recipientId);
     let body = from + (preview || text.body);
     let collapseKey: string | undefined;
     let dedupeKey = `m:${data.messageId}`;
+    // Owner 2026-10-22 (WhatsApp): the push is titled with the person — the
+    // one who wrote, or who reacted.
+    const senderId =
+      data.event === 'reaction' && data.actorId
+        ? data.actorId
+        : message.sender_id;
+    const sender = senderId
+      ? await this.prisma.user.findUnique({
+          where: { id: senderId },
+          select: CHAT_SENDER_SELECT,
+        })
+      : null;
+    const who = chatSenderName(sender);
     if (data.event === 'edit') {
       // Same group as the message's own alert: it is rewritten in place.
       body = `✏️ ${body}`;
       collapseKey = `msg-${data.messageId}`;
       dedupeKey = `e:${data.messageId}`;
     } else if (data.event === 'reaction' && data.actorId) {
-      const actor = await this.prisma.user.findUnique({
-        where: { id: data.actorId },
-        select: { first_name: true },
-      });
-      const name = actor?.first_name?.trim() || (ru ? 'Собеседник' : 'Someone');
+      const name =
+        sender?.first_name?.trim() || who || (ru ? 'Собеседник' : 'Someone');
       const quoted = preview ? ` «${[...preview].slice(0, 40).join('')}»` : '';
       body = ru
         ? `${name} отреагировал(а) ${data.emoji ?? ''} на${quoted || ' ваше сообщение'}`
@@ -766,23 +805,71 @@ export class PushDispatcher
     } else {
       collapseKey = `msg-${data.messageId}`;
     }
+    const pics = await this.avatarUrls(data.recipientId, [
+      sender?.avatar_file_id,
+    ]);
+    const chat = chatPushData({
+      senderId,
+      senderName: who,
+      senderAvatar: pics.get(sender?.avatar_file_id ?? '') ?? null,
+      senderAvatarKey: sender?.avatar_file_id ?? null,
+      text: body,
+      kind,
+      sentAt: message.created_at,
+    });
     await this.sender.send(
       {
         userId: data.recipientId,
-        title: text.title,
+        title: who || text.title,
         body,
         data: {
           type: 'new_message',
           conversationId: data.conversationId,
           messageId: data.messageId,
+          ...(data.event ? { event: data.event } : {}),
+          ...chat,
         },
-        badge,
+        badge: icon.badge,
+        ...(icon.on ? {} : { iconBadge: false }),
         sound: 'message',
         collapseKey,
+        // One stack per chat in the shade (WhatsApp).
+        threadId: data.conversationId,
+        chat: true,
       },
       dedupeKey,
     );
     return 'sent';
+  }
+
+  /**
+   * Owner 2026-10-22: avatar file id → a link to its 256 px picture, as
+   * [recipientId] may see it (a photo hidden from them stays hidden). A
+   * picture never holds a message back: no files service or a storage
+   * error just means no photo.
+   */
+  private async avatarUrls(
+    recipientId: string,
+    fileIds: (string | null | undefined)[],
+  ): Promise<Map<string, string>> {
+    const out = new Map<string, string>();
+    const files = this.files;
+    if (!files || !fileIds.some(Boolean)) return out;
+    try {
+      const links = await viewerContext.run(recipientId, () =>
+        files.avatarUrlsMany(fileIds),
+      );
+      for (const [id, link] of links) {
+        const url = link.url256 ?? link.url;
+        if (url) out.set(id, url);
+      }
+    } catch (error) {
+      this.logger.warn(
+        { err: error instanceof Error ? error.message : error },
+        'push avatar skipped',
+      );
+    }
+    return out;
   }
 
   private async pushAllowed(

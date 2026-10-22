@@ -29,6 +29,10 @@ abstract interface class AppSounds {
   Future<void> callEnded();
   Future<void> messageIn();
   Future<void> messageOut();
+
+  /// Owner 2026-10-22 (WhatsApp): a short tone in a call when the other
+  /// side switches its camera on — «turn yours on?».
+  Future<void> videoRequest();
 }
 
 class NoAppSounds implements AppSounds {
@@ -51,6 +55,8 @@ class NoAppSounds implements AppSounds {
   Future<void> messageIn() async {}
   @override
   Future<void> messageOut() async {}
+  @override
+  Future<void> videoRequest() async {}
 }
 
 class JustAudioAppSounds implements AppSounds {
@@ -160,6 +166,22 @@ class JustAudioAppSounds implements AppSounds {
 
   @override
   Future<void> messageOut() async {}
+
+  /// One short beep: the first moment of the ringback tone (no new asset;
+  /// the message sounds are the phone's own and play nothing here).
+  @override
+  Future<void> videoRequest() async {
+    await _play('ringback', volume: 0.4);
+    unawaited(
+      Future<void>.delayed(const Duration(milliseconds: 450), () async {
+        try {
+          await _fx?.stop();
+        } on Object {
+          // Already over.
+        }
+      }),
+    );
+  }
 }
 
 /// The real sounds are set up in `run_app.dart`; tests keep silence.

@@ -489,6 +489,7 @@ GoRouter appRouter(Ref ref) {
           state,
           ContactsScreen(
             initialCalls: state.uri.queryParameters['tab'] == 'calls',
+            initialContacts: state.uri.queryParameters['tab'] == 'contacts',
           ),
         ),
       ),

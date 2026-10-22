@@ -11,8 +11,10 @@ import 'package:lawbid/features/calls/domain/call_history_models.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:lawbid/features/contacts_sync/application/phone_contacts.dart';
 import 'package:lawbid/features/contacts_sync/presentation/calls_tab.dart';
+import 'package:lawbid/features/contacts_sync/presentation/chats_tab.dart';
 import 'package:lawbid/features/contacts_sync/presentation/contacts_screen.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
+import 'package:lawbid/shared/people/my_people.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../helpers/long_locale.dart';
@@ -249,6 +251,7 @@ void main() {
             sharedPreferencesProvider.overrideWithValue(prefs),
             phoneContactsProvider
                 .overrideWith((_) async => const PhoneContacts()),
+            myChatPeopleProvider.overrideWith((_) async => const []),
             callHistoryRepositoryProvider.overrideWithValue(theRepo),
             ...extra.cast(),
           ],
@@ -321,6 +324,7 @@ void main() {
     await tester.tap(find.text('Contacts').last);
     await tester.pumpAndSettle();
     expect(find.byType(CallsTab), findsNothing);
+    expect(find.byType(ChatsTab), findsNothing);
   });
 
   // Owner 2026-10-21: the segment is small, in the middle of the top bar,
@@ -334,12 +338,17 @@ void main() {
     expect(seg.height, 32);
     expect(seg.center.dx, closeTo(narrowPhone.width / 2, 2));
     expect(seg.top, lessThan(56));
-    await tester.fling(find.byType(PageView), const Offset(-300, 0), 1000);
-    await tester.pumpAndSettle();
+    for (var i = 0; i < 2; i++) {
+      await tester.fling(find.byType(PageView), const Offset(-300, 0), 1000);
+      await tester.pumpAndSettle();
+    }
     expect(find.byType(CallsTab), findsOneWidget);
-    await tester.fling(find.byType(PageView), const Offset(300, 0), 1000);
-    await tester.pumpAndSettle();
+    for (var i = 0; i < 2; i++) {
+      await tester.fling(find.byType(PageView), const Offset(300, 0), 1000);
+      await tester.pumpAndSettle();
+    }
     expect(find.byType(CallsTab), findsNothing);
+    expect(find.byType(ChatsTab), findsOneWidget);
   });
 
   // Owner 2026-10-21 (WhatsApp): pick calls, all of them, delete them from

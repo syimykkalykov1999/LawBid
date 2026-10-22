@@ -12,10 +12,18 @@ import 'package:lawbid/features/onboarding/application/current_user_controller.d
 /// Placed by the main shell: a screen pushed inside a tab already sits next
 /// to the shell's menu and in its column, so [WebPageFrame] does nothing.
 class InsideMainShell extends InheritedWidget {
-  const InsideMainShell({required super.child, super.key});
+  const InsideMainShell({required super.child, this.navAway, super.key});
+
+  /// Owner 2026-10-22: how far the bottom bar has slid away (0 = shown,
+  /// 1 = gone) — the feed slides it out as its pages move into Chats.
+  final ValueNotifier<double>? navAway;
 
   static bool of(BuildContext context) =>
       context.getInheritedWidgetOfExactType<InsideMainShell>() != null;
+
+  /// The shell's [navAway] (null outside the shell).
+  static ValueNotifier<double>? navAwayOf(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<InsideMainShell>()?.navAway;
 
   @override
   bool updateShouldNotify(InsideMainShell oldWidget) => false;

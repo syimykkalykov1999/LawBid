@@ -446,6 +446,7 @@ class ChatAttachmentGroupBody extends StatelessWidget {
     required this.messages,
     required this.mine,
     this.onRetry,
+    this.captionPadding = EdgeInsets.zero,
     super.key,
   });
 
@@ -453,6 +454,10 @@ class ChatAttachmentGroupBody extends StatelessWidget {
   final List<ChatMessage> messages;
   final bool mine;
   final void Function(ChatMessage m)? onRetry;
+
+  /// Owner 2026-10-22: the caption's text inset when the album fills the
+  /// bubble edge to edge.
+  final EdgeInsetsGeometry captionPadding;
 
   @override
   Widget build(BuildContext context) {
@@ -534,9 +539,12 @@ class ChatAttachmentGroupBody extends StatelessWidget {
           const SizedBox(height: AppSpacing.xs),
           SizedBox(
             width: media ? w : 240,
-            child: Text(
-              messages.last.body,
-              style: type.body.copyWith(color: fg, height: 1.35),
+            child: Padding(
+              padding: captionPadding,
+              child: Text(
+                caption,
+                style: type.body.copyWith(color: fg, height: 1.35),
+              ),
             ),
           ),
         ],

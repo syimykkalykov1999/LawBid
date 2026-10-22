@@ -364,6 +364,27 @@ class _FakeMedia implements CallMedia {
   @override
   Future<void> switchCamera() async => flips++;
 
+  // Owner 2026-10-22: the camera switched on / off mid-call, and glare.
+  int videoEnables = 0;
+  int videoDisables = 0;
+  bool pendingOffer = false;
+  int rollbacks = 0;
+
+  @override
+  Future<void> enableVideo() async => videoEnables++;
+
+  @override
+  Future<void> disableVideo() async => videoDisables++;
+
+  @override
+  Future<bool> offerPendingFor(String peer) async => pendingOffer;
+
+  @override
+  Future<void> rollbackFor(String peer) async {
+    rollbacks++;
+    pendingOffer = false;
+  }
+
   @override
   Future<Map<String, Object?>> restartIce() async {
     iceRestarts++;
@@ -418,6 +439,8 @@ class _Sounds implements AppSounds {
   Future<void> messageIn() async => played.add('in');
   @override
   Future<void> messageOut() async => played.add('out');
+  @override
+  Future<void> videoRequest() async => played.add('video');
 }
 
 class _FakeForeground implements CallForeground {
@@ -465,7 +488,7 @@ class _SystemUi implements SystemCallUi {
 }
 
 class _Harness {
-  _Harness() {
+  _Harness({String me = 'me'}) {
     container = ProviderContainer(
       overrides: [
         callsRepositoryProvider.overrideWithValue(repo),
@@ -474,7 +497,7 @@ class _Harness {
         appSoundsProvider.overrideWithValue(sounds),
         callForegroundProvider.overrideWithValue(foreground),
         systemCallUiProvider.overrideWithValue(systemUi),
-        callMyIdProvider.overrideWithValue('me'),
+        callMyIdProvider.overrideWithValue(me),
         callMicPermissionProvider.overrideWithValue(() async => true),
         callSignalSenderProvider.overrideWithValue((id, data, {to}) async {
           signals.add(data);
@@ -1440,6 +1463,194 @@ void main() {
       await _settle();
       expect(h.s.call?.vote, isNull);
       expect(h.s.notice, '$kNoticeVotePassed:p2');
+    });
+  });
+
+  group('the camera switched on mid-call (owner 2026-10-22)', () {
+    /// A 1:1 voice call we placed, picked up and connected.
+    Future<_Harness> talking({String me = 'me'}) async {
+      final h = _Harness(me: me);
+      addTearDown(h.dispose);
+      await h.c.call('conv', peer: _peer);
+      h.emit(
+        'call:accepted',
+        _event(_call('c1', CallStatus.active, outgoing: true)),
+      );
+      await _settle();
+      h.emit('call:signal', {
+        'callId': 'c1',
+        'from': 'p1',
+        'data': {'type': 'answer', 'sdp': 'a'},
+      });
+      await _settle();
+      h.media.onState!(CallMediaState.connected);
+      h.signals.clear();
+      h.signalTargets.clear();
+      return h;
+    }
+
+    test('a voice call becomes video: camera, new offer, the others told',
+        () async {
+      final h = await talking();
+      expect(h.s.video, isFalse);
+      expect(h.c.canSwitchVideo, isTrue);
+
+      await h.c.toggleVideo();
+      expect(h.media.videoEnables, 1);
+      expect(h.s.video, isTrue);
+      expect(h.s.cameraOn, isTrue);
+      // Like a video call from the start: the loudspeaker.
+      expect(h.s.speaker, isTrue);
+      expect(h.signals, [
+        {'type': 'offer', 'sdp': 'offer-sdp'},
+        {'type': 'video', 'on': true},
+        {'type': 'camera', 'on': true},
+      ]);
+      expect(h.signalTargets.first, 'p1');
+
+      // Their answer to the new offer is taken.
+      h.emit('call:signal', {
+        'callId': 'c1',
+        'from': 'p1',
+        'data': {'type': 'answer', 'sdp': 'a2'},
+      });
+      await _settle();
+      expect(h.media.gotAnswer, {'type': 'answer', 'sdp': 'a2'});
+
+      // Off again, nobody else sends a picture: back to the voice screen.
+      h.signals.clear();
+      await h.c.toggleVideo();
+      expect(h.media.videoDisables, 1);
+      expect(h.s.video, isFalse);
+      expect(h.s.cameraOn, isFalse);
+      expect(h.signals, [
+        {'type': 'video', 'on': false},
+        {'type': 'camera', 'on': false},
+      ]);
+      await h.c.hangUp();
+    });
+
+    test('our camera off while theirs is on: the call stays video', () async {
+      final h = await talking();
+      h.emit('call:signal', {
+        'callId': 'c1',
+        'from': 'p1',
+        'data': {'type': 'video', 'on': true},
+      });
+      await _settle();
+      await h.c.toggleVideo();
+      expect(h.s.cameraOn, isTrue);
+      await h.c.toggleVideo();
+      expect(h.s.cameraOn, isFalse);
+      expect(h.s.video, isTrue);
+      // Theirs goes off too: the voice screen.
+      h.emit('call:signal', {
+        'callId': 'c1',
+        'from': 'p1',
+        'data': {'type': 'video', 'on': false},
+      });
+      await _settle();
+      expect(h.s.video, isFalse);
+      await h.c.hangUp();
+    });
+
+    test('they switch video on: their picture, a sound, «turn on yours?»',
+        () async {
+      final h = await talking();
+      h.emit('call:signal', {
+        'callId': 'c1',
+        'from': 'p1',
+        'data': {'type': 'video', 'on': true},
+      });
+      await _settle();
+      expect(h.s.video, isTrue);
+      // Ours stays off until asked.
+      expect(h.s.cameraOn, isFalse);
+      expect(h.media.videoEnables, 0);
+      expect(h.s.videoPrompt, 'p1');
+      expect(h.sounds.played.where((x) => x == 'video'), hasLength(1));
+
+      // «Not now»; the same switch-on repeated asks no second time.
+      h.c.dismissVideoPrompt();
+      expect(h.s.videoPrompt, isNull);
+      h.emit('call:signal', {
+        'callId': 'c1',
+        'from': 'p1',
+        'data': {'type': 'video', 'on': true},
+      });
+      await _settle();
+      expect(h.s.videoPrompt, isNull);
+      expect(h.sounds.played.where((x) => x == 'video'), hasLength(1));
+
+      // Off and on again: asked again.
+      for (final on in [false, true]) {
+        h.emit('call:signal', {
+          'callId': 'c1',
+          'from': 'p1',
+          'data': {'type': 'video', 'on': on},
+        });
+        await _settle();
+      }
+      expect(h.s.videoPrompt, 'p1');
+
+      // «Turn on»: our camera opens, the prompt goes.
+      await h.c.toggleVideo();
+      expect(h.media.videoEnables, 1);
+      expect(h.s.cameraOn, isTrue);
+      expect(h.s.videoPrompt, isNull);
+      await h.c.hangUp();
+    });
+
+    test('glare: the polite side (smaller id) rolls back, answers, re-offers',
+        () async {
+      // 'me' < 'p1': we are polite.
+      final h = await talking();
+      await h.c.toggleVideo();
+      h.signals.clear();
+      h.media.pendingOffer = true;
+      h.emit('call:signal', {
+        'callId': 'c1',
+        'from': 'p1',
+        'data': {'type': 'offer', 'sdp': 'theirs'},
+      });
+      await _settle();
+      expect(h.media.rollbacks, 1);
+      expect(h.signals, [
+        {'type': 'answer', 'sdp': 'answer-to-theirs'},
+        // Our camera change goes again.
+        {'type': 'offer', 'sdp': 'offer-sdp'},
+      ]);
+      await h.c.hangUp();
+    });
+
+    test('glare: the impolite side ignores the offer that came', () async {
+      // 'zz' > 'p1': impolite.
+      final h = await talking(me: 'zz');
+      await h.c.toggleVideo();
+      h.signals.clear();
+      h.media.pendingOffer = true;
+      h.emit('call:signal', {
+        'callId': 'c1',
+        'from': 'p1',
+        'data': {'type': 'offer', 'sdp': 'theirs'},
+      });
+      await _settle();
+      expect(h.media.rollbacks, 0);
+      expect(h.signals, isEmpty);
+      // The call goes on.
+      expect(h.s.phase, CallPhase.active);
+      await h.c.hangUp();
+    });
+
+    test('not before the call is up', () async {
+      final h = _Harness();
+      addTearDown(h.dispose);
+      await h.c.call('conv', peer: _peer);
+      expect(h.c.canSwitchVideo, isFalse);
+      await h.c.toggleVideo();
+      expect(h.media.videoEnables, 0);
+      expect(h.s.video, isFalse);
+      await h.c.hangUp();
     });
   });
 }
