@@ -76,7 +76,7 @@ class _FindGroupsScreenState extends ConsumerState<FindGroupsScreen> {
     setState(() => _joining.add(g.id));
     try {
       final result = await ref.read(groupRepositoryProvider).join(g.code);
-      ref.invalidate(groupsProvider);
+      ref.read(groupsProvider.notifier).catchUp();
       if (!mounted) return;
       if (result.status == api.GroupJoinResultDtoStatus.joined) {
         setState(() => _joining.remove(g.id));

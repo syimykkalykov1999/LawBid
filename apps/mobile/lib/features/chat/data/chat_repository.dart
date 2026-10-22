@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
@@ -5,6 +6,7 @@ import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/uploads/storage_uploader.dart';
 import 'package:lawbid/core/uploads/upload_body.dart';
 import 'package:lawbid/features/chat/data/chat_list_cache.dart';
+import 'package:lawbid/features/chat/data/message_store.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/domain/forward.dart';
 import 'package:lawbid/features/stars/domain/stars_mappers.dart';
@@ -183,12 +185,25 @@ abstract interface class ChatRepository {
 }
 
 class ApiChatRepository implements ChatRepository {
-  ApiChatRepository(Dio dio, {Dio? storageDio, this.listCache})
-      : _chat = api.ChatClient(dio),
+  ApiChatRepository(
+    Dio dio, {
+    Dio? storageDio,
+    this.listCache,
+    this.messageStore,
+  })  : _chat = api.ChatClient(dio),
         _uploader = StorageUploader.dio(dio, storageDio ?? dio);
 
   /// Owner 2026-10-20: keeps the first page of the plain chat list.
   final ChatListCache? listCache;
+
+  /// Owner 2026-10-22 (package C): every message the server answers goes
+  /// to the phone's copy of the chat (pages, catch-ups, my own writes).
+  final MessageStore? messageStore;
+
+  ChatMessage _m(api.MessageDto d) {
+    unawaited(messageStore?.put(d.conversationId, [d]) ?? Future.value());
+    return ChatMappers.message(d);
+  }
 
   final api.ChatClient _chat;
   final StorageUploader _uploader;
@@ -222,7 +237,7 @@ class ApiChatRepository implements ChatRepository {
     required int durationMs,
     required List<int> waveform,
   }) async =>
-      ChatMappers.message(
+      _m(
         (await guardApiCall(
           () => _chat.sendMessage(
             id: id,
@@ -269,7 +284,7 @@ class ApiChatRepository implements ChatRepository {
     required String fileName,
     String? caption,
   }) async =>
-      ChatMappers.message(
+      _m(
         (await guardApiCall(
           () => _chat.sendMessage(
             id: id,
@@ -291,7 +306,7 @@ class ApiChatRepository implements ChatRepository {
     String clientMessageId,
     String sourceId,
   ) async =>
-      ChatMappers.message(
+      _m(
         (await guardApiCall(
           () => _chat.sendMessage(
             id: id,
@@ -373,7 +388,7 @@ class ApiChatRepository implements ChatRepository {
     String clientMessageId, {
     required String stickerId,
   }) async =>
-      ChatMappers.message(
+      _m(
         (await guardApiCall(
           () => _chat.sendMessage(
             id: id,
@@ -421,8 +436,7 @@ class ApiChatRepository implements ChatRepository {
   }
 
   @override
-  Future<ChatMessage> listened(String id, String messageId) async =>
-      ChatMappers.message(
+  Future<ChatMessage> listened(String id, String messageId) async => _m(
         (await guardApiCall(
           () => _chat.voiceListened(id: id, messageId: messageId),
         ))
@@ -559,18 +573,30 @@ class ApiChatRepository implements ChatRepository {
   Future<CursorPage<ChatMessage>> messages(String id, {String? cursor}) async {
     final env =
         await guardApiCall(() => _chat.listMessages(id: id, cursor: cursor));
+    final next = env.meta?.nextCursor;
+    unawaited(
+      messageStore?.put(
+            id,
+            env.data,
+            nextCursor: next,
+            complete: next == null,
+          ) ??
+          Future.value(),
+    );
     return CursorPage(
       items: env.data.map(ChatMappers.message).toList(),
-      nextCursor: env.meta?.nextCursor,
+      nextCursor: next,
     );
   }
 
   @override
-  Future<List<ChatMessage>> messagesAfter(String id, String afterId) async =>
-      (await guardApiCall(() => _chat.listMessages(id: id, afterId: afterId)))
-          .data
-          .map(ChatMappers.message)
-          .toList();
+  Future<List<ChatMessage>> messagesAfter(String id, String afterId) async {
+    final env = await guardApiCall(
+      () => _chat.listMessages(id: id, afterId: afterId),
+    );
+    unawaited(messageStore?.put(id, env.data) ?? Future.value());
+    return env.data.map(ChatMappers.message).toList();
+  }
 
   @override
   Future<ChatMessage> send(
@@ -580,7 +606,7 @@ class ApiChatRepository implements ChatRepository {
     String? replyToId,
     bool forwarded = false,
   }) async =>
-      ChatMappers.message(
+      _m(
         (await guardApiCall(
           () => _chat.sendMessage(
             id: id,
@@ -601,7 +627,7 @@ class ApiChatRepository implements ChatRepository {
     String messageId,
     String body,
   ) async =>
-      ChatMappers.message(
+      _m(
         (await guardApiCall(
           () => _chat.editChatMessage(
             id: id,
@@ -628,7 +654,7 @@ class ApiChatRepository implements ChatRepository {
 
   @override
   Future<ChatMessage> react(String id, String messageId, String? emoji) async =>
-      ChatMappers.message(
+      _m(
         (await guardApiCall(
           () => _chat.reactToChatMessage(
             id: id,
@@ -645,7 +671,7 @@ class ApiChatRepository implements ChatRepository {
     String messageId, {
     required bool pinned,
   }) async =>
-      ChatMappers.message(
+      _m(
         (await guardApiCall(
           () => pinned
               ? _chat.pinChatMessage(id: id, messageId: messageId)

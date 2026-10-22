@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show protected;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:lawbid/shared/domain/cursor_page.dart';
@@ -46,13 +47,29 @@ abstract class PagedNotifier<T> extends AsyncNotifier<PaginatedList<T>> {
     final saved = await _savedFirstPage();
     if (saved == null) return PaginatedList.firstPage(await fetch(null));
     // After this build has returned: the swap needs a value to replace.
-    unawaited(Future<void>(() => _revalidate(saved)));
+    unawaited(Future<void>(() => revalidateSaved(saved)));
     return PaginatedList.firstPage(saved);
   }
 
+  /// Owner 2026-10-22 (client economy plan): a list that can catch up with
+  /// `updatedSince` (SyncedListNotifier) does so instead of reading the
+  /// whole first page again; the default re-reads the page.
+  @protected
+  Future<void> revalidateSaved(CursorPage<T> saved) => _revalidate(saved);
+
+  /// Whether the user already pulled to refresh or loaded further pages
+  /// since the saved copy was shown (their list wins over a swap).
+  @protected
+  bool get extendedSinceBuild => _extended;
+
+  /// A saved copy slower than this is slower than the network: the list
+  /// goes on without it (a stuck disk must never hold a screen).
+  static const savedCopyTimeout = Duration(seconds: 1);
+
   Future<CursorPage<T>?> _savedFirstPage() async {
     try {
-      final page = await cachedFirstPage();
+      final page = await cachedFirstPage()
+          .timeout(savedCopyTimeout, onTimeout: () => null);
       return page == null || page.items.isEmpty ? null : page;
     } on Object {
       return null;

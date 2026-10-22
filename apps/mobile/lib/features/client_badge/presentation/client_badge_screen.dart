@@ -6,6 +6,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/payments/pay_page_look.dart';
+import 'package:lawbid/core/time/resume_refresh_gate.dart';
 import 'package:lawbid/features/client_badge/application/client_badge_providers.dart';
 import 'package:lawbid/features/client_badge/domain/client_badge_models.dart';
 import 'package:lawbid/features/client_plan/presentation/client_payment_portal.dart';
@@ -28,7 +29,7 @@ class ClientBadgeScreen extends ConsumerStatefulWidget {
 }
 
 class _ClientBadgeScreenState extends ConsumerState<ClientBadgeScreen>
-    with WidgetsBindingObserver {
+    with WidgetsBindingObserver, ResumeRefreshGate {
   /// Owner 2026-10-07 (bug 17): files in the request — admin «Значок
   /// клиента».
   int get _maxDocs =>
@@ -52,7 +53,7 @@ class _ClientBadgeScreenState extends ConsumerState<ClientBadgeScreen>
   // Back from Stripe's page: show the new state.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) _reload();
+    if (resumeNeedsRefresh(state)) _reload();
   }
 
   /// The badge state and the public profile that shows the badge.
@@ -115,6 +116,7 @@ class _ClientBadgeScreenState extends ConsumerState<ClientBadgeScreen>
   }
 
   Future<void> _pay() async {
+    expectExternalReturn();
     final t = ref.read(translatorProvider);
     setState(() => _busy = true);
     try {

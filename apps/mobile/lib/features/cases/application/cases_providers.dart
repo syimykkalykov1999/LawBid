@@ -1,12 +1,16 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/core/cache/cache_providers.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/dio_client.dart';
+import 'package:lawbid/core/session/session_providers.dart';
+import 'package:lawbid/core/sync/synced_list_notifier.dart';
 import 'package:lawbid/features/cases/application/paged_notifier.dart';
 import 'package:lawbid/features/cases/data/cases_local_database.dart';
 import 'package:lawbid/features/cases/data/cases_repository.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
+import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
@@ -33,6 +37,72 @@ final firmSendersProvider =
 
 // --- Infrastructure --------------------------------------------------------
 
+/// Package E: the delta side of the repository (null with a test fake).
+final casesSyncProvider = Provider<CasesSyncRepository?>((ref) {
+  final repo = ref.watch(casesRepositoryProvider);
+  // ignore: avoid_dynamic_calls
+  return repo is CasesSyncRepository ? repo as CasesSyncRepository : null;
+});
+
+/// Bumped after my own case / bid action: every «Mine» list on screen
+/// asks one `?updatedSince` for what that changed (the server sends
+/// `case:update` to the other side, not to me).
+class CaseListsTouched extends Notifier<int> {
+  @override
+  int build() => 0;
+
+  void bump() => state++;
+}
+
+final caseListsTouchedProvider =
+    NotifierProvider<CaseListsTouched, int>(CaseListsTouched.new);
+
+/// A bid my action answered (accept, decline, counter, withdraw): the bids
+/// list of the case replaces its row with it.
+class LastChangedBid extends Notifier<CaseBid?> {
+  @override
+  CaseBid? build() => null;
+
+  // ignore: use_setters_to_change_properties
+  void set(CaseBid bid) => state = bid;
+}
+
+final lastChangedBidProvider =
+    NotifierProvider<LastChangedBid, CaseBid?>(LastChangedBid.new);
+
+/// A `case:update` event about [caseId] (any kind), or a reconnect.
+bool caseEventFor(RealtimeEvent e, String caseId) =>
+    e.name == 'case:update' &&
+    e.data is Map &&
+    (e.data! as Map)['caseId'] == caseId;
+
+/// Owner 2026-10-22 (client economy plan, package E): what every «Mine»
+/// list shares — the sync state's owner and store, and the two triggers
+/// of a delta: a `case:update` from the server, or my own action here.
+mixin CaseListSync<T> on SyncedListNotifier<T> {
+  @override
+  String? get syncOwner =>
+      ref.read(sessionControllerProvider.select((s) => s?.sub));
+
+  @override
+  SyncStateStore? get syncStore => ref.read(cacheDatabaseProvider);
+
+  @override
+  DateTime? updatedAtOf(T item) => null;
+
+  /// Call from [build] before `super.build()`.
+  void listenForChanges() {
+    final sub = ref.watch(realtimeEventsProvider).listen((e) {
+      if (e.name == 'case:update' || e.name == RealtimeEvent.reconnected) {
+        catchUp();
+      }
+    });
+    ref
+      ..onDispose(sub.cancel)
+      ..listen(caseListsTouchedProvider, (_, __) => catchUp());
+  }
+}
+
 final casesRepositoryProvider = Provider<CasesRepository>(
   (ref) => ApiCasesRepository(ref.watch(dioProvider)),
 );
@@ -45,14 +115,34 @@ final casesLocalDatabaseProvider = Provider<CasesLocalDatabase>((ref) {
 
 // --- Client: "Мои кейсы" (docs/04 §11.1) ------------------------------------
 
-class MyCasesNotifier extends PagedNotifier<CaseSummary> {
+class MyCasesNotifier extends SyncedListNotifier<CaseSummary>
+    with CaseListSync<CaseSummary> {
   MyCasesNotifier(this.filter);
 
   final MyCasesFilter filter;
 
   @override
-  Future<CursorPage<CaseSummary>> fetch(String? cursor) =>
+  String get listKey => 'my_cases:${filter.name}';
+
+  @override
+  bool get catchesUp => ref.read(casesSyncProvider) != null;
+
+  @override
+  Future<PaginatedList<CaseSummary>> build() {
+    listenForChanges();
+    return super.build();
+  }
+
+  @override
+  Future<CursorPage<CaseSummary>> fetchPage(String? cursor) =>
       ref.read(casesRepositoryProvider).myCases(filter, cursor: cursor);
+
+  @override
+  Future<SyncedPage<CaseSummary>> fetchChanged(DateTime since) =>
+      ref.read(casesSyncProvider)!.myCasesChangedSince(filter, since);
+
+  @override
+  String keyOf(CaseSummary item) => item.id;
 
   @override
   Object idOf(CaseSummary item) => item.id;
@@ -72,8 +162,19 @@ final seenBidCountsProvider =
   return ref.watch(casesLocalDatabaseProvider).seenCounts(ids);
 });
 
+/// Package E: one card is re-read on its own `case:update`, not the lists.
+void _rereadOn(Ref ref, bool Function(RealtimeEvent e) test) {
+  final sub = ref.watch(realtimeEventsProvider).listen((e) {
+    if (test(e)) ref.invalidateSelf();
+  });
+  ref.onDispose(sub.cancel);
+}
+
 final ownerCaseProvider = FutureProvider.autoDispose.family<OwnerCase, String>(
-  (ref, id) => ref.watch(casesRepositoryProvider).ownerCase(id),
+  (ref, id) {
+    _rereadOn(ref, (e) => caseEventFor(e, id));
+    return ref.watch(casesRepositoryProvider).ownerCase(id);
+  },
   retry: _noRetry,
 );
 
@@ -83,6 +184,28 @@ class CaseBidsNotifier extends PagedNotifier<CaseBid> {
   CaseBidsNotifier(this.key);
 
   final CaseBidsKey key;
+
+  @override
+  Future<PaginatedList<CaseBid>> build() {
+    // Package E: my own answer to a bid replaces its row; a bid event on
+    // this case (someone else's move) re-reads the list — it has no delta.
+    ref.listen(lastChangedBidProvider, (_, bid) {
+      if (bid == null || bid.caseId != key.caseId) return;
+      final current = state.value;
+      if (current == null) return;
+      setItems([
+        for (final b in current.items)
+          if (b.id == bid.id) bid else b,
+      ]);
+    });
+    final sub = ref.watch(realtimeEventsProvider).listen((e) {
+      if (caseEventFor(e, key.caseId)) {
+        unawaited(refresh().catchError((Object _) {}));
+      }
+    });
+    ref.onDispose(sub.cancel);
+    return super.build();
+  }
 
   @override
   Future<CursorPage<CaseBid>> fetch(String? cursor) async {
@@ -112,7 +235,16 @@ final caseBidsProvider = AsyncNotifierProvider.autoDispose
 );
 
 final bidProvider = FutureProvider.autoDispose.family<CaseBid, String>(
-  (ref, id) => ref.watch(casesRepositoryProvider).bid(id),
+  (ref, id) {
+    _rereadOn(
+      ref,
+      (e) =>
+          e.name == 'case:update' &&
+          e.data is Map &&
+          (e.data! as Map)['bidId'] == id,
+    );
+    return ref.watch(casesRepositoryProvider).bid(id);
+  },
   retry: _noRetry,
 );
 
@@ -197,20 +329,43 @@ final exploreCasesProvider = AsyncNotifierProvider.autoDispose
 
 final attorneyCaseProvider =
     FutureProvider.autoDispose.family<FeedCase, String>(
-  (ref, id) => ref.watch(casesRepositoryProvider).attorneyCase(id),
+  (ref, id) {
+    _rereadOn(ref, (e) => caseEventFor(e, id));
+    return ref.watch(casesRepositoryProvider).attorneyCase(id);
+  },
   retry: _noRetry,
 );
 
 // --- Attorney: "Моё" (docs/04 §11.2) ----------------------------------------
 
-class MyBidsNotifier extends PagedNotifier<MyBid> {
+class MyBidsNotifier extends SyncedListNotifier<MyBid>
+    with CaseListSync<MyBid> {
   MyBidsNotifier(this.filter);
 
   final MyBidsFilter filter;
 
   @override
-  Future<CursorPage<MyBid>> fetch(String? cursor) =>
+  String get listKey => 'my_bids:${filter.name}';
+
+  @override
+  bool get catchesUp => ref.read(casesSyncProvider) != null;
+
+  @override
+  Future<PaginatedList<MyBid>> build() {
+    listenForChanges();
+    return super.build();
+  }
+
+  @override
+  Future<CursorPage<MyBid>> fetchPage(String? cursor) =>
       ref.read(casesRepositoryProvider).myBids(filter, cursor: cursor);
+
+  @override
+  Future<SyncedPage<MyBid>> fetchChanged(DateTime since) =>
+      ref.read(casesSyncProvider)!.myBidsChangedSince(filter, since);
+
+  @override
+  String keyOf(MyBid item) => item.bid.id;
 
   @override
   Object idOf(MyBid item) => item.bid.id;
@@ -222,14 +377,34 @@ final myBidsProvider = AsyncNotifierProvider.autoDispose
   retry: _noRetry,
 );
 
-class MyWorkNotifier extends PagedNotifier<WorkItem> {
+class MyWorkNotifier extends SyncedListNotifier<WorkItem>
+    with CaseListSync<WorkItem> {
   MyWorkNotifier(this.filter);
 
   final WorkFilter filter;
 
   @override
-  Future<CursorPage<WorkItem>> fetch(String? cursor) =>
+  String get listKey => 'my_work:${filter.name}';
+
+  @override
+  bool get catchesUp => ref.read(casesSyncProvider) != null;
+
+  @override
+  Future<PaginatedList<WorkItem>> build() {
+    listenForChanges();
+    return super.build();
+  }
+
+  @override
+  Future<CursorPage<WorkItem>> fetchPage(String? cursor) =>
       ref.read(casesRepositoryProvider).myWork(filter, cursor: cursor);
+
+  @override
+  Future<SyncedPage<WorkItem>> fetchChanged(DateTime since) =>
+      ref.read(casesSyncProvider)!.myWorkChangedSince(filter, since);
+
+  @override
+  String keyOf(WorkItem item) => item.caseId;
 
   @override
   Object idOf(WorkItem item) => item.caseId;
@@ -260,15 +435,37 @@ final savedCasesProvider = AsyncNotifierProvider.autoDispose<SavedCasesNotifier,
 
 typedef MineCasesKey = ({MyCasesFilter filter, MineSearch search});
 
-class MineCasesNotifier extends PagedNotifier<CaseSummary> {
+class MineCasesNotifier extends SyncedListNotifier<CaseSummary>
+    with CaseListSync<CaseSummary> {
   MineCasesNotifier(this.key);
 
   final MineCasesKey key;
 
   @override
-  Future<CursorPage<CaseSummary>> fetch(String? cursor) => ref
+  String get listKey => 'mine_cases:${key.filter.name}';
+
+  /// A filtered / searched tab has no delta: it reloads its page.
+  @override
+  bool get catchesUp =>
+      key.search.isEmpty && ref.read(casesSyncProvider) != null;
+
+  @override
+  Future<PaginatedList<CaseSummary>> build() {
+    listenForChanges();
+    return super.build();
+  }
+
+  @override
+  Future<CursorPage<CaseSummary>> fetchPage(String? cursor) => ref
       .read(casesRepositoryProvider)
       .myCases(key.filter, cursor: cursor, search: key.search);
+
+  @override
+  Future<SyncedPage<CaseSummary>> fetchChanged(DateTime since) =>
+      ref.read(casesSyncProvider)!.myCasesChangedSince(key.filter, since);
+
+  @override
+  String keyOf(CaseSummary item) => item.id;
 
   @override
   Object idOf(CaseSummary item) => item.id;
@@ -282,13 +479,52 @@ final mineCasesProvider = AsyncNotifierProvider.autoDispose
 
 typedef MineBidsKey = ({MyBidsFilter filter, MineSearch search});
 
-class MineBidsNotifier extends PagedNotifier<MyBid> {
+class MineBidsNotifier extends SyncedListNotifier<MyBid>
+    with CaseListSync<MyBid> {
   MineBidsNotifier(this.key);
 
   final MineBidsKey key;
 
   @override
-  Future<CursorPage<MyBid>> fetch(String? cursor) async {
+  String get listKey => 'mine_bids:${key.filter.name}';
+
+  @override
+  bool get catchesUp =>
+      key.search.isEmpty && ref.read(casesSyncProvider) != null;
+
+  @override
+  Future<PaginatedList<MyBid>> build() {
+    listenForChanges();
+    return super.build();
+  }
+
+  @override
+  Future<SyncedPage<MyBid>> fetchChanged(DateTime since) async {
+    final page = await ref
+        .read(casesSyncProvider)!
+        .myBidsChangedSince(key.filter, since);
+    if (key.filter != MyBidsFilter.finished) return page;
+    // «Finished» leaves out accepted bids (see fetchPage): a bid that
+    // became accepted leaves this tab.
+    return SyncedPage(
+      items: [
+        for (final b in page.items)
+          if (b.bid.status != BidStatus.accepted) b,
+      ],
+      deletedIds: [
+        ...page.deletedIds,
+        for (final b in page.items)
+          if (b.bid.status == BidStatus.accepted) b.bid.id,
+      ],
+      syncedAt: page.syncedAt,
+    );
+  }
+
+  @override
+  String keyOf(MyBid item) => item.bid.id;
+
+  @override
+  Future<CursorPage<MyBid>> fetchPage(String? cursor) async {
     final repo = ref.read(casesRepositoryProvider);
     if (key.filter != MyBidsFilter.finished) {
       return repo.myBids(key.filter, cursor: cursor, search: key.search);
@@ -324,15 +560,36 @@ final mineBidsProvider = AsyncNotifierProvider.autoDispose
 
 typedef MineWorkKey = ({WorkFilter filter, MineSearch search});
 
-class MineWorkNotifier extends PagedNotifier<WorkItem> {
+class MineWorkNotifier extends SyncedListNotifier<WorkItem>
+    with CaseListSync<WorkItem> {
   MineWorkNotifier(this.key);
 
   final MineWorkKey key;
 
   @override
-  Future<CursorPage<WorkItem>> fetch(String? cursor) => ref
+  String get listKey => 'mine_work:${key.filter.name}';
+
+  @override
+  bool get catchesUp =>
+      key.search.isEmpty && ref.read(casesSyncProvider) != null;
+
+  @override
+  Future<PaginatedList<WorkItem>> build() {
+    listenForChanges();
+    return super.build();
+  }
+
+  @override
+  Future<CursorPage<WorkItem>> fetchPage(String? cursor) => ref
       .read(casesRepositoryProvider)
       .myWork(key.filter, cursor: cursor, search: key.search);
+
+  @override
+  Future<SyncedPage<WorkItem>> fetchChanged(DateTime since) =>
+      ref.read(casesSyncProvider)!.myWorkChangedSince(key.filter, since);
+
+  @override
+  String keyOf(WorkItem item) => item.caseId;
 
   @override
   Object idOf(WorkItem item) => item.caseId;
@@ -382,23 +639,17 @@ class CaseActions {
 
   CasesRepository get _repo => _ref.read(casesRepositoryProvider);
 
+  /// Package E: the one card is re-read; every «Mine» list on screen asks
+  /// one `?updatedSince` for what the action changed (no reloads).
   void _clientCase(String caseId) {
-    _ref
-      ..invalidate(ownerCaseProvider(caseId))
-      ..invalidate(myCasesProvider)
-      ..invalidate(caseBidsProvider)
-      // Audit 2026-10-02: the "Mine" tab lists follow every change.
-      ..invalidate(mineCasesProvider)
-      ..invalidate(mineWorkProvider);
+    _ref.invalidate(ownerCaseProvider(caseId));
+    _ref.read(caseListsTouchedProvider.notifier).bump();
   }
 
   void _attorneyLists() {
-    _ref
-      ..invalidate(myBidsProvider)
-      ..invalidate(myWorkProvider)
-      ..invalidate(caseFeedProvider)
-      ..invalidate(mineBidsProvider)
-      ..invalidate(mineWorkProvider);
+    // The case feed is a pull list (no delta on the server).
+    _ref.invalidate(caseFeedProvider);
+    _ref.read(caseListsTouchedProvider.notifier).bump();
   }
 
   Future<void> closeCase(String id) async {
@@ -441,7 +692,7 @@ class CaseActions {
 
   Future<CaseBid> accept(CaseBid bid) async {
     final result = await _repo.accept(bid.id);
-    _afterBidChange(bid);
+    _afterBidChange(result);
     return result;
   }
 
@@ -450,23 +701,25 @@ class CaseActions {
     final result = bid.feeType == FeeType.contingency
         ? await _repo.counter(bid.id, percentBps: value, message: message)
         : await _repo.counter(bid.id, amountCents: value, message: message);
-    _afterBidChange(bid);
+    _afterBidChange(result);
     return result;
   }
 
   Future<CaseBid> decline(CaseBid bid) async {
     final result = await _repo.decline(bid.id);
-    _afterBidChange(bid);
+    _afterBidChange(result);
     return result;
   }
 
   Future<CaseBid> withdraw(CaseBid bid) async {
     final result = await _repo.withdraw(bid.id);
-    _afterBidChange(bid);
+    _afterBidChange(result);
     return result;
   }
 
   void _afterBidChange(CaseBid bid) {
+    // The answer is the bid: the bids list of the case replaces the row.
+    _ref.read(lastChangedBidProvider.notifier).set(bid);
     _ref
       ..invalidate(bidProvider(bid.id))
       ..invalidate(attorneyCaseProvider(bid.caseId))

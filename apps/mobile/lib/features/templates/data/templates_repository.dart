@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:lawbid/core/cache/http_cache_interceptor.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/request_flags.dart';
 import 'package:lawbid/features/templates/domain/doc_template.dart';
@@ -31,6 +32,7 @@ class TemplatesRepository {
         state: q.state,
         sort: q.newest ? api.TemplateSort.valueNew : api.TemplateSort.popular,
         cursor: cursor,
+        extras: cursor == null ? cacheFor(const Duration(hours: 24)) : null,
       ),
     );
     return CursorPage(

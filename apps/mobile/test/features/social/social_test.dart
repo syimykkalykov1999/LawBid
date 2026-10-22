@@ -35,14 +35,28 @@ void main() {
       expect(c.read(postOverridesProvider)['p1']?.likeCount, 3);
     });
 
-    test('a second tap while the first is in flight never calls the API twice',
+    // Owner 2026-10-22 (client economy plan, package K): a like waits
+    // 700 ms; «like → unlike» inside that window is no request at all.
+    test('like then unlike within the window: no request, state as before',
         () async {
       final repo = FakeSocialRepository();
       final c = ProviderContainer(overrides: socialOverrides(repo));
       addTearDown(c.dispose);
       final actions = c.read(socialActionsProvider);
       final post = fakePost('p1');
-      await Future.wait([actions.toggleLike(post), actions.toggleLike(post)]);
+      final first = actions.toggleLike(post);
+      expect(c.read(postOverridesProvider)['p1']?.likedByMe, isTrue);
+      final second = actions.toggleLike(post);
+      expect(c.read(postOverridesProvider)['p1']?.likedByMe, isFalse);
+      await Future.wait([first, second]);
+      expect(repo.likeCalls, isEmpty);
+    });
+
+    test('a like that settles is sent once', () async {
+      final repo = FakeSocialRepository();
+      final c = ProviderContainer(overrides: socialOverrides(repo));
+      addTearDown(c.dispose);
+      await c.read(socialActionsProvider).toggleLike(fakePost('p1'));
       expect(repo.likeCalls, [('p1', true)]);
     });
 

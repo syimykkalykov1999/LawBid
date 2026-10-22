@@ -13,7 +13,10 @@ class _EmailFlowsOnFlags extends FeatureFlagsController {
       );
 
   @override
-  Future<void> refreshInBackground() async {}
+  Future<void> refreshInBackground({
+    String? knownVersion,
+    Map<String, bool>? flags,
+  }) async {}
 }
 
 List<Override> emailFlowsOnOverrides() => [

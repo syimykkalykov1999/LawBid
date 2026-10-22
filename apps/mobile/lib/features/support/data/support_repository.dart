@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:lawbid/core/cache/http_cache_interceptor.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/request_flags.dart';
 import 'package:lawbid/core/uploads/storage_uploader.dart';
@@ -51,7 +52,10 @@ class SupportRepository {
     // The list is small; read a few pages so nothing is hidden.
     for (var i = 0; i < 5; i++) {
       final env = await guardApiCall(
-        () => _api.listMySupportTickets(cursor: cursor),
+        () => _api.listMySupportTickets(
+          cursor: cursor,
+          extras: cursor == null ? cacheFor(const Duration(hours: 1)) : null,
+        ),
       );
       out.addAll(env.data.map(_ticket));
       cursor = env.meta?.nextCursor;

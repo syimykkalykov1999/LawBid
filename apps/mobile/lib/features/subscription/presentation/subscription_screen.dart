@@ -10,6 +10,7 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/time/resume_refresh_gate.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
@@ -37,7 +38,7 @@ class SubscriptionScreen extends ConsumerStatefulWidget {
 }
 
 class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen>
-    with WidgetsBindingObserver {
+    with WidgetsBindingObserver, ResumeRefreshGate {
   bool _portalBusy = false;
   bool _primeBusy = false;
 
@@ -80,7 +81,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen>
   /// the webhook may have changed the status meanwhile.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) unawaited(_refreshQuietly());
+    if (resumeNeedsRefresh(state)) unawaited(_refreshQuietly());
   }
 
   Future<void> _refreshQuietly() async {
@@ -134,6 +135,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen>
 
   /// OQ-048: the chosen plan is paid on Stripe's page in the browser.
   Future<void> _subscribeWeb(PlanChoice c) async {
+    expectExternalReturn();
     final outcome = await payForPlan(
       context,
       ref,
@@ -241,6 +243,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen>
   /// Stripe Customer Portal in the in-app browser (docs/06 §1.4
   /// "Управление"): card, invoices, cancellation.
   Future<void> _openPortal() async {
+    expectExternalReturn();
     if (_portalBusy) return;
     setState(() => _portalBusy = true);
     try {

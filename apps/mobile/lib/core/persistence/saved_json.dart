@@ -7,6 +7,11 @@ import 'package:flutter/foundation.dart';
 abstract interface class SavedPageStore {
   Future<String?> pageJson(String key);
   Future<void> savePage(String key, String json);
+
+  /// Owner 2026-10-22 (client economy plan §5): what the copies take, and
+  /// «Очистить» for the «Лента» row of «Данные и память».
+  Future<int> pagesBytes();
+  Future<void> clearPages();
 }
 
 /// Owner 2026-10-20 (speed, Telegram / Instagram): the one way the app keeps

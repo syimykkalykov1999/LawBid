@@ -4,13 +4,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/account_status/account_restricted.dart';
 import 'package:lawbid/core/account_status/account_suspended.dart';
 import 'package:lawbid/core/app_update/app_update_interceptor.dart';
+import 'package:lawbid/core/cache/cache_providers.dart';
 import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/core/connectivity/connectivity_providers.dart';
 import 'package:lawbid/core/connectivity/reachability.dart';
 
 import 'package:lawbid/core/network/app_check_interceptor.dart';
 import 'package:lawbid/core/network/auth_interceptor.dart';
-import 'package:lawbid/core/network/etag_cache_interceptor.dart';
 import 'package:lawbid/core/network/headers_interceptor.dart';
 import 'package:lawbid/core/network/idempotency_interceptor.dart';
 import 'package:lawbid/core/network/retry_interceptor.dart';
@@ -51,10 +51,11 @@ final dioProvider = Provider<Dio>((ref) {
   dio.interceptors.add(IdempotencyInterceptor());
   dio.interceptors.add(AuthInterceptor(ref, dio));
   // After Auth (it needs the bearer to key the cache per user), before Retry
-  // (a retried GET asks again with the tag).
+  // (a retried GET asks again with the tag). Owner 2026-10-22 (client
+  // economy plan, package D): memory + disk (core/cache).
   // Off: --dart-define=ETAG_CACHE=false.
   if (const bool.fromEnvironment('ETAG_CACHE', defaultValue: true)) {
-    dio.interceptors.add(EtagCacheInterceptor());
+    dio.interceptors.add(ref.watch(httpCacheInterceptorProvider));
   }
   dio.interceptors.add(RetryInterceptor(dio));
   // Last on purpose: feeds the offline banner's reachability signal from

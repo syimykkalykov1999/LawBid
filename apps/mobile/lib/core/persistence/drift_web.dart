@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -24,14 +26,48 @@ final appDriftWebOptions = DriftWebOptions(
 /// only in the tab instead of staying on a blank screen: the caches start
 /// empty and refill from the server.
 QueryExecutor appDriftDatabase(String name) {
-  final stored = driftDatabase(name: name, web: appDriftWebOptions);
-  return kIsWeb ? _WebFallbackExecutor(stored) : stored;
+  if (kIsWeb) {
+    return _FallbackExecutor(
+      driftDatabase(name: name, web: appDriftWebOptions),
+      openMemoryDatabase,
+    );
+  }
+  // Owner 2026-10-22: under `flutter test` there is no documents directory
+  // (and a platform call never answers), so a database nobody overrode
+  // lives in the test's memory instead of holding the screen.
+  if (isFlutterTest) {
+    return LazyDatabase(() async {
+      final memory =
+          await openProcessMemoryDatabase(appDriftWebOptions.sqlite3Wasm);
+      return memory ?? driftDatabase(name: name, web: appDriftWebOptions);
+    });
+  }
+  return driftDatabase(name: name, web: appDriftWebOptions);
 }
 
-class _WebFallbackExecutor extends QueryExecutor {
-  _WebFallbackExecutor(this._current);
+/// True under `flutter test` (never on the web).
+bool get isFlutterTest =>
+    !kIsWeb && Platform.environment.containsKey('FLUTTER_TEST');
+
+/// Owner 2026-10-22 (client economy plan §5): a cache database. On the web
+/// it lives only in the tab's memory (a shared or private computer keeps
+/// nothing of the account on disk); on phones it is a file, and when that
+/// file cannot be opened (or there is no documents directory, as in widget
+/// tests) the cache works in memory for this process.
+QueryExecutor appDriftCacheDatabase(String name) {
+  if (!kIsWeb) return appDriftDatabase(name);
+  return LazyDatabase(() async {
+    final memory =
+        await openProcessMemoryDatabase(appDriftWebOptions.sqlite3Wasm);
+    return memory ?? appDriftDatabase(name);
+  });
+}
+
+class _FallbackExecutor extends QueryExecutor {
+  _FallbackExecutor(this._current, this._fallback);
 
   QueryExecutor _current;
+  final Future<QueryExecutor?> Function(Uri sqlite3Wasm) _fallback;
   bool _fellBack = false;
 
   @override
@@ -43,7 +79,7 @@ class _WebFallbackExecutor extends QueryExecutor {
       return await _current.ensureOpen(user);
     } on Object catch (e) {
       if (_fellBack) rethrow;
-      final memory = await openMemoryDatabase(appDriftWebOptions.sqlite3Wasm);
+      final memory = await _fallback(appDriftWebOptions.sqlite3Wasm);
       if (memory == null) rethrow;
       debugPrintFallback(e);
       _fellBack = true;
@@ -56,7 +92,7 @@ class _WebFallbackExecutor extends QueryExecutor {
 
   static void debugPrintFallback(Object e) {
     // ignore: avoid_print
-    print('Local storage unavailable, using an in-tab database: $e');
+    print('Local storage unavailable, using an in-memory database: $e');
   }
 
   @override

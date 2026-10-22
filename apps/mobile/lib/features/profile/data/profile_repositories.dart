@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import 'package:lawbid/core/cache/http_cache_interceptor.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/request_flags.dart';
 import 'package:lawbid/features/profile/data/own_profile_saved.dart';
@@ -123,7 +124,11 @@ class ApiAttorneyProfileRepository implements AttorneyProfileRepository {
   Future<PublicAttorneyProfile> fetchPublic(String username) async =>
       ProfileMappers.publicProfile(
         (await guardApiCall(
-          () => _client.getAttorneyProfile(username: username),
+          // Package D: shown from the phone for 10 min, then If-None-Match.
+          () => _client.getAttorneyProfile(
+            username: username,
+            extras: cacheFor(const Duration(minutes: 10)),
+          ),
         ))
             .data,
       );

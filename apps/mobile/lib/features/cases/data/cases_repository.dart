@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/request_flags.dart';
+import 'package:lawbid/core/sync/synced_list_notifier.dart' show SyncedPage;
 import 'package:lawbid/features/cases/data/cases_mappers.dart';
 import 'package:lawbid/features/cases/domain/case_draft.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
@@ -183,7 +184,10 @@ abstract interface class CasesRepository {
     List<String> states = const [],
   });
   Future<FeedCase> attorneyCase(String caseId);
-  Future<void> recordView(String caseId);
+
+  /// Owner 2026-10-22 (client economy plan, package A): views of several
+  /// cases in one `POST /cases/views` (1–50 ids).
+  Future<void> recordViews(List<String> caseIds);
   Future<void> setSaved(String caseId, {required bool saved});
   Future<CaseBid> placeBid(String caseId, BidInput input);
   Future<CursorPage<MyBid>> myBids(
@@ -217,7 +221,26 @@ abstract interface class CasesRepository {
   Future<HistoryExport> exportStatus(String reauthToken, String exportId);
 }
 
-class ApiCasesRepository implements CasesRepository {
+/// Owner 2026-10-22 (client economy plan, package E): the `?updatedSince`
+/// side of the «Mine» lists — only the rows changed since, plus the ids
+/// that left the tab. Kept apart from [CasesRepository] so the test fakes
+/// need not know it (a list without it reloads its first page).
+abstract interface class CasesSyncRepository {
+  Future<SyncedPage<CaseSummary>> myCasesChangedSince(
+    MyCasesFilter filter,
+    DateTime since,
+  );
+  Future<SyncedPage<MyBid>> myBidsChangedSince(
+    MyBidsFilter filter,
+    DateTime since,
+  );
+  Future<SyncedPage<WorkItem>> myWorkChangedSince(
+    WorkFilter filter,
+    DateTime since,
+  );
+}
+
+class ApiCasesRepository implements CasesRepository, CasesSyncRepository {
   ApiCasesRepository(Dio dio)
       : _cases = api.CasesClient(dio),
         _bids = api.BidsClient(dio),
@@ -398,14 +421,7 @@ class ApiCasesRepository implements CasesRepository {
     final env = await guardApiCall(
       () => _cases.listMyCases(
         cursor: cursor,
-        filter: switch (filter) {
-          MyCasesFilter.active => api.Filter.active,
-          MyCasesFilter.open => api.Filter.open,
-          MyCasesFilter.inProgress => api.Filter.inProgress,
-          MyCasesFilter.archived => api.Filter.archived,
-          MyCasesFilter.closed => api.Filter.closed,
-          MyCasesFilter.completed => api.Filter.completed,
-        },
+        filter: _myCasesFilter(filter),
         q: _q(search),
         practice: search.practice,
         state: search.state,
@@ -414,6 +430,33 @@ class ApiCasesRepository implements CasesRepository {
     return CursorPage(
       items: env.data.map(CasesMappers.summary).toList(growable: false),
       nextCursor: env.meta?.nextCursor,
+    );
+  }
+
+  static api.Filter _myCasesFilter(MyCasesFilter filter) => switch (filter) {
+        MyCasesFilter.active => api.Filter.active,
+        MyCasesFilter.open => api.Filter.open,
+        MyCasesFilter.inProgress => api.Filter.inProgress,
+        MyCasesFilter.archived => api.Filter.archived,
+        MyCasesFilter.closed => api.Filter.closed,
+        MyCasesFilter.completed => api.Filter.completed,
+      };
+
+  @override
+  Future<SyncedPage<CaseSummary>> myCasesChangedSince(
+    MyCasesFilter filter,
+    DateTime since,
+  ) async {
+    final env = await guardApiCall(
+      () => _cases.listMyCases(
+        filter: _myCasesFilter(filter),
+        updatedSince: since.toUtc(),
+      ),
+    );
+    return SyncedPage(
+      items: env.data.map(CasesMappers.summary).toList(growable: false),
+      deletedIds: env.meta?.deletedIds ?? const [],
+      syncedAt: env.meta?.syncedAt,
     );
   }
 
@@ -579,11 +622,9 @@ class ApiCasesRepository implements CasesRepository {
       );
 
   @override
-  Future<void> recordView(String caseId) =>
-      // Client economy package A (mobile) replaces this with the batched
-      // /posts/events | /cases/views call; the single-id route stays until then.
-      // ignore: deprecated_member_use
-      guardApiCall(() => _cases.recordCaseView(id: caseId));
+  Future<void> recordViews(List<String> caseIds) => guardApiCall(
+        () => _cases.recordCaseViews(body: api.CaseViewsDto(caseIds: caseIds)),
+      );
 
   @override
   Future<void> setSaved(String caseId, {required bool saved}) {
@@ -635,16 +676,36 @@ class ApiCasesRepository implements CasesRepository {
         q: _q(search),
         practice: search.practice,
         state: search.state,
-        filter: switch (filter) {
-          MyBidsFilter.active => api.Filter2.active,
-          MyBidsFilter.finished => api.Filter2.finished,
-          MyBidsFilter.completed => api.Filter2.completed,
-        },
+        filter: _myBidsFilter(filter),
       ),
     );
     return CursorPage(
       items: env.data.map(CasesMappers.myBid).toList(growable: false),
       nextCursor: env.meta?.nextCursor,
+    );
+  }
+
+  static api.Filter2 _myBidsFilter(MyBidsFilter filter) => switch (filter) {
+        MyBidsFilter.active => api.Filter2.active,
+        MyBidsFilter.finished => api.Filter2.finished,
+        MyBidsFilter.completed => api.Filter2.completed,
+      };
+
+  @override
+  Future<SyncedPage<MyBid>> myBidsChangedSince(
+    MyBidsFilter filter,
+    DateTime since,
+  ) async {
+    final env = await guardApiCall(
+      () => _mine.listMyBids(
+        filter: _myBidsFilter(filter),
+        updatedSince: since.toUtc(),
+      ),
+    );
+    return SyncedPage(
+      items: env.data.map(CasesMappers.myBid).toList(growable: false),
+      deletedIds: env.meta?.deletedIds ?? const [],
+      syncedAt: env.meta?.syncedAt,
     );
   }
 
@@ -660,14 +721,33 @@ class ApiCasesRepository implements CasesRepository {
         q: _q(search),
         practice: search.practice,
         state: search.state,
-        filter: filter == WorkFilter.active
-            ? api.Filter3.active
-            : api.Filter3.closed,
+        filter: _workFilter(filter),
       ),
     );
     return CursorPage(
       items: env.data.map(CasesMappers.workItem).toList(growable: false),
       nextCursor: env.meta?.nextCursor,
+    );
+  }
+
+  static api.Filter3 _workFilter(WorkFilter filter) =>
+      filter == WorkFilter.active ? api.Filter3.active : api.Filter3.closed;
+
+  @override
+  Future<SyncedPage<WorkItem>> myWorkChangedSince(
+    WorkFilter filter,
+    DateTime since,
+  ) async {
+    final env = await guardApiCall(
+      () => _mine.listMyWork(
+        filter: _workFilter(filter),
+        updatedSince: since.toUtc(),
+      ),
+    );
+    return SyncedPage(
+      items: env.data.map(CasesMappers.workItem).toList(growable: false),
+      deletedIds: env.meta?.deletedIds ?? const [],
+      syncedAt: env.meta?.syncedAt,
     );
   }
 

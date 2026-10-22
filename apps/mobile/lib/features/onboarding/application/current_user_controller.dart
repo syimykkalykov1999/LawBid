@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/diagnostics/app_events.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/session/session_providers.dart';
+import 'package:lawbid/core/startup/app_session.dart';
 import 'package:lawbid/features/onboarding/application/onboarding_providers.dart';
 import 'package:lawbid/features/onboarding/domain/current_user.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
@@ -65,7 +66,8 @@ class CurrentUserController extends Notifier<CurrentUserState> {
         if (next == null) {
           _inFlight = null;
           state = const CurrentUserState.idle();
-        } else if (previous != next) {
+        } else if (previous != next && !ref.read(startupProvidesMeProvider)) {
+          // Package G: during the splash `me` comes with GET /me/session.
           unawaited(load());
         }
       },

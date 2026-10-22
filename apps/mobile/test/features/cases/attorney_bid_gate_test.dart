@@ -45,7 +45,7 @@ class _Repo extends FakeCasesRepository {
   @override
   Future<FeedCase> attorneyCase(String caseId) async => value;
   @override
-  Future<void> recordView(String caseId) async {}
+  Future<void> recordViews(List<String> caseIds) async {}
 }
 
 void main() {

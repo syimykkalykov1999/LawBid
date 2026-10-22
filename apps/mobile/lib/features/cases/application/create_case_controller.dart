@@ -348,9 +348,8 @@ class CreateCaseController extends Notifier<CreateCaseState> {
       );
       await ref.read(localKvStoreProvider).setString(_consentKey, '1');
       await ref.read(casesLocalDatabaseProvider).deleteDraft(_ownerId);
-      ref
-        ..invalidate(myCasesProvider)
-        ..invalidate(mineCasesProvider);
+      // Package E: the lists ask one `updatedSince` for the new case.
+      ref.read(caseListsTouchedProvider.notifier).bump();
       state = state.copyWith(isSubmitting: false, publishedCaseId: id);
       return true;
     } on ApiException catch (e) {

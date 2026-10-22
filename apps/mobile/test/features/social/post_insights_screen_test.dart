@@ -237,10 +237,14 @@ void main() {
     await t.pump(const Duration(milliseconds: 500));
     expect(queue.pending, isEmpty);
     await t.pump(const Duration(milliseconds: 600));
-    expect(queue.pending, [('p1', PostEventKind.impression)]);
+    // Owner 2026-10-22 (package A): the same look is a view, same batch.
+    expect(queue.pending, [
+      ('p1', PostEventKind.impression),
+      ('p1', PostEventKind.view),
+    ]);
     await t.pump(const Duration(seconds: 3));
     expect(sent, [
-      [('p1', PostEventKind.impression)],
+      [('p1', PostEventKind.impression), ('p1', PostEventKind.view)],
     ]);
     // Seen again soon: not queued again.
     queue.impression('p1');

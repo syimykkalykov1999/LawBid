@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:lawbid/core/cache/http_cache_interceptor.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/legal/domain/legal_documents.dart';
 import 'package:lawbid/features/legal/domain/legal_models.dart';
@@ -16,7 +17,10 @@ class LegalRepository {
 
   /// `GET /legal/settings` — texts in the user's language.
   Future<LegalSettings> settings() async {
-    final d = (await guardApiCall(_api.getLegalSettings)).data;
+    final d = (await guardApiCall(
+      () => _api.getLegalSettings(extras: cacheFor(const Duration(hours: 24))),
+    ))
+        .data;
     return LegalSettings(
       dmcaAgent: DmcaAgent(
         name: d.dmcaAgent.name.trim(),
@@ -86,6 +90,7 @@ class LegalRepository {
       () => _dio.get<Map<String, dynamic>>(
         '/legal/documents/${Uri.encodeComponent(docType)}',
         queryParameters: {'locale': locale},
+        options: cachedFor(const Duration(hours: 24)),
       ),
     );
     final d = (response.data?['data'] as Map<String, dynamic>?) ?? const {};

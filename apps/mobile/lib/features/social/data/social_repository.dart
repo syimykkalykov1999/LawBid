@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:lawbid/core/cache/http_cache_interceptor.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/limits/text_limits.dart';
 import 'package:lawbid/core/network/api_error.dart';
@@ -257,7 +258,6 @@ abstract interface class SocialRepository {
   Future<void> recordPostShare(String postId);
 
   /// Owner 2026-10-12: a video post / reel was watched (once per viewer).
-  Future<void> recordPostView(String postId);
   Future<void> recordCaseShare(String caseId);
   Future<void> setSaved(String postId, {required bool saved});
   Future<CursorPage<SavedPost>> savedPosts({String? cursor});
@@ -268,7 +268,11 @@ abstract interface class SocialRepository {
   Future<void> deleteComment(String commentId);
   Future<void> setCommentLiked(String commentId, {required bool liked});
 
-  Future<void> setFollowing(String attorneyId, {required bool following});
+  /// Answers the new state and follower count (applied locally).
+  Future<FollowState> setFollowing(
+    String attorneyId, {
+    required bool following,
+  });
 
   /// OQ-026: attorneys and clients who follow [attorneyId].
   ///
@@ -689,13 +693,6 @@ class ApiSocialRepository implements SocialRepository {
       guardApiCall(() => _posts.sharePost(id: postId));
 
   @override
-  Future<void> recordPostView(String postId) =>
-      // Client economy package A (mobile) replaces this with the batched
-      // /posts/events | /cases/views call; the single-id route stays until then.
-      // ignore: deprecated_member_use
-      guardApiCall(() => _posts.viewPost(id: postId));
-
-  @override
   Future<void> recordCaseShare(String caseId) =>
       guardApiCall(() => _caseComments.shareCase(id: caseId));
 
@@ -845,12 +842,20 @@ class ApiSocialRepository implements SocialRepository {
   }
 
   @override
-  Future<void> setFollowing(String attorneyId, {required bool following}) =>
-      guardApiCall(
-        () => following
-            ? _follows.followAttorney(id: attorneyId)
-            : _follows.unfollowAttorney(id: attorneyId),
-      );
+  Future<FollowState> setFollowing(
+    String attorneyId, {
+    required bool following,
+  }) async {
+    final env = await guardApiCall(
+      () => following
+          ? _follows.followAttorney(id: attorneyId)
+          : _follows.unfollowAttorney(id: attorneyId),
+    );
+    return FollowState(
+      following: env.data.following,
+      followersCount: env.data.followersCount,
+    );
+  }
 
   Future<CursorPage<AttorneyRow>> _rows(
     Future<api.AttorneyListItemListEnvelope> Function() call,
@@ -902,8 +907,12 @@ class ApiSocialRepository implements SocialRepository {
   }
 
   @override
-  Future<CursorPage<AttorneyRow>> suggestions({String? cursor}) =>
-      _rows(() => _follows.listSuggestedAttorneys(cursor: cursor));
+  Future<CursorPage<AttorneyRow>> suggestions({String? cursor}) => _rows(
+        () => _follows.listSuggestedAttorneys(
+          cursor: cursor,
+          extras: cursor == null ? cacheFor(const Duration(minutes: 30)) : null,
+        ),
+      );
 
   @override
   Future<void> report(

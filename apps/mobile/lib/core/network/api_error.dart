@@ -23,6 +23,10 @@ abstract final class ApiErrorCodes {
   // (426 -> forced-update screen).
   static const appUpdateRequired = 'APP_UPDATE_REQUIRED';
 
+  /// Owner 2026-10-22 (client economy plan): `?updatedSince` / `afterId`
+  /// older than the server keeps — reload the list from the first page.
+  static const syncTooOld = 'SYNC_TOO_OLD';
+
   // Auth (docs/01 §10, stage 1.4). TOKEN_EXPIRED is the one code
   // AuthInterceptor's silent refresh keys off (§10.4).
   static const tokenExpired = 'TOKEN_EXPIRED';
@@ -54,8 +58,6 @@ abstract final class ApiErrorCodes {
   static const reauthRequired = 'REAUTH_REQUIRED';
   static const reauthInvalid = 'REAUTH_INVALID';
   static const deviceAttestationRequired = 'DEVICE_ATTESTATION_REQUIRED';
-  // Client economy (2026-10-22): a delta sync older than the server keeps.
-  static const syncTooOld = 'SYNC_TOO_OLD';
   static const accountSuspended = 'ACCOUNT_SUSPENDED';
   // Owner 2026-10-05 (client fraud): limited while staff check the account.
   static const accountRestricted = 'ACCOUNT_RESTRICTED';
@@ -319,6 +321,7 @@ abstract final class ApiErrorCodes {
     idempotencyKeyRequired,
     idempotencyKeyConflict,
     appUpdateRequired,
+    syncTooOld,
     tokenExpired,
     authOtpInvalid,
     authOtpExpired,
@@ -343,7 +346,6 @@ abstract final class ApiErrorCodes {
     reauthRequired,
     reauthInvalid,
     deviceAttestationRequired,
-    syncTooOld,
     accountSuspended,
     accountRestricted,
     accountDeleted,

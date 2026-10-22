@@ -30,6 +30,8 @@ import 'package:lawbid/features/profile/presentation/widgets/profile_avatar.dart
 import 'package:lawbid/features/profile/presentation/widgets/profile_quiet_button.dart';
 import 'package:lawbid/features/profile/presentation/widgets/profile_tab_pages.dart';
 import 'package:lawbid/features/profile/presentation/widgets/review_widgets.dart';
+import 'package:lawbid/features/social/application/social_providers.dart'
+    show followerCountsProvider;
 import 'package:lawbid/features/social/domain/social_models.dart'
     show ReportTarget;
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart';
@@ -765,8 +767,13 @@ class _HeaderCard extends ConsumerWidget {
                     label: t.t('profile.counters.posts'),
                   ),
                   _Counter(
-                    value:
-                        SocialFormat.count(formats, profile.counters.followers),
+                    value: SocialFormat.count(
+                      formats,
+                      ref.watch(
+                            followerCountsProvider.select((m) => m[profile.id]),
+                          ) ??
+                          profile.counters.followers,
+                    ),
                     label: t.t('profile.counters.followers'),
                     onTap: () =>
                         context.push(SocialRoutes.followers(profile.id)),

@@ -518,7 +518,7 @@ class _GroupConversationScreenState
   }) async {
     final t = ref.read(translatorProvider);
     try {
-      await ref.read(groupRepositoryProvider).updateMine(
+      final updated = await ref.read(groupRepositoryProvider).updateMine(
             detail.id,
             api.UpdateGroupMeDto(
               // The client cannot send an explicit null, so «unmute» is a
@@ -529,9 +529,9 @@ class _GroupConversationScreenState
             ),
           );
       if (!mounted) return;
-      ref
-        ..invalidate(groupDetailProvider(detail.id))
-        ..invalidate(groupsProvider);
+      // Package B: the answer is the row — applied, not re-read.
+      ref.read(groupsProvider.notifier).applyMine(updated);
+      ref.invalidate(groupDetailProvider(detail.id));
       showAppSnackBar(
         context,
         t.t(muted ? 'group.conv.unmuted' : 'group.conv.muted'),
@@ -559,7 +559,7 @@ class _GroupConversationScreenState
       return;
     }
     if (!mounted) return;
-    ref.invalidate(groupsProvider);
+    ref.read(groupsProvider.notifier).removeWhere((g) => g.id == detail.id);
     if (context.canPop()) {
       context.pop();
     } else {
@@ -596,7 +596,11 @@ class _GroupConversationScreenState
     if (!_goneHandled) {
       _goneHandled = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) ref.invalidate(groupsProvider);
+        if (mounted) {
+          ref
+              .read(groupsProvider.notifier)
+              .removeWhere((g) => g.id == widget.groupId);
+        }
       });
     }
     return _plain(

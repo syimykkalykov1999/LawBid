@@ -8,6 +8,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/time/resume_refresh_gate.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:lawbid/features/client_plan/application/client_plan_providers.dart';
@@ -33,7 +34,7 @@ class ClientPlanScreen extends ConsumerStatefulWidget {
 }
 
 class _ClientPlanScreenState extends ConsumerState<ClientPlanScreen>
-    with WidgetsBindingObserver {
+    with WidgetsBindingObserver, ResumeRefreshGate {
   String? _selectedCode;
   bool _portalBusy = false;
 
@@ -54,13 +55,14 @@ class _ClientPlanScreenState extends ConsumerState<ClientPlanScreen>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       unawaited(ref.read(clientCheckoutControllerProvider.notifier).checkNow());
-      unawaited(_refreshQuietly());
     }
+    if (resumeNeedsRefresh(state)) unawaited(_refreshQuietly());
   }
 
   Translator get _t => ref.read(translatorProvider);
 
   Future<void> _openPortal() async {
+    expectExternalReturn();
     if (_portalBusy) return;
     setState(() => _portalBusy = true);
     try {

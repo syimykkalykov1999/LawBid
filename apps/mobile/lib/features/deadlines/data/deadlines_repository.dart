@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:lawbid/core/cache/http_cache_interceptor.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/deadlines/domain/deadline_models.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
@@ -12,7 +13,10 @@ class DeadlinesRepository {
   /// Federal rules plus [jurisdiction]'s (all federal when null).
   Future<List<DeadlineRule>> rules({String? jurisdiction}) async {
     final r = await guardApiCall(
-      () => _api.listDeadlineRules(jurisdiction: jurisdiction),
+      () => _api.listDeadlineRules(
+        jurisdiction: jurisdiction,
+        extras: cacheFor(const Duration(hours: 24)),
+      ),
     );
     return [for (final d in r.data) _rule(d)];
   }

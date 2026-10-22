@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/network/dio_client.dart';
+import 'package:lawbid/core/startup/app_session.dart';
 import 'package:lawbid/features/support/data/support_repository.dart';
 import 'package:lawbid/features/support/domain/support_models.dart';
 
@@ -24,7 +25,10 @@ final supportTicketProvider =
 );
 
 /// Any ticket with a reply I haven't read — the dot on "Help & support".
-final supportUnreadProvider = Provider.autoDispose<bool>(
-  (ref) =>
-      ref.watch(supportTicketsProvider).value?.any((t) => t.unread) ?? false,
-);
+final supportUnreadProvider = Provider.autoDispose<bool>((ref) {
+  // Owner 2026-10-22 (package G): the start's one answer says whether a
+  // ticket has an unread reply — the list is not read for the dot.
+  final session = ref.watch(appSessionProvider);
+  if (session != null) return session.unreadSupport > 0;
+  return ref.watch(supportTicketsProvider).value?.any((t) => t.unread) ?? false;
+});

@@ -24,7 +24,9 @@ class WebQrLoginScreen extends ConsumerStatefulWidget {
 }
 
 class _WebQrLoginScreenState extends ConsumerState<WebQrLoginScreen> {
-  static const _pollEvery = Duration(seconds: 2);
+  // Owner 2026-10-22 (package H): every 10 s, not 2 (the socket answer
+  // `auth:qr_approved` is still to come from the API).
+  static const _pollEvery = Duration(seconds: 10);
 
   WebLoginCode? _code;
   WebLoginStatus _status = WebLoginStatus.pending;

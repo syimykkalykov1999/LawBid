@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:lawbid/core/cache/http_cache_interceptor.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/request_flags.dart';
 import 'package:lawbid/core/uploads/storage_uploader.dart';
@@ -22,21 +23,36 @@ class StickersRepository {
   static const maxBytes = 1024 * 1024;
 
   Future<StickerLibrary> library() async {
-    final d = (await guardApiCall(_stickers.getStickerLibrary)).data;
+    final d = (await guardApiCall(
+      () => _stickers.getStickerLibrary(
+        extras: cacheFor(const Duration(hours: 1)),
+      ),
+    ))
+        .data;
     return StickerLibrary(
       recent: d.recent.map(sticker).toList(),
       packs: d.packs.map(pack).toList(),
     );
   }
 
-  Future<List<StickerPack>> featured() async =>
-      (await guardApiCall(_stickers.listFeaturedStickerPacks))
+  Future<List<StickerPack>> featured() async => (await guardApiCall(
+        () => _stickers.listFeaturedStickerPacks(
+          extras: cacheFor(const Duration(hours: 24)),
+        ),
+      ))
           .data
           .map(pack)
           .toList();
 
-  Future<StickerPack> get(String ref) async =>
-      pack((await guardApiCall(() => _stickers.getStickerPack(ref: ref))).data);
+  Future<StickerPack> get(String ref) async => pack(
+        (await guardApiCall(
+          () => _stickers.getStickerPack(
+            ref: ref,
+            extras: cacheFor(const Duration(hours: 24)),
+          ),
+        ))
+            .data,
+      );
 
   Future<StickerPack> create(String title) async => pack(
         (await guardApiCall(

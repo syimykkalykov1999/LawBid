@@ -128,7 +128,11 @@ class _PostImpressionTrackerState extends ConsumerState<PostImpressionTracker> {
         if (_visibleFraction() < PostImpressionTracker.minVisible) return;
         _counted = true;
         _unlisten();
-        ref.read(postEventsQueueProvider).impression(widget.post.id);
+        // Owner 2026-10-22 (package A): the same rule — ≥ 50 % of the card
+        // on screen for a second — is a view, sent in the same batch.
+        ref.read(postEventsQueueProvider)
+          ..impression(widget.post.id)
+          ..view(widget.post.id);
       });
     } else {
       _timer?.cancel();

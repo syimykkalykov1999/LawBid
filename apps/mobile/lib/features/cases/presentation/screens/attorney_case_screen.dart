@@ -8,6 +8,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/features/cases/application/case_views_queue.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/active_case_cards.dart'
@@ -67,10 +68,8 @@ class _AttorneyCaseScreenState extends ConsumerState<AttorneyCaseScreen> {
   void initState() {
     super.initState();
     // §4.3 view counter: once per screen open (server dedups per pair).
-    ref
-        .read(casesRepositoryProvider)
-        .recordView(widget.caseId)
-        .catchError((Object _) {});
+    // Owner 2026-10-22 (package A): batched with other views.
+    ref.read(caseViewsQueueProvider).view(widget.caseId);
   }
 
   Future<void> _toggleSave(FeedCase c) async {

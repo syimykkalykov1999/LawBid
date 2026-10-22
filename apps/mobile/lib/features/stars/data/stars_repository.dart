@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:lawbid/core/cache/http_cache_interceptor.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/request_flags.dart';
 import 'package:lawbid/features/stars/domain/stars_mappers.dart';
@@ -86,10 +87,12 @@ class StarsRepository {
     );
   }
 
-  Future<List<Gift>> gifts() async => (await guardApiCall(_stars.listGifts))
-      .data
-      .map(StarsMappers.gift)
-      .toList();
+  Future<List<Gift>> gifts() async => (await guardApiCall(
+        () => _stars.listGifts(extras: cacheFor(const Duration(hours: 24))),
+      ))
+          .data
+          .map(StarsMappers.gift)
+          .toList();
 
   Future<GiftSend> sendToProfile(
     String giftId,

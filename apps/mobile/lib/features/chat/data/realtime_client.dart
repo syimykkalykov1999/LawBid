@@ -35,6 +35,7 @@ class RealtimeClient {
   final Set<String> _rooms = {};
   final Set<String> _watched = {};
   final Set<String> _channels = {};
+  final Set<String> _posts = {};
   io.Socket? _socket;
   bool _everConnected = false;
   bool _disposed = false;
@@ -80,6 +81,14 @@ class RealtimeClient {
     'group:invite',
     'group:member_removed',
     'poll:update',
+    // Owner 2026-10-22 (client economy plan, packages E / F): a case or a
+    // consultation changed (re-read one card), a channel posted, a comment
+    // under an open post.
+    'case:update',
+    'consultation:update',
+    'channel:post',
+    'channel:update',
+    'comment:new',
   ];
 
   Stream<RealtimeEvent> get events => _events.stream;
@@ -118,6 +127,9 @@ class RealtimeClient {
         }
         for (final id in _channels) {
           socket.emit('channel:watch', {'channelId': id});
+        }
+        for (final id in _posts) {
+          socket.emit('post:watch', {'postId': id});
         }
         if (_everConnected) {
           _events.add(const RealtimeEvent(RealtimeEvent.reconnected, null));
@@ -256,6 +268,18 @@ class RealtimeClient {
     if (connected) {
       _socket!.emit('channel:unwatch', {'channelId': channelId});
     }
+  }
+
+  /// Package F: hear new comments under [postId] while it is open
+  /// (`comment:new`; re-sent after a reconnect).
+  void watchPost(String postId) {
+    _posts.add(postId);
+    if (connected) _socket!.emit('post:watch', {'postId': postId});
+  }
+
+  void unwatchPost(String postId) {
+    _posts.remove(postId);
+    if (connected) _socket!.emit('post:unwatch', {'postId': postId});
   }
 
   void leave(String conversationId) {

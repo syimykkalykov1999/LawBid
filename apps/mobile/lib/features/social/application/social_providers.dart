@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,14 +9,17 @@ import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/core/persistence/saved_json.dart';
 import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/features/cases/application/paged_notifier.dart';
+import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/feed/application/feed_topics.dart'
     show topicTagFor;
 import 'package:lawbid/features/profile/application/profile_providers.dart';
+import 'package:lawbid/features/social/application/post_insights_providers.dart';
 import 'package:lawbid/features/social/data/social_local_database.dart';
 import 'package:lawbid/features/social/data/social_repository.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
+import 'package:lawbid_api/lawbid_api.dart' as api;
 
 // No silent automatic retries: a failed load shows its error/offline
 // state with Retry at once (docs/01 §8.3).
@@ -139,6 +143,23 @@ class FollowOverrides extends Notifier<Map<String, bool>> {
 
 final followOverridesProvider =
     NotifierProvider<FollowOverrides, Map<String, bool>>(FollowOverrides.new);
+
+/// Owner 2026-10-22 (package D): follower counts the server answered to a
+/// follow / unfollow in this session, by attorney id — the profile shows
+/// them without being re-read.
+class FollowerCounts extends Notifier<Map<String, int>> {
+  @override
+  Map<String, int> build() {
+    ref.watch(currentUserIdProvider);
+    return const {};
+  }
+
+  void put(String attorneyId, int count) =>
+      state = {...state, attorneyId: count};
+}
+
+final followerCountsProvider =
+    NotifierProvider<FollowerCounts, Map<String, int>>(FollowerCounts.new);
 
 // --- Feed (docs/05 §2) -----------------------------------------------------
 
@@ -538,15 +559,49 @@ class CommentsNotifier extends PagedNotifier<Comment> {
   final String postId;
 
   @override
+  Future<PaginatedList<Comment>> build() {
+    // Owner 2026-10-22 (client economy plan, package F): while the
+    // comments are open the post's room sends new ones (`comment:new`);
+    // a reply lands under its parent (RepliesNotifier).
+    final realtime = ref.watch(realtimeClientProvider);
+    realtime?.watchPost(postId);
+    final sub = ref.watch(realtimeEventsProvider).listen((e) {
+      if (e.name != 'comment:new') return;
+      final data = e.data;
+      if (data is! Map || data['postId'] != postId) return;
+      if (data['parentCommentId'] != null) return;
+      final raw = data['comment'];
+      if (raw is! Map) return;
+      try {
+        add(
+          SocialMappers.comment(
+            api.CommentDto.fromJson(Map<String, dynamic>.from(raw)),
+          ),
+        );
+      } on Object {
+        // An unknown shape: the next open shows it.
+      }
+    });
+    ref.onDispose(() {
+      sub.cancel();
+      realtime?.unwatchPost(postId);
+    });
+    return super.build();
+  }
+
+  @override
   Future<CursorPage<Comment>> fetch(String? cursor) =>
       ref.read(socialRepositoryProvider).comments(postId, cursor: cursor);
 
   @override
   Object idOf(Comment item) => item.id;
 
+  /// A new comment (mine from the answer, or someone's from the room);
+  /// the same one twice changes nothing.
   void add(Comment c) {
     final current = state.value;
     if (current == null) return;
+    if (current.items.any((x) => x.id == c.id)) return;
     state = AsyncData(
       PaginatedList(
         items: [c, ...current.items],
@@ -586,9 +641,11 @@ class RepliesNotifier extends PagedNotifier<Comment> {
   @override
   Object idOf(Comment item) => item.id;
 
+  /// My reply from the answer (package F: no reload of the thread); the
+  /// same one twice changes nothing.
   void add(Comment c) {
     final current = state.value;
-    if (current == null) return;
+    if (current == null || current.items.any((x) => x.id == c.id)) return;
     state = AsyncData(
       PaginatedList(
         items: [...current.items, c],
@@ -678,20 +735,60 @@ class SocialActions {
 
   Post _latest(Post p) => _ref.read(postOverridesProvider)[p.id] ?? p;
 
-  Future<Object?> toggleLike(Post post) => _guard('like:${post.id}', () async {
-        final before = _latest(post);
-        final liked = !before.likedByMe;
-        _ref.read(postOverridesProvider.notifier).put(
-              before.copyWith(
-                likedByMe: liked,
-                likeCount:
-                    (before.likeCount + (liked ? 1 : -1)).clamp(0, 1 << 31),
-              ),
-            );
+  /// How long a like waits before it is sent — a «like → unlike» inside
+  /// this window is no request at all (client economy plan, package K).
+  static const likeSettle = Duration(milliseconds: 700);
+
+  final _likeTimers = <String, Timer>{};
+
+  /// Taps waiting for the one request of their window.
+  final _likeWaiters = <String, List<Completer<Object?>>>{};
+
+  /// What the server knows per post (the state the last request sent, or
+  /// the state the post came with).
+  final _likeKnown = <String, bool>{};
+
+  /// Flips at once; the request goes after [likeSettle] and only when the
+  /// final state differs from what the server knows.
+  Future<Object?> toggleLike(Post post) async {
+    final before = _latest(post);
+    final liked = !before.likedByMe;
+    _likeKnown.putIfAbsent(post.id, () => before.likedByMe);
+    _ref.read(postOverridesProvider.notifier).put(
+          before.copyWith(
+            likedByMe: liked,
+            likeCount: (before.likeCount + (liked ? 1 : -1)).clamp(0, 1 << 31),
+          ),
+        );
+    _likeTimers[post.id]?.cancel();
+    final done = Completer<Object?>();
+    (_likeWaiters[post.id] ??= []).add(done);
+    _likeTimers[post.id] = Timer(likeSettle, () async {
+      _likeTimers.remove(post.id);
+      final waiters = _likeWaiters.remove(post.id) ?? const [];
+      final result = await _flushLike(post);
+      for (final w in waiters) {
+        w.complete(result);
+      }
+    });
+    return done.future;
+  }
+
+  Future<Object?> _flushLike(Post post) => _guard('like:${post.id}', () async {
+        final now = _latest(post);
+        final liked = now.likedByMe;
+        if (_likeKnown[post.id] == liked) return; // back where it was
         try {
           await _repo.setLiked(post.id, liked: liked);
+          _likeKnown[post.id] = liked;
         } on Object {
-          _ref.read(postOverridesProvider.notifier).put(before);
+          _ref.read(postOverridesProvider.notifier).put(
+                now.copyWith(
+                  likedByMe: !liked,
+                  likeCount:
+                      (now.likeCount + (liked ? -1 : 1)).clamp(0, 1 << 31),
+                ),
+              );
           rethrow;
         }
       });
@@ -747,22 +844,21 @@ class SocialActions {
   }
 
   /// Owner 2026-10-20: a reel / video was watched (3 s of real playback).
-  /// The counter moves only after the server confirmed (204); the server
-  /// counts one view per viewer per 24 h, the true number returns on refresh.
-  Future<void> recordView(Post post) async {
+  /// Owner 2026-10-22 (client economy plan, package A): the view rides in
+  /// the `POST /posts/events` batch (flush in 4 s, at most once per post
+  /// per 30 min from this device); the counter moves at once (the server
+  /// counts one view per viewer per 24 h, the true number returns on
+  /// refresh).
+  void recordView(Post post) {
+    _ref.read(postEventsQueueProvider).view(post.id);
     if (!_viewed.add(post.id)) return;
-    try {
-      await _repo.recordPostView(post.id);
-      final now = _latest(post);
-      _ref
-          .read(postOverridesProvider.notifier)
-          .put(now.copyWith(viewCount: now.viewCount + 1));
-    } on Object {
-      _viewed.remove(post.id);
-    }
+    final now = _latest(post);
+    _ref
+        .read(postOverridesProvider.notifier)
+        .put(now.copyWith(viewCount: now.viewCount + 1));
   }
 
-  /// Posts already counted in this session (one view per post).
+  /// Posts already counted in this session (one «+1» per post).
   static final _viewed = <String>{};
 
   Future<Object?> toggleSave(Post post) => _guard('save:${post.id}', () async {
@@ -894,19 +990,19 @@ class SocialActions {
         final overrides = _ref.read(followOverridesProvider.notifier);
         // ignore: cascade_invocations
         overrides.put(attorneyId, following);
+        final FollowState result;
         try {
-          await _repo.setFollowing(attorneyId, following: following);
+          result = await _repo.setFollowing(attorneyId, following: following);
         } on Object {
           overrides.put(attorneyId, !following);
           rethrow;
         }
-        // Audit 2026-10-02: follower counts and follow lists follow at once
-        // (the server includes not-yet-flushed counters).
+        // Owner 2026-10-22 (package D): the answer carries the new state
+        // and follower count — applied here, nothing is re-read.
+        overrides.put(attorneyId, result.following);
         _ref
-          ..invalidate(publicAttorneyProfileProvider)
-          ..invalidate(publicClientProfileProvider)
-          ..invalidate(followListProvider)
-          ..invalidate(suggestionsProvider);
+            .read(followerCountsProvider.notifier)
+            .put(attorneyId, result.followersCount);
       });
 
   Future<Object?> report(

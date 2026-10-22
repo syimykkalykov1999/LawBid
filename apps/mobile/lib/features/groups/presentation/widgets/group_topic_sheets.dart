@@ -78,7 +78,7 @@ class _TopicEditorState extends ConsumerState<_TopicEditor> {
     try {
       final topic = widget.topic;
       if (topic == null) {
-        await repo.createTopic(
+        final created = await repo.createTopic(
           widget.groupId,
           api.CreateTopicDto(
             title: title,
@@ -86,8 +86,11 @@ class _TopicEditorState extends ConsumerState<_TopicEditor> {
             color: _color,
           ),
         );
+        if (mounted) {
+          ref.read(groupTopicsProvider(widget.groupId).notifier).apply(created);
+        }
       } else {
-        await repo.updateTopic(
+        final all = await repo.updateTopic(
           widget.groupId,
           topic.id,
           _general
@@ -100,9 +103,11 @@ class _TopicEditorState extends ConsumerState<_TopicEditor> {
                   pinned: _pinned,
                 ),
         );
+        if (mounted) {
+          ref.read(groupTopicsProvider(widget.groupId).notifier).setAll(all);
+        }
       }
       if (!mounted) return;
-      ref.invalidate(groupTopicsProvider(widget.groupId));
       Navigator.of(context).pop(true);
     } on Object catch (e) {
       if (!mounted) return;

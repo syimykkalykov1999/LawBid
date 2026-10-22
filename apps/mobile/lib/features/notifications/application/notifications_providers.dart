@@ -4,12 +4,13 @@ import 'package:app_badge_plus/app_badge_plus.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:lawbid/core/cache/cache_providers.dart';
 import 'package:lawbid/core/network/dio_client.dart';
-import 'package:lawbid/features/cases/application/paged_notifier.dart';
+import 'package:lawbid/core/startup/app_session.dart';
+import 'package:lawbid/core/sync/synced_list_notifier.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/notifications/data/notifications_repository.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
-import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 
 extension on String {
@@ -48,24 +49,29 @@ class BadgesNotifier extends Notifier<Badges> {
     });
     final sub = ref.watch(realtimeEventsProvider).listen((e) {
       if (e.name == 'badge:update') {
-        // An assistant's socket also sits in the attorney's room: its
-        // badges come from GET /badges (attorney's chats + own bell).
-        if (ref.read(isAssistantProvider)) {
-          unawaited(refresh());
-          return;
-        }
+        // Owner 2026-10-22 (package F): the server sends an assistant its
+        // own numbers in the event too — no GET on every event.
         final b = Badges.fromEvent(e.data);
         if (b != null) _set(b);
-      } else if (e.name == 'notification:new') {
-        // The open bell list shows the new row live.
-        ref.invalidate(notificationsProvider);
       } else if (e.name == RealtimeEvent.reconnected) {
         unawaited(ref.read(notificationSettingsProvider.notifier).reload());
         unawaited(refresh());
       }
     });
     ref.onDispose(sub.cancel);
-    unawaited(Future.microtask(refresh));
+    // Owner 2026-10-22 (package G): the start's one answer already carries
+    // the badges — no GET /badges on top of it.
+    ref.listen(appSessionProvider, (_, s) {
+      if (s != null) _set(Badges.fromSession(s.badges));
+    });
+    final session = ref.read(appSessionProvider);
+    if (session != null) {
+      unawaited(
+        Future.microtask(() => _set(Badges.fromSession(session.badges))),
+      );
+    } else {
+      unawaited(Future.microtask(refresh));
+    }
     return const Badges();
   }
 
@@ -153,23 +159,73 @@ final notificationQueryProvider =
 );
 
 /// docs/05 §9.1 notifications list (of the open tab).
-class NotificationsNotifier extends PagedNotifier<AppNotification> {
+/// Package F: the delta side of the repository (null with a test fake).
+final notificationsSyncProvider = Provider<NotificationsSyncRepository?>((ref) {
+  final repo = ref.watch(notificationsRepositoryProvider);
+  return repo is NotificationsSyncRepository
+      ? repo as NotificationsSyncRepository
+      : null;
+});
+
+/// Owner 2026-10-22 (client economy plan, package F): the bell list is
+/// never reloaded whole while it is open — a `notification:new` (the
+/// event carries only the id) and a reconnect are one `?updatedSince`.
+class NotificationsNotifier extends SyncedListNotifier<AppNotification> {
+  @override
+  String get listKey =>
+      'notifications:${ref.read(notificationGroupProvider)?.name ?? 'all'}';
+
+  @override
+  String? get syncOwner => ref.read(currentUserIdProvider);
+
+  @override
+  SyncStateStore? get syncStore => ref.read(cacheDatabaseProvider);
+
+  /// A text search has no delta on the server.
+  @override
+  bool get catchesUp =>
+      ref.read(notificationQueryProvider).nullIfEmpty == null &&
+      ref.read(notificationsSyncProvider) != null;
+
+  @override
+  int Function(AppNotification, AppNotification)? get order =>
+      (a, b) => b.createdAt.compareTo(a.createdAt);
+
   @override
   Future<PaginatedList<AppNotification>> build() {
     // Another tab = a fresh first page.
     ref
       ..watch(notificationGroupProvider)
       ..watch(notificationQueryProvider);
+    final sub = ref.watch(realtimeEventsProvider).listen((e) {
+      if (e.name == 'notification:new' || e.name == RealtimeEvent.reconnected) {
+        catchUp();
+      }
+    });
+    ref.onDispose(sub.cancel);
     return super.build();
   }
 
   @override
-  Future<CursorPage<AppNotification>> fetch(String? cursor) =>
+  Future<CursorPage<AppNotification>> fetchPage(String? cursor) =>
       ref.read(notificationsRepositoryProvider).list(
             cursor: cursor,
             group: ref.read(notificationGroupProvider),
             query: ref.read(notificationQueryProvider).nullIfEmpty,
           );
+
+  @override
+  Future<SyncedPage<AppNotification>> fetchChanged(DateTime since) =>
+      ref.read(notificationsSyncProvider)!.listChangedSince(
+            since,
+            group: ref.read(notificationGroupProvider),
+          );
+
+  @override
+  String keyOf(AppNotification item) => item.id;
+
+  @override
+  DateTime? updatedAtOf(AppNotification item) => null;
 
   @override
   Object idOf(AppNotification item) => item.id;

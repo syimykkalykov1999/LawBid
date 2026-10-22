@@ -53,7 +53,7 @@ class _JoinGroupScreenState extends ConsumerState<JoinGroupScreen> {
     });
     try {
       final result = await ref.read(groupRepositoryProvider).join(g.code);
-      ref.invalidate(groupsProvider);
+      ref.read(groupsProvider.notifier).catchUp();
       if (!mounted) return;
       if (result.status == api.GroupJoinResultDtoStatus.joined) {
         context.pushReplacement(GroupRoutes.group(result.groupId));

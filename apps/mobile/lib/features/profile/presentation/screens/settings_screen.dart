@@ -381,6 +381,15 @@ class SettingsScreen extends ConsumerWidget {
             label: t.t('settings.downloadData'),
             onTap: () => context.push(AppRoutes.dataExport),
           ),
+          // Owner 2026-10-22 (client economy plan §5.2): the phone's
+          // caches, «Хранить медиа», the limits and today's traffic.
+          AppListRow(
+            key: const ValueKey('settings-storage'),
+            icon: AppIcons.folderOutlined,
+            label: t.t('settings.storage.title'),
+            subtitle: t.t('settings.storage.hint'),
+            onTap: () => context.push(AppRoutes.storage),
+          ),
         ],
       ),
       AppListSection(

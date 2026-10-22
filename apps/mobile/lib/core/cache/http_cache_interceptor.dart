@@ -1,0 +1,279 @@
+import 'dart:convert';
+
+import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show debugPrint, visibleForTesting;
+import 'package:lawbid/core/cache/network_usage.dart';
+
+/// `Options.extra` key: an answer fetched within this many seconds is
+/// handed back from the phone with **no request** (plan §4 package D,
+/// `swr(maxAge)`); older than that, the server is asked with
+/// `If-None-Match` (a 304 costs no bytes).
+const kCacheMaxAgeExtra = 'cacheMaxAge';
+
+/// Set on `Response.extra` when the answer came from the cache without a
+/// request (a max-age hit) or after a 304.
+const kFromCacheExtra = 'fromCache';
+
+/// Request extras for a GET that may be served from the phone for [maxAge].
+Map<String, dynamic> cacheFor(Duration maxAge) =>
+    {kCacheMaxAgeExtra: maxAge.inSeconds};
+
+/// [Options] for a GET that may be served from the phone for [maxAge].
+Options cachedFor(Duration maxAge) => Options(extra: cacheFor(maxAge));
+
+/// One remembered GET answer.
+class HttpCacheEntry {
+  const HttpCacheEntry({
+    required this.etag,
+    required this.data,
+    required this.bytes,
+    required this.fetchedAt,
+  });
+
+  final String etag;
+  final Object? data;
+  final int bytes;
+
+  /// When the server last confirmed this body (a 200, or a 304 on it).
+  final DateTime fetchedAt;
+
+  HttpCacheEntry confirmed(DateTime at) =>
+      HttpCacheEntry(etag: etag, data: data, bytes: bytes, fetchedAt: at);
+}
+
+/// The disk layer (a Drift table): every method must swallow its own
+/// failures — a broken disk is just "no copy".
+abstract interface class HttpCacheStore {
+  Future<HttpCacheEntry?> read(String key);
+  Future<void> write(String key, HttpCacheEntry entry, String json);
+  Future<void> touch(String key, DateTime now, {required bool confirmed});
+  Future<void> clear();
+}
+
+/// Owner 2026-10-22 (client economy plan, package D): the successor of the
+/// in-memory `EtagCacheInterceptor` — the same ETag / `If-None-Match` /
+/// 304 scheme, now with a copy on disk, so a cold start gets a 304 on
+/// bootstrap, the session, pricing, legal texts, stickers and the own
+/// profile instead of downloading them again. Memory stays the first
+/// level (least-recently-used out first); the disk is the second.
+///
+/// Nothing is shown stale by itself: an answer is served without a request
+/// only when the caller allowed it for that long ([cacheFor]).
+class HttpCacheInterceptor extends Interceptor {
+  HttpCacheInterceptor({
+    HttpCacheStore? disk,
+    NetworkUsageCounter? usage,
+    this.maxEntries = 120,
+    this.maxBytes = 16 * 1024 * 1024,
+    this.maxDiskBodyBytes = 1024 * 1024,
+    DateTime Function()? now,
+  })  : _disk = disk,
+        _usage = usage,
+        _now = now ?? DateTime.now;
+
+  final HttpCacheStore? _disk;
+  final NetworkUsageCounter? _usage;
+  final DateTime Function() _now;
+  final int maxEntries;
+  final int maxBytes;
+
+  /// Bodies longer than this stay in memory only (a list page of 2 MB has
+  /// no business on the disk).
+  final int maxDiskBodyBytes;
+
+  static const _keyExtra = 'httpCacheKey';
+  static const _hitExtra = 'httpCacheHit';
+
+  final _entries = <String, HttpCacheEntry>{};
+  int _bytes = 0;
+
+  @visibleForTesting
+  int get length => _entries.length;
+
+  @override
+  Future<void> onRequest(
+    RequestOptions options,
+    RequestInterceptorHandler handler,
+  ) async {
+    if (options.method.toUpperCase() != 'GET' ||
+        options.responseType != ResponseType.json) {
+      handler.next(options);
+      return;
+    }
+    final key = _key(options);
+    options.extra[_keyExtra] = key;
+    var hit = _entries.remove(key);
+    if (hit != null) {
+      _entries[key] = hit; // most recently used goes last
+    } else {
+      hit = await _readDisk(key);
+      if (hit != null) _put(key, hit);
+    }
+    if (hit == null) {
+      handler.next(options);
+      return;
+    }
+    final maxAge = options.extra[kCacheMaxAgeExtra];
+    if (maxAge is int &&
+        maxAge > 0 &&
+        _now().difference(hit.fetchedAt).inSeconds <= maxAge) {
+      _usage?.servedLocally();
+      _touchDisk(key, confirmed: false);
+      handler.resolve(
+        Response<dynamic>(
+          requestOptions: options,
+          data: hit.data,
+          statusCode: 200,
+          extra: {kFromCacheExtra: true},
+        ),
+      );
+      return;
+    }
+    options.headers['If-None-Match'] = hit.etag;
+    // Held on the request itself: an eviction between the request and its
+    // 304 must not turn the answer into an error.
+    options.extra[_hitExtra] = hit;
+    handler.next(options);
+  }
+
+  @override
+  void onResponse(
+    Response<dynamic> response,
+    ResponseInterceptorHandler handler,
+  ) {
+    final key = response.requestOptions.extra[_keyExtra] as String?;
+    final etag = response.headers.value('etag');
+    final data = response.data;
+    final length = int.tryParse(response.headers.value('content-length') ?? '');
+    _usage?.request(bytes: length ?? _roughSize(data));
+    if (key != null &&
+        response.statusCode == 200 &&
+        etag != null &&
+        etag.isNotEmpty &&
+        (data is Map || data is List) &&
+        !(response.headers.value('cache-control') ?? '').contains('no-store')) {
+      final json = jsonEncode(data);
+      final entry = HttpCacheEntry(
+        etag: etag,
+        data: data,
+        bytes: json.length * 4,
+        fetchedAt: _now(),
+      );
+      _put(key, entry);
+      if (json.length <= maxDiskBodyBytes) _writeDisk(key, entry, json);
+    }
+    handler.next(response);
+  }
+
+  @override
+  void onError(DioException err, ErrorInterceptorHandler handler) {
+    final res = err.response;
+    final hit = err.requestOptions.extra[_hitExtra];
+    if (res != null && res.statusCode == 304 && hit is HttpCacheEntry) {
+      _usage?.notModified();
+      final key = err.requestOptions.extra[_keyExtra] as String?;
+      final fresh = hit.confirmed(_now());
+      if (key != null) {
+        _put(key, fresh);
+        _touchDisk(key, confirmed: true);
+      }
+      handler.resolve(
+        Response<dynamic>(
+          requestOptions: err.requestOptions,
+          data: hit.data,
+          statusCode: 200,
+          headers: res.headers,
+          extra: {kFromCacheExtra: true},
+        ),
+      );
+      return;
+    }
+    if (res != null) _usage?.request(bytes: _roughSize(res.data));
+    handler.next(err);
+  }
+
+  /// Forgets everything in memory (and on disk when [disk] is true).
+  Future<void> clear({bool disk = true}) async {
+    _entries.clear();
+    _bytes = 0;
+    if (disk) await _disk?.clear();
+  }
+
+  void _put(String key, HttpCacheEntry entry) {
+    final old = _entries.remove(key);
+    if (old != null) _bytes -= old.bytes;
+    _entries[key] = entry;
+    _bytes += entry.bytes;
+    while (_entries.length > maxEntries || _bytes > maxBytes) {
+      final oldest = _entries.keys.first;
+      _bytes -= _entries.remove(oldest)!.bytes;
+    }
+  }
+
+  Future<HttpCacheEntry?> _readDisk(String key) async {
+    final disk = _disk;
+    if (disk == null) return null;
+    try {
+      return await disk.read(key);
+    } on Object catch (e) {
+      debugPrint('http cache read: $e');
+      return null;
+    }
+  }
+
+  void _writeDisk(String key, HttpCacheEntry entry, String json) {
+    final disk = _disk;
+    if (disk == null) return;
+    disk
+        .write(key, entry, json)
+        .catchError((Object e) => debugPrint('http cache write: $e'));
+  }
+
+  void _touchDisk(String key, {required bool confirmed}) {
+    final disk = _disk;
+    if (disk == null) return;
+    disk
+        .touch(key, _now(), confirmed: confirmed)
+        .catchError((Object e) => debugPrint('http cache touch: $e'));
+  }
+
+  static int _roughSize(Object? data) {
+    if (data == null) return 0;
+    if (data is String) return data.length;
+    if (data is List<int>) return data.length;
+    try {
+      return jsonEncode(data).length;
+    } on Object {
+      return 0;
+    }
+  }
+
+  /// One entry per user and language: another account (or a language
+  /// switch) never sees someone else's, or an other-language, answer.
+  String _key(RequestOptions options) {
+    final auth =
+        options.headers['Authorization'] ?? options.headers['authorization'];
+    final lang = options.headers['Accept-Language'] ??
+        options.headers['accept-language'];
+    return '${bearerSubject(auth)}|$lang|${options.uri}';
+  }
+}
+
+/// The `sub` of a bearer token (the token itself changes on every refresh;
+/// the user does not), or `anon`.
+String bearerSubject(Object? authorization) {
+  if (authorization is! String || !authorization.startsWith('Bearer ')) {
+    return 'anon';
+  }
+  final parts = authorization.substring(7).split('.');
+  if (parts.length != 3) return 'anon';
+  try {
+    final payload = jsonDecode(
+      utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))),
+    );
+    final sub = payload is Map ? payload['sub'] : null;
+    return sub is String && sub.isNotEmpty ? sub : 'anon';
+  } on Object {
+    return 'anon';
+  }
+}

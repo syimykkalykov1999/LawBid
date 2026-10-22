@@ -31,8 +31,8 @@ class ChatsFilterRow extends StatelessWidget {
   Widget build(BuildContext context) => ChipsSearchRow(
         leading: leading,
         // Owner 2026-10-22: the magnifier is in the top bar, the «+» is a
-    // floating button — nothing at the row's end.
-    trailing: trailing ?? const SizedBox.shrink(),
+        // floating button — nothing at the row's end.
+        trailing: trailing ?? const SizedBox.shrink(),
         openSignal: openSignal,
         chips: ChatFolderPills(value: folder, onChanged: onFolder),
         hintKey: 'chat.search.hint',

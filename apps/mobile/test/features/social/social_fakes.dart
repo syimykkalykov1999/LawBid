@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:dio/dio.dart' show CancelToken;
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:lawbid/core/network/api_error.dart';
@@ -104,11 +105,12 @@ class FakeSocialRepository implements SocialRepository {
   }
 
   @override
-  Future<void> setFollowing(
+  Future<FollowState> setFollowing(
     String attorneyId, {
     required bool following,
   }) async {
     followCalls.add((attorneyId, following));
+    return FollowState(following: following, followersCount: following ? 1 : 0);
   }
 
   @override
@@ -235,7 +237,11 @@ class FakeSocialRepository implements SocialRepository {
 /// In-memory [SearchRepository]: records every query it is asked.
 class FakeSearchRepository implements SearchRepository {
   @override
-  Future<List<SearchSuggestion>> suggest(String q) async => const [];
+  Future<List<SearchSuggestion>> suggest(
+    String q, {
+    CancelToken? cancel,
+  }) async =>
+      const [];
 
   final opened_ = <(String, SearchOpened, String)>[];
 
