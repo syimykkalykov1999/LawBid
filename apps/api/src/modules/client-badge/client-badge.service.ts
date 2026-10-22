@@ -14,6 +14,8 @@ import { AppSettingsService } from '../../common/app-settings/app-settings.servi
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PAYMENT_PROVIDER } from '../billing/billing.constants';
+import { savedCardOf } from '../billing/one-time-pay-page';
+import { PayLinkService } from '../billing/pay-link.service';
 import { PricingService } from '../billing/pricing.service';
 import { EntitlementsService } from '../plans/entitlements.service';
 import type {
@@ -57,6 +59,8 @@ export class ClientBadgeService {
     @Optional() private readonly pricing?: PricingService,
     // Owner 2026-10-05 (plan builder): a plan may include the badge.
     @Optional() private readonly entitlements?: EntitlementsService,
+    // Owner 2026-10-22: our own card page in place of Stripe's.
+    @Optional() private readonly payLink?: PayLinkService,
   ) {}
 
   // ---- the client's own state ------------------------------------------------
@@ -148,7 +152,114 @@ export class ClientBadgeService {
   }
 
   /** Approved and not paid → Stripe checkout for the $10/month. */
-  async checkout(userId: string): Promise<ClientBadgeCheckoutDto> {
+  async checkout(
+    userId: string,
+    apiBase?: string,
+  ): Promise<ClientBadgeCheckoutDto> {
+    const { row, priceId, customerId, provider } = await this.prepare(userId);
+    // Owner 2026-10-22: our own card page (card, Apple Pay, Google Pay) in
+    // place of Stripe's hosted page; on the iPhone it opens in Safari.
+    if (apiBase && this.payLink && (await this.payLink.enabled())) {
+      const link = await this.payLink.link(
+        userId,
+        { kind: 'client_badge' },
+        apiBase,
+      );
+      return { checkoutUrl: link.url };
+    }
+    const base = (
+      this.config.get<string>('APP_LINK_BASE_URL') ?? 'https://lawbid.app'
+    ).replace(/\/+$/, '');
+    const session = await provider.createCheckoutSession({
+      customerId,
+      lineItems: [{ priceId, quantity: 1 }],
+      trialDays: null,
+      successUrl: `${base}/verification/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancelUrl: `${base}/verification/cancel`,
+      metadata: {
+        kind: CLIENT_BADGE_CHECKOUT_KIND,
+        userId,
+        verificationId: row.id,
+      },
+    });
+    await this.prisma.clientVerification.update({
+      where: { id: row.id },
+      data: { stripe_checkout_id: session.id },
+    });
+    if (!session.url) {
+      throw new ServiceUnavailableException({
+        code: ErrorCode.PAYMENTS_NOT_CONFIGURED,
+        message: 'The checkout page is not available.',
+      });
+    }
+    return { checkoutUrl: session.url };
+  }
+
+  /** Owner 2026-10-22: the card page opened for the badge — a SetupIntent
+   * the card (or Apple Pay / Google Pay) is saved on. */
+  async payPageSession(userId: string): Promise<{
+    priceCents: number;
+    clientSecret: string;
+    setupIntentId: string;
+  }> {
+    const { provider, customerId } = await this.prepare(userId);
+    const si = await provider.createSetupIntent(customerId, {
+      kind: CLIENT_BADGE_CHECKOUT_KIND,
+      userId,
+    });
+    return {
+      priceCents: await this.priceCents(),
+      clientSecret: si.clientSecret,
+      setupIntentId: si.id,
+    };
+  }
+
+  /** The card is saved: the $10/month subscription is created on it.
+   * Returns true when the badge is on. */
+  async payPageConfirm(
+    userId: string,
+    setupIntentId: string,
+  ): Promise<boolean> {
+    const { row, priceId, customerId, provider } = await this.prepare(userId);
+    const paymentMethodId = await savedCardOf(
+      provider,
+      customerId,
+      setupIntentId,
+    );
+    const remote = await provider.createSubscription({
+      customerId,
+      priceId,
+      lineItems: [{ priceId, quantity: 1 }],
+      paymentMethodId,
+      trialDays: null,
+      metadata: {
+        kind: CLIENT_BADGE_CHECKOUT_KIND,
+        userId,
+        verificationId: row.id,
+      },
+      // One subscription per saved card (audit #15): a retry of this
+      // confirm with the same SetupIntent reuses Stripe's answer.
+      idempotencyKey: `setup:${setupIntentId}`,
+    });
+    await this.prisma.clientVerification.update({
+      where: { id: row.id },
+      data: {
+        stripe_checkout_id: setupIntentId,
+        stripe_subscription_id: remote.id,
+      },
+    });
+    await this.applySubscription(remote);
+    return remote.status === 'active' || remote.status === 'trialing';
+  }
+
+  /** Every check before the badge is sold (approved, not active, not in
+   * the plan, a price configured). */
+  private async prepare(userId: string): Promise<{
+    row: ClientVerification;
+    priceId: string;
+    customerId: string;
+    provider: PaymentProvider;
+  }> {
     const user = await this.requireClient(userId);
     const row = await this.prisma.clientVerification.findUnique({
       where: { user_id: userId },
@@ -186,32 +297,7 @@ export class ClientBadgeService {
       });
     }
     const customerId = await this.customerId(userId, user.email);
-    const base = (
-      this.config.get<string>('APP_LINK_BASE_URL') ?? 'https://lawbid.app'
-    ).replace(/\/+$/, '');
-    const session = await provider.createCheckoutSession({
-      customerId,
-      lineItems: [{ priceId, quantity: 1 }],
-      trialDays: null,
-      successUrl: `${base}/verification/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancelUrl: `${base}/verification/cancel`,
-      metadata: {
-        kind: CLIENT_BADGE_CHECKOUT_KIND,
-        userId,
-        verificationId: row.id,
-      },
-    });
-    await this.prisma.clientVerification.update({
-      where: { id: row.id },
-      data: { stripe_checkout_id: session.id },
-    });
-    if (!session.url) {
-      throw new ServiceUnavailableException({
-        code: ErrorCode.PAYMENTS_NOT_CONFIGURED,
-        message: 'The checkout page is not available.',
-      });
-    }
-    return { checkoutUrl: session.url };
+    return { row, priceId, customerId, provider };
   }
 
   /** Stop renewing: the badge stays until the paid period ends. */

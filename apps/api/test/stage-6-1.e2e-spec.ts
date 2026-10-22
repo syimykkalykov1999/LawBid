@@ -82,13 +82,15 @@ describe('Stage 6.1 — base security + migration (e2e)', () => {
     expect(r.headers['access-control-allow-origin']).toBeUndefined();
   });
 
-  it('CORS: the web client origin (web.allowed_origins default) is allowed without credentials', async () => {
+  // Owner 2026-10-22 (audit #7): with credentials — the website's refresh
+  // token is an HttpOnly cookie on /api/v1/auth.
+  it('CORS: the web client origin (web.allowed_origins default) is allowed with credentials', async () => {
     const r = await request(baseUrl)
       .options('/api/v1/health/live')
       .set('Origin', 'https://lawbid.dev')
       .set('Access-Control-Request-Method', 'POST');
     expect(r.headers['access-control-allow-origin']).toBe('https://lawbid.dev');
-    expect(r.headers['access-control-allow-credentials']).toBeUndefined();
+    expect(r.headers['access-control-allow-credentials']).toBe('true');
   });
 
   it('logs never contain phones, emails or tokens (pino redact + serializer)', () => {

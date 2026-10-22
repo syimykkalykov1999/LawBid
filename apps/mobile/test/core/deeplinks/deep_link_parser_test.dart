@@ -126,6 +126,21 @@ void main() {
         web('/stars/success?purchase_id=x'),
         const TabDeepLink('/profile/settings/stars'),
       );
+      expect(
+        web('/promotion/success'),
+        const TabDeepLink('/profile/settings/promotions'),
+      );
+      // Owner 2026-10-22: the phone app is brought back by the card page.
+      DeepLink? app(String link) =>
+          parseDeepLink(Uri.parse(link), host: 'lawbid.dev');
+      expect(
+        app('lawbid:/subscription/success'),
+        const TabDeepLink('/profile/settings/subscription'),
+      );
+      expect(
+        app('lawbid://promotion/cancel'),
+        const TabDeepLink('/profile/settings/promotions'),
+      );
       expect(web('/payout/return'), const TabDeepLink('/payout/return'));
       expect(web('/plan/other'), isNull);
       expect(

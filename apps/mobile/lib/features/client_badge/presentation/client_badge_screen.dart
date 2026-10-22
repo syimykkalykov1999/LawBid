@@ -5,6 +5,7 @@ import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/payments/pay_page_look.dart';
 import 'package:lawbid/features/client_badge/application/client_badge_providers.dart';
 import 'package:lawbid/features/client_badge/domain/client_badge_models.dart';
 import 'package:lawbid/features/client_plan/presentation/client_payment_portal.dart';
@@ -117,8 +118,10 @@ class _ClientBadgeScreenState extends ConsumerState<ClientBadgeScreen>
     final t = ref.read(translatorProvider);
     setState(() => _busy = true);
     try {
+      // Owner 2026-10-22: our card page, in the app's theme and language.
       final url = await ref.read(clientBadgeRepositoryProvider).checkout();
-      if (!await openPaymentPage(url) && mounted) {
+      if (!await openPaymentPage(withAppPayPageLook(ref.read, url)) &&
+          mounted) {
         showAppSnackBar(context, t.t('plans.cantOpen'));
       }
     } on Object catch (e) {

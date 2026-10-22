@@ -14,7 +14,8 @@ import 'package:lawbid/features/subscription/domain/subscription_models.dart';
 /// (3-D Secure included), for any plan — the order (plan, seats, assistant
 /// phones, promo) travels to the server first and the subscription is
 /// created when the card is saved. A build without the Stripe publishable
-/// key falls back to the hosted page in the browser.
+/// key falls back to the hosted page in the browser. Owner 2026-10-22: the
+/// iPhone always pays in the browser ([paymentsInBrowserProvider]).
 Future<SubscribeOutcome> payForPlan(
   BuildContext context,
   WidgetRef ref, {
@@ -26,8 +27,13 @@ Future<SubscribeOutcome> payForPlan(
 }) {
   final controller = ref.read(subscribeControllerProvider.notifier);
   // The web build has no Stripe sheet (flutter_stripe has no web plugin
-  // here): it pays on the hosted page like a build without the key.
-  if (kIsWeb || AppConfig.stripePublishableKey.isEmpty) {
+  // here): it pays on the card page like a build without the key.
+  // Owner 2026-10-22 (audit #3): the iPhone too — no payment screen in the
+  // app; our card page opens in the browser (one-time link) and the app
+  // re-reads the subscription when it is back.
+  if (kIsWeb ||
+      ref.read(paymentsInBrowserProvider) ||
+      AppConfig.stripePublishableKey.isEmpty) {
     return controller.subscribeWeb(
       plan: plan,
       assistantSeats: assistantSeats,

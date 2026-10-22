@@ -9,6 +9,7 @@ import {
   HttpStatus,
   Post,
   Query,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -30,6 +31,7 @@ import {
   CheckoutRequestDto,
   CheckoutSessionDto,
   SetSeatsDto,
+  SeatCheckoutDto,
   SeatChangeResultDto,
   SeatPreviewDto,
   SeatPreviewRequestDto,
@@ -168,6 +170,39 @@ export class SubscriptionsController {
     @Body() dto: SetSeatsDto,
   ): Promise<SeatChangeResultDto> {
     return this.seats.set(user, dto.seats, dto.prorationDate);
+  }
+
+  @Post('seats/checkout')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'A one-time link to the card page for buying seats in the browser (iPhone, owner 2026-10-22)',
+  })
+  @ApiEnvelopeResponse(SeatCheckoutDto)
+  @ApiErrors({
+    ...ATTORNEY_ERRORS,
+    400: [E.VALIDATION_ERROR],
+    404: [E.SUBSCRIPTION_NOT_FOUND],
+    409: [
+      E.SUBSCRIPTION_PLAN_INCLUDES_SEATS,
+      E.SEATS_TRIAL_NOT_ALLOWED,
+      E.SEATS_NOT_PAID_YET,
+    ],
+  })
+  async seatsCheckout(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: SeatPreviewRequestDto,
+    @Req() req: Request,
+  ): Promise<SeatCheckoutDto> {
+    if (!(await this.payPage.enabled())) {
+      throw new ServiceUnavailableException({
+        code: E.PAYMENTS_NOT_CONFIGURED,
+        message: 'The card page is not configured.',
+      });
+    }
+    const apiBase = `${req.protocol}://${req.get('host')}/api/v1`;
+    const link = await this.payPage.seatsLink(user, dto.seats, apiBase);
+    return { url: link.url, sessionId: link.id };
   }
 
   @Post('checkout/complete')

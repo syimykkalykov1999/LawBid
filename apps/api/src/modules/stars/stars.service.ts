@@ -22,6 +22,12 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import type { AdminActor } from '../admin-auth/admin-auth.decorators';
 import { PAYMENT_PROVIDER } from '../billing/billing.constants';
+import {
+  checkoutOf,
+  oneTimePayPageSession,
+  type OneTimePaySession,
+} from '../billing/one-time-pay-page';
+import { PayLinkService } from '../billing/pay-link.service';
 import type {
   PaymentProvider,
   ProviderCheckoutSession,
@@ -117,6 +123,8 @@ export class StarsService {
     @Optional()
     @Inject(PAYMENT_PROVIDER)
     private readonly provider?: PaymentProvider,
+    // Owner 2026-10-22: our own card page in place of Stripe's.
+    @Optional() private readonly payLink?: PayLinkService,
   ) {}
 
   // ── switch, packs, settings ───────────────────────────────────────────
@@ -362,6 +370,7 @@ export class StarsService {
   async buy(
     userId: string,
     packId: string,
+    apiBase?: string,
   ): Promise<{ purchaseId: string; checkoutUrl: string }> {
     await this.assertEnabled();
     const pack = (await this.packs()).find((p) => p.id === packId);
@@ -380,6 +389,17 @@ export class StarsService {
         price_cents: pack.priceCents,
       },
     });
+    // Owner 2026-10-22: our own card page (card, Apple Pay, Google Pay);
+    // on the iPhone it opens in Safari — the stars are never bought inside
+    // the iOS app, only spent there. Stripe's page stays the fallback.
+    if (apiBase && this.payLink && (await this.payLink.enabled())) {
+      const link = await this.payLink.link(
+        userId,
+        { kind: 'stars', purchaseId: row.id },
+        apiBase,
+      );
+      return { purchaseId: row.id, checkoutUrl: link.url };
+    }
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { email: true },
@@ -462,11 +482,42 @@ export class StarsService {
     }
   }
 
+  /** Owner 2026-10-22: the card page opened for a top-up — its PaymentIntent. */
+  async payPageSession(
+    userId: string,
+    id: string,
+  ): Promise<OneTimePaySession & { stars: number }> {
+    const row = await this.prisma.starPurchase.findUnique({ where: { id } });
+    const s = await oneTimePayPageSession({
+      provider: this.provider,
+      row,
+      userId,
+      kind: STARS_CHECKOUT_KIND,
+      description: `LawBid — ${row?.stars ?? 0} stars`,
+      save: async (pi) => {
+        await this.prisma.starPurchase.update({
+          where: { id },
+          data: { stripe_checkout_id: pi },
+        });
+      },
+      apply: (session) => this.applyCheckout(session),
+    });
+    return { ...s, stars: row?.stars ?? 0 };
+  }
+
+  /** The card page says it paid: check its PaymentIntent and credit. */
+  async payPageConfirm(userId: string, id: string): Promise<boolean> {
+    const row = await this.prisma.starPurchase.findUnique({ where: { id } });
+    if (!row || row.user_id !== userId) return false;
+    if (row.status === 'paid') return true;
+    return row.stripe_checkout_id
+      ? this.applyCheckoutById(row.stripe_checkout_id)
+      : false;
+  }
+
   async applyCheckoutById(sessionId: string): Promise<boolean> {
     try {
-      const s = this.provider
-        ? await this.provider.retrieveCheckoutSession(sessionId)
-        : null;
+      const s = await checkoutOf(this.provider, sessionId);
       return s ? await this.applyCheckout(s) : false;
     } catch (e) {
       this.logger.warn({ sessionId, err: String(e) }, 'stars check failed');

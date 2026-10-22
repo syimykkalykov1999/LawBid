@@ -177,9 +177,12 @@ class PromotionsRepository {
     );
   }
 
-  /// Stops a running (no refund) or unpaid promotion.
-  Future<void> stop(String id) async {
-    await guardApiCall(() => _api.stopPromotion(id: id));
+  /// Stops a running (no refund) or unpaid promotion. Owner 2026-10-22: an
+  /// unpaid one has its payment voided first; the promotion after the call
+  /// comes back (running = it was paid meanwhile and applied instead).
+  Future<CasePromotion?> stop(String id) async {
+    final r = await guardApiCall(() => _api.stopPromotion(id: id));
+    return _promotion(r.data);
   }
 
   /// A promoted post / case was opened — best effort, never throws.

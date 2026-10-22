@@ -10,6 +10,7 @@ import {
   Post,
   Put,
   Query,
+  Req,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { IsString, Matches } from 'class-validator';
@@ -19,6 +20,8 @@ import {
   ApiErrors,
   AUTHENTICATED_ERRORS,
 } from '../../common/dto/api-docs.decorators';
+import type { Request } from 'express';
+import { apiBaseOf } from '../billing/pay-link.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
   AdminEndpoint,
@@ -118,8 +121,9 @@ export class StarsController {
   buyStars(
     @CurrentUser() user: RequestUser,
     @Param() p: PackIdParamDto,
+    @Req() req: Request,
   ): Promise<StarsBuyDto> {
-    return this.stars.buy(user.sub, p.packId);
+    return this.stars.buy(user.sub, p.packId, apiBaseOf(req));
   }
 
   @Get('purchases/:id')

@@ -23,7 +23,9 @@ export function normalizeOrigin(raw: string): string | null {
  * browser origin may call the API:
  * - the admin panel (`ADMIN_ORIGINS` env) — with credentials, as before;
  * - the client web app (`web.allowed_origins` in app_config, editable in
- *   the admin) — no credentials: auth is a Bearer token, never a cookie.
+ *   the admin) — with credentials too (owner 2026-10-22, audit #7): its
+ *   refresh token is an HttpOnly cookie scoped to /api/v1/auth; every
+ *   other call still authenticates with a Bearer token.
  * Outside production any http://localhost / 127.0.0.1 port counts as a
  * web origin, for local development. The mobile app sends no Origin and
  * is unaffected; any other origin gets no CORS headers.
@@ -89,7 +91,7 @@ export class CorsPolicy {
           cb(null, {
             ...base,
             origin: kind !== null,
-            credentials: kind === 'admin',
+            credentials: kind !== null,
           }),
         () => cb(null, { ...base, origin: false }),
       );

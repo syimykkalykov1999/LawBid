@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { PayLinkModule } from '../billing/pay-link.module';
 import { BlocksModule } from '../blocks/blocks.module';
 import { FilesModule } from '../files/files.module';
 import { NotificationsModule } from '../notifications/notifications.module';
@@ -15,6 +16,8 @@ import { StarterCatalogService } from './starter-catalog.service';
     FilesModule,
     NotificationsModule,
     PrivacySettingsModule,
+    // Owner 2026-10-22: the card page's links.
+    PayLinkModule,
   ],
   providers: [StarsService],
   exports: [StarsService],

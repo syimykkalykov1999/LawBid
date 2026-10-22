@@ -1,6 +1,7 @@
 import { ConflictException } from '@nestjs/common';
 import { ClientBadgeService } from './client-badge.service';
 import { sanitizeUploadLimits } from '../files/upload-limits';
+import { FakePaymentProvider } from '../billing/fake-payment.provider';
 
 const NOW = Date.now();
 const row = (over: Record<string, unknown> = {}) => ({
@@ -127,5 +128,118 @@ describe('ClientBadgeService', () => {
         payload: { kind: 'client_badge', status: 'approved' },
       }),
     );
+  });
+});
+
+// Owner 2026-10-22 («лечи всё»): the badge is bought on our card page — the
+// card is saved there (SetupIntent) and the $10/month subscription is made
+// on it, instead of Stripe's hosted page.
+describe('ClientBadgeService on the card page', () => {
+  function pageSetup() {
+    const provider = new FakePaymentProvider();
+    let stored: ReturnType<typeof row> = row({
+      stripe_subscription_id: null,
+      stripe_checkout_id: null,
+    });
+    const customers = new Map<string, string>();
+    const prisma = {
+      user: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValue({ role: 'client', email: null }),
+      },
+      clientVerification: {
+        findUnique: jest.fn().mockImplementation(() => Promise.resolve(stored)),
+        findFirst: jest.fn().mockImplementation(() => Promise.resolve(stored)),
+        update: jest.fn().mockImplementation(({ data }) => {
+          stored = { ...stored, ...data };
+          return Promise.resolve(stored);
+        }),
+        updateMany: jest.fn().mockImplementation(({ data }) => {
+          stored = { ...stored, ...data };
+          return Promise.resolve({ count: 1 });
+        }),
+      },
+      stripeCustomer: {
+        findUnique: jest.fn(({ where }: { where: { user_id: string } }) =>
+          Promise.resolve(
+            customers.has(where.user_id)
+              ? { stripe_customer_id: customers.get(where.user_id) }
+              : null,
+          ),
+        ),
+        upsert: jest.fn(
+          ({
+            create,
+          }: {
+            create: { user_id: string; stripe_customer_id: string };
+          }) => {
+            customers.set(create.user_id, create.stripe_customer_id);
+            return Promise.resolve(create);
+          },
+        ),
+      },
+    };
+    const payLink = {
+      enabled: jest.fn().mockResolvedValue(true),
+      link: jest.fn().mockResolvedValue({
+        url: 'https://lawbid.dev/pay.html#t=x',
+        id: 'x',
+        token: 'x',
+      }),
+    };
+    const service = new ClientBadgeService(
+      prisma as never,
+      { get: jest.fn() } as never,
+      {
+        number: jest.fn().mockResolvedValue(1000),
+        boolean: jest.fn().mockResolvedValue(true),
+      } as never,
+      {} as never,
+      { emit: jest.fn().mockResolvedValue(undefined) } as never,
+      provider,
+      {
+        priceId: jest.fn().mockResolvedValue('price_badge'),
+        amount: jest.fn().mockResolvedValue(1000),
+      } as never,
+      undefined,
+      payLink as never,
+    );
+    return { service, provider, payLink, stored: () => stored };
+  }
+
+  it('checkout: the card page link, not a Stripe session', async () => {
+    const { service, payLink } = pageSetup();
+    expect(await service.checkout('u1', 'https://api.x/api/v1')).toEqual({
+      checkoutUrl: 'https://lawbid.dev/pay.html#t=x',
+    });
+    expect(payLink.link).toHaveBeenCalledWith(
+      'u1',
+      { kind: 'client_badge' },
+      'https://api.x/api/v1',
+    );
+  });
+
+  it('the saved card gets the subscription; an unsaved card is refused', async () => {
+    const { service, provider, stored } = pageSetup();
+    const s = await service.payPageSession('u1');
+    expect(s.priceCents).toBe(1000);
+    await expect(service.payPageConfirm('u1', s.setupIntentId)).rejects.toThrow(
+      'The card was not saved.',
+    );
+    provider.confirmSetupIntent(s.setupIntentId, {
+      paymentMethodId: 'pm_badge',
+      fingerprint: 'fp',
+    });
+    await service.payPageConfirm('u1', s.setupIntentId);
+    const sub = stored().stripe_subscription_id;
+    expect(sub).toMatch(/^sub_fake_/);
+    expect(stored().stripe_checkout_id).toBe(s.setupIntentId);
+    const remote = await provider.retrieveSubscription(String(sub));
+    expect(remote?.defaultPaymentMethodId).toBe('pm_badge');
+    expect(remote?.metadata).toMatchObject({
+      kind: 'client_badge',
+      userId: 'u1',
+    });
   });
 });

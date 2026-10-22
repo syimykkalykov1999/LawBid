@@ -18,9 +18,25 @@ const _kRealRefreshTokenKey = 'lawbid.realRefreshToken';
 /// cold-start refresh must then carry `X-LawBid-Demo: 1` — and (b) the
 /// REAL account's refresh token parked while a demo session is active
 /// (`lawbid.realRefreshToken`), restored by `exitDemo()`.
+///
+/// Owner 2026-10-22 (audit #7): on the website the server keeps the refresh
+/// token in an HttpOnly cookie and answers `refreshToken: ''`. The store
+/// then keeps [cookieMarker] instead of a token — "this tab is signed in,
+/// the cookie holds the credential" — and [wireValue] turns it back into
+/// the empty `refreshToken` the API reads as "use the cookie". A script on
+/// the page can no longer read anything worth stealing.
 class TokenSecureStore {
   const TokenSecureStore([FlutterSecureStorage? storage])
       : _storage = storage ?? const FlutterSecureStorage();
+
+  /// Stored in place of a refresh token that lives in the web cookie.
+  static const cookieMarker = 'cookie:';
+
+  /// What a stored value sends as `refreshToken` to `/auth/refresh`.
+  static String wireValue(String stored) =>
+      stored == cookieMarker ? '' : stored;
+
+  static String _stored(String token) => token.isEmpty ? cookieMarker : token;
 
   final FlutterSecureStorage _storage;
 
@@ -31,7 +47,7 @@ class TokenSecureStore {
       await _storage.read(key: _kRefreshTokenIsDemoKey) == '1';
 
   Future<void> writeRefreshToken(String token, {bool isDemo = false}) async {
-    await _storage.write(key: _kRefreshTokenKey, value: token);
+    await _storage.write(key: _kRefreshTokenKey, value: _stored(token));
     if (isDemo) {
       await _storage.write(key: _kRefreshTokenIsDemoKey, value: '1');
     } else {
@@ -50,7 +66,7 @@ class TokenSecureStore {
       _storage.read(key: _kRealRefreshTokenKey);
 
   Future<void> writeRealRefreshToken(String token) =>
-      _storage.write(key: _kRealRefreshTokenKey, value: token);
+      _storage.write(key: _kRealRefreshTokenKey, value: _stored(token));
 
   Future<void> clearRealRefreshToken() =>
       _storage.delete(key: _kRealRefreshTokenKey);
