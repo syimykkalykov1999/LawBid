@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Header } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ApiEnvelopeResponse } from '../../common/dto/api-docs.decorators';
 import {
@@ -18,6 +18,9 @@ export class DashboardController {
   constructor(private readonly dashboard: DashboardService) {}
 
   @Get()
+  // Owner 2026-10-22 (client economy plan, package J): the browser keeps
+  // the heavy aggregate for half a minute per tab.
+  @Header('Cache-Control', 'private, max-age=30')
   @ApiOperation({ summary: 'Operational numbers (cached ≤ 60 s)' })
   @ApiEnvelopeResponse(DashboardDto)
   async getDashboard(@CurrentAdmin() admin: AdminActor): Promise<DashboardDto> {

@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import type { AddressInfo, Server } from 'node:net';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
@@ -7,6 +7,7 @@ import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
 import { BadgesService } from '../src/modules/notifications/badges.service';
+import { adminSession } from './support/admin-login';
 import { NotificationsService } from '../src/modules/notifications/notifications.service';
 import { RealtimePublisher } from '../src/modules/realtime/realtime-publisher.service';
 
@@ -636,6 +637,60 @@ describe('Client economy (e2e, owner 2026-10-22)', () => {
       made.body.data.id,
     );
     spy.mockRestore();
+  });
+
+  // ------------------------------------------------------------ package I
+
+  it('I: a presigned upload carries the immutable Cache-Control field', async () => {
+    const cl = await client();
+    const res = await api()
+      .post('/api/v1/files/presign')
+      .set(cl.auth)
+      .send({
+        purpose: 'avatar',
+        mime: 'image/jpeg',
+        sizeBytes: 1024,
+        sha256: createHash('sha256').update('eco').digest('hex'),
+      });
+    if (res.status === 201 || res.status === 200) {
+      expect(res.body.data.upload.fields['Cache-Control']).toBe(
+        'public, max-age=31536000, immutable',
+      );
+    } else {
+      // No object storage in this environment: the route says so, the
+      // header is covered by the S3 unit spec.
+      expect([503, 501]).toContain(res.status);
+    }
+  });
+
+  // ------------------------------------------------------------ package J
+
+  it('J: GET /admin/counts answers the five badges in one request with an ETag; the dashboard is cacheable', async () => {
+    const admin = await adminSession(base, prisma, 'super_admin');
+    const first = await api()
+      .get('/api/v1/admin/counts')
+      .set(admin.auth)
+      .expect(200);
+    expect(first.body.data).toEqual({
+      verificationQueue: expect.any(Number),
+      openReports: expect.any(Number),
+      supportUnread: expect.any(Number),
+      trustQueue: expect.any(Number),
+      approvalsPending: expect.any(Number),
+    });
+    expect(first.headers['cache-control']).toBe('private, max-age=30');
+    const etag = first.headers.etag;
+    expect(etag).toMatch(/^W\/"adm-/);
+    await api()
+      .get('/api/v1/admin/counts')
+      .set(admin.auth)
+      .set('If-None-Match', etag)
+      .expect(304);
+    const dash = await api()
+      .get('/api/v1/admin/dashboard')
+      .set(admin.auth)
+      .expect(200);
+    expect(dash.headers['cache-control']).toBe('private, max-age=30');
   });
 
   it('D: reference lists carry a private / public Cache-Control with stale-while-revalidate', async () => {

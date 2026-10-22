@@ -34,6 +34,7 @@ describe('channel fan-out realtime', () => {
       channelUsername: 'u',
       postId: 'p1',
       authorId: 'a',
+      after: null,
     };
     await runner.emitBatch(job);
     expect(toUsers).toHaveBeenCalledTimes(1);
