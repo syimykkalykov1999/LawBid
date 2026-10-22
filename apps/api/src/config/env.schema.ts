@@ -617,6 +617,11 @@ export const envSchema = z
     ),
     BUNNY_TOKEN_AUTH_KEY: z.preprocess(blankToUndefined, z.string().optional()),
     BUNNY_WEBHOOK_TOKEN: z.preprocess(blankToUndefined, z.string().optional()),
+    // Audit #4: Bunny's Read-Only API key — verifies X-BunnyStream-Signature.
+    BUNNY_READ_ONLY_API_KEY: z.preprocess(
+      blankToUndefined,
+      z.string().optional(),
+    ),
     // OQ-041: STUN / TURN for in-app calls (TURN can also be set in the
     // admin → Integrations).
     STUN_URLS: z.preprocess(blankToUndefined, z.string().optional()),
