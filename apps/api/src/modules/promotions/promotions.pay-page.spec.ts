@@ -170,7 +170,9 @@ describe('Boost on our own card page (owner 2026-10-22)', () => {
       successUrl: 'https://x/s',
       cancelUrl: 'https://x/c',
     });
-    s.prisma.casePromotion.update({ data: { stripe_checkout_id: old.id } });
+    await s.prisma.casePromotion.update({
+      data: { stripe_checkout_id: old.id },
+    });
     const a = await s.service.payPageSession('owner', 'p1');
     expect(a.paid).toBe(false);
     expect((await s.provider.retrieveCheckoutSession(old.id))?.status).toBe(

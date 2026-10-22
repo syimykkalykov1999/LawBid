@@ -7,6 +7,7 @@ import {
   Param,
   Post,
   Put,
+  Req,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -29,6 +30,8 @@ import {
   ApiErrors,
   AUTHENTICATED_ERRORS,
 } from '../../common/dto/api-docs.decorators';
+import type { Request } from 'express';
+import { apiBaseOf } from '../billing/pay-link.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { AdminEndpoint } from '../admin-auth/admin-auth.decorators';
 import { AttorneyOnly } from '../auth/assistant/assistant-context';
@@ -105,8 +108,9 @@ export class BidPacksController {
   buyBidPack(
     @CurrentUser() user: RequestUser,
     @Param('packId') packId: string,
+    @Req() req: Request,
   ): Promise<BidPackBuyDto> {
-    return this.packs.buy(user.sub, packId);
+    return this.packs.buy(user.sub, packId, apiBaseOf(req));
   }
 
   @Get('purchases/:id')

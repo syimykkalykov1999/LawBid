@@ -831,11 +831,12 @@ export class PromotionsService {
         message: 'Promotion not found.',
       });
     }
+    const target: PromotionTarget = row.post_id ? 'post' : 'case';
     const base = {
       amountCents: row.total_cents,
       currency: 'usd',
       days: row.days,
-      target: row.post_id ? 'post' : 'case',
+      target,
     };
     if (row.status === 'active' || row.status === 'pending_review') {
       return { ...base, paid: true, clientSecret: null, paymentIntentId: null };

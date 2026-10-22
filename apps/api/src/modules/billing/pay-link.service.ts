@@ -13,8 +13,28 @@ import { SecretsService } from '../../common/secrets/secrets.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import type { CheckoutRequestDto } from './billing.dto';
 
+/** A session id that names our card page, not a Stripe Checkout session
+ * (the app's "back from the page" check then only re-reads the state). */
+export const OWN_PAGE_SESSION_PREFIX = 'own:';
+
+/** The API address the card page calls back (the one the app called). */
+export function apiBaseOf(req: {
+  protocol: string;
+  get(name: string): string | undefined;
+}): string {
+  return `${req.protocol}://${req.get('host')}/api/v1`;
+}
+
 /** What a link pays for. */
-export type PayKind = 'subscription' | 'seats' | 'promotion';
+export type PayKind =
+  | 'subscription'
+  | 'seats'
+  | 'promotion'
+  // Owner 2026-10-22 («лечи всё»): every other purchase on the same page.
+  | 'stars'
+  | 'bid_pack'
+  | 'client_plan'
+  | 'client_badge';
 
 export interface PayPayload {
   /** The buyer. */
@@ -26,7 +46,8 @@ export interface PayPayload {
   r?: CheckoutRequestDto;
   /** seats: the seat count wanted. */
   s?: number;
-  /** promotion: the promotion's id. */
+  /** promotion: the promotion's id; stars / bid_pack: the purchase's id;
+   * client_plan: the plan's code. */
   p?: string;
   /** Expiry, unix seconds. */
   e: number;
@@ -39,10 +60,34 @@ export interface PayPayload {
 export type PayOrder =
   | { kind: 'subscription'; order: CheckoutRequestDto }
   | { kind: 'seats'; seats: number }
-  | { kind: 'promotion'; promotionId: string };
+  | { kind: 'promotion'; promotionId: string }
+  | { kind: 'stars' | 'bid_pack'; purchaseId: string }
+  | { kind: 'client_plan'; planCode?: string }
+  | { kind: 'client_badge' };
 
 export function payKindOf(p: PayPayload): PayKind {
   return p.k ?? 'subscription';
+}
+
+function payloadOf(order: PayOrder): Partial<PayPayload> {
+  switch (order.kind) {
+    case 'subscription':
+      return { r: order.order };
+    case 'seats':
+      return { k: 'seats', s: order.seats };
+    case 'promotion':
+      return { k: 'promotion', p: order.promotionId };
+    case 'stars':
+    case 'bid_pack':
+      return { k: order.kind, p: order.purchaseId };
+    case 'client_plan':
+      return {
+        k: 'client_plan',
+        ...(order.planCode ? { p: order.planCode } : {}),
+      };
+    case 'client_badge':
+      return { k: 'client_badge' };
+  }
 }
 
 /**
@@ -113,11 +158,7 @@ export class PayLinkService {
       u: userId,
       e: Math.floor(Date.now() / 1000) + (await this.ttlSeconds()),
       j: randomBytes(9).toString('base64url'),
-      ...(order.kind === 'subscription'
-        ? { r: order.order }
-        : order.kind === 'seats'
-          ? { k: 'seats' as const, s: order.seats }
-          : { k: 'promotion' as const, p: order.promotionId }),
+      ...payloadOf(order),
     };
     const token = this.sign(payload);
     const url = `${this.webBase}/pay.html#t=${token}&api=${encodeURIComponent(apiBase)}&ret=${encodeURIComponent(this.webBase)}`;

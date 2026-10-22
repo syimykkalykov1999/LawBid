@@ -9,6 +9,7 @@ import {
   Query,
   UseGuards,
   UseInterceptors,
+  Req,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -21,6 +22,8 @@ import {
   ApiErrors,
   AUTHENTICATED_ERRORS,
 } from '../../common/dto/api-docs.decorators';
+import type { Request } from 'express';
+import { apiBaseOf } from '../billing/pay-link.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { IdempotencyInterceptor } from '../../idempotency/idempotency.interceptor';
 import { RequireIdempotencyKeyGuard } from '../../idempotency/require-idempotency-key.guard';
@@ -98,8 +101,9 @@ export class ClientBadgeController {
   })
   startClientBadgeCheckout(
     @CurrentUser() user: RequestUser,
+    @Req() req: Request,
   ): Promise<ClientBadgeCheckoutDto> {
-    return this.badge.checkout(user.sub);
+    return this.badge.checkout(user.sub, apiBaseOf(req));
   }
 
   @Post('cancel')

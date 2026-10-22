@@ -5,6 +5,7 @@ import {
   HttpCode,
   HttpStatus,
   Post,
+  Req,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
@@ -12,6 +13,8 @@ import {
   ApiErrors,
   AUTHENTICATED_ERRORS,
 } from '../../common/dto/api-docs.decorators';
+import type { Request } from 'express';
+import { apiBaseOf } from '../billing/pay-link.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
   CurrentUser,
@@ -59,8 +62,9 @@ export class ClientPlansController {
   clientPlanCheckout(
     @CurrentUser() user: RequestUser,
     @Body() dto: ClientPlanCheckoutRequestDto,
+    @Req() req: Request,
   ): Promise<ClientPlanCheckoutDto> {
-    return this.plans.checkout(user, dto.planCode);
+    return this.plans.checkout(user, dto.planCode, apiBaseOf(req));
   }
 
   @Post('checkout/complete')

@@ -9,17 +9,21 @@ import { PromotionsService } from './promotions.service';
 import { PromotionDeliveryService } from './promotion-delivery.service';
 import { StarsCoreModule } from '../stars/stars.module';
 import { RefundsService } from '../admin-billing/refunds.service';
-import { PayLinkService } from '../billing/pay-link.service';
+import { PayLinkModule } from '../billing/pay-link.module';
 
 /** The promotion service alone — imported by billing (checkout webhook),
  * the jobs module (`promotions.expire`) and the HTTP module below. Uses
  * the global PAYMENT_PROVIDER when present. */
 @Module({
-  imports: [ReferralsCoreModule, NotificationsModule, StarsCoreModule],
-  // PayLinkService: the card page's signed links (owner 2026-10-22), here so
-  // billing (which imports this module) and promotions share one.
-  providers: [PromotionsService, PromotionDeliveryService, PayLinkService],
-  exports: [PromotionsService, PromotionDeliveryService, PayLinkService],
+  imports: [
+    ReferralsCoreModule,
+    NotificationsModule,
+    StarsCoreModule,
+    PayLinkModule,
+  ],
+  // PayLinkModule: the card page's signed links (owner 2026-10-22).
+  providers: [PromotionsService, PromotionDeliveryService],
+  exports: [PromotionsService, PromotionDeliveryService],
 })
 export class PromotionsCoreModule {}
 

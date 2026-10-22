@@ -8,7 +8,11 @@ import {
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
+import { BidPacksService } from '../bid-packs/bid-packs.service';
+import { ClientBadgeService } from '../client-badge/client-badge.service';
+import { ClientPlansService } from '../plans/client-plans.service';
 import { PromotionsService } from '../promotions/promotions.service';
+import { StarsService } from '../stars/stars.service';
 import { PAYMENT_PROVIDER } from './billing.constants';
 import type { CheckoutRequestDto, SubscriptionMeDto } from './billing.dto';
 import {
@@ -50,7 +54,24 @@ export interface PayPageSession {
   /** promotion */
   days?: number;
   target?: 'case' | 'post';
+  /** stars / bid_pack: what the purchase gives. */
+  stars?: number;
+  bids?: number;
+  /** Where «Return to LawBid» lands (`/<kind>/success|cancel`, the app's
+   * payment-return links). */
+  returnPath: string;
 }
+
+/** The return links the app already routes (core/deeplinks). */
+const RETURN_PATHS: Record<PayKind, string> = {
+  subscription: '/subscription',
+  seats: '/subscription',
+  promotion: '/promotion',
+  stars: '/stars',
+  bid_pack: '/bid-packs',
+  client_plan: '/plan',
+  client_badge: '/verification',
+};
 
 /** The card page's result after its payment step. */
 export interface PayPageResult {
@@ -89,6 +110,11 @@ export class PayPageService {
     @Optional()
     @Inject(PAYMENT_PROVIDER)
     private readonly provider?: PaymentProvider,
+    // Owner 2026-10-22 («лечи всё»): every other purchase too.
+    @Optional() private readonly stars?: StarsService,
+    @Optional() private readonly bidPacks?: BidPacksService,
+    @Optional() private readonly clientPlans?: ClientPlansService,
+    @Optional() private readonly clientBadge?: ClientBadgeService,
   ) {}
 
   /** The public Stripe key (admin card or the env). */
@@ -140,7 +166,49 @@ export class PayPageService {
       });
     }
     const kind = payKindOf(p);
-    const common = { kind, pageToken: page, publishableKey: key };
+    const common = {
+      kind,
+      pageToken: page,
+      publishableKey: key,
+      returnPath: RETURN_PATHS[kind],
+    };
+
+    if (kind === 'stars' || kind === 'bid_pack') {
+      const buyer = (await this.userOf(p, 'any')).sub;
+      const s =
+        kind === 'stars'
+          ? await need(this.stars).payPageSession(buyer, p.p ?? '')
+          : await need(this.bidPacks).payPageSession(buyer, p.p ?? '');
+      return {
+        ...common,
+        mode: s.paid ? 'none' : 'payment',
+        clientSecret: s.clientSecret,
+        priceCents: s.amountCents,
+        currency: 'usd',
+        ...('stars' in s ? { stars: s.stars } : { bids: s.bids }),
+      };
+    }
+
+    if (kind === 'client_plan' || kind === 'client_badge') {
+      const client = await this.userOf(p, 'client');
+      const s =
+        kind === 'client_plan'
+          ? await need(this.clientPlans).payPageSession(client, p.p)
+          : {
+              ...(await need(this.clientBadge).payPageSession(client.sub)),
+              trialDays: 0,
+            };
+      return {
+        ...common,
+        mode: 'setup',
+        clientSecret: s.clientSecret,
+        setupIntentId: s.setupIntentId,
+        priceCents: s.priceCents,
+        currency: 'usd',
+        trialDays: s.trialDays,
+        trialEligible: s.trialDays > 0,
+      };
+    }
 
     if (kind === 'promotion') {
       const s = await this.promotionsService().payPageSession(
@@ -199,6 +267,37 @@ export class PayPageService {
     const p = this.links.verify(token);
     const kind = payKindOf(p);
 
+    if (kind === 'stars' || kind === 'bid_pack') {
+      const buyer = (await this.userOf(p, 'any')).sub;
+      const paid =
+        kind === 'stars'
+          ? await need(this.stars).payPageConfirm(buyer, p.p ?? '')
+          : await need(this.bidPacks).payPageConfirm(buyer, p.p ?? '');
+      return { status: paid ? 'ok' : 'pending', clientSecret: null };
+    }
+
+    if (kind === 'client_plan' || kind === 'client_badge') {
+      if (!input.setupIntentId) {
+        throw new BadRequestException({
+          code: ErrorCode.VALIDATION_ERROR,
+          message: 'The card was not saved. Try again.',
+        });
+      }
+      const client = await this.userOf(p, 'client');
+      const on =
+        kind === 'client_plan'
+          ? await need(this.clientPlans).payPageConfirm(
+              client,
+              p.p,
+              input.setupIntentId,
+            )
+          : await need(this.clientBadge).payPageConfirm(
+              client.sub,
+              input.setupIntentId,
+            );
+      return { status: on ? 'ok' : 'pending', clientSecret: null };
+    }
+
     if (kind === 'promotion') {
       const user = await this.userOf(p, 'any');
       const paid = await this.promotionsService().payPageConfirm(
@@ -244,17 +343,13 @@ export class PayPageService {
    * page never gets an access token). */
   private async userOf(
     p: PayPayload,
-    role: 'attorney' | 'any',
+    role: 'attorney' | 'client' | 'any',
   ): Promise<RequestUser> {
     const u = await this.prisma.user.findUnique({
       where: { id: p.u },
       select: { role: true, status: true },
     });
-    if (
-      !u ||
-      u.status !== 'active' ||
-      (role === 'attorney' && u.role !== 'attorney')
-    ) {
+    if (!u || u.status !== 'active' || (role !== 'any' && u.role !== role)) {
       throw new UnauthorizedException({
         code: ErrorCode.UNAUTHORIZED,
         message: 'This link is not valid.',
@@ -283,4 +378,10 @@ export class PayPageService {
     if (!this.provider) throw new Error('PAYMENT_PROVIDER is not wired');
     return this.provider;
   }
+}
+
+/** A seller service that must be wired for this kind of purchase. */
+function need<T>(svc: T | undefined): T {
+  if (!svc) throw new Error('The pay page is not wired for this purchase');
+  return svc;
 }

@@ -137,6 +137,10 @@ export class SubscriptionSyncService {
       case 'payment_intent.succeeded':
         if (meta?.kind === 'case_promotion') {
           await this.promotions?.applyCheckoutById(o.id);
+        } else if (meta?.kind === STARS_CHECKOUT_KIND) {
+          await this.stars?.applyCheckoutById(o.id);
+        } else if (meta?.kind === 'bid_pack') {
+          await this.bidPacks?.applyCheckoutById(o.id);
         }
         return;
       case 'setup_intent.succeeded':
