@@ -9,6 +9,7 @@ import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/features/cases/application/paged_notifier.dart';
 import 'package:lawbid/features/subscription/data/card_collector.dart';
+import 'package:lawbid/features/subscription/data/payment_confirmer.dart';
 import 'package:lawbid/features/subscription/data/subscription_repository_impl.dart';
 import 'package:lawbid/features/subscription/domain/subscription_models.dart';
 import 'package:lawbid/features/subscription/domain/subscription_repository.dart';
@@ -23,6 +24,12 @@ final subscriptionRepositoryProvider = Provider<SubscriptionRepository>(
 
 final cardCollectorProvider = Provider<CardCollector>(
   (ref) => StripeCardCollector(publishableKey: AppConfig.stripePublishableKey),
+);
+
+/// Owner 2026-10-22: 3-D Secure for a seat purchase charged at once.
+final paymentConfirmerProvider = Provider<PaymentConfirmer>(
+  (ref) =>
+      StripePaymentConfirmer(publishableKey: AppConfig.stripePublishableKey),
 );
 
 /// How often `GET /subscriptions/me` is re-read while the subscription is

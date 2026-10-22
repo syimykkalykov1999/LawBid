@@ -96,6 +96,11 @@ abstract final class ApiErrorCodes {
       'SUBSCRIPTION_PLAN_INCLUDES_SEATS';
   static const assistantSeatsInUse = 'ASSISTANT_SEATS_IN_USE';
   static const assistantNoFreeSeat = 'ASSISTANT_NO_FREE_SEAT';
+  // Owner 2026-10-22: seats charged now; at most N duties per assistant.
+  static const assistantTooManyDuties = 'ASSISTANT_TOO_MANY_DUTIES';
+  static const seatsTrialNotAllowed = 'SEATS_TRIAL_NOT_ALLOWED';
+  static const seatsNotPaidYet = 'SEATS_NOT_PAID_YET';
+  static const seatsPreviewStale = 'SEATS_PREVIEW_STALE';
   static const assistantNotAllowed = 'ASSISTANT_NOT_ALLOWED';
   static const assistantPhoneTaken = 'ASSISTANT_PHONE_TAKEN';
   static const assistantInviteNotFound = 'ASSISTANT_INVITE_NOT_FOUND';

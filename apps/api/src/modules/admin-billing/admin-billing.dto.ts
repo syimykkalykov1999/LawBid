@@ -777,3 +777,69 @@ export class AdminSubscriptionActionResultDto {
   @ApiProperty({ type: AdminSubscriptionRefundOutcomeDto, nullable: true })
   refund!: AdminSubscriptionRefundOutcomeDto | null;
 }
+
+// ---- assistant seat changes (owner 2026-10-22) --------------------------------
+
+export const SEAT_CHANGE_STATUSES = [
+  'pending',
+  'paid',
+  'failed',
+  'expired',
+  'scheduled',
+  'applied',
+  'canceled',
+] as const;
+
+export class AdminSeatChangesQueryDto extends AdminBillingCursorQueryDto {
+  @ApiPropertyOptional({
+    enum: SEAT_CHANGE_STATUSES,
+    enumName: 'AssistantSeatChangeStatus',
+  })
+  @IsOptional()
+  @IsIn(SEAT_CHANGE_STATUSES)
+  status?: (typeof SEAT_CHANGE_STATUSES)[number];
+
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID('all')
+  userId?: string;
+}
+
+/** Owner 2026-10-22: one row of «Покупки мест» (Подписки). */
+export class AdminSeatChangeDto {
+  @ApiProperty({ format: 'uuid' }) id!: string;
+  @ApiProperty({ format: 'uuid' }) userId!: string;
+  @ApiProperty({ type: AdminBillingUserDto, nullable: true })
+  user!: AdminBillingUserDto | null;
+  @ApiProperty({ type: 'integer', description: 'Extra seats before.' })
+  fromSeats!: number;
+  @ApiProperty({ type: 'integer', description: 'Extra seats after.' })
+  toSeats!: number;
+  @ApiProperty({
+    type: 'integer',
+    description: 'Charged now (0 for a removal).',
+  })
+  amountCents!: number;
+  @ApiProperty() currency!: string;
+  @ApiProperty({
+    enum: SEAT_CHANGE_STATUSES,
+    enumName: 'AssistantSeatChangeStatus',
+  })
+  status!: (typeof SEAT_CHANGE_STATUSES)[number];
+  @ApiProperty({ type: String, nullable: true }) stripeInvoiceId!:
+    string | null;
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'The invoice in the Stripe Dashboard (null for the fake).',
+  })
+  invoiceUrl!: string | null;
+  @ApiProperty({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    description: 'A removal: when the seats go (the period end).',
+  })
+  effectiveAt!: string | null;
+  @ApiProperty({ format: 'date-time' }) createdAt!: string;
+}

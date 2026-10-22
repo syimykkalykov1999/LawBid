@@ -19,6 +19,7 @@ import { ReferralsService } from '../referrals/referrals.service';
 import { PartnersService } from '../partners/partners.service';
 import { SubscriptionAccessService } from '../subscriptions/subscription-access.service';
 import { PAYMENT_PROVIDER } from './billing.constants';
+import { PricingService } from './pricing.service';
 import type {
   PaymentProvider,
   ProviderEvent,
@@ -62,6 +63,8 @@ export class SubscriptionSyncService {
     // Owner 2026-10-14: offer packs.
     @Optional() private readonly bidPacks?: BidPacksService,
     @Optional() private readonly stars?: StarsService,
+    // Owner 2026-10-22: finds the assistant-seat item on a subscription.
+    @Optional() private readonly pricing?: PricingService,
   ) {}
 
   async handleEvent(event: ProviderEvent): Promise<void> {
@@ -86,6 +89,12 @@ export class SubscriptionSyncService {
         if (await this.clientBadges?.onSubscriptionEvent(o.id)) return;
         if (await this.clientPlans?.onSubscriptionEvent(o.id)) return;
         await this.syncById(o.id);
+        return;
+      // Owner 2026-10-22: a seat purchase waiting for its invoice (3-D
+      // Secure) was paid and applied — or it expired / was voided.
+      case 'customer.subscription.pending_update_applied':
+      case 'customer.subscription.pending_update_expired':
+        await this.onSeatUpdate(o.id);
         return;
       case 'invoice.paid':
       case 'invoice.payment_failed':
@@ -188,6 +197,7 @@ export class SubscriptionSyncService {
           ? (local.grace_ends_at ??
             new Date(Date.now() + graceDays * 86_400_000))
           : null;
+      const seats = await this.seatSync(tx, local, remote);
       const updated = await tx.subscription.update({
         where: { id: local.id },
         data: {
@@ -200,6 +210,7 @@ export class SubscriptionSyncService {
           cancel_at_period_end: remote.cancelAtPeriodEnd,
           canceled_at: secs(remote.canceledAt),
           grace_ends_at: graceEndsAt,
+          ...seats,
           ...extra,
         },
       });
@@ -252,6 +263,29 @@ export class SubscriptionSyncService {
         : null;
     if (!sub) return;
     const paid = type === 'invoice.paid';
+    // Owner 2026-10-22: the invoice of a seat purchase (charged at once).
+    // An unpaid one never makes the subscription past_due — the seats are
+    // simply not added (pending_if_incomplete); a paid one is a payment.
+    const seatChange = await this.prisma.assistantSeatChange.findFirst({
+      where: { stripe_invoice_id: invoice.id },
+    });
+    if (seatChange) {
+      if (paid && seatChange.status !== 'paid') {
+        await this.prisma.assistantSeatChange.update({
+          where: { id: seatChange.id },
+          data: { status: 'paid', amount_cents: invoice.amountCents },
+        });
+      } else if (
+        type === 'invoice.payment_failed' &&
+        seatChange.status === 'pending'
+      ) {
+        await this.prisma.assistantSeatChange.update({
+          where: { id: seatChange.id },
+          data: { status: 'failed' },
+        });
+      }
+      if (!paid) return;
+    }
     await this.prisma.payment.upsert({
       where: { stripe_invoice_id: invoice.id },
       create: {
@@ -327,6 +361,96 @@ export class SubscriptionSyncService {
     }
     if (sub.stripe_subscription_id)
       await this.syncById(sub.stripe_subscription_id);
+  }
+
+  /** Owner 2026-10-22: `pending_update_applied` / `_expired` — settle the
+   * attorney's waiting seat purchases from their invoices, then re-read
+   * the subscription (its seat quantity). */
+  private async onSeatUpdate(providerSubscriptionId: string): Promise<void> {
+    const local = await this.prisma.subscription.findUnique({
+      where: { stripe_subscription_id: providerSubscriptionId },
+      select: { user_id: true },
+    });
+    if (local) await this.reconcileSeatChanges(local.user_id);
+    await this.syncById(providerSubscriptionId);
+  }
+
+  /** Waiting seat purchases (last 3 days) take their invoice's outcome:
+   * paid → paid; void / uncollectible → expired. */
+  async reconcileSeatChanges(userId: string): Promise<void> {
+    const rows = await this.prisma.assistantSeatChange.findMany({
+      where: {
+        user_id: userId,
+        status: { in: ['pending', 'failed'] },
+        stripe_invoice_id: { not: null },
+        created_at: { gte: new Date(Date.now() - 3 * 86_400_000) },
+      },
+    });
+    for (const r of rows) {
+      const inv = await this.provider.retrieveInvoice(r.stripe_invoice_id!);
+      if (!inv) continue;
+      const next =
+        inv.status === 'paid'
+          ? 'paid'
+          : inv.status === 'void' || inv.status === 'uncollectible'
+            ? 'expired'
+            : null;
+      if (next && next !== r.status) {
+        await this.prisma.assistantSeatChange.update({
+          where: { id: r.id },
+          data: {
+            status: next,
+            ...(next === 'paid' ? { amount_cents: inv.amountCents } : {}),
+          },
+        });
+      }
+    }
+  }
+
+  /**
+   * Owner 2026-10-22: `assistant_seats` follows the seat item's quantity
+   * on Stripe (a purchase applied after 3-D Secure, a change made in the
+   * Stripe Dashboard). A removal waiting for the period end keeps the
+   * paid seats until then (Stripe's quantity is already lower so the next
+   * invoice is right); from the period end the lower number applies.
+   * Yearly rows and subscriptions without a known seat item are left as
+   * they are.
+   */
+  private async seatSync(
+    tx: Prisma.TransactionClient,
+    local: Subscription,
+    remote: ProviderSubscription,
+  ): Promise<Partial<Prisma.SubscriptionUpdateInput>> {
+    if (!remote.items || !this.pricing || local.plan === 'yearly') return {};
+    const ids = new Set(await this.pricing.allSeatPriceIds());
+    const items = remote.items.filter((i) => ids.has(i.priceId));
+    const scheduled = await tx.assistantSeatChange.findFirst({
+      where: { user_id: local.user_id, status: 'scheduled' },
+      orderBy: { created_at: 'desc' },
+    });
+    let qty: number;
+    if (items.length > 0) qty = items.reduce((n, i) => n + i.quantity, 0);
+    else if (scheduled?.to_seats === 0) qty = 0;
+    else return {};
+    const now = new Date();
+    const due = !!scheduled && (scheduled.effective_at ?? now) <= now;
+    if (qty < local.assistant_seats && scheduled && !due) return {};
+    if (scheduled && due && qty <= local.assistant_seats) {
+      await tx.assistantSeatChange.update({
+        where: { id: scheduled.id },
+        data: { status: 'applied' },
+      });
+    }
+    if (qty === local.assistant_seats) return {};
+    const unit =
+      items.find((i) => i.unitAmountCents != null)?.unitAmountCents ?? 0;
+    return {
+      assistant_seats: qty,
+      price_cents: Math.max(
+        0,
+        local.price_cents + (qty - local.assistant_seats) * unit,
+      ),
+    };
   }
 
   private async onRefund(chargeId: string): Promise<void> {

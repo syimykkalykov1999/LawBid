@@ -12,6 +12,9 @@ import {
   type ProviderEvent,
   type ProviderRefund,
   type ProviderInvoice,
+  type ProviderSeatCharge,
+  type ProviderSeatItemInput,
+  type ProviderSeatPreview,
   type ProviderOneTimeCheckoutInput,
   type ProviderPrice,
   type ProviderPriceInput,
@@ -143,6 +146,98 @@ export class FakePaymentProvider implements PaymentProvider {
     if (!cur) throw new Error('no such subscription');
     this.seats.set(subscriptionId, quantity);
     return Promise.resolve(strip(cur));
+  }
+
+  /** Owner 2026-10-22: dev / e2e seat purchase — the prorated rest of the
+   * period at the seat price the admin created (else $100). */
+  previewSeatIncrease(
+    input: ProviderSeatItemInput & { addSeats: number; prorationDate: number },
+  ): Promise<ProviderSeatPreview> {
+    const cur = this.subscriptions.get(input.subscriptionId);
+    if (!cur) throw new Error('no such subscription');
+    return Promise.resolve({
+      amountNowCents: this.proratedSeatCents(
+        cur,
+        input.seatPriceId,
+        input.addSeats,
+        input.prorationDate,
+      ),
+      currency: 'usd',
+      prorationDate: input.prorationDate,
+      periodEnd: cur.currentPeriodEnd,
+    });
+  }
+
+  /** Card `decline` → failed; `3ds` → requires_action (dev tests set it). */
+  seatChargeOutcome: ProviderSeatCharge['status'] = 'applied';
+
+  chargeSeatIncrease(
+    input: ProviderSeatItemInput & {
+      quantity: number;
+      prorationDate: number;
+      idempotencyKey: string;
+    },
+  ): Promise<ProviderSeatCharge> {
+    const cur = this.subscriptions.get(input.subscriptionId);
+    if (!cur) throw new Error('no such subscription');
+    const before = this.seats.get(input.subscriptionId) ?? 0;
+    const amountCents = this.proratedSeatCents(
+      cur,
+      input.seatPriceId,
+      Math.max(0, input.quantity - before),
+      input.prorationDate,
+    );
+    const invoiceId = `in_fake_seats_${randomUUID().slice(0, 8)}`;
+    const status = this.seatChargeOutcome;
+    if (status === 'applied')
+      this.seats.set(input.subscriptionId, input.quantity);
+    this.invoices.set(invoiceId, {
+      id: invoiceId,
+      customerId: cur.customerId,
+      subscriptionId: cur.id,
+      amountCents,
+      currency: 'usd',
+      status:
+        status === 'applied' ? 'paid' : status === 'failed' ? 'void' : 'open',
+      paidAt: status === 'applied' ? Math.floor(Date.now() / 1000) : null,
+      paymentIntentId: null,
+      failureCode: null,
+      _version: 1,
+    });
+    return Promise.resolve({
+      status,
+      invoiceId,
+      amountCents,
+      currency: 'usd',
+      clientSecret:
+        status === 'requires_action' ? `pi_fake_secret_${invoiceId}` : null,
+      subscription: strip(cur),
+    });
+  }
+
+  voidInvoice(invoiceId: string): Promise<void> {
+    const cur = this.invoices.get(invoiceId);
+    if (cur && cur.status === 'open') {
+      this.invoices.set(invoiceId, {
+        ...cur,
+        status: 'void',
+        _version: cur._version + 1,
+      });
+    }
+    return Promise.resolve();
+  }
+
+  private proratedSeatCents(
+    sub: ProviderSubscription,
+    seatPriceId: string,
+    addSeats: number,
+    at: number,
+  ): number {
+    const unit = this.prices.get(seatPriceId)?.amountCents ?? 10_000;
+    const start = sub.currentPeriodStart ?? at;
+    const end = sub.currentPeriodEnd ?? at;
+    const left = end > start ? Math.max(0, end - at) / (end - start) : 1;
+    return Math.round(unit * addSeats * Math.min(1, left));
   }
   /** Owner 2026-10-03: prices created from the admin, and the item
    * moves (subscription → new price id) done by "move subscribers". */
