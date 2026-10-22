@@ -12,7 +12,13 @@
   Card numbers never touch our servers: Stripe.js renders the three fields
   (cardNumber / cardExpiry / cardCvc) inside Stripe-hosted iframes that sit on
   top of the artwork; we only get a SetupIntent back and ask the API to create
-  the subscription from it. A card only: no wallets, no Link, no promo box.
+  the subscription from it.
+  Owner 2026-10-22 (audit #3): the one card page for every purchase — the
+  subscription, assistant seats and Boost — and the only place the iPhone app
+  sends a buyer (no payment screen in the app). Apple Pay / Google Pay are back
+  (Stripe's Express Checkout Element; no Link, PayPal or bank methods). The
+  link is one-time: the page swaps it for its own token (kept in this tab for a
+  reload). The script is pay.js: the site's CSP allows no inline scripts.
 -->
 <style>
 :root{
@@ -107,6 +113,11 @@ a.link{color:var(--gold-ink);text-decoration:underline;cursor:pointer}
 .spin{width:22px;height:22px;border-radius:50%;border:3px solid rgba(255,255,255,.35);border-top-color:currentColor;
   animation:rot .8s linear infinite;display:inline-block;vertical-align:-5px;margin-right:8px}
 @keyframes rot{to{transform:rotate(360deg)}}
+#wallets{display:flex;flex-direction:column;gap:14px}
+#wallets.hide{display:none}
+.or{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:12.5px}
+.or::before,.or::after{content:"";flex:1;height:1px;background:var(--line)}
+button.pay.ghost{background:transparent;color:var(--ink);border:1.5px solid var(--line)}
 @media (prefers-reduced-motion:reduce){.card{transition:none}.badge{animation:none}}
 @media (min-width:700px){body{align-items:flex-start;padding-top:48px}}
 </style>
@@ -132,6 +143,16 @@ a.link{color:var(--gold-ink);text-decoration:underline;cursor:pointer}
       <div class="price"><span id="amount">$—</span><small id="per"> / month</small></div>
       <span id="trial" class="trial hide"></span>
       <p id="after"></p>
+    </div>
+
+    <!-- Seats: the card the subscription already uses, in one tap. -->
+    <button class="pay ghost hide" id="saved">Pay with my saved card</button>
+
+    <!-- Owner 2026-10-22: Apple Pay / Google Pay (shown only where the
+         device has them); "or pay by card" under them. -->
+    <div id="wallets" class="hide">
+      <div id="el-wallets"></div>
+      <div class="or"><span id="t-or">or pay by card</span></div>
     </div>
 
     <div class="stage" aria-label="Card">
