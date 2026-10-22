@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -139,13 +140,21 @@ class DriftHttpCacheStore implements HttpCacheStore {
 /// On the web the disk layer is the tab's memory database (plan §5).
 final httpCacheInterceptorProvider = Provider<HttpCacheInterceptor>(
   (ref) => HttpCacheInterceptor(
-    disk: DriftHttpCacheStore(
-      ref.watch(cacheDatabaseProvider),
-      () => ref.read(cacheLimitsProvider).limitBytes(CacheStore.http),
-    ),
+    // Widget tests drive a fake adapter through the real Dio: they keep the
+    // memory level only (the disk level has its own tests).
+    disk: isFlutterTest
+        ? null
+        : DriftHttpCacheStore(
+            ref.watch(cacheDatabaseProvider),
+            () => ref.read(cacheLimitsProvider).limitBytes(CacheStore.http),
+          ),
     usage: ref.watch(networkUsageCounterProvider),
   ),
 );
+
+/// True under `flutter test` (never on the web).
+bool get isFlutterTest =>
+    !kIsWeb && Platform.environment.containsKey('FLUTTER_TEST');
 
 /// Today's network usage, persisted (SharedPreferences, one row per day,
 /// yesterday dropped) so the settings screen can show «за сегодня».

@@ -29,7 +29,10 @@ class FixedFlags extends FeatureFlagsController {
       FeatureFlagsState(flags: defaultFeatureFlags, appConfig: appConfig);
 
   @override
-  Future<void> refreshInBackground() async {}
+  Future<void> refreshInBackground({
+    String? knownVersion,
+    Map<String, bool>? flags,
+  }) async {}
 }
 
 class SignedInSession extends SessionController {

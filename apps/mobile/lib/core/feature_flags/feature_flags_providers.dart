@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/core/diagnostics/app_events.dart';
@@ -10,6 +12,7 @@ import 'package:lawbid/core/feature_flags/semver.dart';
 import 'package:lawbid/core/limits/text_limits.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/core/network/headers_interceptor.dart';
+import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'feature_flags_providers.g.dart';
@@ -55,10 +58,34 @@ class FeatureFlagsController extends _$FeatureFlagsController {
   FeatureFlagsState build() =>
       const FeatureFlagsState(flags: defaultFeatureFlags, appConfig: {});
 
-  Future<void> refreshInBackground() async {
+  /// SharedPreferences key of the config version the phone's bootstrap
+  /// copy belongs to (`AppSessionDto.bootstrapVersion`).
+  static const versionKey = 'bootstrap.version';
+
+  /// Owner 2026-10-22 (package G): with [knownVersion] from `/me/session`
+  /// the bootstrap is read from the phone when that version is the one
+  /// the copy was made for — no request; [flags] (the session's gated
+  /// flags) are applied at once either way.
+  Future<void> refreshInBackground({
+    String? knownVersion,
+    Map<String, bool>? flags,
+  }) async {
+    if (flags != null && flags.isNotEmpty) {
+      state = FeatureFlagsState(
+        flags: {...state.flags, ...flags},
+        appConfig: state.appConfig,
+        legalDocuments: state.legalDocuments,
+      );
+    }
     try {
+      final kv = ref.read(localKvStoreProvider);
+      final fromLocal =
+          knownVersion != null && kv.getString(versionKey) == knownVersion;
       final client = ref.read(featureFlagsApiClientProvider);
-      final result = await client.getBootstrap();
+      final result = await client.getBootstrap(fromLocal: fromLocal);
+      if (knownVersion != null && !fromLocal) {
+        unawaited(kv.setString(versionKey, knownVersion));
+      }
       state = FeatureFlagsState(
         // An empty `flags` map (e.g. a future backend variant, or a
         // response the parser recognized no keys in) leaves the current

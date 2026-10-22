@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
+import 'package:lawbid/core/cache/http_cache_interceptor.dart';
 import 'package:lawbid/core/feature_flags/legal_document.dart';
 import 'package:lawbid/core/network/api_error.dart';
 
@@ -92,11 +93,21 @@ class FeatureFlagsApiClient {
 
   final Dio _dio;
 
-  Future<FeatureFlagsBootstrapResult> getBootstrap() async {
+  /// [fromLocal]: the server's config version has not moved (`GET
+  /// /me/session`), so the phone's copy is good for a year — served by the
+  /// HTTP cache with no request (client economy plan, package G).
+  Future<FeatureFlagsBootstrapResult> getBootstrap({
+    bool fromLocal = false,
+  }) async {
     try {
       final response = await _dio.get<Map<String, dynamic>>(
         '/config/bootstrap',
-        options: Options(extra: const {'skipAuth': true}),
+        options: Options(
+          extra: {
+            'skipAuth': true,
+            if (fromLocal) ...cacheFor(const Duration(days: 365)),
+          },
+        ),
       );
       final envelope = response.data?['data'];
       if (envelope is! Map<String, dynamic>) {

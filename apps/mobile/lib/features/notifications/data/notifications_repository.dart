@@ -83,6 +83,13 @@ class AppNotification {
 class Badges {
   const Badges({this.chats = 0, this.notifications = 0, this.iconBadge = true});
 
+  /// The badges inside `GET /me/session` (package G).
+  factory Badges.fromSession(api.BadgesDto d) => Badges(
+        chats: d.chatsUnread.toInt(),
+        notifications: d.notificationsUnread.toInt(),
+        iconBadge: d.iconBadge ?? true,
+      );
+
   final int chats;
   final int notifications;
 

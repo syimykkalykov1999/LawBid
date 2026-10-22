@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:lawbid/core/network/dio_client.dart';
+import 'package:lawbid/core/startup/app_session.dart';
 import 'package:lawbid/features/cases/application/paged_notifier.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/notifications/data/notifications_repository.dart';
@@ -65,7 +66,19 @@ class BadgesNotifier extends Notifier<Badges> {
       }
     });
     ref.onDispose(sub.cancel);
-    unawaited(Future.microtask(refresh));
+    // Owner 2026-10-22 (package G): the start's one answer already carries
+    // the badges — no GET /badges on top of it.
+    ref.listen(appSessionProvider, (_, s) {
+      if (s != null) _set(Badges.fromSession(s.badges));
+    });
+    final session = ref.read(appSessionProvider);
+    if (session != null) {
+      unawaited(
+        Future.microtask(() => _set(Badges.fromSession(session.badges))),
+      );
+    } else {
+      unawaited(Future.microtask(refresh));
+    }
     return const Badges();
   }
 
