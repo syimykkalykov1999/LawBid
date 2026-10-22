@@ -2,10 +2,14 @@
 /// WebAssembly.
 ///
 /// Owner 2026-10-15 (web, step 1): values live in the tab's sessionStorage,
-/// which a reload keeps and closing the tab clears (the plan's step-1
-/// choice for the refresh token; step 8 moves it to an httpOnly cookie). It
-/// is NOT encrypted: a browser has no secure place for a secret that script
-/// can read, so nothing here pretends otherwise.
+/// which a reload keeps and closing the tab clears. It is NOT encrypted: a
+/// browser has no secure place for a secret that script can read, so
+/// nothing here pretends otherwise.
+///
+/// Owner 2026-10-22 (step 8, audit #7): the refresh token itself is no
+/// longer here — the API keeps it in an HttpOnly cookie and the app stores
+/// only a marker (`TokenSecureStore.cookieMarker`). A demo session's token
+/// (a throwaway demo account) is the one exception.
 library flutter_secure_storage_web;
 
 import 'package:flutter_secure_storage_platform_interface/flutter_secure_storage_platform_interface.dart';

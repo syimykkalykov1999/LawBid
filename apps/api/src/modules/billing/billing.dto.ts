@@ -63,6 +63,17 @@ export class CheckoutSessionDto {
   promo?: CheckoutPromoDto;
 }
 
+/** Owner 2026-10-22 (audit #3): the iPhone app buys seats on our card page
+ * in the browser (no payment screen in the app). */
+export class SeatCheckoutDto {
+  @ApiProperty({
+    description:
+      'One-time link to the card page; open it in the browser, then re-read GET /subscriptions/me.',
+  })
+  url!: string;
+  @ApiProperty() sessionId!: string;
+}
+
 /** POST /subscriptions/checkout (OQ-048): the plan, seats and the phones
  * of assistants added at purchase (they join without the attorney's OTP). */
 export class CheckoutRequestDto {

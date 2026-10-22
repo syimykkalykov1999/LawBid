@@ -182,9 +182,47 @@ resource "aws_cloudfront_origin_access_control" "web" {
   signing_protocol                  = "sigv4"
 }
 
+# Owner 2026-10-22 (audit #7): the app's pages run no inline script (the
+# boot code is in boot_head.js / boot_end.js, the card page's in pay.js), so
+# its policy has no 'unsafe-inline' for scripts: a script injected into the
+# page can not run. The company site (LawBidSite, a Next.js static export)
+# writes inline scripts into every page, so its paths get the same policy
+# plus 'unsafe-inline' (see `site_paths` and the ordered behaviors below).
+locals {
+  site_paths = [
+    "about", "clients", "for-attorneys", "features", "pricing", "faq", "contact",
+    "download", "terms", "privacy", "delete-account", "client-agreement",
+    "attorney-agreement", "eula", "refunds", "third-party-services", "cookies",
+    "sms-consent", "dmca", "accessibility",
+  ]
+  csp_rest = [
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src 'self' data: https://fonts.gstatic.com https://www.gstatic.com",
+    "img-src 'self' data: blob: https:",
+    "media-src 'self' blob: https:",
+    "worker-src 'self' blob:",
+    "connect-src ${join(" ", concat(["'self'", var.api_origin, "wss://${replace(var.api_origin, "https://", "")}", "https://*.ingest.sentry.io", "https://*.ingest.us.sentry.io"], var.extra_connect_src, var.app_connect_src, var.media_origins))}",
+    "frame-src ${join(" ", concat(["'self'"], var.stripe_frame_src))}",
+    "frame-ancestors 'none'",
+    "base-uri 'self'",
+    "object-src 'none'",
+  ]
+  script_src = concat(["'self'", "'wasm-unsafe-eval'", "https://www.gstatic.com"], var.stripe_script_src)
+  csp = {
+    app  = join("; ", concat(["default-src 'self'", "script-src ${join(" ", local.script_src)}"], local.csp_rest))
+    site = join("; ", concat(["default-src 'self'", "script-src ${join(" ", concat(local.script_src, ["'unsafe-inline'"]))}"], local.csp_rest))
+  }
+}
+
+moved {
+  from = aws_cloudfront_response_headers_policy.web
+  to   = aws_cloudfront_response_headers_policy.web["app"]
+}
+
 resource "aws_cloudfront_response_headers_policy" "web" {
-  name    = "${var.name}-web-security"
-  comment = "Security headers for the web app"
+  for_each = local.csp
+  name     = each.key == "app" ? "${var.name}-web-security" : "${var.name}-site-security"
+  comment  = each.key == "app" ? "Security headers for the web app" : "Security headers for the company site pages"
 
   dynamic "custom_headers_config" {
     for_each = var.cross_origin_isolation ? [1] : []
@@ -219,22 +257,10 @@ resource "aws_cloudfront_response_headers_policy" "web" {
       override        = true
     }
     # The Flutter engine needs wasm and inline styles; images and media
-    # come from the CDN and the video host.
+    # come from the CDN and the video host. No inline scripts (see locals).
     content_security_policy {
-      content_security_policy = join("; ", [
-        "default-src 'self'",
-        "script-src ${join(" ", concat(["'self'", "'wasm-unsafe-eval'", "'unsafe-inline'", "https://www.gstatic.com"], var.stripe_script_src))}",
-        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-        "font-src 'self' data: https://fonts.gstatic.com https://www.gstatic.com",
-        "img-src 'self' data: blob: https:",
-        "media-src 'self' blob: https:",
-        "worker-src 'self' blob:",
-        "connect-src ${join(" ", concat(["'self'", var.api_origin, "wss://${replace(var.api_origin, "https://", "")}", "https://*.ingest.sentry.io", "https://*.ingest.us.sentry.io"], var.extra_connect_src, var.app_connect_src, var.media_origins))}",
-        "frame-src ${join(" ", concat(["'self'"], var.stripe_frame_src))}",
-        "frame-ancestors 'none'",
-        "base-uri 'self'",
-      ])
-      override = true
+      content_security_policy = each.value
+      override                = true
     }
   }
 }
@@ -337,7 +363,7 @@ resource "aws_cloudfront_distribution" "web" {
     compress               = true
     # AWS managed CachingOptimized: follows the object's Cache-Control.
     cache_policy_id            = "658327ea-f89d-4fab-a63d-7e88639e58f6"
-    response_headers_policy_id = aws_cloudfront_response_headers_policy.web.id
+    response_headers_policy_id = aws_cloudfront_response_headers_policy.web["app"].id
 
     function_association {
       event_type   = "viewer-request"
@@ -346,6 +372,31 @@ resource "aws_cloudfront_distribution" "web" {
     function_association {
       event_type   = "viewer-response"
       function_arn = aws_cloudfront_function.app_noindex.arn
+    }
+  }
+
+  # Owner 2026-10-22: the company site's pages keep inline scripts
+  # (Next.js), so they get the "site" policy; everything else is the app's.
+  dynamic "ordered_cache_behavior" {
+    for_each = local.site_paths
+    content {
+      path_pattern               = "/${ordered_cache_behavior.value}*"
+      target_origin_id           = "web"
+      viewer_protocol_policy     = "redirect-to-https"
+      allowed_methods            = ["GET", "HEAD", "OPTIONS"]
+      cached_methods             = ["GET", "HEAD"]
+      compress                   = true
+      cache_policy_id            = "658327ea-f89d-4fab-a63d-7e88639e58f6"
+      response_headers_policy_id = aws_cloudfront_response_headers_policy.web["site"].id
+
+      function_association {
+        event_type   = "viewer-request"
+        function_arn = aws_cloudfront_function.seo_index.arn
+      }
+      function_association {
+        event_type   = "viewer-response"
+        function_arn = aws_cloudfront_function.app_noindex.arn
+      }
     }
   }
 

@@ -151,6 +151,15 @@ class ApiSubscriptionRepository implements SubscriptionRepository {
       );
 
   @override
+  Future<Uri> seatsCheckoutUrl(int seats) async {
+    final d = (await guardApiCall(
+      () => _api.seatsCheckout(body: api.SeatPreviewRequestDto(seats: seats)),
+    ))
+        .data;
+    return Uri.parse(d.url);
+  }
+
+  @override
   Future<SeatPreview> previewSeats(int seats) async {
     final d = (await guardApiCall(
       () => _api.previewSeats(body: api.SeatPreviewRequestDto(seats: seats)),

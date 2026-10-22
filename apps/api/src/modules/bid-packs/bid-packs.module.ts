@@ -4,10 +4,13 @@ import {
   BidPacksController,
 } from './bid-packs.controller';
 import { BidPacksService } from './bid-packs.service';
+import { PayLinkModule } from '../billing/pay-link.module';
 
 /** The service alone — imported by bids (spending), billing (the payment
  * webhook) and the HTTP module below. Uses the global PAYMENT_PROVIDER. */
 @Module({
+  // Owner 2026-10-22: the card page's links.
+  imports: [PayLinkModule],
   providers: [BidPacksService],
   exports: [BidPacksService],
 })

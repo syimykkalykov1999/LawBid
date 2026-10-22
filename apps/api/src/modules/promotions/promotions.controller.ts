@@ -5,6 +5,7 @@ import {
   Param,
   Post,
   Query,
+  Req,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
@@ -43,7 +44,14 @@ import {
 } from './promotions.dto';
 import { PromotionsService } from './promotions.service';
 
+import type { Request } from 'express';
+
 const E = ErrorCode;
+
+/** Owner 2026-10-22: the API address the card page calls back. */
+function apiBaseOf(req: Request): string {
+  return `${req.protocol}://${req.get('host')}/api/v1`;
+}
 
 /** Owner 2026-10-02: the client promotes their own open case (~$10/day).
  * Owner 2026-10-05: anyone promotes their own post, no subscription. */
@@ -112,8 +120,9 @@ export class PromotionsController {
     @CurrentUser() user: RequestUser,
     @Param() p: PromotionCaseIdParamDto,
     @Body() dto: CreatePromotionDto,
+    @Req() req: Request,
   ): Promise<CreatePromotionResultDto> {
-    return this.promotions.create(user.sub, p.id, dto);
+    return this.promotions.create(user.sub, p.id, dto, apiBaseOf(req));
   }
 
   @Get('posts/:id/promotion')
@@ -158,8 +167,9 @@ export class PromotionsController {
     @CurrentUser() user: RequestUser,
     @Param() p: PromotionPostIdParamDto,
     @Body() dto: CreatePromotionDto,
+    @Req() req: Request,
   ): Promise<CreatePromotionResultDto> {
-    return this.promotions.createPost(user.sub, p.id, dto);
+    return this.promotions.createPost(user.sub, p.id, dto, apiBaseOf(req));
   }
 
   @Get('me/promotions')

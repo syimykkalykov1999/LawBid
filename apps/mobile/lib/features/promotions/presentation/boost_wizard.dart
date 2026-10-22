@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -8,6 +7,9 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/payments/pay_page_look.dart';
+import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
+    show showConfirmSheet;
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
 import 'package:lawbid/features/onboarding/domain/us_states.dart';
 import 'package:lawbid/features/onboarding/presentation/widgets/option_picker_sheet.dart';
@@ -15,11 +17,13 @@ import 'package:lawbid/features/practice/practice_options.dart';
 import 'package:lawbid/features/promotions/application/promotions_providers.dart';
 import 'package:lawbid/features/promotions/domain/promotion_models.dart';
 import 'package:lawbid/features/promotions/presentation/boost_colors.dart';
+import 'package:lawbid/features/promotions/presentation/pending_payment_sheet.dart';
 import 'package:lawbid/features/referrals/domain/referral_models.dart';
 import 'package:lawbid/features/stars/application/stars_providers.dart';
+import 'package:lawbid/features/subscription/application/subscription_providers.dart'
+    show checkoutLauncherProvider;
 import 'package:lawbid/features/subscription/domain/subscription_models.dart';
 import 'package:lawbid/features/subscription/presentation/promo_code_field.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 /// Owner 2026-10-15 (mockup v4): the Boost setup in five steps — goal,
 /// audience, budget and days (with the reach estimate), the button under
@@ -68,6 +72,9 @@ class PromoteSheet extends ConsumerStatefulWidget {
   /// Owner 2026-10-15: add days to a running boost; they start when it ends.
   final bool extend;
 
+  /// Owner 2026-10-22: an unpaid promotion ([resume]) first asks what to
+  /// do — pay it, start over or cancel it (the payment is voided at Stripe
+  /// by `POST /promotions/:id/stop`, the post stays as it was).
   static Future<void> show(
     BuildContext context, {
     required PromotionTarget target,
@@ -75,18 +82,63 @@ class PromoteSheet extends ConsumerStatefulWidget {
     required CasePromotionState state,
     bool extend = false,
     CasePromotion? resume,
-  }) =>
-      showAppBottomSheet<void>(
-        context: context,
-        isScrollControlled: true,
-        builder: (_) => PromoteSheet(
-          target: target,
-          id: id,
-          state: state,
-          extend: extend,
-          resume: resume,
-        ),
-      );
+  }) async {
+    var keep = resume;
+    if (resume != null) {
+      final choice = await showPendingPaymentSheet(context, resume);
+      if (choice == null || !context.mounted) return;
+      if (choice != PendingPaymentChoice.pay) {
+        final container = ProviderScope.containerOf(context, listen: false);
+        final t = container.read(translatorProvider);
+        if (choice == PendingPaymentChoice.cancel) {
+          final ok = await showConfirmSheet(
+            context,
+            t: t,
+            title: t.t('promote.pending.cancelTitle'),
+            message: t.t('promote.pending.cancelMessage'),
+            confirmLabel: t.t('promote.pending.cancelConfirm'),
+            destructive: true,
+          );
+          if (!ok || !context.mounted) return;
+        }
+        try {
+          final after = await container
+              .read(promotionsRepositoryProvider)
+              .stop(resume.id);
+          container
+            ..invalidate(promotionStateProvider(target, id))
+            ..invalidate(myPromotionsProvider);
+          if (!context.mounted) return;
+          // Paid meanwhile: the server applied it instead of cancelling.
+          if (after?.isRunning ?? false) {
+            showAppSnackBar(context, t.t('promote.pending.alreadyPaid'));
+            return;
+          }
+          if (choice == PendingPaymentChoice.cancel) {
+            showAppSnackBar(context, t.t('promote.pending.canceled'));
+            return;
+          }
+        } on Object catch (e) {
+          if (context.mounted) showAppSnackBar(context, errorText(t, e));
+          return;
+        }
+        // Start over: the wizard from step 1, nothing pre-filled.
+        keep = null;
+      }
+    }
+    if (!context.mounted) return;
+    await showAppBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => PromoteSheet(
+        target: target,
+        id: id,
+        state: state,
+        extend: extend,
+        resume: keep,
+      ),
+    );
+  }
 
   @override
   ConsumerState<PromoteSheet> createState() => _PromoteSheetState();
@@ -297,15 +349,13 @@ class _PromoteSheetState extends ConsumerState<PromoteSheet> {
       final url = r.checkoutUrl;
       if (url != null) {
         // Owner 2026-10-19: the payment page opens, or the sheet says why
-        // not — never nothing.
+        // not — never nothing. Owner 2026-10-22: it is our card page (card,
+        // Apple Pay, Google Pay) with the app's theme and language, opened
+        // the store-safe way (Safari on iPhone, this tab on the web).
         final uri = Uri.tryParse(url);
         final opened = uri != null &&
-            uri.scheme == 'https' &&
-            await launchUrl(
-              uri,
-              mode: kIsWeb
-                  ? LaunchMode.platformDefault
-                  : LaunchMode.externalApplication,
+            await ref.read(checkoutLauncherProvider)(
+              withAppPayPageLook(ref.read, uri),
             );
         if (!mounted) return;
         if (!opened) {

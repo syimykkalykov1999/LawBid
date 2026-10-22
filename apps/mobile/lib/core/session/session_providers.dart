@@ -148,7 +148,8 @@ class SessionController extends _$SessionController {
       final client = ref.read(authApiClientProvider);
       final deviceInfo = ref.read(deviceInfoProvider);
       final tokens = await client.refresh(
-        refreshToken: refreshToken,
+        // Owner 2026-10-22: the web cookie marker goes out as ''.
+        refreshToken: TokenSecureStore.wireValue(refreshToken),
         deviceInfo: deviceInfo,
         isDemo: isDemo,
       );
@@ -214,8 +215,9 @@ class SessionController extends _$SessionController {
       throw const FormatException('Access token is not a valid JWT.');
     }
     final normalized = base64Url.normalize(parts[1]);
-    final payload = jsonDecode(utf8.decode(base64Url.decode(normalized)))
-        as Map<String, dynamic>;
+    final payload = jsonDecode(
+      utf8.decode(base64Url.decode(normalized)),
+    ) as Map<String, dynamic>;
     return SessionState(
       accessToken: tokens.accessToken,
       sub: payload['sub'] as String,
@@ -223,8 +225,9 @@ class SessionController extends _$SessionController {
       sid: payload['sid'] as String,
       verified: payload['verified'] as bool,
       subscriptionStatus: payload['subscriptionStatus'] as String,
-      accessTokenExpiresAt:
-          DateTime.now().add(Duration(seconds: tokens.accessTokenExpiresIn)),
+      accessTokenExpiresAt: DateTime.now().add(
+        Duration(seconds: tokens.accessTokenExpiresIn),
+      ),
       // docs/ops/demo-world.md: claim `demo: true` marks a demo session.
       isDemo: payload['demo'] == true,
     );

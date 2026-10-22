@@ -56,7 +56,7 @@ describe('CorsPolicy', () => {
     expect(load).toHaveBeenCalledTimes(2);
   });
 
-  it('delegate: credentials only for the admin origin', async () => {
+  it('delegate: credentials for the admin and web origins (owner 2026-10-22)', async () => {
     const p = new CorsPolicy(['https://admin.lawbid.dev'], 'production', () =>
       Promise.resolve(web),
     );
@@ -74,7 +74,7 @@ describe('CorsPolicy', () => {
     });
     expect(await run('https://lawbid.dev')).toMatchObject({
       origin: true,
-      credentials: false,
+      credentials: true,
     });
     expect(await run('https://evil.example')).toMatchObject({ origin: false });
   });

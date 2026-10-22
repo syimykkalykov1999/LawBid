@@ -13,6 +13,7 @@ import '../models/payment_list_envelope.dart';
 import '../models/portal_session_envelope.dart';
 import '../models/public_pricing_envelope.dart';
 import '../models/seat_change_result_envelope.dart';
+import '../models/seat_checkout_envelope.dart';
 import '../models/seat_preview_envelope.dart';
 import '../models/seat_preview_request_dto.dart';
 import '../models/set_seats_dto.dart';
@@ -50,6 +51,13 @@ abstract class SubscriptionsClient {
   @POST('/subscriptions/seats')
   Future<SeatChangeResultEnvelope> setSeats({
     @Body() required SetSeatsDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// A one-time link to the card page for buying seats in the browser (iPhone, owner 2026-10-22)
+  @POST('/subscriptions/seats/checkout')
+  Future<SeatCheckoutEnvelope> seatsCheckout({
+    @Body() required SeatPreviewRequestDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

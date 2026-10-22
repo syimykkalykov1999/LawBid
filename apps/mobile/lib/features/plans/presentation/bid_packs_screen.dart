@@ -5,6 +5,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/dio_client.dart';
+import 'package:lawbid/core/payments/pay_page_look.dart';
 import 'package:lawbid/shared/domain/payment_page_launch_mode.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
@@ -69,8 +70,12 @@ class _BidPacksScreenState extends ConsumerState<BidPacksScreen>
       ))
           .data;
       _purchaseId = r.purchaseId;
+      // Owner 2026-10-22: our card page, in the app's theme and language
+      // (Safari on the iPhone: stars are never bought inside the iOS app).
       final url = Uri.tryParse(r.checkoutUrl);
-      if ((url == null || !await openPaymentPage(url)) && mounted) {
+      if ((url == null ||
+              !await openPaymentPage(withAppPayPageLook(ref.read, url))) &&
+          mounted) {
         showAppSnackBar(context, t.t('plans.cantOpen'));
       }
     } on Object catch (e) {

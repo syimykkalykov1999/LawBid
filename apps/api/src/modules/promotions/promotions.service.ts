@@ -22,10 +22,13 @@ import { EntitlementsService } from '../plans/entitlements.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { PAYMENT_PROVIDER } from '../billing/billing.constants';
-import type {
-  PaymentProvider,
-  ProviderCheckoutSession,
+import {
+  isPaymentIntentId,
+  paymentIntentAsCheckout,
+  type PaymentProvider,
+  type ProviderCheckoutSession,
 } from '../billing/payment-provider';
+import { PayLinkService } from '../billing/pay-link.service';
 import { StarsService } from '../stars/stars.service';
 import { ReferralsService } from '../referrals/referrals.service';
 import { wholeDays } from '../referrals/referrals.settings';
@@ -150,6 +153,8 @@ export class PromotionsService {
     @Optional() private readonly delivery?: PromotionDeliveryService,
     @Optional() private readonly appSettings?: AppSettingsService,
     @Optional() private readonly stars?: StarsService,
+    // Owner 2026-10-22: our own card page in place of Stripe's.
+    @Optional() private readonly payLink?: PayLinkService,
   ) {}
 
   /** Owner 2026-10-16: an attorney who is not verified cannot buy Boost
@@ -316,8 +321,9 @@ export class PromotionsService {
     userId: string,
     caseId: string,
     dto: CreatePromotionDto,
+    apiBase?: string,
   ): Promise<CreatePromotionResultDto> {
-    return this.createFor(userId, 'case', caseId, dto);
+    return this.createFor(userId, 'case', caseId, dto, apiBase);
   }
 
   /** POST /posts/:id/promotions. */
@@ -325,8 +331,9 @@ export class PromotionsService {
     userId: string,
     postId: string,
     dto: CreatePromotionDto,
+    apiBase?: string,
   ): Promise<CreatePromotionResultDto> {
-    return this.createFor(userId, 'post', postId, dto);
+    return this.createFor(userId, 'post', postId, dto, apiBase);
   }
 
   /** The button of a promoted post: allowed type, safe link, real phone.
@@ -360,6 +367,7 @@ export class PromotionsService {
     type: PromotionTarget,
     id: string,
     dto: CreatePromotionDto,
+    apiBase?: string,
   ): Promise<CreatePromotionResultDto> {
     const settings = await this.settings();
     await this.assertEntitled(userId, settings);
@@ -549,6 +557,28 @@ export class PromotionsService {
       };
     }
 
+    // Owner 2026-10-22: our own card page (card, Apple Pay, Google Pay) in
+    // place of Stripe's hosted page; the PaymentIntent is made when the page
+    // opens (payPageSession). Stripe's page stays the fallback when the
+    // card page is off or has no public key.
+    if (apiBase && this.payLink && (await this.payLink.enabled())) {
+      const link = await this.payLink.link(
+        userId,
+        { kind: 'promotion', promotionId: row.id },
+        apiBase,
+      );
+      return {
+        promotionId: row.id,
+        status: 'pending_payment',
+        checkoutUrl: link.url,
+        totalCents: row.total_cents,
+        starsCharged: 0,
+        creditDaysUsed: wholeDays(creditDaysUsed),
+        creditDaysUsedExact: creditDaysUsed,
+        promotion: toPromotionDto(row),
+      };
+    }
+
     let session: { id: string; url: string };
     try {
       if (!this.provider?.createOneTimeCheckout) {
@@ -720,6 +750,15 @@ export class PromotionsService {
       });
     }
     if (p.status === 'pending_payment') {
+      // Owner 2026-10-22 («Отменить» on «Завершить оплату»): the payment
+      // is voided at Stripe first, so the page left open can not take the
+      // money later. Paid meanwhile → it is applied instead (the owner sees
+      // the running promotion, nothing is lost).
+      if (await this.voidPayment(p.stripe_checkout_id)) {
+        return toPromotionDto(
+          await this.prisma.casePromotion.findUniqueOrThrow({ where: { id } }),
+        );
+      }
       await this.abandon(p.id, userId, 'stopped_by_owner');
     } else if (p.status === 'active') {
       await this.prisma.casePromotion.updateMany({
@@ -749,8 +788,152 @@ export class PromotionsService {
 
   // ---- payment confirmation ----------------------------------------------
 
+  /**
+   * Owner 2026-10-22: closes the promotion's open payment (our card page's
+   * PaymentIntent or Stripe's hosted session). Returns true when it turned
+   * out to be paid already — it is then applied, not cancelled.
+   */
+  private async voidPayment(providerId: string | null): Promise<boolean> {
+    if (!providerId || !this.provider) return false;
+    if (isPaymentIntentId(providerId)) {
+      const pi = await this.provider.cancelPaymentIntent?.(providerId);
+      if (pi?.status === 'succeeded') {
+        return this.applyCheckout(paymentIntentAsCheckout(pi));
+      }
+      return false;
+    }
+    const s = await this.provider.expireCheckoutSession?.(providerId);
+    if (s?.status === 'complete') return this.applyCheckout(s);
+    return false;
+  }
+
+  /**
+   * Owner 2026-10-22: our card page opened for an unpaid promotion — the
+   * PaymentIntent it confirms (made once, kept on the row). A promotion
+   * paid meanwhile answers `paid` so the page shows the success screen.
+   */
+  async payPageSession(
+    userId: string,
+    id: string,
+  ): Promise<{
+    paid: boolean;
+    amountCents: number;
+    currency: string;
+    days: number;
+    target: PromotionTarget;
+    clientSecret: string | null;
+    paymentIntentId: string | null;
+  }> {
+    const row = await this.prisma.casePromotion.findUnique({ where: { id } });
+    if (!row || row.user_id !== userId) {
+      throw new NotFoundException({
+        code: ErrorCode.NOT_FOUND,
+        message: 'Promotion not found.',
+      });
+    }
+    const target: PromotionTarget = row.post_id ? 'post' : 'case';
+    const base = {
+      amountCents: row.total_cents,
+      currency: 'usd',
+      days: row.days,
+      target,
+    };
+    if (row.status === 'active' || row.status === 'pending_review') {
+      return { ...base, paid: true, clientSecret: null, paymentIntentId: null };
+    }
+    if (row.status !== 'pending_payment') {
+      throw new ConflictException({
+        code: ErrorCode.PROMOTION_INVALID_STATE,
+        message: 'This promotion was cancelled. Start it again from the app.',
+      });
+    }
+    if (!this.provider?.createPaymentIntent) {
+      throw new ServiceUnavailableException({
+        code: ErrorCode.PAYMENTS_NOT_CONFIGURED,
+        message: 'Payments are not configured on this server.',
+      });
+    }
+    let current = row.stripe_checkout_id;
+    if (current && !isPaymentIntentId(current)) {
+      // A Stripe hosted session from before: closed first (paid → applied).
+      if (await this.voidPayment(current)) {
+        return {
+          ...base,
+          paid: true,
+          clientSecret: null,
+          paymentIntentId: null,
+        };
+      }
+      current = null;
+    }
+    if (current) {
+      const pi = await this.provider.retrievePaymentIntent?.(current);
+      if (pi?.status === 'succeeded') {
+        await this.applyCheckout(paymentIntentAsCheckout(pi));
+        return {
+          ...base,
+          paid: true,
+          clientSecret: null,
+          paymentIntentId: null,
+        };
+      }
+      if (pi && pi.status !== 'canceled') {
+        return {
+          ...base,
+          paid: false,
+          clientSecret: pi.clientSecret,
+          paymentIntentId: pi.id,
+        };
+      }
+    }
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true },
+    });
+    const what = row.post_id ? 'post' : 'case';
+    const pi = await this.provider.createPaymentIntent({
+      amountCents: row.total_cents,
+      currency: 'usd',
+      description: `LawBid ${what} promotion — ${row.days} day${row.days === 1 ? '' : 's'}`,
+      metadata: {
+        kind: PROMOTION_CHECKOUT_KIND,
+        promotionId: row.id,
+        ...(row.post_id ? { postId: row.post_id } : {}),
+        ...(row.case_id ? { caseId: row.case_id } : {}),
+        userId,
+      },
+      receiptEmail: user?.email ?? null,
+      idempotencyKey: `case-promotion-pi:${row.id}`,
+    });
+    await this.prisma.casePromotion.updateMany({
+      where: { id: row.id, status: 'pending_payment' },
+      data: { stripe_checkout_id: pi.id },
+    });
+    return {
+      ...base,
+      paid: false,
+      clientSecret: pi.clientSecret,
+      paymentIntentId: pi.id,
+    };
+  }
+
+  /** The card page says it paid: check the PaymentIntent and apply it. */
+  async payPageConfirm(userId: string, id: string): Promise<boolean> {
+    const row = await this.prisma.casePromotion.findUnique({ where: { id } });
+    if (!row || row.user_id !== userId) return false;
+    if (row.status === 'active' || row.status === 'pending_review') return true;
+    if (!row.stripe_checkout_id) return false;
+    return this.applyCheckoutById(row.stripe_checkout_id);
+  }
+
   async applyCheckoutById(sessionId: string): Promise<boolean> {
     try {
+      if (isPaymentIntentId(sessionId)) {
+        const pi = await this.provider?.retrievePaymentIntent?.(sessionId);
+        return pi
+          ? await this.applyCheckout(paymentIntentAsCheckout(pi))
+          : false;
+      }
       const session = this.provider
         ? await this.provider.retrieveCheckoutSession(sessionId)
         : null;

@@ -96,6 +96,10 @@ jobs:
         run: |
           test -s build/web/canvaskit/skwasm.wasm
           test -s build/web/index.html
+          # Owner 2026-10-22: the page's scripts are files (strict CSP).
+          test -s build/web/boot_head.js
+          test -s build/web/boot_end.js
+          test -s build/web/pay.js
           test -s build/web/main.dart.wasm
           test -s build/web/sqlite3.wasm
           test -s build/web/drift_worker.js
