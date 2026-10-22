@@ -10,6 +10,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { withDeleted } from '../../prisma/soft-delete.extension';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
+import { publishSessionRevoked } from '../../redis/session-revoked';
 import { PAYMENT_PROVIDER } from '../billing/billing.constants';
 import type { PaymentProvider } from '../billing/payment-provider';
 import { BidStateMachine } from '../bids/domain/bid-state-machine';
@@ -427,9 +428,11 @@ export class AccountAnonymizationService {
     // Access tokens of the revoked chains die within their 15 minutes.
     if (chains.length > 0) {
       await Promise.all(
-        chains.map((id) =>
-          this.redis.set(blacklistKey(id), '1', 'EX', BLACKLIST_TTL_SEC),
-        ),
+        chains.map(async (id) => {
+          await this.redis.set(blacklistKey(id), '1', 'EX', BLACKLIST_TTL_SEC);
+          // Owner 2026-10-22: its live sockets close now (RealtimeGateway).
+          await publishSessionRevoked(this.redis, { sessionId: id, userId });
+        }),
       );
     }
     await this.access.invalidate(userId);

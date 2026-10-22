@@ -12,6 +12,55 @@ export const conversationRoom = (id: string) => `conversation:${id}`;
 export const viewingKey = (userId: string, conversationId: string) =>
   `rt:view:${userId}:${conversationId}`;
 
+export type SocketAdapterMode = 'sharded' | 'classic';
+
+/** Owner 2026-10-22 (server load audit, finding 5): SOCKET_IO_ADAPTER —
+ * `sharded` (default) or `classic`. The gateway's adapter and this
+ * publisher must agree (the API and the worker get the same env). */
+export function socketAdapterMode(
+  env: NodeJS.ProcessEnv = process.env,
+): SocketAdapterMode {
+  return env.SOCKET_IO_ADAPTER === 'classic' ? 'classic' : 'sharded';
+}
+
+/** The channel prefix @socket.io/redis-adapter uses by default. */
+const CHANNEL_PREFIX = 'socket.io';
+/** socket.io-adapter ClusterAdapter MessageType.BROADCAST. */
+const CLUSTER_BROADCAST = 3;
+/** socket.io-parser PacketType.EVENT. */
+const PACKET_EVENT = 2;
+/** socket.io-adapter's EMITTER_UID: a sender that is not a server. */
+const EMITTER_UID = 'emitter';
+
+/**
+ * The sharded adapter's broadcast to [rooms] (createShardedAdapter,
+ * subscriptionMode `dynamic`): one room → that room's own channel, so only
+ * the instances holding the room read it; several rooms → the namespace's
+ * channel (every instance). @socket.io/redis-emitter speaks only the
+ * classic format, hence this small encoder (JSON: the payloads carry no
+ * binary).
+ */
+export function shardedBroadcast(
+  nsp: string,
+  rooms: string[],
+  event: string,
+  data: unknown,
+): { channel: string; message: string } {
+  const base = `${CHANNEL_PREFIX}#${nsp}#`;
+  return {
+    channel: rooms.length === 1 ? `${base}${rooms[0]}#` : base,
+    message: JSON.stringify({
+      uid: EMITTER_UID,
+      nsp,
+      type: CLUSTER_BROADCAST,
+      data: {
+        opts: { rooms, except: [], flags: {} },
+        packet: { type: PACKET_EVENT, data: [event, data], nsp },
+      },
+    }),
+  };
+}
+
 export type RealtimeEvent =
   | 'message:new'
   // Owner 2026-10-20: edited, deleted for everyone, reaction, pin.
@@ -53,11 +102,19 @@ export type RealtimeEvent =
 @Injectable()
 export class RealtimePublisher {
   private readonly emitter: ReturnType<Emitter['of']>;
+  private readonly sharded: boolean;
 
   constructor(@Inject(REDIS_CLIENT) private readonly redis: Redis) {
     this.emitter = new Emitter(redis).of(REALTIME_NAMESPACE);
+    // Test doubles of REDIS_CLIENT without SPUBLISH keep the classic path
+    // (the gateway stays on the in-memory adapter for them too).
+    this.sharded =
+      socketAdapterMode() === 'sharded' &&
+      typeof (redis as Partial<Redis>).spublish === 'function';
   }
 
+  /** One publish for all [userIds] (each socket gets it once), however
+   * many people — callers never loop per member. */
   toUsers(userIds: string[], event: RealtimeEvent, data: unknown): void {
     if (userIds.length === 0) return;
     // The emitter publishes through ioredis and drops the returned
@@ -65,6 +122,16 @@ export class RealtimePublisher {
     // rejection. Best-effort delivery: skip when Redis isn't ready.
     if (this.redis.status !== 'ready') return;
     try {
+      if (this.sharded) {
+        const { channel, message } = shardedBroadcast(
+          REALTIME_NAMESPACE,
+          [...new Set(userIds)].map(userRoom),
+          event,
+          data,
+        );
+        void this.redis.spublish(channel, message).catch(() => undefined);
+        return;
+      }
       this.emitter.to(userIds.map(userRoom)).emit(event, data);
     } catch {
       // best-effort (see class doc)
