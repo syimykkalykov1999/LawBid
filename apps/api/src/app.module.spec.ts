@@ -11,12 +11,17 @@ import {
 import { Test } from '@nestjs/testing';
 import { Logger, LoggerModule } from 'nestjs-pino';
 import request from 'supertest';
+// Owner 2026-10-22: production logs a 1 % sample of successful requests;
+// these id checks need every line. Read once, on the first request.
+process.env.HTTP_LOG_SAMPLE_PERCENT = '100';
 import { pinoHttpOptions } from './app.module';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 
 interface LogLine {
   msg?: string;
-  req?: { id?: string; url?: string };
+  level?: number;
+  req?: { id?: string; url?: string; headers?: unknown };
+  res?: Record<string, unknown>;
 }
 
 const lines: LogLine[] = [];
@@ -128,5 +133,24 @@ describe('AppModule logging: pino request id == X-Request-Id', () => {
     expect(completionLogFor('/probe/missing')?.req?.id).toBe(
       res.headers['x-request-id'],
     );
+  });
+
+  it('a line is compact: no headers, the status only (finding 1)', async () => {
+    await request(app.getHttpServer())
+      .get('/probe/ok')
+      .set('Authorization', 'Bearer secret-token')
+      .expect(200);
+    const log = completionLogFor('/probe/ok');
+    expect(log?.req?.headers).toBeUndefined();
+    expect(Object.keys(log?.req ?? {}).sort()).toEqual(
+      ['id', 'url', 'method'].sort(),
+    );
+    expect(log?.res).toEqual({ statusCode: 200 });
+    expect(JSON.stringify(log)).not.toContain('secret-token');
+  });
+
+  it('a 4xx is logged as a warning', async () => {
+    await request(app.getHttpServer()).get('/probe/missing').expect(404);
+    expect(completionLogFor('/probe/missing')?.level).toBe(40);
   });
 });

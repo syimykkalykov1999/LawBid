@@ -1,7 +1,7 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { LoggerModule } from 'nestjs-pino';
-import type { Options as PinoHttpOptions } from 'pino-http';
+import { startTime, type Options as PinoHttpOptions } from 'pino-http';
 import { ViewerContextInterceptor } from './common/viewer/viewer-context';
 import { ConfigModule } from './config/config.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -125,6 +125,20 @@ import {
 } from './common/middleware/request-id.middleware';
 import { DemoHeaderMiddleware } from './common/demo/demo-header.middleware';
 import { DemoModule } from './modules/demo/demo.module';
+import {
+  compactReq,
+  compactRes,
+  httpLogLevel,
+  httpLogPolicyFromEnv,
+  requestUserProps,
+  type HttpLogPolicy,
+} from './common/logging/http-log-policy';
+
+/** Read once, on the first finished request (the env is loaded by then). */
+let cachedHttpLogPolicy: HttpLogPolicy | undefined;
+function httpLogPolicy(): HttpLogPolicy {
+  return (cachedHttpLogPolicy ??= httpLogPolicyFromEnv());
+}
 
 /**
  * pino-http options for LoggerModule. Exported so src/app.module.spec.ts
@@ -171,26 +185,27 @@ export const pinoHttpOptions: PinoHttpOptions = {
     ],
     censor: '[REDACTED]',
   },
-  // docs/05 §7.6: search text is never logged next to the caller.
+  // Owner 2026-10-22 (server load audit, finding 1): compact lines — the
+  // request id, method and url (query values and secret path parts such as
+  // the Bunny webhook token removed; docs/05 §7.6: search text is never
+  // logged), the status and the user; no headers or bodies. CloudWatch
+  // bills per GB, and the full request object was most of every line.
   serializers: {
-    req: (req: { url?: string; query?: unknown }) =>
-      req.url?.includes('/search/')
-        ? {
-            ...req,
-            url: req.url.replace(/\?.*$/, '?[REDACTED]'),
-            query: undefined,
-          }
-        : // The Bunny webhook's secret token is a path segment.
-          req.url?.includes('/webhooks/bunny/')
-          ? {
-              ...req,
-              url: req.url.replace(
-                /\/webhooks\/bunny\/[^/?]+/,
-                '/webhooks/bunny/[REDACTED]',
-              ),
-            }
-          : req,
+    req: compactReq,
+    res: compactRes,
   },
+  customProps: (req) => requestUserProps(req),
+  // Owner 2026-10-22: only failures (status >= 400 or an error, always),
+  // requests slower than HTTP_LOG_SLOW_MS and an HTTP_LOG_SAMPLE_PERCENT
+  // sample of the rest are written (docs/COST_PROTECTION.md).
+  customLogLevel: (_req, res, err) =>
+    httpLogLevel(
+      res.statusCode,
+      Date.now() - (res[startTime] ?? Date.now()),
+      // pino-http logs `err` or `res.err` as a failure (a 5xx line).
+      err != null || (res as { err?: unknown }).err != null,
+      httpLogPolicy(),
+    ),
   transport:
     process.env.NODE_ENV === 'development'
       ? { target: 'pino-pretty' }

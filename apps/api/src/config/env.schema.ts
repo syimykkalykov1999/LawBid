@@ -412,6 +412,12 @@ export const envSchema = z
     // Owner 2026-10-15: a database call slower than this many ms is written
     // to the log (operation name and time only, never the values). 0 = off.
     DB_SLOW_QUERY_MS: z.coerce.number().int().min(0).default(300),
+    // Owner 2026-10-22 (server load audit, finding 1): request log lines.
+    // Failures (status >= 400) are always written; of the fast successful
+    // requests only this share (%, 0-100) is, and a request slower than
+    // HTTP_LOG_SLOW_MS ms always is (docs/COST_PROTECTION.md).
+    HTTP_LOG_SAMPLE_PERCENT: z.coerce.number().min(0).max(100).default(1),
+    HTTP_LOG_SLOW_MS: z.coerce.number().int().min(0).default(1000),
     // docs/02 §3.3 monthly disposable-domain refresh: plain text, one
     // domain per line, '#' comments (the open disposable-email-domains
     // blocklist by default).
