@@ -167,6 +167,13 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: OTP_DAILY_LIMIT_MIN,
     max: OTP_DAILY_LIMIT_MAX,
   };
+  // Security research #5 (2026-10-22), A4.
+  out['security.app_check.mode'] = {
+    ...out['security.app_check.mode'],
+    description:
+      'Firebase App Check on sign-in codes, password reset, social sign-in and the phone-status check: off | monitor (log only, default) | enforce (a request without a valid token from the app gets 403; a code by e-mail still works).',
+    pattern: /^(off|monitor|enforce)$/,
+  };
   out['verification.bar_document_for_manual_states'] = {
     ...out['verification.bar_document_for_manual_states'],
     description:

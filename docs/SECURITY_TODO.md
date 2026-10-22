@@ -54,4 +54,30 @@ The Firebase API keys in `apps/mobile/ios/Runner/GoogleService-Info.plist` and `
    - API restrictions on both: **Restrict key** → only the APIs the app uses (Firebase Installations, FCM Registration, Firebase Cloud Messaging; add Identity Toolkit only if Firebase Auth is used).
    - The browser key (web push), if there is one: HTTP referrers → the web app's domains only.
 2. **Turn on App Check.** Firebase Console → App Check → register the apps: **App Attest** (with DeviceCheck as fallback) for iOS, **Play Integrity** for Android, **reCAPTCHA Enterprise** for the web. First run in *monitor* mode for a week and watch the share of verified requests. Then **Enforce** for Cloud Messaging (and any other Firebase product in use). The app needs the `firebase_app_check` package and one `activate()` call at start-up: that is a small separate code task after the console part.
+   Server side (security research #5, A4, 2026-10-22): done — the API verifies the `X-Firebase-AppCheck` header on the costly anonymous routes by `security.app_check.mode` (off / monitor / enforce, default monitor). The app side (the header, B1) and the switch to enforce are in `docs/runbooks/APP_CHECK.md`.
 3. **Check:** a request with the key from another bundle ID / package (for example `curl` to the Installations API) must answer `403 API_KEY_IOS_APP_BLOCKED` / `ANDROID_APP_BLOCKED`.
+
+## Rules for a future LLM feature (security research #5, A10)
+
+There is no language model in the API today (no `openai` / `anthropic` /
+`gemini` / `bedrock` client; translation is Google Translate v2). When one
+is added (answers to a legal question, text moderation), it follows these
+rules from the first commit, so OWASP LLM01 (prompt injection) never
+becomes our problem:
+
+1. User text goes only into the `user` role; the system prompt holds no
+   secrets, no account data of other people and no instruction the user
+   could override by asking.
+2. The model gets no tools with rights (no database, no HTTP, no files);
+   its output is validated against a schema before anything acts on it.
+3. A token limit per request and per user per day; every call goes through
+   `costGuard.consume('llm')` as the 8th paid provider (Админка → Лимиты).
+4. Model output shown to other people is treated as user content
+   (moderation lists, link limits apply).
+
+## Phone-book pepper (security research #5, A7) — owner step
+
+`CONTACTS_PEPPER` must be created in Secrets Manager and listed in
+`extra_secrets` (docs/runbooks/DEPLOY_PROD.md, «Перец для хэшей телефонной
+книги»). Until then the API warns at boot and stores the plain hashes as
+before; the backfill job re-hashes the old rows once the secret exists.

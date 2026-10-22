@@ -23,6 +23,8 @@ import { QrLoginService } from './services/qr-login.service';
 import { WebSessionCookies } from './web-session-cookie';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { ReauthGuard } from './guards/reauth.guard';
+import { AppCheckGuard } from './app-check/app-check.guard';
+import { AppCheckService } from './app-check/app-check.service';
 import { ReauthVerifier } from './services/reauth-verifier.service';
 import { SMS_PROVIDER, EMAIL_PROVIDER } from './providers/provider.tokens';
 import type { SmsProvider } from './providers/sms/sms-provider.interface';
@@ -106,6 +108,9 @@ import { demoNoop } from '../../common/demo/demo-guards';
     AuthEventService,
     ReauthGuard,
     ReauthVerifier,
+    // Security research #5 (2026-10-22), A4: Firebase App Check.
+    AppCheckService,
+    AppCheckGuard,
     LoginMethodPolicy,
     AssistantCodeService,
     QrLoginService,

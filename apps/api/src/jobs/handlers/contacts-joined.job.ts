@@ -3,6 +3,7 @@ import type Redis from 'ioredis';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationsService } from '../../modules/notifications/notifications.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
+import { ContactsPepper } from '../../modules/contacts-sync/contacts-pepper';
 import { emitOnce } from './reminder-claim';
 
 /** New accounts handled per run (every 2 minutes; the rest next run). */
@@ -37,6 +38,7 @@ export class ContactsJoinedJob {
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    private readonly pepper: ContactsPepper,
   ) {}
 
   async run(now: Date = new Date()): Promise<ContactsJoinedResult> {
@@ -76,8 +78,10 @@ export class ContactsJoinedJob {
     joinerId: string,
     hash: string,
   ): Promise<{ matched: number; notified: number }> {
+    // Security research #5 (A7): the peppered row, or the plain one not
+    // re-hashed yet (ContactsPepper.where).
     const rows = await this.prisma.contactBookHash.findMany({
-      where: { phone_sha256: hash, owner_id: { not: joinerId } },
+      where: { ...this.pepper.where([hash]), owner_id: { not: joinerId } },
       select: { owner_id: true },
       take: CONTACTS_JOINED_OWNERS_MAX,
     });

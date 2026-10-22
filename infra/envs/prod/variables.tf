@@ -246,3 +246,37 @@ variable "turn_enabled" {
   default     = false
   description = "coturn relay for calls (modules/turn); docs/runbooks/TURN.md."
 }
+
+# Security research #5 (2026-10-22): WAF, cloud detector, container.
+variable "waf_otp_rate_limit_per_5m" {
+  type    = number
+  default = 20
+}
+variable "waf_bot_control_enabled" {
+  type    = bool
+  default = false
+}
+variable "waf_bot_control_block" {
+  type    = bool
+  default = false
+}
+variable "cdn_waf_rate_limit_per_5m" {
+  type    = number
+  default = 2000
+}
+variable "security_hub_enabled" {
+  type    = bool
+  default = false
+}
+variable "guardduty_alert_severity" {
+  type    = number
+  default = 7
+}
+variable "ecs_readonly_root_filesystem" {
+  type    = bool
+  default = true
+}
+variable "dmarc_policy" {
+  type    = string
+  default = "quarantine"
+}

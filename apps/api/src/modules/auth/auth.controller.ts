@@ -62,6 +62,7 @@ import { TokenService } from './services/token.service';
 import { QrLoginService } from './services/qr-login.service';
 import { AssistantSelf } from './assistant/assistant-context';
 import { ReauthGuard } from './guards/reauth.guard';
+import { AppCheckGuard, RequireAppCheck } from './app-check/app-check.guard';
 import { ReauthRequired } from './decorators/reauth-required.decorator';
 import { ReauthVerifier } from './services/reauth-verifier.service';
 import {
@@ -124,6 +125,9 @@ const IdempotencyKeyHeader = ApiHeader({
 // Owner 2026-10-22 (audit #7): the website's refresh token goes into an
 // HttpOnly cookie on every route that issues one (see web-session-cookie).
 @UseInterceptors(WebSessionCookieInterceptor)
+// Security research #5 (2026-10-22), A4: only the routes marked
+// @RequireAppCheck() are looked at (app-check.guard.ts).
+@UseGuards(AppCheckGuard)
 export class AuthController {
   constructor(
     private readonly auth: AuthService,
@@ -145,6 +149,9 @@ export class AuthController {
   })
   @IdempotencyKeyHeader
   @Public()
+  // Security research #5 (2026-10-22), A4: the app's App Check token;
+  // a code by e-mail stays free (no SMS money at stake).
+  @RequireAppCheck({ freeWhen: (b) => b.channel === 'email' })
   @Post('otp/request')
   @HttpCode(HttpStatus.OK)
   @UseInterceptors(IdempotencyInterceptor)
@@ -274,6 +281,7 @@ export class AuthController {
   })
   @IdempotencyKeyHeader
   @Public()
+  @RequireAppCheck()
   @Post('social')
   @UseInterceptors(IdempotencyInterceptor)
   async social(
@@ -414,6 +422,7 @@ export class AuthController {
   }
 
   @Public()
+  @RequireAppCheck()
   @Post('phone/status')
   @HttpCode(HttpStatus.OK)
   @ApiEnvelopeResponse(PhoneStatusResultDto)
@@ -490,6 +499,8 @@ export class AuthController {
     503: [E.PROVIDER_BUDGET_EXCEEDED],
   })
   @Public()
+  // Security research #5 (2026-10-22), A4: a reset code is an SMS.
+  @RequireAppCheck()
   @Post('password/reset/request')
   @HttpCode(HttpStatus.OK)
   async passwordResetRequest(

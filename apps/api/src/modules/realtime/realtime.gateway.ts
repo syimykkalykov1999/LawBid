@@ -34,6 +34,11 @@ import {
   viewingKey,
 } from './realtime-publisher.service';
 import { demoContext } from '../../common/demo/demo-context';
+import {
+  newSocketEventBucket,
+  takeSocketEvent,
+  type SocketEventBucket,
+} from './socket-event-bucket';
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -57,6 +62,9 @@ interface SocketState {
   /** Presence heartbeat and the assistant's duty re-check. */
   heartbeatTimer?: NodeJS.Timeout;
   lastTypingAt?: number;
+  /** Security research #5 (2026-10-22), A5: the per-socket packet
+   * budget. */
+  bucket: SocketEventBucket;
   viewing: Set<string>;
   /** Owner 2026-10-01: the other members of each open chat — "typing…"
    * also reaches their chat list. */
@@ -236,7 +244,23 @@ export class RealtimeGateway
     // demo database for its whole life — the rest of this handshake and
     // every later packet run inside the demo context (src/common/demo).
     const demo = claims.demo === true;
-    socket.use((_packet, next) => demoContext.run(demo, () => next()));
+    // Security research #5 (2026-10-22), A5: every packet takes a token
+    // from the socket's bucket; a flood (a broken or hostile client) gets
+    // `RATE_LIMITED` and is disconnected — the REST API has had this per
+    // user for a long time, the socket had nothing.
+    socket.use((packet, next) => {
+      const s = state(socket);
+      if (s?.bucket && !takeSocketEvent(s.bucket)) {
+        this.logger.warn(
+          { userId: s.user?.sub, event: String(packet[0]) },
+          'socket packet limit: disconnecting',
+        );
+        socket.emit('auth:error', { code: 'RATE_LIMITED' });
+        socket.disconnect(true);
+        return;
+      }
+      demoContext.run(demo, () => next());
+    });
     return demoContext.run(demo, () =>
       this.finishConnection(socket, claims, token),
     );
@@ -247,7 +271,11 @@ export class RealtimeGateway
     claims: AccessTokenClaims,
     token: string,
   ): Promise<void> {
-    socket.data = { user: claims, viewing: new Set<string>() } as SocketState;
+    socket.data = {
+      user: claims,
+      viewing: new Set<string>(),
+      bucket: newSocketEventBucket(),
+    } as SocketState;
     // The session was checked at the handshake (verify); from now on a
     // revocation reaches this socket as a `session:revoked` message.
     this.index(socket, claims.sid);
