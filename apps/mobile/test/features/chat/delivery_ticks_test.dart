@@ -65,8 +65,9 @@ void main() {
     c.read(deliveryAckerProvider);
   });
 
+  // Owner 2026-10-22 (package K): `delivered` goes once a second per chat.
   Future<void> wait() =>
-      Future<void>.delayed(const Duration(milliseconds: 500));
+      Future<void>.delayed(const Duration(milliseconds: 1300));
 
   test('a message from the other side is acknowledged once, the newest one',
       () async {

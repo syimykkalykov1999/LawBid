@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/account_status/account_restricted.dart';
 import 'package:lawbid/core/account_status/account_suspended.dart';
 import 'package:lawbid/core/app_update/app_update_gate.dart';
+import 'package:lawbid/core/cache/cache_providers.dart';
 import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/available_languages.dart';
@@ -18,6 +19,7 @@ import 'package:lawbid/core/platform/web_safe_area.dart';
 import 'package:lawbid/core/theme/preferences_sync.dart';
 import 'package:lawbid/features/calls/presentation/call_host.dart';
 import 'package:lawbid/features/onboarding/application/countries_providers.dart';
+import 'package:lawbid/features/settings/storage/application/storage_providers.dart';
 
 class LawBidApp extends ConsumerWidget {
   const LawBidApp({super.key});
@@ -31,6 +33,11 @@ class LawBidApp extends ConsumerWidget {
       // Owner 2026-10-05: switched-on countries and their regions.
       ..listen(countriesProvider, (_, __) {});
     final router = ref.watch(appRouterProvider);
+    // Owner 2026-10-22 (client economy plan §5): the cache limits are kept
+    // once a day, and today's network use is counted from the start.
+    ref
+      ..watch(cacheEnforcerProvider)
+      ..watch(networkUsageTodayProvider);
     // Owner 2026-10-13: Day, Night, Navy or Glass; never chosen = Day or
     // Night by the phone.
     final chosen = ref.watch(appThemeControllerProvider);
