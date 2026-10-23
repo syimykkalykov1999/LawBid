@@ -344,6 +344,10 @@ export class AttorneyProfilesService implements OnApplicationShutdown {
 
   /** The attorney's own numbers for the last 30 days (+ clients all time). */
   async stats(attorneyId: string): Promise<AttorneyStatsDto> {
+    // Views are counted write-behind (one batch per 10 s); the owner asking
+    // for their own numbers is rare, so write the waiting batch first and
+    // the answer is exact.
+    await this.views.flush();
     const since = new Date(Date.now() - 30 * 24 * 3600 * 1000);
     const [views, sent, accepted, clients] = await Promise.all([
       this.prisma.attorneyProfileView.aggregate({

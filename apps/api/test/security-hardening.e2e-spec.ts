@@ -169,7 +169,8 @@ describe('Security hardening (e2e)', () => {
       const first = await api().get('/api/v1/config/bootstrap').expect(200);
       const ttl = await redis.ttl(BOOTSTRAP_CACHE_KEY);
       expect(ttl).toBeGreaterThan(0);
-      expect(ttl).toBeLessThanOrEqual(30);
+      // Load audit 6: the 30 s TTL carries +/-20 % jitter (anti-stampede).
+      expect(ttl).toBeLessThanOrEqual(36);
 
       // A row written straight to the DB is NOT visible on repeat: the
       // repeat was answered from the cache, not by re-querying.
