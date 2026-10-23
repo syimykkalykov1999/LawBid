@@ -171,6 +171,10 @@ describe('link preview: safe fetch and parser', () => {
       'https://2130706433/', // decimal 127.0.0.1
       'https://0x7f.1/',
       'https://[::ffff:127.0.0.1]/',
+      'https://[2002:7f00:1::1]/', // 6to4 wrapping 127.0.0.1
+      'https://[::7f00:1]/',
+      'https://[fe80::1]/',
+      'https://[fd00::1]/',
       'https://intranet/',
       'https://printer.local/',
       'https://metadata.google.internal/',

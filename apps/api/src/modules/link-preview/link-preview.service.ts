@@ -11,7 +11,7 @@ import type Redis from 'ioredis';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
-import { RateLimitService } from '../auth/services/rate-limit.service';
+import { RateLimitService } from '../auth/auth.public';
 import { LinkPreviewDto } from './link-preview.dto';
 import { parsePreview } from './og-parser';
 import { checkPreviewUrl, safeFetchHtml, SafeFetchError } from './safe-fetch';

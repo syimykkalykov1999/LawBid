@@ -3,7 +3,7 @@ import { request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
 import { isIP } from 'node:net';
 import { createBrotliDecompress, createGunzip, createInflate } from 'node:zlib';
-import { isPrivateAddress } from '../verification/providers/bar-lookup/registry-http';
+import { isPrivateAddress } from '../../common/net/private-address';
 
 /**
  * Owner 2026-10-22: the SSRF-safe GET behind the chat link previews.

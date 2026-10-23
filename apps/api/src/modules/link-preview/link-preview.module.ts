@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { RateLimitService } from '../auth/services/rate-limit.service';
+import { RateLimitService } from '../auth/auth.public';
 import { LinkPreviewController } from './link-preview.controller';
 import { LinkPreviewService } from './link-preview.service';
 
