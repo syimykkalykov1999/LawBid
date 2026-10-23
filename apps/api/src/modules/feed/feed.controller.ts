@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Put, Query } from '@nestjs/common';
+import { OptionalAuth } from '../auth/decorators/optional-auth.decorator';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -69,6 +70,7 @@ export class FeedController {
     private readonly contentFilter: ContentFilterService,
   ) {}
 
+  @OptionalAuth()
   @Get()
   @ApiOperation({
     summary: 'Feed: followed + recommended posts (docs/05 §2.2)',

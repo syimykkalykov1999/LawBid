@@ -645,6 +645,11 @@ export const OWNER_CHAT_ACTION_SETTINGS = {
    * peer holds about 9); `video_provider` p2p | livekit (livekit needs the
    * LIVEKIT_* keys); big-audience channel calls come next release. */
   'calls.max_participants': 9,
+  /** Owner 2026-10-22: guest browsing (reading with no account). Kill
+   * switch and the per-IP budgets of token-less reads. */
+  'guest.browsing_enabled': true,
+  'guest.rate_limit_per_minute': 40,
+  'guest.rate_limit_per_hour': 600,
   'calls.video_provider': 'p2p',
   'calls.channel_live_enabled': false,
   'chat.link_preview_enabled': true,

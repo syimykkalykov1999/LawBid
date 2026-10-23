@@ -12,6 +12,7 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import { OptionalAuth } from '../auth/decorators/optional-auth.decorator';
 import {
   ApiBearerAuth,
   ApiExtension,
@@ -112,6 +113,7 @@ export class PostsController {
     return this.posts.create(user, dto);
   }
 
+  @OptionalAuth()
   @Get('posts/:id')
   @ApiOperation({ summary: 'A post (docs/05 §3.5)' })
   @ApiEnvelopeResponse(PostDto)
@@ -257,6 +259,7 @@ export class PostsController {
     return this.posts.unpin(user, p.id);
   }
 
+  @OptionalAuth()
   @Get('attorneys/:id/posts')
   @ApiOperation({ summary: "An attorney's posts, newest first (docs/05 §15)" })
   @ApiEnvelopeResponse(PostDto, { isArray: true })

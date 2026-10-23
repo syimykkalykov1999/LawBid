@@ -70,6 +70,19 @@ export function useBodyParsers(
   app: Pick<NestExpressApplication, 'use'>,
   bodyLimit: string,
 ): void {
+  // Owner 2026-10-22: LiveKit posts its webhooks as
+  // `application/webhook+json`, which no default parser reads; the signature
+  // covers the exact bytes, so keep them (req.rawBody) like Stripe's.
+  app.use(
+    `/${GLOBAL_PREFIX}/webhooks/livekit`,
+    express.json({
+      type: 'application/webhook+json',
+      limit: bodyLimit,
+      verify: (req, _res, buf) => {
+        (req as { rawBody?: Buffer }).rawBody = buf;
+      },
+    }),
+  );
   app.use(CONTACTS_SYNC_PATH, express.json({ limit: CONTACTS_BODY_LIMIT }));
   app.use(express.json({ limit: bodyLimit }));
   app.use(express.urlencoded({ limit: bodyLimit, extended: false }));

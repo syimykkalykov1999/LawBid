@@ -2,7 +2,10 @@ import {
   CanActivate,
   ExecutionContext,
   ForbiddenException,
+  HttpException,
+  HttpStatus,
   Injectable,
+  Optional,
   UnauthorizedException,
 } from '@nestjs/common';
 import {
@@ -15,6 +18,10 @@ import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
+import { IS_OPTIONAL_AUTH_KEY } from '../decorators/optional-auth.decorator';
+import { guestUser } from '../../../common/viewer/guest';
+import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
+import { RateLimitService } from '../services/rate-limit.service';
 import {
   TokenService,
   TokenVerifyExpiredError,
@@ -49,7 +56,57 @@ export class JwtAuthGuard implements CanActivate {
     private readonly tokenService: TokenService,
     private readonly revocation: SessionRevocationService,
     private readonly assistants: AssistantContextService,
+    // Owner 2026-10-22 (guest browsing): the stricter per-IP limit and the
+    // kill switch of token-less reads.
+    @Optional() private readonly settings?: AppSettingsService,
+    @Optional() private readonly limiter?: RateLimitService,
   ) {}
+
+  /** A token-less call to an `@OptionalAuth()` read route: the guest viewer,
+   * a per-IP budget (`guest.rate_limit_per_minute` / `_per_hour`) and the
+   * `guest.browsing_enabled` switch. */
+  private async admitGuest(
+    req: Request & { user?: RequestUser; userId?: string },
+  ): Promise<void> {
+    if (
+      this.settings &&
+      !(await this.settings.boolean('guest.browsing_enabled'))
+    ) {
+      throw new UnauthorizedException({
+        code: ErrorCode.UNAUTHORIZED,
+        message: 'Missing bearer token.',
+      });
+    }
+    if (this.limiter && this.settings) {
+      const ip = req.ip ?? 'unknown';
+      const [perMinute, perHour] = await Promise.all([
+        this.settings.number('guest.rate_limit_per_minute'),
+        this.settings.number('guest.rate_limit_per_hour'),
+      ]);
+      for (const [window, limit, seconds] of [
+        ['m', perMinute, 60],
+        ['h', perHour, 3600],
+      ] as const) {
+        const r = await this.limiter.consumeFixedWindow(
+          ['guest', window, ip],
+          limit,
+          seconds,
+        );
+        if (!r.allowed) {
+          throw new HttpException(
+            {
+              code: ErrorCode.RATE_LIMITED,
+              message: 'Too many requests. Sign in or try again later.',
+              details: { retryAfterSeconds: r.retryAfterSeconds },
+            },
+            HttpStatus.TOO_MANY_REQUESTS,
+          );
+        }
+      }
+    }
+    req.user = guestUser();
+    req.userId = req.user.sub;
+  }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
@@ -66,6 +123,16 @@ export class JwtAuthGuard implements CanActivate {
     >();
 
     const token = this.extractBearerToken(req);
+    if (
+      !token &&
+      this.reflector.getAllAndOverride<boolean>(IS_OPTIONAL_AUTH_KEY, [
+        context.getHandler(),
+        context.getClass(),
+      ])
+    ) {
+      await this.admitGuest(req);
+      return true;
+    }
     if (!token) {
       throw new UnauthorizedException({
         code: ErrorCode.UNAUTHORIZED,

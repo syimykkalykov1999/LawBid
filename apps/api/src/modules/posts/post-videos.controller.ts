@@ -9,6 +9,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
+import { OptionalAuth } from '../auth/decorators/optional-auth.decorator';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   ApiEnvelopeResponse,
@@ -91,6 +92,7 @@ export class PostVideosController {
     return this.videos.cancel(user.sub, p.id);
   }
 
+  @OptionalAuth()
   @Get('reels')
   @ApiOperation({ summary: 'Video posts, newest first (full-screen reels)' })
   @ApiEnvelopeResponse(PostDto, { isArray: true })
